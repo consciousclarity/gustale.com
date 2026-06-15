@@ -20,8 +20,8 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Build the necessary packages
-RUN pnpm --filter @gustale/db run build
-RUN pnpm --filter @gustale/api run build
+RUN cd packages/db && pnpm run build
+RUN cd apps/api && pnpm run build
 
 # Prune devDependencies for a smaller production node_modules
 RUN pnpm prune --prod
