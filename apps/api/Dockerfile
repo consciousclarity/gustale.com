@@ -10,18 +10,15 @@ WORKDIR /app
 # Install pnpm globally
 RUN npm install -g pnpm
 
-# Copy dependency manifests
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
-# Install ALL dependencies (including dev) needed for building/testing
-RUN pnpm install --frozen-lockfile
-
-# Copy the full monorepo source code
+# Copy the full monorepo source code FIRST
 COPY . .
 
-# Build the necessary packages
-RUN cd packages/db && pnpm run build
-RUN cd apps/api && pnpm run build
+# Now that the full workspace is present, run install
+RUN pnpm install --frozen-lockfile
+
+# Build the necessary packages using the standard filter syntax
+RUN pnpm --filter @gustale/db run build
+RUN pnpm --filter @gustale/api run build
 
 # Prune devDependencies for a smaller production node_modules
 RUN pnpm prune --prod
