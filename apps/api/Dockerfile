@@ -1,68 +1,65 @@
 # Gustale API — multi-stage Dockerfile
-# Stage 1: build (on Geekom), Stage 2: slim runtime
-#
-# Build context = the full monorepo so we can copy:
-#   - apps/api/dist           (compiled JS)
-#   - apps/api/package.json
-#   - packages/db/dist        (compiled JS — schema)
-#   - packages/db/package.json
-#   - node_modules            (already-built, from pnpm install)
-#
-# We do NOT install/build inside the image — Geekom is the build host.
 
-# ---------- Stage 1: build ----------
-FROM node:24.15-slim AS build
+# ---------- Stage 1: builder ----------
+# This stage installs all dependencies, builds the monorepo packages,
+# and prunes devDependencies to create a clean production node_modules.
+FROM node:22-slim AS builder
+
 WORKDIR /app
 
-# Copy the build artifacts produced by `pnpm --filter @gustale/api run build`
-# The caller is expected to mount or COPY the prebuilt `apps/api/dist/`
-# and `packages/db/dist/` (and node_modules) into the build context.
-COPY apps/api/dist       ./apps/api/dist
-COPY apps/api/package.json ./apps/api/package.json
-COPY packages/db/dist    ./packages/db/dist
-COPY packages/db/package.json ./packages/db/package.json
-COPY node_modules        ./node_modules
-COPY apps/api/node_modules ./apps/api/node_modules
-COPY packages/db/node_modules ./packages/db/node_modules
+# Install pnpm globally
+RUN npm install -g pnpm
 
-# Sanity check: the entrypoint file must exist
-RUN test -f /app/apps/api/dist/apps/api/src/server.js \
- || (echo "MISSING server.js — build artifact not mounted correctly" && exit 1)
+# Copy dependency manifests
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# @gustale/db is a workspace package; pnpm creates a symlink in
-# apps/api/node_modules/@gustale/db pointing at packages/db/. The symlink
-# doesn't survive the COPY, so we materialise it as a real directory
-# containing the built dist + the package.json with proper exports.
-# (Runs as root before we switch to USER node.)
-RUN rm -rf /app/apps/api/node_modules/@gustale/db \
- && mkdir -p /app/apps/api/node_modules/@gustale/db \
- && cp -r /app/packages/db/dist/. /app/apps/api/node_modules/@gustale/db/ \
- && cp /app/packages/db/package.json /app/apps/api/node_modules/@gustale/db/package.json \
- && echo "@gustale/db installed into apps/api/node_modules"
+# Install ALL dependencies (including dev) needed for building/testing
+RUN pnpm install --frozen-lockfile
+
+# Copy the full monorepo source code
+COPY . .
+
+# Build the necessary packages
+RUN pnpm --filter @gustale/db run build
+RUN pnpm --filter @gustale/api run build
+
+# Prune devDependencies for a smaller production node_modules
+RUN pnpm prune --prod
+
 
 # ---------- Stage 2: runtime ----------
-FROM node:24.15-slim
-WORKDIR /app
+# This stage creates the final, slim production image.
+FROM node:22-slim
 
-# Copy only what we need to run
-COPY --from=build /app/apps/api/dist       ./apps/api/dist
-COPY --from=build /app/apps/api/package.json ./apps/api/package.json
-COPY --from=build /app/packages/db/dist    ./packages/db/dist
-COPY --from=build /app/packages/db/package.json ./packages/db/package.json
-COPY --from=build /app/node_modules        ./node_modules
-COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=build /app/packages/db/node_modules ./packages/db/node_modules
+WORKDIR /app
 
 # Run as non-root
 USER node
 
+# Copy artifacts from the builder stage
+COPY --from=builder --chown=node:node /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=node:node /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder --chown=node:node /app/packages/db/dist ./packages/db/dist
+COPY --from=builder --chown=node:node /app/packages/db/package.json ./packages/db/package.json
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+
+# Recreate the symlink for the workspace package, now pointing to the copied dist
+# This must be done after the main COPY operations.
+# We create a new directory and then copy the contents to avoid permission issues.
+RUN mkdir -p /app/apps/api/node_modules/@gustale && \
+    ln -s /app/packages/db /app/apps/api/node_modules/@gustale/db
+
+
 ENV NODE_ENV=production \
-    HOST=127.0.0.1 \
+    HOST=0.0.0.0 \
     PORT=4000 \
     LOG_LEVEL=info
 
-# Healthcheck pings /health (no DB call, always available)
+# Healthcheck pings /health
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
-CMD ["node", "apps/api/dist/apps/api/src/server.js"]
+EXPOSE 4000
+
+CMD ["node", "apps/api/dist/server.js"]
+
