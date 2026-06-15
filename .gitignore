@@ -1,0 +1,85 @@
+# ─── Dependencies ─────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+.pnp.*
+.yarn/
+*.lockb
+
+# ─── Build output ─────────────────────────────────────────────────────
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ─── Backups / temp ───────────────────────────────────────────────────
+*.bak
+*.tmp
+*.orig
+*.rej
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ─── Cache / coverage ────────────────────────────────────────────────
+.cache/
+.turbo/
+.parcel-cache/
+.eslintcache
+*.lcov
+coverage/
+.nyc_output/
+
+# ─── Logs ────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+
+# ─── Secrets — NEVER commit these ────────────────────────────────────
+# .env files (any depth, any name except .env.example)
+.env
+.env.*
+!.env.example
+
+# SSH / TLS / signing material
+*.pem
+*.key
+*.crt
+*.csr
+id_rsa*
+id_ed25519*
+known_hosts*
+
+# MinIO / S3 state
+.minio-data/
+.minio.sys/
+
+# Postgres dumps
+*.sql.gz
+*.sql.bz2
+*.dump
+
+# ─── Tooling: Docker ─────────────────────────────────────────────────
+.docker/
+docker-compose.override.yml
+
+# ─── Tooling: editor / OS ────────────────────────────────────────────
+.swc/
+*.swp
+*.swo
+*~
+.fuse_hidden*
+
+# ─── Repo-specific: monorepo build artifacts ─────────────────────────
+# Database package: generated SQL and dist should be committed;
+# .bak directories must NEVER be.
+packages/db/dist/
+packages/db/dist.bak/
+packages/db/.drizzle-tmp/
+
+# Test artefacts
+apps/api/test/.tmp/
+apps/api/test/__snapshots__/*.snap.tmp

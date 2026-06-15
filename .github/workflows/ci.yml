@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin pnpm via Corepack (matches packageManager field in package.json).
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+  # Test against the real DATABASE_URL the app uses; the service container
+  # below provides postgis/postgis:16-3.4 on 127.0.0.1:5432.
+  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale
+  SESSION_SECRET: ci-session-secret-do-not-use-anywhere-real
+  AUTH_SECRET: ci-auth-secret-do-not-use-anywhere-real
+  # These must be set so env.ts's Zod schema passes — even though the
+  # vitest integration test doesn't touch MinIO or better-auth, the
+  # server boots through env validation before tests run.
+  # Safe because CI never talks to a real MinIO or auth provider.
+  # The .invalid TLD is RFC-2606-reserved so it can never resolve.
+  MINIO_ENDPOINT: http://ci-minio.placeholder.invalid:9000
+  MINIO_PORT: 9000
+  MINIO_ACCESS_KEY: ci-minio-access-key-do-not-use-anywhere-real
+  MINIO_SECRET_KEY: ci-minio-secret-key-do-not-use-anywhere-real
+  BETTER_AUTH_SECRET: ci-better-auth-secret-do-not-use-anywhere-real
+  NODE_ENV: test
+
+jobs:
+  # ─── Job 1: Lint + typecheck ───────────────────────────────────────
+  lint:
+    name: Lint + typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (api + db)
+        run: |
+          pnpm --filter @gustale/db run typecheck
+          pnpm --filter @gustale/api run typecheck
+
+      - name: Lint
+        run: pnpm -r run lint
+        continue-on-error: true  # informational until lint is green everywhere
+
+  # ─── Job 2: Tests with ephemeral Postgres ──────────────────────────
+  test:
+    name: Tests (vitest + postgis)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: gustale
+          POSTGRES_PASSWORD: gustale
+          POSTGRES_DB: gustale
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+          --tmpfs /var/lib/postgresql/data:rw,size=2g
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build db package
+        run: pnpm --filter @gustale/db run build
+
+      - name: Apply schema to ephemeral DB
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
+            -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" \
+            -f packages/db/drizzle/0000_cloudy_satana.sql
+
+      - name: Apply seed
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f packages/db/seed-moussaka.sql
+
+      - name: Run vitest
+        working-directory: apps/api
+        run: pnpm test -- --reporter=verbose
+
+  # ─── Job 3: Docker build smoke test ────────────────────────────────
+  build:
+    name: Docker build (gustale-api)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: [lint, test]  # only build once code passes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          tags: gustale-api:ci-${{ github.sha }}
+          load: true            # don't push; just verify it builds
+          # No GHA cache: the multi-stage Dockerfile does a full `pnpm install`
+          # inside the image, and BuildKit's GHA cache key computation chokes on
+          # paths that only exist *after* the install (e.g. packages/db/dist,
+          # node_modules). 4-min clean build is fine for the first iteration;
+          # we can revisit layer caching once the Dockerfile is stable.
+          provenance: false

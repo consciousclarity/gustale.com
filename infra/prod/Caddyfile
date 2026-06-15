@@ -1,0 +1,55 @@
+# Gustale — Caddyfile
+# 2026-06-15 — switched from scribe.recipes placeholder to gustale.com
+
+{
+    admin off
+    email alex_aguilar@gmx.ch
+}
+
+# API host — all traffic goes to the Fastify API on port 4000
+api.gustale.com {
+    reverse_proxy 127.0.0.1:4000
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    encode gzip zstd
+
+    log {
+        output file /var/log/caddy/api.gustale.com.log {
+            roll_size 100mb
+            roll_keep 5
+        }
+    }
+}
+
+# Root + www — also proxy to the API for now (no frontend yet).
+# Will be repointed to a static-site service once the frontend exists.
+gustale.com,
+www.gustale.com {
+    reverse_proxy 127.0.0.1:4000
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    encode gzip zstd
+
+    log {
+        output file /var/log/caddy/gustale.com.log {
+            roll_size 100mb
+            roll_keep 5
+        }
+    }
+}

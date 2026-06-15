@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+docs
+*.log
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store
+*.md
+!packages/db/drizzle/0000_cloudy_satana.sql

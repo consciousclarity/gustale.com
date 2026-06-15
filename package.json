@@ -1,0 +1,30 @@
+{
+  "name": "gustale",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Open-source geo-located encyclopedia of dishes and ingredients",
+  "license": "AGPL-3.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r run test",
+    "db:generate": "pnpm --filter @gustale/db run generate",
+    "db:migrate": "pnpm --filter @gustale/db run migrate",
+    "db:seed": "pnpm --filter @gustale/db run seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  }
+}

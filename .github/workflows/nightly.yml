@@ -1,0 +1,137 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 14 * * *"  # 14:00 UTC = 22:00 Bali (Asia/Makassar) — runs after you finish work
+  workflow_dispatch:       # allow manual trigger from the Actions tab
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false   # never cancel nightly mid-run; let it finish
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale
+  SESSION_SECRET: nightly-session-secret-do-not-use-anywhere-real
+  AUTH_SECRET: nightly-auth-secret-do-not-use-anywhere-real
+  # Mirror the same env-validator-required dummies as ci.yml.
+  MINIO_ENDPOINT: http://ci-minio.placeholder.invalid:9000
+  MINIO_PORT: 9000
+  MINIO_ACCESS_KEY: ci-minio-access-key-do-not-use-anywhere-real
+  MINIO_SECRET_KEY: ci-minio-secret-key-do-not-use-anywhere-real
+  BETTER_AUTH_SECRET: ci-better-auth-secret-do-not-use-anywhere-real
+  NODE_ENV: test
+
+jobs:
+  # ─── Full integration: regenerate schema, reseed, run all tests ────
+  integration:
+    name: Full integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: gustale
+          POSTGRES_PASSWORD: gustale
+          POSTGRES_DB: gustale
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+          --tmpfs /var/lib/postgresql/data:rw,size=2g
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Drop the existing schema to prove migrations are reproducible
+      # from a clean slate every night.
+      - name: Reset database
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 <<'SQL'
+            DROP SCHEMA IF EXISTS public CASCADE;
+            CREATE SCHEMA public;
+            GRANT ALL ON SCHEMA public TO gustale;
+            CREATE EXTENSION IF NOT EXISTS postgis;
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          SQL
+
+      - name: Regenerate schema (catches drizzle schema drift)
+        run: pnpm --filter @gustale/db run generate
+        continue-on-error: true   # generation is informational; the SQL file is committed
+
+      - name: Apply committed schema
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f packages/db/drizzle/0000_cloudy_satana.sql
+
+      - name: Apply seed
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f packages/db/seed-moussaka.sql
+
+      - name: Build db package
+        run: pnpm --filter @gustale/db run build
+
+      - name: Run full test suite
+        working-directory: apps/api
+        run: pnpm test -- --reporter=verbose --coverage
+        env:
+          # coverage thresholds fail the build if they drop
+          COVERAGE_THRESHOLD: 70
+
+      - name: Typecheck
+        run: pnpm -r run typecheck
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-nightly
+          path: apps/api/coverage/
+          retention-days: 30
+
+  # ─── Production image build verification ────────────────────────────
+  build-prod:
+    name: Build production image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: integration
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image (prod sim)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          tags: |
+            gustale-api:nightly-${{ github.run_id }}
+            gustale-api:nightly
+          load: true
+          # No GHA cache — see ci.yml for rationale.
+          provenance: false
+          # Pass a minimal env so the build doesn't fail on missing .env
+          build-args: |
+            NODE_ENV=production

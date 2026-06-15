@@ -1,0 +1,33 @@
+# Gustale — Docker Compose for production (Hostinger VPS)
+# Connects to the shared Postgres + MinIO stack at /home/deploy/shared/
+# via the host network (localhost). No internal Docker network needed.
+#
+# Started: 2026-06-15
+
+services:
+  api:
+    image: gustale-api:0.1.0
+    container_name: gustale-api
+    restart: unless-stopped
+    # Bind directly on the host's loopback. Avoids Docker's userland-port-proxy,
+    # which on some hosts (incl. this Geekom) resets the connection after the
+    # first response. Caddy on the host reverse-proxies to 127.0.0.1:4000.
+    network_mode: host
+    env_file:
+      - .env
+    # Shared stack runs in the `shared` project, so we reach it via host networking
+    # (which is the same `127.0.0.1:5432` / `127.0.0.1:9000` Caddy/anyone on host sees).
+    # If shared were in the same compose project, `network_mode: "service:postgres"`
+    # would also work; we keep them separate for clean isolation.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # No volumes — image is self-contained; .env is read at container start
