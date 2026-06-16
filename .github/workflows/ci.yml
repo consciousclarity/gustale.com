@@ -171,3 +171,34 @@ jobs:
           # node_modules). 4-min clean build is fine for the first iteration;
           # we can revisit layer caching once the Dockerfile is stable.
           provenance: false
+
+  # ─── Job 4: Deploy to Hostinger VPS ────────────────────────────────
+  deploy:
+    name: Deploy to Hostinger
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          script: |
+            set -e
+            echo "--- Logging into ghcr.io ---"
+            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "--- Pulling new image ---"
+            docker pull ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
+            echo "--- Stopping existing container ---"
+            docker stop gustale-api || true
+            docker rm gustale-api || true
+            echo "--- Starting new container ---"
+            docker run -d --name gustale-api --restart unless-stopped \
+              -p 4000:4000 \
+              --env-file /home/${{ secrets.HOSTINGER_USER }}/.env \
+              ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
+            echo "--- Pruning old images ---"
+            docker image prune -f
