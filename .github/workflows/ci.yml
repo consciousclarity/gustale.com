@@ -203,3 +203,4 @@ jobs:
             echo "--- Pruning old images ---"
             docker image prune -f
 # Trigger deployment
+# Refresh runner
