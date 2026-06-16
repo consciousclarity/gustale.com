@@ -58,5 +58,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 EXPOSE 4000
 
-CMD ["node", "apps/api/dist/server.js"]
+CMD ["node", "apps/api/dist/apps/api/src/server.js"]
 
