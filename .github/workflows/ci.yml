@@ -202,3 +202,4 @@ jobs:
               ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
             echo "--- Pruning old images ---"
             docker image prune -f
+# Trigger deployment
