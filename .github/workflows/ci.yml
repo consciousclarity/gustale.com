@@ -198,7 +198,7 @@ jobs:
             echo "--- Starting new container ---"
             docker run -d --name gustale-api --restart unless-stopped \
               -p 4000:4000 \
-              --env-file /home/${{ secrets.HOSTINGER_USER }}/.env \
+              --env-file /root/.env \
               ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
             echo "--- Pruning old images ---"
             docker image prune -f
