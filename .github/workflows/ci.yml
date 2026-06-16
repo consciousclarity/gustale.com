@@ -204,3 +204,4 @@ jobs:
             docker image prune -f
 # Trigger deployment
 # Refresh runner
+# Trigger deploy
