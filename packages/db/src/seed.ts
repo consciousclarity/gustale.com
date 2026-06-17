@@ -2,8 +2,9 @@
  * Gustale — seed script
  *
  * Seeds a complete test dish (Moussaka) with all relations so the API
- * and frontend have something to render. Idempotent: re-running with
- * the same slug will skip the dish insert but refresh view_count.
+ * and frontend have something to render, PLUS a curated encyclopedia of
+ * ~30 iconic world dishes sourced from Wikipedia. Idempotent: re-running
+ * with the same slug will skip the dish insert but refresh view_count.
  *
  * Usage:  pnpm --filter @gustale/db run seed
  *   or:   DATABASE_URL=... tsx packages/db/src/seed.ts
@@ -13,6 +14,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './schema/index.js';
+import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES } from './seed-data.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -276,9 +278,194 @@ async function main(): Promise<void> {
       .onConflictDoNothing();
   }
 
+  // ─── Encyclopedia bulk seed ───────────────────────────────────────────
+  await seedEncyclopedia(db, userId);
+
   console.log(`\nSeed complete. Test dish: ${moussakaSlug}`);
   console.log(`\nTry: curl http://localhost:4000/api/dishes/${moussakaSlug} | jq .`);
   await client.end();
+}
+
+/**
+ * Seed the curated encyclopedia of ~30 dishes with proper origin geometry,
+ * cuisine categories, dish-type categories, and per-dish Wikipedia citations.
+ *
+ * Idempotent: existing slugs are skipped (just like the Moussaka block).
+ */
+async function seedEncyclopedia(
+  db: ReturnType<typeof drizzle>,
+  userId: string,
+): Promise<void> {
+  // 1. Categories (cuisine + dish-type). onConflictDoNothing keeps re-runs safe.
+  //    Note: the existing Moussaka seed already inserts "greek-cuisine" and
+  //    "moussaka", so we filter those out to avoid noisy conflict logs.
+  const existingCatSlugs = new Set(
+    (await db.select({ slug: schema.categories.slug }).from(schema.categories)).map(
+      (r) => r.slug,
+    ),
+  );
+  const newCuisines = CUISINE_CATEGORIES.filter((c) => !existingCatSlugs.has(c.slug));
+  const newDishTypes = DISH_TYPE_CATEGORIES.filter((c) => !existingCatSlugs.has(c.slug));
+  if (newCuisines.length + newDishTypes.length > 0) {
+    await db
+      .insert(schema.categories)
+      .values([...newCuisines, ...newDishTypes])
+      .onConflictDoNothing();
+    console.log(`  + ${newCuisines.length} cuisine + ${newDishTypes.length} dish-type categories`);
+  }
+
+  // 2. Geo entities — one per country. Idempotent via onConflictDoNothing.
+  const newCountries = Array.from(
+    new Map(DISHES.map((d) => [d.isoCode, { name: d.countryName, isoCode: d.isoCode }])).values(),
+  );
+  // Only insert countries we haven't seen — query first to avoid noise.
+  const existingCountries = new Set(
+    (await db.select({ isoCode: schema.geoEntities.isoCode }).from(schema.geoEntities)).map(
+      (r) => r.isoCode,
+    ),
+  );
+  const toInsert = newCountries.filter((c) => !existingCountries.has(c.isoCode));
+  if (toInsert.length > 0) {
+    await db
+      .insert(schema.geoEntities)
+      .values(
+        toInsert.map((c) => ({
+          name: c.name,
+          isoCode: c.isoCode,
+          entityType: 'country' as const,
+        })),
+      )
+      .onConflictDoNothing();
+    console.log(`  + ${toInsert.length} country geo entities`);
+  }
+
+  // 3. Build slug → categoryId lookup for all category types (cuisine + dish-type).
+  const allCategories = await db
+    .select({ id: schema.categories.id, slug: schema.categories.slug })
+    .from(schema.categories);
+  const catIdBySlug = new Map(allCategories.map((c) => [c.slug, c.id]));
+
+  // 4. Build isoCode → geoEntityId lookup for origin FKs.
+  const allGeo = await db
+    .select({ id: schema.geoEntities.id, isoCode: schema.geoEntities.isoCode })
+    .from(schema.geoEntities);
+  const geoIdByIso = new Map(allGeo.map((g) => [g.isoCode, g.id]));
+
+  // 5. Existing dish slugs — skip them on re-run.
+  const existingDishSlugs = new Set(
+    (await db.select({ slug: schema.dishes.slug }).from(schema.dishes)).map((r) => r.slug),
+  );
+
+  // 6. Iterate over curated DISHES, inserting each one with its full citation trail.
+  let inserted = 0;
+  let skipped = 0;
+  for (const d of DISHES) {
+    if (existingDishSlugs.has(d.slug)) {
+      skipped++;
+      continue;
+    }
+
+    const countryId = geoIdByIso.get(d.isoCode);
+    if (!countryId) {
+      console.warn(`  ! skipping ${d.slug}: missing geo entity for ${d.isoCode}`);
+      continue;
+    }
+
+    // Insert the dish row
+    const insertedRows = await db
+      .insert(schema.dishes)
+      .values({
+        slug: d.slug,
+        canonicalName: d.canonicalName,
+        shortDescription: d.shortDescription,
+        longDescription: d.longDescription ?? null,
+        status: 'published',
+        originGeoId: countryId,
+        originDateEarliest: d.originDateEarliest ?? null,
+        originDateLatest: d.originDateLatest ?? null,
+        createdBy: userId,
+        lastEditedBy: userId,
+      })
+      .returning({ id: schema.dishes.id });
+    const dishId = insertedRows[0]!.id;
+
+    // Set origin_location via raw SQL (PostGIS geometry — Drizzle's custom
+    // geometry type round-trips as a string, so we use raw SQL for the SET).
+    await db.execute(
+      sql`UPDATE dishes SET origin_location = ST_SetSRID(ST_MakePoint(${d.lng}, ${d.lat}), 4326) WHERE id = ${dishId}::uuid`,
+    );
+
+    // English translation
+    await db.insert(schema.dishTranslations).values({
+      dishId,
+      language: 'en',
+      name: d.canonicalName,
+      description: d.shortDescription,
+    });
+
+    // Category links: 1 cuisine + N dish-types. Use the primary flag on cuisine.
+    const categoryLinks: Array<{ dishId: string; categoryId: string; isPrimary: boolean }> = [];
+
+    const cuisineId = catIdBySlug.get(d.cuisineSlug);
+    if (cuisineId) {
+      categoryLinks.push({ dishId, categoryId: cuisineId, isPrimary: true });
+    }
+
+    for (const dishType of d.dishTypes) {
+      const typeId = catIdBySlug.get(dishType);
+      if (typeId) {
+        categoryLinks.push({ dishId, categoryId: typeId, isPrimary: false });
+      }
+    }
+
+    if (categoryLinks.length > 0) {
+      await db.insert(schema.dishCategories).values(categoryLinks).onConflictDoNothing();
+    }
+
+    // Wikipedia source + citation — the encyclopedia DNA: every claim has a trail.
+    const url = `https://en.wikipedia.org/wiki/${d.wikipediaSlug}`;
+    const year = new Date().getFullYear();
+    const sourceRows = await db
+      .insert(schema.sources)
+      .values({
+        sourceType: 'web',
+        title: d.canonicalName,
+        authors: ['Wikipedia contributors'],
+        year,
+        publisher: 'Wikipedia, The Free Encyclopedia',
+        url,
+        citationText: `Wikipedia. (${year}). ${d.canonicalName}. Retrieved from ${url}`,
+        language: 'en',
+        reliability: 'secondary',
+        createdBy: userId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: schema.sources.id });
+
+    const sourceId = sourceRows[0]?.id ?? (
+      await db
+        .select({ id: schema.sources.id })
+        .from(schema.sources)
+        .where(eq(schema.sources.url, url))
+        .limit(1)
+    )[0]?.id;
+
+    if (sourceId) {
+      await db.insert(schema.citations).values({
+        sourceId,
+        targetType: 'dish',
+        targetId: dishId,
+        claimText: d.shortDescription,
+        location: 'Lead paragraph',
+        addedBy: userId,
+      });
+    }
+
+    inserted++;
+  }
+
+  console.log(`  + ${inserted} new dishes inserted, ${skipped} already existed`);
+  console.log(`  Total in encyclopedia: ${DISHES.length} dishes`);
 }
 
 main().catch((err) => {
