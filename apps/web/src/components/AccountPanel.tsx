@@ -102,8 +102,8 @@ export function AccountPanel() {
                   Verified
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                  Pending — check your inbox
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                  Unverified
                 </span>
               )}
             </dd>

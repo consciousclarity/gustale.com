@@ -4,12 +4,10 @@ import { authClient } from '../lib/auth';
 /**
  * Email + password sign-in form.
  *
- * On submit: POST /api/auth/sign-in/email → sets gustale.session_token cookie
- * On success: window.location to / (full reload so SSR sees the cookie via the
- *   next page nav — though since the cookie is on api.gustale.com subdomain,
- *   Astro SSR here can't read it directly anyway; the AuthMenu handles the
- *   post-hydration state).
- * On failure: surface the error message.
+ * On submit: POST /api/auth/sign-in/email → sets gustale.session_token cookie.
+ * On success: window.location to / (full reload so the AuthMenu re-fetches
+ *   the session and re-renders).
+ * On failure: surface the error message in the red banner below the form.
  */
 export function SignInForm() {
   const [email, setEmail] = useState('');
@@ -17,21 +15,39 @@ export function SignInForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function friendlyError(err: unknown): string {
+    if (!(err instanceof Error)) {
+      return 'Sign-in failed. Please check your email and password.';
+    }
+    const msg = err.message;
+    // Better-auth nests the actual API error message inside the Error object's
+    // `.message` field, prefixed by "[plugin/auth]". Show the most useful slice.
+    if (msg.includes('Invalid email or password')) {
+      return 'Wrong email or password. Try again or reset your password.';
+    }
+    if (msg.includes('Email not verified')) {
+      return 'Check your inbox to verify your email before signing in.';
+    }
+    if (msg.includes('Too many requests')) {
+      return 'Too many sign-in attempts. Wait a minute and try again.';
+    }
+    if (msg.length < 200) return msg;
+    // Otherwise return the raw message (truncated) so the user can see what
+    // went wrong without us hiding context.
+    return msg.slice(0, 200);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
       await authClient.signIn.email({ email, password });
-      // Full reload so the server-rendered header picks up the authed state.
+      // Full reload so the server-rendered header picks up the authed state
+      // after hydration re-fetches the session.
       window.location.href = '/';
     } catch (err: unknown) {
-      // Better-auth throws an error object with .message, .code, etc.
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Sign-in failed. Please check your email and password.';
-      setError(message);
+      setError(friendlyError(err));
     } finally {
       setSubmitting(false);
     }

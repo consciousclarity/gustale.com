@@ -47,7 +47,7 @@ export function RegisterForm() {
     return (
       <div className="space-y-3 text-center">
         <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-          <strong>Account created.</strong> Check your email for a verification link before signing in.
+          <strong>Account created.</strong> You're ready to sign in.
         </div>
         <a
           href="/login"

@@ -40,7 +40,10 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    // TODO: re-enable once Resend is configured (apps/api/src/env.ts has
+    // RESEND_API_KEY as optional). Until then, requiring email verification
+    // would block ALL sign-ins because the verification email never goes out.
+    requireEmailVerification: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
     autoSignIn: true,
@@ -49,7 +52,10 @@ export const auth = betterAuth({
   },
 
   emailVerification: {
-    sendOnSignUp: true,
+    // Disabled in v1 — see requireEmailVerification above. When Resend is set
+    // up, flip both this back on AND configure sendVerificationEmail to use
+    // Resend instead of logging.
+    sendOnSignUp: false,
     autoSignInAfterVerification: true,
   },
 
