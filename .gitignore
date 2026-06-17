@@ -87,6 +87,10 @@ apps/api/test/__snapshots__/*.snap.tmp
 # ─── Project notes (webmaster-only, not for git) ───────────────────
 # project-data/ contains handoff dumps and personal notes. Do not commit.
 project-data/
-# log archives from CI debugging
 logs.zip
+
+# .hermes/ contains agent-shared state files (SHARED_STATE.md, TASKS.md)
+# and Hermes-specific notes. Keep local-only — Hermes syncs them out-of-band.
+# CLAUDE.md (sibling) IS committed so Claude Code picks it up automatically.
+.hermes/
 *.log.zip
