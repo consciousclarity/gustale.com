@@ -1,17 +1,29 @@
 ---
-
+import Layout from '../layouts/Layout.astro';
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout title="Gustale — A digital culinary archive">
+  <section class="mx-auto max-w-4xl px-4 py-20 text-center">
+    <h1 class="text-5xl font-extrabold tracking-tight text-slate-900">
+      A living archive of the world's dishes.
+    </h1>
+    <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
+      Gustale is an open culinary encyclopedia: origin, method, story — for every dish
+      worth remembering. Browse the catalogue to begin.
+    </p>
+    <div class="mt-10 flex justify-center gap-3">
+      <a
+        href="/dishes"
+        class="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+      >
+        Browse dishes
+      </a>
+      <a
+        href="/about"
+        class="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-slate-400"
+      >
+        About the project
+      </a>
+    </div>
+  </section>
+</Layout>
