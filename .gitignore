@@ -83,3 +83,10 @@ packages/db/.drizzle-tmp/
 # Test artefacts
 apps/api/test/.tmp/
 apps/api/test/__snapshots__/*.snap.tmp
+
+# ─── Project notes (webmaster-only, not for git) ───────────────────
+# project-data/ contains handoff dumps and personal notes. Do not commit.
+project-data/
+# log archives from CI debugging
+logs.zip
+*.log.zip

@@ -172,12 +172,55 @@ jobs:
           # we can revisit layer caching once the Dockerfile is stable.
           provenance: false
 
+  # ─── Job 3b: Docker build smoke test (gustale-web) ───────────────
+  build-web:
+    name: Docker build (gustale-web)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [lint, test]  # only build once code passes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          # Production API base baked at build time so the SSR fetch resolves
+          # correctly. This is the public URL of the gustale-api container
+          # (fronted by Caddy with TLS).
+          build-args: PUBLIC_API_BASE=https://api.gustale.com
+          tags: ghcr.io/${{ github.repository }}/gustale-web:latest,ghcr.io/${{ github.repository }}/gustale-web:${{ github.sha }}
+          push: true
+          provenance: false
+
   # ─── Job 4: Deploy to Hostinger VPS ────────────────────────────────
   deploy:
     name: Deploy to Hostinger
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [build]
+    needs: [build, build-web]  # both images must be built and pushed first
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Deploy via SSH
@@ -189,7 +232,9 @@ jobs:
           command_timeout: 8m
           script: |
             set -euo pipefail
-            IMAGE="ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}"
+            REPO="ghcr.io/${{ github.repository }}"
+            API_IMAGE="$REPO/gustale-api:${{ github.sha }}"
+            WEB_IMAGE="$REPO/gustale-web:${{ github.sha }}"
 
             echo "--- Logging into ghcr.io (use GHCR_PAT from repo secret) ---"
             if [ -z "${{ secrets.GHCR_PAT }}" ]; then
@@ -198,34 +243,56 @@ jobs:
             fi
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
 
-            echo "--- Pulling new image: $IMAGE ---"
-            docker pull "$IMAGE"
+            echo "--- Pulling new API image: $API_IMAGE ---"
+            docker pull "$API_IMAGE"
+            echo "--- Pulling new Web image: $WEB_IMAGE ---"
+            docker pull "$WEB_IMAGE"
 
-            echo "--- Verifying image exists locally before destroying old container ---"
-            if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-              echo "::error::Pulled image $IMAGE not present locally — aborting deploy to keep old container running"
-              exit 1
-            fi
+            # Verify BOTH images are present before destroying any running
+            # container. If either pull failed, the old containers stay up
+            # and we surface a clear error.
+            echo "--- Verifying both images are present locally ---"
+            for IMG in "$API_IMAGE" "$WEB_IMAGE"; do
+              if ! docker image inspect "$IMG" >/dev/null 2>&1; then
+                echo "::error::Image $IMG not present locally — aborting deploy to keep old containers running"
+                exit 1
+              fi
+            done
 
-            echo "--- Stopping + removing existing container (best-effort) ---"
-            docker stop gustale-api 2>/dev/null || true
-            docker rm   gustale-api 2>/dev/null || true
+            deploy_container() {
+              local NAME="$1"
+              local IMAGE="$2"
+              local PORT="$3"
+              local EXTRA_ARGS="${4:-}"
+              echo "--- Deploying $NAME from $IMAGE on port $PORT ---"
+              docker stop "$NAME" 2>/dev/null || true
+              docker rm   "$NAME" 2>/dev/null || true
+              # shellcheck disable=SC2086
+              docker run -d --name "$NAME" --restart unless-stopped \
+                -p "$PORT:$PORT" $EXTRA_ARGS \
+                "$IMAGE"
+            }
 
-            echo "--- Starting new container ---"
-            docker run -d --name gustale-api --restart unless-stopped \
-              -p 4000:4000 \
-              --env-file /root/.env \
-              "$IMAGE"
+            # gustale-api needs /root/.env for DB / MinIO / auth secrets.
+            # gustale-web is pure static; no env-file needed.
+            deploy_container "gustale-api" "$API_IMAGE" "4000" "--env-file /root/.env"
+            deploy_container "gustale-web" "$WEB_IMAGE" "4001" ""
 
-            echo "--- Waiting 10s for boot + healthcheck ---"
+            echo "--- Waiting 10s for both containers to boot + healthcheck ---"
             sleep 10
 
-            echo "--- Verifying container is Up + healthy ---"
-            STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' gustale-api 2>/dev/null || echo "MISSING")
-            echo "container status: $STATUS"
-            if [ "$STATUS" != "running healthy" ]; then
-              echo "::error::Container is not running+healthy. Last 30 log lines:"
-              docker logs --tail 30 gustale-api 2>&1 || true
+            echo "--- Verifying BOTH containers are Up + healthy ---"
+            FAILED=0
+            for NAME in gustale-api gustale-web; do
+              STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$NAME" 2>/dev/null || echo "MISSING")
+              echo "  $NAME status: $STATUS"
+              if [ "$STATUS" != "running healthy" ] && [ "$STATUS" != "running  healthy" ]; then
+                echo "::error::$NAME is not running+healthy. Last 30 log lines:"
+                docker logs --tail 30 "$NAME" 2>&1 || true
+                FAILED=1
+              fi
+            done
+            if [ "$FAILED" = "1" ]; then
               exit 1
             fi
 
