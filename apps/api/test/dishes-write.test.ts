@@ -156,7 +156,9 @@ describe('PATCH /api/dishes/:slug — basic flow', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: '/api/dishes/this-slug-definitely-does-not-exist',
-      payload: { canonicalName: 'X' },
+      // Use a valid-length name so we get past Zod validation and reach
+      // the slug lookup (which then 404s).
+      payload: { canonicalName: 'Some Name' },
     });
     expect(res.statusCode).toBe(404);
   });
