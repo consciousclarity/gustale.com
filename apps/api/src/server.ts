@@ -5,8 +5,10 @@ import sensible from '@fastify/sensible';
 import { env } from './env.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerDishRoutes } from './routes/dishes.js';
+import { registerDishWriteRoutes } from './routes/dishes-write.js';
 import { registerErrorHandler } from './errors.js';
 import betterAuthPlugin from './plugins/auth.js';
+import authContextPlugin from './plugins/auth-context.js';
 import { closeDb } from '@gustale/db';
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -33,12 +35,17 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Auth (better-auth) — mounted at /api/auth/*
   await app.register(betterAuthPlugin);
 
+  // Auth context — resolves request.user and exposes requireRole helper.
+  // Must be registered AFTER better-auth (since it calls auth.api.getSession).
+  await app.register(authContextPlugin);
+
   // Error handler
   registerErrorHandler(app);
 
   // Routes
   registerHealthRoutes(app);
   registerDishRoutes(app);
+  registerDishWriteRoutes(app);
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {
