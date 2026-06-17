@@ -1,11 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
     "types": ["node"],
     "moduleResolution": "Bundler",
     "module": "ESNext",
+    "paths": {
+      "@gustale/db": ["../../packages/db/src/index.ts"],
+      "@gustale/db/*": ["../../packages/db/src/*"]
+    },
     "baseUrl": "."
   },
   "include": ["src/**/*.ts"]
