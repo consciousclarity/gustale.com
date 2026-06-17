@@ -186,24 +186,50 @@ jobs:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          command_timeout: 8m
           script: |
-            set -e
-            echo "--- Logging into ghcr.io ---"
-            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            echo "--- Pulling new image ---"
-            docker pull ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
-            echo "--- Stopping existing container ---"
-            docker stop gustale-api || true
-            docker rm gustale-api || true
+            set -euo pipefail
+            IMAGE="ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}"
+
+            echo "--- Logging into ghcr.io (use GHCR_PAT from repo secret) ---"
+            if [ -z "${{ secrets.GHCR_PAT }}" ]; then
+              echo "::error::GHCR_PAT secret is empty — deploy cannot authenticate to ghcr.io"
+              exit 1
+            fi
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
+
+            echo "--- Pulling new image: $IMAGE ---"
+            docker pull "$IMAGE"
+
+            echo "--- Verifying image exists locally before destroying old container ---"
+            if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+              echo "::error::Pulled image $IMAGE not present locally — aborting deploy to keep old container running"
+              exit 1
+            fi
+
+            echo "--- Stopping + removing existing container (best-effort) ---"
+            docker stop gustale-api 2>/dev/null || true
+            docker rm   gustale-api 2>/dev/null || true
+
             echo "--- Starting new container ---"
             docker run -d --name gustale-api --restart unless-stopped \
               -p 4000:4000 \
               --env-file /root/.env \
-              ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
+              "$IMAGE"
+
+            echo "--- Waiting 10s for boot + healthcheck ---"
+            sleep 10
+
+            echo "--- Verifying container is Up + healthy ---"
+            STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' gustale-api 2>/dev/null || echo "MISSING")
+            echo "container status: $STATUS"
+            if [ "$STATUS" != "running healthy" ]; then
+              echo "::error::Container is not running+healthy. Last 30 log lines:"
+              docker logs --tail 30 gustale-api 2>&1 || true
+              exit 1
+            fi
+
             echo "--- Pruning old images ---"
             docker image prune -f
-# Trigger deployment
-# Refresh runner
-# Trigger deploy
-# Deploy
-# Deploy
+
+            echo "--- Deploy OK ---"
