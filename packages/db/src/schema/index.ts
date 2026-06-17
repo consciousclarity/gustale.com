@@ -17,6 +17,15 @@ export { authSchema };
 // IDENTITY
 // =====================================================================
 
+// =====================================================================
+// Note on user FKs: better-auth is the source of truth for users
+// (table: authSchema.user, singular). The legacy 'users' table (plural)
+// is only used by seed data. We therefore do NOT add FK constraints
+// from domain tables to users.id — the values are still stored as
+// text for audit-trail purposes, but referential integrity is the
+// responsibility of better-auth + the application layer.
+// =====================================================================
+
 export const userRole = ['user', 'admin', 'system'] as const;
 export type WikiUserRole = typeof userRole[number];
 
@@ -43,7 +52,7 @@ export const users = pgTable('users', {
 
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
   tokenHash: text('token_hash').notNull().unique(),
   userAgent: text('user_agent'),
   ipAddress: text('ip_address'),
@@ -144,8 +153,8 @@ export const ingredients = pgTable('ingredients', {
   // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
   // stored without an explicit cast. Seed UUIDs are valid text strings so the
   // migration is lossless.
-  createdBy: text('created_by').references(() => users.id),
-  lastEditedBy: text('last_edited_by').references(() => users.id),
+  createdBy: text('created_by'),
+  lastEditedBy: text('last_edited_by'),
 });
 
 export const ingredientVariants = pgTable('ingredient_variants', {
@@ -221,8 +230,8 @@ export const dishes = pgTable('dishes', {
   // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
   // stored without an explicit cast. Seed UUIDs are valid text strings so the
   // migration is lossless.
-  createdBy: text('created_by').references(() => users.id),
-  lastEditedBy: text('last_edited_by').references(() => users.id),
+  createdBy: text('created_by'),
+  lastEditedBy: text('last_edited_by'),
 });
 
 export const dishTranslations = pgTable('dish_translations', {
@@ -315,7 +324,7 @@ export const sources = pgTable('sources', {
   reliability: text('reliability').$type<SourceReliability>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // `text` for the same reason as dishes.created_by — see comment there.
-  createdBy: text('created_by').references(() => users.id),
+  createdBy: text('created_by'),
 });
 
 export const citations = pgTable('citations', {
@@ -325,7 +334,7 @@ export const citations = pgTable('citations', {
   targetId: uuid('target_id').notNull(),
   claimText: text('claim_text'),
   location: text('location'),
-  addedBy: text('added_by').references(() => users.id),
+  addedBy: text('added_by'),
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -338,7 +347,7 @@ export type EditAction = typeof editAction[number];
 
 export const editHistory = pgTable('edit_history', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').references(() => users.id),
+  userId: text('user_id'),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   action: text('action').$type<EditAction>().notNull(),
@@ -356,7 +365,7 @@ export const editHistory = pgTable('edit_history', {
 // =====================================================================
 
 export const watchList = pgTable('watch_list', {
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   notifyOnEdit: boolean('notify_on_edit').notNull().default(true),
@@ -367,7 +376,7 @@ export const watchList = pgTable('watch_list', {
 
 export const comments = pgTable('comments', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull(),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   parentCommentId: uuid('parent_comment_id'),
@@ -381,23 +390,23 @@ export const comments = pgTable('comments', {
 
 export const contentPermissions = pgTable('content_permissions', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   canEdit: boolean('can_edit').notNull().default(false),
   canDelete: boolean('can_delete').notNull().default(false),
   canModerate: boolean('can_moderate').notNull().default(false),
-  grantedBy: text('granted_by').references(() => users.id),
+  grantedBy: text('granted_by'),
   grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const expertCredentials = pgTable('expert_credentials', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
   field: text('field').notNull(),
   description: text('description').notNull(),
   evidenceUrl: text('evidence_url'),
-  verifiedBy: text('verified_by').references(() => users.id),
+  verifiedBy: text('verified_by'),
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -417,7 +426,7 @@ export const media = pgTable('media', {
   altText: text('alt_text'),
   credit: text('credit'),
   license: text('license'),
-  uploadedBy: text('uploaded_by').references(() => users.id),
+  uploadedBy: text('uploaded_by'),
   uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
