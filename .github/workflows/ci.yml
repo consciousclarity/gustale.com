@@ -275,7 +275,19 @@ jobs:
 
             # gustale-api needs /root/.env for DB / MinIO / auth secrets.
             # gustale-web is pure static; no env-file needed.
-            deploy_container "gustale-api" "$API_IMAGE" "4000" "--env-file /root/.env"
+            #
+            # IMPORTANT: gustale-api runs with --network host because
+            # shared-postgres and shared-minio are bound to 127.0.0.1
+            # on the VPS host. From inside a container on the default
+            # bridge, 127.0.0.1 is the container's own loopback — NOT
+            # the host. --network host puts the container in the host's
+            # network namespace so 127.0.0.1 resolves correctly. The
+            # host firewall (hPanel) is the trust boundary; container-
+            # level isolation is not the goal here.
+            #
+            # gustale-web does NOT need --network host because it serves
+            # static files; nothing on the host's loopback is involved.
+            deploy_container "gustale-api" "$API_IMAGE" "4000" "--network host --env-file /root/.env"
             deploy_container "gustale-web" "$WEB_IMAGE" "4001" ""
 
             echo "--- Waiting 10s for both containers to boot + healthcheck ---"
