@@ -20,12 +20,14 @@ Verified end-to-end on https://gustale.com/dishes/moussaka-greek/.
 
 | Component | Status | Image SHA |
 |---|---|---|
-| `apps/api` (Fastify + better-auth) | Live, healthy | `c2c4fda` |
-| `apps/web` (Astro + React islands) | Live, healthy | `c2c4fda` |
-| gustale-api container | Running on VPS :4000 | `c2c4fda…` |
-| gustale-web container | Running on VPS :4001 | `c2c4fda…` |
+| `apps/api` (Fastify + better-auth) | Live, healthy | `2b9d85f` |
+| `apps/web` (Astro + React islands) | Live, healthy | `2b9d85f` |
+| gustale-api container | Running on VPS :4000 | `2b9d85f…` |
+| gustale-web container | Running on VPS :4001 | `2b9d85f…` |
 | shared-postgres container | Running | n/a |
 | minio container | Running | n/a |
+| MinIO bucket `gustale-public` | Ready, anonymous download | n/a |
+| MinIO bucket `gustale-media` | Ready, private | n/a |
 
 ## Live features (verified)
 

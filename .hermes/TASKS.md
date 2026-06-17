@@ -21,10 +21,31 @@
 - 2026-06-17: CI/CD pipeline (5-job GitHub Actions, VPS auto-deploy) — Hermes
 - 2026-06-17: Domain + DNS + hPanel firewall config — user + Hermes
 - 2026-06-17: VPS provisioning (Docker, Postgres, MinIO, Caddy) — user + Hermes
+- 2026-06-17: Phase 7d prep — MinIO client lib + buckets (`gustale-public` anonymous, `gustale-media` private) + multipart deps — Hermes
 
 ## Backlog
 
-### P1 — Write API for dishes
+### P2 — Phase 7d routes + front-end gallery (UNBLOCKED)
+**Owner:** unassigned · **Estimate:** 4-6 hours
+Build on top of the 7d-prep commit `2b9d85f`. Work left:
+
+1. `apps/api/src/routes/media.ts` — POST `/api/media/upload` (multipart,
+   validate mime against allow-list, stream to MinIO, insert `media` row).
+   Register BEFORE the `/api/media/:id` parametric sibling (P27).
+2. `apps/api/src/routes/media.ts` — GET `/api/media/:id/signed-url`
+   (auth-required, 15-min presign).
+3. `apps/api/src/routes/dishes-media.ts` — POST `/api/dishes/:slug/media`
+   (attach existing media row to dish via `media_attachments`, role: cover
+   for first, gallery for subsequent, sortable `position`).
+4. `apps/api/src/routes/dishes.ts` — populate `media[]` on the read endpoint
+   (already in the response shape, just needs the JOIN to actually fill it).
+5. Tests: happy path + auth + bad mime + oversized file rejection.
+6. `apps/web/src/components/DishDetail.tsx` — replace the placeholder
+   gallery block with a real lightbox-style image grid that fetches signed
+   URLs.
+7. Real-signup + real-upload smoke test on prod (P51).
+
+### P1 — Edit wizard UI
 **Owner:** unassigned · **Estimate:** 1 day
 Add `POST /api/dishes`, `PATCH /api/dishes/:slug`, both auth-gated.
 Use Zod for input validation (already a project dep). Enforce role checks:
