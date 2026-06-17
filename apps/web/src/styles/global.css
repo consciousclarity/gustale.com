@@ -1,7 +1,7 @@
-/* Leaflet CSS — required for tile layering, marker positioning, and popup
-   styling. Loaded from CDN because we don't want to bundle the ~14KB in
-   our build artifact, and the file references relative font/image URLs
-   that don't survive Vite's asset pipeline.
+/* Map CSS — both Leaflet (per-dish DishMap) and MapLibre (standalone /map
+   globe) ship with their own stylesheets. Loaded from CDN to avoid
+   bundling ~28KB of CSS that's only used on a few pages.
    @import rules MUST come before all other rules except @charset/@layer. */
 @import url("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
+@import url("https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css");
 @import "tailwindcss";
