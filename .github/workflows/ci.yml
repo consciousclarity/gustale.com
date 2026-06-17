@@ -249,8 +249,12 @@ jobs:
               # forward it to Telegram even though we run `set -e`.
               DEPLOY_LOG="/tmp/gustale-deploy.log"
               : > "$DEPLOY_LOG"
-              trap 'echo "DEPLOY_FAILED_AT=${BASH_COMMAND}" >> "$DEPLOY_LOG"' ERR
-              trap 'echo "DEPLOY_EXIT_CODE=$?" >> "$DEPLOY_LOG"; if [ "$(cat /tmp/deploy_exit 2>/dev/null || echo 0)" != "0" ]; then echo "DEPLOY_FAILED_AT=trap" >> "$DEPLOY_LOG"; fi' EXIT
+              # Track the original exit code via a sentinel. On ERR we
+              # log the failing command and stash the real exit code; on
+              # EXIT we surface it so the post-step can notify correctly.
+              _DEPLOY_EXIT=0
+              trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ] && [ "$_DEPLOY_EXIT" = "0" ]; then _DEPLOY_EXIT=$rc; echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; fi' ERR
+              trap 'echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "$_DEPLOY_EXIT"' EXIT
 
               echo "--- Logging into ghcr.io (use GHCR_PAT from repo secret) ---"
               if [ -z "${{ secrets.GHCR_PAT }}" ]; then
