@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { DishDetail } from '../../components/DishDetail';
+import { DishMap } from '../../components/DishMap';
 import { getDishDetail } from '../../lib/api';
 import type { DishDetailResponse } from '../../types/dish';
 
@@ -87,16 +88,59 @@ const seoDescription =
 
 <Layout title={seoTitle} description={seoDescription}>
   {data ? (
-    <DishDetail
-      dish={data.dish}
-      origin={data.origin}
-      variants={data.variants}
-      ingredients={data.ingredients}
-      categories={data.categories}
-      preparations={data.preparations}
-      sources={data.sources}
-      media={data.media}
-    />
+    <>
+      {/* ─── Origin (per-dish mini-map) ─────────────────────────────────
+          client:only because Leaflet touches `window` at import time.
+          Renders nothing during SSR — that's expected. The placeholder
+          text below keeps the page readable if JS fails to load. */}
+      {data.origin && (
+        <section
+          aria-labelledby="origin-heading"
+          class="mx-auto max-w-4xl space-y-3 px-4 pt-8"
+        >
+          <h2
+            id="origin-heading"
+            class="text-2xl font-bold tracking-tight text-slate-900"
+          >
+            Origin
+          </h2>
+          <p class="text-sm text-slate-600">
+            <strong class="text-slate-800">{data.origin.name}</strong>
+            {data.origin.localName && data.origin.localName !== data.origin.name && (
+              <span class="ml-1 italic text-slate-500">({data.origin.localName})</span>
+            )}
+            {data.origin.isoCode && (
+              <span class="ml-1 text-slate-400">· {data.origin.isoCode}</span>
+            )}
+            {data.origin.entityType && data.origin.entityType !== 'country' && (
+              <span class="ml-1 text-slate-400">· {data.origin.entityType}</span>
+            )}
+          </p>
+          <noscript>
+            <p class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Enable JavaScript to see the interactive map of where this dish
+              originates.
+            </p>
+          </noscript>
+          <DishMap
+            origin={data.origin}
+            dishName={data.dish.name}
+            client:only="react"
+          />
+        </section>
+      )}
+
+      <DishDetail
+        dish={data.dish}
+        origin={data.origin}
+        variants={data.variants}
+        ingredients={data.ingredients}
+        categories={data.categories}
+        preparations={data.preparations}
+        sources={data.sources}
+        media={data.media}
+      />
+    </>
   ) : (
     <section class="mx-auto max-w-2xl px-4 py-20 text-center">
       <h1 class="text-3xl font-bold text-slate-900">Dish not found</h1>

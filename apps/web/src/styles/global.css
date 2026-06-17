@@ -1,1 +1,7 @@
+/* Leaflet CSS — required for tile layering, marker positioning, and popup
+   styling. Loaded from CDN because we don't want to bundle the ~14KB in
+   our build artifact, and the file references relative font/image URLs
+   that don't survive Vite's asset pipeline.
+   @import rules MUST come before all other rules except @charset/@layer. */
+@import url("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
 @import "tailwindcss";
