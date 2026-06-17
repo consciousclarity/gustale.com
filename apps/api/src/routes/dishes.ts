@@ -116,6 +116,69 @@ export function registerDishRoutes(app: FastifyInstance): void {
     return { dishes: result, limit: params.limit, offset: params.offset };
   });
 
+  // Map view: flat list of all published dishes with origin coordinates.
+  // MUST be registered before /api/dishes/:slug — find-my-way's radix tree
+  // should prefer static over dynamic, but registering the static path
+  // first makes the routing unambiguous and survives Fastify version
+  // changes.
+  app.get('/api/dishes/map', async (request, reply) => {
+    const params = z
+      .object({
+        language: z.string().length(2).default('en'),
+        limit: z.coerce.number().int().min(1).max(10000).default(2000),
+      })
+      .parse(request.query);
+
+    const rows = (await db.execute(sql`
+      SELECT
+        d.slug,
+        d.canonical_name,
+        d.short_description,
+        d.view_count,
+        ST_Y(d.origin_location::geometry)::float8 AS lat,
+        ST_X(d.origin_location::geometry)::float8 AS lng,
+        g.name        AS region_name,
+        g.local_name  AS region_local_name,
+        g.iso_code    AS region_iso_code,
+        g.entity_type AS region_entity_type
+      FROM dishes d
+      LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
+      WHERE d.status = 'published'
+        AND d.origin_location IS NOT NULL
+      ORDER BY d.view_count DESC, d.canonical_name ASC
+      LIMIT ${params.limit}
+    `)) as unknown as Array<{
+      slug: string;
+      canonical_name: string;
+      short_description: string | null;
+      view_count: number;
+      lat: number;
+      lng: number;
+      region_name: string | null;
+      region_local_name: string | null;
+      region_iso_code: string | null;
+      region_entity_type: string | null;
+    }>;
+
+    return {
+      dishes: rows.map((r) => ({
+        slug: r.slug,
+        canonicalName: r.canonical_name,
+        shortDescription: r.short_description,
+        viewCount: r.view_count,
+        lat: r.lat,
+        lng: r.lng,
+        region: {
+          name: r.region_name ?? '',
+          localName: r.region_local_name,
+          isoCode: r.region_iso_code,
+          entityType: r.region_entity_type,
+        },
+      })),
+      count: rows.length,
+    };
+  });
+
   // Get one dish by slug (with variants, ingredients, translations,
   // preparations, sources, media, origin geometry, editors)
   app.get('/api/dishes/:slug', async (request, reply) => {

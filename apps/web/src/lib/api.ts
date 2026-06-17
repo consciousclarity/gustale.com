@@ -65,3 +65,44 @@ export function getDish(slug: string): Promise<DishDetail> {
 export function getHealth(): Promise<{ status: string }> {
   return request<{ status: string }>('/api/health');
 }
+
+// ---------------------------------------------------------------------------
+// Map view
+// ---------------------------------------------------------------------------
+
+export interface MapDishRegion {
+  name: string;
+  localName: string | null;
+  isoCode: string | null;
+  entityType: string | null;
+}
+
+export interface MapDish {
+  slug: string;
+  canonicalName: string;
+  shortDescription: string | null;
+  viewCount: number;
+  lat: number;
+  lng: number;
+  region: MapDishRegion;
+}
+
+export interface MapDishesResponse {
+  dishes: MapDish[];
+  count: number;
+}
+
+export interface MapDishesParams {
+  limit?: number;
+}
+
+/**
+ * Fetch all published dishes with origin coordinates, in one request.
+ * Returns a flat list (no pagination) — the map plots one dot per dish.
+ */
+export function getMapDishes(params: MapDishesParams = {}): Promise<MapDishesResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
+}
