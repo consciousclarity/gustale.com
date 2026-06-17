@@ -239,6 +239,35 @@ export function getMapDishes(
   return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
 }
 
+// ─── Ingredient detail (GET /api/ingredients/:slug) ───────────────────────
+
+export interface IngredientDetailResponse {
+  ingredient: {
+    slug: string;
+    canonicalName: string;
+    scientificName: string | null;
+    category: string | null;
+    shortDescription: string | null;
+    longDescription: string | null;
+  };
+  dishes: Array<{
+    dishSlug: string;
+    dishName: string;
+    isOptional: boolean;
+    position: number;
+  }>;
+}
+
+/**
+ * Fetch a single ingredient (encyclopedia entry) plus the dishes that
+ * use it. Powers the /ingredients/:slug page.
+ */
+export function getIngredient(slug: string): Promise<IngredientDetailResponse> {
+  return request<IngredientDetailResponse>(
+    `/api/ingredients/${encodeURIComponent(slug)}`,
+  );
+}
+
 // ─── Media signed URL (GET /api/media/:id/signed-url) ─────────────────────
 
 export interface MediaSignedUrlResponse {

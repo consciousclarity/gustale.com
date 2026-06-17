@@ -1,0 +1,62 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="About — gustale.recipes">
+  <article class="mx-auto max-w-3xl px-4 py-16">
+    <h1 class="text-4xl font-extrabold tracking-tight text-slate-900 mb-6">
+      About gustale.recipes
+    </h1>
+
+    <p class="text-lg text-slate-700 mb-8">
+      Gustale is an open culinary encyclopedia — a living archive of the world's
+      dishes, written by the people who cook and eat them.
+    </p>
+
+    <h2 class="text-2xl font-bold text-slate-900 mt-10 mb-3">What we cover</h2>
+    <p class="text-slate-700 leading-relaxed mb-4">
+      Every dish in the archive has an origin, a method, a story. We document
+      each with care for provenance: where it comes from, how it's traditionally
+      prepared, the regional variations that make it worth knowing. A dish isn't
+      just a recipe — it's a piece of culture with a place on a map.
+    </p>
+
+    <h2 class="text-2xl font-bold text-slate-900 mt-10 mb-3">How the archive works</h2>
+    <p class="text-slate-700 leading-relaxed mb-4">
+      Gustale follows a <strong class="text-slate-900">read-everyone, write-credentialed</strong> model —
+      the same approach that powers Wikipedia. Anyone can browse the catalogue,
+      read every article, and explore dishes by country. Editing and creating
+      entries requires a free account; publishing changes is gated by a small
+      group of moderators who review drafts for accuracy and citation.
+    </p>
+    <p class="text-slate-700 leading-relaxed mb-4">
+      Every claim in a published article is meant to be citable. Where sources
+      exist, they're linked. Where they don't, the article is marked as a draft
+      until the evidence is in.
+    </p>
+
+    <h2 class="text-2xl font-bold text-slate-900 mt-10 mb-3">The stack</h2>
+    <p class="text-slate-700 leading-relaxed mb-4">
+      Gustale is built on a Fastify + PostgreSQL/PostGIS backend, an Astro +
+      React front-end, and a Wikipedia-style moderation pipeline. The
+      <a href="/map" class="text-emerald-700 underline hover:text-emerald-800">world map</a> uses MapLibre GL with the globe projection; dish
+      pages render each origin geographically so you can see at a glance where a
+      dish belongs. Media (photos, scans of historical sources) is served from an
+      S3-compatible store so the archive can grow without bloating the database.
+    </p>
+
+    <h2 class="text-2xl font-bold text-slate-900 mt-10 mb-3">Get involved</h2>
+    <p class="text-slate-700 leading-relaxed mb-4">
+      New here? <a href="/register" class="text-emerald-700 underline hover:text-emerald-800">Create an account</a> and start drafting your
+      favourite dish. Every contribution goes through review before it appears
+      on the live archive — there's no rush, and there's no penalty for asking
+      questions in your draft notes.
+    </p>
+
+    <p class="text-sm text-slate-500 mt-12">
+      Gustale is an independent project by Alejandro and collaborators in Bali.
+      Source code and contribution guidelines are maintained in the project
+      repository.
+    </p>
+  </article>
+</Layout>

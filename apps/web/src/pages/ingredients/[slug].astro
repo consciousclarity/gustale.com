@@ -1,0 +1,140 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getIngredient, type IngredientDetailResponse } from '../../lib/api';
+
+// Build-time: enumerate every published ingredient so Astro can pre-render
+// each /ingredients/:slug page as static HTML. We rely on CI having run
+// the API + seed before this build runs.
+export async function getStaticPaths() {
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    // No API at build time — render one placeholder so the build doesn't fail.
+    return [{ params: { slug: 'eggplant' }, props: { data: null, notFound: true } }];
+  }
+
+  try {
+    const res = await fetch(`${apiBase}/api/ingredients?limit=200`);
+    if (!res.ok) throw new Error(`Ingredient list returned ${res.status}`);
+    const json = (await res.json()) as {
+      ingredients: Array<{ slug: string }>;
+    };
+    return json.ingredients.map((ing) => ({
+      params: { slug: ing.slug },
+      props: { data: null as IngredientDetailResponse | null, notFound: false },
+    }));
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[getStaticPaths] ingredient list fetch failed:', err);
+    return [{ params: { slug: 'eggplant' }, props: { data: null, notFound: true } }];
+  }
+}
+
+const { slug } = Astro.params;
+
+let data: IngredientDetailResponse | null = null;
+let notFound = false;
+let fetchError: string | null = null;
+
+try {
+  data = await getIngredient(slug as string);
+} catch (err) {
+  // 404 from the API just means the slug isn't published (or no longer exists).
+  if (err instanceof Error && /404/.test(err.message)) {
+    notFound = true;
+  } else {
+    fetchError = err instanceof Error ? err.message : String(err);
+  }
+}
+---
+
+<Layout title={`${data?.ingredient.canonicalName ?? slug} — gustale.recipes`}>
+  <article class="mx-auto max-w-3xl px-4 py-12">
+    {fetchError && (
+      <div class="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        Couldn't load this ingredient. ({fetchError})
+      </div>
+    )}
+
+    {notFound && !fetchError && (
+      <div class="py-20 text-center">
+        <h1 class="text-3xl font-bold text-slate-900">Ingredient not found</h1>
+        <p class="mt-3 text-slate-600">
+          We don't have an encyclopedia entry for "{slug}" yet.
+        </p>
+        <a href="/dishes" class="mt-6 inline-block text-emerald-700 underline">
+          ← Back to all dishes
+        </a>
+      </div>
+    )}
+
+    {data && (
+      <>
+        <header class="mb-8">
+          <p class="text-sm font-medium uppercase tracking-wide text-emerald-700">
+            Ingredient
+          </p>
+          <h1 class="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
+            {data.ingredient.canonicalName}
+          </h1>
+          {data.ingredient.scientificName && (
+            <p class="mt-2 italic text-slate-600">
+              {data.ingredient.scientificName}
+            </p>
+          )}
+          {data.ingredient.category && (
+            <p class="mt-2 text-sm text-slate-500">
+              Category: {data.ingredient.category}
+            </p>
+          )}
+        </header>
+
+        {data.ingredient.shortDescription && (
+          <p class="text-lg text-slate-700">
+            {data.ingredient.shortDescription}
+          </p>
+        )}
+
+        {data.ingredient.longDescription && (
+          <div class="prose prose-slate mt-6">
+            <p>{data.ingredient.longDescription}</p>
+          </div>
+        )}
+
+        {data.dishes.length > 0 && (
+          <section class="mt-12">
+            <h2 class="text-2xl font-bold text-slate-900">
+              Used in {data.dishes.length} dish{data.dishes.length === 1 ? '' : 'es'}
+            </h2>
+            <ul class="mt-4 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+              {data.dishes.map((d) => (
+                <li class="flex items-baseline justify-between gap-4 px-4 py-3">
+                  <a
+                    href={`/dishes/${d.dishSlug}`}
+                    class="font-medium text-slate-900 hover:text-emerald-700"
+                  >
+                    {d.dishName}
+                  </a>
+                  {d.isOptional && (
+                    <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                      optional
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {data.dishes.length === 0 && (
+          <p class="mt-8 text-sm text-slate-500">
+            This ingredient isn't linked to any dish yet.
+          </p>
+        )}
+
+        <p class="mt-12 text-sm text-slate-500">
+          <a href="/dishes" class="text-emerald-700 underline">Browse all dishes</a>
+        </p>
+      </>
+    )}
+  </article>
+</Layout>
