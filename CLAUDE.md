@@ -22,7 +22,7 @@ Hermes Agent (the other AI working on this project, accessed via Telegram) handl
 - Coordinating with the user via chat
 - Triggering CI deploys and verifying live URLs
 
-You and Hermes write to the same files, commit to the same git repo, push to the same `main` branch. CI deploys whatever is on `main`. Treat the other agent as a colleague: leave clear commit messages, update SHARED_STATE.md after non-trivial work, and don't both edit the same file at the same time.
+You and Hermes write to the same files, commit to the same git repo, push to the same `main` branch for code deploys. **Shared agent context** (`.hermes/SHARED_STATE.md`, `.hermes/TASKS.md`) lives on a separate `private/state` branch — see the "Shared context sync" section below. CI deploys code from `main`, not from `private/state`. Treat the other agent as a colleague: leave clear commit messages, update SHARED_STATE.md after non-trivial work, and don't both edit the same file at the same time.
 
 ## Project structure
 
@@ -90,6 +90,50 @@ gustale.com/
 ssh root@62.72.7.218 'docker logs --tail=200 gustale-api | tail -50'
 ```
 (SSH key: `~/.ssh/gustale-cd/id_ed25519`)
+
+## Shared context sync (Hermes ↔ Claude Code)
+
+The `.hermes/` directory lives on a separate git branch `private/state` so it
+doesn't pollute `main`. **`.hermes/` is gitignored on `main`** — you'll see the
+files locally only after pulling them from `private/state`.
+
+### Start of every session
+
+```bash
+# Pull the latest shared state from the sync branch
+git fetch origin private/state
+git checkout origin/private/state -- .hermes/
+
+# Confirm you got fresh context
+head -30 .hermes/SHARED_STATE.md
+```
+
+If `.hermes/SHARED_STATE.md` doesn't exist after that command, the sync branch
+was deleted or you don't have access — fall back to reading CLAUDE.md only and
+ask the user for current state.
+
+### End of every session
+
+```bash
+# Commit your updates to the sync branch
+git checkout private/state   # if not already on it
+# edit .hermes/SHARED_STATE.md and .hermes/TASKS.md
+git add .hermes/
+git commit -m "claude: <one-line summary of what you did>"
+git push origin private/state
+```
+
+### Conflict avoidance
+
+- **Don't switch to `main` and edit `.hermes/`** — it'll appear untracked
+  because `.hermes/` is in `.gitignore`. You MUST be on `private/state` to
+  commit `.hermes/` changes (the existing files there were added with
+  `git add -f` to bypass the ignore rule).
+- **If git refuses to add `.hermes/`** because of the ignore rule, you're on
+  the wrong branch. `git add -f` is only used for the initial bootstrap.
+- **If both agents push simultaneously** there'll be a non-fast-forward on
+  `private/state`. Whoever pulled last rebases/merges; both agents should
+  fetch before pushing.
 
 ## When in doubt
 
