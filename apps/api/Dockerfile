@@ -1,8 +1,14 @@
 # Gustale API — multi-stage Dockerfile
-
+#
 # ---------- Stage 1: builder ----------
-# This stage installs all dependencies, builds the monorepo packages,
-# and prunes devDependencies to create a clean production node_modules.
+# Builds the monorepo packages (api + db) and produces a clean
+# production node_modules. We use `pnpm deploy` rather than `pnpm prune`
+# because pnpm's workspace symlinks are scattered across apps/api/node_modules
+# and node_modules/.pnpm/; a wholesale copy of /app/node_modules is missing
+# the per-package symlink layer, so the api can't resolve `fastify` etc.
+#
+# `pnpm deploy` extracts a self-contained, prod-only copy of the api package
+# and its workspace dependencies into a clean directory.
 FROM node:22-slim AS builder
 
 WORKDIR /app
@@ -13,19 +19,35 @@ RUN npm install -g pnpm
 # Copy the full monorepo source code FIRST
 COPY . .
 
-# Now that the full workspace is present, run install
+# Install all deps (incl. devDeps for tsc)
 RUN pnpm install --frozen-lockfile
 
-# Build the necessary packages using the standard filter syntax
+# Build packages in dependency order
 RUN pnpm --filter @gustale/db run build
 RUN pnpm --filter @gustale/api run build
 
-# Prune devDependencies for a smaller production node_modules
-RUN pnpm prune --prod
+# ---------- Stage 2: prod-extract ----------
+# Use `pnpm deploy` to materialize a self-contained production layout
+# for the api package. It resolves all workspace + transitive deps and
+# produces a directory that can be COPY'd into the runtime stage.
+FROM node:22-slim AS prod-extract
 
+WORKDIR /app
 
-# ---------- Stage 2: runtime ----------
-# This stage creates the final, slim production image.
+RUN npm install -g pnpm
+
+# We need the full source so pnpm deploy can resolve the workspace.
+# This stage shares the build outputs of the previous one via COPY.
+COPY --from=builder /app /app
+
+WORKDIR /app/apps/api
+
+# `pnpm deploy` flattens a package + its prod-only deps into ./deploy/.
+# `--prod` skips devDependencies. The deploy target is given as a
+# positional path; the filter selects which workspace package to deploy.
+RUN pnpm deploy --prod --filter @gustale/api ./deploy
+
+# ---------- Stage 3: runtime ----------
 FROM node:22-slim
 
 WORKDIR /app
@@ -33,30 +55,19 @@ WORKDIR /app
 # Run as non-root
 USER node
 
-# Copy artifacts from the builder stage
-COPY --from=builder --chown=node:node /app/apps/api/dist ./apps/api/dist
-COPY --from=builder --chown=node:node /app/apps/api/package.json ./apps/api/package.json
-COPY --from=builder --chown=node:node /app/packages/db/dist ./packages/db/dist
-COPY --from=builder --chown=node:node /app/packages/db/package.json ./packages/db/package.json
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+# Copy the self-contained deploy bundle
+COPY --from=prod-extract --chown=node:node /app/apps/api/deploy .
 
-# Recreate the symlink for the workspace package, now pointing to the copied dist
-# This must be done after the main COPY operations.
-# We create a new directory and then copy the contents to avoid permission issues.
-RUN mkdir -p /app/apps/api/node_modules/@gustale && \
-    ln -s /app/packages/db /app/apps/api/node_modules/@gustale/db
-
+# Healthcheck pings /health
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=4000 \
     LOG_LEVEL=info
 
-# Healthcheck pings /health
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://127.0.0.1:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
-
 EXPOSE 4000
 
-CMD ["node", "apps/api/dist/server.js"]
-
+# The deploy bundle mirrors the package layout: dist/ at the top.
+CMD ["node", "dist/server.js"]
