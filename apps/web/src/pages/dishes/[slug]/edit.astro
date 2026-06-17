@@ -1,0 +1,54 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { EditDishForm } from '../../../components/EditDishForm';
+
+// Mirror the same getStaticPaths as /dishes/[slug] so we pre-build an
+// /edit page for every existing dish. The form itself does its own
+// data fetch (with auth) on hydration, so the page itself is just a
+// shell — but static-generation keeps the URL space predictable and
+// aligns with the rest of the dish page architecture.
+export async function getStaticPaths() {
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    return [{ params: { slug: 'moussaka-greek' } }];
+  }
+  try {
+    const allSlugs: string[] = [];
+    const PAGE_SIZE = 100;
+    for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
+      const res = await fetch(
+        `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
+      );
+      if (!res.ok) throw new Error(`List fetch returned ${res.status}`);
+      const json = (await res.json()) as { dishes: Array<{ slug: string }> };
+      allSlugs.push(...json.dishes.map((d) => d.slug));
+      if (json.dishes.length < PAGE_SIZE) break;
+    }
+    return allSlugs.map((slug) => ({ params: { slug } }));
+  } catch {
+    return [{ params: { slug: 'moussaka-greek' } }];
+  }
+}
+
+const { slug } = Astro.params;
+---
+
+<Layout
+  title={`Edit ${slug} — Gustale`}
+  description="Edit a dish in the Gustale encyclopedia."
+>
+  <section class="mx-auto max-w-3xl space-y-6 px-4 py-10">
+    <header>
+      <h1 class="text-3xl font-bold tracking-tight text-slate-900">
+        Edit dish
+      </h1>
+      <p class="mt-2 text-slate-600">
+        <a href={`/dishes/${slug}/`} class="text-emerald-700 hover:text-emerald-800">
+          ← {slug}
+        </a>
+      </p>
+    </header>
+
+    <EditDishForm slug={slug as string} client:load />
+  </section>
+</Layout>

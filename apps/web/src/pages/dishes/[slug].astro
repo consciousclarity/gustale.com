@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { DishDetail } from '../../components/DishDetail';
 import { DishMap } from '../../components/DishMap';
+import { EditDishButton } from '../../components/EditDishButton';
 import { getDishDetail } from '../../lib/api';
 import type { DishDetailResponse } from '../../types/dish';
 
@@ -140,6 +141,12 @@ const seoDescription =
         sources={data.sources}
         media={data.media}
       />
+
+      {/* Edit button — separate island so it's auth-gated but the rest of
+          the dish page remains a static, fast, fully-cached page. */}
+      <div class="mx-auto max-w-4xl px-4 pb-8">
+        <EditDishButton slug={data.dish.slug} client:load />
+      </div>
     </>
   ) : (
     <section class="mx-auto max-w-2xl px-4 py-20 text-center">

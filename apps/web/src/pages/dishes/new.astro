@@ -1,0 +1,30 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { NewDishForm } from '../../components/NewDishForm';
+
+// New-dish page. Renders the form as a client-side island because:
+//   - The auth check requires the better-auth client session, which lives
+//     on api.gustale.com and is not readable from SSR on gustale.com.
+//   - The form posts to /api/dishes which needs the session cookie.
+// client:load is correct here — `NewDishForm` does NOT touch `window`
+// during import (only inside useEffect), so SSR is safe.
+---
+
+<Layout
+  title="Create a new dish — Gustale"
+  description="Add a new dish to the Gustale encyclopedia."
+>
+  <section class="mx-auto max-w-3xl space-y-6 px-4 py-10">
+    <header>
+      <h1 class="text-3xl font-bold tracking-tight text-slate-900">
+        Add a dish
+      </h1>
+      <p class="mt-2 text-slate-600">
+        Drafts are private until a moderator publishes them. You can edit
+        and refine the draft before submitting for review.
+      </p>
+    </header>
+
+    <NewDishForm client:load />
+  </section>
+</Layout>
