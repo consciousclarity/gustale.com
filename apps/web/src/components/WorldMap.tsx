@@ -144,10 +144,21 @@ export function WorldMap({ dishes }: WorldMapProps) {
         // WebGL not available (sandbox, hardware disabled, ancient GPU).
         // eslint-disable-next-line no-console
         console.warn('[WorldMap] MapLibre init failed — WebGL unavailable?', err);
+        // Still mark as "ready" so the overlay disappears — the canvas
+        // exists, the user can see whatever state MapLibre ended up in.
+        setMapReady(true);
         return;
       }
 
       const mapInstance = map;
+
+      // Surface MapLibre runtime errors (WebGL context lost, tile fetch
+      // failure, etc.) so they don't get swallowed. Camofox/sandboxes
+      // without WebGL will hit this — fine, just a console warning.
+      mapInstance.on('error', (e: { error?: Error }) => {
+        // eslint-disable-next-line no-console
+        console.warn('[WorldMap] MapLibre error:', e?.error?.message ?? e);
+      });
 
       // Globe projection. We use setProjection() after construction because
       // MapLibre 5.x's `MapOptions` typings don't include the `projection`
