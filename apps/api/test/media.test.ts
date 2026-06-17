@@ -283,7 +283,7 @@ describe('POST /api/dishes/:slug/media — attach + detach', () => {
       method: 'POST',
       url: `/api/dishes/${SEEDED_DISH_SLUG}/media`,
       payload: {
-        mediaId: '00000000-0000-0000-0000-000000000099',
+        mediaId: '11111111-1111-4111-8111-111111111111',
         role: 'gallery',
       },
     });
@@ -298,7 +298,7 @@ describe('POST /api/dishes/:slug/media — attach + detach', () => {
       method: 'POST',
       url: '/api/dishes/this-dish-does-not-exist/media',
       payload: {
-        mediaId: '00000000-0000-0000-0000-000000000099',
+        mediaId: '11111111-1111-4111-8111-111111111111',
         role: 'gallery',
       },
     });
