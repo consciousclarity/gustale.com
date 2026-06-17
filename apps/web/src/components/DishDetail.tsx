@@ -8,6 +8,7 @@ import type {
   DishPreparation,
   DishVariant,
 } from '../types/dish';
+import { DishGallery } from './DishGallery';
 
 export interface DishDetailProps {
   dish: DishDetailCore;
@@ -246,18 +247,8 @@ export function DishDetail({
         </section>
       )}
 
-      {/* ─── Media (gallery placeholder) ───────────────────────────────── */}
-      {media.length > 0 && (
-        <section aria-labelledby="media-heading" className="space-y-3">
-          <h2 id="media-heading" className="text-2xl font-bold text-slate-900">
-            Gallery
-          </h2>
-          <p className="text-sm text-slate-500">
-            {media.length} attachment{media.length === 1 ? '' : 's'} on record
-            (images served from MinIO once CDN is wired).
-          </p>
-        </section>
-      )}
+      {/* ─── Media (gallery) ───────────────────────────────────────────── */}
+      <DishGallery media={media} />
 
       {/* ─── Editor / provenance ──────────────────────────────────────── */}
       <footer className="space-y-2 border-t border-slate-200 pt-6 text-xs text-slate-500">

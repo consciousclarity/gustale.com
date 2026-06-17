@@ -227,3 +227,30 @@ export function getMapDishes(
 
 // Re-export the map types so consumers can import everything from api.ts.
 export type { MapDish, MapDishesResponse };
+
+// ─── Media signed URL (GET /api/media/:id/signed-url) ─────────────────────
+
+export interface MediaSignedUrlResponse {
+  url: string;
+  expiresInSeconds: number;
+  mimeType: string;
+  byteSize: number;
+}
+
+/**
+ * Fetch a short-lived signed URL for a private media object.
+ *
+ * The URL expires in 15 minutes. Callers should fetch a fresh URL
+ * each time the gallery component mounts; the URL is also passed to
+ * <img src=...> which the browser fetches once per page render.
+ *
+ * For most use cases you don't need to call this directly — the
+ * DishGallery component does the right thing on hydration.
+ */
+export function getMediaSignedUrl(
+  mediaId: string,
+): Promise<MediaSignedUrlResponse> {
+  return request<MediaSignedUrlResponse>(
+    `/api/media/${encodeURIComponent(mediaId)}/signed-url`,
+  );
+}
