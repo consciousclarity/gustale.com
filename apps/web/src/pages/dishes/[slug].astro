@@ -1,0 +1,118 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { DishDetail } from '../../components/DishDetail';
+import { getDishDetail } from '../../lib/api';
+import type { DishDetailResponse } from '../../types/dish';
+
+// Generate static paths for every published dish at build time.
+// This gives us SSG (HTML pre-rendered, not just SSR-on-request) so crawlers
+// and slow clients get a real dish page on first byte, not the SPA fallback.
+//
+// We use getStaticPaths because Astro 6 default mode is `static` for deployed
+// pages; a fully static export also lets us serve everything from the nginx
+// container without going back to the API.
+export async function getStaticPaths() {
+  // The web container only knows how to reach the API via PUBLIC_API_BASE,
+  // which during the build step is the absolute https URL.
+  // We rely on CI having run the API container + seed before this build runs.
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    // No API configured at build time — fall back to a placeholder set so
+    // the build doesn't fail. The runtime SPA fallback will still recover.
+    return [{ params: { slug: 'moussaka-greek' } }];
+  }
+
+  try {
+    // API caps `limit` at 100 per page, so loop to gather all published dishes.
+    // For our v1 encyclopedia (31 dishes) one request is enough; the loop
+    // future-proofs against growth without adding pagination complexity here.
+    const allSlugs: string[] = [];
+    const PAGE_SIZE = 100;
+    for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
+      const res = await fetch(
+        `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
+      );
+      if (!res.ok) throw new Error(`List fetch returned ${res.status}`);
+      const json = (await res.json()) as {
+        dishes: Array<{ slug: string }>;
+      };
+      allSlugs.push(...json.dishes.map((d) => d.slug));
+      if (json.dishes.length < PAGE_SIZE) break; // last page
+    }
+    return allSlugs.map((slug) => ({ params: { slug } }));
+  } catch (err) {
+    // Log but don't crash the build. CI will surface the error in logs.
+    // eslint-disable-next-line no-console
+    console.error('[getStaticPaths] dish list fetch failed:', err);
+    return [{ params: { slug: 'moussaka-greek' } }];
+  }
+}
+
+const { slug } = Astro.params;
+
+let data: DishDetailResponse | null = null;
+let notFound = false;
+let fetchError: string | null = null;
+
+try {
+  data = await getDishDetail(slug as string);
+} catch (err) {
+  // ApiError with status 404 → render our own not-found state.
+  // Anything else → show a soft error so the build still succeeds.
+  if (err && typeof err === 'object' && 'status' in err && (err as any).status === 404) {
+    notFound = true;
+  } else {
+    fetchError = err instanceof Error ? err.message : String(err);
+    notFound = true; // Treat fetch failures as not-found for the user.
+  }
+}
+
+if (!data && !notFound) notFound = true;
+
+// 404 status when slug isn't a real dish. This is the SEO-critical fix:
+// previously the SPA fallback returned 200 OK with the home page HTML for
+// /dishes/<slug>, which made every bad URL look like the same page to Google.
+if (notFound) {
+  Astro.response.status = 404;
+}
+
+const seoTitle = data?.dish
+  ? `${data.dish.name} — Gustale`
+  : 'Dish not found — Gustale';
+const seoDescription =
+  data?.dish?.description ??
+  data?.dish?.shortDescription ??
+  'A digital culinary archive.';
+---
+
+<Layout title={seoTitle} description={seoDescription}>
+  {data ? (
+    <DishDetail
+      dish={data.dish}
+      origin={data.origin}
+      variants={data.variants}
+      ingredients={data.ingredients}
+      categories={data.categories}
+      preparations={data.preparations}
+      sources={data.sources}
+      media={data.media}
+    />
+  ) : (
+    <section class="mx-auto max-w-2xl px-4 py-20 text-center">
+      <h1 class="text-3xl font-bold text-slate-900">Dish not found</h1>
+      <p class="mt-4 text-slate-600">
+        We don't have a dish with the slug{' '}
+        <code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm">
+          {slug}
+        </code>
+        {fetchError && <span class="mt-2 block text-xs text-slate-400">{fetchError}</span>}
+      </p>
+      <a
+        href="/dishes"
+        class="mt-8 inline-block rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+      >
+        Browse all dishes
+      </a>
+    </section>
+  )}
+</Layout>

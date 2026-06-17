@@ -9,13 +9,22 @@
 // The /api prefix is consistent with the better-auth routes mounted
 // at /api/auth/* (see server.ts).
 
-import type { DishDetail, DishListResponse } from '../types/dish';
+import type {
+  DishDetailResponse,
+  DishListResponse,
+  MapDish,
+  MapDishesResponse,
+} from '../types/dish';
 
 const API_BASE =
   import.meta.env.PUBLIC_API_BASE ?? 'http://localhost:4000';
 
 export class ApiError extends Error {
-  constructor(public status: number, public body: unknown, message: string) {
+  constructor(
+    public status: number,
+    public body: unknown,
+    message: string,
+  ) {
     super(message);
     this.name = 'ApiError';
   }
@@ -41,6 +50,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+// ─── Dish list (GET /api/dishes) ──────────────────────────────────────────
+
 export interface ListDishesParams {
   limit?: number;
   offset?: number;
@@ -48,7 +59,9 @@ export interface ListDishesParams {
   status?: 'published' | 'draft' | 'archived';
 }
 
-export function listDishes(params: ListDishesParams = {}): Promise<DishListResponse> {
+export function listDishes(
+  params: ListDishesParams = {},
+): Promise<DishListResponse> {
   const qs = new URLSearchParams();
   if (params.limit != null) qs.set('limit', String(params.limit));
   if (params.offset != null) qs.set('offset', String(params.offset));
@@ -58,38 +71,37 @@ export function listDishes(params: ListDishesParams = {}): Promise<DishListRespo
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }
 
-export function getDish(slug: string): Promise<DishDetail> {
-  return request<DishDetail>(`/api/dishes/${encodeURIComponent(slug)}`);
+// ─── Dish detail (GET /api/dishes/:slug) ─────────────────────────────────
+
+export interface GetDishDetailParams {
+  language?: string;
 }
+
+export function getDishDetail(
+  slug: string,
+  params: GetDishDetailParams = {},
+): Promise<DishDetailResponse> {
+  const qs = new URLSearchParams();
+  if (params.language) qs.set('language', params.language);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<DishDetailResponse>(
+    `/api/dishes/${encodeURIComponent(slug)}${suffix}`,
+  );
+}
+
+// ─── Health (GET /api/health) ─────────────────────────────────────────────
 
 export function getHealth(): Promise<{ status: string }> {
   return request<{ status: string }>('/api/health');
 }
 
-// ---------------------------------------------------------------------------
-// Map view
-// ---------------------------------------------------------------------------
+// ─── Map view (GET /api/dishes/map) ───────────────────────────────────────
 
 export interface MapDishRegion {
   name: string;
   localName: string | null;
   isoCode: string | null;
   entityType: string | null;
-}
-
-export interface MapDish {
-  slug: string;
-  canonicalName: string;
-  shortDescription: string | null;
-  viewCount: number;
-  lat: number;
-  lng: number;
-  region: MapDishRegion;
-}
-
-export interface MapDishesResponse {
-  dishes: MapDish[];
-  count: number;
 }
 
 export interface MapDishesParams {
@@ -100,9 +112,14 @@ export interface MapDishesParams {
  * Fetch all published dishes with origin coordinates, in one request.
  * Returns a flat list (no pagination) — the map plots one dot per dish.
  */
-export function getMapDishes(params: MapDishesParams = {}): Promise<MapDishesResponse> {
+export function getMapDishes(
+  params: MapDishesParams = {},
+): Promise<MapDishesResponse> {
   const qs = new URLSearchParams();
   if (params.limit != null) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
 }
+
+// Re-export the map types so consumers can import everything from api.ts.
+export type { MapDish, MapDishesResponse };

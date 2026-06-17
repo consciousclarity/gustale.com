@@ -55,7 +55,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
           />
         </div>
         <div className="text-sm text-slate-500">
-          {loading ? 'Searching…' : `${data?.total ?? 0} dishes`}
+          {loading ? 'Searching…' : `${dishes.length} dishes`}
         </div>
       </div>
 
