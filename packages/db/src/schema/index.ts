@@ -138,8 +138,11 @@ export const ingredients = pgTable('ingredients', {
   status: text('status').notNull().default('draft'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  createdBy: uuid('created_by').references(() => users.id),
-  lastEditedBy: uuid('last_edited_by').references(() => users.id),
+  // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
+  // stored without an explicit cast. Seed UUIDs are valid text strings so the
+  // migration is lossless.
+  createdBy: text('created_by').references(() => users.id),
+  lastEditedBy: text('last_edited_by').references(() => users.id),
 });
 
 export const ingredientVariants = pgTable('ingredient_variants', {
@@ -212,8 +215,11 @@ export const dishes = pgTable('dishes', {
   contributorCount: integer('contributor_count').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  createdBy: uuid('created_by').references(() => users.id),
-  lastEditedBy: uuid('last_edited_by').references(() => users.id),
+  // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
+  // stored without an explicit cast. Seed UUIDs are valid text strings so the
+  // migration is lossless.
+  createdBy: text('created_by').references(() => users.id),
+  lastEditedBy: text('last_edited_by').references(() => users.id),
 });
 
 export const dishTranslations = pgTable('dish_translations', {
@@ -305,7 +311,8 @@ export const sources = pgTable('sources', {
   language: text('language').notNull().default('en'),
   reliability: text('reliability').$type<SourceReliability>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  createdBy: uuid('created_by').references(() => users.id),
+  // `text` for the same reason as dishes.created_by — see comment there.
+  createdBy: text('created_by').references(() => users.id),
 });
 
 export const citations = pgTable('citations', {
