@@ -3,6 +3,11 @@
 // In dev, requests go to the same origin and Astro's dev server proxy
 // (configured in astro.config.mjs) forwards them to the API on :4000.
 // In production, PUBLIC_API_BASE controls the absolute URL.
+//
+// All dish routes are mounted under /api/* on the server
+// (see apps/api/src/routes/dishes.ts: app.get('/api/dishes', ...)).
+// The /api prefix is consistent with the better-auth routes mounted
+// at /api/auth/* (see server.ts).
 
 import type { DishDetail, DishListResponse } from '../types/dish';
 
@@ -50,13 +55,13 @@ export function listDishes(params: ListDishesParams = {}): Promise<DishListRespo
   if (params.search) qs.set('search', params.search);
   if (params.status) qs.set('status', params.status);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return request<DishListResponse>(`/dishes${suffix}`);
+  return request<DishListResponse>(`/api/dishes${suffix}`);
 }
 
 export function getDish(slug: string): Promise<DishDetail> {
-  return request<DishDetail>(`/dishes/${encodeURIComponent(slug)}`);
+  return request<DishDetail>(`/api/dishes/${encodeURIComponent(slug)}`);
 }
 
 export function getHealth(): Promise<{ status: string }> {
-  return request<{ status: string }>('/health');
+  return request<{ status: string }>('/api/health');
 }
