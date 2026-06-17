@@ -2,7 +2,15 @@
 //
 // In dev, requests go to the same origin and Astro's dev server proxy
 // (configured in astro.config.mjs) forwards them to the API on :4000.
-// In production, PUBLIC_API_BASE controls the absolute URL.
+// In production, we use the same-origin /api/* path so the browser
+// hits Caddy, which reverse-proxies to the API container. This means:
+//   - No CORS: the cookie + fetch happen on the same origin.
+//   - No domain-aware code: gustale.com and gustale.recipes share the
+//     same gustale-web container and the same /api/* prefix.
+//   - The build-time PUBLIC_API_BASE is only used during server-side
+//     rendering (Astro getStaticPaths), where the container doesn't
+//     know which domain the user came in on — so it bakes in a single
+//     canonical API host (api.gustale.recipes going forward).
 //
 // All dish routes are mounted under /api/* on the server
 // (see apps/api/src/routes/dishes.ts: app.get('/api/dishes', ...)).
@@ -14,8 +22,15 @@ import type {
   DishListResponse,
 } from '../types/dish';
 
-const API_BASE =
+// Build-time API host — used only during SSR. In the browser we always
+// use a relative /api path so same-origin proxying handles the routing.
+const SSR_API_BASE =
   import.meta.env.PUBLIC_API_BASE ?? 'http://localhost:4000';
+
+// Client-side: empty string makes fetch() hit the same origin.
+// On the server: PUBLIC_API_BASE (absolute URL) because there's no
+// "current origin" to be relative to during SSR / SSG.
+const API_BASE = import.meta.env.SSR ? SSR_API_BASE : '';
 
 export class ApiError extends Error {
   constructor(

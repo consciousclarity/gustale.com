@@ -208,9 +208,13 @@ jobs:
           context: .
           file: apps/web/Dockerfile
           # Production API base baked at build time so the SSR fetch resolves
-          # correctly. This is the public URL of the gustale-api container
-          # (fronted by Caddy with TLS).
-          build-args: PUBLIC_API_BASE=https://api.gustale.com
+          # correctly. The build runs once per deploy and the resulting
+          # static HTML is served from gustale-web. The browser then uses
+          # same-origin /api/* (Caddy reverse-proxies to gustale-api), so
+          # this build-time value is only relevant for getStaticPaths.
+          # Use api.gustale.recipes as the canonical host — gustale.com is
+          # reserved for the future gustale-geo product.
+          build-args: PUBLIC_API_BASE=https://api.gustale.recipes
           tags: ghcr.io/${{ github.repository }}/gustale-web:latest,ghcr.io/${{ github.repository }}/gustale-web:${{ github.sha }}
           push: true
           provenance: false

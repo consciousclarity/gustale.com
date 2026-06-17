@@ -103,6 +103,8 @@ export const auth = betterAuth({
     'http://localhost:4000',
     'https://gustale.com',
     'https://www.gustale.com',
+    'https://gustale.recipes',
+    'https://www.gustale.recipes',
   ],
 
   advanced: {
