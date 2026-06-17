@@ -191,7 +191,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (current.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
     const before = current[0]!;
 
@@ -292,7 +292,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (before.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
     const row = before[0]!;
 
@@ -344,7 +344,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (existing.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
     const row = existing[0]!;
 

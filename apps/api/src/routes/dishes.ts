@@ -1,3 +1,4 @@
+import { httpError } from '../errors.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -193,7 +194,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .limit(1);
 
     if (dish.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
 
     const dishRow = dish[0]!;
@@ -201,7 +202,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
     // A1: drafts (and archived) are not visible to anonymous reads.
     // Authenticated moderators+ would query a different route; out of scope here.
     if (dishRow.status !== 'published') {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
 
     // Fire-and-forget: bump view count after the read.
