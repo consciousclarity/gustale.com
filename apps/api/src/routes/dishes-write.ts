@@ -142,8 +142,8 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
         ${body.originDateEarliest ?? null},
         ${body.originDateLatest ?? null},
         'draft',
-        ${user.id}::text,
-        ${user.id}::text
+        ${user.id}::uuid,
+        ${user.id}::uuid
       )
       RETURNING id, slug, status, created_at
     `);
