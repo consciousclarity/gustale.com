@@ -21,7 +21,10 @@ export const userRole = ['user', 'admin', 'system'] as const;
 export type WikiUserRole = typeof userRole[number];
 
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
+  // `text` (not uuid) so that FK columns referencing users.id can hold
+  // better-auth's opaque user IDs (e.g. 'LRcxv8AuHTcEsN5I4Jo4YWUsENxFIDZx').
+  // Seed uses a UUID string which is losslessly cast on insert.
+  id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   passwordHash: text('password_hash'),
@@ -40,7 +43,7 @@ export const users = pgTable('users', {
 
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text('token_hash').notNull().unique(),
   userAgent: text('user_agent'),
   ipAddress: text('ip_address'),
@@ -322,7 +325,7 @@ export const citations = pgTable('citations', {
   targetId: uuid('target_id').notNull(),
   claimText: text('claim_text'),
   location: text('location'),
-  addedBy: uuid('added_by').references(() => users.id),
+  addedBy: text('added_by').references(() => users.id),
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -335,7 +338,7 @@ export type EditAction = typeof editAction[number];
 
 export const editHistory = pgTable('edit_history', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: uuid('user_id').references(() => users.id),
+  userId: text('user_id').references(() => users.id),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   action: text('action').$type<EditAction>().notNull(),
@@ -353,7 +356,7 @@ export const editHistory = pgTable('edit_history', {
 // =====================================================================
 
 export const watchList = pgTable('watch_list', {
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   notifyOnEdit: boolean('notify_on_edit').notNull().default(true),
@@ -364,7 +367,7 @@ export const watchList = pgTable('watch_list', {
 
 export const comments = pgTable('comments', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   parentCommentId: uuid('parent_comment_id'),
@@ -378,23 +381,23 @@ export const comments = pgTable('comments', {
 
 export const contentPermissions = pgTable('content_permissions', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   targetType: text('target_type').notNull(),
   targetId: uuid('target_id').notNull(),
   canEdit: boolean('can_edit').notNull().default(false),
   canDelete: boolean('can_delete').notNull().default(false),
   canModerate: boolean('can_moderate').notNull().default(false),
-  grantedBy: uuid('granted_by').references(() => users.id),
+  grantedBy: text('granted_by').references(() => users.id),
   grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const expertCredentials = pgTable('expert_credentials', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   field: text('field').notNull(),
   description: text('description').notNull(),
   evidenceUrl: text('evidence_url'),
-  verifiedBy: uuid('verified_by').references(() => users.id),
+  verifiedBy: text('verified_by').references(() => users.id),
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -414,7 +417,7 @@ export const media = pgTable('media', {
   altText: text('alt_text'),
   credit: text('credit'),
   license: text('license'),
-  uploadedBy: uuid('uploaded_by').references(() => users.id),
+  uploadedBy: text('uploaded_by').references(() => users.id),
   uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
