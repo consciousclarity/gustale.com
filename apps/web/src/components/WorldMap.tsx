@@ -4,7 +4,7 @@ import maplibregl, {
   NavigationControl,
   type MapMouseEvent,
 } from 'maplibre-gl';
-import type { MapDish } from '../lib/api';
+import { getMapDishes, type MapDish } from '../lib/api';
 
 export interface WorldMapProps {
   dishes: MapDish[];
@@ -37,6 +37,35 @@ export function WorldMap({ dishes }: WorldMapProps) {
   const [view, setView] = useState<View>('globe');
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [tooltipDish, setTooltipDish] = useState<MapDish | null>(null);
+
+  // Effective dishes: starts as the prop (set at build time if the API was
+  // reachable), but if empty we fetch live on hydration. This makes the
+  // /map page resilient to build-time API flakes — the user always sees
+  // a real globe with whatever data the API has right now.
+  const [effectiveDishes, setEffectiveDishes] = useState<MapDish[]>(dishes);
+  const [isLoading, setIsLoading] = useState<boolean>(dishes.length === 0);
+
+  useEffect(() => {
+    if (dishes.length > 0) return; // build-time fetch already populated us
+    let cancelled = false;
+    setIsLoading(true);
+    getMapDishes({ limit: 2000 })
+      .then((response) => {
+        if (cancelled) return;
+        setEffectiveDishes(response.dishes);
+      })
+      .catch((err: unknown) => {
+        // Surface in console for debugging; UI keeps the empty state.
+        // eslint-disable-next-line no-console
+        console.warn('[WorldMap] live fetch failed:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dishes.length]);
 
   // Initialise the map once on mount. Re-initialising on view-toggle would
   // re-create the WebGL context (expensive) — instead we mutate the
@@ -119,7 +148,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
     // dishes), they merge into a single dot with a count badge.
     const featureCollection: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
-      features: dishes.map((d) => ({
+      features: effectiveDishes.map((d) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [d.lng, d.lat] },
         properties: {
@@ -260,7 +289,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
           // Find the dish by slug (set as a property by featureCollection
           // construction).
           const slug = f.properties?.slug as string;
-          const dish = dishes.find((d) => d.slug === slug) ?? null;
+          const dish = effectiveDishes.find((d) => d.slug === slug) ?? null;
           setTooltipDish(dish);
           setTooltipPos({ x: e.point.x, y: e.point.y });
         }
@@ -309,7 +338,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
       map.remove();
       mapRef.current = null;
     };
-  }, [dishes]);
+  }, [effectiveDishes]);
 
   // Toggle projection when the user clicks the toggle button. Mutating
   // the `projection` property is supported by MapLibre 4+ and avoids
@@ -326,16 +355,6 @@ export function WorldMap({ dishes }: WorldMapProps) {
       map.setZoom(2);
     }
   }, [view]);
-
-  if (dishes.length === 0) {
-    return (
-      <div className="flex h-96 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white">
-        <p className="text-slate-500">
-          No dishes with origin coordinates yet. Add a dish to see it on the map.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -355,6 +374,27 @@ export function WorldMap({ dishes }: WorldMapProps) {
         className="h-[560px] w-full"
         aria-label="Interactive globe showing published dishes by origin"
       />
+
+      {/* Loading overlay — visible only while we're fetching live data
+          on hydration (build-time data was empty). Disappears the moment
+          the fetch resolves. */}
+      {isLoading && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-50/70">
+          <p className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+            Loading map…
+          </p>
+        </div>
+      )}
+
+      {/* Empty-state fallback — only shown when the fetch resolved but
+          the API genuinely returned zero dishes. */}
+      {!isLoading && effectiveDishes.length === 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <p className="text-slate-500">
+            No dishes with origin coordinates yet. Add a dish to see it on the map.
+          </p>
+        </div>
+      )}
 
       {/* Tooltip overlay (HTML, not WebGL canvas, for nicer typography) */}
       {tooltipDish && tooltipPos && (

@@ -8,6 +8,10 @@ import type { MapDish } from '../lib/api';
 // Server-render the first paint with real dish coordinates so the globe
 // has dots from the moment it appears — the React island only adds
 // interactivity (hover, click, projection toggle) on hydration.
+//
+// Note: this fetch runs during CI build (Astro SSG). If it fails, the
+// page still ships; WorldMap fetches /api/dishes/map itself on hydration
+// when the prop array is empty, so users always see a real globe.
 let initialDishes: MapDish[] = [];
 let serverError: string | null = null;
 
@@ -16,7 +20,7 @@ try {
   initialDishes = response.dishes;
 } catch (err: unknown) {
   if (err instanceof ApiError) {
-    serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
+    serverError = `API ${err.status} — gustale-api was unreachable during build; the globe will load live data on hydration.`;
   } else if (err instanceof Error) {
     serverError = err.message;
   } else {
