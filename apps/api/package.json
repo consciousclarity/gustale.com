@@ -18,19 +18,19 @@
     "@fastify/sensible": "^6.0.1",
     "@gustale/db": "workspace:*",
     "better-auth": "^1.6.18",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.1.0",
     "fastify-plugin": "^6.0.0",
     "pino-pretty": "^11.3.0",
     "postgres": "^3.4.5",
-    "resend": "^6.12.4"
+    "resend": "^6.12.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "drizzle-kit": "^0.31.4",
-    "drizzle-orm": "^0.45.2",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.5",
-    "zod": "^4.4.3"
+    "vitest": "^2.1.5"
   }
 }
