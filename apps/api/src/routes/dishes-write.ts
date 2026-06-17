@@ -22,6 +22,7 @@ import {
   editHistory,
   type EditAction,
 } from '@gustale/db';
+import { httpError } from '../errors.js';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────
 
@@ -119,10 +120,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, body.slug))
       .limit(1);
     if (existing.length > 0) {
-      return reply.status(409).send({
-        error: 'slug_conflict',
-        message: `A dish with slug "${body.slug}" already exists`,
-      });
+      throw httpError(409, 'slug_conflict', `A dish with slug "${body.slug}" already exists`, { fields: ['slug'] });
     }
 
     // Insert with optional origin. We use a single insert statement with

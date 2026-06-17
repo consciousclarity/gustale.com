@@ -217,98 +217,151 @@ jobs:
 
   # ─── Job 4: Deploy to Hostinger VPS ────────────────────────────────
   deploy:
-    name: Deploy to Hostinger
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    needs: [build, build-web]  # both images must be built and pushed first
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USER }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          command_timeout: 8m
-          script: |
-            set -euo pipefail
-            REPO="ghcr.io/${{ github.repository }}"
-            API_IMAGE="$REPO/gustale-api:${{ github.sha }}"
-            WEB_IMAGE="$REPO/gustale-web:${{ github.sha }}"
+      name: Deploy to Hostinger
+      runs-on: ubuntu-24.04
+      timeout-minutes: 10
+      needs: [build, build-web]  # both images must be built and pushed first
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      steps:
+        # Always notify (success or failure). We use the github actions
+        # `if: always()` pattern with a wrapper step at the end so the deploy
+        # step itself remains `set -euo pipefail` and clean.
+        - name: Deploy via SSH
+          uses: appleboy/ssh-action@v1
+          with:
+            host: ${{ secrets.HOSTINGER_HOST }}
+            username: ${{ secrets.HOSTINGER_USER }}
+            key: ${{ secrets.HOSTINGER_SSH_KEY }}
+            command_timeout: 8m
+            script: |
+              set -euo pipefail
+              REPO="ghcr.io/${{ github.repository }}"
+              API_IMAGE="$REPO/gustale-api:${{ github.sha }}"
+              WEB_IMAGE="$REPO/gustale-web:${{ github.sha }}"
 
-            echo "--- Logging into ghcr.io (use GHCR_PAT from repo secret) ---"
-            if [ -z "${{ secrets.GHCR_PAT }}" ]; then
-              echo "::error::GHCR_PAT secret is empty — deploy cannot authenticate to ghcr.io"
-              exit 1
-            fi
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
+              # Capture the deploy outcome into a file so the post-step can
+              # forward it to Telegram even though we run `set -e`.
+              DEPLOY_LOG="/tmp/gustale-deploy.log"
+              : > "$DEPLOY_LOG"
+              trap 'echo "DEPLOY_FAILED_AT=${BASH_COMMAND}" >> "$DEPLOY_LOG"' ERR
+              trap 'echo "DEPLOY_EXIT_CODE=$?" >> "$DEPLOY_LOG"; if [ "$(cat /tmp/deploy_exit 2>/dev/null || echo 0)" != "0" ]; then echo "DEPLOY_FAILED_AT=trap" >> "$DEPLOY_LOG"; fi' EXIT
 
-            echo "--- Pulling new API image: $API_IMAGE ---"
-            docker pull "$API_IMAGE"
-            echo "--- Pulling new Web image: $WEB_IMAGE ---"
-            docker pull "$WEB_IMAGE"
-
-            # Verify BOTH images are present before destroying any running
-            # container. If either pull failed, the old containers stay up
-            # and we surface a clear error.
-            echo "--- Verifying both images are present locally ---"
-            for IMG in "$API_IMAGE" "$WEB_IMAGE"; do
-              if ! docker image inspect "$IMG" >/dev/null 2>&1; then
-                echo "::error::Image $IMG not present locally — aborting deploy to keep old containers running"
+              echo "--- Logging into ghcr.io (use GHCR_PAT from repo secret) ---"
+              if [ -z "${{ secrets.GHCR_PAT }}" ]; then
+                echo "::error::GHCR_PAT secret is empty — deploy cannot authenticate to ghcr.io"
+                echo "DEPLOY_FAILED_AT=GHCR_PAT missing" >> "$DEPLOY_LOG"
+                echo 1 > /tmp/deploy_exit
                 exit 1
               fi
-            done
+              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
 
-            deploy_container() {
-              local NAME="$1"
-              local IMAGE="$2"
-              local PORT="$3"
-              local EXTRA_ARGS="${4:-}"
-              echo "--- Deploying $NAME from $IMAGE on port $PORT ---"
-              docker stop "$NAME" 2>/dev/null || true
-              docker rm   "$NAME" 2>/dev/null || true
-              # shellcheck disable=SC2086
-              docker run -d --name "$NAME" --restart unless-stopped \
-                -p "$PORT:$PORT" $EXTRA_ARGS \
-                "$IMAGE"
-            }
+              echo "--- Pulling new API image: $API_IMAGE ---"
+              docker pull "$API_IMAGE"
+              echo "--- Pulling new Web image: $WEB_IMAGE ---"
+              docker pull "$WEB_IMAGE"
 
-            # gustale-api needs /root/.env for DB / MinIO / auth secrets.
-            # gustale-web is pure static; no env-file needed.
-            #
-            # IMPORTANT: gustale-api runs with --network host because
-            # shared-postgres and shared-minio are bound to 127.0.0.1
-            # on the VPS host. From inside a container on the default
-            # bridge, 127.0.0.1 is the container's own loopback — NOT
-            # the host. --network host puts the container in the host's
-            # network namespace so 127.0.0.1 resolves correctly. The
-            # host firewall (hPanel) is the trust boundary; container-
-            # level isolation is not the goal here.
-            #
-            # gustale-web does NOT need --network host because it serves
-            # static files; nothing on the host's loopback is involved.
-            deploy_container "gustale-api" "$API_IMAGE" "4000" "--network host --env-file /root/.env"
-            deploy_container "gustale-web" "$WEB_IMAGE" "4001" ""
+              # Verify BOTH images are present before destroying any running
+              # container. If either pull failed, the old containers stay up
+              # and we surface a clear error.
+              echo "--- Verifying both images are present locally ---"
+              for IMG in "$API_IMAGE" "$WEB_IMAGE"; do
+                if ! docker image inspect "$IMG" >/dev/null 2>&1; then
+                  echo "::error::Image $IMG not present locally — aborting deploy to keep old containers running"
+                  echo "DEPLOY_FAILED_AT=image missing: $IMG" >> "$DEPLOY_LOG"
+                  echo 1 > /tmp/deploy_exit
+                  exit 1
+                fi
+              done
 
-            echo "--- Waiting 10s for both containers to boot + healthcheck ---"
-            sleep 10
+              deploy_container() {
+                local NAME="$1"
+                local IMAGE="$2"
+                local PORT="$3"
+                local EXTRA_ARGS="${4:-}"
+                echo "--- Deploying $NAME from $IMAGE on port $PORT ---"
+                docker stop "$NAME" 2>/dev/null || true
+                docker rm   "$NAME" 2>/dev/null || true
+                # shellcheck disable=SC2086
+                docker run -d --name "$NAME" --restart unless-stopped \
+                  -p "$PORT:$PORT" $EXTRA_ARGS \
+                  "$IMAGE"
+              }
 
-            echo "--- Verifying BOTH containers are Up + healthy ---"
-            FAILED=0
-            for NAME in gustale-api gustale-web; do
-              STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$NAME" 2>/dev/null || echo "MISSING")
-              echo "  $NAME status: $STATUS"
-              if [ "$STATUS" != "running healthy" ] && [ "$STATUS" != "running  healthy" ]; then
-                echo "::error::$NAME is not running+healthy. Last 30 log lines:"
-                docker logs --tail 30 "$NAME" 2>&1 || true
-                FAILED=1
+              # gustale-api needs /root/.env for DB / MinIO / auth secrets.
+              # gustale-web is pure static; no env-file needed.
+              #
+              # IMPORTANT: gustale-api runs with --network host because
+              # shared-postgres and shared-minio are bound to 127.0.0.1
+              # on the VPS host. From inside a container on the default
+              # bridge, 127.0.0.1 is the container's own loopback — NOT
+              # the host. --network host puts the container in the host's
+              # network namespace so 127.0.0.1 resolves correctly. The
+              # host firewall (hPanel) is the trust boundary; container-
+              # level isolation is not the goal here.
+              #
+              # gustale-web does NOT need --network host because it serves
+              # static files; nothing on the host's loopback is involved.
+              deploy_container "gustale-api" "$API_IMAGE" "4000" "--network host --env-file /root/.env"
+              deploy_container "gustale-web" "$WEB_IMAGE" "4001"
+
+              echo "--- Waiting 10s for both containers to boot + healthcheck ---"
+              sleep 10
+
+              echo "--- Verifying BOTH containers are Up + healthy ---"
+              FAILED=0
+              for NAME in gustale-api gustale-web; do
+                STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$NAME" 2>/dev/null || echo "MISSING")
+                echo "  $NAME status: $STATUS"
+                if [ "$STATUS" != "running healthy" ] && [ "$STATUS" != "running  healthy" ]; then
+                  echo "::error::$NAME is not running+healthy. Last 30 log lines:"
+                  docker logs --tail 30 "$NAME" 2>&1 || true
+                  echo "DEPLOY_FAILED_AT=$NAME status=$STATUS" >> "$DEPLOY_LOG"
+                  FAILED=1
+                fi
+              done
+              if [ "$FAILED" = "1" ]; then
+                echo 1 > /tmp/deploy_exit
+                exit 1
               fi
-            done
-            if [ "$FAILED" = "1" ]; then
-              exit 1
+
+              echo "--- Pruning old images ---"
+              docker image prune -f
+
+              echo "--- Deploy OK ---"
+              echo 0 > /tmp/deploy_exit
+
+        # ── Post-deploy notification ──────────────────────────────────────
+        # Runs always (success + failure) and posts a Telegram message.
+        # Silently no-ops if TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is unset.
+        - name: Notify Telegram (deploy outcome)
+          if: always()
+          run: |
+            SHORT_SHA="${GITHUB_SHA::8}"
+            REPO_NAME="${{ github.repository }}"
+            RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            if [ "${{ job.status }}" = "success" ]; then
+              EMOJI="✅"
+              HEAD="Deploy OK"
+            else
+              EMOJI="❌"
+              HEAD="Deploy FAILED"
+            fi
+            MSG="$EMOJI *${HEAD}*
+            Repo: \`${REPO_NAME}\`
+            Commit: \`${SHORT_SHA}\`
+            Branch: \`${{ github.ref_name}}\`
+            Author: ${{ github.actor }}
+            [View run](${RUN_URL})"
+
+            if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] || [ -z "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
+              echo "::notice::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification (deploy ${{ job.status }})"
+              echo "To enable: add both secrets in GitHub repo Settings → Secrets and variables → Actions"
+              exit 0
             fi
 
-            echo "--- Pruning old images ---"
-            docker image prune -f
-
-            echo "--- Deploy OK ---"
+            curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+              -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              --data-urlencode "text=${MSG}" \
+              --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"

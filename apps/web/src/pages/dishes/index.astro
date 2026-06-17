@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { DishExplorer } from '../../components/DishExplorer.tsx';
+import ErrorBoundary from '../../components/ErrorBoundary.tsx';
 import { listDishes, ApiError } from '../../lib/api';
 import type { DishListResponse } from '../../types/dish';
 
@@ -43,6 +44,8 @@ try {
       </div>
     )}
 
-    <DishExplorer initial={initial} client:load />
+    <ErrorBoundary name="Dish list">
+      <DishExplorer initial={initial} client:load />
+    </ErrorBoundary>
   </section>
 </Layout>

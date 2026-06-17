@@ -30,11 +30,115 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Retry configuration. We only retry:
+ *
+ * - network errors (TypeError from fetch, e.g. DNS, refused, offline)
+ * - 5xx responses (server errors that may be transient)
+ * - 429 (rate limited — honor Retry-After if present)
+ *
+ * We do NOT retry 4xx (except 429) — those are client mistakes that
+ * retrying won't fix.
+ *
+ * Backoff: 200ms, 600ms, 1400ms (×1.5x per retry, plus ±25% jitter).
+ * Three attempts total, ~2.2s worst case before giving up.
+ */
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 200;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function backoffDelay(attempt: number): number {
+  // attempt = 0 → BASE_DELAY_MS * 1
+  // attempt = 1 → BASE_DELAY_MS * 3
+  // attempt = 2 → BASE_DELAY_MS * 7
+  const base = BASE_DELAY_MS * (1 + attempt * 2);
+  const jitter = base * 0.25 * (Math.random() * 2 - 1);
+  return Math.max(0, Math.round(base + jitter));
+}
+
+function shouldRetry(status: number | undefined, err: unknown, attempt: number): boolean {
+  if (attempt >= MAX_RETRIES) return false;
+  // Network error → retry
+  if (err instanceof TypeError) return true;
+  // 5xx and 429 → retry
+  if (status !== undefined && RETRYABLE_STATUS.has(status)) return true;
+  return false;
+}
+
+/**
+ * fetch with exponential backoff for transient errors.
+ *
+ * - Retries up to MAX_RETRIES times on network errors and 5xx/429.
+ * - Honors Retry-After header when present (seconds).
+ * - Aborts immediately on 4xx (except 429) — those won't recover.
+ * - Logs each retry to console.warn with attempt # + status so debugging
+ *   in the browser is straightforward.
+ */
+async function fetchWithRetry(
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  let lastError: unknown = null;
+  let lastStatus: number | undefined;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+        cache: 'no-store',
+        ...init,
+      });
+
+      if (res.ok) return res;
+      lastStatus = res.status;
+
+      if (!shouldRetry(res.status, null, attempt)) {
+        return res;
+      }
+
+      // Honor Retry-After header if present (in seconds)
+      const retryAfter = res.headers.get('Retry-After');
+      const waitMs = retryAfter
+        ? Math.max(0, parseInt(retryAfter, 10) * 1000)
+        : backoffDelay(attempt);
+
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[api] ${init.method ?? 'GET'} ${path} → ${res.status}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
+      );
+      await delay(waitMs);
+      // Drain the body so the connection can be reused
+      await res.text().catch(() => undefined);
+    } catch (err) {
+      lastError = err;
+      if (!shouldRetry(undefined, err, attempt)) {
+        throw err;
+      }
+      const waitMs = backoffDelay(attempt);
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[api] ${init.method ?? 'GET'} ${path} → network error, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
+      );
+      await delay(waitMs);
+    }
+  }
+
+  // Exhausted retries. Return the last response (if we had one) or throw.
+  if (lastStatus !== undefined) {
+    // Re-issue a final request so we can surface the response status to the caller
+    return fetch(`${API_BASE}${path}`, init);
+  }
+  throw lastError ?? new Error('fetchWithRetry: exhausted retries');
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    cache: 'no-store',
-    ...init,
+  const res = await fetchWithRetry(path, {
+    method: 'GET',
+    ...(init ?? {}),
   });
 
   if (!res.ok) {

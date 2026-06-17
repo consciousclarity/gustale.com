@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { WorldMap } from '../components/WorldMap.tsx';
+import ErrorBoundary from '../components/ErrorBoundary.tsx';
 import { getMapDishes, ApiError } from '../lib/api';
 import type { MapDish } from '../lib/api';
 
@@ -45,7 +46,9 @@ try {
       </div>
     )}
 
-    <WorldMap dishes={initialDishes} client:load />
+    <ErrorBoundary name="Map">
+      <WorldMap dishes={initialDishes} client:load />
+    </ErrorBoundary>
 
     <p class="mt-4 text-sm text-slate-500">
       Showing {initialDishes.length} dish{initialDishes.length === 1 ? '' : 'es'} with
