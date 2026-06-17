@@ -6,27 +6,35 @@
 
 ## Last updated
 
-2026-06-18 02:20 WITA by Hermes Agent (commit `38d9fbb`).
+2026-06-18 03:00 WITA by Hermes Agent (commit `634b435`).
 
 ## Current status
 
-✅ **Phase 7d (MinIO upload + gallery) shipped live + Phase 8a (production
-error handling) shipped live + Standalone /map replaced by per-dish
-mini-maps.** All 31 dish pages now show an interactive Origin map
-(react-leaflet + OpenStreetMap) with the dish's geographic origin.
-The /map route and WorldMap component are gone.
+✅ **Phase 7c/8a/7d/Edit wizard shipped. Per-dish maps live.
+Standalone /map reactivated with MapLibre GL globe projection.**
 
-Verified live: https://gustale.com/dishes/moussaka-greek/ now shows
-"Greece · GR · country" with a real Leaflet map centered on Athens.
+Three map surfaces now coexist:
+1. `/map` — standalone **globe** (MapLibre GL) showing all 31 dishes,
+   toggle to flat Mercator in the corner. CARTO Voyager basemap.
+2. `/dishes/<slug>/` — per-dish **mini-map** (Leaflet) showing one
+   dish's origin, OpenStreetMap tiles, popup on click.
+3. Edit wizard (Phase 7c + edit UI) — fully shipped; backend has been
+   live since before the standalone map existed.
+
+Verified live: https://gustale.com/map/ returns 200 OK with the
+WorldMap island ready to hydrate. (Note: the Camofox test browser
+used by Claude Code lacks WebGL, so I can't visually verify the
+globe renders — but the chunk loads, props serialize correctly,
+and MapLibre GL works in every modern browser.)
 
 ## What's deployed on main
 
 | Component | Status | Image SHA |
 |---|---|---|
-| `apps/api` (Fastify + better-auth) | Live, healthy | `38d9fbb` |
-| `apps/web` (Astro + React islands) | Live, healthy | `38d9fbb` |
-| gustale-api container | Running on VPS :4000 | `38d9fbb…` |
-| gustale-web container | Running on VPS :4001 | `38d9fbb…` |
+| `apps/api` (Fastify + better-auth) | Live, healthy | `634b435` |
+| `apps/web` (Astro + React islands) | Live, healthy | `634b435` |
+| gustale-api container | Running on VPS :4000 | `634b435…` |
+| gustale-web container | Running on VPS :4001 | `634b435…` |
 | shared-postgres container | Running | n/a |
 | minio container | Running | n/a |
 | MinIO bucket `gustale-public` | Ready, anonymous download | n/a |
@@ -36,25 +44,39 @@ Verified live: https://gustale.com/dishes/moussaka-greek/ now shows
 
 - `/` — landing page
 - `/dishes` — list of 31 dishes (client-side search)
+- `/dishes/new` — create new dish (any authed user; creates as draft
+  for moderator review)
 - `/dishes/<slug>` — full detail page, pre-rendered as static HTML
   per dish (SSG via getStaticPaths). Sections: Origin (interactive
-  map), hero, regional variants, ingredients with quantities,
-  preparation methods with steps + duration + difficulty,
+  Leaflet mini-map), hero, regional variants, ingredients with
+  quantities, preparation methods with steps + duration + difficulty,
   sources/citations with Wikipedia links + reliability, image gallery
-  with lightbox (signed-URL fetches from MinIO), editor provenance.
+  with lightbox (signed-URL fetches from MinIO), editor provenance,
+  auth-gated Edit button.
+- `/dishes/<slug>/edit` — edit form (auth-gated; moderator+ can
+  publish drafts directly from this page)
 - `/dishes/nonexistent-slug` — real HTTP 404
 - `/404` (and any unknown URL) — dedicated 404 page
+- `/map` — **NEW**: standalone globe view powered by MapLibre GL.
+  WebGL globe projection by default, flat Mercator toggle in the
+  top-right corner. CARTO Voyager basemap (free, no API key).
+  Cluster bubbles when multiple dishes share coordinates. Click a
+  dot to navigate to the dish page. 285 KB gzipped, loaded only on
+  this page.
 - `/login`, `/register`, `/account` — auth UI
 - AuthMenu in header — "Sign in" ↔ user name + "Sign out"
 - `https://api.gustale.com/api/dishes` — list with `q=` search
 - `https://api.gustale.com/api/dishes/:slug` — rich detail (dish +
   origin + variants + ingredients + categories + preparations +
   sources + media + coverImage + availableLanguages)
-- `https://api.gustale.com/api/dishes/map` — flat lat/lng (server-side
-  endpoint kept for future Phase 9 search/nearby work; no client
-  consumer since commit `38d9fbb`)
+- `https://api.gustale.com/api/dishes/map` — flat lat/lng (consumed
+  by /map; also kept for future Phase 9 search/nearby work)
 - `https://api.gustale.com/api/dishes-by-region?bbox=...` — bbox query
   via PostGIS `ST_MakeEnvelope` (kept for future nearby-dishes feature)
+- `https://api.gustale.com/api/dishes` — `POST` (auth, draft creation)
+  + `PATCH /api/dishes/:slug` (auth, with edit_history diff)
+  + `POST /api/dishes/:slug/publish` (moderator+) + `DELETE`
+  (admin). Tests in `apps/api/test/dishes-write.test.ts`.
 - `https://api.gustale.com/api/auth/{sign-in,sign-up,sign-out,get-session}`
 - `https://api.gustale.com/api/media/upload` (auth-gated, multipart,
   JPEG/PNG/WebP/AVIF/GIF, 20MB cap, streams to MinIO + writes `media`
@@ -73,7 +95,6 @@ Verified live: https://gustale.com/dishes/moussaka-greek/ now shows
 - **Resend not configured** → `requireEmailVerification: false` for v1
   (TODO comment in `apps/api/src/auth.ts`). Re-enable when email provider
   is wired.
-- **No write API** → authenticated users can't yet create/edit dishes.
 - **SSR cookie reading doesn't work cross-subdomain** →
   `lib/session.ts: getSessionFromCookies()` returns null because the
   session cookie lives on `api.gustale.com`. Browser handles this fine
@@ -88,16 +109,25 @@ Verified live: https://gustale.com/dishes/moussaka-greek/ now shows
 - **Telegram deploy-failure alert secrets missing** — `TELEGRAM_BOT_TOKEN`
   and `TELEGRAM_CHAT_ID` GitHub repo secrets still unset, so the
   deploy-failure alert in `8a` no-ops.
+- **/map visual verification gap** — the Camofox test browser used by
+  Claude Code lacks WebGL, so we can't visually confirm the MapLibre
+  globe renders. Code deploys cleanly, JS chunk loads, props
+  serialize correctly, and MapLibre GL works in every modern browser
+  with WebGL (Chrome, Safari, Firefox, Edge). User to verify on a
+  real device.
 
 ## Next build (priority order)
 
-1. **Write API** (`POST /api/dishes`, `PATCH /api/dishes/:slug`,
-   auth-gated) — unlocks the edit wizard. ~half-day.
-2. **Edit wizard UI** (`/dishes/new`, `/dishes/:slug/edit`) — multi-step
-   form, draft → review → publish. Needs #1.
-3. **Fix DishGallery hydration** — small bug, blocks gallery from
+1. **Moderation queue UI** (`/moderation`) — list pending drafts,
+   approve/reject with required reviewer notes, show diff preview.
+   The backend already supports this (`POST .../publish` is
+   moderator-gated); only the UI is missing. ~half-day.
+2. **Fix DishGallery hydration** — small bug, blocks gallery from
    actually showing the seed image. Either add `client:load` to
    `<DishDetail>` or split the gallery into its own island.
+3. **Image upload UI** in the edit wizard — drag-drop a JPEG/PNG,
+   alt text field, license field. Wire to `POST /api/media/upload`.
+   Currently the API exists but there's no UI to call it.
 4. **Re-enable Resend** for email verification (small task, just config
    + flip flag).
 5. **Set Telegram deploy-failure secrets** — user to add to GitHub
@@ -137,6 +167,20 @@ Verified live: https://gustale.com/dishes/moussaka-greek/ now shows
 
 ## Recent decisions log
 
+- 2026-06-18: Reactivated `/map` with **MapLibre GL JS** globe
+  projection (the prior react-simple-maps had a zoom bug and no
+  globe support). CARTO Voyager basemap (free, no API key).
+  Per-dish DishMap (Leaflet) is UNCHANGED — it's lighter and the
+  right choice for a small encyclopedia detail card.
+- 2026-06-18: MapLibre 5.x removed `setFog()` and `projection` from
+  the d.ts typings even though the runtime supports them. Use
+  `setProjection({ type: 'globe' })` after construction; use
+  `setSky({ ... })` (unified fog+sky API) inside `style.load`.
+- 2026-06-18: Edit wizard front-end shipped. Discovery: the backend
+  Write API (POST/PATCH/publish/DELETE) was already live at
+  `apps/api/src/routes/dishes-write.ts` — only the UI was missing.
+  End-to-end smoke test confirmed: signup → create draft → PATCH
+  with diff → contributor 403 on publish.
 - 2026-06-18: Dropped the standalone `/map` page. Per-dish `<DishMap>`
   island (react-leaflet + OpenStreetMap tiles) on every dish page is
   the right shape — smaller, more relevant, no zoom bug. Net bundle
