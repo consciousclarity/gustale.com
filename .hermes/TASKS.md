@@ -11,6 +11,7 @@
 
 ## Done (recent — last 10)
 
+- 2026-06-17: Dish detail page (SSG, 31 pages, real 404 for unknown slugs) — Hermes
 - 2026-06-17: Auth UI (login/register/account/AuthMenu) — Hermes
 - 2026-06-17: Auth plugin body-parsing bugfix — Hermes
 - 2026-06-17: 31-dish encyclopedia seed (Wikipedia-sourced) — Hermes
@@ -22,16 +23,6 @@
 - 2026-06-17: VPS provisioning (Docker, Postgres, MinIO, Caddy) — user + Hermes
 
 ## Backlog
-
-### P0 — Dish detail page
-**Owner:** unassigned · **Estimate:** ~half-day
-Add `apps/web/src/pages/dishes/[slug].astro` that renders the full dish
-data from `/api/dishes/:slug`. Include: title, description, hero image
-(placeholder for now), ingredient list with quantities, step-by-step
-preparation, sources/citations as a sidebar, related dishes by cuisine.
-SEO: full `<head>` metadata (OG tags, JSON-LD Recipe schema, canonical
-URL, structured data for the breadcrumb). This page is the SEO workhorse —
-if you build only one thing next, build this.
 
 ### P1 — Write API for dishes
 **Owner:** unassigned · **Estimate:** 1 day
@@ -54,6 +45,14 @@ Sign up at resend.com (free tier: 3k emails/month), set `RESEND_API_KEY`
 in `/root/.env`, flip `requireEmailVerification: true` and
 `sendOnSignUp: true` in `apps/api/src/auth.ts`. Done.
 
+### P2 — Image upload + gallery rendering
+**Owner:** unassigned · **Estimate:** 1 day
+Wire MinIO signed URLs from the API; render `<img>` tags in the dish
+detail gallery section. Currently the gallery block is a placeholder
+saying "1 attachment on record (images served from MinIO once CDN is
+wired)". Image upload UI on the edit wizard (drag-drop, alt text,
+license field).
+
 ### P3 — Edit history UI
 **Owner:** unassigned · **Estimate:** half-day
 Show `edit_history` rows at the bottom of the dish detail page. Each row
@@ -64,6 +63,24 @@ see a "Revert" button.
 **Owner:** unassigned · **Estimate:** 30 min
 Once write API exists, add per-user rate limiting (e.g. 10 edits/hour)
 to prevent abuse. Use `better-auth`'s rate limit infra.
+
+### P3 — JSON-LD Recipe schema in dish detail
+**Owner:** unassigned · **Estimate:** 1 hour
+Add Recipe schema.org structured data to the dish detail page (title,
+description, ingredients, prep time, cook time, recipe yield, author).
+Google Recipes rich results depend on this.
+
+### P3 — OG / Twitter card meta tags
+**Owner:** unassigned · **Estimate:** 1 hour
+Add OpenGraph + Twitter card meta tags to all pages (especially dish
+detail, with dish image as `og:image`). Currently only a plain
+`<meta name="description">` exists.
+
+### P3 — Internal link audit: ingredient pages
+**Owner:** unassigned · **Estimate:** decision
+Dish detail pages link to `/ingredients/<slug>` (e.g. /ingredients/eggplant)
+but those pages don't exist. Either stub 404s or build ingredient pages.
+Build first or stub first — call it.
 
 ## Backlog (longer-term)
 
