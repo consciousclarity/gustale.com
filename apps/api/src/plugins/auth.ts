@@ -25,18 +25,29 @@ const betterAuthPlugin: FastifyPluginAsync = fp(async (fastify: FastifyInstance)
       }
     }
 
-    // Read raw body for POST/PUT/PATCH/DELETE
-    let body: Buffer | undefined;
+    // Read raw body for POST/PUT/PATCH/DELETE.
+    //
+    // IMPORTANT: Fastify registers a default JSON content-type parser that
+    // already consumed the request stream and parsed `body` into an object.
+    // If we re-read `request.raw` (the Node IncomingMessage stream) it will
+    // be empty because the stream has been drained. Use `request.body` when
+    // the parser has run; fall back to raw bytes only for non-JSON content
+    // types where Fastify leaves the stream untouched.
+    let body: string | Buffer | undefined;
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      // Fastify exposes the raw payload via request.raw (Node IncomingMessage)
-      const chunks: Buffer[] = [];
-      for await (const chunk of request.raw) {
-        chunks.push(chunk as Buffer);
-      }
-      const raw = Buffer.concat(chunks);
-      if (raw.length > 0) {
-        body = raw;
-        headers.set('content-length', String(raw.length));
+      const contentType = (request.headers['content-type'] ?? '').toLowerCase();
+      if (contentType.includes('application/json') && request.body !== undefined && request.body !== null) {
+        // Fastify parsed it for us; re-serialize to a JSON string for the Fetch Request.
+        body = JSON.stringify(request.body);
+      } else {
+        // Non-JSON body: read the raw stream (only happens for things like
+        // multipart/form-data which better-auth currently doesn't accept).
+        const chunks: Buffer[] = [];
+        for await (const chunk of request.raw) {
+          chunks.push(chunk as Buffer);
+        }
+        const raw = Buffer.concat(chunks);
+        if (raw.length > 0) body = raw;
       }
     }
 
