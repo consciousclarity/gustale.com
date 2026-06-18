@@ -36,7 +36,7 @@
  *     removed, so requests to e.g. /dishes/new/ on the geo domain get
  *     a clean 404 from nginx rather than a 403 from autoindex.
  */
-import { readdir, rm, stat } from 'node:fs/promises';
+import { readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const DIST = new URL('../dist/', import.meta.url).pathname;
@@ -177,6 +177,56 @@ if (DOMAIN === 'geo') {
   if (await rmIfExists(ingDir)) {
     console.log('[post-build] removed ingredients/');
     removed++;
+  }
+
+  // Flatten /dishes/<slug>/index.html → /dishes/<slug>.html on the geo
+  // domain. This eliminates the `dist/dishes/` directory entirely so
+  // nginx doesn't 403 on `/dishes/` (a directory request with no index.html
+  // triggers nginx's autoindex "Forbidden" response).
+  //
+  // nginx.conf has rewrite rules for `^/dishes/([^/]+)/?$` that map both
+  // `/dishes/<slug>` and `/dishes/<slug>/` to the flat `.html` file.
+  // On gustale.recipes this transformation does NOT run, so the nested
+  // `dist/dishes/<slug>/index.html` structure is preserved and `/dishes/`
+  // continues to serve the list page.
+  let flattened = 0;
+  for (const slug of dishDirs) {
+    const slugDir = join(DIST, 'dishes', slug);
+    const indexFile = join(slugDir, 'index.html');
+    if (await exists(indexFile)) {
+      // Read content, delete the directory, write the flat file.
+      const content = await readFile(indexFile);
+      // Move to a temp path outside `dishes/` first, then delete the
+      // directory, then move the temp file in.
+      const tempPath = join(DIST, `.dishes-${slug}.html.tmp`);
+      await writeFile(tempPath, content);
+      await rm(slugDir, { recursive: true, force: true });
+      const flatPath = join(DIST, 'dishes', `${slug}.html`);
+      await rename(tempPath, flatPath);
+      flattened++;
+    } else {
+      // No index.html in this slug dir (shouldn't happen for valid slugs
+      // but be defensive). Just remove the empty dir.
+      await rm(slugDir, { recursive: true, force: true });
+    }
+  }
+
+  // Now dist/dishes/ is either empty (if all slugs had their own dir and
+  // we removed them) or contains only flat <slug>.html files. Either way
+  // we can remove the parent and recreate it fresh, OR just leave it.
+  // If we leave it, /dishes/ will still 404 because there's no index.html
+  // and nginx's `index` directive can't find one. If we remove it entirely,
+  // /dishes/ will 404 via the standard try_files chain (the dir doesn't
+  // exist as a file or dir).
+  //
+  // We prefer to leave the directory (with just flat files inside) so that
+  // nginx's rewrite rules still have a consistent `dist/dishes/` prefix to
+  // work with. The /dishes/ 404 happens via nginx's missing index.html →
+  // 404.html fallback.
+
+  if (flattened > 0) {
+    console.log(`[post-build] flattened ${flattened} dish pages to flat /dishes/<slug>.html`);
+    removed += flattened;
   }
 }
 
