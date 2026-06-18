@@ -269,6 +269,13 @@ jobs:
         # step itself remains `set -euo pipefail` and clean.
         - name: Deploy via SSH
           uses: appleboy/ssh-action@v1
+          env:
+            # Pass the auto-issued workflow token (and actor) to the remote
+            # script. The script uses them as the primary GHCR login,
+            # falling back to GHCR_PAT for older workflows that didn't
+            # have `packages: write` at the workflow level.
+            GHA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GHA_ACTOR: ${{ github.actor }}
           with:
             host: ${{ secrets.HOSTINGER_HOST }}
             username: ${{ secrets.HOSTINGER_USER }}
@@ -292,14 +299,39 @@ jobs:
               trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ] && [ "$_DEPLOY_EXIT" = "0" ]; then _DEPLOY_EXIT=$rc; echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; fi' ERR
               trap 'echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "$_DEPLOY_EXIT"' EXIT
 
-              echo "--- Logging into ghcr.io (use GHCR_PAT from repo secret) ---"
-              if [ -z "${{ secrets.GHCR_PAT }}" ]; then
-                echo "::error::GHCR_PAT secret is empty — deploy cannot authenticate to ghcr.io"
-                echo "DEPLOY_FAILED_AT=GHCR_PAT missing" >> "$DEPLOY_LOG"
+              # Two auth paths tried here, in order:
+              #   1. GHA_TOKEN (preferred). The workflow already has
+              #      `packages: write` (see top-level `permissions:`),
+              #      and we pass `${{ secrets.GITHUB_TOKEN }}` to the
+              #      remote script via the `env:` block of the SSH
+              #      action. The same auto-issued token the build job
+              #      used to push the three images is good for pulling
+              #      them back, because the build pushed them into the
+              #      same namespace the deploy is reading from.
+              #   2. GHCR_PAT (fallback). A separate Personal Access Token
+              #      saved as a repo secret. Used historically because
+              #      GITHUB_TOKEN was assumed to lack `packages: read`
+              #      for private packages. In practice, with the build
+              #      pushing to the same namespace (consciousclarity/
+              #      gustale.com/*), GHA_TOKEN is sufficient and the
+              #      PAT has been a source of silent failures (token
+              #      rotation, missing scopes for gustale-api, etc.).
+              #
+              # We try GHA_TOKEN first; if it's not present (which
+              # should not happen for any workflow run on a push to
+              # main), we fall back to GHCR_PAT for backward compat.
+              if [ -n "$GHA_TOKEN" ]; then
+                echo "--- Logging into ghcr.io with GHA_TOKEN (auto-issued workflow token) ---"
+                echo "$GHA_TOKEN" | docker login ghcr.io -u "${GHA_ACTOR:-consciousclarity}" --password-stdin
+              elif [ -n "${{ secrets.GHCR_PAT }}" ]; then
+                echo "--- Logging into ghcr.io with GHCR_PAT fallback ---"
+                echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
+              else
+                echo "::error::Neither GHA_TOKEN nor GHCR_PAT is set — deploy cannot authenticate to ghcr.io"
+                echo "DEPLOY_FAILED_AT=auth missing" >> "$DEPLOY_LOG"
                 echo 1 > /tmp/deploy_exit
                 exit 1
               fi
-              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
 
               echo "--- Pulling API image: $API_IMAGE ---"
               docker pull "$API_IMAGE"
