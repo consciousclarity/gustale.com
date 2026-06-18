@@ -51,6 +51,9 @@ export function WorldMap({ dishes }: WorldMapProps) {
   // True until the dynamic import of maplibre-gl resolves. Surfaces a
   // loading hint instead of an empty container.
   const [mapReady, setMapReady] = useState<boolean>(false);
+  // Set when the user can't see the map at all (WebGL disabled, headless
+  // browser, etc). Triggers a text-list fallback so the page is still useful.
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Effective dishes: starts as the prop (set at build time if the API was
   // reachable), but if empty we fetch live on hydration. This makes the
@@ -58,6 +61,33 @@ export function WorldMap({ dishes }: WorldMapProps) {
   // a real globe with whatever data the API has right now.
   const [effectiveDishes, setEffectiveDishes] = useState<MapDish[]>(dishes);
   const [isLoading, setIsLoading] = useState<boolean>(dishes.length === 0);
+
+  // Cheap, synchronous WebGL capability probe. Runs before any heavy
+  // import. If this returns false we never even fetch the 1MB maplibre-gl
+  // bundle — we just show a list-based fallback. This is the most common
+  // reason the map appears as a blank grey box in the wild.
+  const detectWebGL = (): boolean => {
+    if (typeof document === 'undefined') return false;
+    try {
+      const canvas = document.createElement('canvas');
+      // getContext's TypeScript types return `RenderingContext | null`
+      // which is a union including 2D. Cast through `unknown` to the
+      // WebGL-specific interface so we can use getParameter below.
+      const gl = (canvas.getContext('webgl2') ??
+        canvas.getContext('webgl') ??
+        canvas.getContext('experimental-webgl')) as unknown as
+        | WebGLRenderingContext
+        | null;
+      if (!gl) return false;
+      // Some browsers report a context but actually have a software-only
+      // driver that crashes when used. Quick sanity check: query a basic
+      // parameter. If it throws, the context is unusable.
+      gl.getParameter(gl.VERSION);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (dishes.length > 0) return; // build-time fetch already populated us
@@ -88,6 +118,20 @@ export function WorldMap({ dishes }: WorldMapProps) {
     if (!containerRef.current) return;
     let cancelled = false;
     let map: MlMap | null = null;
+
+    // Pre-flight WebGL check. If the browser can't get a WebGL context
+    // (Linux without GPU drivers, headless browser, hardware acceleration
+    // disabled) we never even fetch maplibre-gl — we just set an error
+    // and let the fallback UI render. This avoids the "blank grey box"
+    // experience and saves a 1MB bundle download.
+    if (!detectWebGL()) {
+      if (cancelled) return;
+      // eslint-disable-next-line no-console
+      console.warn('[WorldMap] WebGL not available — falling back to list view');
+      setMapError('Your browser does not support WebGL, which is required for the interactive globe. Below is a list of dishes by region.');
+      setMapReady(true); // hide the loading overlay
+      return;
+    }
 
     // Dynamic import: keeps maplibre-gl out of the SSR/initial-hydration
     // critical path. The component itself becomes a thin React island
@@ -141,11 +185,13 @@ export function WorldMap({ dishes }: WorldMapProps) {
           attributionControl: { compact: true },
         });
       } catch (err) {
-        // WebGL not available (sandbox, hardware disabled, ancient GPU).
+        // WebGL not available (sandbox, hardware disabled, ancient GPU)
+        // — or a malformed style spec, or a third-party script blocked.
+        // Either way, the user gets nothing useful. Surface a friendly
+        // message and the list-based fallback rather than a blank box.
         // eslint-disable-next-line no-console
-        console.warn('[WorldMap] MapLibre init failed — WebGL unavailable?', err);
-        // Still mark as "ready" so the overlay disappears — the canvas
-        // exists, the user can see whatever state MapLibre ended up in.
+        console.warn('[WorldMap] MapLibre init failed:', err);
+        setMapError('The interactive globe could not be initialised in this browser. Below is a list of dishes by region.');
         setMapReady(true);
         return;
       }
@@ -419,27 +465,75 @@ export function WorldMap({ dishes }: WorldMapProps) {
   return (
     <>
     <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-      {/* Toggle button */}
-      <div className="absolute right-3 top-3 z-10">
-        <button
-          type="button"
-          onClick={toggleView}
-          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-emerald-300 hover:text-emerald-700"
-        >
-          {view === 'globe' ? '🌐 Globe' : '🗺  Flat map'}
-        </button>
-      </div>
+      {/* Toggle button — hidden when the map can't render (no point offering
+          a projection toggle if there's no map). */}
+      {!mapError && (
+        <div className="absolute right-3 top-3 z-10">
+          <button
+            type="button"
+            onClick={toggleView}
+            className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-emerald-300 hover:text-emerald-700"
+          >
+            {view === 'globe' ? '🌐 Globe' : '🗺  Flat map'}
+          </button>
+        </div>
+      )}
 
       <div
         ref={containerRef}
-        className="h-[560px] w-full"
+        className={mapError ? 'hidden' : 'h-[560px] w-full'}
         aria-label="Interactive globe showing published dishes by origin"
       />
+
+      {/* WebGL / init-failure fallback: a region-grouped, clickable list
+          of dishes. Replaces the blank canvas with something useful. */}
+      {mapError && effectiveDishes.length > 0 && (
+        <div className="max-h-[560px] overflow-y-auto p-6">
+          <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {mapError}
+          </p>
+          <ul className="space-y-4">
+            {Object.entries(
+              effectiveDishes.reduce<Record<string, MapDish[]>>((acc, d) => {
+                const key = d.region?.name ?? 'Unknown region';
+                (acc[key] ??= []).push(d);
+                return acc;
+              }, {}),
+            )
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([region, dishes]) => (
+                <li key={region}>
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    {region}
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      {dishes.length} {dishes.length === 1 ? 'dish' : 'dishes'}
+                    </span>
+                  </h3>
+                  <ul className="grid gap-1 sm:grid-cols-2">
+                    {dishes
+                      .slice()
+                      .sort((a, b) => b.viewCount - a.viewCount)
+                      .map((d) => (
+                        <li key={d.slug}>
+                          <a
+                            href={`/dishes/${d.slug}/`}
+                            className="block rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-white hover:text-emerald-700"
+                          >
+                            {d.canonicalName}
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       {/* MapLibre loading overlay — shown until the dynamic import of
           maplibre-gl resolves AND the WebGL canvas is initialised. The
           overlay disappears the moment the first tile paint fires. */}
-      {!mapReady && !isLoading && effectiveDishes.length > 0 && (
+      {!mapReady && !isLoading && effectiveDishes.length > 0 && !mapError && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-50/70">
           <p className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
             Loading globe…
@@ -460,7 +554,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
 
       {/* Empty-state fallback — only shown when the fetch resolved but
           the API genuinely returned zero dishes. */}
-      {!isLoading && effectiveDishes.length === 0 && (
+      {!isLoading && effectiveDishes.length === 0 && !mapError && (
         <div className="absolute inset-0 z-10 flex items-center justify-center">
           <p className="text-slate-500">
             No dishes with origin coordinates yet. Add a dish to see it on the map.
