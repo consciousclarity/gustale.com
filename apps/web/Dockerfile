@@ -40,6 +40,13 @@ ARG PUBLIC_API_BASE=https://api.gustale.recipes
 ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
+# Clean the web app's previous build + Astro cache before building.
+# This guards against stale `.astro/` cache producing a partial dist
+# (we saw a CI run ship only 1 dish due to this). The post-build
+# script also has a floor check, but a clean rebuild is cheaper than
+# failing and re-running the whole pipeline.
+RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
+
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
 #   geo     → build:geo      (drops /dishes list, /ingredients, edit/new)

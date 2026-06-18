@@ -22,18 +22,41 @@
  * Run after `astro build`:
  *   PUBLIC_DOMAIN=recipes node scripts/post-build.mjs
  *   PUBLIC_DOMAIN=geo     node scripts/post-build.mjs
+ *
+ * Defensive behaviour:
+ *   - If the dist looks incomplete (e.g. astro build was incremental and
+ *     produced only a subset of pages), the script REFUSES to delete
+ *     anything and exits non-zero, so the CI fails loudly instead of
+ *     shipping a partial dist that breaks the live site.
+ *   - The "completeness" check is: dist/dishes/ must contain ≥20 entries
+ *     (we currently have 31 seeded dishes). 20 is a conservative floor
+ *     that catches catastrophic partial builds (we saw 1 dish survive
+ *     a flaky run) without false-positives on future schema changes.
+ *   - Empty parent directories left behind after pruning are also
+ *     removed, so requests to e.g. /dishes/new/ on the geo domain get
+ *     a clean 404 from nginx rather than a 403 from autoindex.
  */
 import { readdir, rm, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 
 const DIST = new URL('../dist/', import.meta.url).pathname;
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? 'recipes';
+
+// Floor: we have 31 seeded dishes. Anything <20 is almost certainly
+// a partial build (stale cache, flaky incremental, etc.). Bump this
+// if seed-data.ts grows.
+const MIN_EXPECTED_DISHES = 20;
+
+// Escape hatch for local dev: if the API isn't reachable during
+// `astro build`, only moussaka-greek ships in the dist. Setting
+// ALLOW_PARTIAL=1 lets you run the post-build anyway for manual
+// experimentation. CI MUST NOT set this.
+const ALLOW_PARTIAL = process.env.ALLOW_PARTIAL === '1';
 
 // Routes that exist on ONE domain only. Each is a path relative to /.
 const GEO_ONLY = ['map/'];
 const RECIPES_ONLY = [
   'dishes/index.html',  // /dishes/ list
-  'ingredients/',        // /ingredients/<slug>/ per slug
 ];
 
 async function exists(path) {
@@ -45,6 +68,12 @@ async function exists(path) {
   }
 }
 
+async function listDirs(parent) {
+  if (!(await exists(parent))) return [];
+  const entries = await readdir(parent, { withFileTypes: true });
+  return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+}
+
 async function rmIfExists(path) {
   if (await exists(path)) {
     await rm(path, { recursive: true, force: true });
@@ -53,21 +82,60 @@ async function rmIfExists(path) {
   return false;
 }
 
-async function walk(dir, visitor) {
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const e of entries) {
-    const full = join(dir, e.name);
-    if (e.isDirectory()) {
-      await walk(full, visitor);
-    } else {
-      await visitor(full);
+/**
+ * Remove an empty directory tree. Walks upward from `dir`, removing
+ * any directory that has no entries left after `dir` itself is gone.
+ * Stops at `stop` (exclusive).
+ */
+async function pruneEmptyParents(dir, stop) {
+  let current = dir;
+  while (current && current !== stop && current !== '/' && current !== '.') {
+    if (!(await exists(current))) {
+      current = join(current, '..');
+      continue;
     }
+    const entries = await readdir(current);
+    if (entries.length > 0) break;
+    await rm(current, { recursive: true, force: true });
+    current = join(current, '..');
   }
 }
 
-const drop = DOMAIN === 'recipes' ? GEO_ONLY : RECIPES_ONLY;
+// ─── Completeness check ────────────────────────────────────────────────────
+// Refuse to prune anything if the dist looks partial. We compare the
+// count of <slug> directories under dist/dishes/ against the floor.
+// If the build is partial, the floor catches it BEFORE we delete the
+// few surviving pages and end up with a near-empty dist.
+const dishDirs = await listDirs(join(DIST, 'dishes'));
+if (dishDirs.length < MIN_EXPECTED_DISHES) {
+  if (ALLOW_PARTIAL) {
+    console.warn(
+      `[post-build] WARNING: dist/dishes/ has only ${dishDirs.length} ` +
+      `directories (expected ≥${MIN_EXPECTED_DISHES}). ALLOW_PARTIAL=1 ` +
+      `is set, so proceeding with pruning anyway. Do not deploy this dist.`
+    );
+  } else {
+    console.error(
+      `[post-build] REFUSING to prune — dist/dishes/ has ${dishDirs.length} ` +
+      `directories (expected ≥${MIN_EXPECTED_DISHES}). This looks like a ` +
+      `partial or stale build. Re-run a clean astro build (e.g. ` +
+      `"rm -rf dist .astro && astro build") before post-processing, ` +
+      `or set ALLOW_PARTIAL=1 if you really mean to ship a partial dist.`
+    );
+    process.exit(1);
+  }
+} else {
+  console.log(
+    `[post-build] dist looks complete: ${dishDirs.length} dishes found. ` +
+    `Proceeding with ${DOMAIN} domain filter.`
+  );
+}
 
+// ─── Per-domain pruning ────────────────────────────────────────────────────
 let removed = 0;
+
+// Always-on: drop pages only relevant to the OTHER domain.
+const drop = DOMAIN === 'recipes' ? GEO_ONLY : RECIPES_ONLY;
 for (const target of drop) {
   const full = join(DIST, target);
   if (await rmIfExists(full)) {
@@ -76,41 +144,58 @@ for (const target of drop) {
   }
 }
 
-// Also scrub any per-slug directories for ingredients on geo domain
+// Domain-specific: walk the dishes tree to keep <slug>/index.html
+// (single dish view, on both domains) but drop <slug>/edit/ and new/.
 if (DOMAIN === 'geo') {
-  // /ingredients/<slug>/index.html — each slug has its own dir
-  const ingDir = join(DIST, 'ingredients');
-  if (await exists(ingDir)) {
-    await rm(ingDir, { recursive: true, force: true });
-    console.log(`[post-build] removed ingredients/ (not in geo domain)`);
+  // Drop /dishes/<slug>/edit/ for every slug + /dishes/new/ entirely.
+  for (const slug of dishDirs) {
+    const editDir = join(DIST, 'dishes', slug, 'edit');
+    if (await rmIfExists(editDir)) {
+      console.log(`[post-build] removed dishes/${slug}/edit/`);
+      removed++;
+      await pruneEmptyParents(
+        join(DIST, 'dishes', slug),
+        join(DIST, 'dishes'),
+      );
+    }
+  }
+  const newDir = join(DIST, 'dishes', 'new');
+  if (await rmIfExists(newDir)) {
+    console.log(`[post-build] removed dishes/new/`);
     removed++;
   }
 
-  // /dishes/new/ and /dishes/<slug>/edit/
-  const dishesDir = join(DIST, 'dishes');
-  if (await exists(dishesDir)) {
-    await walk(dishesDir, async (full) => {
-      const rel = relative(dishesDir, full);
-      // Keep index.html (the list) and <slug>/index.html (single dish).
-      // Drop <slug>/edit/ and new/.
-      if (rel.endsWith('/edit/index.html') || rel === 'new/index.html') {
-        await rm(full, { force: true });
-        const dir = full.replace(/\/index\.html$/, '');
-        if (await exists(dir)) {
-          // remove the directory only if it's empty after the file removal
-          const remaining = await readdir(dir);
-          if (remaining.length === 0) await rm(dir, { recursive: true, force: true });
-        }
-        console.log(`[post-build] removed dishes/${rel}`);
-        removed++;
-      }
-    });
-    // After removing edit/new, the dishes index.html is the list — drop it too.
-    const dishesIndex = join(dishesDir, 'index.html');
-    if (await rmIfExists(dishesIndex)) {
-      console.log('[post-build] removed dishes/index.html (list page not in geo domain)');
-      removed++;
-    }
+  // Drop the /dishes list page on the geo domain.
+  const dishesIndex = join(DIST, 'dishes', 'index.html');
+  if (await rmIfExists(dishesIndex)) {
+    console.log('[post-build] removed dishes/index.html (list page not in geo domain)');
+    removed++;
+  }
+
+  // Drop /ingredients/<slug>/ entirely (geo domain has no ingredient pages).
+  const ingDir = join(DIST, 'ingredients');
+  if (await rmIfExists(ingDir)) {
+    console.log('[post-build] removed ingredients/');
+    removed++;
+  }
+}
+
+// Recipes domain keeps dishes + ingredients, just drops /map.
+// (Already handled above via RECIPES_ONLY.)
+
+// ─── Final cleanup: prune empty parent dirs at dist root ──────────────────
+// Catches anything left over (e.g. dist/dishes/ if every slug had its
+// edit/ removed and the list page was also dropped — though we always
+// keep the list on recipes, this is just defensive).
+const rootEntries = await readdir(DIST, { withFileTypes: true });
+for (const e of rootEntries) {
+  if (!e.isDirectory()) continue;
+  const sub = join(DIST, e.name);
+  const remaining = await readdir(sub);
+  if (remaining.length === 0) {
+    await rm(sub, { recursive: true, force: true });
+    console.log(`[post-build] pruned empty dir ${e.name}/`);
+    removed++;
   }
 }
 
