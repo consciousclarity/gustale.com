@@ -11,6 +11,18 @@
 
 ## Done (recent — last 10)
 
+- 2026-06-18: Migrated per-dish `<DishMap>` from react-leaflet to
+  MapLibre GL JS — single map library across the site, same CARTO
+  Voyager basemap and emerald marker style as standalone /map,
+  same WebGL-detect → static-fallback pattern. Leaflet, react-leaflet,
+  @types/leaflet removed. Also cleaned up @types/react-simple-maps,
+  @types/d3-geo, @types/topojson-client (dead deps from the old
+  react-simple-maps era). Fixed pre-existing P57-style typecheck
+  lie: `@types/geojson` was a transitive of maplibre-gl but pnpm
+  didn't hoist it, so `tsc --noEmit` had been hiding a
+  `Cannot find namespace 'GeoJSON'` error in `WorldMap.tsx`.
+  Added as direct devDep. Branch `feat/maplibre-per-dish`, awaiting
+  PR. — Hermes
 - 2026-06-18: Standalone /map page reactivated with MapLibre GL JS
   globe projection. CARTO Voyager basemap, free, no API key.
   Toggle to flat Mercator in the corner. — Hermes

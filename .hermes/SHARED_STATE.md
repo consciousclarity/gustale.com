@@ -6,26 +6,35 @@
 
 ## Last updated
 
-2026-06-18 03:00 WITA by Hermes Agent (commit `634b435`).
+2026-06-18 19:30 WITA by Hermes Agent (commit `fc36bc4` on branch
+feat/maplibre-per-dish, awaiting PR).
 
 ## Current status
 
-✅ **Phase 7c/8a/7d/Edit wizard shipped. Per-dish maps live.
-Standalone /map reactivated with MapLibre GL globe projection.**
+✅ **Phase 7c/8a/7d/Edit wizard shipped. All maps now use MapLibre.**
+Per-dish maps live, standalone /map live. One library, one basemap, one
+fallback shape.
 
-Three map surfaces now coexist:
+Two map surfaces:
 1. `/map` — standalone **globe** (MapLibre GL) showing all 31 dishes,
    toggle to flat Mercator in the corner. CARTO Voyager basemap.
-2. `/dishes/<slug>/` — per-dish **mini-map** (Leaflet) showing one
-   dish's origin, OpenStreetMap tiles, popup on click.
-3. Edit wizard (Phase 7c + edit UI) — fully shipped; backend has been
-   live since before the standalone map existed.
+2. `/dishes/<slug>/` — per-dish **mini-map** (MapLibre GL) showing one
+   dish's origin, same CARTO Voyager basemap + same WebGL pre-flight +
+   static fallback pattern. Leaflet/react-leaflet fully removed.
 
-Verified live: https://gustale.com/map/ returns 200 OK with the
-WorldMap island ready to hydrate. (Note: the Camofox test browser
-used by Claude Code lacks WebGL, so I can't visually verify the
-globe renders — but the chunk loads, props serialize correctly,
-and MapLibre GL works in every modern browser.)
+Both islands share: dynamic import of `maplibre-gl` inside `useEffect`
+(not at module top), `detectWebGL()` pre-flight, CARTO Voyager raster
+style spec, dark-stroked emerald marker style.
+
+Verified locally on branch `feat/maplibre-per-dish`:
+- `pnpm --filter apps-web exec tsc --noEmit` clean
+- both recipes + geo builds complete (75 pages each)
+- no Leaflet refs in emitted HTML
+- new `DishMap.<hash>.js` chunk is 6.2KB (island shell; maplibre-gl
+  fetches on hydration)
+
+Same Camofox caveat as before: test browser has no WebGL, so visual
+verification pending on a real device after the PR merges and deploys.
 
 ## What's deployed on main
 
@@ -48,11 +57,11 @@ and MapLibre GL works in every modern browser.)
   for moderator review)
 - `/dishes/<slug>` — full detail page, pre-rendered as static HTML
   per dish (SSG via getStaticPaths). Sections: Origin (interactive
-  Leaflet mini-map), hero, regional variants, ingredients with
-  quantities, preparation methods with steps + duration + difficulty,
-  sources/citations with Wikipedia links + reliability, image gallery
-  with lightbox (signed-URL fetches from MinIO), editor provenance,
-  auth-gated Edit button.
+  MapLibre mini-map, same style as standalone /map), hero, regional
+  variants, ingredients with quantities, preparation methods with
+  steps + duration + difficulty, sources/citations with Wikipedia
+  links + reliability, image gallery with lightbox (signed-URL fetches
+  from MinIO), editor provenance, auth-gated Edit button.
 - `/dishes/<slug>/edit` — edit form (auth-gated; moderator+ can
   publish drafts directly from this page)
 - `/dishes/nonexistent-slug` — real HTTP 404
@@ -157,16 +166,28 @@ and MapLibre GL works in every modern browser.)
 - **getStaticPaths fetch limit:** API caps `limit` at 100, so any
   future static-generated page that lists dishes must paginate (the
   detail page already does this in `pages/dishes/[slug].astro`).
-- **SSR safety for Leaflet**: ALWAYS mount map components with
-  `client:only="react"`, never `client:load`. Leaflet touches `window`
-  at import time. The `noscript` fallback in the dish page handles
-  no-JS users gracefully.
+- **SSR safety for MapLibre**: ALWAYS mount map components with
+  `client:only="react"`, never `client:load`. Both MapLibre and the
+  legacy react-leaflet touch `window` at import time (MapLibre
+  imports `mapbox-gl`'s WebGL helpers). The `noscript` fallback in
+  the dish page handles no-JS users gracefully.
 - **CSS @import order**: `@import url(...)` MUST come before other
   rules (including `@import "tailwindcss"`). Tailwind's @property
   rules will trigger a Vite warning otherwise.
 
 ## Recent decisions log
 
+- 2026-06-18: **Migrated per-dish DishMap from react-leaflet to
+  MapLibre GL.** Single map library across the site (`/map` and
+  `/dishes/<slug>` both use `maplibre-gl@5.24.0`). Same CARTO Voyager
+  raster basemap, same emerald halo+dot marker style, same
+  WebGL-detect → static-fallback pattern. Leaflet/react-leaflet/
+  @types/leaflet removed; @types/react-simple-maps/@types/d3-geo/
+  @types/topojson-client cleaned up while at it. Discovered during
+  the migration: `tsc --noEmit` had been silently hiding a
+  `Cannot find namespace 'GeoJSON'` error in `WorldMap.tsx` for
+  weeks (P57 — dangling transitive type). Fixed by adding
+  `@types/geojson` as a direct devDep of `apps-web`.
 - 2026-06-18: Reactivated `/map` with **MapLibre GL JS** globe
   projection (the prior react-simple-maps had a zoom bug and no
   globe support). CARTO Voyager basemap (free, no API key).
