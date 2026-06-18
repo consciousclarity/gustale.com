@@ -270,10 +270,10 @@ jobs:
         - name: Deploy via SSH
           uses: appleboy/ssh-action@v1
           env:
-            # Pass the auto-issued workflow token (and actor) to the remote
-            # script. The script uses them as the primary GHCR login,
-            # falling back to GHCR_PAT for older workflows that didn't
-            # have `packages: write` at the workflow level.
+            # Define the env vars on the runner so they're available
+            # for the action to read. The action's `envs:` (under
+            # `with:`) is a comma-separated allow-list of which of
+            # these to forward to the remote script via SSH.
             GHA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GHA_ACTOR: ${{ github.actor }}
           with:
@@ -281,6 +281,13 @@ jobs:
             username: ${{ secrets.HOSTINGER_USER }}
             key: ${{ secrets.HOSTINGER_SSH_KEY }}
             command_timeout: 8m
+            # Forward GHA_TOKEN and GHA_ACTOR to the remote script so
+            # the script can use the workflow's auto-issued token for
+            # `docker login ghcr.io` instead of relying on a separate
+            # long-lived PAT (GHCR_PAT). The action's `envs:` field
+            # is a comma-separated allow-list; without it, none of
+            # the runner's env vars reach the remote script.
+            envs: GHA_TOKEN,GHA_ACTOR
             script: |
               set -euo pipefail
               REPO="ghcr.io/${{ github.repository }}"
