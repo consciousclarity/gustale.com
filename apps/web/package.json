@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:recipes": "astro build && node scripts/post-build.mjs",
+    "build:geo": "astro build && PUBLIC_DOMAIN=geo node scripts/post-build.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

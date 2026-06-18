@@ -1,16 +1,24 @@
 # Gustale Web — multi-stage Dockerfile
 #
+# Builds one of two domain variants:
+#   - PUBLIC_DOMAIN=recipes → encyclopedia site (gustale.recipes)
+#   - PUBLIC_DOMAIN=geo     → geo/map site (gustale.com)
+#
+# Both use the same Astro codebase; the difference is the post-build
+# filter (apps/web/scripts/post-build.mjs) that drops domain-specific
+# pages from the dist/ tree. See the script for the page mapping.
+#
 # Stage 1: builder
-#   Builds the Astro front-end (apps/web) in the monorepo context.
-#   PUBLIC_API_BASE is set at build time so the SSR fetch resolves to the
-#   production API endpoint. If the API is unreachable during build, the
-#   page still renders (serverError is set in the page frontmatter);
-#   the React island retries against the live API after hydration.
+#   Builds the Astro front-end with PUBLIC_DOMAIN set so the post-build
+#   filter knows which pages to drop. PUBLIC_API_BASE is set at build
+#   time so the SSR fetch resolves to the production API endpoint.
 #
 # Stage 2: runtime
 #   nginx:alpine serving the static `dist/` directory on port 4001.
-#   Long-cache for hashed assets (`/_astro/*`), short-cache for HTML,
-#   SPA-style fallback so the /dishes/... route resolves to /dishes/index.html.
+#   Two separate images are produced from this same Dockerfile, one
+#   per PUBLIC_DOMAIN, and deployed to two containers behind Caddy:
+#     - gustale-web-recipes  → gustale.recipes
+#     - gustale-web-geo      → gustale.com
 FROM node:22-slim AS builder
 
 WORKDIR /app
@@ -26,9 +34,20 @@ RUN pnpm install --frozen-lockfile
 
 # Build only the web app. The filter ensures we don't waste time
 # rebuilding @gustale/db / @gustale/api for a web-only change.
-ARG PUBLIC_API_BASE=https://api.gustale.com
+# PUBLIC_DOMAIN picks which page subset to keep (recipes|geo).
+ARG PUBLIC_DOMAIN=recipes
+ARG PUBLIC_API_BASE=https://api.gustale.recipes
+ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
-RUN pnpm --filter apps-web run build
+
+# Use the right build script per domain.
+#   recipes → build:recipes  (drops /map)
+#   geo     → build:geo      (drops /dishes list, /ingredients, edit/new)
+RUN if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
+      pnpm --filter apps-web run build:geo; \
+    else \
+      pnpm --filter apps-web run build:recipes; \
+    fi
 
 # ---------- Stage 2: runtime ----------
 FROM nginx:1.27-alpine

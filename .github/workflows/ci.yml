@@ -172,9 +172,9 @@ jobs:
           # we can revisit layer caching once the Dockerfile is stable.
           provenance: false
 
-  # ─── Job 3b: Docker build smoke test (gustale-web) ───────────────
-  build-web:
-    name: Docker build (gustale-web)
+  # ─── Job 3b: Docker build for recipes domain (gustale.recipes) ────
+  build-web-recipes:
+    name: Docker build (gustale-web-recipes)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [lint, test]  # only build once code passes
@@ -202,22 +202,57 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Web image
+      - name: Build and push recipes variant
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          # Production API base baked at build time so the SSR fetch resolves
-          # correctly. The build runs once per deploy and the resulting
-          # static HTML is served from gustale-web. The browser then uses
-          # same-origin /api/* (Caddy reverse-proxies to gustale-api), so
-          # this build-time value is only relevant for getStaticPaths.
-          # NOTE: use api.gustale.com (not .recipes) until DNS for
-          # gustale.recipes is propagated. Both Caddy vhosts proxy the
-          # same gustale-api container, so this only affects which
-          # hostname the build resolves during getStaticPaths.
-          build-args: PUBLIC_API_BASE=https://api.gustale.com
-          tags: ghcr.io/${{ github.repository }}/gustale-web:latest,ghcr.io/${{ github.repository }}/gustale-web:${{ github.sha }}
+          build-args: |
+            PUBLIC_DOMAIN=recipes
+            PUBLIC_API_BASE=https://api.gustale.recipes
+          tags: ghcr.io/${{ github.repository }}/gustale-web-recipes:latest,ghcr.io/${{ github.repository }}/gustale-web-recipes:${{ github.sha }}
+          push: true
+          provenance: false
+
+  # ─── Job 3c: Docker build for geo domain (gustale.com) ────────────
+  build-web-geo:
+    name: Docker build (gustale-web-geo)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push geo variant
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          build-args: |
+            PUBLIC_DOMAIN=geo
+            PUBLIC_API_BASE=https://api.gustale.recipes
+          tags: ghcr.io/${{ github.repository }}/gustale-web-geo:latest,ghcr.io/${{ github.repository }}/gustale-web-geo:${{ github.sha }}
           push: true
           provenance: false
 
@@ -226,7 +261,7 @@ jobs:
       name: Deploy to Hostinger
       runs-on: ubuntu-24.04
       timeout-minutes: 10
-      needs: [build, build-web]  # both images must be built and pushed first
+      needs: [build, build-web-recipes, build-web-geo]  # all three images must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       steps:
         # Always notify (success or failure). We use the github actions
@@ -243,7 +278,8 @@ jobs:
               set -euo pipefail
               REPO="ghcr.io/${{ github.repository }}"
               API_IMAGE="$REPO/gustale-api:${{ github.sha }}"
-              WEB_IMAGE="$REPO/gustale-web:${{ github.sha }}"
+              WEB_RECIPES_IMAGE="$REPO/gustale-web-recipes:${{ github.sha }}"
+              WEB_GEO_IMAGE="$REPO/gustale-web-geo:${{ github.sha }}"
 
               # Capture the deploy outcome into a file so the post-step can
               # forward it to Telegram even though we run `set -e`.
@@ -265,16 +301,18 @@ jobs:
               fi
               echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
 
-              echo "--- Pulling new API image: $API_IMAGE ---"
+              echo "--- Pulling API image: $API_IMAGE ---"
               docker pull "$API_IMAGE"
-              echo "--- Pulling new Web image: $WEB_IMAGE ---"
-              docker pull "$WEB_IMAGE"
+              echo "--- Pulling recipes web image: $WEB_RECIPES_IMAGE ---"
+              docker pull "$WEB_RECIPES_IMAGE"
+              echo "--- Pulling geo web image: $WEB_GEO_IMAGE ---"
+              docker pull "$WEB_GEO_IMAGE"
 
-              # Verify BOTH images are present before destroying any running
-              # container. If either pull failed, the old containers stay up
+              # Verify ALL THREE images are present before destroying any running
+              # container. If any pull failed, the old containers stay up
               # and we surface a clear error.
-              echo "--- Verifying both images are present locally ---"
-              for IMG in "$API_IMAGE" "$WEB_IMAGE"; do
+              echo "--- Verifying all images are present locally ---"
+              for IMG in "$API_IMAGE" "$WEB_RECIPES_IMAGE" "$WEB_GEO_IMAGE"; do
                 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
                   echo "::error::Image $IMG not present locally — aborting deploy to keep old containers running"
                   echo "DEPLOY_FAILED_AT=image missing: $IMG" >> "$DEPLOY_LOG"
@@ -298,7 +336,7 @@ jobs:
               }
 
               # gustale-api needs /root/.env for DB / MinIO / auth secrets.
-              # gustale-web is pure static; no env-file needed.
+              # gustale-web-{recipes,geo} are pure static; no env-file needed.
               #
               # IMPORTANT: gustale-api runs with --network host because
               # shared-postgres and shared-minio are bound to 127.0.0.1
@@ -309,17 +347,26 @@ jobs:
               # host firewall (hPanel) is the trust boundary; container-
               # level isolation is not the goal here.
               #
-              # gustale-web does NOT need --network host because it serves
-              # static files; nothing on the host's loopback is involved.
+              # gustale-web-{recipes,geo} do NOT need --network host because
+              # they serve static files; nothing on the host's loopback is
+              # involved.
+              #
+              # Port split:
+              #   gustale-web-recipes  → :4001 (Caddy routes gustale.recipes here)
+              #   gustale-web-geo      → :4002 (Caddy routes gustale.com here)
+              # Previously both were :4001 with a single shared image. The
+              # domain split means each domain now has its own filtered
+              # static tree.
               deploy_container "gustale-api" "$API_IMAGE" "4000" "--network host --env-file /root/.env"
-              deploy_container "gustale-web" "$WEB_IMAGE" "4001"
+              deploy_container "gustale-web-recipes" "$WEB_RECIPES_IMAGE" "4001"
+              deploy_container "gustale-web-geo" "$WEB_GEO_IMAGE" "4002"
 
-              echo "--- Waiting 10s for both containers to boot + healthcheck ---"
+              echo "--- Waiting 10s for containers to boot + healthcheck ---"
               sleep 10
 
-              echo "--- Verifying BOTH containers are Up + healthy ---"
+              echo "--- Verifying ALL containers are Up + healthy ---"
               FAILED=0
-              for NAME in gustale-api gustale-web; do
+              for NAME in gustale-api gustale-web-recipes gustale-web-geo; do
                 STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$NAME" 2>/dev/null || echo "MISSING")
                 echo "  $NAME status: $STATUS"
                 if [ "$STATUS" != "running healthy" ] && [ "$STATUS" != "running  healthy" ]; then

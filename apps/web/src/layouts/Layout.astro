@@ -8,6 +8,8 @@ export interface Props {
 }
 
 const { title, description = 'Gustale — a digital culinary archive.' } = Astro.props;
+const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
+const isGeo = domain === 'geo';
 ---
 
 <!doctype html>
@@ -25,12 +27,20 @@ const { title, description = 'Gustale — a digital culinary archive.' } = Astro
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         <div class="flex items-center gap-8">
           <a href="/" class="text-lg font-bold tracking-tight text-slate-900 hover:text-emerald-700">
-            gustale<span class="text-emerald-600">.</span>recipes
+            gustale<span class="text-emerald-600">.</span>{isGeo ? 'atlas' : 'recipes'}
           </a>
           <nav class="flex items-center gap-6 text-sm font-medium text-slate-700">
-            <a href="/dishes" class="hover:text-emerald-700">Dishes</a>
-            <a href="/map" class="hover:text-emerald-700">Map</a>
-            <a href="/about" class="hover:text-emerald-700">About</a>
+            {isGeo ? (
+              <>
+                <a href="/map" class="hover:text-emerald-700">Map</a>
+                <a href="/about" class="hover:text-emerald-700">About</a>
+              </>
+            ) : (
+              <>
+                <a href="/dishes" class="hover:text-emerald-700">Dishes</a>
+                <a href="/about" class="hover:text-emerald-700">About</a>
+              </>
+            )}
           </nav>
         </div>
         <AuthMenu client:load />
