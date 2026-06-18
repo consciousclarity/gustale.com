@@ -417,6 +417,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
   }, [view]);
 
   return (
+    <>
     <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
       {/* Toggle button */}
       <div className="absolute right-3 top-3 z-10">
@@ -496,5 +497,13 @@ export function WorldMap({ dishes }: WorldMapProps) {
         </p>
       </noscript>
     </div>
+    <p className="text-sm text-slate-500" data-testid="worldmap-count">
+      Showing {effectiveDishes.length} dish{effectiveDishes.length === 1 ? '' : 'es'} with
+      origin coordinates.
+      <a href="/dishes" className="ml-2 font-medium text-emerald-700 hover:text-emerald-800">
+        View as list →
+      </a>
+    </p>
+    </>
   );
 }

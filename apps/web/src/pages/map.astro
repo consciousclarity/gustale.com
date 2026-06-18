@@ -47,21 +47,12 @@ try {
     {serverError && (
       <div class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <strong>Heads up:</strong> the gustale-api could not be reached at build
-        time ({serverError}). The globe will retry against the live API after
-        hydration.
+        time ({serverError}). The globe will load live data on hydration.
       </div>
     )}
 
     <ErrorBoundary name="Map">
       <WorldMap dishes={initialDishes} client:only="react" />
     </ErrorBoundary>
-
-    <p class="text-sm text-slate-500">
-      Showing {initialDishes.length} dish{initialDishes.length === 1 ? '' : 'es'} with
-      origin coordinates.
-      <a href="/dishes" class="ml-2 font-medium text-emerald-700 hover:text-emerald-800">
-        View as list →
-      </a>
-    </p>
   </section>
 </Layout>
