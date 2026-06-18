@@ -324,14 +324,18 @@ jobs:
               deploy_container() {
                 local NAME="$1"
                 local IMAGE="$2"
-                local PORT="$3"
-                local EXTRA_ARGS="${4:-}"
-                echo "--- Deploying $NAME from $IMAGE on port $PORT ---"
+                # HOST_PORT and CONTAINER_PORT allow asymmetric mappings
+                # (e.g. host:4002 → container:4001 for gustale-web-geo).
+                # When they differ, we use HOST_PORT:CONTAINER_PORT syntax.
+                local HOST_PORT="$3"
+                local CONTAINER_PORT="${4:-$3}"
+                local EXTRA_ARGS="${5:-}"
+                echo "--- Deploying $NAME from $IMAGE on ${HOST_PORT}:${CONTAINER_PORT} ---"
                 docker stop "$NAME" 2>/dev/null || true
                 docker rm   "$NAME" 2>/dev/null || true
                 # shellcheck disable=SC2086
                 docker run -d --name "$NAME" --restart unless-stopped \
-                  -p "$PORT:$PORT" $EXTRA_ARGS \
+                  -p "${HOST_PORT}:${CONTAINER_PORT}" $EXTRA_ARGS \
                   "$IMAGE"
               }
 
@@ -352,15 +356,16 @@ jobs:
               # involved.
               #
               # Port mapping:
-              #   gustale-web-recipes  → host:4001 → container:4001
-              #   gustale-web-geo      → host:4002 → container:4001
-              # Both containers listen on the same internal port (4001) per
-              # their shared nginx config; the host-side port differs so
+              #   gustale-api           → host:4000 → container:4000
+              #   gustale-web-recipes   → host:4001 → container:4001
+              #   gustale-web-geo       → host:4002 → container:4001
+              # Both web containers listen on the same internal port (4001)
+              # per their shared nginx config; the host-side port differs so
               # they don't collide. Caddy routes gustale.recipes → :4001
               # and gustale.com → :4002.
-              deploy_container "gustale-api" "$API_IMAGE" "4000" "--network host --env-file /root/.env"
-              deploy_container "gustale-web-recipes" "$WEB_RECIPES_IMAGE" "4001:4001"
-              deploy_container "gustale-web-geo" "$WEB_GEO_IMAGE" "4002:4001"
+              deploy_container "gustale-api"         "$API_IMAGE"         "4000" "4000" "--network host --env-file /root/.env"
+              deploy_container "gustale-web-recipes" "$WEB_RECIPES_IMAGE" "4001" "4001"
+              deploy_container "gustale-web-geo"     "$WEB_GEO_IMAGE"     "4002" "4001"
 
               echo "--- Waiting 10s for containers to boot + healthcheck ---"
               sleep 10
