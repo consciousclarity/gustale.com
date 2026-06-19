@@ -172,12 +172,25 @@ jobs:
           # we can revisit layer caching once the Dockerfile is stable.
           provenance: false
 
-  # ─── Job 3b: Docker build for recipes domain (gustale.recipes) ────
-  build-web-recipes:
-    name: Docker build (gustale-web-recipes)
+  # ─── Job 3b+3c: Docker build for both web domains ─────────────────
+  # recipes variant → gustale-web-recipes (serves gustale.recipes)
+  # geo variant     → gustale-web-geo     (serves gustale.com)
+  # Both use the same Dockerfile; only PUBLIC_DOMAIN and the image
+  # tag differ. Matrix runs both legs in parallel; failure of one leg
+  # does not block the other.
+  build-web:
+    name: Docker build (gustale-web-${{ matrix.image }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [lint, test]  # only build once code passes
+    strategy:
+      fail-fast: false  # let the other domain's build finish even if one fails
+      matrix:
+        include:
+          - domain: recipes
+            image:  recipes
+          - domain: geo
+            image:  geo
     steps:
       - uses: actions/checkout@v4
 
@@ -202,57 +215,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push recipes variant
+      - name: Build and push ${{ matrix.image }} variant
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
           build-args: |
-            PUBLIC_DOMAIN=recipes
+            PUBLIC_DOMAIN=${{ matrix.domain }}
             PUBLIC_API_BASE=https://api.gustale.recipes
-          tags: ghcr.io/${{ github.repository }}/gustale-web-recipes:latest,ghcr.io/${{ github.repository }}/gustale-web-recipes:${{ github.sha }}
-          push: true
-          provenance: false
-
-  # ─── Job 3c: Docker build for geo domain (gustale.com) ────────────
-  build-web-geo:
-    name: Docker build (gustale-web-geo)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: [lint, test]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push geo variant
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          build-args: |
-            PUBLIC_DOMAIN=geo
-            PUBLIC_API_BASE=https://api.gustale.recipes
-          tags: ghcr.io/${{ github.repository }}/gustale-web-geo:latest,ghcr.io/${{ github.repository }}/gustale-web-geo:${{ github.sha }}
+          tags: >-
+            ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
+            ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}
           push: true
           provenance: false
 
@@ -261,7 +234,7 @@ jobs:
       name: Deploy to Hostinger
       runs-on: ubuntu-24.04
       timeout-minutes: 10
-      needs: [build, build-web-recipes, build-web-geo]  # all three images must be built and pushed first
+      needs: [build, build-web]  # api + both web variants must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       steps:
         # Always notify (success or failure). We use the github actions
