@@ -66,7 +66,15 @@ jobs:
 
       - name: Lint
         run: pnpm -r run lint
-        continue-on-error: true  # informational until lint is green everywhere
+        # NOTE: as of 2026-06-18, no package in the workspace defines a
+        # real lint script — `pnpm -r run lint` resolves to a stub
+        # `echo 'lint ui'` in packages/ui. The lint gate is currently
+        # non-functional. There is an open P1 TODO in .hermes/TASKS.md
+        # with a 2026-09-30 deadline to wire up a real linter (Biome).
+        # Once a real linter is configured, this step will start failing
+        # PRs that introduce lint regressions — which is the point.
+        # DO NOT add `continue-on-error: true` back here; that flag is
+        # what made the gate silently invisible for months.
 
   # ─── Job 2: Tests with ephemeral Postgres ──────────────────────────
   test:
