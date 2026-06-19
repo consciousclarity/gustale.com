@@ -173,11 +173,15 @@ jobs:
           file: apps/api/Dockerfile
           tags: ghcr.io/${{ github.repository }}/gustale-api:latest,ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
           push: true
-          # No GHA cache: the multi-stage Dockerfile does a full `pnpm install`
-          # inside the image, and BuildKit's GHA cache key computation chokes on
-          # paths that only exist *after* the install (e.g. packages/db/dist,
-          # node_modules). 4-min clean build is fine for the first iteration;
-          # we can revisit layer caching once the Dockerfile is stable.
+          # GHA layer cache. The Dockerfile splits COPY so the install
+          # layer's cache key depends only on pnpm-lock.yaml + the
+          # workspace package.json files (not on every source file).
+          # On a typical PR where only source changes, the install +
+          # node_modules layers reuse the previous push's cache.
+          # mode=max caches every layer (not just the final one);
+          # gustale's three images are well under the 10GB/repo quota.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: false
 
   # ─── Job 3b+3c: Docker build for both web domains ─────────────────
@@ -235,6 +239,10 @@ jobs:
             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}
           push: true
+          # GHA layer cache (see the api job above for the rationale).
+          # The web Dockerfile uses the same COPY-split pattern.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: false
 
   # ─── Job 4: Deploy to Hostinger VPS ────────────────────────────────

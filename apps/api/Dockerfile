@@ -9,6 +9,19 @@
 #
 # `pnpm deploy` extracts a self-contained, prod-only copy of the api package
 # and its workspace dependencies into a clean directory.
+#
+# ---------- Cache structure ----------
+# The COPY commands below are ordered so the pnpm install layer's cache
+# key depends ONLY on files that change rarely:
+#   1. pnpm-lock.yaml + pnpm-workspace.yaml + every package.json
+#   2. pnpm install (frozen-lockfile) — this layer is reused across PRs
+#      as long as the dependency set is unchanged.
+#   3. The full source tree (COPY . .) — invalidates everything below it
+#      on every commit, but the install layer above survives.
+#
+# Combined with `cache-from: type=gha` in ci.yml, a typical PR
+# (source-only changes) reuses the install layer and skips ~60-90s of
+# `pnpm install` work. A lockfile change re-installs but is rare.
 FROM node:22-slim AS builder
 
 WORKDIR /app
@@ -16,11 +29,23 @@ WORKDIR /app
 # Install pnpm globally
 RUN npm install -g pnpm
 
-# Copy the full monorepo source code FIRST
-COPY . .
+# Copy ONLY what `pnpm install --frozen-lockfile` needs to compute the
+# dep tree. pnpm reads workspace package.jsons + pnpm-workspace.yaml +
+# pnpm-lock.yaml and nothing else. Source files don't enter the cache
+# key for the install layer.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/db/package.json     ./packages/db/
+COPY packages/ui/package.json     ./packages/ui/
+COPY apps/api/package.json        ./apps/api/
+COPY apps/web/package.json        ./apps/web/
 
-# Install all deps (incl. devDeps for tsc)
+# Install all deps (incl. devDeps for tsc). This RUN's cache key is the
+# 7 files copied above, so it stays cached across source-only PRs.
 RUN pnpm install --frozen-lockfile
+
+# Now copy the rest of the source. This layer's cache key is the full
+# monorepo tree, so it (and everything below) invalidates on every commit.
+COPY . .
 
 # Build packages in dependency order
 RUN pnpm --filter @gustale/db run build
