@@ -854,7 +854,7 @@ function RecipeApp() {
             </div>
           </div>
           <div className="rec-heroimg">
-            <Ph label={`dish photo · shakshuka (${variant.label.toLowerCase()})`} h={420} t1={variant.heroTone[0]} t2={variant.heroTone[1]} />
+            <RecPlaceholder label={`dish photo · shakshuka (${variant.label.toLowerCase()})`} h={420} t1={variant.heroTone[0]} t2={variant.heroTone[1]} />
             <div className="cap"><span>HERO · 4:3</span><span>{variant.country.toUpperCase()}</span></div>
           </div>
         </header>
@@ -963,7 +963,7 @@ function RecipeApp() {
             <div className="related">
               {RECIPE.related.map((r) => (
                 <article className="rel-card" key={r.name}>
-                  <Ph label={`dish · ${r.name.toLowerCase()}`} h={200} t1={r.t1} t2={r.t2} />
+                  <RecPlaceholder label={`dish · ${r.name.toLowerCase()}`} h={200} t1={r.t1} t2={r.t2} />
                   <h3>{r.name}</h3>
                   <div className="pl">{r.place}</div>
                   <div className="mt">{r.meta}</div>
