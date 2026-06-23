@@ -2,4 +2,36 @@
    bundling ~28KB of CSS that's only used on pages that mount a map island.
    @import rules MUST come before all other rules except @charset/@layer. */
 @import url("https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css");
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap");
 @import "tailwindcss";
+
+:root {
+  --font-display: "Newsreader", Georgia, serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.navlink {
+  position: relative;
+}
+
+.navlink[data-active="true"] {
+  color: rgb(15 23 42);
+}
+
+.navlink[data-active="true"]::after {
+  position: absolute;
+  right: 0;
+  bottom: -22px;
+  left: 0;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgb(5 150 105);
+  content: "";
+}

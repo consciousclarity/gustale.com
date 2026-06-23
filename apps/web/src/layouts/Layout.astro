@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { AuthMenu } from '../components/AuthMenu';
+import SiteHeader from '../components/SiteHeader.astro';
 
 export interface Props {
   title: string;
@@ -9,7 +9,6 @@ export interface Props {
 
 const { title, description = 'Gustale — a digital culinary archive.' } = Astro.props;
 const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
-const isGeo = domain === 'geo';
 ---
 
 <!doctype html>
@@ -23,29 +22,7 @@ const isGeo = domain === 'geo';
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-    <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <div class="flex items-center gap-8">
-          <a href="/" class="text-lg font-bold tracking-tight text-slate-900 hover:text-emerald-700">
-            gustale<span class="text-emerald-600">.</span>{isGeo ? 'atlas' : 'recipes'}
-          </a>
-          <nav class="flex items-center gap-6 text-sm font-medium text-slate-700">
-            {isGeo ? (
-              <>
-                <a href="/map" class="hover:text-emerald-700">Map</a>
-                <a href="/about" class="hover:text-emerald-700">About</a>
-              </>
-            ) : (
-              <>
-                <a href="/dishes" class="hover:text-emerald-700">Dishes</a>
-                <a href="/about" class="hover:text-emerald-700">About</a>
-              </>
-            )}
-          </nav>
-        </div>
-        <AuthMenu client:load />
-      </div>
-    </header>
+    <SiteHeader currentPath={Astro.url.pathname} domain={domain} />
     <main>
       <slot />
     </main>
