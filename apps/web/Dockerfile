@@ -62,27 +62,11 @@ COPY . .
 # failing and re-running the whole pipeline.
 RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 
-# Wait for the API to be reachable before building.
-#
-# Why: the Astro build does SSR fetches via getStaticPaths to populate
-# every /dishes/<slug> + /ingredients/<slug> page. If the API is
-# momentarily unavailable (rate limit, transient network blip, deploy
-# race), Astro falls back to a placeholder set of one dish and we ship
-# a near-empty dist. The post-build script's floor check catches this,
-# but the build still takes 3+ minutes of retries before failing.
-#
-# Instead, gate the build on /health first. 60s timeout covers cold
-# starts (container restart, DB migrate). The endpoint is
-# unauthenticated and fast.
-#
-# Override with PUBLIC_API_BASE_HEALTH if you ever need to point at a
-# different host (e.g. a staging API). We default to the prod URL
-# because that's what PUBLIC_API_BASE points at anyway.
-#
-# The wait-for-api.mjs script was originally COPY'd to /tmp explicitly;
-# the full-source COPY above already brought it in, so we run it in-tree.
-ARG PUBLIC_API_BASE_HEALTH=${PUBLIC_API_BASE}
-RUN node /app/apps/web/scripts/wait-for-api.mjs "${PUBLIC_API_BASE_HEALTH}"
+# NOTE: The API health check (wait-for-api.mjs) intentionally does NOT
+# run here. Docker buildx on GitHub Actions cannot reach the production
+# API (GHA runner IPs are blocked by the Hostinger VPS firewall). The
+# check runs as a plain `run:` step in the build-web CI job instead,
+# where the runner has normal internet access. See .github/workflows/ci.yml.
 
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
@@ -99,7 +83,7 @@ FROM nginx:1.27-alpine
 # Drop the default nginx config; ship our own that:
 #   - listens on 4001 (matches the Caddy upstream; non-privileged port)
 #   - serves /_astro/* with a 1-year cache (hashed filenames = content-addressed)
-#   - serves everything else with no-cache (HTML, JSON, etc.)
+#   - serves everything else with no-cache (HTML, CSS, JS, etc.)
 #   - falls back to /index.html for unknown routes (Astro static routing)
 #   - gzip on text-ish content
 # The COPY path is relative to the build context root (the monorepo root).
