@@ -5,58 +5,70 @@ import Layout from '../layouts/Layout.astro';
 // is baked in at build time by the post-build filter (PUBLIC_DOMAIN).
 const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
 const isGeo = domain === 'geo';
+
+const dishes = [
+  { name: 'Khachapuri', place: 'Georgia', mark: 'KH' },
+  { name: 'Pho', place: 'Vietnam', mark: 'PH' },
+  { name: 'Tagine', place: 'Morocco', mark: 'TA' },
+  { name: 'Ceviche', place: 'Peru', mark: 'CE' },
+  { name: 'Ramen', place: 'Japan', mark: 'RA' },
+  { name: 'Feijoada', place: 'Brazil', mark: 'FE' },
+  { name: 'Injera', place: 'Ethiopia', mark: 'IN' },
+  { name: 'Bibimbap', place: 'Korea', mark: 'BI' },
+];
 ---
 
 <Layout title={isGeo ? "Gustale Atlas — The world, dish by dish" : "Gustale — A digital culinary archive"}>
-  <section class="mx-auto max-w-4xl px-4 py-20 text-center">
+  <section class="mx-auto max-w-6xl px-4 py-10 md:py-14">
     {isGeo ? (
       <>
-        <h1 class="text-5xl font-extrabold tracking-tight text-slate-900">
-          Every dish has a place of origin.
-        </h1>
-        <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
-          Spin the globe. Click a dot. Read about what's eaten where, and why.
-          Gustale Atlas maps the world's dishes to the land they came from.
-        </p>
-        <div class="mt-10 flex justify-center gap-3">
-          <a
-            href="/map"
-            class="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-          >
-            Open the globe
-          </a>
-          <a
-            href="/about"
-            class="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-slate-400"
-          >
-            About this project
-          </a>
+        <div class="fade-up">
+          <h1 class="font-display max-w-2xl text-4xl font-semibold leading-[1.05] text-slate-900 md:text-5xl">
+            Every dish has a place of origin.
+          </h1>
+          <p class="mt-4 max-w-xl text-[15px] leading-relaxed text-slate-600 md:text-lg">
+            Spin the globe, click a dot, and read about what's eaten where - and why.
+            Gustale Atlas maps the world's dishes to the land they came from.
+          </p>
         </div>
+
+        <a href="/map" class="fade-up mt-8 block overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-900 to-slate-800 shadow-inner">
+          <div class="relative h-[300px] md:h-[420px]">
+            <div class="atlas-grid absolute inset-0 opacity-[0.18]"></div>
+            <div class="atlas-orb absolute left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-400/20 md:h-80 md:w-80"></div>
+            <span class="globe-dot absolute left-[46%] top-[40%] h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span class="globe-dot absolute left-[54%] top-[52%] h-2 w-2 rounded-full bg-emerald-400 [animation-delay:.4s]"></span>
+            <span class="globe-dot absolute left-[50%] top-[58%] h-2 w-2 rounded-full bg-emerald-400 [animation-delay:.8s]"></span>
+            <span class="globe-dot absolute left-[58%] top-[44%] h-2 w-2 rounded-full bg-emerald-400 [animation-delay:1.2s]"></span>
+            <span class="globe-dot absolute left-[43%] top-[50%] h-2 w-2 rounded-full bg-emerald-400 [animation-delay:1.6s]"></span>
+            <div class="absolute bottom-3 left-4 text-xs text-slate-400">2,000 dishes mapped · drag to spin</div>
+          </div>
+        </a>
       </>
     ) : (
       <>
-        <h1 class="text-5xl font-extrabold tracking-tight text-slate-900">
-          A living archive of the world's dishes.
-        </h1>
-        <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
-          Gustale is an open culinary encyclopedia: origin, method, story — for every dish
-          worth remembering. Browse the catalogue to begin.
-        </p>
-        <div class="mt-10 flex justify-center gap-3">
-          <a
-            href="/dishes"
-            class="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-          >
-            Browse dishes
-          </a>
-          <a
-            href="/about"
-            class="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-slate-400"
-          >
-            About the project
-          </a>
+        <div class="fade-up">
+          <h1 class="font-display max-w-2xl text-4xl font-semibold leading-[1.05] text-slate-900 md:text-5xl">
+            A living archive of the world's dishes.
+          </h1>
+          <p class="mt-4 max-w-xl text-[15px] leading-relaxed text-slate-600 md:text-lg">
+            Origin, method, story - for every dish worth remembering.
+            Browse the catalogue to begin.
+          </p>
         </div>
       </>
     )}
+
+    <div class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+      {dishes.map((dish) => (
+        <a href="/dishes" class="group block overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/5">
+          <div class="flex h-24 items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-lg font-semibold text-slate-500">{dish.mark}</div>
+          <div class="px-3 py-2.5">
+            <p class="font-display text-[15px] font-semibold leading-tight text-slate-900">{dish.name}</p>
+            <p class="mt-0.5 text-xs text-slate-500">{dish.place}</p>
+          </div>
+        </a>
+      ))}
+    </div>
   </section>
 </Layout>

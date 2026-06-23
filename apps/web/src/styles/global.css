@@ -2,4 +2,138 @@
    bundling ~28KB of CSS that's only used on pages that mount a map island.
    @import rules MUST come before all other rules except @charset/@layer. */
 @import url("https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css");
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap");
 @import "tailwindcss";
+
+:root {
+  --header-h: 64px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: "Newsreader", Georgia, serif;
+}
+
+.pop[hidden] {
+  display: none;
+}
+
+.site-header {
+  min-height: var(--header-h);
+}
+
+.navlink {
+  position: relative;
+}
+
+.navlink[data-active="true"] {
+  color: rgb(15 23 42);
+}
+
+.navlink[data-active="true"]::after {
+  position: absolute;
+  right: 0;
+  bottom: -22px;
+  left: 0;
+  height: 2px;
+  border-radius: 9999px;
+  background: #059669;
+  content: "";
+}
+
+.sheet {
+  top: var(--header-h);
+  transition:
+    transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 0.25s ease;
+}
+
+.sheet[data-open="false"] {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+.sheet[data-open="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.globe-dot {
+  animation: gustale-pulse 2.6s ease-in-out infinite;
+}
+
+.fade-up {
+  animation: gustale-fade-up 0.5s both;
+}
+
+.atlas-grid {
+  background-image: radial-gradient(circle at 1px 1px, #fff 1px, transparent 0);
+  background-size: 26px 26px;
+}
+
+.atlas-orb {
+  background: radial-gradient(circle at 38% 32%, #1e3a34, #0f172a 70%);
+  box-shadow:
+    inset -30px -20px 60px rgba(0, 0, 0, 0.6),
+    0 0 80px rgba(16, 185, 129, 0.15);
+}
+
+@keyframes gustale-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes gustale-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .d-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .m-only {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .globe-dot,
+  .fade-up {
+    animation: none;
+  }
+
+  .sheet {
+    transition: none;
+  }
+}
