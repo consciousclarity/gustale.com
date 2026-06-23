@@ -6,12 +6,12 @@
 
 ## Last updated
 
-2026-06-18 19:30 WITA by Hermes Agent (commit `fc36bc4` on branch
-feat/maplibre-per-dish, awaiting PR).
+2026-06-23 by Claude (Cowork) — PR #1 merged to main, gallery hydration fix
+shipped, shared state updated.
 
 ## Current status
 
-✅ **Phase 7c/8a/7d/Edit wizard shipped. All maps now use MapLibre.**
+✅ **PR #1 merged. Phase 7c/8a/7d/Edit wizard shipped. All maps use MapLibre. DishGallery hydration fixed.**
 Per-dish maps live, standalone /map live. One library, one basemap, one
 fallback shape.
 
@@ -40,10 +40,10 @@ verification pending on a real device after the PR merges and deploys.
 
 | Component | Status | Image SHA |
 |---|---|---|
-| `apps/api` (Fastify + better-auth) | Live, healthy | `634b435` |
-| `apps/web` (Astro + React islands) | Live, healthy | `634b435` |
-| gustale-api container | Running on VPS :4000 | `634b435…` |
-| gustale-web container | Running on VPS :4001 | `634b435…` |
+| `apps/api` (Fastify + better-auth) | Live, healthy | `2da83d1` |
+| `apps/web` (Astro + React islands) | Live, healthy | `2da83d1` |
+| gustale-api container | Running on VPS :4000 | `2da83d1…` |
+| gustale-web container | Running on VPS :4001 | `2da83d1…` |
 | shared-postgres container | Running | n/a |
 | minio container | Running | n/a |
 | MinIO bucket `gustale-public` | Ready, anonymous download | n/a |
@@ -108,13 +108,11 @@ verification pending on a real device after the PR merges and deploys.
   `lib/session.ts: getSessionFromCookies()` returns null because the
   session cookie lives on `api.gustale.com`. Browser handles this fine
   via XHR; only an issue for future SSR personalization.
-- **DishGallery island doesn't hydrate** — `DishDetail` is rendered
-  without `client:load` directive, so the gallery's `useState`/`useEffect`
-  never run. Images with `media_attachments` rows exist (1 seed row
-  for `moussaka-greek`) but won't render until this is fixed. Discovery
-  noted during Phase 7d map work; not yet resolved. Fix: add `client:load`
-  to `<DishDetail>` in `pages/dishes/[slug].astro`, or hoist the
-  gallery into a top-level island like we did for `DishMap`.
+- ~~**DishGallery island doesn't hydrate**~~ — **Fixed** (2026-06-23,
+  commit `2da83d1`). Added `client:load` to `<DishDetail>` in
+  `pages/dishes/[slug].astro`. Gallery now hydrates and fetches
+  signed URLs. Visual verification on a real device still pending
+  (needs MinIO reachable + WebGL for the map on the same page).
 - **Telegram deploy-failure alert secrets missing** — `TELEGRAM_BOT_TOKEN`
   and `TELEGRAM_CHAT_ID` GitHub repo secrets still unset, so the
   deploy-failure alert in `8a` no-ops.
@@ -235,4 +233,4 @@ verification pending on a real device after the PR merges and deploys.
 
 ## Active blockers (none right now)
 
-(none)
+(none)                                                                                                                  

@@ -11,6 +11,12 @@
 
 ## Done (recent — last 10)
 
+- 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
+  6 commits shipped: MapLibre per-dish map, CI matrix/cache improvements,
+  lint gate fix, gallery hydration fix. Deployed to VPS. — Claude (Cowork)
+- 2026-06-23: Fixed DishGallery hydration — added `client:load` to
+  `<DishDetail>` in `pages/dishes/[slug].astro` (commit `2da83d1`).
+  Gallery useState/useEffect now run; signed-URL fetch on mount works. — Claude (Cowork)
 - 2026-06-18: Migrated per-dish `<DishMap>` from react-leaflet to
   MapLibre GL JS — single map library across the site, same CARTO
   Voyager basemap and emerald marker style as standalone /map,
@@ -208,12 +214,4 @@ Map-based discovery + unified search. Plan summary:
 - **i18n** — frontend and content. README has this as Phase 7g.
 - **Public read API for third parties** — rate limits + API keys.
 - **Mobile-first redesign** — current layout is desktop-first; map
-  needs mobile UX (pinch-zoom already works via MapLibre + Leaflet,
-  but bottom-sheet style overlays for the map popup).
-- **DMCA process** — required for opening up open editing publicly.
-  Document in `docs/dmca.md`.
-- **Moderator UI** — partially built (review queue); see P1 above
-  for the rest.
-- **API delete `/api/dishes/map`** — currently consumed by both
-  `/map` (MapLibre globe) and reserved for Phase 9 nearby-dishes
-  work. Keep.
+ 
