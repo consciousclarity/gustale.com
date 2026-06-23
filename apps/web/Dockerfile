@@ -19,6 +19,13 @@
 #   per PUBLIC_DOMAIN, and deployed to two containers behind Caddy:
 #     - gustale-web-recipes  → gustale.recipes
 #     - gustale-web-geo      → gustale.com
+#
+# ---------- Cache structure ----------
+# Same pattern as apps/api/Dockerfile: copy pnpm-lock.yaml + the four
+# workspace package.json files first, install (cacheable layer whose
+# key is just those 7 files), then COPY . . for the build. Combined
+# with `cache-from: type=gha` in ci.yml, source-only PRs reuse the
+# install layer and skip ~60-90s of `pnpm install` work.
 FROM node:22-slim AS builder
 
 WORKDIR /app
@@ -26,10 +33,14 @@ WORKDIR /app
 # Install pnpm globally (matches the monorepo's packageManager field)
 RUN npm install -g pnpm
 
-# Copy the full monorepo so workspace symlinks resolve
-COPY . .
+# Cache-friendly install boundary: only files that affect the dep tree.
+# See apps/api/Dockerfile for the full rationale.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/db/package.json     ./packages/db/
+COPY packages/ui/package.json     ./packages/ui/
+COPY apps/api/package.json        ./apps/api/
+COPY apps/web/package.json        ./apps/web/
 
-# Install all deps (incl. devDeps for the Astro build)
 RUN pnpm install --frozen-lockfile
 
 # Build only the web app. The filter ensures we don't waste time
@@ -39,6 +50,10 @@ ARG PUBLIC_DOMAIN=recipes
 ARG PUBLIC_API_BASE=https://api.gustale.recipes
 ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
+
+# Now copy the rest of the source. This layer's cache key is the full
+# monorepo tree, so it (and everything below) invalidates on every commit.
+COPY . .
 
 # Clean the web app's previous build + Astro cache before building.
 # This guards against stale `.astro/` cache producing a partial dist
@@ -63,9 +78,11 @@ RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 # Override with PUBLIC_API_BASE_HEALTH if you ever need to point at a
 # different host (e.g. a staging API). We default to the prod URL
 # because that's what PUBLIC_API_BASE points at anyway.
+#
+# The wait-for-api.mjs script was originally COPY'd to /tmp explicitly;
+# the full-source COPY above already brought it in, so we run it in-tree.
 ARG PUBLIC_API_BASE_HEALTH=${PUBLIC_API_BASE}
-COPY apps/web/scripts/wait-for-api.mjs /tmp/wait-for-api.mjs
-RUN node /tmp/wait-for-api.mjs "${PUBLIC_API_BASE_HEALTH}"
+RUN node /app/apps/web/scripts/wait-for-api.mjs "${PUBLIC_API_BASE_HEALTH}"
 
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)

@@ -66,7 +66,15 @@ jobs:
 
       - name: Lint
         run: pnpm -r run lint
-        continue-on-error: true  # informational until lint is green everywhere
+        # NOTE: as of 2026-06-18, no package in the workspace defines a
+        # real lint script — `pnpm -r run lint` resolves to a stub
+        # `echo 'lint ui'` in packages/ui. The lint gate is currently
+        # non-functional. There is an open P1 TODO in .hermes/TASKS.md
+        # with a 2026-09-30 deadline to wire up a real linter (Biome).
+        # Once a real linter is configured, this step will start failing
+        # PRs that introduce lint regressions — which is the point.
+        # DO NOT add `continue-on-error: true` back here; that flag is
+        # what made the gate silently invisible for months.
 
   # ─── Job 2: Tests with ephemeral Postgres ──────────────────────────
   test:
@@ -165,19 +173,36 @@ jobs:
           file: apps/api/Dockerfile
           tags: ghcr.io/${{ github.repository }}/gustale-api:latest,ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
           push: true
-          # No GHA cache: the multi-stage Dockerfile does a full `pnpm install`
-          # inside the image, and BuildKit's GHA cache key computation chokes on
-          # paths that only exist *after* the install (e.g. packages/db/dist,
-          # node_modules). 4-min clean build is fine for the first iteration;
-          # we can revisit layer caching once the Dockerfile is stable.
+          # GHA layer cache. The Dockerfile splits COPY so the install
+          # layer's cache key depends only on pnpm-lock.yaml + the
+          # workspace package.json files (not on every source file).
+          # On a typical PR where only source changes, the install +
+          # node_modules layers reuse the previous push's cache.
+          # mode=max caches every layer (not just the final one);
+          # gustale's three images are well under the 10GB/repo quota.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: false
 
-  # ─── Job 3b: Docker build for recipes domain (gustale.recipes) ────
-  build-web-recipes:
-    name: Docker build (gustale-web-recipes)
+  # ─── Job 3b+3c: Docker build for both web domains ─────────────────
+  # recipes variant → gustale-web-recipes (serves gustale.recipes)
+  # geo variant     → gustale-web-geo     (serves gustale.com)
+  # Both use the same Dockerfile; only PUBLIC_DOMAIN and the image
+  # tag differ. Matrix runs both legs in parallel; failure of one leg
+  # does not block the other.
+  build-web:
+    name: Docker build (gustale-web-${{ matrix.image }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [lint, test]  # only build once code passes
+    strategy:
+      fail-fast: false  # let the other domain's build finish even if one fails
+      matrix:
+        include:
+          - domain: recipes
+            image:  recipes
+          - domain: geo
+            image:  geo
     steps:
       - uses: actions/checkout@v4
 
@@ -202,58 +227,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push recipes variant
+      - name: Build and push ${{ matrix.image }} variant
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
           build-args: |
-            PUBLIC_DOMAIN=recipes
+            PUBLIC_DOMAIN=${{ matrix.domain }}
             PUBLIC_API_BASE=https://api.gustale.recipes
-          tags: ghcr.io/${{ github.repository }}/gustale-web-recipes:latest,ghcr.io/${{ github.repository }}/gustale-web-recipes:${{ github.sha }}
+          tags: >-
+            ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
+            ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}
           push: true
-          provenance: false
-
-  # ─── Job 3c: Docker build for geo domain (gustale.com) ────────────
-  build-web-geo:
-    name: Docker build (gustale-web-geo)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    needs: [lint, test]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push geo variant
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          build-args: |
-            PUBLIC_DOMAIN=geo
-            PUBLIC_API_BASE=https://api.gustale.recipes
-          tags: ghcr.io/${{ github.repository }}/gustale-web-geo:latest,ghcr.io/${{ github.repository }}/gustale-web-geo:${{ github.sha }}
-          push: true
+          # GHA layer cache (see the api job above for the rationale).
+          # The web Dockerfile uses the same COPY-split pattern.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: false
 
   # ─── Job 4: Deploy to Hostinger VPS ────────────────────────────────
@@ -261,7 +250,7 @@ jobs:
       name: Deploy to Hostinger
       runs-on: ubuntu-24.04
       timeout-minutes: 10
-      needs: [build, build-web-recipes, build-web-geo]  # all three images must be built and pushed first
+      needs: [build, build-web]  # api + both web variants must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       steps:
         # Always notify (success or failure). We use the github actions
