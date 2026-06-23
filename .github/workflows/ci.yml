@@ -227,6 +227,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Wait for API to be reachable
+        run: node apps/web/scripts/wait-for-api.mjs https://api.gustale.recipes
+
       - name: Build and push ${{ matrix.image }} variant
         uses: docker/build-push-action@v6
         with:
@@ -456,3 +459,4 @@ jobs:
               -d disable_web_page_preview=true \
               --data-urlencode "text=${MSG}" \
               --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
+
