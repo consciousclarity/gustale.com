@@ -1,8 +1,19 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import GustaleAppIsland from '../components/design/GustaleAppIsland.tsx';
+import GustaleAtlasIsland from '../components/design/GustaleAtlasIsland.tsx';
+import GustaleRecipesIsland from '../components/design/GustaleRecipesIsland.tsx';
+
+// Two variants — recipes (encyclopedia) and geo (atlas). The right one
+// is baked in at build time by the post-build filter (PUBLIC_DOMAIN).
+const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
+const isGeo = domain === 'geo';
 ---
 
-<Layout title="Gustale — Homepage">
-  <GustaleAppIsland client:only="react" />
+<Layout title={isGeo ? "Gustale Atlas — The world, dish by dish" : "Gustale — A digital culinary archive"}>
+  {isGeo ? (
+    <GustaleAtlasIsland client:only="react" />
+  ) : (
+    <GustaleRecipesIsland client:only="react" />
+  )}
 </Layout>
