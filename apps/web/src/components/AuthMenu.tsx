@@ -65,14 +65,25 @@ export function AuthMenu({ initialAuthed = false }: Props) {
   }
 
   if (user) {
+    const initials = (user.name || user.email || 'G')
+      .split(/[ @._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('');
+
     return (
-      <div className="flex items-center gap-4 text-sm">
-        <a href="/account" className="font-medium text-slate-700 hover:text-emerald-700">
-          {user.name || user.email}
+      <div className="flex items-center gap-2 text-sm">
+        <a
+          href="/account"
+          className="grid h-9 w-9 place-items-center rounded-full bg-emerald-600 text-sm font-semibold text-white ring-2 ring-white transition hover:bg-emerald-700"
+          aria-label={`Account for ${user.name || user.email}`}
+        >
+          {initials || 'G'}
         </a>
         <button
           onClick={handleSignOut}
-          className="text-slate-500 hover:text-red-600"
+          className="rounded-full px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
           type="button"
         >
           Sign out
@@ -87,7 +98,10 @@ export function AuthMenu({ initialAuthed = false }: Props) {
 function UnauthedMenu() {
   return (
     <div className="flex items-center gap-4 text-sm">
-      <a href="/login" className="font-medium text-slate-700 hover:text-emerald-700">
+      <a
+        href="/login"
+        className="rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-emerald-700"
+      >
         Sign in
       </a>
     </div>
