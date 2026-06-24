@@ -62,19 +62,33 @@ COPY . .
 # failing and re-running the whole pipeline.
 RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 
-# NOTE: The API health check (wait-for-api.mjs) intentionally does NOT
-# run here. Docker buildx on GitHub Actions cannot reach the production
-# API (GHA runner IPs are blocked by the Hostinger VPS firewall). The
-# check runs as a plain `run:` step in the build-web CI job instead,
-# where the runner has normal internet access. See .github/workflows/ci.yml.
+# NOTE: The API health check (wait-for-api.mjs) runs inside this RUN
+# against a local mock API on port 8742. We start the mock in the
+# background, wait for it to become reachable, run the Astro build,
+# and always clean up the mock process — even if the build fails.
+# See apps/web/scripts/mock-api.mjs for the mock implementation.
+#
+# Why: GHA runner IPs are blocked by the VPS firewall, so the runner
+# cannot reach the production API at api.gustale.recipes. The mock
+# serves the same data shapes from the inlined 31-dish seed, making
+# CI fully self-contained. No upstream API = no CI dependency.
+#
+# The PUBLIC_API_BASE=http://127.0.0.1:8742 prefix overrides the ENV
+# for the build command only; the ARG and ENV defaults remain
+# unchanged, so the production runtime image has no trace of the
+# mock URL.
 
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
 #   geo     → build:geo      (drops /dishes list, /ingredients, edit/new)
-RUN if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
-      pnpm --filter apps-web run build:geo; \
+RUN node apps/web/scripts/mock-api.mjs --port 8742 & \
+    MOCK_PID=$!; \
+    trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \
+    node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742; \
+    if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
+      PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:geo; \
     else \
-      pnpm --filter apps-web run build:recipes; \
+      PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:recipes; \
     fi
 
 # ---------- Stage 2: runtime ----------

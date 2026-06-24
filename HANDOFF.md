@@ -1,97 +1,151 @@
-# Handoff — Gustale architecture cleanup pass
+# Handoff — Gustale frontend sprint
 
-**For:** MiniMax agent (or any agent picking this up cold)
-**From:** Claude Code (terminal agent)
-**Date:** 2026-06-20
-**Branch:** `feat/terracotta-design-pass`
-**Scope of this handoff:** current state + how to run/verify. No next-step direction — caller decides what's next.
-
----
-
-## What this branch contains right now
-
-Working tree is **clean**; everything below is committed.
-
-```
-8ebeb73 docs: add refactor-gustale.md progress tracker
-ce7f913 refactor(web): restore base TS safety flags in web tsconfig
-b044219 refactor(api): unify route registration on FastifyPluginAsync
-aa4cf45 refactor(api): extract shared request-validation schemas
-908c9a5 chore: snapshot terracotta design pass before refactor cleanup   <-- WIP design pass baseline
-886c58f ci: retrigger 2f4a782a (webgl+ci fix)                            <-- last commit shared with origin/main
-```
-
-- `908c9a5` is a **snapshot of an in-progress terracotta design pass** (63 files: web styling/components, api, db schema, ui). It was committed as-is to give the refactor a clean base — treat it as WIP, not finished design work.
-- `aa4cf45`…`8ebeb73` are a **behavior-preserving architecture cleanup** done on top. Details in `refactor-gustale.md` at repo root.
-
-### The 3 cleanup changes (all behavior-preserving)
-1. **Shared request-validation schemas** — new `apps/api/src/schemas/common.ts` (slug path-param schema, create-side `slugBodyField`/`SLUG_RE`, `limitField`/`offsetField`/`pagination` factory). Replaced inline duplicates in `dishes.ts`, `dishes-write.ts`, `dishes-media.ts`, `ingredients.ts`.
-2. **Unified route registration** — `health`/`dishes`/`dishes-write` converted from sync `(app)=>void` to `FastifyPluginAsync`; all six route groups registered uniformly via `await app.register` in `apps/api/src/server.ts`. Static-before-parametric ordering (P27) preserved.
-3. **Web tsconfig safety flags** — `apps/web/tsconfig.json` now layers `noUncheckedIndexedAccess`, `noImplicitOverride`, `noFallthroughCasesInSwitch` on top of `astro/tsconfigs/strict` (cannot extend repo `tsconfig.base.json` directly: astro needs `moduleResolution: Bundler`/`ESNext`, base uses `NodeNext`). Added 3 `override` modifiers in `ErrorBoundary.tsx`.
+**From:** Cowork session (Alex)
+**Date:** 2026-06-24
+**Branch:** `main` (merge in progress — see below)
+**Repo:** `~/DEV/gustale/repo_clone`
 
 ---
 
-## How to run / verify locally
+## ⚠️ Immediate: finish the merge
 
-The API integration tests and live smoke need PostGIS + MinIO + seed data.
+A `git merge codex/gustale-nav-reference` is in progress on `main`. The four conflicted files have been resolved and written to disk, but `git add` + `git commit --no-edit` haven't been run yet. Finish it:
 
-### 1. Stand up the stack
 ```bash
-docker run -d --name gustale-pg -e POSTGRES_USER=app -e POSTGRES_PASSWORD=localdev \
-  -e POSTGRES_DB=gustale -p 5432:5432 postgis/postgis:16-3.4
-docker run -d --name gustale-minio -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-  -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
-```
-> NOTE: these two containers may **already be running** from the previous session (`docker ps | grep gustale`). Reuse them if so.
-
-### 2. Local env
-`apps/api/.env` already exists locally (gitignored). It points at the containers above:
-`DATABASE_URL=postgresql://app:localdev@127.0.0.1:5432/gustale`, MinIO `minioadmin/minioadmin`, plus `SESSION_SECRET` + `BETTER_AUTH_SECRET` (both 32-char). If missing, copy `apps/api/.env.example` and fill those in.
-
-### 3. Migrate + seed (idempotent)
-```bash
-export DATABASE_URL=postgresql://app:localdev@127.0.0.1:5432/gustale
-pnpm --filter @gustale/db run build   # build dist/ so apps can resolve @gustale/db
-pnpm --filter @gustale/db run migrate
-pnpm --filter @gustale/db run seed     # 31 dishes
+cd ~/DEV/gustale/repo_clone
+git add apps/web/src/components/AuthMenu.tsx \
+        apps/web/src/components/SiteHeader.astro \
+        apps/web/src/layouts/Layout.astro \
+        apps/web/src/styles/global.css \
+        apps/web/src/pages/lineages.astro
+git commit --no-edit
+git push origin main
 ```
 
-### 4. Verify
-```bash
-# typecheck (api + db clean)
-pnpm --filter @gustale/api run typecheck
-pnpm --filter @gustale/db  run typecheck
-
-# api tests — vitest needs the .env sourced into the shell (it does not auto-load)
-cd apps/api && set -a && . ./.env && set +a && pnpm exec vitest run   # 35 pass / 3 skip
-
-# web
-cd apps/web && pnpm exec astro check        # 1 pre-existing error only (see below)
-PUBLIC_API_BASE=http://127.0.0.1:4000 pnpm exec astro build   # 76 pages
-
-# live smoke — boot the API, then run the smoke script
-node --env-file=apps/api/.env --import tsx apps/api/src/server.ts &   # listens on :4000, health at /health (NOT /api/health)
-node /tmp/gustale-smoke.mjs   # 10/10 PASS (script written this session)
-```
-
-### Last verified results (this session)
-- api/db typecheck: **clean** · api build: **OK**
-- api tests: **35 pass / 3 skip**
-- astro check: baseline only · astro build: **76 pages**
-- live smoke: **10/10 PASS** (health/ready, dishes list + limit bounds, `/api/dishes/map` static route, slug 200/404, unauth `POST /api/dishes` → 401, ingredients, dishes-by-region)
+If there's still an `index.lock`: `rm ~/DEV/gustale/repo_clone/.git/index.lock` first.
 
 ---
 
-## Gotchas / environment notes
-- **Shared checkout, concurrent agent.** Another agent (Hermes) may use this same working tree. Avoid branch switches in the main checkout; use a `git worktree` if you need another branch.
-- **`.hermes/` is gitignored** on `main`/feature branches and lives on the `private/state` branch. Pull it read-only with `git checkout origin/private/state -- .hermes/`; to commit changes to it, use a worktree of `private/state`.
-- **A bash hook blocks inline HTTP** (`curl`/`wget`/inline `fetch(` in a `node -e` string). Run fetches from a **script file** (e.g. `/tmp/gustale-smoke.mjs`) instead.
-- **`health` is at `/health` and `/ready`**, not under `/api`.
-- The local API smoke server uses plain `node --import tsx` (no watch) — restart it after editing API source.
+## What was done this session
 
-## Pre-existing issues (NOT introduced by this pass — out of scope, left as-is)
-- `apps/web/src/pages/dishes/index.astro:12` sets `total`, which isn't a field on `DishListResponse` → the single `astro check` error. From the terracotta design pass.
-- `packages/ui/src/SearchInput.tsx:32` typecheck error (`Property 'value' does not exist on type 'HTMLInputElement'`) — outside CI's typecheck scope (`pnpm -r typecheck` fails fast here before reaching api/web).
+1. **`/lineages` page created** — `apps/web/src/pages/lineages.astro`
+   Tailwind-styled, server-renders dishes grouped by `methodSlug`, with provenance narratives per lineage. Uses `<Layout>` (no separate `<SiteHeader />` call — Layout handles it).
 
-## Deferred (considered, intentionally not done — scope was "cleanup only")
-Recorded in `refactor-gustale.md`: `packages/shared` shared types (web `types/dish.ts` manually mirrors API/db), API service/repository layer, TanStack Query, session React Context, god-component decomposition (`EditDishForm`/`NewDishForm`/`DishExplorer`), URL-synced filter state, `schema.sql` sync.
+2. **Nav updated** — `apps/web/src/components/SiteHeader.astro`
+   Geo variant nav is now: **Atlas · Families · Lineages · About Gustale**
+
+3. **`methodSlug` added to list API** — `apps/api/src/routes/dishes.ts` line ~101
+   Added a correlated subquery so `GET /api/dishes` now returns `methodSlug` (primary prep method by `sequence_order`). Both `families.astro` and `lineages.astro` were broken without this — everything fell into 'other'.
+
+4. **`d.regionSlug` removed from `lineages.astro`** — field doesn't exist on `DishSummary`. `regionsFor()` now returns `[]` as a stub.
+
+5. **Merge conflicts resolved** in four files:
+   - `global.css` → kept HEAD (MapLibre, Tailwind, navlink styles)
+   - `AuthMenu.tsx` → kept HEAD (mobile variant, dropdown, `getInitials`)
+   - `Layout.astro` → HEAD's full layout (description meta, footer) but `<SiteHeader />` without props (SiteHeader reads env vars itself)
+   - `SiteHeader.astro` → codex version (reads env, 4-item geo nav) with standard Tailwind responsive classes
+
+---
+
+## Project structure summary
+
+### Repo layout
+```
+apps/
+  api/          Fastify + Drizzle ORM + PostGIS + better-auth
+  web/          Astro 5 + React islands + Tailwind (via @tailwindcss/vite)
+packages/
+  db/           Drizzle schema + migrations
+  ui/           Shared SearchInput component
+design/         Cowork design blueprint HTML files (standalone bundled apps)
+```
+
+### Web pages (apps/web/src/pages/)
+| Route | File | State |
+|---|---|---|
+| `/` | index.astro | ⚠️ Design mock — GustaleAtlasIsland/GustaleRecipesIsland, hardcoded data |
+| `/map` | map.astro | ✅ Live — WorldMap, real API |
+| `/families` | families.astro | ❌ WIP — uses `gustale-families-*` CSS classes that don't exist |
+| `/lineages` | lineages.astro | ✅ Done this session |
+| `/dishes` | dishes/index.astro | ⚠️ Bug — line 12 references `total` not in `DishListResponse` |
+| `/dishes/[slug]` | dishes/[slug].astro | ✅ Live — SSG, DishDetail + DishMap |
+| `/dishes/[slug]/edit` | edit.astro | ✅ Live |
+| `/dishes/new` | new.astro | ✅ Live |
+| `/ingredients/[slug]` | ingredients/[slug].astro | ✅ Live — SSG |
+| `/about` | about.astro | ⚠️ Partial — gustale.recipes content only, no geo variant |
+| `/login`, `/register`, `/account` | respective | ✅ Live |
+
+### Design blueprints (design/)
+| File | What it is | Implementation status |
+|---|---|---|
+| `Gustale Atlas (standalone).html` | World map experience | Partial — GustaleAtlasIsland.tsx has 30 hardcoded dishes |
+| `Gustale Families (standalone).html` | Families (by form) page | families.astro exists, missing all CSS |
+| `Gustale Egg Dishes (standalone).html` | Collection detail page | **Not implemented at all** |
+| `Gustale Recipes (standalone).html` | Recipe detail (Shakshuka) | GustaleRecipesIsland.tsx exists, hardcoded data |
+| `Gustale Homepage.html` | Font/CSS spec shell | n/a |
+| `Gustale Homepage Options.html` | Direction sketches | n/a |
+
+### Key design components (apps/web/src/components/design/)
+Hand-ported from Cowork design bundles. Work as React islands but use hardcoded data:
+- `GustaleAtlasIsland.tsx` (911 lines) — atlas map, 30 hardcoded dishes, 4 browse modes
+- `GustaleRecipesIsland.tsx` (1009 lines) — Shakshuka recipe, 3 regional variants, hardcoded
+- `GustaleAppIsland.tsx` (1049 lines) — app shell with nav, browse toolbar, placeholder sections
+- `views.jsx` — IndexView, GalleryView, FeedView, AtlasView browse modes
+- `scaffold.jsx` — Tweaks panel / design-time controls
+
+---
+
+## Priority backlog
+
+### P1 — Fix `families.astro` styling
+`apps/web/src/pages/families.astro` renders but uses `gustale-families-*` CSS classes that don't exist. Add Tailwind styling using `lineages.astro` as the pattern — cards grid, hero section, stat strip. Use `design/Gustale Families (standalone).html` as the visual reference.
+
+The underlying data logic is correct and now works (methodSlug is returned by the list API).
+
+### P2 — Collection detail page (Egg Dishes blueprint)
+Create `apps/web/src/pages/families/[slug].astro` — an editorial page for one food family. Blueprint: `design/Gustale Egg Dishes (standalone).html`. Each family slug (e.g. `egg-dishes`, `dumplings`) gets a hero with provenance blurb + dishes filtered by `methodSlug` from the API + dish cards linking to `/dishes/[slug]`.
+
+Update `families.astro` dish cards to link to `/families/[slug]` once this exists.
+
+### P3 — Wire `GustaleAtlasIsland` to real API
+`apps/web/src/components/design/GustaleAtlasIsland.tsx` has a hardcoded `ATLAS_DISHES` array (~line 20, 30 dishes). Replace with a `useEffect` fetch to `/api/dishes/map`. That endpoint returns `lat`, `lng`, `canonicalName`, `slug`, `originGeoId`.
+
+### P4 — Fix `dishes/index.astro` TypeScript error
+`apps/web/src/pages/dishes/index.astro` line 12: `total` is assigned but `DishListResponse` has no `total` field. Remove or replace with `initial.dishes.length`.
+
+### P5 — Live search in SiteHeader
+`apps/web/src/components/SiteHeader.astro` search popup shows static mock rows (the `searchRows` array in the frontmatter). Wire to `GET /api/dishes?q=<term>&limit=5` on input with ~200ms debounce. Extract into a `<SearchIsland client:load />` React component.
+
+---
+
+## API reference
+
+```
+GET  /api/dishes              list — returns id, slug, canonicalName, shortDescription,
+                              originGeoId, status, viewCount, methodSlug (correlated subquery)
+GET  /api/dishes/:slug        detail — full dish with preparations, ingredients, media
+GET  /api/dishes/map          map pins — lat/lng/canonicalName/slug/originGeoId
+POST /api/dishes              create (auth required, moderator+)
+PATCH /api/dishes/:slug       update (auth required, moderator+)
+POST /api/dishes/:slug/publish
+DELETE /api/dishes/:slug
+GET  /api/ingredients         list
+GET  /api/ingredients/:slug   detail
+GET  /health                  health check (NOT /api/health)
+```
+
+Auth: better-auth, session cookie on `api.gustale.com`. `AuthMenu.tsx` handles client-side hydration.
+
+## Key env vars
+- `PUBLIC_DOMAIN` — `'geo'` → gustale.com (Atlas), anything else → gustale.recipes
+- `PUBLIC_API_BASE` — absolute API URL used at SSG build time
+- `apps/api/.env` (gitignored): `DATABASE_URL`, `MINIO_*`, `SESSION_SECRET`, `BETTER_AUTH_SECRET`
+
+## TypeScript / build notes
+- Tailwind: `@tailwindcss/vite` Vite plugin — NO `tailwind.config.mjs`
+- `apps/web/tsconfig.json` extends `astro/tsconfigs/strict` (cannot extend repo `tsconfig.base.json` — conflicting `moduleResolution: NodeNext vs Bundler`)
+- `astro check` has 1 pre-existing error: `dishes/index.astro:12` `total` field (see P4)
+- Typecheck scope: `pnpm -r typecheck` covers api + db only; web uses `astro check`
+
+## CI/CD
+GitHub Actions on push to `main`. Deploys both web and API containers.
