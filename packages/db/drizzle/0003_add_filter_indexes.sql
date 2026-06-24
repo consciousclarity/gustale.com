@@ -20,13 +20,13 @@ CREATE INDEX IF NOT EXISTS dish_variants_parent_dish_id_idx ON dish_variants(par
 CREATE INDEX IF NOT EXISTS dish_variants_region_geo_id_idx ON dish_variants(region_geo_id);
 
 -- geo_entities: name + hierarchy lookups (for origin:X / region:X filters)
-CREATE INDEX IF NOT EXISTS geo_entities_name_idx ON geo_entities(name);
+CREATE INDEX IF NOT EXISTS geo_entities_name_idx ON geo_entities("name");
 CREATE INDEX IF NOT EXISTS geo_entities_parent_id_idx ON geo_entities(parent_id);
 CREATE INDEX IF NOT EXISTS geo_entities_entity_type_idx ON geo_entities(entity_type);
 
--- ingredients: name index for ingredient:X lookups
-CREATE INDEX IF NOT EXISTS ingredients_name_idx ON ingredients(name);
+-- ingredients: name index for ingredient:X lookups (name is a PostgreSQL reserved keyword)
+CREATE INDEX IF NOT EXISTS ingredients_name_idx ON ingredients("name");
 
 -- preparation_methods: name + slug indexes for technique:X lookups
 CREATE INDEX IF NOT EXISTS preparation_methods_slug_idx ON preparation_methods(slug);
-CREATE INDEX IF NOT EXISTS preparation_methods_name_idx ON preparation_methods(name);
+CREATE INDEX IF NOT EXISTS preparation_methods_name_idx ON preparation_methods("name");
