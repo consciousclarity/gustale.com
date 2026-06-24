@@ -62,8 +62,11 @@ COPY . .
 # failing and re-running the whole pipeline.
 RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 
-# NOTE: API health check runs in CI (ci.yml build-web job), not here.
-# Docker buildx on GHA cannot reach the VPS — moved to a `run:` step.
+# NOTE: The API health check (wait-for-api.mjs) intentionally does NOT
+# run here. Docker buildx on GitHub Actions cannot reach the production
+# API (GHA runner IPs are blocked by the Hostinger VPS firewall). The
+# check runs as a plain `run:` step in the build-web CI job instead,
+# where the runner has normal internet access. See .github/workflows/ci.yml.
 
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
@@ -80,7 +83,7 @@ FROM nginx:1.27-alpine
 # Drop the default nginx config; ship our own that:
 #   - listens on 4001 (matches the Caddy upstream; non-privileged port)
 #   - serves /_astro/* with a 1-year cache (hashed filenames = content-addressed)
-#   - serves everything else with no-cache (HTML, JSON, etc.)
+#   - serves everything else with no-cache (HTML, CSS, JS, etc.)
 #   - falls back to /index.html for unknown routes (Astro static routing)
 #   - gzip on text-ish content
 # The COPY path is relative to the build context root (the monorepo root).
