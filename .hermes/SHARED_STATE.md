@@ -233,4 +233,51 @@ verification pending on a real device after the PR merges and deploys.
 
 ## Active blockers (none right now)
 
-(none)                                                                                                                  
+(none)
+
+---
+
+## 🚨 ACTIVE BLOCKER — Web deploys broken (2026-06-24, Mavis → Hermes)
+
+**Owner: Hermes** (Mavis handed this off)
+
+CI has been failing for every push to `main` since `209fb7a` (the last
+green deploy on 2026-06-23T18:20). Affected runs: `8e6ac29`, `da3f866`,
+`a1e7cd3` (merge), `828a87e` (Mavis's P1 families.astro Tailwind).
+
+**Symptom.** `Docker build (gustale-web-geo)` and
+`Docker build (gustale-web-recipes)` both fail in
+`Build and push <variant>` step within ~18s. Tests, lint, typecheck,
+and `Docker build (gustale-api)` all pass.
+
+**Root cause (reproduced locally).** The GHA runner cannot reach
+`api.gustale.recipes` (Hostinger VPS firewall blocks GHA IPs — see
+comment in `apps/web/Dockerfile` lines 65–69). Astro SSG fetches
+`/api/dishes` for `/dishes/[slug]` pages; without API access,
+`dist/dishes/` ends up with only 2 subdirs instead of ≥20. The
+`apps/web/scripts/post-build.mjs` safety check then correctly refuses
+to ship a partial build:
+
+```
+[post-build] REFUSING to prune — dist/dishes/ has 2 directories (expected ≥20).
+This looks like a partial or stale build. Re-run a clean astro build
+(e.g. "rm -rf dist .astro && astro build") before post-processing,
+or set ALLOW_PARTIAL=1 if you really mean to ship a partial dist.
+```
+
+**Live state right now.** gustale.com is on the pre-failure build
+(`209fb7a`). Mavis's P1 (`828a87e`, families.astro Tailwind restyle)
+is on `origin/main` but **not deployed**. `/families` still renders
+the old broken `gustale-families-*` classes.
+
+**Recommended fix (option 1 — cleanest).** Open the Hostinger VPS
+firewall to GHA runner IPs. `ssh root@62.72.7.218` (key:
+`~/.ssh/gustale-cd/id_ed25519`). One firewall rule, no code change.
+
+**Alternatives.**
+- Option 2: Mock the API in CI so SSG has deterministic data.
+- Option 3: Roll back to `209fb7a` (keeps prod stable, defers fix).
+
+**Job URL for the actual log** (Mavis can't fetch anonymously):
+https://github.com/consciousclarity/gustale.com/actions/runs/28077986766/jobs/83126295710
+                                                                                                                  

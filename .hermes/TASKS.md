@@ -7,7 +7,19 @@
 
 ## In progress
 
-(none)
+- 2026-06-24: **CI web deploys broken — fix Hostinger firewall
+  (or stub API for CI)**. Owner: **Hermes** (handed off by Mavis).
+  Every push to main since `209fb7a` (2026-06-23T18:20) has failed
+  in the `Docker build (gustale-web-geo)` /
+  `Docker build (gustale-web-recipes)` jobs. Root cause: GHA runner
+  can't reach `api.gustale.recipes` (VPS firewall blocks GHA IPs),
+  so SSG only generates 2 dish subdirs and `post-build.mjs` refuses
+  to ship partial. Full diagnosis in `SHARED_STATE.md` →
+  "ACTIVE BLOCKER — Web deploys broken". Cleanest fix: open the VPS
+  firewall to GHA runner IPs (`ssh root@62.72.7.218`). Alternative:
+  mock the API in CI. Job log URL:
+  https://github.com/consciousclarity/gustale.com/actions/runs/28077986766/jobs/83126295710
+  — Hermes
 
 ## Done (recent — last 10)
 
