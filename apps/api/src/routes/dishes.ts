@@ -143,7 +143,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         shortDescription: dishes.shortDescription,
         originGeoId: dishes.originGeoId,
         originName: sql<string | null>`(
-          SELECT g.name FROM geo_entities g WHERE g.id = ${dishes.originGeoId} LIMIT 1
+          SELECT g.name FROM geo_entities g WHERE g.id = dishes.origin_geo_id LIMIT 1
         )`,
         status: dishes.status,
         viewCount: dishes.viewCount,
@@ -151,7 +151,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
           SELECT pm.slug
           FROM dish_preparations dp
           JOIN preparation_methods pm ON pm.id = dp.method_id
-          WHERE dp.dish_id = ${dishes.id}
+          WHERE dp.dish_id = dishes.id
           ORDER BY dp.sequence_order
           LIMIT 1
         )`,
