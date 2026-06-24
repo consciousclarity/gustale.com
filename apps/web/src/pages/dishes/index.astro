@@ -29,16 +29,16 @@ try {
 ---
 
 <Layout title="Dishes — Gustale" description="Browse the Gustale culinary encyclopedia.">
-  <section class="mx-auto max-w-6xl px-4 py-10">
-    <header class="mb-8">
-      <h1 class="text-3xl font-bold tracking-tight text-slate-900">Dishes</h1>
-      <p class="mt-2 text-slate-600">
+  <section class="wrap" style="padding: 48px 0 80px;">
+    <header>
+      <h1>Dishes</h1>
+      <p class="sub">
         Explore the encyclopedia. Search, click a card, and follow the story behind each dish.
       </p>
     </header>
 
     {serverError && (
-      <div class="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div class="alert alert-warning">
         <strong>Heads up:</strong> the gustale-api could not be reached at build time ({serverError}).
         The page is still rendering — search and pagination will retry against the live API.
       </div>

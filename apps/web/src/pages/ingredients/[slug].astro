@@ -48,20 +48,20 @@ try {
 ---
 
 <Layout title={`${data?.ingredient.canonicalName ?? slug} — gustale.recipes`}>
-  <article class="mx-auto max-w-3xl px-4 py-12">
+  <article class="about-page inner">
     {fetchError && (
-      <div class="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <div class="alert alert-warning">
         Couldn't load this ingredient. ({fetchError})
       </div>
     )}
 
     {notFound && !fetchError && (
-      <div class="py-20 text-center">
-        <h1 class="text-3xl font-bold text-slate-900">Ingredient not found</h1>
-        <p class="mt-3 text-slate-600">
+      <div class="page-header" style="padding: 80px 0;">
+        <h1>Ingredient not found</h1>
+        <p class="sub">
           We don't have an encyclopedia entry for "{slug}" yet.
         </p>
-        <a href="/dishes" class="mt-6 inline-block text-emerald-700 underline">
+        <a href="/dishes" style="color: var(--accent);">
           ← Back to all dishes
         </a>
       </div>
@@ -69,53 +69,51 @@ try {
 
     {data && (
       <>
-        <header class="mb-8">
-          <p class="text-sm font-medium uppercase tracking-wide text-emerald-700">
-            Ingredient
-          </p>
-          <h1 class="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
+        <header>
+          <p class="eyebrow">Ingredient</p>
+          <h1>
             {data.ingredient.canonicalName}
           </h1>
           {data.ingredient.scientificName && (
-            <p class="mt-2 italic text-slate-600">
+            <p class="sub" style="font-style: italic;">
               {data.ingredient.scientificName}
             </p>
           )}
           {data.ingredient.category && (
-            <p class="mt-2 text-sm text-slate-500">
+            <p class="sub">
               Category: {data.ingredient.category}
             </p>
           )}
         </header>
 
         {data.ingredient.shortDescription && (
-          <p class="text-lg text-slate-700">
+          <p>
             {data.ingredient.shortDescription}
           </p>
         )}
 
         {data.ingredient.longDescription && (
-          <div class="prose prose-slate mt-6">
+          <div style="margin-top: 24px;">
             <p>{data.ingredient.longDescription}</p>
           </div>
         )}
 
         {data.dishes.length > 0 && (
-          <section class="mt-12">
-            <h2 class="text-2xl font-bold text-slate-900">
+          <section style="margin-top: 48px;">
+            <h2>
               Used in {data.dishes.length} dish{data.dishes.length === 1 ? '' : 'es'}
             </h2>
-            <ul class="mt-4 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+            <ul style="margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; background: white; overflow: hidden;">
               {data.dishes.map((d) => (
-                <li class="flex items-baseline justify-between gap-4 px-4 py-3">
+                <li style="display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line);">
                   <a
                     href={`/dishes/${d.dishSlug}`}
-                    class="font-medium text-slate-900 hover:text-emerald-700"
+                    style="color: var(--accent);"
                   >
                     {d.dishName}
                   </a>
                   {d.isOptional && (
-                    <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                    <span style="background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--sub);">
                       optional
                     </span>
                   )}
@@ -126,13 +124,13 @@ try {
         )}
 
         {data.dishes.length === 0 && (
-          <p class="mt-8 text-sm text-slate-500">
+          <p class="sub" style="margin-top: 32px;">
             This ingredient isn't linked to any dish yet.
           </p>
         )}
 
-        <p class="mt-12 text-sm text-slate-500">
-          <a href="/dishes" class="text-emerald-700 underline">Browse all dishes</a>
+        <p class="sub" style="margin-top: 48px;">
+          <a href="/dishes" style="color: var(--accent);">Browse all dishes</a>
         </p>
       </>
     )}

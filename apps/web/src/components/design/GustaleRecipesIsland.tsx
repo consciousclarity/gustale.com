@@ -1,4 +1,4 @@
-import '../../styles/recipes-island.css';
+// Styles loaded globally via Layout.astro
 
 // ============================================================================
 // Gustale Recipes Island

@@ -8,25 +8,25 @@ const description = 'The page you are looking for does not exist on Gustale.';
 ---
 
 <Layout title={title} description={description}>
-  <section class="mx-auto max-w-2xl px-4 py-20 text-center">
-    <p class="text-sm font-medium uppercase tracking-wide text-emerald-700">404</p>
-    <h1 class="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">
+  <section class="not-found">
+    <p class="mono-sub">404</p>
+    <h1 class="not-found h1">
       Page not found
     </h1>
-    <p class="mt-4 text-slate-600">
+    <p>
       The page you are looking for doesn't exist — it may have been renamed,
       moved, or never existed at all.
     </p>
     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
       <a
         href="/dishes"
-        class="inline-block rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+        class="btn-accent"
       >
         Browse dishes
       </a>
       <a
         href="/map"
-        class="inline-block rounded-md border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        class="btn-ghost"
       >
         View the map
       </a>

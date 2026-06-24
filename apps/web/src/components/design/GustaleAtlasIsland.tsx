@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import '../../styles/atlas-island.css';
+// Styles loaded globally via Layout.astro
 
 // ============================================================================
 // Data constants (extracted from deployed JS)

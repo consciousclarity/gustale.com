@@ -22,36 +22,51 @@ const isGeo = domain === 'geo';
     <meta name="description" content={description} />
     <title>{title}</title>
   </head>
-  <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-    <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <div class="flex items-center gap-8">
-          <a href="/" class="text-lg font-bold tracking-tight text-slate-900 hover:text-emerald-700">
-            gustale<span class="text-emerald-600">.</span>{isGeo ? 'atlas' : 'recipes'}
-          </a>
-          <nav class="flex items-center gap-6 text-sm font-medium text-slate-700">
-            {isGeo ? (
-              <>
-                <a href="/map" class="hover:text-emerald-700">Map</a>
-                <a href="/about" class="hover:text-emerald-700">About</a>
-              </>
-            ) : (
-              <>
-                <a href="/dishes" class="hover:text-emerald-700">Dishes</a>
-                <a href="/about" class="hover:text-emerald-700">About</a>
-              </>
-            )}
-          </nav>
+  <body class="gst">
+    <nav class="gst-nav">
+      <div class="wrap gst-nav-in">
+        <a href="/" class="gst-brand">
+          <span class="gst-wordmark">Gustale</span>
+          <span class="sub">{isGeo ? 'Atlas' : 'Recipes'}</span>
+        </a>
+
+        <div class="gst-navlinks">
+          {isGeo ? (
+            <>
+              <a href="/">Map</a>
+              <a href="/about">About</a>
+            </>
+          ) : (
+            <>
+              <a href="/dishes">Dishes</a>
+              <a href="/families">Families</a>
+              <a href="/about">About</a>
+            </>
+          )}
         </div>
-        <AuthMenu client:load />
+
+        <div class="gst-navr">
+          <AuthMenu client:load />
+        </div>
       </div>
-    </header>
+    </nav>
+
     <main>
       <slot />
     </main>
-    <footer class="border-t border-slate-200 bg-white">
-      <div class="mx-auto max-w-6xl px-4 py-6 text-sm text-slate-500">
-        © {new Date().getFullYear()} Gustale. Open knowledge, slow cooking.
+
+    <footer class="gst-foot">
+      <div class="wrap">
+        <div>
+          <div class="fm">Gustale</div>
+          <div class="fcap">Open knowledge, slow cooking — {new Date().getFullYear()}</div>
+        </div>
+        <div class="fl">
+          <a href="/about">About</a>
+          <a href="/dishes">Dishes</a>
+          <a href="/families">Families</a>
+          <a href="/map">Map</a>
+        </div>
       </div>
     </footer>
   </body>

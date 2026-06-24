@@ -97,28 +97,28 @@ const seoDescription =
       {data.origin && (
         <section
           aria-labelledby="origin-heading"
-          class="mx-auto max-w-4xl space-y-3 px-4 pt-8"
+          class="wrap"
+          style="padding-top: 32px;"
         >
           <h2
             id="origin-heading"
-            class="text-2xl font-bold tracking-tight text-slate-900"
           >
             Origin
           </h2>
-          <p class="text-sm text-slate-600">
-            <strong class="text-slate-800">{data.origin.name}</strong>
+          <p class="sub">
+            <strong style="color: var(--ink);">{data.origin.name}</strong>
             {data.origin.localName && data.origin.localName !== data.origin.name && (
-              <span class="ml-1 italic text-slate-500">({data.origin.localName})</span>
+              <span class="ml-1 italic" style="color: var(--sub);">({data.origin.localName})</span>
             )}
             {data.origin.isoCode && (
-              <span class="ml-1 text-slate-400">· {data.origin.isoCode}</span>
+              <span class="ml-1" style="color: var(--sub);">· {data.origin.isoCode}</span>
             )}
             {data.origin.entityType && data.origin.entityType !== 'country' && (
-              <span class="ml-1 text-slate-400">· {data.origin.entityType}</span>
+              <span class="ml-1" style="color: var(--sub);">· {data.origin.entityType}</span>
             )}
           </p>
           <noscript>
-            <p class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p class="alert alert-warning">
               Enable JavaScript to see the interactive map of where this dish
               originates.
             </p>
@@ -145,23 +145,23 @@ const seoDescription =
 
       {/* Edit button — separate island so it's auth-gated but the rest of
           the dish page remains a static, fast, fully-cached page. */}
-      <div class="mx-auto max-w-4xl px-4 pb-8">
+      <div class="wrap" style="padding-bottom: 32px;">
         <EditDishButton slug={data.dish.slug} client:load />
       </div>
     </>
   ) : (
-    <section class="mx-auto max-w-2xl px-4 py-20 text-center">
-      <h1 class="text-3xl font-bold text-slate-900">Dish not found</h1>
-      <p class="mt-4 text-slate-600">
+    <section class="wrap text-center" style="padding: 80px 0;">
+      <h1 class="page-header">Dish not found</h1>
+      <p class="sub">
         We don't have a dish with the slug{' '}
-        <code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm">
+        <code style="background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 14px;">
           {slug}
         </code>
-        {fetchError && <span class="mt-2 block text-xs text-slate-400">{fetchError}</span>}
+        {fetchError && <span class="block mt-2" style="font-size: 12px; color: var(--sub);">{fetchError}</span>}
       </p>
       <a
         href="/dishes"
-        class="mt-8 inline-block rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+        class="btn-accent"
       >
         Browse all dishes
       </a>

@@ -37,13 +37,13 @@ const { slug } = Astro.params;
   title={`Edit ${slug} — Gustale`}
   description="Edit a dish in the Gustale encyclopedia."
 >
-  <section class="mx-auto max-w-3xl space-y-6 px-4 py-10">
+  <section class="wrap" style="padding: 48px 0 80px;">
     <header>
-      <h1 class="text-3xl font-bold tracking-tight text-slate-900">
+      <h1 style="font-family: var(--display); font-size: clamp(36px,5vw,48px); letter-spacing: -1px; margin: 0 0 12px;">
         Edit dish
       </h1>
-      <p class="mt-2 text-slate-600">
-        <a href={`/dishes/${slug}/`} class="text-emerald-700 hover:text-emerald-800">
+      <p class="sub">
+        <a href={`/dishes/${slug}/`} style="color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px;">
           ← {slug}
         </a>
       </p>

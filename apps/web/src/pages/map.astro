@@ -33,19 +33,19 @@ try {
   title="Map — Gustale"
   description="Browse Gustale's dishes on an interactive globe by geographic origin."
 >
-  <section class="mx-auto max-w-6xl space-y-4 px-4 py-10">
+  <section class="map-page wrap">
     <header>
-      <h1 class="text-3xl font-bold tracking-tight text-slate-900">
+      <h1 class="map-page h1">
         World map
       </h1>
-      <p class="mt-2 text-slate-600">
+      <p class="sub">
         Every dish in Gustale has a place of origin. Spin the globe, scroll to
         zoom in on a region, or click a dot to read about the dish behind it.
       </p>
     </header>
 
     {serverError && (
-      <div class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div class="alert alert-warning">
         <strong>Heads up:</strong> the gustale-api could not be reached at build
         time ({serverError}). The globe will load live data on hydration.
       </div>

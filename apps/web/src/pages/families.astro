@@ -58,6 +58,27 @@ const FAMILY_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+// Color dots per family — matches the Atlas island palette
+const FAMILY_COLORS: Record<string, string> = {
+  'poached-in-sauce': '#C2742F',
+  'omelettes-and-scrambles': '#C2742F',
+  'fried-and-topped': '#A0522D',
+  'steamed-and-custard': '#C99A48',
+  'boiled-and-cured': '#8B7355',
+  pasta: '#6E7F4E',
+  'noodle-soup': '#8B7355',
+  stew: '#A0522D',
+  'fried-rice': '#C9A849',
+  dumpling: '#C99A48',
+  bread: '#D4A853',
+  pancake: '#D4A853',
+  dessert: '#C4706B',
+  curry: '#B8542A',
+  kebab: '#A0522D',
+  salad: '#7A8B5C',
+  other: '#6B6052',
+};
+
 function labelFor(slug: string): string {
   if (FAMILY_LABELS[slug]) return FAMILY_LABELS[slug];
   return slug
@@ -66,72 +87,105 @@ function labelFor(slug: string): string {
     .join(' ');
 }
 
+function colorFor(slug: string): string {
+  return FAMILY_COLORS[slug] ?? '#B8552F';
+}
+
 const totalFamilies = sortedGroups.length;
 ---
 
 <Layout
   title="Families — Gustale"
   description="Browse Gustale's dishes grouped by the form they take — dumplings, flatbreads, eggs, noodles, and more."
-  brand="recipes"
 >
   {/* ─── Hero ──────────────────────────────────────────────────────── */}
-  <section class="gustale-families-hero">
-    <span class="gustale-eyebrow">
+  <section class="fam-hero wrap">
+    <p class="eyebrow">
       Browse the atlas · {totalFamilies} families
-    </span>
-    <h1 class="gustale-families-h1">
-      The shapes<br />food <em class="gustale-em">takes</em>.
+    </p>
+    <h1>
+      The shapes<br />food <em>takes</em>.
     </h1>
-    <p class="gustale-families-lede">
+    <p class="sub" style="margin-bottom: 28px;">
       Before a dish has a country, it has a form — a dumpling, a flatbread,
       an egg gently cooked. Families gather those forms across the world,
       so you can see how one idea is told in a hundred kitchens.
     </p>
 
-    <div class="gustale-stat-strip">
+    <div class="fam-stats">
       <div>
-        <div class="gustale-stat-num">{totalFamilies}</div>
-        <div class="gustale-stat-label">Families</div>
+        <b>{totalFamilies}</b>
+        <span>Families</span>
       </div>
       <div>
-        <div class="gustale-stat-num">{totalDishes}</div>
-        <div class="gustale-stat-label">Dishes</div>
+        <b>{totalDishes}</b>
+        <span>Dishes</span>
       </div>
       <div>
-        <div class="gustale-stat-num">26</div>
-        <div class="gustale-stat-label">Max regions</div>
+        <b>26</b>
+        <span>Max regions</span>
       </div>
     </div>
   </section>
 
+  {/* ─── Filter bar ─────────────────────────────────────────────── */}
+  <div class="fam-filter-bar">
+    <div class="wrap">
+      <div class="inner">
+        <span class="fb-label">Filter by family</span>
+
+        {/* All chip */}
+        <button class="fam-chip" data-family="all" data-on="1">
+          All
+          <span class="ct">{totalDishes}</span>
+        </button>
+
+        {/* Per-family chips */}
+        {sortedGroups.map(([slug, dishes]) => (
+          <button class="fam-chip" data-family={slug} data-on="0">
+            <span class="dot" style={`background:${colorFor(slug)}`}></span>
+            {labelFor(slug)}
+            <span class="ct">{dishes.length}</span>
+          </button>
+        ))}
+
+        <span class="fb-spacer"></span>
+        <span class="fb-result" id="fam-result">
+          Showing <b id="fam-count">{totalFamilies}</b> families
+        </span>
+      </div>
+    </div>
+  </div>
+
   {serverError && (
-    <section class="gustale-families-error">
-      <div class="gustale-card" style="padding:1rem 1.25rem;">
+    <div class="wrap" style="padding-top: 24px;">
+      <div class="alert alert-warning">
         <strong>Heads up:</strong> the gustale-api could not be reached at build
         time ({serverError}). Showing an empty list — refresh once the API is up.
       </div>
-    </section>
+    </div>
   )}
 
   {/* ─── Family groups ─────────────────────────────────────────────── */}
   {sortedGroups.map(([slug, dishes]) => (
-    <section class="gustale-families-group">
-      <header class="gustale-families-group__head">
+    <section class="fam-group wrap" data-family={slug}>
+      <header class="fam-group__head">
         <div>
-          <span class="gustale-eyebrow">{slug}</span>
-          <h2 class="gustale-families-group__h">{labelFor(slug)}</h2>
+          <span class="eyebrow">{slug}</span>
+          <h2>{labelFor(slug)}</h2>
         </div>
-        <span class="gustale-mono-sub">{dishes.length} dishes</span>
+        <span class="mono-sub">{dishes.length} dishes</span>
       </header>
 
-      <ul class="gustale-families-grid">
+      <ul class="fam-grid">
         {dishes.map((d) => (
           <li>
-            <a href={`/dishes/${d.slug}`} class="gustale-tile">
+            <a href={`/dishes/${d.slug}`} class="fam-tile">
               <h3>{d.canonicalName}</h3>
-              {d.shortDescription && <p class="gustale-tile__lede">{d.shortDescription}</p>}
-              <div class="gustale-tile__meta">
-                <span class="gustale-mono-sub">Explore →</span>
+              {d.shortDescription && <p class="def">{d.shortDescription}</p>}
+              <div class="foot">
+                <span class="counts mono-sub">{d.country ?? d.region ?? '—'}</span>
+                <span class="go">Explore <span class="arr">→</span></span>
               </div>
             </a>
           </li>
@@ -141,12 +195,46 @@ const totalFamilies = sortedGroups.length;
   ))}
 
   {/* ─── Closing CTA ───────────────────────────────────────────────── */}
-  <section class="gustale-home-closer">
-    <p class="gustale-eyebrow gustale-home-closer__p">
+  <section class="wrap" style="padding: 48px 0; text-align: center;">
+    <p class="eyebrow">
       Every family lives on the map
     </p>
     <div style="display:flex; justify-content:center; margin-top:1rem;">
-      <a href="/map" class="gustale-btn">Open the atlas →</a>
+      <a href="/map" class="btn-accent">Open the atlas →</a>
     </div>
   </section>
 </Layout>
+
+<script>
+  (function () {
+    const chips = document.querySelectorAll<HTMLButtonElement>('.fam-chip');
+    const groups = document.querySelectorAll<HTMLElement>('.fam-group');
+    const countEl = document.getElementById('fam-count');
+
+    function setFilter(family: string) {
+      // Update chip active states
+      chips.forEach((c) => {
+        c.dataset.on = c.dataset.family === family ? '1' : '0';
+      });
+
+      // Show/hide groups
+      let visible = 0;
+      groups.forEach((g) => {
+        const match = family === 'all' || g.dataset.family === family;
+        g.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+
+      // Update count
+      if (countEl) {
+        countEl.textContent = String(visible);
+      }
+    }
+
+    chips.forEach((c) => {
+      c.addEventListener('click', () => {
+        setFilter(c.dataset.family ?? 'all');
+      });
+    });
+  })();
+</script>
