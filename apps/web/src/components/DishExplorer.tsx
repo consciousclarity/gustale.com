@@ -15,7 +15,10 @@ export interface DishExplorerProps {
 const PAGE_SIZE = 24;
 
 export function DishExplorer({ initial }: DishExplorerProps) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('search') ?? '';
+  });
   const [data, setData] = useState<DishListResponse>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

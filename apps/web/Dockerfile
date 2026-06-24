@@ -62,35 +62,33 @@ COPY . .
 # failing and re-running the whole pipeline.
 RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 
-# Wait for the API to be reachable before building.
+# NOTE: The API health check (wait-for-api.mjs) runs inside this RUN
+# against a local mock API on port 8742. We start the mock in the
+# background, wait for it to become reachable, run the Astro build,
+# and always clean up the mock process — even if the build fails.
+# See apps/web/scripts/mock-api.mjs for the mock implementation.
 #
-# Why: the Astro build does SSR fetches via getStaticPaths to populate
-# every /dishes/<slug> + /ingredients/<slug> page. If the API is
-# momentarily unavailable (rate limit, transient network blip, deploy
-# race), Astro falls back to a placeholder set of one dish and we ship
-# a near-empty dist. The post-build script's floor check catches this,
-# but the build still takes 3+ minutes of retries before failing.
+# Why: GHA runner IPs are blocked by the VPS firewall, so the runner
+# cannot reach the production API at api.gustale.recipes. The mock
+# serves the same data shapes from the inlined 31-dish seed, making
+# CI fully self-contained. No upstream API = no CI dependency.
 #
-# Instead, gate the build on /health first. 60s timeout covers cold
-# starts (container restart, DB migrate). The endpoint is
-# unauthenticated and fast.
-#
-# Override with PUBLIC_API_BASE_HEALTH if you ever need to point at a
-# different host (e.g. a staging API). We default to the prod URL
-# because that's what PUBLIC_API_BASE points at anyway.
-#
-# The wait-for-api.mjs script was originally COPY'd to /tmp explicitly;
-# the full-source COPY above already brought it in, so we run it in-tree.
-ARG PUBLIC_API_BASE_HEALTH=${PUBLIC_API_BASE}
-RUN node /app/apps/web/scripts/wait-for-api.mjs "${PUBLIC_API_BASE_HEALTH}"
+# The PUBLIC_API_BASE=http://127.0.0.1:8742 prefix overrides the ENV
+# for the build command only; the ARG and ENV defaults remain
+# unchanged, so the production runtime image has no trace of the
+# mock URL.
 
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
 #   geo     → build:geo      (drops /dishes list, /ingredients, edit/new)
-RUN if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
-      pnpm --filter apps-web run build:geo; \
+RUN node apps/web/scripts/mock-api.mjs --port 8742 & \
+    MOCK_PID=$!; \
+    trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \
+    node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742; \
+    if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
+      PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:geo; \
     else \
-      pnpm --filter apps-web run build:recipes; \
+      PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:recipes; \
     fi
 
 # ---------- Stage 2: runtime ----------
@@ -99,7 +97,7 @@ FROM nginx:1.27-alpine
 # Drop the default nginx config; ship our own that:
 #   - listens on 4001 (matches the Caddy upstream; non-privileged port)
 #   - serves /_astro/* with a 1-year cache (hashed filenames = content-addressed)
-#   - serves everything else with no-cache (HTML, JSON, etc.)
+#   - serves everything else with no-cache (HTML, CSS, JS, etc.)
 #   - falls back to /index.html for unknown routes (Astro static routing)
 #   - gzip on text-ish content
 # The COPY path is relative to the build context root (the monorepo root).

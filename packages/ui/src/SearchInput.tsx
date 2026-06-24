@@ -27,7 +27,7 @@ export function SearchInput({
       type="search"
       value={value}
       placeholder={placeholder}
-      onChange={(e) => onValueChange(e.target.value)}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.currentTarget.value)}
       className={
         'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm ' +
         'placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none ' +
