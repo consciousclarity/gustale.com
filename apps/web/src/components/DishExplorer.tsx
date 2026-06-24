@@ -16,26 +16,43 @@ const PAGE_SIZE = 24;
 
 function parseStructuredQuery(raw: string): {
   q: string;
-  origin: string[];
+  country: string[];
+  cuisine: string[];
+  type: string[];
   ingredient: string[];
   technique: string[];
-  region: string[];
-  category: string[];
-} {
+  region: string[];   // legacy alias for country
+  category: string[];  // legacy alias for cuisine
+  period: string[]; {
   const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
   const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
   const filters = {
-    origin: [] as string[],
+    country: [] as string[],
+    cuisine: [] as string[],
+    type: [] as string[],
     ingredient: [] as string[],
     technique: [] as string[],
-    region: [] as string[],
-    category: [] as string[],
+    region: [] as string[],   // legacy alias for country
+    category: [] as string[],  // legacy alias for cuisine
+    period: [] as string[],
   };
   for (const tok of tokens) {
     const colon = tok.indexOf(':');
     const key = tok.slice(0, colon).toLowerCase();
-    const val = tok.slice(colon + 1);
-    if (key in filters) (filters as any)[key].push(val);
+    const val = tok.slice(colon + 1).toLowerCase();
+    if (key === 'origin' || key === 'country') {
+      filters.country.push(val);
+    } else if (key === 'cuisine' || key === 'category') {
+      filters.cuisine.push(val);
+    } else if (key === 'type' || key === 'dish-type') {
+      filters.type.push(val);
+    } else if (key === 'ingredient') {
+      filters.ingredient.push(val);
+    } else if (key === 'technique') {
+      filters.technique.push(val);
+    } else if (key === 'period' || key === 'era' || key === 'date') {
+      filters.period.push(val);
+    }
   }
   return { q: freetext, ...filters };
 }
@@ -95,11 +112,14 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     const parsed = parseStructuredQuery(search);
     const sp = new URLSearchParams();
     if (parsed.q) sp.set('q', parsed.q);
-    if (parsed.origin.length) parsed.origin.forEach((v) => sp.append('origin', v));
+    if (parsed.country.length) parsed.country.forEach((v) => sp.append('country', v));
+    if (parsed.cuisine.length) parsed.cuisine.forEach((v) => sp.append('cuisine', v));
+    if (parsed.type.length) parsed.type.forEach((v) => sp.append('type', v));
     if (parsed.ingredient.length) parsed.ingredient.forEach((v) => sp.append('ingredient', v));
     if (parsed.technique.length) parsed.technique.forEach((v) => sp.append('technique', v));
     if (parsed.region.length) parsed.region.forEach((v) => sp.append('region', v));
     if (parsed.category.length) parsed.category.forEach((v) => sp.append('category', v));
+    if (parsed.period.length) parsed.period.forEach((v) => sp.append('period', v));
     const qs = sp.toString();
     window.history.pushState({}, '', qs ? `?${qs}` : window.location.pathname);
   }, [search]);
@@ -108,11 +128,14 @@ export function DishExplorer({ initial }: DishExplorerProps) {
 
   const parsed = useMemo(() => parseStructuredQuery(search), [search]);
   const hasFilters =
-    parsed.origin.length > 0 ||
+    parsed.country.length > 0 ||
+    parsed.cuisine.length > 0 ||
+    parsed.type.length > 0 ||
     parsed.ingredient.length > 0 ||
     parsed.technique.length > 0 ||
     parsed.region.length > 0 ||
-    parsed.category.length > 0;
+    parsed.category.length > 0 ||
+    parsed.period.length > 0;
 
   function removeFilter(key: string, val: string) {
     // E.g. "ramen origin:Japan technique:grilling" → remove "origin:Japan"
@@ -138,14 +161,36 @@ export function DishExplorer({ initial }: DishExplorerProps) {
 
       {hasFilters && (
         <div className="filter-chips">
-          {parsed.origin.map((v) => (
+          {parsed.country.map((v) => (
             <button
-              key={`origin:${v}`}
+              key={`country:${v}`}
               className="filter-chip"
-              onClick={() => removeFilter('origin', v)}
+              onClick={() => removeFilter('country', v)}
               type="button"
             >
-              origin:{v}
+              country:{v}
+              <span className="fc-x">×</span>
+            </button>
+          ))}
+          {parsed.cuisine.map((v) => (
+            <button
+              key={`cuisine:${v}`}
+              className="filter-chip"
+              onClick={() => removeFilter('cuisine', v)}
+              type="button"
+            >
+              cuisine:{v}
+              <span className="fc-x">×</span>
+            </button>
+          ))}
+          {parsed.type.map((v) => (
+            <button
+              key={`type:${v}`}
+              className="filter-chip"
+              onClick={() => removeFilter('type', v)}
+              type="button"
+            >
+              type:{v}
               <span className="fc-x">×</span>
             </button>
           ))}
@@ -171,14 +216,14 @@ export function DishExplorer({ initial }: DishExplorerProps) {
               <span className="fc-x">×</span>
             </button>
           ))}
-          {parsed.region.map((v) => (
+          {parsed.period.map((v) => (
             <button
-              key={`region:${v}`}
+              key={`period:${v}`}
               className="filter-chip"
-              onClick={() => removeFilter('region', v)}
+              onClick={() => removeFilter('period', v)}
               type="button"
             >
-              region:{v}
+              period:{v}
               <span className="fc-x">×</span>
             </button>
           ))}

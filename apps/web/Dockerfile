@@ -31,7 +31,10 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install pnpm globally (matches the monorepo's packageManager field)
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11
+
+# Set CI=true so pnpm doesn't try to purge node_modules interactively
+ENV CI=true
 
 # Cache-friendly install boundary: only files that affect the dep tree.
 # See apps/api/Dockerfile for the full rationale.

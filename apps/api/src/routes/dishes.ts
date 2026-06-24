@@ -41,11 +41,14 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
   status: z.enum(['draft', 'published', 'archived']).default('published'),
-  origin: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),    // origin country name
+  cuisine: z.string().max(100).optional(),     // cuisine category (Korean cuisine, Italian cuisine…)
+  type: z.string().max(100).optional(),         // dish-type category (Noodle soup, Stew, Pasta…)
   ingredient: z.string().max(100).optional(),
   technique: z.string().max(100).optional(),
-  region: z.string().max(100).optional(),
-  category: z.string().max(100).optional(),
+  region: z.string().max(100).optional(),     // legacy alias for country
+  category: z.string().max(100).optional(),    // legacy alias for cuisine
+  period: z.string().max(100).optional(),       // historical era e.g. 1920-1950
 });
 
 const slugParamSchema = z.object({
@@ -107,9 +110,21 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
 
-    if (params.origin) {
+    if (params.country) {
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.origin + '%'})`
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.country + '%'})`
+      );
+    }
+
+    if (params.cuisine) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = dishes.id AND c2.name ILIKE ${'%' + params.cuisine + '%'})`
+      );
+    }
+
+    if (params.type) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = dishes.id AND c3.name ILIKE ${'%' + params.type + '%'})`
       );
     }
 
@@ -125,19 +140,21 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
 
-    if (params.region) {
-      // Two-step: find region IDs, then all descendants via parent chain
-      whereClauses.push(
-        sql`(dishes.origin_geo_id IN (
-          WITH RECURSIVE region_descendants AS (
-            SELECT id FROM geo_entities WHERE name ILIKE ${'%' + params.region + '%'}
-            UNION ALL
-            SELECT ge.id FROM geo_entities ge
-            JOIN region_descendants rd ON ge.parent_id = rd.id
-          )
-          SELECT id FROM region_descendants
-        ))`
-      );
+    if (params.period) {
+      // Accept "1920", "1920-1950", "1920_1950" → match origin_date_earliest <= latest_year AND origin_date_latest >= earliest_year
+      const parts = params.period.replace(/_/g, '-').split('-').filter(Boolean);
+      const earliest = parts[0] ? parseInt(parts[0]) : null;
+      const latest = parts[1] ? parseInt(parts[1]) : earliest;
+      if (earliest !== null) {
+        whereClauses.push(
+          sql`dishes.origin_date_latest >= ${earliest}`
+        );
+      }
+      if (latest !== null) {
+        whereClauses.push(
+          sql`dishes.origin_date_earliest <= ${latest}`
+        );
+      }
     }
 
     if (params.category) {

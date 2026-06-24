@@ -26,8 +26,11 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install pnpm globally
-RUN npm install -g pnpm
+# Install pnpm globally (pin version to match lockfile format)
+RUN npm install -g pnpm@11
+
+# Set CI=true so pnpm doesn't try to purge node_modules interactively
+ENV CI=true
 
 # Copy ONLY what `pnpm install --frozen-lockfile` needs to compute the
 # dep tree. pnpm reads workspace package.jsons + pnpm-workspace.yaml +
@@ -59,7 +62,9 @@ FROM node:22-slim AS prod-extract
 
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11
+
+ENV CI=true
 
 # We need the full source so pnpm deploy can resolve the workspace.
 # This stage shares the build outputs of the previous one via COPY.
@@ -70,9 +75,11 @@ WORKDIR /app/apps/api
 # `pnpm deploy` flattens a package + its prod-only deps into ./deploy/.
 # `--prod` skips devDependencies. The deploy target is given as a
 # positional path; the filter selects which workspace package to deploy.
-# `--legacy` avoids requiring `inject-workspace-packages=true` (pnpm v10+
-# default), which would otherwise force a lockfile-recorded setting change.
-RUN pnpm deploy --prod --legacy --filter @gustale/api ./deploy
+# `--force-legacy-deploy` bypasses the inject-workspace-packages check in pnpm v11.
+RUN pnpm deploy --prod --force-legacy-deploy --filter @gustale/api ./deploy
+
+# Set CI=true so pnpm doesn't try to purge node_modules interactively
+ENV CI=true
 
 # ---------- Stage 3: runtime ----------
 FROM node:22-slim

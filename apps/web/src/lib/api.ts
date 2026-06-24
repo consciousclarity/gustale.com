@@ -176,11 +176,14 @@ export interface ListDishesParams {
   offset?: number;
   search?: string;
   status?: 'published' | 'draft' | 'archived';
-  origin?: string;
+  country?: string;    // origin country
+  cuisine?: string;   // cuisine category (Korean cuisine, Italian cuisine…)
+  type?: string;       // dish-type category (Noodle soup, Stew, Pasta…)
   ingredient?: string;
   technique?: string;
-  region?: string;
-  category?: string;
+  region?: string;     // legacy alias for country
+  category?: string;    // legacy alias for cuisine
+  period?: string;     // historical era e.g. 1920-1950
 }
 
 export function listDishes(
@@ -191,11 +194,14 @@ export function listDishes(
   if (params.offset != null) qs.set('offset', String(params.offset));
   if (params.search) qs.set('q', params.search);
   if (params.status) qs.set('status', params.status);
-  if (params.origin) qs.set('origin', params.origin);
+  if (params.country) qs.set('country', params.country);
+  if (params.cuisine) qs.set('cuisine', params.cuisine);
+  if (params.type) qs.set('type', params.type);
   if (params.ingredient) qs.set('ingredient', params.ingredient);
   if (params.technique) qs.set('technique', params.technique);
   if (params.region) qs.set('region', params.region);
   if (params.category) qs.set('category', params.category);
+  if (params.period) qs.set('period', params.period);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }

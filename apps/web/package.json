@@ -30,5 +30,6 @@
     "@astrojs/check": "^0.9.9",
     "@types/geojson": "^7946.0.16",
     "typescript": "^5.6.3"
-  }
+  },
+  "inject-workspace-packages": true
 }

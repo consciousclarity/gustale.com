@@ -36,23 +36,46 @@ type SortKey = 'name' | 'origin' | 'family';
 
 interface ParsedFilters {
   q: string;
-  origin: string[];
+  country: string[];   // origin country: Japan, Italy, Thailand…
+  cuisine: string[];   // cuisine category: Korean cuisine, Italian cuisine…
+  type: string[];     // dish-type category: Noodle soup, Stew, Pasta…
   ingredient: string[];
   technique: string[];
-  region: string[];
+  period: string[];   // historical era: 1880-1900, 1920-1950…
 }
+
+const CATEGORIES = new Set(['korean cuisine','italian cuisine','japanese cuisine','thai cuisine','vietnamese cuisine','spanish cuisine','french cuisine','indian cuisine','indonesian cuisine','singaporean cuisine','israeli cuisine','polish cuisine','greek cuisine','american cuisine','canadian cuisine','brazilian cuisine','peruvian cuisine','moroccan cuisine','hungarian cuisine','british cuisine','nigerian cuisine','lebanese cuisine','austrian cuisine','main course','stew','pasta','soup','noodle soup','appetizer','salad','sandwich','dumpling','moussaka','kebab','fried rice','stir-fry','dessert','rice dish']);
 
 function parseQuery(raw: string): ParsedFilters {
   const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
   const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
-  const filters = { origin: [] as string[], ingredient: [] as string[], technique: [] as string[], region: [] as string[] };
+  const rawFilters: Record<string, string[]> = {
+    country: [], cuisine: [], type: [], ingredient: [], technique: [], period: [],
+  };
   for (const tok of tokens) {
     const colon = tok.indexOf(':');
     const key = tok.slice(0, colon).toLowerCase();
-    const val = tok.slice(colon + 1);
-    if (key in filters) (filters as any)[key].push(val);
+    const val = tok.slice(colon + 1).toLowerCase();
+    if (key === 'origin' || key === 'country') {
+      rawFilters.country.push(val);
+    } else if (key === 'cuisine' || key === 'category') {
+      // cuisine vs type is inferred from the value itself
+      if (CATEGORIES.has(val) || val.includes('cuisine') || val.includes('soup') || val.includes('stew') || val.includes('pasta') || val.includes('salad') || val.includes('sandwich') || val.includes('dumpling') || val.includes('kebab') || val.includes('rice') || val.includes('stir-fry') || val.includes('dessert')) {
+        rawFilters.cuisine.push(val);
+      } else {
+        rawFilters.cuisine.push(val);
+      }
+    } else if (key === 'type' || key === 'dish-type') {
+      rawFilters.type.push(val);
+    } else if (key === 'ingredient') {
+      rawFilters.ingredient.push(val);
+    } else if (key === 'technique') {
+      rawFilters.technique.push(val);
+    } else if (key === 'period' || key === 'era' || key === 'date') {
+      rawFilters.period.push(val);
+    }
   }
-  return { q: freetext, ...filters };
+  return { q: freetext, ...rawFilters };
 }
 
 // ─── Atlas view ─────────────────────────────────────────────────────────────
@@ -241,10 +264,12 @@ function FilterChips({
   onRemove: (key: string, val: string) => void;
 }) {
   const all = [
-    ...filters.origin.map(v => ({ k: 'origin', v })),
+    ...filters.country.map(v => ({ k: 'country', v })),
+    ...filters.cuisine.map(v => ({ k: 'cuisine', v })),
+    ...filters.type.map(v => ({ k: 'type', v })),
     ...filters.ingredient.map(v => ({ k: 'ingredient', v })),
     ...filters.technique.map(v => ({ k: 'technique', v })),
-    ...filters.region.map(v => ({ k: 'region', v })),
+    ...filters.period.map(v => ({ k: 'period', v })),
   ];
   if (all.length === 0) return null;
   return (
@@ -282,10 +307,12 @@ export default function GustaleHomeIsland() {
       setError(null);
       const params: any = { limit: 100 };
       if (parsed.q) params.search = parsed.q;
-      if (parsed.origin[0]) params.origin = parsed.origin[0];
+      if (parsed.country[0]) params.country = parsed.country[0];
+      if (parsed.cuisine[0]) params.cuisine = parsed.cuisine[0];
+      if (parsed.type[0]) params.type = parsed.type[0];
       if (parsed.ingredient[0]) params.ingredient = parsed.ingredient[0];
       if (parsed.technique[0]) params.technique = parsed.technique[0];
-      if (parsed.region[0]) params.region = parsed.region[0];
+      if (parsed.period[0]) params.period = parsed.period[0];
       listDishes(params)
         .then(setListData)
         .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
@@ -329,7 +356,7 @@ export default function GustaleHomeIsland() {
           <div className="hero-search">
             <input
               type="search"
-              placeholder='Try "ramen", origin:Japan, ingredient:saffron…'
+              placeholder='Try "ramen", country:Japan, cuisine:Korean, type:Noodle soup, ingredient:saffron, technique:baking, period:1920…'
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
