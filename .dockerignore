@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+.git/
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+.cache/
+.turbo/
+coverage/
+.DS_Store
+.hermes/
+.claude/

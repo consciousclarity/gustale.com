@@ -70,7 +70,9 @@ WORKDIR /app/apps/api
 # `pnpm deploy` flattens a package + its prod-only deps into ./deploy/.
 # `--prod` skips devDependencies. The deploy target is given as a
 # positional path; the filter selects which workspace package to deploy.
-RUN pnpm deploy --prod --filter @gustale/api ./deploy
+# `--legacy` avoids requiring `inject-workspace-packages=true` (pnpm v10+
+# default), which would otherwise force a lockfile-recorded setting change.
+RUN pnpm deploy --prod --legacy --filter @gustale/api ./deploy
 
 # ---------- Stage 3: runtime ----------
 FROM node:22-slim
