@@ -94,3 +94,9 @@ logs.zip
 # CLAUDE.md (sibling) IS committed so Claude Code picks it up automatically.
 .hermes/
 *.log.zip
+
+# ─── Agent runtime junk (ruflo / claude-flow) ─────────────────────────
+.swarm/
+.claude-flow/
+ruvector.db
+*.ruvector.db
