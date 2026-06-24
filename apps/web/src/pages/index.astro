@@ -1,5 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import GustaleAppIsland from '../components/design/GustaleAppIsland.tsx';
+import GustaleAtlasIsland from '../components/design/GustaleAtlasIsland.tsx';
+import GustaleRecipesIsland from '../components/design/GustaleRecipesIsland.tsx';
 
 // Two variants — recipes (encyclopedia) and geo (atlas). The right one
 // is baked in at build time by the post-build filter (PUBLIC_DOMAIN).
@@ -8,55 +11,9 @@ const isGeo = domain === 'geo';
 ---
 
 <Layout title={isGeo ? "Gustale Atlas — The world, dish by dish" : "Gustale — A digital culinary archive"}>
-  <section class="mx-auto max-w-4xl px-4 py-20 text-center">
-    {isGeo ? (
-      <>
-        <h1 class="text-5xl font-extrabold tracking-tight text-slate-900">
-          Every dish has a place of origin.
-        </h1>
-        <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
-          Spin the globe. Click a dot. Read about what's eaten where, and why.
-          Gustale Atlas maps the world's dishes to the land they came from.
-        </p>
-        <div class="mt-10 flex justify-center gap-3">
-          <a
-            href="/map"
-            class="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-          >
-            Open the globe
-          </a>
-          <a
-            href="/about"
-            class="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-slate-400"
-          >
-            About this project
-          </a>
-        </div>
-      </>
-    ) : (
-      <>
-        <h1 class="text-5xl font-extrabold tracking-tight text-slate-900">
-          A living archive of the world's dishes.
-        </h1>
-        <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
-          Gustale is an open culinary encyclopedia: origin, method, story — for every dish
-          worth remembering. Browse the catalogue to begin.
-        </p>
-        <div class="mt-10 flex justify-center gap-3">
-          <a
-            href="/dishes"
-            class="rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-          >
-            Browse dishes
-          </a>
-          <a
-            href="/about"
-            class="rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-slate-400"
-          >
-            About the project
-          </a>
-        </div>
-      </>
-    )}
-  </section>
+  {isGeo ? (
+    <GustaleAtlasIsland client:only="react" />
+  ) : (
+    <GustaleRecipesIsland client:only="react" />
+  )}
 </Layout>

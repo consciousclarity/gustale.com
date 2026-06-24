@@ -8,9 +8,7 @@ export interface Props {
 }
 
 const { title, description = 'Gustale — a digital culinary archive.' } = Astro.props;
-const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
 ---
-
 <!doctype html>
 <html lang="en">
   <head>
@@ -22,7 +20,7 @@ const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-    <SiteHeader currentPath={Astro.url.pathname} domain={domain} />
+    <SiteHeader />
     <main>
       <slot />
     </main>

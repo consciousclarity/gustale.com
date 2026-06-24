@@ -107,6 +107,14 @@ export function registerDishRoutes(app: FastifyInstance): void {
         originGeoId: dishes.originGeoId,
         status: dishes.status,
         viewCount: dishes.viewCount,
+        methodSlug: sql<string | null>`(
+          SELECT pm.slug
+          FROM dish_preparations dp
+          JOIN preparation_methods pm ON pm.id = dp.method_id
+          WHERE dp.dish_id = ${dishes.id}
+          ORDER BY dp.sequence_order
+          LIMIT 1
+        )`,
       })
       .from(dishes)
       .where(and(...whereClauses))

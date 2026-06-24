@@ -166,6 +166,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Wait for API to be reachable
+        run: node apps/web/scripts/wait-for-api.mjs https://api.gustale.recipes
+        
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:
