@@ -18,8 +18,10 @@
 // at /api/auth/* (see server.ts).
 
 import type {
+  CategoryListItem,
   DishDetailResponse,
   DishListResponse,
+  TagListItem,
 } from '../types/dish';
 
 // Build-time API host — used only during SSR. In the browser we always
@@ -260,6 +262,19 @@ export function getMapDishes(
   if (params.limit != null) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
+}
+
+// ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
+// Powers the classification pickers in EditDishForm / NewDishForm. Both
+// lists are small (low hundreds at most) and fetched in full — no
+// pagination needed.
+
+export function getCategories(): Promise<{ categories: CategoryListItem[] }> {
+  return request<{ categories: CategoryListItem[] }>('/api/categories');
+}
+
+export function getTags(): Promise<{ tags: TagListItem[] }> {
+  return request<{ tags: TagListItem[] }>('/api/tags');
 }
 
 // ─── Ingredient detail (GET /api/ingredients/:slug) ───────────────────────

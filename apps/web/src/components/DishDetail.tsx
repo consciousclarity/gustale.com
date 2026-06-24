@@ -6,6 +6,7 @@ import type {
   DishMediaAttachment,
   DishOrigin,
   DishPreparation,
+  DishTag,
   DishVariant,
 } from '../types/dish';
 import { DishGallery } from './DishGallery';
@@ -16,15 +17,18 @@ export interface DishDetailProps {
   variants: DishVariant[];
   ingredients: DishIngredient[];
   categories: DishCategory[];
+  tags: DishTag[];
   preparations: DishPreparation[];
   sources: DishCitation[];
   media: DishMediaAttachment[];
 }
 
+const HERO_TONES = ['#D98A53', '#C8743C'] as const;
+
 /**
- * Renders the full Wikipedia-style dish detail view.
- * All data is server-rendered into the island props (SSR-safe).
- * No client-side fetch — by the time this mounts, the data is already there.
+ * Renders the full editorial dish detail view (same design language as the
+ * gustale.recipes "Gustale Recipes" template). All data is server-rendered
+ * into the island props (SSR-safe) — no client-side fetch.
  */
 export function DishDetail({
   dish,
@@ -32,6 +36,7 @@ export function DishDetail({
   variants,
   ingredients,
   categories,
+  tags,
   preparations,
   sources,
   media,
@@ -39,182 +44,195 @@ export function DishDetail({
   const primaryCategory = categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
 
   return (
-    <article className="mx-auto max-w-4xl space-y-10 px-4 py-8">
+    <article className="dish-page">
+      {/* ─── Breadcrumb ────────────────────────────────────────────────── */}
+      <div className="crumb">
+        <a href="/dishes">Dishes</a>
+        {primaryCategory && (
+          <>
+            <span className="sep">›</span>
+            <span>{primaryCategory.name}</span>
+          </>
+        )}
+        <span className="sep">›</span>
+        <span style={{ color: 'var(--ink)' }}>{dish.name}</span>
+      </div>
+
       {/* ─── Hero ──────────────────────────────────────────────────────── */}
-      <header className="space-y-4 border-b border-slate-200 pb-8">
-        <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
-          {primaryCategory && (
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
-              {primaryCategory.name}
-            </span>
+      <header className="rec-hero">
+        <div>
+          <div className="rec-eyebrow">
+            {origin?.name ?? 'Origin unrecorded'}
+            {dish.originDateEarliest && (
+              <span className="coord">
+                first attested {dish.originDateEarliest}
+                {dish.originDateLatest && dish.originDateLatest !== dish.originDateEarliest
+                  ? `–${dish.originDateLatest}`
+                  : ''}
+              </span>
+            )}
+          </div>
+
+          <h1 className="rec-title">{dish.name}</h1>
+
+          {(dish.description || dish.longDescription) && (
+            <p className="rec-intro">{dish.description ?? dish.longDescription}</p>
           )}
-          {origin && (
+
+          <div className="rec-byline">
+            <span className="av" />
             <span>
-              Origin: <strong className="text-slate-700">{origin.name}</strong>
-              {origin.isoCode && (
-                <span className="ml-1 text-slate-400">({origin.isoCode})</span>
-              )}
+              By{' '}
+              <b>{dish.createdBy ? dish.createdBy.displayName : 'an unknown editor'}</b>
             </span>
-          )}
-          {dish.originDateEarliest && (
-            <span>
-              First attested: <strong className="text-slate-700">{dish.originDateEarliest}</strong>
-              {dish.originDateLatest && dish.originDateLatest !== dish.originDateEarliest && (
-                <>–{dish.originDateLatest}</>
-              )}
-            </span>
+            {dish.lastEditedBy && dish.lastEditedBy.id !== dish.createdBy?.id && (
+              <span>
+                · last edited by <b>{dish.lastEditedBy.displayName}</b>
+              </span>
+            )}
+            <span className="star">{dish.viewCount.toLocaleString()} views</span>
+          </div>
+
+          <div className="rec-meta">
+            <div className="cell">
+              <div className="k">Origin</div>
+              <div className="v" style={{ fontSize: 19 }}>{origin?.name ?? '—'}</div>
+            </div>
+            <div className="cell">
+              <div className="k">Variants</div>
+              <div className="v">{variants.length}</div>
+            </div>
+            <div className="cell">
+              <div className="k">Category</div>
+              <div className="v" style={{ fontSize: 19 }}>{primaryCategory?.name ?? '—'}</div>
+            </div>
+            <div className="cell">
+              <div className="k">Contributors</div>
+              <div className="v">{dish.contributorCount}</div>
+            </div>
+          </div>
+
+          {tags.length > 0 && (
+            <div className="rec-tags">
+              {tags.map((t) => (
+                <span key={t.tagId} className="tag-chip">{t.name}</span>
+              ))}
+            </div>
           )}
         </div>
 
-        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-          {dish.name}
-        </h1>
-
-        {dish.description && (
-          <p className="text-lg leading-relaxed text-slate-700">
-            {dish.description}
-          </p>
-        )}
-
-        {dish.longDescription && (
-          <p className="text-base leading-relaxed text-slate-600">
-            {dish.longDescription}
-          </p>
-        )}
+        <div className="rec-heroimg">
+          <div
+            className="ph"
+            style={{
+              height: 360,
+              borderRadius: 'var(--radius)',
+              background: `repeating-linear-gradient(135deg, ${HERO_TONES[0]} 0 14px, ${HERO_TONES[1]} 14px 28px)`,
+            }}
+          >
+            <span>{dish.name.toLowerCase()}</span>
+          </div>
+          <div className="cap">
+            <span>HERO · 4:3</span>
+            <span>{(origin?.isoCode ?? origin?.name ?? '').toString().toUpperCase()}</span>
+          </div>
+        </div>
       </header>
 
-      {/* ─── Variants ──────────────────────────────────────────────────── */}
+      {/* ─── Regional variants band ───────────────────────────────────── */}
       {variants.length > 0 && (
-        <section aria-labelledby="variants-heading" className="space-y-3">
-          <h2 id="variants-heading" className="text-2xl font-bold text-slate-900">
-            Regional variants
-          </h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
+        <section className="world" aria-labelledby="variants-heading">
+          <div>
+            <div className="tag">The same dish, localized</div>
+            <h2 id="variants-heading">Regional variants</h2>
+            <p>
+              {variants.length} variant{variants.length === 1 ? '' : 's'} of {dish.name} told
+              differently across regions and traditions.
+            </p>
+          </div>
+          <div className="world-list">
             {variants.map((v) => (
-              <li
-                key={v.id}
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <h3 className="font-semibold text-slate-900">
-                  <a
-                    href={`/dishes/${v.slug}`}
-                    className="hover:text-emerald-700"
-                  >
-                    {v.name}
-                  </a>
-                </h3>
-                {v.description && (
-                  <p className="mt-1 text-sm text-slate-600">{v.description}</p>
-                )}
-                {v.creatorName && (
-                  <p className="mt-2 text-xs text-slate-400">
-                    Attributed to: {v.creatorName}
-                  </p>
-                )}
-              </li>
+              <a key={v.id} href={`/dishes/${v.slug}`} className="world-item">
+                <span className="pin" />
+                <span className="wnm">{v.name}</span>
+                <span className="wrg">{v.creatorName ?? v.description ?? ''}</span>
+              </a>
             ))}
-          </ul>
+          </div>
         </section>
       )}
 
-      {/* ─── Ingredients ───────────────────────────────────────────────── */}
-      {ingredients.length > 0 && (
-        <section aria-labelledby="ingredients-heading" className="space-y-3">
-          <h2 id="ingredients-heading" className="text-2xl font-bold text-slate-900">
-            Ingredients
-          </h2>
-          <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-            {ingredients.map((ing) => (
-              <li
-                key={ing.ingredientId}
-                className="flex items-baseline justify-between gap-4 px-4 py-3"
-              >
-                <div className="flex items-baseline gap-2">
-                  <a
-                    href={`/ingredients/${ing.slug}`}
-                    className="font-medium text-slate-900 hover:text-emerald-700"
-                  >
-                    {ing.name}
-                  </a>
-                  {ing.isOptional && (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                      optional
-                    </span>
-                  )}
-                  {ing.preparationNote && (
-                    <span className="text-sm text-slate-500">
-                      ({ing.preparationNote})
-                    </span>
-                  )}
+      {/* ─── Body: ingredients + preparation ──────────────────────────── */}
+      <div className="rec-body">
+        {ingredients.length > 0 && (
+          <aside className="ing-col" aria-labelledby="ingredients-heading">
+            <h2 id="ingredients-heading" className="col-h">Ingredients</h2>
+            <div className="col-sub">{ingredients.length} ITEM{ingredients.length === 1 ? '' : 'S'}</div>
+            <div className="ing-list">
+              {ingredients.map((ing) => (
+                <div className="ing" key={ing.ingredientId}>
+                  <span className="qty">
+                    {ing.quantity ?? ''}{ing.quantity && ing.unit ? ` ${ing.unit}` : ing.unit ?? ''}
+                  </span>
+                  <span className="nm">
+                    <a href={`/ingredients/${ing.slug}`}>{ing.name}</a>
+                    {ing.isOptional && <small> optional</small>}
+                    {ing.preparationNote && <small>{ing.preparationNote}</small>}
+                  </span>
                 </div>
-                <div className="shrink-0 text-sm tabular-nums text-slate-600">
-                  {ing.quantity && <span>{ing.quantity}</span>}
-                  {ing.unit && <span className="ml-1">{ing.unit}</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* ─── Preparation ───────────────────────────────────────────────── */}
-      {preparations.length > 0 && (
-        <section aria-labelledby="preparation-heading" className="space-y-3">
-          <h2 id="preparation-heading" className="text-2xl font-bold text-slate-900">
-            Preparation
-          </h2>
-          {preparations.map((prep, idx) => (
-            <div
-              key={prep.id}
-              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-semibold text-slate-900">
-                  {prep.methodName}
-                </h3>
-                <div className="flex gap-3 text-xs text-slate-500">
-                  {prep.durationMinutes != null && (
-                    <span>{prep.durationMinutes} min</span>
-                  )}
-                  {prep.difficulty && <span>· {prep.difficulty}</span>}
-                </div>
-              </div>
-              {prep.steps ? (
-                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                  {prep.steps}
-                </p>
-              ) : (
-                <p className="mt-3 text-sm italic text-slate-400">
-                  No detailed steps recorded yet.
-                </p>
-              )}
-              {idx < preparations.length - 1 && (
-                <div className="mt-5 border-t border-slate-100" />
-              )}
+              ))}
             </div>
-          ))}
-        </section>
-      )}
+          </aside>
+        )}
+
+        {preparations.length > 0 && (
+          <section aria-labelledby="preparation-heading">
+            <h2 id="preparation-heading" className="col-h">Preparation</h2>
+            <div className="col-sub">
+              {preparations.length} METHOD{preparations.length === 1 ? '' : 'S'}
+            </div>
+            <div className="method-list">
+              {preparations.map((prep, idx) => (
+                <div className="step" key={prep.id}>
+                  <div className="marker disp">{String(idx + 1).padStart(2, '0')}</div>
+                  <div>
+                    <div className="stxt" style={{ fontWeight: 600, marginBottom: 6 }}>
+                      {prep.methodName}
+                    </div>
+                    <p className="stxt">
+                      {prep.steps ?? 'No detailed steps recorded yet.'}
+                    </p>
+                    {(prep.durationMinutes != null || prep.difficulty) && (
+                      <span className="stime">
+                        {prep.durationMinutes != null && <>⏱ <b>{prep.durationMinutes}</b> min</>}
+                        {prep.durationMinutes != null && prep.difficulty && ' · '}
+                        {prep.difficulty}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
 
       {/* ─── Sources / Citations ───────────────────────────────────────── */}
       {sources.length > 0 && (
-        <section aria-labelledby="sources-heading" className="space-y-3">
-          <h2 id="sources-heading" className="text-2xl font-bold text-slate-900">
-            Sources
-          </h2>
-          <ol className="space-y-3">
+        <section className="section" aria-labelledby="sources-heading">
+          <div className="sec-rule">
+            <h2 id="sources-heading">Sources</h2>
+          </div>
+          <ol className="source-list">
             {sources.map((cite) => (
-              <li
-                key={cite.id}
-                className="rounded-md border border-slate-200 bg-white p-4 text-sm"
-              >
+              <li key={cite.id} className="source-card">
                 {cite.claimText && (
-                  <p className="text-slate-700">
-                    <span className="font-medium text-slate-900">Claim:</span>{' '}
+                  <p>
+                    <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Claim:</span>{' '}
                     {cite.claimText}
                   </p>
                 )}
-                <p className="mt-1 text-slate-600">
+                <p>
                   {cite.citationText ? (
                     <span dangerouslySetInnerHTML={{ __html: cite.citationText }} />
                   ) : (
@@ -227,20 +245,11 @@ export function DishDetail({
                   )}
                 </p>
                 {cite.url && (
-                  <a
-                    href={cite.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block break-all text-xs text-emerald-700 hover:underline"
-                  >
+                  <a href={cite.url} target="_blank" rel="noopener noreferrer" className="source-url">
                     {cite.url}
                   </a>
                 )}
-                {cite.reliability && (
-                  <span className="ml-3 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                    Reliability: {cite.reliability}
-                  </span>
-                )}
+                {cite.reliability && <span className="reliability-pill">{cite.reliability}</span>}
               </li>
             ))}
           </ol>
@@ -251,20 +260,14 @@ export function DishDetail({
       <DishGallery media={media} />
 
       {/* ─── Editor / provenance ──────────────────────────────────────── */}
-      <footer className="space-y-2 border-t border-slate-200 pt-6 text-xs text-slate-500">
+      <footer className="dish-foot">
         <div>
           Created by{' '}
-          {dish.createdBy ? (
-            <strong className="text-slate-700">{dish.createdBy.displayName}</strong>
-          ) : (
-            'an unknown editor'
-          )}
+          {dish.createdBy ? <strong>{dish.createdBy.displayName}</strong> : 'an unknown editor'}
           {dish.lastEditedBy && dish.lastEditedBy.id !== dish.createdBy?.id && (
             <>
               {' · last edited by '}
-              <strong className="text-slate-700">
-                {dish.lastEditedBy.displayName}
-              </strong>
+              <strong>{dish.lastEditedBy.displayName}</strong>
             </>
           )}
         </div>
@@ -273,10 +276,9 @@ export function DishDetail({
           {' · '}
           {dish.editCount} edit{dish.editCount === 1 ? '' : 's'}
           {' · '}
-          {dish.contributorCount} contributor
-          {dish.contributorCount === 1 ? '' : 's'}
+          {dish.contributorCount} contributor{dish.contributorCount === 1 ? '' : 's'}
         </div>
-        <div className="text-slate-400">
+        <div className="muted">
           Last updated {new Date(dish.updatedAt).toISOString().slice(0, 10)}
         </div>
       </footer>

@@ -21,6 +21,8 @@ import {
   dishIngredients,
   dishCategories,
   categories,
+  dishTags,
+  tags,
   dishPreparations,
   preparationMethods,
   preparationMethodTranslations,
@@ -302,6 +304,17 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .innerJoin(categories, eq(dishCategories.categoryId, categories.id))
       .where(eq(dishCategories.dishId, dishRow.id));
 
+    // Tags
+    const dishTagRows = await db
+      .select({
+        tagId: dishTags.tagId,
+        name: tags.name,
+        slug: tags.slug,
+      })
+      .from(dishTags)
+      .innerJoin(tags, eq(dishTags.tagId, tags.id))
+      .where(eq(dishTags.dishId, dishRow.id));
+
     // Preparations: join with methods, plus translations for the requested language
     const dishPreps = await db
       .select({
@@ -480,6 +493,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       variants,
       ingredients: dishIngs,
       categories: dishCats,
+      tags: dishTagRows,
       preparations: dishPreps.map((p) => ({
         id: p.id,
         methodId: p.methodId,

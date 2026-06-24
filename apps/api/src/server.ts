@@ -12,6 +12,7 @@ import { env } from './env.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerDishRoutes } from './routes/dishes.js';
 import { registerDishWriteRoutes } from './routes/dishes-write.js';
+import { registerTaxonomyRoutes } from './routes/taxonomy.js';
 import { registerIngredientRoutes } from './routes/ingredients.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerDishMediaRoutes } from './routes/dishes-media.js';
@@ -75,6 +76,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerHealthRoutes(app);
   registerDishRoutes(app);
   registerDishWriteRoutes(app);
+  registerTaxonomyRoutes(app);
   await app.register(registerIngredientRoutes);
   // The two new route groups are FastifyPluginAsync — await their register
   // so any errors during plugin init (e.g. multipart schema) surface here

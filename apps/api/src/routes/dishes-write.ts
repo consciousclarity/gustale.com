@@ -15,10 +15,13 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   db,
   dishes,
+  dishCategories,
+  dishTags,
+  dishVariants,
   editHistory,
   type EditAction,
 } from '@gustale/db';
@@ -47,6 +50,14 @@ const createDishSchema = z.object({
   originDateLatest: z.number().int().min(-3000).max(2100).optional(),
 });
 
+// Classification: which categories this dish belongs to (at most one
+// marked primary) and which freeform tags apply. Both are full-replace
+// semantics on PATCH — the client sends the complete desired set.
+const categoryAssignmentSchema = z.object({
+  categoryId: z.string().uuid(),
+  isPrimary: z.boolean().optional(),
+});
+
 const patchDishSchema = z
   .object({
     canonicalName: z.string().min(2).max(200).optional(),
@@ -62,11 +73,37 @@ const patchDishSchema = z
       .optional(),
     originDateEarliest: z.number().int().min(-3000).max(2100).nullable().optional(),
     originDateLatest: z.number().int().min(-3000).max(2100).nullable().optional(),
+    categories: z.array(categoryAssignmentSchema).max(20).optional(),
+    tagIds: z.array(z.string().uuid()).max(50).optional(),
     comment: z.string().max(1000).optional(), // edit summary recorded in edit_history
   })
   .refine((obj) => Object.keys(obj).filter((k) => k !== 'comment').length > 0, {
     message: 'At least one field must be provided',
-  });
+  })
+  .refine(
+    (obj) => !obj.categories || obj.categories.filter((c) => c.isPrimary).length <= 1,
+    { message: 'At most one category can be marked primary' },
+  );
+
+// dish_variants sub-resource — name/slug/description plus optional
+// attribution and a region pin. Reuses the same lat/lng-to-PostGIS
+// conversion as the parent dish's origin.
+const variantSchema = z.object({
+  name: z.string().min(2).max(200),
+  slug: z.string().regex(SLUG_RE, 'Slug must be lowercase letters, digits, and hyphens').min(2).max(200),
+  description: z.string().max(20000).nullable().optional(),
+  creatorName: z.string().max(200).nullable().optional(),
+  creatorDate: z.number().int().min(-3000).max(2100).nullable().optional(),
+  region: z
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+    })
+    .nullable()
+    .optional(),
+});
+
+const variantPatchSchema = variantSchema.partial();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -100,6 +137,30 @@ function diffDish(
  */
 function pointLiteral(lat: number, lng: number): string {
   return `POINT(${lng} ${lat})`;
+}
+
+/**
+ * Shared draft/published authorization gate. Variants are edited as part
+ * of their parent dish (no independent draft/published workflow in the
+ * UI), so they reuse the parent dish's status to decide who can write.
+ */
+function assertDishEditable(
+  user: { role: 'visitor' | 'contributor' | 'moderator' | 'admin' },
+  dishRow: { status: string },
+): void {
+  if (dishRow.status === 'published') {
+    const rank: Record<typeof user.role, number> = {
+      visitor: 0,
+      contributor: 1,
+      moderator: 2,
+      admin: 3,
+    };
+    if (rank[user.role] < rank.moderator) {
+      throw httpError(403, 'forbidden', 'Only moderators can edit published dishes. Create a draft edit instead.');
+    }
+  } else if (dishRow.status === 'archived') {
+    throw httpError(409, 'archived', 'Archived dishes are immutable. Un-archive first.');
+  }
 }
 
 // ─── Route registration ──────────────────────────────────────────────────
@@ -197,27 +258,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
 
     // Authorization: published dishes are moderator-only territory.
     // Drafts can be edited by anyone authenticated (incl. the creator).
-    if (before.status === 'published') {
-      // Inline role-rank check (avoid importing from plugin to keep this
-      // file independent of plugin file location).
-      const rank: Record<typeof user.role, number> = {
-        visitor: 0,
-        contributor: 1,
-        moderator: 2,
-        admin: 3,
-      };
-      if (rank[user.role] < rank.moderator) {
-        return reply.status(403).send({
-          error: 'forbidden',
-          message: 'Only moderators can edit published dishes. Create a draft edit instead.',
-        });
-      }
-    } else if (before.status === 'archived') {
-      return reply.status(409).send({
-        error: 'archived',
-        message: 'Archived dishes are immutable. Un-archive first.',
-      });
-    }
+    assertDishEditable(user, before);
 
     // Build the update payload.
     const updateValues: Record<string, unknown> = {
@@ -255,6 +296,41 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       before as unknown as Record<string, unknown>,
       after as unknown as Record<string, unknown>,
     );
+
+    // Categories & tags are relational (not columns on `dishes`), so they
+    // can't go through diffDish — handled here but folded into the same
+    // edit_history entry for one coherent audit record per PATCH call.
+    if (patch.categories !== undefined) {
+      const beforeCats = await db
+        .select({ categoryId: dishCategories.categoryId, isPrimary: dishCategories.isPrimary })
+        .from(dishCategories)
+        .where(eq(dishCategories.dishId, before.id));
+      await db.delete(dishCategories).where(eq(dishCategories.dishId, before.id));
+      if (patch.categories.length > 0) {
+        await db.insert(dishCategories).values(
+          patch.categories.map((c) => ({
+            dishId: before.id,
+            categoryId: c.categoryId,
+            isPrimary: c.isPrimary ?? false,
+          })),
+        );
+      }
+      diff.categories = { from: beforeCats, to: patch.categories };
+    }
+
+    if (patch.tagIds !== undefined) {
+      const beforeTags = await db
+        .select({ tagId: dishTags.tagId })
+        .from(dishTags)
+        .where(eq(dishTags.dishId, before.id));
+      await db.delete(dishTags).where(eq(dishTags.dishId, before.id));
+      if (patch.tagIds.length > 0) {
+        await db.insert(dishTags).values(
+          patch.tagIds.map((tagId) => ({ dishId: before.id, tagId })),
+        );
+      }
+      diff.tags = { from: beforeTags.map((t) => t.tagId), to: patch.tagIds };
+    }
 
     if (Object.keys(diff).length > 0) {
       await db.insert(editHistory).values({
@@ -367,5 +443,150 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     });
 
     return reply.send({ dish: { id: row.id, slug, status: 'archived' } });
+  });
+
+  // ─── POST /api/dishes/:slug/variants ──────────────────────────────────
+  // Add a regional/preparation variant to a dish.
+  app.post('/api/dishes/:slug/variants', async (request, reply) => {
+    const user = await app.requireUser(request);
+    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+    const body = variantSchema.parse(request.body);
+
+    const parent = await db.select().from(dishes).where(eq(dishes.slug, slug)).limit(1);
+    if (parent.length === 0) {
+      throw httpError(404, 'not_found', 'Dish not found');
+    }
+    const dishRow = parent[0]!;
+    assertDishEditable(user, dishRow);
+
+    const dupe = await db
+      .select({ id: dishVariants.id })
+      .from(dishVariants)
+      .where(and(eq(dishVariants.parentDishId, dishRow.id), eq(dishVariants.slug, body.slug)))
+      .limit(1);
+    if (dupe.length > 0) {
+      throw httpError(409, 'slug_conflict', `A variant with slug "${body.slug}" already exists for this dish`, { fields: ['slug'] });
+    }
+
+    const regionWkt = body.region ? pointLiteral(body.region.lat, body.region.lng) : null;
+    const inserted = await db.execute(sql`
+      INSERT INTO dish_variants (
+        parent_dish_id, name, slug, description,
+        region_location, creator_name, creator_date, status
+      ) VALUES (
+        ${dishRow.id}, ${body.name}, ${body.slug}, ${body.description ?? null},
+        ${regionWkt ? sql`ST_GeomFromText(${regionWkt}, 4326)` : sql`NULL`},
+        ${body.creatorName ?? null}, ${body.creatorDate ?? null}, 'draft'
+      )
+      RETURNING id, parent_dish_id, name, slug, description, creator_name, creator_date, status, created_at, updated_at
+    `);
+    const row = (inserted as unknown as Array<Record<string, unknown>>)[0];
+    if (!row) {
+      throw new Error('Insert returned no rows');
+    }
+
+    await db.insert(editHistory).values({
+      userId: user.id,
+      targetType: 'dish_variant',
+      targetId: row.id as string,
+      action: 'create' satisfies EditAction,
+      diff: { after: body },
+      comment: `Added variant to ${dishRow.canonicalName}`,
+    });
+
+    return reply.status(201).send({ variant: row });
+  });
+
+  // ─── PATCH /api/dishes/:slug/variants/:variantId ──────────────────────
+  app.patch('/api/dishes/:slug/variants/:variantId', async (request, reply) => {
+    const user = await app.requireUser(request);
+    const { slug, variantId } = z
+      .object({ slug: z.string().min(1).max(200), variantId: z.string().uuid() })
+      .parse(request.params);
+    const body = variantPatchSchema.parse(request.body);
+
+    const parent = await db.select().from(dishes).where(eq(dishes.slug, slug)).limit(1);
+    if (parent.length === 0) {
+      throw httpError(404, 'not_found', 'Dish not found');
+    }
+    const dishRow = parent[0]!;
+    assertDishEditable(user, dishRow);
+
+    const existing = await db
+      .select({ id: dishVariants.id })
+      .from(dishVariants)
+      .where(and(eq(dishVariants.id, variantId), eq(dishVariants.parentDishId, dishRow.id)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw httpError(404, 'not_found', 'Variant not found on this dish');
+    }
+
+    const updateValues: Record<string, unknown> = { updatedAt: new Date() };
+    if (body.name !== undefined) updateValues.name = body.name;
+    if (body.slug !== undefined) updateValues.slug = body.slug;
+    if (body.description !== undefined) updateValues.description = body.description;
+    if (body.creatorName !== undefined) updateValues.creatorName = body.creatorName;
+    if (body.creatorDate !== undefined) updateValues.creatorDate = body.creatorDate;
+    if (body.region !== undefined) {
+      updateValues.regionLocation =
+        body.region === null
+          ? null
+          : sql`ST_GeomFromText(${pointLiteral(body.region.lat, body.region.lng)}, 4326)`;
+    }
+
+    const result = await db
+      .update(dishVariants)
+      .set(updateValues)
+      .where(eq(dishVariants.id, variantId))
+      .returning();
+    const after = result[0]!;
+
+    await db.insert(editHistory).values({
+      userId: user.id,
+      targetType: 'dish_variant',
+      targetId: variantId,
+      action: 'update' satisfies EditAction,
+      diff: { ...body },
+      comment: `Edited variant of ${dishRow.canonicalName}`,
+    });
+
+    return reply.send({ variant: after });
+  });
+
+  // ─── DELETE /api/dishes/:slug/variants/:variantId ─────────────────────
+  app.delete('/api/dishes/:slug/variants/:variantId', async (request, reply) => {
+    const user = await app.requireUser(request);
+    const { slug, variantId } = z
+      .object({ slug: z.string().min(1).max(200), variantId: z.string().uuid() })
+      .parse(request.params);
+
+    const parent = await db.select().from(dishes).where(eq(dishes.slug, slug)).limit(1);
+    if (parent.length === 0) {
+      throw httpError(404, 'not_found', 'Dish not found');
+    }
+    const dishRow = parent[0]!;
+    assertDishEditable(user, dishRow);
+
+    const existing = await db
+      .select({ id: dishVariants.id })
+      .from(dishVariants)
+      .where(and(eq(dishVariants.id, variantId), eq(dishVariants.parentDishId, dishRow.id)))
+      .limit(1);
+    if (existing.length === 0) {
+      throw httpError(404, 'not_found', 'Variant not found on this dish');
+    }
+
+    await db.delete(dishVariants).where(eq(dishVariants.id, variantId));
+
+    await db.insert(editHistory).values({
+      userId: user.id,
+      targetType: 'dish_variant',
+      targetId: variantId,
+      action: 'archive' satisfies EditAction,
+      diff: { deleted: true },
+      comment: `Removed variant from ${dishRow.canonicalName}`,
+    });
+
+    return reply.status(204).send();
   });
 }

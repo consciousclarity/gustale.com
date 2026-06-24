@@ -1,10 +1,150 @@
 import { useState, useEffect } from 'react';
-import { ApiError, getDishDetail } from '../lib/api';
+import { ApiError, getCategories, getDishDetail, getTags } from '../lib/api';
 import { getClientSession, type SessionUser } from '../lib/session';
-import type { DishDetailResponse } from '../types/dish';
+import type { CategoryListItem, DishDetailResponse, DishVariant, TagListItem } from '../types/dish';
 
 export interface EditDishFormProps {
   slug: string;
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+interface VariantEditorProps {
+  slug: string;
+  variant: DishVariant;
+  canEdit: boolean;
+  onUpdated: (variant: DishVariant) => void;
+  onDeleted: () => void;
+}
+
+/** One regional/preparation variant row: editable in place, saves/deletes immediately (not staged with the rest of the form). */
+function VariantEditor({ slug, variant, canEdit, onUpdated, onDeleted }: VariantEditorProps) {
+  const [name, setName] = useState(variant.name);
+  const [description, setDescription] = useState(variant.description ?? '');
+  const [creatorName, setCreatorName] = useState(variant.creatorName ?? '');
+  const [creatorDate, setCreatorDate] = useState(
+    variant.creatorDate != null ? String(variant.creatorDate) : '',
+  );
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave(): Promise<void> {
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.PUBLIC_API_BASE ?? ''}/api/dishes/${encodeURIComponent(slug)}/variants/${variant.id}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            description: description || null,
+            creatorName: creatorName || null,
+            creatorDate: creatorDate ? Number(creatorDate) : null,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new ApiError(res.status, body, `Save failed (${res.status})`);
+      }
+      const json = (await res.json()) as { variant: DishVariant };
+      onUpdated(json.variant);
+    } catch (err) {
+      setError(err instanceof ApiError ? ((err.body as { message?: string })?.message ?? err.message) : 'Could not save variant.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    if (!window.confirm(`Remove the variant "${variant.name}"?`)) return;
+    setError(null);
+    setDeleting(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.PUBLIC_API_BASE ?? ''}/api/dishes/${encodeURIComponent(slug)}/variants/${variant.id}`,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => null);
+        throw new ApiError(res.status, body, `Delete failed (${res.status})`);
+      }
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? ((err.body as { message?: string })?.message ?? err.message) : 'Could not delete variant.');
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+      {error && <p className="mb-2 text-sm text-rose-700">{error}</p>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={!canEdit}
+          placeholder="Variant name"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type="text"
+          value={creatorName}
+          onChange={(e) => setCreatorName(e.target.value)}
+          disabled={!canEdit}
+          placeholder="Attributed to (optional)"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={!canEdit}
+          rows={2}
+          placeholder="Description (optional)"
+          className="sm:col-span-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type="number"
+          value={creatorDate}
+          onChange={(e) => setCreatorDate(e.target.value)}
+          disabled={!canEdit}
+          placeholder="Year (optional)"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+      </div>
+      {canEdit && (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || deleting}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save variant'}
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving || deleting}
+            className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-50"
+          >
+            {deleting ? 'Removing…' : 'Remove'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -22,6 +162,123 @@ export interface EditDishFormProps {
  * If the user is a moderator, the form also shows a "Submit for
  * publishing" button that hits POST /api/dishes/:slug/publish.
  */
+interface AddVariantFormProps {
+  slug: string;
+  onAdded: (variant: DishVariant) => void;
+}
+
+/** Inline "add a regional variant" form. POSTs immediately on submit. */
+function AddVariantForm({ slug, onAdded }: AddVariantFormProps) {
+  const [name, setName] = useState('');
+  const [variantSlug, setVariantSlug] = useState('');
+  const [description, setDescription] = useState('');
+  const [creatorName, setCreatorName] = useState('');
+  const [creatorDate, setCreatorDate] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleAdd(): Promise<void> {
+    setError(null);
+    const finalSlug = variantSlug || slugify(name);
+    if (name.trim().length < 2 || finalSlug.length < 2) {
+      setError('Name is required.');
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.PUBLIC_API_BASE ?? ''}/api/dishes/${encodeURIComponent(slug)}/variants`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            slug: finalSlug,
+            description: description || undefined,
+            creatorName: creatorName || undefined,
+            creatorDate: creatorDate ? Number(creatorDate) : undefined,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new ApiError(res.status, body, `Add failed (${res.status})`);
+      }
+      const json = (await res.json()) as { variant: DishVariant };
+      onAdded(json.variant);
+      setName('');
+      setVariantSlug('');
+      setDescription('');
+      setCreatorName('');
+      setCreatorDate('');
+      setSlugTouched(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? ((err.body as { message?: string })?.message ?? err.message) : 'Could not add variant.');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-dashed border-slate-300 p-4">
+      {error && <p className="mb-2 text-sm text-rose-700">{error}</p>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (!slugTouched) setVariantSlug(slugify(e.target.value));
+          }}
+          placeholder="New variant name"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type="text"
+          value={variantSlug}
+          onChange={(e) => {
+            setVariantSlug(e.target.value);
+            setSlugTouched(true);
+          }}
+          placeholder="variant-slug"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Description (optional)"
+          className="sm:col-span-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type="text"
+          value={creatorName}
+          onChange={(e) => setCreatorName(e.target.value)}
+          placeholder="Attributed to (optional)"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type="number"
+          value={creatorDate}
+          onChange={(e) => setCreatorDate(e.target.value)}
+          placeholder="Year (optional)"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={handleAdd}
+        disabled={adding}
+        className="mt-3 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+      >
+        {adding ? 'Adding…' : '+ Add variant'}
+      </button>
+    </div>
+  );
+}
+
 export function EditDishForm({ slug }: EditDishFormProps) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -38,6 +295,18 @@ export function EditDishForm({ slug }: EditDishFormProps) {
   const [originDateEarliest, setOriginDateEarliest] = useState('');
   const [originDateLatest, setOriginDateLatest] = useState('');
   const [comment, setComment] = useState('');
+
+  // Classification
+  const [allCategories, setAllCategories] = useState<CategoryListItem[]>([]);
+  const [allTags, setAllTags] = useState<TagListItem[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<
+    Array<{ categoryId: string; isPrimary: boolean }>
+  >([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [newTagName, setNewTagName] = useState('');
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [addingTag, setAddingTag] = useState(false);
+  const [variants, setVariants] = useState<DishVariant[]>([]);
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -64,7 +333,11 @@ export function EditDishForm({ slug }: EditDishFormProps) {
     let cancelled = false;
     void (async () => {
       try {
-        const data = await getDishDetail(slug);
+        const [data, categoriesRes, tagsRes] = await Promise.all([
+          getDishDetail(slug),
+          getCategories().catch(() => ({ categories: [] })),
+          getTags().catch(() => ({ tags: [] })),
+        ]);
         if (cancelled) return;
         setDish(data);
         setCanonicalName(data.dish.canonicalName);
@@ -78,6 +351,13 @@ export function EditDishForm({ slug }: EditDishFormProps) {
         setOriginDateLatest(
           data.dish.originDateLatest != null ? String(data.dish.originDateLatest) : '',
         );
+        setAllCategories(categoriesRes.categories);
+        setAllTags(tagsRes.tags);
+        setSelectedCategories(
+          data.categories.map((c) => ({ categoryId: c.categoryId, isPrimary: c.isPrimary })),
+        );
+        setSelectedTagIds(data.tags.map((t) => t.tagId));
+        setVariants(data.variants);
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 404) {
@@ -125,8 +405,84 @@ export function EditDishForm({ slug }: EditDishFormProps) {
     if (latestNorm !== (dish?.dish.originDateLatest ?? null)) {
       out.originDateLatest = latestNorm;
     }
+    const beforeCategories = (dish?.categories ?? [])
+      .map((c) => `${c.categoryId}:${c.isPrimary}`)
+      .sort()
+      .join(',');
+    const afterCategories = selectedCategories
+      .map((c) => `${c.categoryId}:${c.isPrimary}`)
+      .sort()
+      .join(',');
+    if (beforeCategories !== afterCategories) {
+      out.categories = selectedCategories;
+    }
+
+    const beforeTagIds = (dish?.tags ?? []).map((t) => t.tagId).sort().join(',');
+    const afterTagIds = [...selectedTagIds].sort().join(',');
+    if (beforeTagIds !== afterTagIds) {
+      out.tagIds = selectedTagIds;
+    }
+
     if (comment.trim()) out.comment = comment.trim();
     return out;
+  }
+
+  function toggleCategory(categoryId: string): void {
+    setSelectedCategories((prev) => {
+      const exists = prev.some((c) => c.categoryId === categoryId);
+      if (exists) return prev.filter((c) => c.categoryId !== categoryId);
+      return [...prev, { categoryId, isPrimary: prev.length === 0 }];
+    });
+  }
+
+  function setPrimaryCategory(categoryId: string): void {
+    setSelectedCategories((prev) =>
+      prev.map((c) => ({ ...c, isPrimary: c.categoryId === categoryId })),
+    );
+  }
+
+  function removeTag(tagId: string): void {
+    setSelectedTagIds((prev) => prev.filter((id) => id !== tagId));
+  }
+
+  async function handleAddTag(): Promise<void> {
+    setTagError(null);
+    const name = newTagName.trim();
+    if (name.length < 2) {
+      setTagError('Tag name must be at least 2 characters.');
+      return;
+    }
+    const existing = allTags.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      if (!selectedTagIds.includes(existing.id)) {
+        setSelectedTagIds((prev) => [...prev, existing.id]);
+      }
+      setNewTagName('');
+      return;
+    }
+    setAddingTag(true);
+    try {
+      const res = await fetch(`${import.meta.env.PUBLIC_API_BASE ?? ''}/api/tags`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new ApiError(res.status, body, `Create tag failed (${res.status})`);
+      }
+      const json = (await res.json()) as { tag: { id: string; name: string; slug: string } };
+      setAllTags((prev) => [...prev, json.tag]);
+      setSelectedTagIds((prev) => [...prev, json.tag.id]);
+      setNewTagName('');
+    } catch (err) {
+      setTagError(
+        err instanceof ApiError ? ((err.body as { message?: string })?.message ?? err.message) : 'Could not create tag.',
+      );
+    } finally {
+      setAddingTag(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -397,6 +753,144 @@ export function EditDishForm({ slug }: EditDishFormProps) {
               onChange={(e) => setOriginDateLatest(e.target.value)}
               className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Classification</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Categories, tags, and regional variants — how this dish is found and grouped.
+        </p>
+
+        <div className="mt-5">
+          <h3 className="text-sm font-medium text-slate-700">Categories</h3>
+          <p className="text-xs text-slate-500">Check all that apply; pick one as primary.</p>
+          <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-3">
+            {allCategories.length === 0 && (
+              <p className="text-sm italic text-slate-400">No categories available.</p>
+            )}
+            {allCategories
+              .filter((c) => !c.parentId)
+              .map((parent) => {
+                const children = allCategories.filter((c) => c.parentId === parent.id);
+                const group = [parent, ...children];
+                return (
+                  <div key={parent.id} className="py-1">
+                    {group.map((cat) => {
+                      const checked = selectedCategories.some((c) => c.categoryId === cat.id);
+                      const isPrimary = selectedCategories.find((c) => c.categoryId === cat.id)?.isPrimary;
+                      return (
+                        <div
+                          key={cat.id}
+                          className={`flex items-center gap-2 py-0.5 text-sm ${cat.id !== parent.id ? 'ml-5 text-slate-600' : 'font-medium text-slate-800'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            id={`cat-${cat.id}`}
+                            checked={checked}
+                            onChange={() => toggleCategory(cat.id)}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <label htmlFor={`cat-${cat.id}`} className="flex-1">
+                            {cat.name}
+                          </label>
+                          {checked && (
+                            <label className="flex items-center gap-1 text-xs text-slate-500">
+                              <input
+                                type="radio"
+                                name="primaryCategory"
+                                checked={!!isPrimary}
+                                onChange={() => setPrimaryCategory(cat.id)}
+                              />
+                              primary
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <h3 className="text-sm font-medium text-slate-700">Tags</h3>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {selectedTagIds.map((tagId) => {
+              const tag = allTags.find((t) => t.id === tagId);
+              return (
+                <span
+                  key={tagId}
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                >
+                  {tag?.name ?? tagId}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tagId)}
+                    className="text-emerald-500 hover:text-emerald-900"
+                    aria-label={`Remove tag ${tag?.name ?? tagId}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+          {tagError && <p className="mt-2 text-sm text-rose-700">{tagError}</p>}
+          <div className="mt-3 flex gap-2">
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleAddTag();
+                }
+              }}
+              list="existing-tags"
+              placeholder="Add a tag (existing or new)"
+              className="block w-full max-w-xs rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <datalist id="existing-tags">
+              {allTags.map((t) => (
+                <option key={t.id} value={t.name} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              onClick={() => void handleAddTag()}
+              disabled={addingTag}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {addingTag ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <h3 className="text-sm font-medium text-slate-700">Regional variants</h3>
+          <div className="mt-2 space-y-3">
+            {variants.map((v) => (
+              <VariantEditor
+                key={v.id}
+                slug={slug}
+                variant={v}
+                canEdit={!isPublished || isModerator}
+                onUpdated={(updated) =>
+                  setVariants((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+                }
+                onDeleted={() => setVariants((prev) => prev.filter((p) => p.id !== v.id))}
+              />
+            ))}
+            {(!isPublished || isModerator) && (
+              <AddVariantForm
+                slug={slug}
+                onAdded={(added) => setVariants((prev) => [...prev, added])}
+              />
+            )}
           </div>
         </div>
       </div>

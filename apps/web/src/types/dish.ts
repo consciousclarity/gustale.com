@@ -8,6 +8,22 @@
 
 export type DishStatus = 'draft' | 'published' | 'archived';
 
+// ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
+
+export interface CategoryListItem {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  icon: string | null;
+}
+
+export interface TagListItem {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 // ─── List view (GET /api/dishes) ──────────────────────────────────────────
 
 export interface DishSummary {
@@ -106,6 +122,12 @@ export interface DishCategory {
   isPrimary: boolean;
 }
 
+export interface DishTag {
+  tagId: string;
+  name: string;
+  slug: string;
+}
+
 export interface DishPreparation {
   id: string;
   methodId: string;
@@ -157,6 +179,7 @@ export interface DishDetailResponse {
   variants: DishVariant[];
   ingredients: DishIngredient[];
   categories: DishCategory[];
+  tags: DishTag[];
   preparations: DishPreparation[];
   sources: DishCitation[];
   media: DishMediaAttachment[];
