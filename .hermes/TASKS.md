@@ -7,21 +7,11 @@
 
 ## In progress
 
-- 2026-06-24: **CI web deploys broken — fix Hostinger firewall
-  (or stub API for CI)**. Owner: **Hermes** (handed off by Mavis).
-  Every push to main since `209fb7a` (2026-06-23T18:20) has failed
-  in the `Docker build (gustale-web-geo)` /
-  `Docker build (gustale-web-recipes)` jobs. Root cause: GHA runner
-  can't reach `api.gustale.recipes` (VPS firewall blocks GHA IPs),
-  so SSG only generates 2 dish subdirs and `post-build.mjs` refuses
-  to ship partial. Full diagnosis in `SHARED_STATE.md` →
-  "ACTIVE BLOCKER — Web deploys broken". Cleanest fix: open the VPS
-  firewall to GHA runner IPs (`ssh root@62.72.7.218`). Alternative:
-  mock the API in CI. Job log URL:
-  https://github.com/consciousclarity/gustale.com/actions/runs/28077986766/jobs/83126295710
-  — Hermes
+(none right now — check Backlog)
 
 ## Done (recent — last 10)
+
+- 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
 - 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
   6 commits shipped: MapLibre per-dish map, CI matrix/cache improvements,
