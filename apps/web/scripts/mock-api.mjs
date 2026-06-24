@@ -164,6 +164,7 @@ function buildDishDetail(slug) {
     },
     variants: [],
     ingredients: [],
+    tags: [],
     categories: [
       ...(cuisine
         ? [{
