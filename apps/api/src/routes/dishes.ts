@@ -37,6 +37,10 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
   status: z.enum(['draft', 'published', 'archived']).default('published'),
+  origin: z.string().max(100).optional(),
+  ingredient: z.string().max(100).optional(),
+  technique: z.string().max(100).optional(),
+  region: z.string().max(100).optional(),
 });
 
 const slugParamSchema = z.object({
@@ -95,6 +99,39 @@ export function registerDishRoutes(app: FastifyInstance): void {
           ilike(dishes.shortDescription, `%${params.q}%`),
           ilike(dishes.slug, `%${params.q}%`)
         )!
+      );
+    }
+
+    if (params.origin) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.origin + '%'})`
+      );
+    }
+
+    if (params.ingredient) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = dishes.id AND i.canonical_name ILIKE ${'%' + params.ingredient + '%'})`
+      );
+    }
+
+    if (params.technique) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = dishes.id AND pm2.slug = ${params.technique})`
+      );
+    }
+
+    if (params.region) {
+      // Two-step: find region IDs, then all descendants via parent chain
+      whereClauses.push(
+        sql`(dishes.origin_geo_id IN (
+          WITH RECURSIVE region_descendants AS (
+            SELECT id FROM geo_entities WHERE name ILIKE ${'%' + params.region + '%'}
+            UNION ALL
+            SELECT ge.id FROM geo_entities ge
+            JOIN region_descendants rd ON ge.parent_id = rd.id
+          )
+          SELECT id FROM region_descendants
+        ))`
       );
     }
 

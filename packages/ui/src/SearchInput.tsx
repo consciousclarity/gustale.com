@@ -29,11 +29,18 @@ export function SearchInput({
       placeholder={placeholder}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.currentTarget.value)}
       className={
-        'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm ' +
-        'placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none ' +
-        'focus:ring-2 focus:ring-emerald-200 ' +
+        'w-full rounded-md border px-3 py-2 text-sm bg-white ' +
+        'placeholder:text-[var(--sub)] focus:outline-none focus:ring-2 ' +
         className
       }
+      style={{
+        borderColor: 'var(--line)',
+        color: 'var(--ink)',
+        backgroundColor: 'var(--card)',
+        fontFamily: 'var(--body)',
+        '--tw-ring-color': 'var(--accent)',
+        '--tw-ring-opacity': '1',
+      } as React.CSSProperties}
       {...rest}
     />
   );
@@ -42,7 +49,7 @@ export function SearchInput({
 
   return (
     <label htmlFor={inputId} className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium" style={{ color: 'var(--ink)', fontFamily: 'var(--body)' }}>{label}</span>
       {input}
     </label>
   );

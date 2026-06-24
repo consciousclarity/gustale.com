@@ -174,6 +174,10 @@ export interface ListDishesParams {
   offset?: number;
   search?: string;
   status?: 'published' | 'draft' | 'archived';
+  origin?: string;
+  ingredient?: string;
+  technique?: string;
+  region?: string;
 }
 
 export function listDishes(
@@ -182,8 +186,12 @@ export function listDishes(
   const qs = new URLSearchParams();
   if (params.limit != null) qs.set('limit', String(params.limit));
   if (params.offset != null) qs.set('offset', String(params.offset));
-  if (params.search) qs.set('search', params.search);
+  if (params.search) qs.set('q', params.search);
   if (params.status) qs.set('status', params.status);
+  if (params.origin) qs.set('origin', params.origin);
+  if (params.ingredient) qs.set('ingredient', params.ingredient);
+  if (params.technique) qs.set('technique', params.technique);
+  if (params.region) qs.set('region', params.region);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }
