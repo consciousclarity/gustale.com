@@ -17,6 +17,7 @@ export interface DishSummary {
   shortDescription: string | null;
   status: DishStatus;
   originGeoId: string | null;
+  originName: string | null;
   viewCount: number;
   updatedAt: string; // ISO timestamp
   methodSlug?: string | null;

@@ -142,6 +142,9 @@ export function registerDishRoutes(app: FastifyInstance): void {
         canonicalName: dishes.canonicalName,
         shortDescription: dishes.shortDescription,
         originGeoId: dishes.originGeoId,
+        originName: sql<string | null>`(
+          SELECT g.name FROM geo_entities g WHERE g.id = ${dishes.originGeoId} LIMIT 1
+        )`,
         status: dishes.status,
         viewCount: dishes.viewCount,
         methodSlug: sql<string | null>`(
