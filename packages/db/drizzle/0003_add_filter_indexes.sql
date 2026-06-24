@@ -24,8 +24,8 @@ CREATE INDEX IF NOT EXISTS geo_entities_name_idx ON geo_entities("name");
 CREATE INDEX IF NOT EXISTS geo_entities_parent_id_idx ON geo_entities(parent_id);
 CREATE INDEX IF NOT EXISTS geo_entities_entity_type_idx ON geo_entities(entity_type);
 
--- ingredients: name index for ingredient:X lookups (name is a PostgreSQL reserved keyword)
-CREATE INDEX IF NOT EXISTS ingredients_name_idx ON ingredients("name");
+-- ingredients: name index for ingredient:X lookups (column is canonical_name, not name)
+CREATE INDEX IF NOT EXISTS ingredients_name_idx ON ingredients(canonical_name);
 
 -- preparation_methods: name + slug indexes for technique:X lookups
 CREATE INDEX IF NOT EXISTS preparation_methods_slug_idx ON preparation_methods(slug);
