@@ -100,3 +100,5 @@ logs.zip
 .claude-flow/
 ruvector.db
 *.ruvector.db
+# Holds provider API keys in PLAINTEXT — never commit.
+claude-flow.config.json
