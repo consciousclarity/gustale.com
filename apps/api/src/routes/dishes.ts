@@ -43,6 +43,7 @@ const listQuerySchema = z.object({
   ingredient: z.string().max(100).optional(),
   technique: z.string().max(100).optional(),
   region: z.string().max(100).optional(),
+  category: z.string().max(100).optional(),
 });
 
 const slugParamSchema = z.object({
@@ -134,6 +135,13 @@ export function registerDishRoutes(app: FastifyInstance): void {
           )
           SELECT id FROM region_descendants
         ))`
+      );
+    }
+
+    if (params.category) {
+      // Match by category slug (cuisine or dish-type) via the join table.
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.slug = ${params.category})`
       );
     }
 
