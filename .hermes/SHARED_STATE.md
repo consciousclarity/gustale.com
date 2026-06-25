@@ -6,6 +6,8 @@
 
 ## Last updated
 
+2026-06-25 by Claude Code — Homepage sophistication pass (PR #6, branch `feat/site-sophistication-pass`): SSR editorial homepage (oversized serif hero + rotating featured-dish card + most-connected/families rails + schema-stats band), new `GET /api/dishes/featured` endpoint, nav Contribute CTA + columned footer. NOTE: the dev DB at 100.78.243.30 has 0 `dish_relations` and only 31 dishes — the food-network seed (relations + 30 dishes in seed-data.ts on main) was never applied there, so the most-connected rail + hero card render empty until `pnpm --filter @gustale/db run seed` is run. Code degrades gracefully.
+
 2026-06-24 by Claude (Cowork) — CI web build blocker fixed: mock API server inside Dockerfile replaces the unreachable production API during Astro SSG.
 
 ## Current status

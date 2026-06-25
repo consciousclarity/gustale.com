@@ -11,6 +11,8 @@
 
 ## Done (recent — last 10)
 
+- 2026-06-25: **Homepage sophistication pass** (PR #6, `feat/site-sophistication-pass`). SSR-first split: `index.astro` server-renders an editorial hero ("Every dish has a place."), a rotating `HeroFeaturedCard` island, "Most connected" + "Families & lineages" rails, and a schema-stats band; the atlas/index/gallery/feed explorer is now the `HomeWorkspace` island (seeded from a `#explore=` URL hash). New `GET /api/dishes/featured` API endpoint (top dishes by `dish_relations` count; tested). Nav Contribute CTA + columned footer. Verified: astro check clean, build:recipes+geo green, API suite 48 pass/3 skip. **Follow-up:** run `pnpm --filter @gustale/db run seed` against the dev DB — it has 0 relations + only 31 dishes, so the most-connected rail/hero card render empty until seeded. — Claude Code
+
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
 - 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
