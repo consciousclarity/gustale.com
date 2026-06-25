@@ -1775,3 +1775,20 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   .dish-page { padding: 24px 20px 48px; }
   .dish-page .rec-meta { flex-wrap: wrap; }
 }
+
+/* ── Hero featured card ─────────────────────────────────────────── */
+.hero-fcard { display:flex; flex-direction:column; border:1px solid var(--line);
+  border-radius:10px; overflow:hidden; background:var(--card); text-decoration:none;
+  color:inherit; position:relative; min-height:280px; }
+.hero-fcard-img { height:180px; background-size:cover; background-position:center; }
+.hero-fcard-body { padding:16px 18px 20px; display:flex; flex-direction:column; gap:4px; }
+.hero-fcard-place { font-family:var(--mono); font-size:12px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--accent); }
+.hero-fcard-name { font-family:var(--display); font-size:26px; line-height:1.05; margin:2px 0; color:var(--ink); }
+.hero-fcard-story { color:var(--sub); font-size:14px; margin:0; }
+.hero-fcard-meta { margin-top:6px; font-family:var(--mono); font-size:12px; color:var(--sub); }
+.hero-fcard-dots { position:absolute; top:12px; right:12px; display:flex; gap:6px; }
+.hero-fcard-dot { width:7px; height:7px; border-radius:50%; border:0; padding:0; cursor:pointer;
+  background:rgba(255,255,255,.55); }
+.hero-fcard-dot[data-on="1"] { background:var(--accent); }
+.hero-fcard-empty { background:var(--accent-soft); }
