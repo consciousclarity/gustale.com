@@ -80,7 +80,7 @@ RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
-#   geo     → build:geo      (drops /dishes list, /ingredients, edit/new)
+#   geo     → build:geo      (drops /ingredients, edit/new; keeps /dishes list)
 RUN node apps/web/scripts/mock-api.mjs --port 8742 & \
     MOCK_PID=$!; \
     trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \

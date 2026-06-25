@@ -51,7 +51,9 @@ export function DishDetail({
         {primaryCategory && (
           <>
             <span className="sep">›</span>
-            <span>{primaryCategory.name}</span>
+            <a href={`/dishes?category=${encodeURIComponent(primaryCategory.slug)}`}>
+              {primaryCategory.name}
+            </a>
           </>
         )}
         <span className="sep">›</span>

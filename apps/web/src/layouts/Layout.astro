@@ -31,18 +31,11 @@ const isGeo = domain === 'geo';
         </a>
 
         <div class="gst-navlinks">
-          {isGeo ? (
-            <>
-              <a href="/">Map</a>
-              <a href="/about">About</a>
-            </>
-          ) : (
-            <>
-              <a href="/dishes">Dishes</a>
-              <a href="/families">Families</a>
-              <a href="/about">About</a>
-            </>
-          )}
+          <a href="/dishes">Dishes</a>
+          <a href="/families">Families</a>
+          <a href="/lineages">Lineages</a>
+          {isGeo && <a href="/map">Map</a>}
+          <a href="/about">About</a>
         </div>
 
         <div class="gst-navr">

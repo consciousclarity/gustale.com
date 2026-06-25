@@ -180,6 +180,7 @@ export interface ListDishesParams {
   ingredient?: string;
   technique?: string;
   region?: string;
+  category?: string;
 }
 
 export function listDishes(
@@ -194,6 +195,7 @@ export function listDishes(
   if (params.ingredient) qs.set('ingredient', params.ingredient);
   if (params.technique) qs.set('technique', params.technique);
   if (params.region) qs.set('region', params.region);
+  if (params.category) qs.set('category', params.category);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }

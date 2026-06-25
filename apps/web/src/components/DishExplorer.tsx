@@ -20,6 +20,7 @@ function parseStructuredQuery(raw: string): {
   ingredient: string[];
   technique: string[];
   region: string[];
+  category: string[];
 } {
   const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
   const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
@@ -28,6 +29,7 @@ function parseStructuredQuery(raw: string): {
     ingredient: [] as string[],
     technique: [] as string[],
     region: [] as string[],
+    category: [] as string[],
   };
   for (const tok of tokens) {
     const colon = tok.indexOf(':');
@@ -41,7 +43,18 @@ function parseStructuredQuery(raw: string): {
 export function DishExplorer({ initial }: DishExplorerProps) {
   const [search, setSearch] = useState(() => {
     if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('q') ?? '';
+    const sp = new URLSearchParams(window.location.search);
+    // Seed the search string from the URL so deep-links like
+    // ?category=korean-cuisine (or ?origin=Japan) apply on first load.
+    const parts: string[] = [];
+    const q = sp.get('q');
+    if (q) parts.push(q);
+    for (const key of ['origin', 'ingredient', 'technique', 'region', 'category'] as const) {
+      for (const val of sp.getAll(key)) {
+        if (val) parts.push(`${key}:${val}`);
+      }
+    }
+    return parts.join(' ');
   });
   const [data, setData] = useState<DishListResponse>(initial);
   const [loading, setLoading] = useState(false);
@@ -59,6 +72,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
         ingredient: parsed.ingredient[0],
         technique: parsed.technique[0],
         region: parsed.region[0],
+        category: parsed.category[0],
         limit: PAGE_SIZE,
       })
         .then((res) => setData(res))
@@ -85,6 +99,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     if (parsed.ingredient.length) parsed.ingredient.forEach((v) => sp.append('ingredient', v));
     if (parsed.technique.length) parsed.technique.forEach((v) => sp.append('technique', v));
     if (parsed.region.length) parsed.region.forEach((v) => sp.append('region', v));
+    if (parsed.category.length) parsed.category.forEach((v) => sp.append('category', v));
     const qs = sp.toString();
     window.history.pushState({}, '', qs ? `?${qs}` : window.location.pathname);
   }, [search]);
@@ -96,7 +111,8 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     parsed.origin.length > 0 ||
     parsed.ingredient.length > 0 ||
     parsed.technique.length > 0 ||
-    parsed.region.length > 0;
+    parsed.region.length > 0 ||
+    parsed.category.length > 0;
 
   function removeFilter(key: string, val: string) {
     // E.g. "ramen origin:Japan technique:grilling" → remove "origin:Japan"
@@ -163,6 +179,17 @@ export function DishExplorer({ initial }: DishExplorerProps) {
               type="button"
             >
               region:{v}
+              <span className="fc-x">×</span>
+            </button>
+          ))}
+          {parsed.category.map((v) => (
+            <button
+              key={`category:${v}`}
+              className="filter-chip"
+              onClick={() => removeFilter('category', v)}
+              type="button"
+            >
+              category:{v}
               <span className="fc-x">×</span>
             </button>
           ))}
