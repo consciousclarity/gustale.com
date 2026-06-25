@@ -1470,6 +1470,307 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   .lx-cta-band { padding: 24px; }
 }
 
+/* ============================================================
+   PAGE-SPECIFIC — RELATED DISHES (the food-genealogy network)
+   Mounted inside .dish-page on every dish page. Shows the
+   curated dish-relations graph grouped by relation_type, with
+   a per-card strength indicator and a free-text reason.
+   ============================================================ */
+
+.rel-net {
+  /* Lives inside .dish-page so it inherits the editorial container. */
+  padding: 0 0 12px;
+}
+.rel-net .sec-rule h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rel-net .sec-rule h2 .mono-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--sub);
+  letter-spacing: 0.6px;
+}
+
+.rel-group {
+  margin: 22px 0 28px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.rel-group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.rel-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 9%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.rel-group[data-tone='medium'] .rel-badge {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.rel-group[data-tone='soft'] .rel-badge {
+  color: var(--sub);
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+}
+.rel-blurb {
+  font-family: var(--display);
+  font-size: 18px;
+  color: var(--sub);
+  line-height: 1.4;
+  max-width: 640px;
+}
+.gst.display-sans .rel-blurb { font-weight: 500; }
+
+.rel-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.rel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+}
+.rel-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 18px rgba(33, 28, 22, 0.08);
+}
+.rel-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rel-card-head h3 {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  margin: 0;
+  color: var(--ink);
+}
+.gst.display-sans .rel-card-head h3 { font-weight: 700; letter-spacing: -0.4px; }
+.rel-strength {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.rel-strength-empty { color: var(--line-strong); }
+.rel-card-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--sub);
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+.rel-card-reason {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 4px 0 0;
+  font-style: italic;
+}
+.rel-card-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sub);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rel-card-go {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: auto;
+  padding-top: 6px;
+}
+.rel-error {
+  padding: 14px 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--sub);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .rel-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   PAGE-SPECIFIC — "ALSO EXPLORE" (linked-list sidebar)
+   Compact three-row link module shown above the Sources section.
+   Directs the reader to the same-cuisine / same-method / same-region
+   filtered dish list on /dishes.
+   ============================================================ */
+
+.also-explore {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.also-explore .mono-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--sub);
+}
+.also-explore ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.also-explore li a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.14s, transform 0.14s;
+}
+.also-explore li a:hover {
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+.also-explore .ae-meta {
+  grid-column: 1 / 2;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.also-explore .ae-label {
+  grid-column: 1 / 2;
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--ink);
+}
+.gst.display-sans .also-explore .ae-label { font-weight: 600; letter-spacing: -0.3px; }
+.also-explore .ae-go {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 18px;
+  color: var(--accent);
+}
+.also-explore li[data-tone='region'] .ae-meta { color: var(--sub); }
+
+/* ============================================================
+   PAGE-SPECIFIC — FOOD FAMILY PAGE (/family/[slug])
+   Reuses most .fam-* classes from /families for visual consistency,
+   and adds a breadcrumb + a "Continue exploring" related-cards grid
+   specific to the single-family view.
+   ============================================================ */
+
+.fam-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--sub);
+  padding: 28px 0 4px;
+}
+.fam-crumb a { color: var(--sub); text-decoration: none; }
+.fam-crumb a:hover { color: var(--accent); }
+.fam-crumb .sep { opacity: 0.5; }
+
+.fam-related-h {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin: 8px 0 18px;
+}
+.gst.display-sans .fam-related-h { font-weight: 700; }
+
+.fam-related-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.fam-related-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  text-decoration: none;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 17px;
+  line-height: 1.25;
+  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+.fam-related-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 18px rgba(33, 28, 22, 0.08);
+}
+.fam-related-card .mono-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.gst.display-sans .fam-related-card { font-weight: 600; }
+
+@media (max-width: 920px) {
+  .fam-related-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  .fam-related-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 680px) {
   .dish-page { padding: 24px 20px 48px; }
   .dish-page .rec-meta { flex-wrap: wrap; }

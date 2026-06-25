@@ -298,6 +298,64 @@ export const dishTags = pgTable('dish_tags', {
 }));
 
 // =====================================================================
+// DISH RELATIONS — the food-genealogy network.
+// =====================================================================
+//
+// A single dish belongs to many implicit clusters (same region, same
+// ingredient base, same cooking method, same historical lineage). The
+// `dishRelations` table makes the most-curated of those clusters
+// queryable, so a dish page can show "regional cousins", "shared-
+// technique cousins", and so on without re-computing joins every render.
+//
+// Relation types (kept open-ended via the `text` column; we provide a
+// typed enum in TypeScript and validate at the API boundary):
+//   - family            → same food family (dumpling, noodle soup, etc.)
+//   - regional-cousin   → neighboring-region variation
+//   - diaspora          → diaspora adaptation
+//   - shared-ingredient → shares a key ingredient base
+//   - shared-method     → uses the same core cooking technique
+//   - similar-serving   → served in similar contexts (street snack, etc.)
+//   - ancestor          → historical ancestor or clear influence
+//   - descendant        → historical descendant (the reverse direction)
+//
+// `strength` is a 1-5 editor-graded weight (5 = very strong, 1 = weak).
+// It lets the UI sort relations within a type and lets curators push
+// canonical anchors to the top.
+export const dishRelationType = [
+  'family',
+  'regional-cousin',
+  'diaspora',
+  'shared-ingredient',
+  'shared-method',
+  'similar-serving',
+  'ancestor',
+  'descendant',
+] as const;
+export type DishRelationType = typeof dishRelationType[number];
+
+export const dishRelations = pgTable('dish_relations', {
+  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
+  fromDishId: uuid('from_dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
+  toDishId: uuid('to_dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
+  relationType: text('relation_type').$type<DishRelationType>().notNull(),
+  // Free-text reason shown to the user ("both share a fermented-cabbage base"
+  // / "traded along the Silk Road" / "regional variation of the same dish").
+  // Optional — some relations are obvious from the relation_type alone.
+  reason: text('reason'),
+  // 1-5 editor-graded strength. Higher = stronger / more canonical relation.
+  strength: integer('strength').notNull().default(3),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  // Prevent exact duplicates (same direction + type). Reverse-direction
+  // relations (A→B as family, B→A as family) are deliberately allowed —
+  // they're symmetric by nature and the UI de-duplicates.
+  fromTypeUnique: unique('dish_relations_from_to_type_unique').on(t.fromDishId, t.toDishId, t.relationType),
+  fromIdx: index('dish_relations_from_idx').on(t.fromDishId),
+  toIdx: index('dish_relations_to_idx').on(t.toDishId),
+  typeIdx: index('dish_relations_type_idx').on(t.relationType),
+}));
+
+// =====================================================================
 // SOURCES & CITATIONS
 // =====================================================================
 

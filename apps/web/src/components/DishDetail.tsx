@@ -10,6 +10,7 @@ import type {
   DishVariant,
 } from '../types/dish';
 import { DishGallery } from './DishGallery';
+import { AlsoExplore } from './AlsoExplore';
 
 export interface DishDetailProps {
   dish: DishDetailCore;
@@ -218,6 +219,20 @@ export function DishDetail({
           </section>
         )}
       </div>
+
+      {/* ─── "You may also explore" — same cuisine / method / region ── */}
+      {(categories.length > 0 || preparations.length > 0 || origin) && (
+        <section className="section" aria-label="You may also explore">
+          <div className="sec-rule">
+            <h2>You may also explore</h2>
+          </div>
+          <AlsoExplore
+            categories={categories}
+            preparations={preparations}
+            originName={origin?.name ?? null}
+          />
+        </section>
+      )}
 
       {/* ─── Sources / Citations ───────────────────────────────────────── */}
       {sources.length > 0 && (

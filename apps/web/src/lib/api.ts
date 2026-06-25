@@ -266,6 +266,39 @@ export function getMapDishes(
   return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
 }
 
+// ─── Related dishes (food-genealogy network) ────────────────────────────
+
+export interface RelatedDish {
+  slug: string;
+  name: string;
+  shortDescription: string | null;
+  cuisineSlug: string | null;
+  cuisineName: string | null;
+  countryName: string | null;
+  isoCode: string | null;
+  relationId: string;
+  relationType: string;
+  reason: string | null;
+  strength: number;
+}
+
+export interface DishRelationsResponse {
+  sourceSlug: string;
+  totalRelations: number;
+  relationsByType: Record<string, RelatedDish[]>;
+}
+
+/**
+ * Fetch the curated dish-relations graph for a dish, grouped by
+ * relation_type and ordered by strength desc. Powers the "Related
+ * Dishes" section on every dish page.
+ */
+export function getDishRelations(slug: string): Promise<DishRelationsResponse> {
+  return request<DishRelationsResponse>(
+    `/api/dishes/${encodeURIComponent(slug)}/relations`,
+  );
+}
+
 // ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
 // Powers the classification pickers in EditDishForm / NewDishForm. Both
 // lists are small (low hundreds at most) and fetched in full — no

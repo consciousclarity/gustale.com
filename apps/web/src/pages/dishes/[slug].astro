@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import { DishDetail } from '../../components/DishDetail';
 import { DishMap } from '../../components/DishMap';
 import { EditDishButton } from '../../components/EditDishButton';
+import { RelatedDishes } from '../../components/RelatedDishes';
 import { getDishDetail } from '../../lib/api';
 import type { DishDetailResponse } from '../../types/dish';
 
@@ -143,6 +144,14 @@ const seoDescription =
         media={data.media}
         client:load
       />
+
+      {/* Related dishes — the food-genealogy network. Mounted as its own
+          island so the SSR-rendered dish body stays fast and the relations
+          load asynchronously without blocking the page. `client:visible`
+          defers the fetch until the user scrolls near it. */}
+      <div class="wrap" style="padding-bottom: 32px;">
+        <RelatedDishes slug={data.dish.slug} client:visible />
+      </div>
 
       {/* Edit button — separate island so it's auth-gated but the rest of
           the dish page remains a static, fast, fully-cached page. */}

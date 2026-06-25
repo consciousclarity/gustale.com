@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   eq,
   and,
+  asc,
   desc,
   ilike,
   or,
@@ -22,6 +23,7 @@ import {
   dishCategories,
   categories,
   dishTags,
+  dishRelations,
   tags,
   dishPreparations,
   preparationMethods,
@@ -544,5 +546,113 @@ export function registerDishRoutes(app: FastifyInstance): void {
     `);
 
     return { dishes: result, count: (result as any[]).length };
+  });
+
+  // ─── Related dishes (the food-genealogy network) ─────────────────────
+  // GET /api/dishes/:slug/relations
+  //
+  // Returns the curated relations for a dish, grouped by relation_type
+  // and ordered by strength descending. Each entry includes the related
+  // dish's slug + name + cuisine slug + country name so the UI can render
+  // a card without a second request.
+  //
+  // Anonymous-readable. Only published dishes appear on the other end of
+  // the edge (drafts/archived are filtered out so we don't leak WIP).
+  app.get('/api/dishes/:slug/relations', async (request, reply) => {
+    const { slug } = slugParamSchema.parse(request.params);
+
+    // 1) Resolve the source dish → id.
+    const src = await db
+      .select({ id: dishes.id })
+      .from(dishes)
+      .where(eq(dishes.slug, slug))
+      .limit(1);
+    if (src.length === 0 || !src[0]) {
+      throw httpError(404, 'not_found', 'Dish not found');
+    }
+    const sourceId = src[0].id;
+
+    // 2) Pull all outgoing relations + the related dish summary + its
+    //    cuisine (primary category) + country (origin geo).
+    //
+    // We LEFT JOIN categories and geo_entities to surface the related
+    // dish's cuisine/region in one round trip. Filtering on
+    // `dishes.status = 'published'` keeps unpublished siblings out.
+    const rows = await db
+      .select({
+        relationId: dishRelations.id,
+        relationType: dishRelations.relationType,
+        reason: dishRelations.reason,
+        strength: dishRelations.strength,
+        toDishId: dishes.id,
+        toDishSlug: dishes.slug,
+        toDishName: dishes.canonicalName,
+        toDishShortDescription: dishes.shortDescription,
+        toDishOriginName: geoEntities.name,
+        toDishOriginIso: geoEntities.isoCode,
+        toCuisineSlug: categories.slug,
+        toCuisineName: categories.name,
+      })
+      .from(dishRelations)
+      .innerJoin(dishes, eq(dishRelations.toDishId, dishes.id))
+      .leftJoin(geoEntities, eq(dishes.originGeoId, geoEntities.id))
+      // Only the primary cuisine category — secondary dish-types would
+      // muddy the "what cuisine is this?" answer the UI needs.
+      .leftJoin(
+        dishCategories,
+        and(
+          eq(dishCategories.dishId, dishes.id),
+          eq(dishCategories.isPrimary, true),
+        ),
+      )
+      .leftJoin(categories, eq(dishCategories.categoryId, categories.id))
+      .where(
+        and(
+          eq(dishRelations.fromDishId, sourceId),
+          eq(dishes.status, 'published'),
+        ),
+      )
+      .orderBy(desc(dishRelations.strength), asc(dishes.canonicalName));
+
+    // 3) Group by relation_type for the UI. Within each group, sort
+    //    is already correct (by strength desc, then name asc).
+    type RelatedRow = {
+      slug: string;
+      name: string;
+      shortDescription: string | null;
+      cuisineSlug: string | null;
+      cuisineName: string | null;
+      countryName: string | null;
+      isoCode: string | null;
+      relationId: string;
+      relationType: string;
+      reason: string | null;
+      strength: number;
+    };
+
+    const grouped: Record<string, RelatedRow[]> = {};
+    for (const r of rows) {
+      const bucket = grouped[r.relationType] ?? [];
+      bucket.push({
+        slug: r.toDishSlug,
+        name: r.toDishName,
+        shortDescription: r.toDishShortDescription,
+        cuisineSlug: r.toCuisineSlug,
+        cuisineName: r.toCuisineName,
+        countryName: r.toDishOriginName,
+        isoCode: r.toDishOriginIso,
+        relationId: r.relationId,
+        relationType: r.relationType,
+        reason: r.reason,
+        strength: r.strength,
+      });
+      grouped[r.relationType] = bucket;
+    }
+
+    return {
+      sourceSlug: slug,
+      totalRelations: rows.length,
+      relationsByType: grouped,
+    };
   });
 }
