@@ -7,7 +7,7 @@
  *
  *   - gustale.recipes (encyclopedia): keeps /dishes, /ingredients,
  *     /dishes/new, /dishes/<slug>/edit. Drops /map.
- *   - gustale.com (geo/map): keeps /map. Drops /dishes list, /ingredients,
+ *   - gustale.com (geo/map): keeps /map, /dishes list. Drops /ingredients,
  *     /dishes/new, /dishes/<slug>/edit.
  *
  * Pages kept on BOTH domains:
@@ -55,9 +55,7 @@ const ALLOW_PARTIAL = process.env.ALLOW_PARTIAL === '1';
 
 // Routes that exist on ONE domain only. Each is a path relative to /.
 const GEO_ONLY = ['map/'];
-const RECIPES_ONLY = [
-  'dishes/index.html',  // /dishes/ list
-];
+const RECIPES_ONLY = [];  // All shared pages are now on both domains
 
 async function exists(path) {
   try {
@@ -165,13 +163,6 @@ if (DOMAIN === 'geo') {
     removed++;
   }
 
-  // Drop the /dishes list page on the geo domain.
-  const dishesIndex = join(DIST, 'dishes', 'index.html');
-  if (await rmIfExists(dishesIndex)) {
-    console.log('[post-build] removed dishes/index.html (list page not in geo domain)');
-    removed++;
-  }
-
   // Drop /ingredients/<slug>/ entirely (geo domain has no ingredient pages).
   const ingDir = join(DIST, 'ingredients');
   if (await rmIfExists(ingDir)) {
@@ -180,15 +171,17 @@ if (DOMAIN === 'geo') {
   }
 
   // Flatten /dishes/<slug>/index.html → /dishes/<slug>.html on the geo
-  // domain. This eliminates the `dist/dishes/` directory entirely so
-  // nginx doesn't 403 on `/dishes/` (a directory request with no index.html
-  // triggers nginx's autoindex "Forbidden" response).
+  // domain. The dist/dishes/ directory now contains both the list page
+  // (index.html) and flat <slug>.html files for each dish. This hybrid
+  // layout lets the geo domain serve both the /dishes/ list page and
+  // individual dish detail pages at /dishes/<slug>.
   //
-  // nginx.conf has rewrite rules for `^/dishes/([^/]+)/?$` that map both
-  // `/dishes/<slug>` and `/dishes/<slug>/` to the flat `.html` file.
+  // nginx.conf has rewrite rules for `^/dishes/([^/]+)/?$` that map
+  // `/dishes/<slug>` to the flat `.html` file while /dishes/ (with
+  // trailing slash) resolves to index.html via the standard try_files.
   // On gustale.recipes this transformation does NOT run, so the nested
   // `dist/dishes/<slug>/index.html` structure is preserved and `/dishes/`
-  // continues to serve the list page.
+  // continues to serve the list page from the directory index.
   let flattened = 0;
   for (const slug of dishDirs) {
     const slugDir = join(DIST, 'dishes', slug);
