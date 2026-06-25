@@ -213,6 +213,32 @@ Map-based discovery + unified search. Plan summary:
 - **9c (3h)** — "Cuisines near me" + taste-based similarity via
   shared categories and shared origin regions.
 
+### P3 — Seed-data quality: dangling DISH_RELATIONS slugs
+**Owner:** unassigned · **Estimate:** ~1 hour
+Surfaced 2026-06-25 while seeding for the homepage most-connected rail
+(PR #6). The seed reported **31 relation entries reference unknown dish
+slugs (skipped)** — `DISH_RELATIONS` in `packages/db/src/seed-data.ts`
+points at `fromSlug`/`toSlug` values that don't exist in `DISHES`, so
+those edges are silently dropped (154 of ~185 edges actually inserted).
+Each skipped edge is a missing connection in the food-network graph that
+feeds `/api/dishes/featured` and the per-dish relations UI.
+**Fix:** audit `DISH_RELATIONS` slugs against `DISHES` slugs (a small
+script can list the 31 offenders), then either correct the typo'd slugs
+or add the missing dishes. Re-run `pnpm --filter @gustale/db run seed`
+(idempotent) and confirm "0 skipped".
+
+### P3 — Seed-data quality: dishes missing `methodSlug` (families are thin)
+**Owner:** unassigned · **Estimate:** ~2 hours
+Surfaced 2026-06-25 (PR #6). Across 60 seeded dishes only **2 distinct
+`methodSlug` values** exist — most dishes have a null method, so they all
+collapse into "Other". This makes `/families` and the homepage
+"Families & lineages" rail thin (the code is correct; the data is
+sparse). `FAMILY_LABELS` in `families.astro` already anticipates ~16
+method families. **Fix:** populate `methodSlug` on the dishes in
+`seed-data.ts` (map each dish to one of the existing family slugs), then
+re-seed. Pairs naturally with enriching the ingredients set (only 4
+published ingredients today).
+
 ## Backlog (longer-term)
 
 - **i18n** — frontend and content. README has this as Phase 7g.
