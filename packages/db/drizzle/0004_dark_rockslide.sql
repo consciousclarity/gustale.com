@@ -1,0 +1,14 @@
+-- Slice 1 — food-family taxonomy foundation.
+-- Adds the `kind` discriminator to categories (cuisine / course-group /
+-- family / dish-type). Course groups and families are seeded as category
+-- rows by packages/db/src/seed.ts (seedTaxonomy); this migration only adds
+-- the column.
+--
+-- NOTE: drizzle-kit regenerated a much larger diff here because the
+-- hand-authored 0004_dish_relations migration never updated the meta
+-- snapshot. Every other statement in that generated diff (recreating
+-- dish_relations, retyping user ids, dropping user FKs) is ALREADY applied
+-- to the database, so this migration is reduced to the single new change.
+-- The regenerated meta/0004_snapshot.json now reflects the full schema, so
+-- future `db:generate` runs produce clean diffs.
+ALTER TABLE "categories" ADD COLUMN "kind" text DEFAULT 'dish-type' NOT NULL;

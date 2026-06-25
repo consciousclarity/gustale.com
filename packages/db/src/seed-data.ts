@@ -751,6 +751,130 @@ export const DISH_TYPE_CATEGORIES: Array<{ slug: string; name: string; descripti
 ];
 
 // =====================================================================
+// FOOD-FAMILY TAXONOMY (Slice 1)
+//
+// Course groups are top-level categories (kind='course-group', parentId
+// null). Families are their children (kind='family'). See the seed runner
+// (seedTaxonomy) for how these become `categories` rows. Dish remapping
+// onto these families happens in Slice 2 — not here.
+// =====================================================================
+
+export const COURSE_GROUPS: Array<{ slug: string; name: string; description: string; displayOrder: number }> = [
+  { slug: "mains",                name: "Mains",                  description: "Savory main dishes and plated meals.",                  displayOrder: 1 },
+  { slug: "soups-broths",         name: "Soups & broths",         description: "Liquid-based dishes where broth is central.",            displayOrder: 2 },
+  { slug: "rice-grains",          name: "Rice & grains",          description: "Dishes built on rice and other grains.",                 displayOrder: 3 },
+  { slug: "noodles-pasta",        name: "Noodles & pasta",        description: "Noodle and pasta traditions.",                          displayOrder: 4 },
+  { slug: "breads-doughs",        name: "Breads & doughs",        description: "Breads and dough-based foods.",                         displayOrder: 5 },
+  { slug: "street-foods-snacks",  name: "Street foods & snacks",  description: "Informal, handheld, and small-portion foods.",          displayOrder: 6 },
+  { slug: "small-plates-sides",   name: "Small plates & sides",   description: "Sides, salads, and small composed plates.",             displayOrder: 7 },
+  { slug: "preserves-condiments", name: "Preserves & condiments", description: "Preserved foods, condiments, and cultured products.",    displayOrder: 8 },
+  { slug: "sweets-desserts",      name: "Sweets & desserts",      description: "Sweet dishes and desserts.",                            displayOrder: 9 },
+  { slug: "drinks",               name: "Drinks",                 description: "Beverages, hot and cold.",                              displayOrder: 10 },
+  { slug: "techniques-bases",     name: "Techniques & bases",     description: "Foundational preparations, bases, and cooking techniques.", displayOrder: 11 },
+];
+
+export const DISH_FAMILIES: Array<{ slug: string; name: string; courseGroupSlug: string; description: string; displayOrder: number }> = [
+  // ── Mains ──────────────────────────────────────────────────────────
+  { slug: "egg-dishes",                       name: "Egg dishes",                       courseGroupSlug: "mains", description: "Dishes where egg is the central structure or protein.", displayOrder: 1 },
+  { slug: "dumplings",                        name: "Dumplings",                        courseGroupSlug: "mains", description: "Filled dough parcels — folded, wrapped, boiled, steamed, fried, or baked.", displayOrder: 2 },
+  { slug: "stews-braises",                    name: "Stews & braises",                  courseGroupSlug: "mains", description: "Slow-cooked dishes in liquid or sauce.", displayOrder: 3 },
+  { slug: "curries-spiced-sauces",            name: "Curries & spiced sauces",          courseGroupSlug: "mains", description: "Mains cooked in spiced sauces, masalas, coconut bases, or curry pastes.", displayOrder: 4 },
+  { slug: "hot-pots-communal-simmer",         name: "Hot pots & communal simmer",       courseGroupSlug: "mains", description: "Shared simmered dishes cooked or served communally.", displayOrder: 5 },
+  { slug: "grilled-skewered",                 name: "Grilled & skewered",               courseGroupSlug: "mains", description: "Food grilled directly, often on skewers or over charcoal.", displayOrder: 6 },
+  { slug: "roasts-whole-cooked-meats",        name: "Roasts & whole cooked meats",      courseGroupSlug: "mains", description: "Large cuts or whole animals roasted, baked, smoked, or spit-cooked.", displayOrder: 7 },
+  { slug: "barbecue-smoked-foods",            name: "Barbecue & smoked foods",          courseGroupSlug: "mains", description: "Low-and-slow smoke, pit cooking, or fire-cooked meats.", displayOrder: 8 },
+  { slug: "stir-fries",                       name: "Stir-fries",                       courseGroupSlug: "mains", description: "Fast high-heat cooking with sauce and aromatics.", displayOrder: 9 },
+  { slug: "stuffed-vegetables",               name: "Stuffed vegetables",               courseGroupSlug: "mains", description: "Vegetables filled with rice, meat, legumes, herbs, or spices.", displayOrder: 10 },
+  { slug: "meatballs-koftas",                 name: "Meatballs & koftas",               courseGroupSlug: "mains", description: "Ground or minced meat, fish, legumes, or vegetables shaped into balls or logs.", displayOrder: 11 },
+  { slug: "savory-pancakes-griddled-batters", name: "Savory pancakes & griddled batters", courseGroupSlug: "mains", description: "Batter-based savory dishes cooked on a hot surface.", displayOrder: 12 },
+  { slug: "casseroles-baked-layers",          name: "Casseroles & baked layers",        courseGroupSlug: "mains", description: "Layered or baked savory dishes.", displayOrder: 13 },
+  { slug: "raw-cured-fish",                   name: "Raw & cured fish",                 courseGroupSlug: "mains", description: "Raw, marinated, salted, fermented, or lightly cured seafood.", displayOrder: 14 },
+  { slug: "fermented-mains",                  name: "Fermented mains",                  courseGroupSlug: "mains", description: "Dishes where fermentation is central to the main dish.", displayOrder: 15 },
+  { slug: "offal-nose-to-tail",               name: "Offal & nose-to-tail dishes",      courseGroupSlug: "mains", description: "Organ meats or less common cuts as central identity.", displayOrder: 16 },
+  { slug: "seafood-stews-braises",            name: "Seafood stews & braises",          courseGroupSlug: "mains", description: "Seafood cooked in broth, sauce, coconut, wine, or spice bases.", displayOrder: 17 },
+
+  // ── Soups & broths ─────────────────────────────────────────────────
+  { slug: "soups-broths-family",             name: "Soups & broths",                   courseGroupSlug: "soups-broths", description: "Liquid-based dishes where broth is central.", displayOrder: 1 },
+  { slug: "cold-soups",                       name: "Cold soups",                       courseGroupSlug: "soups-broths", description: "Chilled soups, often vegetable, dairy, or fermented bases.", displayOrder: 2 },
+
+  // ── Rice & grains ──────────────────────────────────────────────────
+  { slug: "rice-bowls",                       name: "Rice bowls",                       courseGroupSlug: "rice-grains", description: "Rice topped with proteins, sauces, vegetables, or pickles.", displayOrder: 1 },
+  { slug: "pilafs-seasoned-rice",             name: "Pilafs & seasoned rice",           courseGroupSlug: "rice-grains", description: "Rice cooked with stock, fat, spices, meat, vegetables, or aromatics.", displayOrder: 2 },
+  { slug: "fried-rice",                       name: "Fried rice",                       courseGroupSlug: "rice-grains", description: "Cooked rice stir-fried with aromatics, proteins, vegetables, and sauces.", displayOrder: 3 },
+  { slug: "rice-cakes-compressed-rice",       name: "Rice cakes & compressed rice",     courseGroupSlug: "rice-grains", description: "Rice shaped, pounded, steamed, grilled, or compressed.", displayOrder: 4 },
+  { slug: "porridges-congees",                name: "Porridges & congees",              courseGroupSlug: "rice-grains", description: "Grain-based soft cooked dishes.", displayOrder: 5 },
+
+  // ── Noodles & pasta ────────────────────────────────────────────────
+  { slug: "noodle-soups",                     name: "Noodle soups",                     courseGroupSlug: "noodles-pasta", description: "Noodles served in broth.", displayOrder: 1 },
+  { slug: "dry-tossed-noodles",               name: "Dry & tossed noodles",             courseGroupSlug: "noodles-pasta", description: "Noodles served sauced, fried, or dressed without much broth.", displayOrder: 2 },
+  { slug: "fresh-noodles-pasta",              name: "Fresh noodles & pasta",            courseGroupSlug: "noodles-pasta", description: "Dough-based noodle and pasta traditions as a base family.", displayOrder: 3 },
+  { slug: "wok-fried-rice-noodles",           name: "Wok-fried rice noodles",           courseGroupSlug: "noodles-pasta", description: "Flat or round rice noodles cooked fast with sauce and protein.", displayOrder: 4 },
+
+  // ── Breads & doughs ────────────────────────────────────────────────
+  { slug: "filled-breads",                    name: "Filled breads",                    courseGroupSlug: "breads-doughs", description: "Breads with savory or sweet fillings inside or folded in.", displayOrder: 1 },
+  { slug: "flatbreads",                       name: "Flatbreads",                       courseGroupSlug: "breads-doughs", description: "Unleavened or lightly leavened breads cooked flat.", displayOrder: 2 },
+  { slug: "leavened-loaves",                  name: "Leavened loaves",                  courseGroupSlug: "breads-doughs", description: "Yeast or sourdough breads baked as loaves.", displayOrder: 3 },
+  { slug: "enriched-breads",                  name: "Enriched breads",                  courseGroupSlug: "breads-doughs", description: "Breads enriched with egg, butter, milk, sugar, or fat.", displayOrder: 4 },
+  { slug: "steamed-buns",                     name: "Steamed buns",                     courseGroupSlug: "breads-doughs", description: "Soft doughs cooked by steam.", displayOrder: 5 },
+  { slug: "fried-breads",                     name: "Fried breads",                     courseGroupSlug: "breads-doughs", description: "Doughs fried instead of baked.", displayOrder: 6 },
+  { slug: "laminated-breads-pastries",        name: "Laminated breads & pastries",      courseGroupSlug: "breads-doughs", description: "Dough layered with fat.", displayOrder: 7 },
+
+  // ── Street foods & snacks ──────────────────────────────────────────
+  { slug: "street-snacks",                    name: "Street snacks",                    courseGroupSlug: "street-foods-snacks", description: "Informal handheld or small-portion foods strongly tied to street culture.", displayOrder: 1 },
+  { slug: "wraps-rolls",                      name: "Wraps & rolls",                    courseGroupSlug: "street-foods-snacks", description: "Fillings wrapped in soft bread, leaves, pancakes, rice paper, or tortillas.", displayOrder: 2 },
+  { slug: "fritters-croquettes",              name: "Fritters & croquettes",            courseGroupSlug: "street-foods-snacks", description: "Battered, bound, mashed, or shredded mixtures fried until crisp.", displayOrder: 3 },
+  { slug: "savory-pies-pastries",             name: "Savory pies & pastries",           courseGroupSlug: "street-foods-snacks", description: "Savory fillings enclosed, layered, or topped with pastry or crust.", displayOrder: 4 },
+  { slug: "sandwiches-stuffed-breads",        name: "Sandwiches & stuffed breads",      courseGroupSlug: "street-foods-snacks", description: "Split breads filled after baking.", displayOrder: 5 },
+  { slug: "hand-pies-turnovers",              name: "Hand pies & turnovers",            courseGroupSlug: "street-foods-snacks", description: "Portable filled doughs folded or sealed before cooking.", displayOrder: 6 },
+  { slug: "leaf-wrapped-steamed-foods",       name: "Leaf-wrapped & steamed foods",     courseGroupSlug: "street-foods-snacks", description: "Foods wrapped in leaves and steamed — banana leaf, corn husk, or lotus leaf parcels.", displayOrder: 7 },
+  { slug: "tortilla-masa-dishes",             name: "Tortilla & masa dishes",           courseGroupSlug: "street-foods-snacks", description: "Dishes built on nixtamalized corn masa — tortillas, tamales, gorditas.", displayOrder: 8 },
+
+  // ── Small plates & sides ───────────────────────────────────────────
+  { slug: "salads-slaws",                     name: "Salads & slaws",                   courseGroupSlug: "small-plates-sides", description: "Composed raw, cooked, dressed, or herb-heavy plates.", displayOrder: 1 },
+  { slug: "legume-dishes",                    name: "Legume dishes",                    courseGroupSlug: "small-plates-sides", description: "Beans, lentils, peas, or pulses as the central base.", displayOrder: 2 },
+  { slug: "vegetable-sides",                  name: "Vegetable sides",                  courseGroupSlug: "small-plates-sides", description: "Vegetables as the main identity, not just garnish.", displayOrder: 3 },
+
+  // ── Preserves & condiments ─────────────────────────────────────────
+  { slug: "pickles-ferments",                 name: "Pickles & ferments",               courseGroupSlug: "preserves-condiments", description: "Preserved vegetables, fruits, legumes, fish, or dairy through salt, acid, or microbes.", displayOrder: 1 },
+  { slug: "dips-spreads",                     name: "Dips & spreads",                   courseGroupSlug: "preserves-condiments", description: "Scoopable or spreadable preparations.", displayOrder: 2 },
+  { slug: "relishes-chutneys",                name: "Relishes & chutneys",              courseGroupSlug: "preserves-condiments", description: "Chopped, cooked, preserved, or fresh condiments.", displayOrder: 3 },
+  { slug: "chili-sauces-fermented-pastes",    name: "Chili sauces & fermented pastes",  courseGroupSlug: "preserves-condiments", description: "Hot, savory, fermented, or umami condiments.", displayOrder: 4 },
+  { slug: "cured-meats",                      name: "Cured meats",                      courseGroupSlug: "preserves-condiments", description: "Salted, dried, smoked, fermented, or aged meats.", displayOrder: 5 },
+  { slug: "cheeses-cultured-dairy",           name: "Cheeses & cultured dairy",         courseGroupSlug: "preserves-condiments", description: "Milk transformed by culturing, aging, straining, or curdling.", displayOrder: 6 },
+  { slug: "sausages-encased-meats",           name: "Sausages & encased meats",         courseGroupSlug: "preserves-condiments", description: "Ground, seasoned meats stuffed into casings, fresh or cured.", displayOrder: 7 },
+  { slug: "pates-terrines",                   name: "Pâtés & terrines",                 courseGroupSlug: "preserves-condiments", description: "Coarse or smooth forcemeats of meat, liver, or fish, set and sliced.", displayOrder: 8 },
+  { slug: "nut-seed-sauces-pastes",           name: "Nut & seed sauces/pastes",         courseGroupSlug: "preserves-condiments", description: "Sauces and pastes built on ground nuts or seeds — tahini, satay, romesco.", displayOrder: 9 },
+
+  // ── Sweets & desserts ──────────────────────────────────────────────
+  { slug: "custards-puddings",                name: "Custards & puddings",              courseGroupSlug: "sweets-desserts", description: "Set, stirred, baked, steamed, or chilled milk/egg/starch desserts.", displayOrder: 1 },
+  { slug: "fried-sweets",                     name: "Fried sweets",                     courseGroupSlug: "sweets-desserts", description: "Sweet doughs, batters, or filled pastries cooked in oil.", displayOrder: 2 },
+  { slug: "cakes-sponges",                    name: "Cakes & sponges",                  courseGroupSlug: "sweets-desserts", description: "Baked sweet crumb structures.", displayOrder: 3 },
+  { slug: "laminated-layered-pastries",       name: "Laminated & layered pastries",     courseGroupSlug: "sweets-desserts", description: "Layered sweet pastries, often with fat, nuts, syrup, or cream.", displayOrder: 4 },
+  { slug: "cookies-biscuits",                 name: "Cookies & biscuits",               courseGroupSlug: "sweets-desserts", description: "Small baked sweets.", displayOrder: 5 },
+  { slug: "milk-sweets",                      name: "Milk sweets",                      courseGroupSlug: "sweets-desserts", description: "Sweets based on milk reduction, curds, cream, or dairy solids.", displayOrder: 6 },
+  { slug: "frozen-desserts",                  name: "Frozen desserts",                  courseGroupSlug: "sweets-desserts", description: "Frozen sweet dishes, churned or unchurned.", displayOrder: 7 },
+  { slug: "rice-sticky-rice-sweets",          name: "Rice & sticky rice sweets",        courseGroupSlug: "sweets-desserts", description: "Desserts based on rice, glutinous rice, or rice flour.", displayOrder: 8 },
+  { slug: "fruit-desserts",                   name: "Fruit desserts",                   courseGroupSlug: "sweets-desserts", description: "Fruit as the central identity.", displayOrder: 9 },
+  { slug: "confections-candies",              name: "Confections & candies",            courseGroupSlug: "sweets-desserts", description: "Sugar, nuts, seeds, chocolate, or syrup-based sweets.", displayOrder: 10 },
+
+  // ── Drinks ─────────────────────────────────────────────────────────
+  { slug: "fermented-drinks",                 name: "Fermented drinks",                 courseGroupSlug: "drinks", description: "Drinks transformed by fermentation or culturing.", displayOrder: 1 },
+  { slug: "hot-brews-spiced-drinks",          name: "Hot brews & spiced drinks",        courseGroupSlug: "drinks", description: "Brewed, steeped, simmered, or spiced hot beverages.", displayOrder: 2 },
+  { slug: "cold-drinks-refreshers",           name: "Cold drinks & refreshers",         courseGroupSlug: "drinks", description: "Chilled drinks, juices, herb drinks, or sweet refreshers.", displayOrder: 3 },
+  { slug: "coffee-traditions",                name: "Coffee traditions",                courseGroupSlug: "drinks", description: "Regionally distinct coffee preparations.", displayOrder: 4 },
+  { slug: "tea-traditions",                   name: "Tea traditions",                   courseGroupSlug: "drinks", description: "Regionally distinct tea preparations.", displayOrder: 5 },
+  { slug: "herbal-tonic-drinks",              name: "Herbal & tonic drinks",            courseGroupSlug: "drinks", description: "Herbal, medicinal, or tonic beverages brewed from roots, herbs, or spices.", displayOrder: 6 },
+
+  // ── Techniques & bases ─────────────────────────────────────────────
+  { slug: "spice-pastes-cooking-bases",       name: "Spice pastes & cooking bases",     courseGroupSlug: "techniques-bases", description: "Concentrated aromatic bases used to build dishes.", displayOrder: 1 },
+  { slug: "aromatic-bases",                   name: "Aromatic bases",                   courseGroupSlug: "techniques-bases", description: "Foundational aromatic mixes sautéed to start a dish — mirepoix, battuto, holy trinity.", displayOrder: 2 },
+  { slug: "marinades-rubs",                   name: "Marinades & rubs",                 courseGroupSlug: "techniques-bases", description: "Wet marinades and dry spice rubs used to flavor and tenderize before cooking.", displayOrder: 3 },
+  { slug: "stocks-broths-bases",              name: "Stocks & broth bases",             courseGroupSlug: "techniques-bases", description: "Stocks and broth bases simmered to underpin soups, sauces, and braises.", displayOrder: 4 },
+  { slug: "batters-coatings",                 name: "Batters & coatings",               courseGroupSlug: "techniques-bases", description: "Batters, breadings, and coatings applied before frying or baking.", displayOrder: 5 },
+  { slug: "fermentation-starters",            name: "Fermentation starters",            courseGroupSlug: "techniques-bases", description: "Cultures and starters that drive fermentation — koji, levain, ragi, tempeh starter.", displayOrder: 6 },
+];
+
+// =====================================================================
 // DISH RELATIONS — the curated food-genealogy network.
 // =====================================================================
 //
