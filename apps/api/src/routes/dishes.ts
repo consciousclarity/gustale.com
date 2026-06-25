@@ -240,6 +240,79 @@ export function registerDishRoutes(app: FastifyInstance): void {
     };
   });
 
+  // GET /api/dishes/featured
+  //
+  // Top dishes by curated-relation count, for the homepage hero card and
+  // the "most-connected" rail. One query instead of N per-slug /relations
+  // calls. Anonymous-readable; only published dishes (the GROUP BY is over
+  // outgoing edges, the JOIN filters status). coverMediaId is the dish's
+  // cover attachment (role='cover', else first by position) or null.
+  app.get('/api/dishes/featured', async (request, reply) => {
+    // NOTE: limit is capped (not rejected) at 24 — z.max() would 400 on
+    // out-of-range input, but this endpoint is meant to silently clamp
+    // (it's a homepage rail, not a paginated list), so we clamp post-parse.
+    const { limit: rawLimit } = z
+      .object({ limit: z.coerce.number().int().min(1).default(8) })
+      .parse(request.query);
+    const limit = Math.min(rawLimit, 24);
+
+    const rows = (await db.execute(sql`
+      SELECT
+        d.slug,
+        d.canonical_name,
+        d.short_description,
+        g.name      AS origin_name,
+        g.iso_code  AS origin_iso,
+        c.slug      AS cuisine_slug,
+        c.name      AS cuisine_name,
+        rc.relation_count,
+        cov.media_id AS cover_media_id
+      FROM (
+        SELECT from_dish_id, COUNT(*)::int AS relation_count
+        FROM dish_relations
+        GROUP BY from_dish_id
+      ) rc
+      JOIN dishes d ON d.id = rc.from_dish_id AND d.status = 'published'
+      LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
+      LEFT JOIN dish_categories dc ON dc.dish_id = d.id AND dc.is_primary = true
+      LEFT JOIN categories c ON c.id = dc.category_id
+      LEFT JOIN LATERAL (
+        SELECT ma.media_id
+        FROM media_attachments ma
+        WHERE ma.target_type = 'dish' AND ma.target_id = d.id
+        ORDER BY (ma.role = 'cover') DESC, ma.position ASC
+        LIMIT 1
+      ) cov ON true
+      ORDER BY rc.relation_count DESC, d.canonical_name ASC
+      LIMIT ${limit}
+    `)) as unknown as Array<{
+      slug: string;
+      canonical_name: string;
+      short_description: string | null;
+      origin_name: string | null;
+      origin_iso: string | null;
+      cuisine_slug: string | null;
+      cuisine_name: string | null;
+      relation_count: number;
+      cover_media_id: string | null;
+    }>;
+
+    return {
+      dishes: rows.map((r) => ({
+        slug: r.slug,
+        canonicalName: r.canonical_name,
+        shortDescription: r.short_description,
+        originName: r.origin_name,
+        originIso: r.origin_iso,
+        cuisineSlug: r.cuisine_slug,
+        cuisineName: r.cuisine_name,
+        relationCount: r.relation_count,
+        coverMediaId: r.cover_media_id,
+      })),
+      count: rows.length,
+    };
+  });
+
   // Get one dish by slug (with variants, ingredients, translations,
   // preparations, sources, media, origin geometry, editors)
   app.get('/api/dishes/:slug', async (request, reply) => {
