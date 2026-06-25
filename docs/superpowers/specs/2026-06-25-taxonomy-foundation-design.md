@@ -71,7 +71,7 @@ exists). Drizzle migrations are the single source of truth.
 ### 2. Extend `dishRelationType` (no migration — pure code)
 
 `relation_type` is a text column typed by a const array, so extending it
-is code-only. Keep all 8 existing values; **add 6**:
+is code-only. Keep all 8 existing values; **add 8** (final list of 16):
 
 ```ts
 export const dishRelationType = [
@@ -81,6 +81,7 @@ export const dishRelationType = [
   // new
   'trade-route', 'colonial', 'festival-ritual',
   'ingredient-substitution', 'cooking-vessel', 'texture',
+  'same-region', 'same-occasion',
 ] as const;
 ```
 
@@ -101,6 +102,8 @@ User-label → enum mapping (so Slice 2 authors edges with the right value):
 | Ingredient substitution cousin | `ingredient-substitution` (new) |
 | Cooking vessel relation | `cooking-vessel` (new) |
 | Texture relation | `texture` (new) |
+| Same region | `same-region` (new) |
+| Same occasion | `same-occasion` (new) |
 
 ## Taxonomy data (new seed-data exports)
 
@@ -127,7 +130,7 @@ export const DISH_FAMILIES: Array<{ slug: string; name: string; courseGroupSlug:
 | 10 | `drinks` | Drinks |
 | 11 | `techniques-bases` | Techniques & bases |
 
-### Families (66) — `kind='family'`, `parentId=<course group>`
+### Families (77) — `kind='family'`, `parentId=<course group>`
 
 `displayOrder` is assigned sequentially within each course group (the
 order listed). Descriptions are the user's family definitions verbatim.
@@ -170,7 +173,9 @@ breads & pastries)
 (Street snacks), `wraps-rolls` (Wraps & rolls), `fritters-croquettes`
 (Fritters & croquettes), `savory-pies-pastries` (Savory pies & pastries),
 `sandwiches-stuffed-breads` (Sandwiches & stuffed breads),
-`hand-pies-turnovers` (Hand pies & turnovers)
+`hand-pies-turnovers` (Hand pies & turnovers),
+`leaf-wrapped-steamed-foods` (Leaf-wrapped & steamed foods),
+`tortilla-masa-dishes` (Tortilla & masa dishes)
 
 **Small plates & sides (`small-plates-sides`)** — `salads-slaws` (Salads &
 slaws), `legume-dishes` (Legume dishes), `vegetable-sides` (Vegetable
@@ -180,7 +185,9 @@ sides)
 (Pickles & ferments), `dips-spreads` (Dips & spreads), `relishes-chutneys`
 (Relishes & chutneys), `chili-sauces-fermented-pastes` (Chili sauces &
 fermented pastes), `cured-meats` (Cured meats), `cheeses-cultured-dairy`
-(Cheeses & cultured dairy)
+(Cheeses & cultured dairy), `sausages-encased-meats` (Sausages & encased
+meats), `pates-terrines` (Pâtés & terrines), `nut-seed-sauces-pastes`
+(Nut & seed sauces/pastes)
 
 **Sweets & desserts (`sweets-desserts`)** — `custards-puddings` (Custards &
 puddings), `fried-sweets` (Fried sweets), `cakes-sponges` (Cakes &
@@ -193,10 +200,19 @@ sticky rice sweets), `fruit-desserts` (Fruit desserts),
 **Drinks (`drinks`)** — `fermented-drinks` (Fermented drinks),
 `hot-brews-spiced-drinks` (Hot brews & spiced drinks),
 `cold-drinks-refreshers` (Cold drinks & refreshers), `coffee-traditions`
-(Coffee traditions), `tea-traditions` (Tea traditions)
+(Coffee traditions), `tea-traditions` (Tea traditions),
+`herbal-tonic-drinks` (Herbal & tonic drinks)
 
 **Techniques & bases (`techniques-bases`)** — `spice-pastes-cooking-bases`
-(Spice pastes & cooking bases)
+(Spice pastes & cooking bases), `aromatic-bases` (Aromatic bases),
+`marinades-rubs` (Marinades & rubs), `stocks-broths-bases` (Stocks & broth
+bases), `batters-coatings` (Batters & coatings), `fermentation-starters`
+(Fermentation starters)
+
+**Per-course-group counts (total 77):** Mains 17 · Soups & broths 2 · Rice
+& grains 5 · Noodles & pasta 4 · Breads & doughs 7 · Street foods & snacks
+8 · Small plates & sides 3 · Preserves & condiments 9 · Sweets & desserts
+10 · Drinks 6 · Techniques & bases 6.
 
 ### Slug collisions with existing categories
 
@@ -207,6 +223,25 @@ Verified against all current cuisine + dish-type slugs. Two adjustments:
    **promotes** the existing row: on-conflict updates it to
    `kind='family'`, `parentId=rice-grains`, the family name/description.
    This is the one intended merge.
+
+   **Safety verdict (checked 2026-06-25): SAFE to promote.** The only code
+   that consumes categories is (a) the `?category=<slug>` dish filter
+   (`apps/api/src/routes/dishes.ts`), which joins `dish_categories` →
+   `categories` **by slug only**, ignoring `kind`/`parentId`; and (b)
+   `family/[slug].astro`, which builds one static page per category slug
+   the same way. Nothing assumes dish-type rows are parentless in a way
+   that would break. The sole observable change is that `fried-rice` gains
+   a non-null `parentId` in the flat `/api/categories` list (cosmetic; the
+   "group by parentId" client merely nests it). Existing
+   `dish_categories` links to `fried-rice` are untouched.
+
+   **Build side effect (flag, not fixing in Slice 1):** `/api/categories`
+   returns ALL categories flat, and `family/[slug].astro` emits a static
+   page per returned slug. Adding 11 course groups + 77 families means the
+   next *web* build generates ~88 extra `/family/<slug>` pages — valid but
+   empty until Slice 2 links dishes. This is data-driven, not a code
+   change, and Slice 1 does not rebuild/deploy web. The clean fix (filter
+   `/api/categories` or the family page by `kind`) belongs to Slice 3.
 2. **`soups-broths`** — the family "Soups & broths" would collide with its
    own course-group slug `soups-broths`. The family uses slug
    `soups-broths-family`.
@@ -243,12 +278,16 @@ A DB-backed vitest (`packages/db` or `apps/api/test`) that, after the seed
 runs:
 
 - exactly **11** categories with `kind='course-group'` and `parentId IS NULL`;
-- **66** categories with `kind='family'`, each with a non-null `parentId`
-  that points to a `course-group` row;
+- exactly **77** categories with `kind='family'`, each with a non-null
+  `parentId` that points to a `course-group` row;
 - every course group has **≥1** family child;
+- `techniques-bases` has **≥6** family children;
+- cuisines are `kind='cuisine'`; legacy dish-type rows still resolve via
+  the `?category=<slug>` filter (legacy still works);
 - the legacy `fried-rice` row now has `kind='family'` and a parent (promotion);
-- `categoryKind` and the extended `dishRelationType` arrays export the
-  expected members (unit-level assertion, no DB).
+- `categoryKind` exports `['cuisine','course-group','family','dish-type']`
+  and `dishRelationType` includes `same-region` and `same-occasion`
+  (unit-level assertion, no DB).
 
 ## Out of scope (Slice 1)
 
