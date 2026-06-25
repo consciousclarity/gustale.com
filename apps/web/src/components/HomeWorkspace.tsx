@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { listDishes } from '../../lib/api';
-import type { DishListResponse } from '../../types/dish';
+import { listDishes } from '../lib/api';
+import type { DishListResponse } from '../types/dish';
 
 // MapLibre — loaded from CDN on demand
 let mapLoaded = false;
@@ -263,9 +263,9 @@ function FilterChips({
   );
 }
 
-// ─── Main island ─────────────────────────────────────────────────────────────
+// ─── Workspace island ─────────────────────────────────────────────────────────
 
-export default function GustaleHomeIsland() {
+export default function HomeWorkspace() {
   const [view, setView] = useState<ViewMode>('atlas');
   const [search, setSearch] = useState('');
   const [listData, setListData] = useState<DishListResponse | null>(null);
@@ -274,6 +274,19 @@ export default function GustaleHomeIsland() {
   const [error, setError] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseQuery(search), [search]);
+
+  // Seed the search from the URL hash (#explore=<query>) on mount and on
+  // hashchange — this is the single channel the SSR hero search uses to
+  // hand a query to this island (the two stay decoupled, no shared store).
+  useEffect(() => {
+    const readHash = () => {
+      const m = location.hash.match(/^#explore=(.*)$/);
+      if (m) setSearch(decodeURIComponent(m[1]));
+    };
+    readHash();
+    window.addEventListener('hashchange', readHash);
+    return () => window.removeEventListener('hashchange', readHash);
+  }, []);
 
   // Fetch list data (Index, Gallery, Feed, Atlas sidebar)
   useEffect(() => {
@@ -310,153 +323,94 @@ export default function GustaleHomeIsland() {
     setSearch(prev => prev.replace(regex, '').replace(/\s+/g, ' ').trim());
   }, []);
 
-  const listDishes_data = listData?.dishes ?? [];
-  const total = listDishes_data.length;
+  const dishes = listData?.dishes ?? [];
+  const total = dishes.length;
 
   return (
-    <main className="gst">
-      {/* ── Hero ──────────────────────────────────────────────────── */}
-      <section className="gst-hero wrap">
-        <div className="hero-content">
-          <p className="kicker">Browse the atlas · {total} dishes</p>
-          <h1 className="hero-h1">
-            Browse the atlas<br /><em>your way.</em>
-          </h1>
-          <p className="hero-lede">
-            Every dish has a country, but first it has a form. Explore Gustale
-            by map, by name, by family, or by story.
+    <section className="workspace wrap" id="explore">
+      <div className="ws-head">
+        <div>
+          <h2>Explore</h2>
+          <p>
+            {loading
+              ? 'Loading…'
+              : `${total} dish${total !== 1 ? 's' : ''}${parsed.q ? ` matching "${parsed.q}"` : ''}`}
           </p>
-          <div className="hero-search">
-            <input
-              type="search"
-              placeholder='Try "ramen", origin:Japan, ingredient:saffron…'
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <button aria-label="Search">⌕</button>
-          </div>
-          <FilterChips filters={parsed} onRemove={removeFilter} />
-          <div className="hero-meta">
-            <div><b>{total}</b> dishes</div>
-            <div><b>30+</b> families</div>
-            <div><b>100+</b> origins</div>
-          </div>
         </div>
-        <div className="hero-frame">
-          <div
-            className="ph"
-            style={{
-              background:
-                'repeating-conic-gradient(var(--accent-soft) 0% 25%, var(--card) 0% 50%) 0 0 / 40px 40px',
-              borderRadius: '9px',
-              height: '280px',
-            }}
-          />
-          <div className="hero-coord">
-            <span>0°N 0°E</span>
-            <span>{mapDishes.length} dishes plotted</span>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Workspace ────────────────────────────────────────────── */}
-      <section className="workspace wrap">
-        <div className="ws-head">
-          <div>
-            <h2>Explore</h2>
-            <p>
-              {loading
-                ? 'Loading…'
-                : `${total} dish${total !== 1 ? 's' : ''}${parsed.q ? ` matching "${parsed.q}"` : ''}`}
-            </p>
-          </div>
-          <span className="ws-count">
-            {view === 'atlas' ? 'Map' : view === 'index' ? 'Table' : view === 'gallery' ? 'Cards' : 'Stories'} view
-          </span>
-        </div>
-
-        {/* Toolbar */}
-        <div className="ws-toolbar">
-          <span className="tb-label">View</span>
-          <div className="seg">
-            <button data-on={view === 'atlas' ? '1' : '0'} onClick={() => setView('atlas')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="8" cy="8" r="6" />
-                <path d="M2 8h12M8 2c-2 2-3 4-3 6s1 4 3 6M8 2c2 2 3 4 3 6s-1 4-3 6" />
-              </svg>
-              Atlas
-            </button>
-            <button data-on={view === 'index' ? '1' : '0'} onClick={() => setView('index')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M2 4h12M2 8h12M2 12h12" />
-              </svg>
-              Index
-            </button>
-            <button data-on={view === 'gallery' ? '1' : '0'} onClick={() => setView('gallery')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="2" y="2" width="5" height="5" rx="1" />
-                <rect x="9" y="2" width="5" height="5" rx="1" />
-                <rect x="2" y="9" width="5" height="5" rx="1" />
-                <rect x="9" y="9" width="5" height="5" rx="1" />
-              </svg>
-              Gallery
-            </button>
-            <button data-on={view === 'feed' ? '1' : '0'} onClick={() => setView('feed')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M2 3h12v2H2zM2 7h8v2H2zM2 11h10v2H2z" />
-              </svg>
-              Feed
-            </button>
-          </div>
-          <span className="tb-spacer" />
-          {error && (
-            <div className="alert alert-warning" style={{ margin: 0 }}>
-              {error}
-            </div>
-          )}
-        </div>
-
-        {/* View panels */}
-        {loading ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)', fontFamily: 'var(--mono)', fontSize: '14px' }}>
-            Loading dishes…
-          </div>
-        ) : listDishes_data.length === 0 ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)' }}>
-            No dishes found{parsed.q ? ` for "${parsed.q}"` : ''}.
-          </div>
-        ) : (
-          <>
-            {view === 'atlas' && (
-              <AtlasView mapDishes={mapDishes} listDishes={listDishes_data} />
-            )}
-            {view === 'index' && <IndexView dishes={listDishes_data} />}
-            {view === 'gallery' && <GalleryView dishes={listDishes_data} />}
-            {view === 'feed' && <FeedView dishes={listDishes_data} />}
-          </>
-        )}
-      </section>
-
-      {/* ── CTA band ──────────────────────────────────────────────── */}
-      <div className="wrap" style={{ paddingBottom: '80px' }}>
-        <div className="band">
-          <div>
-            <h2>
-              Know a dish<br />we don't?
-            </h2>
-            <p>
-              Gustale is built by people who cook, eat, and document. Every
-              dish you add makes the atlas richer.
-            </p>
-          </div>
-          <div className="band-cta">
-            <button onClick={() => { window.location.href = '/dishes/new'; }}>
-              Add a dish →
-            </button>
-            <small>Free forever. No account required to browse.</small>
-          </div>
-        </div>
+        <span className="ws-count">
+          {view === 'atlas' ? 'Map' : view === 'index' ? 'Table' : view === 'gallery' ? 'Cards' : 'Stories'} view
+        </span>
       </div>
-    </main>
+
+      {/* Search */}
+      <div className="ws-search">
+        <input
+          type="search"
+          placeholder='Try "ramen", origin:Japan, ingredient:saffron…'
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+      <FilterChips filters={parsed} onRemove={removeFilter} />
+
+      {/* Toolbar */}
+      <div className="ws-toolbar">
+        <span className="tb-label">View</span>
+        <div className="seg">
+          <button data-on={view === 'atlas' ? '1' : '0'} onClick={() => setView('atlas')}>
+            <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="8" cy="8" r="6" />
+              <path d="M2 8h12M8 2c-2 2-3 4-3 6s1 4 3 6M8 2c2 2 3 4 3 6s-1 4-3 6" />
+            </svg>
+            Atlas
+          </button>
+          <button data-on={view === 'index' ? '1' : '0'} onClick={() => setView('index')}>
+            <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 4h12M2 8h12M2 12h12" />
+            </svg>
+            Index
+          </button>
+          <button data-on={view === 'gallery' ? '1' : '0'} onClick={() => setView('gallery')}>
+            <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2" y="2" width="5" height="5" rx="1" />
+              <rect x="9" y="2" width="5" height="5" rx="1" />
+              <rect x="2" y="9" width="5" height="5" rx="1" />
+              <rect x="9" y="9" width="5" height="5" rx="1" />
+            </svg>
+            Gallery
+          </button>
+          <button data-on={view === 'feed' ? '1' : '0'} onClick={() => setView('feed')}>
+            <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 3h12v2H2zM2 7h8v2H2zM2 11h10v2H2z" />
+            </svg>
+            Feed
+          </button>
+        </div>
+        <span className="tb-spacer" />
+        {error && (
+          <div className="alert alert-warning" style={{ margin: 0 }}>
+            {error}
+          </div>
+        )}
+      </div>
+
+      {/* View panels */}
+      {loading ? (
+        <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)', fontFamily: 'var(--mono)', fontSize: '14px' }}>
+          Loading dishes…
+        </div>
+      ) : dishes.length === 0 ? (
+        <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)' }}>
+          No dishes found{parsed.q ? ` for "${parsed.q}"` : ''}.
+        </div>
+      ) : (
+        <>
+          {view === 'atlas' && <AtlasView mapDishes={mapDishes} listDishes={dishes} />}
+          {view === 'index' && <IndexView dishes={dishes} />}
+          {view === 'gallery' && <GalleryView dishes={dishes} />}
+          {view === 'feed' && <FeedView dishes={dishes} />}
+        </>
+      )}
+    </section>
   );
 }

@@ -21,6 +21,7 @@ import type {
   CategoryListItem,
   DishDetailResponse,
   DishListResponse,
+  FeaturedDishesResponse,
   TagListItem,
 } from '../types/dish';
 
@@ -264,6 +265,45 @@ export function getMapDishes(
   if (params.limit != null) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
+}
+
+/**
+ * Fetch the most-connected dishes (by curated relation count) for the
+ * homepage hero card + featured rail. One request; the API clamps limit
+ * to 24. Each item carries a nullable coverMediaId — fetch a signed URL
+ * client-side only if present.
+ */
+export function getFeaturedDishes(
+  params: { limit?: number } = {},
+): Promise<FeaturedDishesResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<FeaturedDishesResponse>(`/api/dishes/featured${suffix}`);
+}
+
+export interface IngredientListItem {
+  slug: string;
+  canonicalName: string;
+  category: string | null;
+  dishCount: number;
+}
+
+export interface IngredientListResponse {
+  ingredients: IngredientListItem[];
+}
+
+/**
+ * List ingredients (each with its published-dish count). Used at build
+ * time for the homepage schema-stats tile. The API caps limit at 200.
+ */
+export function listIngredients(
+  params: { limit?: number } = {},
+): Promise<IngredientListResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<IngredientListResponse>(`/api/ingredients${suffix}`);
 }
 
 // ─── Related dishes (food-genealogy network) ────────────────────────────
