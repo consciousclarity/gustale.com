@@ -12,9 +12,16 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, inArray } from 'drizzle-orm';
 import * as schema from './schema/index.js';
-import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS } from './seed-data.js';
+import {
+  DISHES,
+  CUISINE_CATEGORIES,
+  DISH_TYPE_CATEGORIES,
+  DISH_RELATIONS,
+  COURSE_GROUPS,
+  DISH_FAMILIES,
+} from './seed-data.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -281,6 +288,11 @@ async function main(): Promise<void> {
   // ─── Encyclopedia bulk seed ────────────────────────────────────────────
   await seedEncyclopedia(db, userId);
 
+  // ─── Food-family taxonomy (Slice 1) ───────────────────────────────────
+  // After the encyclopedia so cuisine/dish-type rows exist (for the kind
+  // backfill) and the legacy `fried-rice` row exists (to be promoted).
+  await seedTaxonomy(db);
+
   // ─── Dish relations (the food-genealogy network) ──────────────────────
   await seedDishRelations(db);
 
@@ -485,6 +497,93 @@ async function seedEncyclopedia(
  * Idempotent: uses onConflictDoNothing on the (from, to, relation_type)
  * unique index. Re-running is a no-op except for any newly-added edges.
  */
+/**
+ * Seed the food-family taxonomy (Slice 1): 11 course groups + 77 families
+ * as `categories` rows, and backfill `kind` on existing cuisine rows.
+ *
+ * Idempotent via on-conflict-do-update by slug. The family insert promotes
+ * the legacy `fried-rice` dish-type row into the `fried-rice` family (same
+ * concept) — safe because category consumers match by slug, not kind.
+ */
+async function seedTaxonomy(db: ReturnType<typeof drizzle>): Promise<void> {
+  // Backfill kind on existing cuisine rows. They were inserted before the
+  // `kind` column existed, so they carry the column default ('dish-type').
+  const cuisineSlugs = CUISINE_CATEGORIES.map((c) => c.slug);
+  if (cuisineSlugs.length > 0) {
+    await db
+      .update(schema.categories)
+      .set({ kind: 'cuisine' })
+      .where(inArray(schema.categories.slug, cuisineSlugs));
+  }
+
+  // Course groups (top-level, kind='course-group', parentId null).
+  await db
+    .insert(schema.categories)
+    .values(
+      COURSE_GROUPS.map((g) => ({
+        slug: g.slug,
+        name: g.name,
+        description: g.description,
+        kind: 'course-group' as const,
+        parentId: null,
+        displayOrder: g.displayOrder,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: schema.categories.slug,
+      set: {
+        name: sql`excluded.name`,
+        description: sql`excluded.description`,
+        kind: sql`excluded.kind`,
+        parentId: sql`excluded.parent_id`,
+        displayOrder: sql`excluded.display_order`,
+      },
+    });
+
+  // Resolve course-group slug → id for the family parentIds.
+  const groups = await db
+    .select({ id: schema.categories.id, slug: schema.categories.slug })
+    .from(schema.categories)
+    .where(eq(schema.categories.kind, 'course-group'));
+  const groupIdBySlug = new Map(groups.map((g) => [g.slug, g.id]));
+
+  // Families (children, kind='family'). On-conflict update by slug also
+  // promotes the legacy `fried-rice` dish-type row into the family.
+  const familyValues = DISH_FAMILIES.map((f) => {
+    const parentId = groupIdBySlug.get(f.courseGroupSlug);
+    if (!parentId) {
+      throw new Error(
+        `Family "${f.slug}" references unknown course group "${f.courseGroupSlug}"`,
+      );
+    }
+    return {
+      slug: f.slug,
+      name: f.name,
+      description: f.description,
+      kind: 'family' as const,
+      parentId,
+      displayOrder: f.displayOrder,
+    };
+  });
+  await db
+    .insert(schema.categories)
+    .values(familyValues)
+    .onConflictDoUpdate({
+      target: schema.categories.slug,
+      set: {
+        name: sql`excluded.name`,
+        description: sql`excluded.description`,
+        kind: sql`excluded.kind`,
+        parentId: sql`excluded.parent_id`,
+        displayOrder: sql`excluded.display_order`,
+      },
+    });
+
+  console.log(
+    `  + ${COURSE_GROUPS.length} course groups + ${DISH_FAMILIES.length} families (taxonomy)`,
+  );
+}
+
 async function seedDishRelations(
   db: ReturnType<typeof drizzle>,
 ): Promise<void> {

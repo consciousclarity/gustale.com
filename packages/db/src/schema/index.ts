@@ -95,6 +95,18 @@ export const geoEntities = pgTable('geo_entities', {
 export const categorySource = ['foodon', 'wikidata', 'custom'] as const;
 export type CategorySource = typeof categorySource[number];
 
+// What kind of category a row is. Cuisines and course-groups are both
+// top-level (parentId = null), so depth alone can't tell them apart — the
+// `kind` discriminator does. `dish-type` is the legacy flat dish-type set
+// (kept for back-compat; retired in a later slice).
+export const categoryKind = [
+  'cuisine',
+  'course-group',
+  'family',
+  'dish-type',
+] as const;
+export type CategoryKind = typeof categoryKind[number];
+
 export const categories = pgTable('categories', {
   id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
   parentId: uuid('parent_id').references((): any => categories.id),
@@ -104,6 +116,7 @@ export const categories = pgTable('categories', {
   source: text('source').$type<CategorySource>().notNull().default('custom'),
   sourceId: text('source_id'),
   icon: text('icon'),
+  kind: text('kind').$type<CategoryKind>().notNull().default('dish-type'),
   displayOrder: integer('display_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -330,6 +343,15 @@ export const dishRelationType = [
   'similar-serving',
   'ancestor',
   'descendant',
+  // Slice 1 taxonomy expansion — additive, no existing data breaks.
+  'trade-route',
+  'colonial',
+  'festival-ritual',
+  'ingredient-substitution',
+  'cooking-vessel',
+  'texture',
+  'same-region',
+  'same-occasion',
 ] as const;
 export type DishRelationType = typeof dishRelationType[number];
 
