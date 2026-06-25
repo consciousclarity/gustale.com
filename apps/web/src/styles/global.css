@@ -242,6 +242,19 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
 .gst-foot .fl { display: flex; gap: 28px; font-size: 14px; }
 .gst-foot .fl a { color: var(--sub); text-decoration: none; }
 .gst-foot .fl a:hover { color: var(--accent); }
+.gst-foot .wrap { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 40px; flex-wrap: wrap; width: 100%; }
+.gst-foot .fcols { display: flex; gap: 48px; flex-wrap: wrap; }
+.gst-foot .fcol { display: flex; flex-direction: column; gap: 6px; }
+.gst-foot .fcol .h { font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--sub); margin-bottom: 2px; }
+.gst-foot .fcol a { color: var(--sub); text-decoration: none; font-size: 14px; }
+.gst-foot .fcol a:hover { color: var(--accent); }
+
+/* Nav Contribute CTA */
+.gst-cta { background: var(--accent); color: var(--accent-ink); padding: 8px 16px;
+  border-radius: 7px; font-weight: 600; text-decoration: none; font-size: 14px; white-space: nowrap; }
+.gst-cta:hover { filter: brightness(1.05); }
 
 /* ============================================================
    PAGE-SPECIFIC — DISHES LIST

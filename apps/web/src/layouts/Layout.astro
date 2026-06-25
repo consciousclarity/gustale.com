@@ -39,6 +39,7 @@ const isGeo = domain === 'geo';
         </div>
 
         <div class="gst-navr">
+          <a href="/dishes/new" class="gst-cta">Contribute</a>
           <AuthMenu client:load />
         </div>
       </div>
@@ -54,11 +55,23 @@ const isGeo = domain === 'geo';
           <div class="fm">Gustale</div>
           <div class="fcap">Open knowledge, slow cooking — {new Date().getFullYear()}</div>
         </div>
-        <div class="fl">
-          <a href="/about">About</a>
-          <a href="/dishes">Dishes</a>
-          <a href="/families">Families</a>
-          <a href="/map">Map</a>
+        <div class="fcols">
+          <div class="fcol">
+            <span class="h">Browse</span>
+            <a href="/dishes">Dishes</a>
+            <a href="/families">Families</a>
+            <a href="/lineages">Lineages</a>
+          </div>
+          <div class="fcol">
+            <span class="h">Discover</span>
+            <a href="/">Atlas</a>
+            {isGeo && <a href="/map">Map</a>}
+          </div>
+          <div class="fcol">
+            <span class="h">About</span>
+            <a href="/about">About</a>
+            <a href="/dishes/new">Contribute</a>
+          </div>
         </div>
       </div>
     </footer>
