@@ -1,0 +1,208 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { ApiError, listDishes } from '../../lib/api';
+import type { DishListResponse } from '../../types/dish';
+
+// ---------------------------------------------------------------------------
+// Food-family page.
+//
+// URL pattern: /family/[slug]
+// `slug` is a category slug (cuisine OR dish-type) — the same set that
+// powers the `?category=` filter on /api/dishes.
+//
+// We reuse the families page's taxonomy names + descriptions, but unlike
+// /families (which groups EVERYTHING by preparation method across the
+// full encyclopedia), /family/[slug] is a single-cluster deep dive.
+// ---------------------------------------------------------------------------
+
+export async function getStaticPaths() {
+  // We don't know the category list at module-eval time without querying,
+  // but the web app is fully static. Astro's `getStaticPaths` runs at
+  // build time so we can fetch them from the API.
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) return [];
+
+  try {
+    const res = await fetch(`${apiBase}/api/categories`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      categories: Array<{ slug: string; name: string; description: string | null }>;
+    };
+
+    // Build a slug → { name, description } map we can reference from each
+    // page's frontmatter.
+    return json.categories.map((c) => ({
+      params: { slug: c.slug },
+      props: { name: c.name, description: c.description },
+    }));
+  } catch {
+    return [];
+  }
+}
+
+const { slug } = Astro.params;
+const { name: familyName, description: familyDescription } = Astro.props as {
+  name: string;
+  description: string | null;
+};
+
+let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
+let serverError: string | null = null;
+
+try {
+  initial = await listDishes({ status: 'published', limit: 100, category: slug });
+} catch (err: unknown) {
+  if (err instanceof ApiError) {
+    serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
+  } else if (err instanceof Error) {
+    serverError = err.message;
+  } else {
+    serverError = 'Unknown error';
+  }
+}
+
+// Group the family by region (cuisine) so the page surfaces another
+// relation axis at a glance.
+const byRegion = new Map<string, typeof initial.dishes>();
+for (const d of initial.dishes) {
+  // Origin name is the country/region string — see DishSummary.originName.
+  const region = d.originName ?? 'Unknown origin';
+  const bucket = byRegion.get(region) ?? [];
+  bucket.push(d);
+  byRegion.set(region, bucket);
+}
+const sortedRegions = [...byRegion.entries()].sort((a, b) => b[1].length - a[1].length);
+
+const totalDishes = initial.dishes.length;
+const totalRegions = byRegion.size;
+
+// Editorial descriptions for well-known families. Unrecognized slugs
+// fall back to the description from the categories API.
+const KNOWN_BLURBS: Record<string, string> = {
+  dumpling: 'A pocket of dough and a filling — the same idea born on trade routes, carried by migration, and reinvented in every kitchen that received it. From Central Asia outward: the dumpling is everywhere.',
+  'noodle-soup': 'Stretched, cut, or rolled dough dropped into broth — a form that follows the Silk Road east and south through every coast it touched. Climate and ingredient swap everything; the logic stays the same.',
+  bread: 'Fire and grain: the oldest covenant in food. The same flat or leavened disc of dough appears at every latitude where people settled and built ovens.',
+  pancake: 'The griddle predates the oven. A poured batter, a hot flat surface — this technique crossed deserts and oceans independently, arriving at injera, dosa, blini, and crepe without knowing the others existed.',
+  stew: 'Slow time and a sealed vessel: patience in cooking has no single origin. The stew is wherever people wait for flavors to merge — clay pot, tagine, cast iron, banana leaf.',
+  curry: 'Spice, fat, and aromatics ground together as a base — a technique as much as a dish. Trade in pepper, turmeric, and chili wrote the migration routes; the curry shows where those routes led.',
+  pasta: 'Dried grain shaped into strands or sheets — a technology of preservation and trade. Its travel west from China or east from Persia is debated; its spread across the Mediterranean is history.',
+  kebab: 'Meat on heat, over fire — one of the first cooking techniques. The skewer traces nomadic routes across the steppe and down through the Levant, each stop reshaping the cut and the spice.',
+  salad: 'Small plates assembled from what\'s available: preserved, fermented, or raw. The logic of preservation and contrast appears wherever kitchens needed to stretch ingredients across seasons.',
+  dessert: 'Sugar, fat, and starch shaped into celebration. Sweet preparations followed trade in cane, honey, and fruit — gifted between courts, carried by merchants, adapted by every cuisine that received them.',
+  'rice-dish': 'Rice as the centre of the plate — fried, steamed, layered, or risotto-style. The grain travels everywhere and the technique adapts to the kitchen.',
+  'fried-rice': 'Leftover cooked grain meets high heat — a technique born of frugality that became a craft. The wok, the griddle, the clay pot: the method travels with the grain.',
+  'omelettes-and-scrambles': 'The egg as a medium: technique separates every culture\'s answer. Same raw material, wholly different results from tamagoyaki to shakshuka to tortilla.',
+  casserole: 'Layered and baked dishes that turn patience and a hot oven into a single communal plate — lasagna, moussaka, pastitsada, the whole family of slow-bake comfort food.',
+  appetizer: 'Small opening courses and snacks — the meze, the antipasto, the fritter, the small plate that frames the meal.',
+  'main-course': 'Substantial primary plates that anchor the meal.',
+};
+const blurb = KNOWN_BLURBS[slug] ?? familyDescription ?? null;
+---
+
+<Layout
+  title={`${familyName} — Gustale`}
+  description={blurb ?? `Browse Gustale's ${familyName.toLowerCase()} dishes.`}
+>
+
+  {/* ─── Breadcrumb ───────────────────────────────────────────── */}
+  <div class="wrap">
+    <nav class="fam-crumb" aria-label="Breadcrumb">
+      <a href="/dishes">Dishes</a>
+      <span class="sep">›</span>
+      <a href="/families">Families</a>
+      <span class="sep">›</span>
+      <span>{familyName}</span>
+    </nav>
+  </div>
+
+  {/* ─── Hero ──────────────────────────────────────────────────── */}
+  <section class="fam-hero wrap">
+    <p class="eyebrow">Food family · {totalDishes} {totalDishes === 1 ? 'dish' : 'dishes'} · {totalRegions} {totalRegions === 1 ? 'region' : 'regions'}</p>
+    <h1>
+      The {familyName.toLowerCase()}<br />
+      <em>family</em>.
+    </h1>
+    {blurb && <p class="sub">{blurb}</p>}
+
+    {totalRegions > 0 && (
+      <div class="fam-stats">
+        {sortedRegions.slice(0, 6).map(([region, dishes]) => (
+          <div class="s">
+            <b>{dishes.length}</b>
+            <span>{region}</span>
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
+
+  {serverError && (
+    <div class="wrap" style="padding-top: 24px;">
+      <div class="alert alert-warning">
+        <strong>Heads up:</strong> the gustale-api could not be reached at build time ({serverError}). Showing an empty list — refresh once the API is up.
+      </div>
+    </div>
+  )}
+
+  {/* ─── Dish grid ─────────────────────────────────────────────── */}
+  {sortedRegions.map(([region, dishes]) => (
+    <section class="fam-group wrap" data-region={region}>
+      <header class="fam-group__head">
+        <div>
+          <span class="eyebrow">{region}</span>
+          <h2>{dishes.length} {dishes.length === 1 ? 'dish' : 'dishes'} from {region}</h2>
+        </div>
+        <span class="mono-sub">{dishes.length}</span>
+      </header>
+
+      <ul class="fam-grid">
+        {dishes.map((d) => (
+          <li>
+            <a href={`/dishes/${d.slug}`} class="fam-tile">
+              <h3>{d.canonicalName}</h3>
+              {d.shortDescription && <p class="def">{d.shortDescription}</p>}
+              <div class="foot">
+                <span class="counts mono-sub">{d.methodSlug ?? '—'}</span>
+                <span class="go">Explore <span class="arr">→</span></span>
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+
+  {totalDishes === 0 && (
+    <section class="wrap" style="padding: 60px 0;">
+      <p class="alert alert-warning">
+        No published dishes in the <code>{slug}</code> family yet.
+        Check back as the encyclopedia grows.
+      </p>
+    </section>
+  )}
+
+  {/* ─── Related families ──────────────────────────────────────── */}
+  <section class="wrap" style="padding: 40px 0 60px;">
+    <p class="eyebrow">Continue exploring</p>
+    <h2 class="fam-related-h">Other food families</h2>
+    <div class="fam-related-grid">
+      <a href="/families" class="fam-related-card">
+        <span class="mono-sub">All families</span>
+        <span>Browse every cluster side by side</span>
+      </a>
+      <a href="/lineages" class="fam-related-card">
+        <span class="mono-sub">By provenance</span>
+        <span>See how dishes traveled between regions</span>
+      </a>
+      <a href="/map" class="fam-related-card">
+        <span class="mono-sub">Atlas</span>
+        <span>Plot this family on the world map</span>
+      </a>
+      <a href="/dishes" class="fam-related-card">
+        <span class="mono-sub">All dishes</span>
+        <span>Every dish in the encyclopedia</span>
+      </a>
+    </div>
+  </section>
+
+</Layout>

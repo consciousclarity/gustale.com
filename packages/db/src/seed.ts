@@ -14,7 +14,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './schema/index.js';
-import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES } from './seed-data.js';
+import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS } from './seed-data.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -278,8 +278,11 @@ async function main(): Promise<void> {
       .onConflictDoNothing();
   }
 
-  // ─── Encyclopedia bulk seed ───────────────────────────────────────────
+  // ─── Encyclopedia bulk seed ────────────────────────────────────────────
   await seedEncyclopedia(db, userId);
+
+  // ─── Dish relations (the food-genealogy network) ──────────────────────
+  await seedDishRelations(db);
 
   console.log(`\nSeed complete. Test dish: ${moussakaSlug}`);
   console.log(`\nTry: curl http://localhost:4000/api/dishes/${moussakaSlug} | jq .`);
@@ -466,6 +469,76 @@ async function seedEncyclopedia(
 
   console.log(`  + ${inserted} new dishes inserted, ${skipped} already existed`);
   console.log(`  Total in encyclopedia: ${DISHES.length} dishes`);
+}
+
+/**
+ * Seed the curated dish-relations network.
+ *
+ * For each entry in DISH_RELATIONS we insert TWO rows: the directed edge
+ * (from → to) and the reverse edge (to → from), both with the same reason
+ * and strength. The UI looks up relations by dish id from either side so
+ * we always see them when navigating from either dish.
+ *
+ * Skips relations whose slugs reference a dish that doesn't exist (with a
+ * warning), so partial seeder runs don't fail loudly.
+ *
+ * Idempotent: uses onConflictDoNothing on the (from, to, relation_type)
+ * unique index. Re-running is a no-op except for any newly-added edges.
+ */
+async function seedDishRelations(
+  db: ReturnType<typeof drizzle>,
+): Promise<void> {
+  // Build slug → dishId lookup for all currently published dishes.
+  const allDishes = await db
+    .select({ id: schema.dishes.id, slug: schema.dishes.slug })
+    .from(schema.dishes);
+  const idBySlug = new Map(allDishes.map((d) => [d.slug, d.id]));
+
+  // Collect every directed edge: original + reverse.
+  type Edge = { fromDishId: string; toDishId: string; relationType: schema.DishRelationType; reason: string | null; strength: number };
+  const edges: Edge[] = [];
+  let missing = 0;
+  for (const r of DISH_RELATIONS) {
+    const fromId = idBySlug.get(r.from);
+    const toId = idBySlug.get(r.to);
+    if (!fromId || !toId) {
+      missing++;
+      continue;
+    }
+    edges.push({
+      fromDishId: fromId,
+      toDishId: toId,
+      relationType: r.relationType,
+      reason: r.reason,
+      strength: r.strength,
+    });
+    edges.push({
+      fromDishId: toId,
+      toDishId: fromId,
+      relationType: r.relationType,
+      reason: r.reason,
+      strength: r.strength,
+    });
+  }
+
+  if (missing > 0) {
+    console.warn(`  ! ${missing} relation entries reference unknown dish slugs (skipped)`);
+  }
+
+  // Insert in chunks of 100 to avoid huge single-statement payloads.
+  const CHUNK = 100;
+  let inserted = 0;
+  for (let i = 0; i < edges.length; i += CHUNK) {
+    const slice = edges.slice(i, i + CHUNK);
+    const res = await db
+      .insert(schema.dishRelations)
+      .values(slice)
+      .onConflictDoNothing()
+      .returning({ id: schema.dishRelations.id });
+    inserted += res.length;
+  }
+
+  console.log(`  + ${inserted} dish-relation edges inserted (${DISH_RELATIONS.length} curated pairs × 2)`);
 }
 
 main().catch((err) => {
