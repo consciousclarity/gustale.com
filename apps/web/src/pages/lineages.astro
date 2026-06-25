@@ -1,13 +1,31 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { ApiError, listDishes } from '../lib/api';
+import { ApiError, listDishes, getMapDishes } from '../lib/api';
 import type { DishListResponse, DishSummary } from '../types/dish';
 
+// ---------------------------------------------------------------------------
+// Server-side data fetch.
+// We need two things: dish list (for grouping + names) and the map endpoint
+// (for lat/lng to plot on the origins map). Both run in parallel.
+// ---------------------------------------------------------------------------
 let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
 let serverError: string | null = null;
+let mapDishes: { slug: string; lat: number; lng: number; regionName: string }[] = [];
 
 try {
-  initial = await listDishes({ status: 'published', limit: 100 });
+  const [list, mapRes] = await Promise.all([
+    listDishes({ status: 'published', limit: 100 }),
+    getMapDishes({ limit: 200 }).catch(() => ({ dishes: [] as any[], count: 0 })),
+  ]);
+  initial = list;
+  mapDishes = (mapRes.dishes ?? [])
+    .filter((d: any) => d.lat != null && d.lng != null)
+    .map((d: any) => ({
+      slug: d.slug,
+      lat: d.lat,
+      lng: d.lng,
+      regionName: d.region?.name ?? '',
+    }));
 } catch (err: unknown) {
   if (err instanceof ApiError) {
     serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
@@ -18,19 +36,25 @@ try {
   }
 }
 
-// Group dishes by preparation method (same source as Families).
-// Each group becomes one "lineage" — a culinary idea traced across regions.
+// Index map data by dish slug for O(1) lookup.
+const coordBySlug = new Map(mapDishes.map((m) => [m.slug, m]));
+
+// ---------------------------------------------------------------------------
+// Group dishes by preparation method (a.k.a. family) → "lineage".
+// Each lineage is an idea traced across regions.
+// ---------------------------------------------------------------------------
 const groups = new Map<string, DishSummary[]>();
 for (const d of initial.dishes) {
   const key = d.methodSlug ?? 'other';
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key)!.push(d);
 }
-
-// Sort largest lineage first (most dishes = widest spread)
 const sortedGroups = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
 
-// Human-readable lineage names
+// ---------------------------------------------------------------------------
+// Lineage labels, narrative, and color (color matches the family palette
+// used elsewhere so the two pages feel like one system).
+// ---------------------------------------------------------------------------
 const LINEAGE_LABELS: Record<string, string> = {
   'poached-in-sauce':       'Poached in sauce',
   'omelettes-and-scrambles':'Omelettes & scrambles',
@@ -51,195 +75,534 @@ const LINEAGE_LABELS: Record<string, string> = {
   other:                    'Other preparations',
 };
 
-// Provenance narrative for each lineage family
 const LINEAGE_STORY: Record<string, string> = {
-  'dumpling':
+  dumpling:
     'A pocket of dough and a filling — the same idea born on trade routes, carried by migration, and reinvented in every kitchen that received it. From Central Asia outward: the dumpling is everywhere.',
   'noodle-soup':
     'Stretched, cut, or rolled dough dropped into broth — a form that follows the Silk Road east and south through every coast it touched. Climate and ingredient swap everything; the logic stays the same.',
-  'bread':
+  bread:
     'Fire and grain: the oldest covenant in food. The same flat or leavened disc of dough appears at every latitude where people settled and built ovens.',
-  'pancake':
+  pancake:
     'The griddle predates the oven. A poured batter, a hot flat surface — this technique crossed deserts and oceans independently, arriving at injera, dosa, blini, and crepe without knowing the others existed.',
-  'stew':
+  stew:
     'Slow time and a sealed vessel: patience in cooking has no single origin. The stew is wherever people wait for flavors to merge — clay pot, tagine, cast iron, banana leaf.',
-  'curry':
+  curry:
     'Spice, fat, and aromatics ground together as a base — a technique as much as a dish. Trade in pepper, turmeric, and chili wrote the migration routes; the curry shows where those routes led.',
-  'pasta':
+  pasta:
     'Dried grain shaped into strands or sheets — a technology of preservation and trade. Its travel west from China or east from Persia is debated; its spread across the Mediterranean is history.',
   'omelettes-and-scrambles':
-    'The egg as a medium: technique separates every culture\'s answer. Same raw material, wholly different results from Japan\'s tamagoyaki to Tunisia\'s shakshuka to Spain\'s tortilla.',
-  'kebab':
+    "The egg as a medium: technique separates every culture's answer. Same raw material, wholly different results from Japan's tamagoyaki to Tunisia's shakshuka to Spain's tortilla.",
+  kebab:
     'Meat on heat, over fire — one of the first cooking techniques. The skewer traces nomadic routes across the steppe and down through the Levant, each stop reshaping the cut and the spice.',
-  'salad':
-    'Small plates assembled from what\'s available: preserved, fermented, or raw. The logic of preservation and contrast appears wherever kitchens needed to stretch ingredients across seasons.',
-  'dessert':
+  salad:
+    "Small plates assembled from what's available: preserved, fermented, or raw. The logic of preservation and contrast appears wherever kitchens needed to stretch ingredients across seasons.",
+  dessert:
     'Sugar, fat, and starch shaped into celebration. Sweet preparations followed trade in cane, honey, and fruit — gifted between courts, carried by merchants, adapted by every cuisine that received them.',
   'fried-rice':
     'Leftover cooked grain meets high heat — a technique born of frugality that became a craft. The wok, the griddle, the clay pot: the method travels with the grain.',
-  'other':
+  other:
     'Preparations that resist easy category — hybrids of technique, crossings of tradition, and dishes that belong to the spaces between lineages.',
 };
 
+// Distinct color per lineage — reuses the family palette so Families and
+// Lineages feel like one system. Falls back to a stable hash-based color.
+const PALETTE = [
+  '#B8542A', '#C99A48', '#A0522D', '#8B7355', '#6E7F4E',
+  '#C9A849', '#D4A853', '#7A8B5C', '#C4706B', '#3F7C8C',
+  '#5E6B3A', '#6B6052',
+];
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function colorFor(slug: string): string {
+  const idx = hashStr(slug) % PALETTE.length;
+  return PALETTE[idx];
+}
+
 function labelFor(slug: string): string {
-  if (LINEAGE_LABELS[slug]) return LINEAGE_LABELS[slug];
-  return slug.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+  return LINEAGE_LABELS[slug] ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
 }
 
 function storyFor(slug: string): string {
-  if (LINEAGE_STORY[slug]) return LINEAGE_STORY[slug];
-  return 'A culinary form found across multiple traditions — shaped by the same human impulse, expressed in different kitchens.';
+  return LINEAGE_STORY[slug] ?? 'A culinary form found across multiple traditions — shaped by the same human impulse, expressed in different kitchens.';
 }
 
-// Collect unique origin geo IDs per group (display as placeholder until geo names are resolved)
-function regionsFor(_dishes: DishSummary[]): string[] {
-  // Region names require a geo lookup — omit tags for now until the list API includes geo names
-  return [];
+// ---------------------------------------------------------------------------
+// Origins map projection.
+// Simple equirectangular on a 1200×800 viewBox. x = (lng+180)/360*1200,
+// y = (90-lat)/180*800. Good enough for "where are these dishes roughly".
+// ---------------------------------------------------------------------------
+type Node = { slug: string; name: string; region: string; x: number; y: number; lineage: string };
+type Arc  = { from: Node; to: Node; lineage: string };
+
+function project(lat: number, lng: number): { x: number; y: number } {
+  const x = ((lng + 180) / 360) * 1200;
+  const y = ((90 - lat) / 180) * 800;
+  return { x, y };
 }
+
+// Build all origin nodes (one per dish that has coordinates).
+const allNodes: Node[] = [];
+for (const d of initial.dishes) {
+  const m = coordBySlug.get(d.slug);
+  if (!m) continue;
+  const { x, y } = project(m.lat, m.lng);
+  allNodes.push({
+    slug: d.slug,
+    name: d.canonicalName,
+    region: m.regionName || d.originName || '',
+    x, y,
+    lineage: d.methodSlug ?? 'other',
+  });
+}
+
+// Build arc set: for each lineage with ≥2 plotted dishes, connect
+// consecutive nodes when sorted by longitude (east→west flow).
+const arcs: Arc[] = [];
+for (const [slug, dishes] of sortedGroups) {
+  const plotted = dishes
+    .map((d) => allNodes.find((n) => n.slug === d.slug))
+    .filter((n): n is Node => !!n);
+  if (plotted.length < 2) continue;
+  plotted.sort((a, b) => a.x - b.x);
+  for (let i = 0; i < plotted.length - 1; i++) {
+    const a = plotted[i];
+    const b = plotted[i + 1];
+    // Skip arcs that span more than half the map (probably artefacts).
+    if (Math.abs(a.x - b.x) > 900) continue;
+    arcs.push({ from: a, to: b, lineage: slug });
+  }
+}
+
+// Distinct origins (dedup by region name) for the "26 regions" stat.
+const uniqueRegions = new Set(
+  initial.dishes.map((d) => d.originName).filter((n): n is string => !!n),
+);
+
+// ---------------------------------------------------------------------------
+// Per-lineage display data + featured pick (the largest lineage).
+// ---------------------------------------------------------------------------
+type LineageRow = {
+  slug: string;
+  label: string;
+  story: string;
+  color: string;
+  dishes: DishSummary[];
+  dishCount: number;
+  regionCount: number;
+  regionTags: string[];
+  tone: 'solid' | 'open' | 'ghost';
+};
+
+const lineages: LineageRow[] = sortedGroups.map(([slug, dishes], i) => {
+  // Top 4 distinct origin names → shown as region chips on the card.
+  const regions = Array.from(
+    new Set(dishes.map((d) => d.originName).filter((n): n is string => !!n)),
+  ).slice(0, 4);
+  // Status tone: featured lineage = solid; large lineages = open; small = ghost.
+  let tone: 'solid' | 'open' | 'ghost' = 'open';
+  if (i === 0) tone = 'solid';
+  else if (dishes.length >= 3) tone = 'open';
+  else tone = 'ghost';
+  return {
+    slug,
+    label: labelFor(slug),
+    story: storyFor(slug),
+    color: colorFor(slug),
+    dishes,
+    dishCount: dishes.length,
+    regionCount: regions.length,
+    regionTags: regions,
+    tone,
+  };
+});
+
+const featured = lineages[0];
+
+// Per-lineage signature SVG — abstract motif, parameterized by color.
+// Three "stems" radiating from a center dot, with a few dots. Reads as
+// "sprouting" without being literal food imagery.
+function signatureSvg(color: string): string {
+  return `
+    <svg viewBox="0 0 200 132" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="${color}" stroke-width="1.6" fill="none" opacity="0.55">
+        <path d="M100 78 Q70 50 50 30" />
+        <path d="M100 78 Q130 50 150 30" />
+        <path d="M100 78 Q100 50 100 22" />
+        <path d="M100 78 Q75 95 60 110" />
+        <path d="M100 78 Q125 95 140 110" />
+      </g>
+      <g fill="${color}">
+        <circle cx="50"  cy="30"  r="4.5" />
+        <circle cx="150" cy="30"  r="4.5" />
+        <circle cx="100" cy="22"  r="4.5" />
+        <circle cx="60"  cy="110" r="4.5" />
+        <circle cx="140" cy="110" r="4.5" />
+        <circle cx="100" cy="78"  r="7" />
+      </g>
+    </svg>`;
+}
+
+// Build arcs SVG markup. Each arc gets data-lineage for the filter script.
+const arcsMarkup = arcs
+  .map((a) => {
+    const c = colorFor(a.lineage);
+    // Quadratic Bézier: control point lifted above the midpoint to give
+    // a gentle arc rather than a straight line.
+    const mx = (a.from.x + a.to.x) / 2;
+    const my = (a.from.y + a.to.y) / 2;
+    const cx = mx;
+    const cy = my - 40;
+    return `<path class="lx-arc" data-lineage="${a.lineage}" d="M${a.from.x.toFixed(0)} ${a.from.y.toFixed(0)} Q${cx.toFixed(0)} ${cy.toFixed(0)} ${a.to.x.toFixed(0)} ${a.to.y.toFixed(0)}" stroke="${c}" stroke-width="3" stroke-opacity="0.7"/>`;
+  })
+  .join('\n      ');
+
+// Build origin-node SVG markup.
+const nodesMarkup = allNodes
+  .map((n) => {
+    const c = colorFor(n.lineage);
+    const label = n.region || n.name;
+    return `
+        <g class="lx-onode" data-lineage="${n.lineage}" data-slug="${n.slug}">
+          <circle class="halo" cx="${n.x.toFixed(0)}" cy="${n.y.toFixed(0)}" r="14"/>
+          <circle class="dot"  cx="${n.x.toFixed(0)}" cy="${n.y.toFixed(0)}" r="6" fill="${c}"/>
+          <text x="${(n.x + 10).toFixed(0)}" y="${(n.y + 4).toFixed(0)}">${label}</text>
+        </g>`;
+  })
+  .join('\n      ');
+
+// Build legend chip markup — one per lineage that actually has plotted nodes.
+const legendLineages = Array.from(new Set(allNodes.map((n) => n.lineage)));
+const legendMarkup = legendLineages
+  .map((slug) => `
+    <button class="chip" data-lineage="${slug}" data-active="1">
+      <span class="sw" style="background:${colorFor(slug)}"></span>${labelFor(slug)}
+    </button>`)
+  .join('');
 
 const totalLineages = sortedGroups.length;
 const totalDishes = initial.dishes.length;
+const totalOrigins = mapDishes.length;
 ---
 
-<Layout title="Lineages — Gustale">
+<Layout
+  title="Lineages — Gustale"
+  description="Trace the paths food travels. Lineages gather dishes by preparation method and follow them across regions."
+>
 
-  {/* ── Hero ── */}
-  <section class="mx-auto max-w-5xl px-4 pt-16 pb-12 md:pt-24">
-    <p class="mb-3 font-mono text-xs font-medium tracking-widest text-[#B8552F] uppercase">
-      By provenance · {totalLineages} lineages
-    </p>
-    <h1 class="font-serif text-4xl leading-tight text-slate-900 md:text-6xl md:leading-[1.08]">
-      The paths food <em class="font-serif italic not-italic" style="font-style:italic">travels</em>.
-    </h1>
-    <p class="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
-      Before a dish has a name, it has a lineage — an idea that crossed a border, changed hands,
-      and arrived somewhere new wearing different clothes. Lineages trace those journeys.
-    </p>
+  {/* ─── Breadcrumb ─────────────────────────────────────────────── */}
+  <div class="wrap">
+    <nav class="lx-crumb" aria-label="Breadcrumb">
+      <a href="/">Atlas</a>
+      <span class="sep">›</span>
+      <a href="/dishes">Dishes</a>
+      <span class="sep">›</span>
+      <a href="/families">Families</a>
+      <span class="sep">›</span>
+      <span>Lineages</span>
+    </nav>
+  </div>
 
-    <div class="mt-8 flex gap-8">
-      <div>
-        <div class="text-3xl font-semibold tabular-nums text-slate-900">{totalLineages}</div>
-        <div class="mt-0.5 font-mono text-[11px] tracking-widest text-slate-400 uppercase">Lineages</div>
-      </div>
-      <div class="w-px bg-slate-200"></div>
-      <div>
-        <div class="text-3xl font-semibold tabular-nums text-slate-900">{totalDishes}</div>
-        <div class="mt-0.5 font-mono text-[11px] tracking-widest text-slate-400 uppercase">Dishes</div>
-      </div>
-      <div class="w-px bg-slate-200"></div>
-      <div>
-        <div class="text-3xl font-semibold tabular-nums text-slate-900">26</div>
-        <div class="mt-0.5 font-mono text-[11px] tracking-widest text-slate-400 uppercase">Regions</div>
+  {/* ─── Hero ──────────────────────────────────────────────────── */}
+  <section class="lx-hero wrap">
+    <div>
+      <p class="lx-eyebrow">The long threads · {totalLineages} lineages</p>
+      <h1 class="lx-title">The paths food <em>travels</em>.</h1>
+      <p class="lx-intro">
+        Before a dish has a name, it has a lineage — an idea that crossed a
+        border, changed hands, and arrived somewhere new wearing different
+        clothes. Lineages trace those journeys.
+      </p>
+      <div class="lx-stats">
+        <div class="s"><b>{totalLineages}</b><span>Lineages</span></div>
+        <div class="s"><b>{totalDishes}</b><span>Dishes</span></div>
+        <div class="s"><b>{uniqueRegions.size}</b><span>Origins</span></div>
+        <div class="s"><b>{totalOrigins}</b><span>Plotted</span></div>
       </div>
     </div>
-  </section>
 
-  {/* ── Three pillars callout ── */}
-  <section class="border-y border-slate-100 bg-slate-50">
-    <div class="mx-auto grid max-w-5xl grid-cols-3 divide-x divide-slate-200 px-4">
-      <a href="/" class="group flex flex-col gap-1 px-6 py-5 transition hover:bg-white">
-        <span class="font-mono text-[10px] tracking-widest text-slate-400 uppercase">By place</span>
-        <span class="font-medium text-slate-700 group-hover:text-slate-900">Atlas</span>
-      </a>
-      <a href="/families" class="group flex flex-col gap-1 px-6 py-5 transition hover:bg-white">
-        <span class="font-mono text-[10px] tracking-widest text-slate-400 uppercase">By form</span>
-        <span class="font-medium text-slate-700 group-hover:text-slate-900">Families</span>
-      </a>
-      <div class="flex flex-col gap-1 px-6 py-5 bg-white">
-        <span class="font-mono text-[10px] tracking-widest text-[#B8552F] uppercase">By provenance</span>
-        <span class="font-semibold text-slate-900">Lineages</span>
+    {/* ─── Origins map ─────────────────────────────────────────── */}
+    <div class="lx-mapwrap">
+      <div class="lx-map-head">
+        <h2>Origins</h2>
+        <span class="hint">Click a node or chip to isolate a lineage</span>
+      </div>
+      <svg class="lx-map-svg" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg" aria-label="World map of dish origins">
+        {/* Water background */}
+        <rect width="1200" height="800" fill="var(--water)"/>
+        {/* Schematic continent silhouettes — abstract landmasses, not geographically precise. */}
+        <g fill="var(--land)" stroke="var(--landstroke)" stroke-width="1" opacity="0.85">
+          {/* Americas */}
+          <path d="M180 220 Q220 160 280 170 L300 240 Q290 320 260 380 Q230 460 220 540 L200 620 Q180 660 200 700 L240 720 Q220 700 230 660 L260 540 Q280 440 300 360 Q320 280 310 220 Z"/>
+          {/* Eurasia */}
+          <path d="M520 140 Q620 120 720 140 L820 160 Q900 180 940 220 L960 280 Q940 340 900 360 L820 380 Q740 400 660 380 L580 360 Q540 340 520 300 Q500 260 510 200 Z"/>
+          {/* Africa */}
+          <path d="M540 380 Q580 380 620 400 L640 480 Q630 560 600 620 L580 680 Q560 700 540 680 L520 620 Q510 540 520 460 Q530 420 540 380 Z"/>
+          {/* SE Asia / India */}
+          <path d="M720 380 Q780 360 820 380 L840 440 Q820 480 780 480 L740 460 Q720 420 720 380 Z"/>
+          {/* Oceania */}
+          <path d="M880 540 Q940 520 980 540 L1000 580 Q980 620 940 620 L900 600 Q880 580 880 540 Z"/>
+        </g>
+        {/* Equator hint */}
+        <line x1="0" y1="400" x2="1200" y2="400" stroke="var(--landstroke)" stroke-width="0.6" stroke-dasharray="4 6" opacity="0.5"/>
+        {/* Arcs first (under nodes) */}
+        <g id="lx-arcs">
+          <Fragment set:html={arcsMarkup} />
+        </g>
+        {/* Nodes on top */}
+        <g id="lx-nodes">
+          <Fragment set:html={nodesMarkup} />
+        </g>
+      </svg>
+      <div class="lx-legend">
+        <button class="chip" data-lineage="all" data-active="1">
+          <span class="sw" style="background:var(--ink)"></span>All lineages
+        </button>
+        <Fragment set:html={legendMarkup} />
       </div>
     </div>
   </section>
 
   {serverError && (
-    <div class="mx-auto max-w-5xl px-4 py-4">
-      <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    <div class="wrap" style="padding-top: 8px;">
+      <div class="alert alert-warning">
         <strong>Note:</strong> the API was unreachable at build time ({serverError}). Showing empty data.
       </div>
     </div>
   )}
 
-  {/* ── Lineage cards ── */}
-  <section class="mx-auto max-w-5xl px-4 py-12">
-    <div class="grid gap-6 md:grid-cols-2">
-      {sortedGroups.map(([slug, dishes], i) => {
-        const regions = regionsFor(dishes);
-        return (
-          <article class="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-md hover:shadow-slate-100">
-            {/* Header strip */}
-            <div class="border-b border-slate-100 px-6 pt-6 pb-5">
-              <div class="mb-1 flex items-center justify-between">
-                <span class="font-mono text-[10px] tracking-widest text-slate-400 uppercase">
-                  {slug}
-                </span>
-                <span class="font-mono text-[11px] text-slate-400">
-                  {dishes.length} dishes
-                </span>
-              </div>
-              <h2 class="text-xl font-semibold text-slate-900">{labelFor(slug)}</h2>
-            </div>
-
-            {/* Story */}
-            <div class="flex flex-1 flex-col gap-4 px-6 py-5">
-              <p class="text-sm leading-relaxed text-slate-600">
-                {storyFor(slug)}
-              </p>
-
-              {regions.length > 0 && (
-                <div class="flex flex-wrap gap-1.5">
-                  {regions.map(r => (
-                    <span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 font-mono text-[10px] text-slate-500">
-                      {r}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Dish list preview */}
-            <ul class="border-t border-slate-100 divide-y divide-slate-50">
-              {dishes.slice(0, 3).map(d => (
-                <li>
-                  <a
-                    href={`/dishes/${d.slug}`}
-                    class="flex items-center justify-between px-6 py-3 text-sm transition hover:bg-slate-50"
-                  >
-                    <span class="font-medium text-slate-800">{d.canonicalName}</span>
-                    <span class="font-mono text-[11px] text-slate-400">→</span>
-                  </a>
-                </li>
-              ))}
-              {dishes.length > 3 && (
-                <li>
-                  <a
-                    href="/families"
-                    class="flex items-center justify-between px-6 py-3 text-sm text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
-                  >
-                    <span>{dishes.length - 3} more in this lineage</span>
-                    <span class="font-mono text-[11px]">→</span>
-                  </a>
-                </li>
-              )}
-            </ul>
-          </article>
-        );
-      })}
-    </div>
-  </section>
-
-  {/* ── Closing CTA ── */}
-  <section class="mx-auto max-w-5xl px-4 pb-20 pt-4">
-    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-8 py-10 text-center">
-      <p class="font-mono text-xs tracking-widest text-slate-400 uppercase">Every lineage lives on the map</p>
-      <h2 class="mt-3 text-2xl font-semibold text-slate-900">See where each lineage spread.</h2>
-      <p class="mt-2 text-sm text-slate-500">Open the atlas and follow the migration routes yourself.</p>
-      <a
-        href="/map"
-        class="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+  {/* ─── Featured lineage ──────────────────────────────────────── */}
+  {featured && (
+    <section class="wrap">
+      <div class="lx-shead">
+        <h2>Featured lineage</h2>
+        <span class="sub">Largest spread · {featured.dishCount} dishes · {featured.regionCount} regions</span>
+      </div>
+      <article
+        class="lx-feat"
+        style={`--feat: ${featured.color}`}
+        data-lineage={featured.slug}
       >
-        Open the atlas →
-      </a>
+        <div class="lx-feat-sig" set:html={signatureSvg(featured.color)} />
+        <div class="lx-feat-body">
+          <p class="lx-feat-tag">{featured.slug}</p>
+          <h3>{featured.label}</h3>
+          <p class="lx-feat-meta">
+            {featured.dishCount} dishes · {featured.regionCount} regions
+          </p>
+          <p>{featured.story}</p>
+          <div class="lx-feat-foot">
+            <div class="lx-feat-stats">
+              <div class="s"><b>{featured.dishCount}</b><span>Dishes</span></div>
+              <div class="s"><b>{featured.regionCount}</b><span>Regions</span></div>
+            </div>
+            <a class="btn-accent lx-feat-cta" href={`/families#${featured.slug}`}>
+              Explore lineage →
+            </a>
+          </div>
+        </div>
+      </article>
+    </section>
+  )}
+
+  {/* ─── Toolbar (filters) ─────────────────────────────────────── */}
+  <section class="wrap">
+    <div class="lx-toolbar">
+      <div class="lx-filters" role="tablist" aria-label="Filter lineages">
+        <button data-filter="all" data-on="1">All</button>
+        <button data-filter="solid" data-on="0">Featured</button>
+        <button data-filter="open" data-on="0">Open</button>
+        <button data-filter="ghost" data-on="0">Small</button>
+      </div>
+      <span class="lx-tb-spacer"></span>
+      <span class="lx-count">Showing <b id="lx-count">{lineages.length}</b> lineages</span>
+    </div>
+
+    {/* ─── Card grid ─────────────────────────────────────────── */}
+    <div class="lx-grid">
+      {lineages.map((row) => (
+        <a
+          href={`/families#${row.slug}`}
+          class="lx-card"
+          data-tone={row.tone}
+          data-lineage={row.slug}
+          data-status={row.tone}
+          style={`--cardcol: ${row.color}`}
+        >
+          <div class="lx-card-sig" set:html={signatureSvg(row.color)}>
+            <span class="lx-card-status" data-tone={row.tone}>
+              {row.tone === 'solid' ? 'Featured' : row.tone === 'open' ? 'Open' : 'Small'}
+            </span>
+          </div>
+          <div class="lx-card-body">
+            <h3>{row.label}</h3>
+            <p class="lx-card-meta">
+              {row.slug} · {row.dishCount} dishes
+            </p>
+            <p>{row.story}</p>
+            {row.regionTags.length > 0 && (
+              <div class="lx-chips">
+                {row.regionTags.map((r) => (
+                  <span class="vchip">{r}</span>
+                ))}
+              </div>
+            )}
+            <div class="lx-card-foot">
+              <span class="nums">{row.dishCount} dishes · {row.regionCount} regions</span>
+              <span class="go">Explore →</span>
+            </div>
+          </div>
+        </a>
+      ))}
     </div>
   </section>
+
+  {/* ─── Contribute band ──────────────────────────────────────── */}
+  <section class="wrap">
+    <div class="lx-cta-band">
+      <div>
+        <h3>Every lineage lives on the map.</h3>
+        <p>Open the atlas and follow the migration routes yourself — or
+          contribute a dish and add a new point to the lineage you care about.</p>
+      </div>
+      <div class="lx-cta-actions">
+        <a href="/map" class="btn-accent">Open the atlas →</a>
+        <a href="/dishes/new" class="lx-cta-ghost">Add a dish</a>
+      </div>
+    </div>
+  </section>
+
 </Layout>
+
+<script>
+  // -------------------------------------------------------------------------
+  // Filter interactions — two axes, both share state:
+  //   1. Map legend chips: highlight a single lineage (dim everything else).
+  //   2. Toolbar pills: filter cards by status (all / solid / open / ghost).
+  // Hovering an origin node also pulses its matching card.
+  // -------------------------------------------------------------------------
+  (function () {
+    const arcs   = document.querySelectorAll<SVGPathElement>('.lx-arc');
+    const nodes  = document.querySelectorAll<SVGGElement>('.lx-onode');
+    const cards  = document.querySelectorAll<HTMLElement>('.lx-card');
+    const mapChips = document.querySelectorAll<HTMLButtonElement>('.lx-legend .chip');
+    const tbBtns = document.querySelectorAll<HTMLButtonElement>('.lx-filters button');
+    const countEl = document.getElementById('lx-count');
+
+    let activeLineage: string | null = null;
+    let activeTone: string = 'all';
+
+    function apply() {
+      // Cards: visible iff lineage matches (or "all") AND tone matches.
+      let visible = 0;
+      cards.forEach((card) => {
+        const lineage = card.dataset.lineage ?? '';
+        const tone = card.dataset.tone ?? '';
+        const lineageOk = activeLineage === null || lineage === activeLineage;
+        const toneOk = activeTone === 'all' || tone === activeTone;
+        const show = lineageOk && toneOk;
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+        card.dataset.active = lineageOk && tone === 'solid' ? '1' : '0';
+      });
+
+      // Map arcs: dim those not matching active lineage.
+      arcs.forEach((arc) => {
+        const lin = arc.getAttribute('data-lineage') ?? '';
+        const dim = activeLineage !== null && lin !== activeLineage;
+        arc.setAttribute('data-dim', dim ? '1' : '0');
+      });
+
+      // Map nodes: highlight active lineage.
+      nodes.forEach((node) => {
+        const lin = node.getAttribute('data-lineage') ?? '';
+        node.setAttribute('data-active', activeLineage === null || lin === activeLineage ? '0' : (lin === activeLineage ? '1' : '0'));
+      });
+
+      // Map chips: mark the active one.
+      mapChips.forEach((chip) => {
+        const lin = chip.getAttribute('data-lineage') ?? 'all';
+        const match = (activeLineage === null && lin === 'all') || (activeLineage !== null && lin === activeLineage);
+        chip.setAttribute('data-active', match ? '1' : '0');
+      });
+
+      if (countEl) countEl.textContent = String(visible);
+    }
+
+    function setLineage(lineage: string | null) {
+      activeLineage = lineage === 'all' ? null : lineage;
+      apply();
+    }
+
+    function setTone(tone: string) {
+      activeTone = tone;
+      tbBtns.forEach((b) => b.setAttribute('data-on', b.dataset.filter === tone ? '1' : '0'));
+      apply();
+    }
+
+    // Map legend chips
+    mapChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const lin = chip.getAttribute('data-lineage') ?? 'all';
+        // Toggle off if clicking the already-active lineage chip
+        if (activeLineage === (lin === 'all' ? null : lin)) {
+          setLineage('all');
+        } else {
+          setLineage(lin);
+        }
+      });
+    });
+
+    // Toolbar pills
+    tbBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tone = btn.dataset.filter ?? 'all';
+        setTone(tone);
+      });
+    });
+
+    // Hover an origin node → highlight its lineage in the map + cards
+    nodes.forEach((node) => {
+      node.addEventListener('mouseenter', () => {
+        const lin = node.getAttribute('data-lineage');
+        if (!lin) return;
+        arcs.forEach((arc) => {
+          const aLin = arc.getAttribute('data-lineage') ?? '';
+          arc.setAttribute('data-dim', aLin !== lin ? '1' : '0');
+        });
+      });
+      node.addEventListener('mouseleave', () => {
+        // Restore previous filter state
+        apply();
+      });
+      node.addEventListener('click', () => {
+        const lin = node.getAttribute('data-lineage');
+        if (!lin) return;
+        setLineage(lin);
+        // Scroll to the first matching card
+        const target = document.querySelector(`.lx-card[data-lineage="${lin}"]`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+
+    // Hover a card → temporarily highlight its lineage on the map
+    cards.forEach((card) => {
+      card.addEventListener('mouseenter', () => {
+        const lin = card.dataset.lineage;
+        if (!lin) return;
+        arcs.forEach((arc) => {
+          const aLin = arc.getAttribute('data-lineage') ?? '';
+          arc.setAttribute('data-dim', aLin !== lin ? '1' : '0');
+        });
+      });
+      card.addEventListener('mouseleave', () => apply());
+    });
+
+    // Initial render
+    apply();
+  })();
+</script>
