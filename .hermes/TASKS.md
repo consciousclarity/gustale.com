@@ -213,31 +213,49 @@ Map-based discovery + unified search. Plan summary:
 - **9c (3h)** — "Cuisines near me" + taste-based similarity via
   shared categories and shared origin regions.
 
-### P3 — Seed-data quality: dangling DISH_RELATIONS slugs
-**Owner:** unassigned · **Estimate:** ~1 hour
-Surfaced 2026-06-25 while seeding for the homepage most-connected rail
-(PR #6). The seed reported **31 relation entries reference unknown dish
-slugs (skipped)** — `DISH_RELATIONS` in `packages/db/src/seed-data.ts`
-points at `fromSlug`/`toSlug` values that don't exist in `DISHES`, so
-those edges are silently dropped (154 of ~185 edges actually inserted).
-Each skipped edge is a missing connection in the food-network graph that
-feeds `/api/dishes/featured` and the per-dish relations UI.
-**Fix:** audit `DISH_RELATIONS` slugs against `DISHES` slugs (a small
-script can list the 31 offenders), then either correct the typo'd slugs
-or add the missing dishes. Re-run `pnpm --filter @gustale/db run seed`
-(idempotent) and confirm "0 skipped".
+### P3 — Seed-data enrichment pass (dishes, methodSlug, ingredients, relations)
+**Owner:** unassigned · **Estimate:** ~1 day
+Surfaced 2026-06-25 (PR #6, homepage). All `packages/db/src/seed-data.ts`
+content quality. The homepage code is correct and degrades gracefully;
+these are data gaps that keep several surfaces sparse. Merged from two
+earlier items after a read-only audit of `DISH_RELATIONS` vs `DISHES`.
 
-### P3 — Seed-data quality: dishes missing `methodSlug` (families are thin)
-**Owner:** unassigned · **Estimate:** ~2 hours
-Surfaced 2026-06-25 (PR #6). Across 60 seeded dishes only **2 distinct
-`methodSlug` values** exist — most dishes have a null method, so they all
-collapse into "Other". This makes `/families` and the homepage
-"Families & lineages" rail thin (the code is correct; the data is
-sparse). `FAMILY_LABELS` in `families.astro` already anticipates ~16
-method families. **Fix:** populate `methodSlug` on the dishes in
-`seed-data.ts` (map each dish to one of the existing family slugs), then
-re-seed. Pairs naturally with enriching the ingredients set (only 4
-published ingredients today).
+Audit results (60 dishes, 110 relation entries = 220 directed edges; 31
+entries reference a dish slug not in `DISHES`, so 31 edges silently drop
+on seed):
+
+**(a) ~25 referenced dishes are missing from `DISHES`** — NOT typos (an
+edit-distance check produced only false positives; these are real,
+distinct dishes the relation graph names but the dish set never added).
+Recovering these edges means *adding the dishes*, then re-seeding. The 27
+distinct dangling slugs:
+`samosa ×3, soba ×2, sambal ×2, menemen, fries, idli, cotoletta,
+tonkatsu, döner, bacon-and-cabbage, fish-cake, focaccia, pita, curry,
+lechon, kofta, porridge, patacones, vada, humita, bulgur, lamb-and-rice,
+ikan-bakar, poke, baba-ganoush` — plus the two moussaka variants below.
+
+**(b) 2 moussaka-variant slugs** — `musakka-turkish`, `moussaka-levant`
+are referenced but don't exist; almost certainly intended as regional
+variants of the existing `moussaka-greek`. The only true data
+*inconsistency* (vs missing content). Quick optional sub-task: remap
+these two to `moussaka-greek` (or add them as dishes) to cut "31 skipped"
+toward zero without a full content pass.
+
+**(c) Dishes missing `methodSlug`** — across the 60 dishes only **2
+distinct `methodSlug` values** exist, so `/families` and the homepage
+"Families & lineages" rail collapse most dishes into "Other".
+`FAMILY_LABELS` in `families.astro` already anticipates ~16 families.
+Populate `methodSlug` per dish using the existing family slugs.
+
+**(d) Sparse ingredients** — only 4 published ingredients; enrich
+alongside the dishes for a fuller `/ingredients` + homepage schema stat.
+
+**Do it as one pass:** add the missing dishes (a) with proper
+`methodSlug` (c) and ingredients (d); fix the moussaka slugs (b); re-run
+`pnpm --filter @gustale/db run seed` (idempotent) and confirm "0 relation
+entries skipped". Re-running the read-only audit: a ~30-line tsx script
+over `DISHES`/`DISH_RELATIONS` (see PR #6 session) regenerates the
+dangling list on demand.
 
 ## Backlog (longer-term)
 
