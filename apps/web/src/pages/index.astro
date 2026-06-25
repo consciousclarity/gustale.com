@@ -1,11 +1,220 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import GustaleHomeIsland from '../components/design/GustaleHomeIsland.tsx';
+import { ApiError, listDishes, getFeaturedDishes, listIngredients } from '../lib/api';
+import type { DishListResponse, DishSummary, FeaturedDish } from '../types/dish';
+import HeroFeaturedCard from '../components/HeroFeaturedCard.tsx';
+import HomeWorkspace from '../components/HomeWorkspace.tsx';
+
+// ---------------------------------------------------------------------------
+// Build-time data fetch. Same SSR-first + graceful-fallback pattern as
+// families.astro / lineages.astro: if the API is unreachable during the
+// build, the page still renders with empty editorial sections and the
+// HomeWorkspace island takes over with a live fetch in the browser.
+// Each fetch carries its own .catch so one failure doesn't blank the page.
+// ---------------------------------------------------------------------------
+let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
+let featured: FeaturedDish[] = [];
+let ingredientCount: number | null = null;
+
+try {
+  const [list, feat, ings] = await Promise.all([
+    listDishes({ status: 'published', limit: 100 }),
+    getFeaturedDishes({ limit: 8 }).catch(() => ({ dishes: [] as FeaturedDish[], count: 0 })),
+    listIngredients({ limit: 200 }).catch(() => null),
+  ]);
+  initial = list;
+  featured = feat.dishes;
+  ingredientCount = ings ? ings.ingredients.length : null;
+} catch (err: unknown) {
+  // Build-time API failure → render with empty editorial sections; the
+  // HomeWorkspace island fetches live in the browser. Log for the build.
+  const detail =
+    err instanceof ApiError
+      ? `API ${err.status} — gustale-api unreachable from the build.`
+      : err instanceof Error
+        ? err.message
+        : 'Unknown error';
+  console.error(`[index.astro] build-time fetch failed: ${detail}`);
+}
+
+const dishes: DishSummary[] = initial.dishes;
+const totalDishes = dishes.length;
+
+// Derive the "families" (preparation-method groups), like families.astro.
+const FAMILY_LABELS: Record<string, string> = {
+  'poached-in-sauce': 'Poached in sauce',
+  'omelettes-and-scrambles': 'Omelettes & scrambles',
+  'fried-and-topped': 'Fried & topped',
+  'steamed-and-custard': 'Steamed & custard',
+  'boiled-and-cured': 'Boiled & cured',
+  pasta: 'Pasta',
+  'noodle-soup': 'Noodle soups',
+  stew: 'Stews & braises',
+  'fried-rice': 'Rice bowls',
+  dumpling: 'Dumplings',
+  bread: 'Breads & doughs',
+  pancake: 'Flatbreads',
+  dessert: 'Sweets & custards',
+  curry: 'Stews & braises',
+  kebab: 'Grilled & skewered',
+  salad: 'Small plates & preserves',
+  other: 'Other',
+};
+
+const familyGroups = new Map<string, number>();
+for (const d of dishes) {
+  const key = d.methodSlug ?? 'other';
+  familyGroups.set(key, (familyGroups.get(key) ?? 0) + 1);
+}
+const topFamilies = [...familyGroups.entries()]
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 6)
+  .map(([slug, count]) => ({
+    slug,
+    label: FAMILY_LABELS[slug] ?? slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+    count,
+  }));
+
+const originCount = new Set(
+  dishes.map((d) => d.originName).filter((n): n is string => !!n),
+).size;
+const familyCount = familyGroups.size;
+
+// Schema-stats tiles — only counts we can actually derive. A tile with a
+// null count is omitted rather than shown as a placeholder.
+const stats = [
+  { num: totalDishes, label: 'Dishes', desc: 'cooked preparations & plated meals' },
+  ingredientCount != null
+    ? { num: ingredientCount, label: 'Ingredients', desc: 'raw & processed components' }
+    : null,
+  { num: originCount, label: 'Origins', desc: 'countries & culinary territories' },
+  { num: familyCount, label: 'Families', desc: 'shared preparation forms' },
+].filter((s): s is { num: number; label: string; desc: string } => s !== null);
 ---
 
 <Layout
   title="Gustale — Browse the atlas your way"
   description="Explore the world's dishes by map, by name, by family, or by story."
 >
-  <GustaleHomeIsland client:only="react" />
+  <main class="gst">
+    {/* ── Hero ──────────────────────────────────────────────────── */}
+    <section class="gst-hero wrap">
+      <div class="hero-content">
+        <p class="kicker">A Living Atlas of World Food</p>
+        <h1 class="hero-h1">Every dish<br />has a <em>place.</em></h1>
+        <p class="hero-lede">
+          Gustale maps the world's food to where it lives — origins, regional
+          names, and the journeys that carried a recipe across borders. Then it
+          lets you browse it your way.
+        </p>
+        <form class="hero-search" id="hero-search">
+          <input
+            type="search"
+            name="q"
+            placeholder='Try "ramen", origin:Japan, ingredient:saffron…'
+            aria-label="Search dishes"
+          />
+          <button type="submit" aria-label="Search">⌕</button>
+        </form>
+        <div class="hero-meta">
+          <div><b>{totalDishes}</b> dishes</div>
+          <div><b>{familyCount}</b> families</div>
+          <div><b>{originCount}</b> origins</div>
+        </div>
+      </div>
+      <HeroFeaturedCard client:load dishes={featured} />
+    </section>
+
+    {/* ── Most-connected rail ───────────────────────────────────── */}
+    {featured.length > 0 && (
+      <section class="wrap home-sec">
+        <div class="sec-head">
+          <h2>Most connected</h2>
+          <p>Dishes at the center of the food-network — the richest webs of kin.</p>
+        </div>
+        <div class="rail">
+          {featured.map((d) => (
+            <a class="rail-card" href={`/dishes/${d.slug}`}>
+              <span class="place">{d.originName ?? '—'}</span>
+              <h3>{d.canonicalName}</h3>
+              <p>{d.shortDescription ?? ''}</p>
+              <span class="links">{d.relationCount} {d.relationCount === 1 ? 'link' : 'links'}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {/* ── Families & lineages rail ──────────────────────────────── */}
+    {topFamilies.length > 0 && (
+      <section class="wrap home-sec">
+        <div class="sec-head">
+          <h2>Families &amp; lineages</h2>
+          <p>
+            The forms dishes share, and how they travelled.
+            <a class="sec-link" href="/lineages">Explore lineages →</a>
+          </p>
+        </div>
+        <div class="rail">
+          {topFamilies.map((f) => (
+            <a class="rail-card" href="/families">
+              <span class="place">Family</span>
+              <h3>{f.label}</h3>
+              <span class="links">{f.count} {f.count === 1 ? 'dish' : 'dishes'}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {/* ── Explore workspace ─────────────────────────────────────── */}
+    <HomeWorkspace client:only="react" />
+
+    {/* ── Schema-stats band ─────────────────────────────────────── */}
+    <section class="wrap home-sec">
+      <div class="sec-head">
+        <h2>Browse the schema</h2>
+        <p>An open, linked record of how the world cooks.</p>
+      </div>
+      <div class="schema">
+        {stats.map((s) => (
+          <div class="stat">
+            <div class="num">{s.num.toLocaleString()}</div>
+            <div class="lab">{s.label}</div>
+            <div class="desc">{s.desc}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* ── CTA band ──────────────────────────────────────────────── */}
+    <div class="wrap" style="padding-bottom: 80px;">
+      <div class="band">
+        <div>
+          <h2>Know a dish<br />we don't?</h2>
+          <p>
+            Gustale is built by people who cook, eat, and document. Every dish
+            you add makes the atlas richer.
+          </p>
+        </div>
+        <div class="band-cta">
+          <a href="/dishes/new"><button type="button">Add a dish →</button></a>
+          <small>Free forever. No account required to browse.</small>
+        </div>
+      </div>
+    </div>
+  </main>
 </Layout>
+
+<script>
+  // Hero search → seed the workspace island via the URL hash, then scroll
+  // to it. The two islands stay decoupled (the hash is the only channel).
+  const form = document.getElementById('hero-search') as HTMLFormElement | null;
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = form.querySelector('input[name="q"]') as HTMLInputElement | null;
+    const q = (input?.value ?? '').trim();
+    location.hash = `#explore=${encodeURIComponent(q)}`;
+    document.getElementById('explore')?.scrollIntoView({ behavior: 'smooth' });
+  });
+</script>

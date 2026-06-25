@@ -282,6 +282,30 @@ export function getFeaturedDishes(
   return request<FeaturedDishesResponse>(`/api/dishes/featured${suffix}`);
 }
 
+export interface IngredientListItem {
+  slug: string;
+  canonicalName: string;
+  category: string | null;
+  dishCount: number;
+}
+
+export interface IngredientListResponse {
+  ingredients: IngredientListItem[];
+}
+
+/**
+ * List ingredients (each with its published-dish count). Used at build
+ * time for the homepage schema-stats tile. The API caps limit at 200.
+ */
+export function listIngredients(
+  params: { limit?: number } = {},
+): Promise<IngredientListResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<IngredientListResponse>(`/api/ingredients${suffix}`);
+}
+
 // ─── Related dishes (food-genealogy network) ────────────────────────────
 
 export interface RelatedDish {
