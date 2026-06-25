@@ -186,3 +186,20 @@ export interface DishDetailResponse {
   coverImage: DishMediaAttachment | null;
   availableLanguages: string[];
 }
+
+export interface FeaturedDish {
+  slug: string;
+  canonicalName: string;
+  shortDescription: string | null;
+  originName: string | null;
+  originIso: string | null;
+  cuisineSlug: string | null;
+  cuisineName: string | null;
+  relationCount: number;
+  coverMediaId: string | null;
+}
+
+export interface FeaturedDishesResponse {
+  dishes: FeaturedDish[];
+  count: number;
+}
