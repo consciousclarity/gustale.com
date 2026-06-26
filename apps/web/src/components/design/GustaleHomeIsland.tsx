@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { listDishes } from '../../lib/api';
 import type { DishListResponse } from '../../types/dish';
 
+// v2 — rebuilt 2026-06-26 to force fresh Docker layer cache
+
 // MapLibre — loaded from CDN on demand
 let mapLoaded = false;
 let mapLoading = false;
