@@ -6,34 +6,44 @@
 
 ## Last updated
 
-2026-06-26 by Hermes — **All critical bugs fixed. CI passing. Site deployed.**
+2026-06-26 by Claude Code — **/families and /lineages fully verified. 18 families, 14 lineages. CI passing.**
 
 ---
 
 ## ✅ Completed this session
 
-### API /listDishes — two critical bugs fixed
+### Mock API architecture (the SSG stale-data solution)
 
-1. **`row.updated_at.toISOString()` TypeError** (`d6eb1db`, CI #131 passed)
-   - postgres-js returns TIMESTAMPTZ as ISO string, not Date
-   - Fix: `typeof row.updated_at === 'string' ? row.updated_at : (row.updated_at as Date).toISOString()`
-   - API returned 500 on every `/api/dishes` request
+The root problem: Astro SSG builds fetch from the **live deployed API** at build time.
+GitHub Actions runner IPs are blocked by the VPS firewall, so CI cannot reach `api.gustale.recipes`.
 
-2. **`column dp.sequence does not exist`** (`3c49ac3`, CI #133 building)
-   - The `dish_preparations` table column is `sequence_order`, not `sequence`
-   - Fix: use `dp.sequence_order` in the LATERAL JOIN SQL
-   - API was crashing with PostgresError on listDishes
+**Solution**: `apps/web/scripts/mock-api.mjs` + `apps/web/scripts/mock-api-data.json`.
+- During CI Docker build, `mock-api.mjs` serves `mock-api-data.json` on port 8742 as a local HTTP server
+- `PUBLIC_API_BASE=http://127.0.0.1:8742` overrides the production API URL for the build only
+- CI is fully self-contained; no upstream API dependency
+- After any DB/seed changes: regenerate `mock-api-data.json`, commit, push → CI rebuilds
 
-### /lineages — real lineages now
+**Files**:
+- `apps/web/scripts/mock-api.mjs` — HTTP server (GET /health, /api/dishes, /api/dishes/map, /api/dishes/:slug)
+- `apps/web/scripts/mock-api-data.json` — committed snapshot: `{ list: 60, map: 60, details: 60 }`
 
-- `997ef75` (feat/lineages-data-fix, CI #132 passed): seed-data.ts has `LINEAGE_METHODS` (16 methods) + `DISH_LINEAGES` (60 dishes); seed.ts has `seedDishLineages()` idempotent pass; `lineages.astro` groups by `methodSlug` (NOT familySlug)
-- **VPS DB seeded directly** (`3c49ac3` deploy still running): 16 preparation_methods + 45 dish_preparations rows inserted on `shared-postgres` → real lineages now in production DB
-- Fixes the root cause: `seedEncyclopedia()` never wrote `dish_preparations` rows, so 59/60 dishes fell into "Other"
+### /families — verified fixed (18 families)
 
-### /families — family filter
+- 18 real family filter options: appetizer, bread, curry, dessert, dumpling, kebab, main-course, moussaka, noodle-soup, pancake, pasta, rice-dish, salad, sandwich, sauce, soup, stew, stir-fry
+- Plus "all" → 19 total filter chips
+- Uses `familySlug` from primary `kind='dish-type'` category (dish-type taxonomy)
 
-- `c82d2da` + `80295d2` (CI #127-130 passed): `familySlug` derived from primary `kind='dish-type'` category via LATERAL JOIN; region filter added to families page; combined family+region filtering works
-- **Note**: `/families` groups by dish-type (Noodle soups, Soups, Pasta, etc.) — different taxonomy from `/lineages` (which groups by preparation method: Stews, Fried & topped, etc.)
+### /lineages — verified fixed (14 lineages)
+
+- 14 real lineage filter options: boiled-and-cured, bread, curry, dessert, dumpling, fried-and-topped, fried-rice, kebab, noodle-soup, pasta, poached-in-sauce, salad, steamed-and-custard, stew
+- Plus "all" → 15 total legend chips
+- Uses `methodSlug` from `dish_preparations → preparation_methods` (cooking method taxonomy)
+- **Bug fixed**: `legendMarkup` template literal in `lineages.astro` emitted literal `${slug}` instead of interpolated values. Fixed by switching to explicit string concatenation.
+
+### API — two critical bugs (previously fixed)
+
+1. **`row.updated_at.toISOString()` TypeError** (`d6eb1db`, CI #131)
+2. **`column dp.sequence does not exist`** (`3c49ac3`, CI #133)
 
 ---
 
@@ -41,36 +51,43 @@
 
 | Commit | Message | CI |
 |--------|---------|-----|
-| `3c49ac3` | fix: sequence_order column name | **Running (#133)** |
-| `2580e04` | fix(lineages): methodSlug + seed data | Passed (#132) |
-| `d6eb1db` | fix(api): updated_at string handling | Passed (#131) |
+| `01cd64c` | fix(lineages): interpolate legend chip data-lineage attributes | Passed (#140) |
+| `b3b58f9` | fix(ci): drop firewall-blocked API health-check gate | Passed (#139) |
+| `284d566` | fix(ci): mock API serves real 60-dish data | Passed (#138) |
 
-Main branch SHA: `3c49ac3`
-
----
-
-## Key schema facts (for future reference)
-
-- `dish_preparations.sequence_order` — DB column name; Drizzle schema uses `sequenceOrder`
-- `dish_categories.is_primary` — drives which category is the "primary" family for a dish
-- Two taxonomies: `kind='dish-type'` (Noodle soup, Soup, Pasta…) and `kind='family'` (African, East Asian…)
-- `methodSlug` comes from `preparation_methods.slug` via `dish_preparations`
-- `familySlug` comes from `categories.slug WHERE kind='dish-type'` via `dish_categories`
+Main branch SHA: `01cd64c`
 
 ---
 
-## Known issues
+## Two-Taxonomy Confusion — Critical Reference
 
-1. **Node.js 20 deprecation in CI** — `actions/checkout@v4` / `setup-node@v4` use Node 20 internally, runner is now Node 24. GitHub infrastructure issue. Not user-fixable in workflow file.
-2. **VPS DB seeded by hand** — `shared-postgres` container has the 16 new lineage methods and 45 dish_preparations inserted directly via SQL. The next `pnpm --filter @gustale/db run seed` will also seed these (idempotent) but hasn't been run in the container yet.
+**NEVER confuse these two taxonomies**:
+
+| Page | Taxonomy | Source | Examples |
+|------|----------|--------|----------|
+| `/families` | `familySlug` / `familyName` | `dish_categories` WHERE `kind='dish-type'` | Soup, Pasta, Noodle soup, Stew |
+| `/lineages` | `methodSlug` / `methodName` | `dish_preparations → preparation_methods` | Stew, Fried & topped, Fried rice |
 
 ---
 
-## What's next
+## Pending Data-Cleanup Tasks
 
-1. Wait for CI #133 to pass (sequence_order fix)
-2. Verify `/lineages` shows real lineages (Stews & braises, Noodle soups, etc. instead of "Other")
-3. Verify `/families` shows real family chips (Soup, Pasta, Noodle soup, etc.)
-4. Update this file with verification results
-5. (Nice to have) Fix Node.js 20 deprecation — watch for GitHub Actions update to v5 of the actions
-6. (Nice to have) Seed run on VPS via `pnpm --filter @gustale/db run seed` once container has the updated image
+- [ ] 15 dishes still have `methodSlug=null` in mock data — list: Kimbap, Tacos al pastor, Croffle, Som tam, Poutine, Bánh mì, Pho bo, Khao soi, Biryani, Butter chicken, Pad thai, Feijoada, Tandoori chicken, Tteokbokki
+- [ ] After seeding those 15: re-generate `mock-api-data.json` and push → CI rebuilds
+
+---
+
+## SHARED_STATE sync protocol
+
+After any non-trivial change:
+1. Commit to `main` → CI deploys automatically
+2. Update `.hermes/SHARED_STATE.md` on `private/state` branch
+3. `git add -f .hermes/ && git commit -m "claude: <summary>" && git push origin private/state`
+
+---
+
+## Pending User Asks
+
+- **Sophisticated menu**: `AuthMenu.tsx` deployed; `GustaleMenu.tsx` is design reference not implemented
+- **Breadcrumbs everywhere**: `Breadcrumbs.astro` exists, used on some pages; full audit needed
+- **Structured dish filters on home island**: Implemented (8 filter keys)
