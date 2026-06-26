@@ -6,6 +6,8 @@
 
 ## Last updated
 
+2026-06-26 by Mavis — Editorial site header shipped. Branch `feat/nav-editorial` pushed to origin; PR opened by Alex via the GitHub web UI (gh CLI auth not configured this session). 8 files, +1215/-357, two new islands (`MobileNav.tsx`, `NavSearch.tsx`) plus a typed `navigation.ts` config. Replaces inline `<nav>` in `Layout.astro` with config-driven editorial header (terracotta + Instrument Serif / Work Sans, no slate/emerald utility classes). `astro check`: 0 errors, 0 warnings. Rebased onto `main` so the diff shows only nav work — the families `originName` fix rides along as an identical patch (already on the taxonomy branch; Git dedups on merge). **Awaiting:** Alex opens the PR (URL: https://github.com/consciousclarity/gustale.com/pull/new/feat/nav-editorial), CI 5-job matrix passes, then Hermes does the live smoke test on both domains post-merge. Handover to Hermes next.
+
 2026-06-25 by Claude Code — Homepage sophistication pass (PR #6, branch `feat/site-sophistication-pass`): SSR editorial homepage (oversized serif hero + rotating featured-dish card + most-connected/families rails + schema-stats band), new `GET /api/dishes/featured` endpoint, nav Contribute CTA + columned footer. NOTE: the dev DB at 100.78.243.30 has 0 `dish_relations` and only 31 dishes — the food-network seed (relations + 30 dishes in seed-data.ts on main) was never applied there, so the most-connected rail + hero card render empty until `pnpm --filter @gustale/db run seed` is run. Code degrades gracefully.
 
 2026-06-24 by Claude (Cowork) — CI web build blocker fixed: mock API server inside Dockerfile replaces the unreachable production API during Astro SSG.

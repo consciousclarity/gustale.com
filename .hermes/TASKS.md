@@ -7,9 +7,11 @@
 
 ## In progress
 
-(none right now — check Backlog)
+- 2026-06-26: **Editorial site header** (PR #7, `feat/nav-editorial`). Branch pushed, PR opened via web UI. Awaiting CI matrix + Alex review + merge. After merge → Hermes does live smoke test on both domains. — Mavis
 
 ## Done (recent — last 10)
+
+- 2026-06-26: **Editorial site header pushed + PR opened.** Rebased onto `main`, 8 files (+1215/-357), two new React islands (`MobileNav.tsx` full-bleed mobile takeover, `NavSearch.tsx` full-bleed search overlay) + new typed `lib/navigation.ts` config. `astro check` 0/0. Families `originName` fix rides along as identical patch on the taxonomy branch — Git dedups on merge. `gh` CLI auth not configured this session, so the PR body was drafted as `pr-nav-editorial-body.md` at workspace root for Alex to paste into the GitHub PR description textarea. — Mavis
 
 - 2026-06-25: **Homepage sophistication pass** (PR #6, `feat/site-sophistication-pass`). SSR-first split: `index.astro` server-renders an editorial hero ("Every dish has a place."), a rotating `HeroFeaturedCard` island, "Most connected" + "Families & lineages" rails, and a schema-stats band; the atlas/index/gallery/feed explorer is now the `HomeWorkspace` island (seeded from a `#explore=` URL hash). New `GET /api/dishes/featured` API endpoint (top dishes by `dish_relations` count; tested). Nav Contribute CTA + columned footer. Verified: astro check clean, build:recipes+geo green, API suite 48 pass/3 skip. **Follow-up:** run `pnpm --filter @gustale/db run seed` against the dev DB — it has 0 relations + only 31 dishes, so the most-connected rail/hero card render empty until seeded. — Claude Code
 
