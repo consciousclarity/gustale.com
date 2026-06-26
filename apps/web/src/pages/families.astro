@@ -184,7 +184,7 @@ const totalFamilies = sortedGroups.length;
               <h3>{d.canonicalName}</h3>
               {d.shortDescription && <p class="def">{d.shortDescription}</p>}
               <div class="foot">
-                <span class="counts mono-sub">{d.country ?? d.region ?? '—'}</span>
+                <span class="counts mono-sub">{d.originName ?? '—'}</span>
                 <span class="go">Explore <span class="arr">→</span></span>
               </div>
             </a>
