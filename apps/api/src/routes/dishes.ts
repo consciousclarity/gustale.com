@@ -1,8 +1,10 @@
+import { httpError } from '../errors.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   eq,
   and,
+  asc,
   desc,
   ilike,
   or,
@@ -20,6 +22,9 @@ import {
   dishIngredients,
   dishCategories,
   categories,
+  dishTags,
+  dishRelations,
+  tags,
   dishPreparations,
   preparationMethods,
   preparationMethodTranslations,
@@ -36,6 +41,15 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
   status: z.enum(['draft', 'published', 'archived']).default('published'),
+  country: z.string().max(100).optional(),    // origin country name
+  cuisine: z.string().max(100).optional(),     // cuisine category (Korean cuisine, Italian cuisine…)
+  type: z.string().max(100).optional(),         // dish-type category (Noodle soup, Stew, Pasta…)
+  ingredient: z.string().max(100).optional(),
+  technique: z.string().max(100).optional(),
+  region: z.string().max(100).optional(),     // legacy alias for country
+  category: z.string().max(100).optional(),    // legacy alias for cuisine
+  period: z.string().max(100).optional(),       // historical era e.g. 1920-1950
+  family: z.string().max(100).optional(),       // kind='family' category slug (Dumplings, Noodle soups…)
 });
 
 const slugParamSchema = z.object({
@@ -97,21 +111,184 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
 
-    const result = await db
-      .select({
-        id: dishes.id,
-        slug: dishes.slug,
-        canonicalName: dishes.canonicalName,
-        shortDescription: dishes.shortDescription,
-        originGeoId: dishes.originGeoId,
-        status: dishes.status,
-        viewCount: dishes.viewCount,
-      })
-      .from(dishes)
-      .where(and(...whereClauses))
-      .orderBy(desc(dishes.viewCount), dishes.canonicalName)
-      .limit(params.limit)
-      .offset(params.offset);
+    if (params.country) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.country + '%'})`
+      );
+    }
+
+    if (params.cuisine) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = dishes.id AND c2.name ILIKE ${'%' + params.cuisine + '%'})`
+      );
+    }
+
+    if (params.type) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = dishes.id AND c3.name ILIKE ${'%' + params.type + '%'})`
+      );
+    }
+
+    if (params.ingredient) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = dishes.id AND i.canonical_name ILIKE ${'%' + params.ingredient + '%'})`
+      );
+    }
+
+    if (params.technique) {
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = dishes.id AND pm2.slug = ${params.technique})`
+      );
+    }
+
+    if (params.period) {
+      // Accept "1920", "1920-1950", "1920_1950" → match origin_date_earliest <= latest_year AND origin_date_latest >= earliest_year
+      const parts = params.period.replace(/_/g, '-').split('-').filter(Boolean);
+      const earliest = parts[0] ? parseInt(parts[0]) : null;
+      const latest = parts[1] ? parseInt(parts[1]) : earliest;
+      if (earliest !== null) {
+        whereClauses.push(
+          sql`dishes.origin_date_latest >= ${earliest}`
+        );
+      }
+      if (latest !== null) {
+        whereClauses.push(
+          sql`dishes.origin_date_earliest <= ${latest}`
+        );
+      }
+    }
+
+    if (params.region) {
+      // Legacy alias for country — same ILIKE on geo_entities.name
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.region + '%'})`
+      );
+    }
+
+    if (params.category) {
+      // Match by category slug (cuisine or dish-type) via the join table.
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.slug = ${params.category})`
+      );
+    }
+
+    if (params.family) {
+      // Match by kind='family' category slug (Dumplings, Noodle soups…)
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = dishes.id AND c4.slug = ${params.family} AND c4.kind = 'family')`
+      );
+    }
+
+    // Build dynamic WHERE conditions as raw SQL fragments.
+    const whereFragments: (SQL | undefined)[] = [sql`d.status = ${params.status}`];
+    if (params.q) {
+      whereFragments.push(sql`d.canonical_name ILIKE ${'%' + params.q + '%'}`);
+    }
+    if (params.country) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${'%' + params.country + '%'})`);
+    }
+    if (params.cuisine) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = d.id AND c2.name ILIKE ${'%' + params.cuisine + '%'})`);
+    }
+    if (params.type) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = d.id AND c3.name ILIKE ${'%' + params.type + '%'})`);
+    }
+    if (params.ingredient) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = d.id AND i.canonical_name ILIKE ${'%' + params.ingredient + '%'})`);
+    }
+    if (params.technique) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = d.id AND pm2.slug = ${params.technique})`);
+    }
+    if (params.region) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${'%' + params.region + '%'})`);
+    }
+    if (params.category) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = d.id AND c.slug = ${params.category})`);
+    }
+    if (params.family) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = d.id AND c4.slug = ${params.family} AND c4.kind = 'family')`);
+    }
+    if (params.period) {
+      const parts = params.period.replace(/_/g, '-').split('-').filter(Boolean);
+      const earliest = parts[0] ? parseInt(parts[0]) : null;
+      const latest = parts[1] ? parseInt(parts[1]) : earliest;
+      if (earliest !== null) whereFragments.push(sql`d.origin_date_latest >= ${earliest}`);
+      if (latest !== null) whereFragments.push(sql`d.origin_date_earliest <= ${latest}`);
+    }
+    const whereClause = whereFragments.filter((f): f is SQL => f !== undefined);
+
+    // Use raw SQL to avoid Drizzle's postgres-js prepared-statement incompatibility
+    // with scalar-subquery columns in .select(). All values are parameterized via
+    // ${} so there is no SQL injection risk.
+    const rows = (await db.execute(sql`
+      SELECT
+        d.id,
+        d.slug,
+        d.canonical_name      AS canonical_name,
+        d.short_description   AS short_description,
+        d.origin_geo_id        AS origin_geo_id,
+        g.name                AS origin_name,
+        d.status,
+        d.view_count          AS view_count,
+        d.updated_at           AS updated_at,
+        fam.slug              AS family_slug,
+        fam.name              AS family_name,
+        meth.slug             AS method_slug,
+        meth.name             AS method_name
+      FROM dishes d
+      LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
+      LEFT JOIN LATERAL (
+        SELECT c.slug, c.name
+        FROM dish_categories dc
+        JOIN categories c ON c.id = dc.category_id
+        WHERE dc.dish_id = d.id
+          AND c.kind = 'dish-type'
+        ORDER BY dc.is_primary DESC
+        LIMIT 1
+      ) fam ON true
+      LEFT JOIN LATERAL (
+        SELECT pm.slug, pm.name
+        FROM dish_preparations dp
+        JOIN preparation_methods pm ON pm.id = dp.method_id
+        WHERE dp.dish_id = d.id
+        ORDER BY dp.sequence_order ASC
+        LIMIT 1
+      ) meth ON true
+      WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
+      ORDER BY d.view_count DESC, d.canonical_name ASC
+      LIMIT ${params.limit}
+      OFFSET ${params.offset}
+    `)) as {
+      id: string;
+      slug: string;
+      canonical_name: string;
+      short_description: string | null;
+      origin_geo_id: string | null;
+      origin_name: string | null;
+      status: string;
+      view_count: number;
+      updated_at: Date;
+      family_slug: string | null;
+      family_name: string | null;
+      method_slug: string | null;
+      method_name: string | null;
+    }[];
+
+    const result = rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      canonicalName: row.canonical_name,
+      shortDescription: row.short_description,
+      originGeoId: row.origin_geo_id,
+      originName: row.origin_name,
+      status: row.status as 'draft' | 'published' | 'archived',
+      viewCount: row.view_count,
+      updatedAt: typeof row.updated_at === 'string' ? row.updated_at : (row.updated_at as Date).toISOString(),
+      familySlug: row.family_slug,
+      familyName: row.family_name,
+      methodSlug: row.method_slug,
+      methodName: row.method_name,
+    }));
 
     return { dishes: result, limit: params.limit, offset: params.offset };
   });
@@ -193,7 +370,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .limit(1);
 
     if (dish.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
 
     const dishRow = dish[0]!;
@@ -201,7 +378,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
     // A1: drafts (and archived) are not visible to anonymous reads.
     // Authenticated moderators+ would query a different route; out of scope here.
     if (dishRow.status !== 'published') {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
+      throw httpError(404, 'not_found', 'Dish not found');
     }
 
     // Fire-and-forget: bump view count after the read.
@@ -252,6 +429,17 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .from(dishCategories)
       .innerJoin(categories, eq(dishCategories.categoryId, categories.id))
       .where(eq(dishCategories.dishId, dishRow.id));
+
+    // Tags
+    const dishTagRows = await db
+      .select({
+        tagId: dishTags.tagId,
+        name: tags.name,
+        slug: tags.slug,
+      })
+      .from(dishTags)
+      .innerJoin(tags, eq(dishTags.tagId, tags.id))
+      .where(eq(dishTags.dishId, dishRow.id));
 
     // Preparations: join with methods, plus translations for the requested language
     const dishPreps = await db
@@ -431,6 +619,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       variants,
       ingredients: dishIngs,
       categories: dishCats,
+      tags: dishTagRows,
       preparations: dishPreps.map((p) => ({
         id: p.id,
         methodId: p.methodId,
@@ -452,7 +641,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
   // Search by origin (geo proximity) — for the globe
   app.get('/api/dishes-by-region', async (request, reply) => {
     const schema = z.object({
-      bbox: z.string().regex(/^--?\\d+(\\.\\d+)?,-?\\d+(\\.\\d+)?,-?\\d+(\\.\\d+)?,-?\\d+(\\.\\d+)?$/),
+      bbox: z.string().regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/),
       language: z.string().length(2).default('en'),
       limit: z.coerce.number().int().min(1).max(500).default(100),
     });
@@ -475,369 +664,111 @@ export function registerDishRoutes(app: FastifyInstance): void {
     return { dishes: result, count: (result as any[]).length };
   });
 
-  // ─── Admin write endpoints ──────────────────────────────────────────────────
-
-  /**
-   * Admin key check. Set ADMIN_KEY env var on the VPS and pass
-   * `X-Admin-Key: <value>` header on all admin requests.
-   * Returns true if authorized, false if missing/wrong.
-   */
-  function isAdminRequest(req: { headers: Record<string, unknown> }): boolean {
-    // ADMIN_KEY is set as an env var on the VPS; falls back to empty string.
-    const expected = process.env.ADMIN_KEY ?? '';
-    if (!expected) return false; // no key configured = all requests denied
-    const provided = req.headers['x-admin-key'];
-    if (typeof provided !== 'string') return false;
-    // Constant-time comparison to prevent timing attacks
-    if (provided.length !== expected.length) return false;
-    let diff = 0;
-    for (let i = 0; i < expected.length; i++) {
-      diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i);
-    }
-    return diff === 0;
-  }
-
-  // ─── PUT /api/dishes/:slug ──────────────────────────────────────────────────
-
-  const ingredientInputSchema = z.object({
-    ingredientId: z.string().uuid(),
-    quantity: z.string().optional(),
-    unit: z.string().optional(),
-    isOptional: z.boolean().default(false),
-    preparationNote: z.string().optional(),
-    position: z.number().int().default(0),
-  });
-
-  const preparationInputSchema = z.object({
-    methodId: z.string().uuid(),
-    steps: z.string().optional(),
-    durationMinutes: z.number().int().optional(),
-    difficulty: z.number().int().min(1).max(5).optional(),
-    sequenceOrder: z.number().int().default(0),
-  });
-
-  const categoryInputSchema = z.object({
-    categoryId: z.string().uuid(),
-    isPrimary: z.boolean().default(false),
-  });
-
-  const updateDishSchema = z.object({
-    canonicalName: z.string().min(1).max(500).optional(),
-    shortDescription: z.string().max(2000).optional(),
-    longDescription: z.string().optional(),
-    originGeoId: z.string().uuid().nullable().optional(),
-    originDateEarliest: z.number().int().nullable().optional(),
-    originDateLatest: z.number().int().nullable().optional(),
-    status: z.enum(['draft', 'published', 'archived']).optional(),
-    ingredients: z.array(ingredientInputSchema).optional(),
-    preparations: z.array(preparationInputSchema).optional(),
-    categories: z.array(categoryInputSchema).optional(),
-  });
-
-  app.put('/api/dishes/:slug', async (request, reply) => {
-    if (!isAdminRequest(request)) {
-      return reply.status(401).send({ error: 'unauthorized', message: 'Missing or invalid X-Admin-Key' });
-    }
-
+  // ─── Related dishes (the food-genealogy network) ─────────────────────
+  // GET /api/dishes/:slug/relations
+  //
+  // Returns the curated relations for a dish, grouped by relation_type
+  // and ordered by strength descending. Each entry includes the related
+  // dish's slug + name + cuisine slug + country name so the UI can render
+  // a card without a second request.
+  //
+  // Anonymous-readable. Only published dishes appear on the other end of
+  // the edge (drafts/archived are filtered out so we don't leak WIP).
+  app.get('/api/dishes/:slug/relations', async (request, reply) => {
     const { slug } = slugParamSchema.parse(request.params);
-    const body = updateDishSchema.parse(request.body);
 
-    // Find dish
-    const existing = await db
+    // 1) Resolve the source dish → id.
+    const src = await db
       .select({ id: dishes.id })
       .from(dishes)
       .where(eq(dishes.slug, slug))
       .limit(1);
-
-    if (existing.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: `No dish with slug "${slug}"` });
+    if (src.length === 0 || !src[0]) {
+      throw httpError(404, 'not_found', 'Dish not found');
     }
-    const dishId = existing[0]!.id;
+    const sourceId = src[0].id;
 
-    // Build update object for the dish table
-    type DishUpdate = {
-      canonicalName?: string;
-      shortDescription?: string | null;
-      longDescription?: string | null;
-      originGeoId?: string | null;
-      originDateEarliest?: number | null;
-      originDateLatest?: number | null;
-      status?: 'draft' | 'published' | 'archived';
-      updatedAt?: Date;
+    // 2) Pull all outgoing relations + the related dish summary + its
+    //    cuisine (primary category) + country (origin geo).
+    //
+    // We LEFT JOIN categories and geo_entities to surface the related
+    // dish's cuisine/region in one round trip. Filtering on
+    // `dishes.status = 'published'` keeps unpublished siblings out.
+    const rows = await db
+      .select({
+        relationId: dishRelations.id,
+        relationType: dishRelations.relationType,
+        reason: dishRelations.reason,
+        strength: dishRelations.strength,
+        toDishId: dishes.id,
+        toDishSlug: dishes.slug,
+        toDishName: dishes.canonicalName,
+        toDishShortDescription: dishes.shortDescription,
+        toDishOriginName: geoEntities.name,
+        toDishOriginIso: geoEntities.isoCode,
+        toCuisineSlug: categories.slug,
+        toCuisineName: categories.name,
+      })
+      .from(dishRelations)
+      .innerJoin(dishes, eq(dishRelations.toDishId, dishes.id))
+      .leftJoin(geoEntities, eq(dishes.originGeoId, geoEntities.id))
+      // Only the primary cuisine category — secondary dish-types would
+      // muddy the "what cuisine is this?" answer the UI needs.
+      .leftJoin(
+        dishCategories,
+        and(
+          eq(dishCategories.dishId, dishes.id),
+          eq(dishCategories.isPrimary, true),
+        ),
+      )
+      .leftJoin(categories, eq(dishCategories.categoryId, categories.id))
+      .where(
+        and(
+          eq(dishRelations.fromDishId, sourceId),
+          eq(dishes.status, 'published'),
+        ),
+      )
+      .orderBy(desc(dishRelations.strength), asc(dishes.canonicalName));
+
+    // 3) Group by relation_type for the UI. Within each group, sort
+    //    is already correct (by strength desc, then name asc).
+    type RelatedRow = {
+      slug: string;
+      name: string;
+      shortDescription: string | null;
+      cuisineSlug: string | null;
+      cuisineName: string | null;
+      countryName: string | null;
+      isoCode: string | null;
+      relationId: string;
+      relationType: string;
+      reason: string | null;
+      strength: number;
     };
-    const dishUpdate: DishUpdate = {};
-    if (body.canonicalName !== undefined) dishUpdate.canonicalName = body.canonicalName;
-    if (body.shortDescription !== undefined) dishUpdate.shortDescription = body.shortDescription ?? null;
-    if (body.longDescription !== undefined) dishUpdate.longDescription = body.longDescription ?? null;
-    if (body.originGeoId !== undefined) dishUpdate.originGeoId = body.originGeoId;
-    if (body.originDateEarliest !== undefined) dishUpdate.originDateEarliest = body.originDateEarliest;
-    if (body.originDateLatest !== undefined) dishUpdate.originDateLatest = body.originDateLatest;
-    if (body.status !== undefined) dishUpdate.status = body.status;
-    dishUpdate.updatedAt = new Date();
 
-    // Update dish
-    if (Object.keys(dishUpdate).length > 1) { // >1 because updatedAt is always set
-      await db.update(dishes).set(dishUpdate).where(eq(dishes.id, dishId));
-    }
-
-    // Replace ingredients if provided
-    if (body.ingredients !== undefined) {
-      await db.delete(dishIngredients).where(eq(dishIngredients.dishId, dishId));
-      if (body.ingredients.length > 0) {
-        await db.insert(dishIngredients).values(
-          body.ingredients.map((ing) => ({
-            dishId,
-            ingredientId: ing.ingredientId,
-            quantity: ing.quantity ?? null,
-            unit: ing.unit ?? null,
-            isOptional: ing.isOptional ?? false,
-            preparationNote: ing.preparationNote ?? null,
-            position: ing.position ?? 0,
-          })),
-        );
-      }
-    }
-
-    // Replace preparations if provided
-    if (body.preparations !== undefined) {
-      await db.delete(dishPreparations).where(eq(dishPreparations.dishId, dishId));
-      if (body.preparations.length > 0) {
-        await db.insert(dishPreparations).values(
-          body.preparations.map((prep) => ({
-            dishId,
-            methodId: prep.methodId,
-            steps: prep.steps ?? null,
-            durationMinutes: prep.durationMinutes ?? null,
-            difficulty: prep.difficulty ?? null,
-            sequenceOrder: prep.sequenceOrder ?? 0,
-          })),
-        );
-      }
-    }
-
-    // Replace categories if provided
-    if (body.categories !== undefined) {
-      await db.delete(dishCategories).where(eq(dishCategories.dishId, dishId));
-      if (body.categories.length > 0) {
-        await db.insert(dishCategories).values(
-          body.categories.map((cat) => ({
-            dishId,
-            categoryId: cat.categoryId,
-            isPrimary: cat.isPrimary ?? false,
-          })),
-        );
-      }
-    }
-
-    // Return the updated dish
-    const updated = await db
-      .select()
-      .from(dishes)
-      .where(eq(dishes.id, dishId))
-      .limit(1);
-
-    return { dish: updated[0], ok: true };
-  });
-
-  // ─── GET /api/admin/lookups — all data needed to populate admin forms ────────
-
-  app.get('/api/admin/lookups', async (request, reply) => {
-    if (!isAdminRequest(request)) {
-      return reply.status(401).send({ error: 'unauthorized', message: 'Missing or invalid X-Admin-Key' });
-    }
-
-    const [allIngredients, allCategories, allMethods] = await Promise.all([
-      db.select({
-        id: ingredients.id,
-        name: ingredients.canonicalName,
-        slug: ingredients.slug,
-        category: ingredients.category,
-      }).from(ingredients).orderBy(ingredients.canonicalName),
-
-      db.select({
-        id: categories.id,
-        name: categories.name,
-        slug: categories.slug,
-      }).from(categories).orderBy(categories.name),
-
-      db.select({
-        id: preparationMethods.id,
-        name: preparationMethods.name,
-        slug: preparationMethods.slug,
-      }).from(preparationMethods).orderBy(preparationMethods.name),
-    ]);
-
-    const allCountries = await db
-      .select({
-        id: geoEntities.id,
-        name: geoEntities.name,
-        isoCode: geoEntities.isoCode,
-        entityType: geoEntities.entityType,
-      })
-      .from(geoEntities)
-      .where(eq(geoEntities.entityType, 'country'))
-      .orderBy(geoEntities.name);
-
-    return {
-      ingredients: allIngredients,
-      categories: allCategories,
-      preparationMethods: allMethods,
-      countries: allCountries,
-    };
-  });
-
-  // ─── GET /api/admin/dishes — paginated dish list for admin UI ──────────────
-
-  app.get('/api/admin/dishes', async (request, reply) => {
-    if (!isAdminRequest(request)) {
-      return reply.status(401).send({ error: 'unauthorized', message: 'Missing or invalid X-Admin-Key' });
-    }
-
-    const params = z.object({
-      limit: z.coerce.number().int().min(1).max(200).default(50),
-      offset: z.coerce.number().int().min(0).default(0),
-      status: z.enum(['draft', 'published', 'archived']).optional(),
-      q: z.string().optional(),
-    }).parse(request.query);
-
-    const whereClauses: SQL[] = [];
-    if (params.status) whereClauses.push(eq(dishes.status, params.status));
-    if (params.q) {
-      whereClauses.push(
-        or(
-          ilike(dishes.canonicalName, `%${params.q}%`),
-          ilike(dishes.slug, `%${params.q}%`),
-        )!,
-      );
-    }
-
-    const [dishRows, countRows] = await Promise.all([
-      db
-        .select({
-          id: dishes.id,
-          slug: dishes.slug,
-          canonicalName: dishes.canonicalName,
-          shortDescription: dishes.shortDescription,
-          status: dishes.status,
-          viewCount: dishes.viewCount,
-          updatedAt: dishes.updatedAt,
-          originGeoId: dishes.originGeoId,
-        })
-        .from(dishes)
-        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
-        .orderBy(desc(dishes.updatedAt))
-        .limit(params.limit)
-        .offset(params.offset),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(dishes)
-        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined),
-    ]);
-
-    // Resolve country names for the list
-    const geoIds = [...new Set(dishRows.map((d) => d.originGeoId).filter((v): v is string => !!v))];
-    const geoRows = geoIds.length > 0
-      ? await db.select({ id: geoEntities.id, name: geoEntities.name })
-          .from(geoEntities).where(inArray(geoEntities.id, geoIds))
-      : [];
-    const geoMap = new Map(geoRows.map((g) => [g.id, g.name]));
-
-    return {
-      dishes: dishRows.map((d) => ({
-        ...d,
-        originName: d.originGeoId ? (geoMap.get(d.originGeoId) ?? null) : null,
-      })),
-      total: Number(countRows[0]?.count ?? 0),
-      limit: params.limit,
-      offset: params.offset,
-    };
-  });
-
-  // ─── GET /api/admin/dishes/:slug — full dish detail for admin editor ─────────
-
-  app.get('/api/admin/dishes/:slug', async (request, reply) => {
-    if (!isAdminRequest(request)) {
-      return reply.status(401).send({ error: 'unauthorized', message: 'Missing or invalid X-Admin-Key' });
-    }
-
-    const { slug } = slugParamSchema.parse(request.params);
-
-    const dishRows = await db
-      .select()
-      .from(dishes)
-      .where(eq(dishes.slug, slug))
-      .limit(1);
-
-    if (dishRows.length === 0) {
-      return reply.status(404).send({ error: 'not_found', message: 'Dish not found' });
-    }
-    const dishRow = dishRows[0]!;
-
-    // Ingredients with full ingredient details
-    const dishIngs = await db
-      .select({
-        ingredientId: dishIngredients.ingredientId,
-        position: dishIngredients.position,
-        quantity: dishIngredients.quantity,
-        unit: dishIngredients.unit,
-        isOptional: dishIngredients.isOptional,
-        preparationNote: dishIngredients.preparationNote,
-        name: ingredients.canonicalName,
-        slug: ingredients.slug,
-      })
-      .from(dishIngredients)
-      .innerJoin(ingredients, eq(dishIngredients.ingredientId, ingredients.id))
-      .where(eq(dishIngredients.dishId, dishRow.id))
-      .orderBy(dishIngredients.position);
-
-    // Categories
-    const dishCats = await db
-      .select({
-        categoryId: dishCategories.categoryId,
-        name: categories.name,
-        slug: categories.slug,
-        isPrimary: dishCategories.isPrimary,
-      })
-      .from(dishCategories)
-      .innerJoin(categories, eq(dishCategories.categoryId, categories.id))
-      .where(eq(dishCategories.dishId, dishRow.id));
-
-    // Preparations with method details
-    const dishPreps = await db
-      .select({
-        id: dishPreparations.id,
-        methodId: dishPreparations.methodId,
-        methodName: preparationMethods.name,
-        methodSlug: preparationMethods.slug,
-        steps: dishPreparations.steps,
-        durationMinutes: dishPreparations.durationMinutes,
-        difficulty: dishPreparations.difficulty,
-        sequenceOrder: dishPreparations.sequenceOrder,
-      })
-      .from(dishPreparations)
-      .innerJoin(preparationMethods, eq(dishPreparations.methodId, preparationMethods.id))
-      .where(eq(dishPreparations.dishId, dishRow.id))
-      .orderBy(dishPreparations.sequenceOrder);
-
-    // Origin geo
-    let originName = null;
-    if (dishRow.originGeoId) {
-      const geo = await db
-        .select({ name: geoEntities.name })
-        .from(geoEntities)
-        .where(eq(geoEntities.id, dishRow.originGeoId))
-        .limit(1);
-      originName = geo[0]?.name ?? null;
+    const grouped: Record<string, RelatedRow[]> = {};
+    for (const r of rows) {
+      const bucket = grouped[r.relationType] ?? [];
+      bucket.push({
+        slug: r.toDishSlug,
+        name: r.toDishName,
+        shortDescription: r.toDishShortDescription,
+        cuisineSlug: r.toCuisineSlug,
+        cuisineName: r.toCuisineName,
+        countryName: r.toDishOriginName,
+        isoCode: r.toDishOriginIso,
+        relationId: r.relationId,
+        relationType: r.relationType,
+        reason: r.reason,
+        strength: r.strength,
+      });
+      grouped[r.relationType] = bucket;
     }
 
     return {
-      dish: {
-        ...dishRow,
-        originName,
-      },
-      ingredients: dishIngs,
-      categories: dishCats,
-      preparations: dishPreps,
+      sourceSlug: slug,
+      totalRelations: rows.length,
+      relationsByType: grouped,
     };
   });
 }
