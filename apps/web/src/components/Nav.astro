@@ -14,10 +14,13 @@ const domainLink = isGeo
   ? { href: '/map',           label: 'Map' }
   : { href: '/dishes',        label: 'Recipes' };
 
-// Shared links present on both domains
+// Shared links present on both domains.
+// Taxonomy pages are grouped together: Families (dish form), Regions
+// (geographic origin), Lineages (preparation method).
 const sharedLinks = [
   { href: '/dishes',   label: 'Dishes'   },
   { href: '/families', label: 'Families' },
+  { href: '/regions',  label: 'Regions'  },
   { href: '/lineages', label: 'Lineages' },
   { href: '/about',    label: 'About'    },
 ];
@@ -102,7 +105,7 @@ const domain = nav?.dataset.domain;
 const pathname = window.location.pathname;
 
 // Mark the nav link that matches the current path
-document.querySelectorAll('.gst-navlink').forEach(link => {
+document.querySelectorAll<HTMLElement>('.gst-navlink').forEach(link => {
   const href = link.getAttribute('href') ?? '';
   if (href === pathname || (href !== '/' && pathname.startsWith(href))) {
     link.dataset.on = '1';

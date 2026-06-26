@@ -5,9 +5,13 @@ import { ApiError, listDishes } from '../lib/api';
 import type { DishListResponse, DishSummary } from '../types/dish';
 
 // Server-render the first paint with all published dishes so we can
-// group them by family (primary dish-type category) and region on the
-// server. If the API is unreachable during build, the page still renders
-// and the client island takes over with a live fetch.
+// group them by family (primary dish-type category) on the server. If the
+// API is unreachable during build, the page still renders and the client
+// island takes over with a live fetch.
+//
+// Families is about dish FORM only (dumpling, flatbread, stew, …). Browsing
+// by geographic origin lives on its own page, /regions — keep the two axes
+// separate so neither filter borrows the other's state or labels.
 let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
 let serverError: string | null = null;
 let totalDishes = 0;
@@ -37,13 +41,6 @@ for (const d of initial.dishes) {
 
 // Sort families by member count descending — most-represented form first.
 const sortedFamilies = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
-
-// ── Collect unique regions (origin countries) ──────────────────────────────
-const regionSet = new Set<string>();
-for (const d of initial.dishes) {
-  if (d.originName) regionSet.add(d.originName);
-}
-const sortedRegions = [...regionSet].sort();
 
 // ── Human-readable family labels ──────────────────────────────────────────
 // Covers every dish-type slug in the DB. Unknown slugs get title-cased.
@@ -80,20 +77,16 @@ function labelFor(slug: string): string {
     ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
 }
 
-// ── Region color dots (consistent per region across the site) ────────────
-const REGION_COLORS: Record<string, string> = {
-  Argentina: '#8B4513', Austria: '#8B7355', Brazil: '#C2742F', Canada: '#A0522D',
-  China: '#B8552F', France: '#6E7F4E', Greece: '#C99A48', Hungary: '#8B7355',
-  India: '#D4A853', Indonesia: '#B8552F', Israel: '#C4706B', Italy: '#6E7F4E',
-  Japan: '#8B7355', Jordan: '#C99A48', Lebanon: '#D4A853', Mexico: '#B8552F',
-  Morocco: '#C2742F', Nepal: '#8B7355', Nigeria: '#8B4513', Peru: '#C4706B',
-  Poland: '#8B7355', Portugal: '#6E7F4E', 'Puerto Rico': '#A0522D',
-  Singapore: '#C99A48', 'South Korea': '#B8552F', Spain: '#8B7355',
-  Thailand: '#C99A48', Tunisia: '#D4A853', Ukraine: '#8B7355',
-  'United Kingdom': '#6E7F4E', 'United States': '#A0522D', Vietnam: '#C4706B',
-};
-function regionColor(r: string): string {
-  return REGION_COLORS[r] ?? '#B8552F';
+// ── Family color dots (a stable accent per family form) ──────────────────
+const FAMILY_PALETTE = [
+  '#B8552F', '#6E7F4E', '#C99A48', '#C4706B', '#8B7355',
+  '#C2742F', '#D4A853', '#A0522D', '#8B4513',
+];
+function familyColor(slug: string): string {
+  // Deterministic: same family always gets the same swatch.
+  let h = 0;
+  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
+  return FAMILY_PALETTE[h % FAMILY_PALETTE.length];
 }
 
 const totalFamilies = sortedFamilies.length;
@@ -113,10 +106,13 @@ const totalFamilies = sortedFamilies.length;
     <h1>
       The shapes<br />food <em>takes</em>.
     </h1>
-    <p class="sub" style="margin-bottom: 28px;">
+    <p class="sub" style="margin-bottom: 16px;">
       Before a dish has a country, it has a form — a dumpling, a flatbread,
       an egg gently cooked. Families gather those forms across the world,
       so you can see how one idea is told in a hundred kitchens.
+    </p>
+    <p class="sub" style="margin-bottom: 28px; font-size: 0.95rem;">
+      Looking for a particular cuisine? <a href="/regions" style="color: var(--accent); text-decoration: underline; text-underline-offset: 3px;">Browse by region →</a>
     </p>
 
     <div class="fam-stats">
@@ -127,10 +123,6 @@ const totalFamilies = sortedFamilies.length;
       <div>
         <b>{totalDishes}</b>
         <span>Dishes</span>
-      </div>
-      <div>
-        <b>{sortedRegions.length}</b>
-        <span>Origins</span>
       </div>
     </div>
   </section>
@@ -146,26 +138,9 @@ const totalFamilies = sortedFamilies.length;
           <button class="fam-chip active" data-family="all">All<span class="ct">{totalDishes}</span></button>
           {sortedFamilies.map(([slug, dishes]) => (
             <button class="fam-chip" data-family={slug}>
-              <span class="dot" style={`background:${REGION_COLORS[slug] ?? '#B8552F'}`}></span>
+              <span class="dot" style={`background:${familyColor(slug)}`}></span>
               {labelFor(slug)}
               <span class="ct">{dishes.length}</span>
-            </button>
-          ))}
-        </div>
-
-        <span class="fb-sep"></span>
-
-        {/* Region filter */}
-        <span class="fb-label">Region</span>
-        <div class="fb-chips" id="region-chips">
-          <button class="fam-chip active" data-region="all">All<span class="ct">{totalDishes}</span></button>
-          {sortedRegions.map((region) => (
-            <button class="fam-chip" data-region={region}>
-              <span class="dot" style={`background:${regionColor(region)}`}></span>
-              {region}
-              <span class="ct">
-                {initial.dishes.filter((d) => d.originName === region).length}
-              </span>
             </button>
           ))}
         </div>
@@ -192,7 +167,6 @@ const totalFamilies = sortedFamilies.length;
     <section
       class="fam-group wrap"
       data-family={familySlug}
-      data-regions={JSON.stringify([...new Set(familyDishes.map((d) => d.originName).filter(Boolean))])}
     >
       <header class="fam-group__head">
         <div>
@@ -241,37 +215,25 @@ const totalFamilies = sortedFamilies.length;
 <script>
   (function () {
     const familyChips  = document.querySelectorAll<HTMLButtonElement>('#family-chips .fam-chip');
-    const regionChips  = document.querySelectorAll<HTMLButtonElement>('#region-chips .fam-chip');
     const groups       = document.querySelectorAll<HTMLElement>('.fam-group');
     const countEl      = document.getElementById('fam-count');
     const emptyState   = document.getElementById('empty-state') as HTMLElement | null;
     const resetBtn     = document.getElementById('reset-filters') as HTMLButtonElement | null;
 
     let activeFamily = 'all';
-    let activeRegion = 'all';
 
     function applyFilters() {
       // Update chip active states
       familyChips.forEach((c) => {
         c.classList.toggle('active', c.dataset.family === activeFamily);
       });
-      regionChips.forEach((c) => {
-        c.classList.toggle('active', c.dataset.region === activeRegion);
-      });
 
       let visibleFamilies = 0;
-      let totalVisible    = 0;
 
       groups.forEach((g) => {
-        const regions: string[] = JSON.parse(g.dataset.regions ?? '[]');
-        const familyMatch = activeFamily === 'all' || g.dataset.family === activeFamily;
-        const regionMatch = activeRegion === 'all' || regions.includes(activeRegion);
-        const show = familyMatch && regionMatch;
+        const show = activeFamily === 'all' || g.dataset.family === activeFamily;
         g.style.display = show ? '' : 'none';
-        if (show) {
-          visibleFamilies++;
-          totalVisible += g.querySelectorAll('.fam-tile').length;
-        }
+        if (show) visibleFamilies++;
       });
 
       if (countEl) {
@@ -289,16 +251,8 @@ const totalFamilies = sortedFamilies.length;
       });
     });
 
-    regionChips.forEach((c) => {
-      c.addEventListener('click', () => {
-        activeRegion = c.dataset.region ?? 'all';
-        applyFilters();
-      });
-    });
-
     resetBtn?.addEventListener('click', () => {
       activeFamily = 'all';
-      activeRegion = 'all';
       applyFilters();
     });
   })();
