@@ -251,7 +251,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         FROM dish_preparations dp
         JOIN preparation_methods pm ON pm.id = dp.method_id
         WHERE dp.dish_id = d.id
-        ORDER BY dp.sequence ASC
+        ORDER BY dp.sequence_order ASC
         LIMIT 1
       ) meth ON true
       WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
