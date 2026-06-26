@@ -1,10 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
 import { AccountPanel } from '../components/AccountPanel';
 ---
 
 <Layout title="Account — Gustale" description="Manage your Gustale account.">
-  <div class="auth-page">
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Account' }]} />
+  <section class="wrap" style="padding: 48px 0 80px;">
     <div class="auth-card">
       <h1 class="auth-card h1">Account</h1>
       <p class="auth-card sub">
@@ -13,5 +15,5 @@ import { AccountPanel } from '../components/AccountPanel';
 
       <AccountPanel client:load />
     </div>
-  </div>
+  </section>
 </Layout>

@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
 import { WorldMap } from '../components/WorldMap';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { getMapDishes, ApiError } from '../lib/api';
@@ -33,6 +34,8 @@ try {
   title="Map — Gustale"
   description="Browse Gustale's dishes on an interactive globe by geographic origin."
 >
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { href: '/', label: 'Atlas' }, { label: 'Map' }]} />
+
   <section class="map-page wrap">
     <header>
       <h1 class="map-page h1">

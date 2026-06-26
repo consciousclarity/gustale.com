@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { getIngredient, type IngredientDetailResponse } from '../../lib/api';
 
 // Build-time: enumerate every published ingredient so Astro can pre-render
@@ -9,27 +10,28 @@ export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
     // No API at build time — render one placeholder so the build doesn't fail.
-    return [{ params: { slug: 'eggplant' }, props: { data: null, notFound: true } }];
+    return [{ params: { slug: 'eggplant' }, props: { name: 'Eggplant' } }];
   }
 
   try {
     const res = await fetch(`${apiBase}/api/ingredients?limit=200`);
     if (!res.ok) throw new Error(`Ingredient list returned ${res.status}`);
     const json = (await res.json()) as {
-      ingredients: Array<{ slug: string }>;
+      ingredients: Array<{ slug: string; name?: string }>;
     };
     return json.ingredients.map((ing) => ({
       params: { slug: ing.slug },
-      props: { data: null as IngredientDetailResponse | null, notFound: false },
+      props: { name: ing.name ?? ing.slug },
     }));
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[getStaticPaths] ingredient list fetch failed:', err);
-    return [{ params: { slug: 'eggplant' }, props: { data: null, notFound: true } }];
+    return [{ params: { slug: 'eggplant' }, props: { name: 'Eggplant' } }];
   }
 }
 
 const { slug } = Astro.params;
+const { name: ingredientName } = Astro.props as { name: string };
 
 let data: IngredientDetailResponse | null = null;
 let notFound = false;
@@ -48,6 +50,12 @@ try {
 ---
 
 <Layout title={`${data?.ingredient.canonicalName ?? slug} — gustale.recipes`}>
+  <Breadcrumbs
+    crumbs={[
+      { href: '/', label: 'Home' },
+      { label: ingredientName },
+    ]}
+  />
   <article class="about-page inner">
     {fetchError && (
       <div class="alert alert-warning">

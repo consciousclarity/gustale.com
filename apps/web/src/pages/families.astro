@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
 import { ApiError, listDishes } from '../lib/api';
 import type { DishListResponse, DishSummary } from '../types/dish';
 
@@ -98,6 +99,8 @@ const totalFamilies = sortedGroups.length;
   title="Families — Gustale"
   description="Browse Gustale's dishes grouped by the form they take — dumplings, flatbreads, eggs, noodles, and more."
 >
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Families' }]} />
+
   {/* ─── Hero ──────────────────────────────────────────────────────── */}
   <section class="fam-hero wrap">
     <p class="eyebrow">

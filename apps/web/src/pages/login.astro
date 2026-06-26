@@ -1,26 +1,18 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
 import { SignInForm } from '../components/SignInForm';
 ---
 
 <Layout title="Sign in — Gustale" description="Sign in to your Gustale account.">
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Sign in' }]} />
   <div class="auth-page">
     <div class="auth-card">
       <h1 class="auth-card h1">Sign in</h1>
       <p class="auth-card sub">
-        Welcome back to Gustale. Sign in to contribute to the encyclopedia.
+        Welcome back. Sign in to contribute to Gustale.
       </p>
-
-      <div class="gst-card">
-        <SignInForm client:load />
-      </div>
-
-      <p class="auth-card form-footer">
-        Don't have an account?
-        <a href="/register" style="color: var(--accent)">
-          Create one
-        </a>
-      </p>
+      <SignInForm client:load />
     </div>
   </div>
 </Layout>

@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { NewDishForm } from '../../components/NewDishForm';
 
 // New-dish page. Renders the form as a client-side island because:
@@ -14,6 +15,8 @@ import { NewDishForm } from '../../components/NewDishForm';
   title="Create a new dish — Gustale"
   description="Add a new dish to the Gustale encyclopedia."
 >
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { href: '/dishes', label: 'Dishes' }, { label: 'Add dish' }]} />
+
   <section class="wrap" style="padding: 48px 0 80px;">
     <header>
       <h1 style="font-family: var(--display); font-size: clamp(36px,5vw,48px); letter-spacing: -1px; margin: 0 0 12px;">

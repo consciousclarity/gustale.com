@@ -1,0 +1,105 @@
+---
+/**
+ * Breadcrumbs.astro — reusable breadcrumb trail.
+ *
+ * Usage:
+ *   import Breadcrumbs from '../components/Breadcrumbs.astro';
+ *   <Breadcrumbs crumbs={[
+ *     { href: '/dishes',    label: 'Dishes'    },
+ *     { href: '/families',  label: 'Families'  },
+ *     { label: 'Ramen' },
+ *   ]} />
+ *
+ * The last item gets no href (current page), all others are links.
+ * Separator is "›" via CSS — no raw text separators in the markup.
+ */
+
+interface Crumb {
+  href?: string;
+  label: string;
+}
+
+interface Props {
+  crumbs: Crumb[];
+  /** Additional CSS class for the <nav> element (default: 'gst-crumb'). */
+  class?: string;
+}
+
+const { crumbs, class: className = 'gst-crumb' } = Astro.props;
+---
+
+<nav class={className} aria-label="Breadcrumb">
+  <ol class="crumb-list">
+    {crumbs.map((crumb, i) => {
+      const isLast = i === crumbs.length - 1;
+      return (
+        <li class="crumb-item" data-is-last={isLast ? 'true' : undefined}>
+          {isLast || !crumb.href ? (
+            <span class="crumb-current" aria-current={isLast ? 'page' : undefined}>
+              {crumb.label}
+            </span>
+          ) : (
+            <a href={crumb.href} class="crumb-link">
+              {crumb.label}
+            </a>
+          )}
+        </li>
+      );
+    })}
+  </ol>
+</nav>
+
+<style>
+.gst-crumb {
+  display: flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--sub);
+  padding: 30px 0 0;
+}
+
+.crumb-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crumb-item {
+  display: flex;
+  align-items: center;
+}
+
+.crumb-item:not([data-is-last='true'])::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M5 3.5L9 7L5 10.5' stroke='%236B6052' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.5;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.crumb-link {
+  color: var(--sub);
+  text-decoration: none;
+  transition: color 0.14s;
+  white-space: nowrap;
+}
+
+.crumb-link:hover {
+  color: var(--accent);
+}
+
+.crumb-current {
+  color: var(--ink);
+  white-space: nowrap;
+}
+</style>

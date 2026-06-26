@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { DishExplorer } from '../../components/DishExplorer.tsx';
 import ErrorBoundary from '../../components/ErrorBoundary.tsx';
 import { listDishes, ApiError } from '../../lib/api';
@@ -28,6 +29,8 @@ try {
 ---
 
 <Layout title="Dishes — Gustale" description="Browse the Gustale culinary encyclopedia.">
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Dishes' }]} />
+
   <section class="wrap" style="padding: 48px 0 80px;">
     <header>
       <h1>Dishes</h1>

@@ -1,50 +1,72 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 import { EditDishForm } from '../../../components/EditDishForm';
 
 // Mirror the same getStaticPaths as /dishes/[slug] so we pre-build an
-// /edit page for every existing dish. The form itself does its own
-// data fetch (with auth) on hydration, so the page itself is just a
-// shell — but static-generation keeps the URL space predictable and
-// aligns with the rest of the dish page architecture.
+// /edit page for every existing dish. We also fetch the dish name so the
+// breadcrumb is human-readable (not just the slug).
 export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
-    return [{ params: { slug: 'moussaka-greek' } }];
+    return [{ params: { slug: 'moussaka-greek' }, props: { dishName: 'Moussaka' } }];
   }
   try {
-    const allSlugs: string[] = [];
+    const allSlugs: { slug: string; name: string }[] = [];
     const PAGE_SIZE = 100;
     for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
       const res = await fetch(
         `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
       );
       if (!res.ok) throw new Error(`List fetch returned ${res.status}`);
-      const json = (await res.json()) as { dishes: Array<{ slug: string }> };
-      allSlugs.push(...json.dishes.map((d) => d.slug));
+      const json = (await res.json()) as {
+        dishes: Array<{ slug: string; canonicalName?: string }>;
+      };
+      allSlugs.push(
+        ...json.dishes.map((d) => ({
+          slug: d.slug,
+          name: d.canonicalName ?? d.slug,
+        })),
+      );
       if (json.dishes.length < PAGE_SIZE) break;
     }
-    return allSlugs.map((slug) => ({ params: { slug } }));
+    return allSlugs.map(({ slug, name }) => ({
+      params: { slug },
+      props: { dishName: name },
+    }));
   } catch {
-    return [{ params: { slug: 'moussaka-greek' } }];
+    return [{ params: { slug: 'moussaka-greek' }, props: { dishName: 'Moussaka' } }];
   }
 }
 
 const { slug } = Astro.params;
+const { dishName } = Astro.props as { dishName: string };
 ---
 
 <Layout
-  title={`Edit ${slug} — Gustale`}
+  title={`Edit ${dishName} — Gustale`}
   description="Edit a dish in the Gustale encyclopedia."
 >
+  <Breadcrumbs
+    crumbs={[
+      { href: '/',              label: 'Home'    },
+      { href: '/dishes',        label: 'Dishes'  },
+      { href: `/dishes/${slug}`, label: dishName },
+      { label: 'Edit' },
+    ]}
+  />
+
   <section class="wrap" style="padding: 48px 0 80px;">
     <header>
       <h1 style="font-family: var(--display); font-size: clamp(36px,5vw,48px); letter-spacing: -1px; margin: 0 0 12px;">
         Edit dish
       </h1>
       <p class="sub">
-        <a href={`/dishes/${slug}/`} style="color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px;">
-          ← {slug}
+        <a
+          href={`/dishes/${slug}/`}
+          style="color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px;"
+        >
+          ← {dishName}
         </a>
       </p>
     </header>
