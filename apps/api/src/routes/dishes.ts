@@ -179,6 +179,25 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
 
+    // Fetch all dish IDs + their primary dish-type category in one additional query.
+    // This avoids Drizzle's postgres-js prepared-statement incompatibility with
+    // scalar-subquery columns in .select() — we do the join in JS instead.
+    const dishFamilyRows = (await db.execute(
+      sql`SELECT dc.dish_id, c.slug AS family_slug, c.name AS family_name
+          FROM dish_categories dc
+          JOIN categories c ON c.id = dc.category_id
+          WHERE c.kind = 'dish-type'
+          ORDER BY dc.is_primary DESC`,
+    )) as { dish_id: string; family_slug: string | null; family_name: string | null }[];
+
+    const familyByDishId = new Map<string, { slug: string | null; name: string | null }>();
+    for (const row of dishFamilyRows) {
+      // Keep the first (highest priority / most primary) entry per dish.
+      if (!familyByDishId.has(row.dish_id)) {
+        familyByDishId.set(row.dish_id, { slug: row.family_slug, name: row.family_name });
+      }
+    }
+
     const result = await db
       .select({
         id: dishes.id,
@@ -190,9 +209,6 @@ export function registerDishRoutes(app: FastifyInstance): void {
         status: dishes.status,
         viewCount: dishes.viewCount,
         updatedAt: dishes.updatedAt,
-        // Primary dish-type category — used as 'family' for /families page grouping.
-        familySlug: sql<string | null>`SELECT c.slug FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type' ORDER BY dc.is_primary DESC LIMIT 1`,
-        familyName: sql<string | null>`SELECT c.name FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type' ORDER BY dc.is_primary DESC LIMIT 1`,
       })
       .from(dishes)
       .where(and(...whereClauses))
@@ -200,7 +216,13 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .limit(params.limit)
       .offset(params.offset);
 
-    return { dishes: result, limit: params.limit, offset: params.offset };
+    // Attach family data (from JS join — avoids postgres-js scalar-subquery issue).
+    const dishesWithFamily = result.map((row) => {
+      const fam = familyByDishId.get(row.id) ?? { slug: null, name: null };
+      return { ...row, familySlug: fam.slug, familyName: fam.name };
+    });
+
+    return { dishes: dishesWithFamily, limit: params.limit, offset: params.offset };
   });
 
   // Map view: flat list of all published dishes with origin coordinates.
