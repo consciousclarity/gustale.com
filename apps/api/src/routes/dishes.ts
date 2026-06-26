@@ -271,7 +271,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       originName: row.origin_name,
       status: row.status as 'draft' | 'published' | 'archived',
       viewCount: row.view_count,
-      updatedAt: row.updated_at.toISOString(),
+      updatedAt: typeof row.updated_at === 'string' ? row.updated_at : (row.updated_at as Date).toISOString(),
       familySlug: row.family_slug,
       familyName: row.family_name,
     }));
