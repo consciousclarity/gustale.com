@@ -37,7 +37,7 @@ type SortKey = 'name' | 'origin' | 'family';
 interface ParsedFilters {
   q: string;
   country: string[];   // origin country: Japan, Italy, Thailand…
-  cuisine: string[];   // cuisine category: Korean cuisine, Italian cuisine…
+  cuisine: string[];   // cuisine category (legacy: category key)
   type: string[];     // dish-type category: Noodle soup, Stew, Pasta…
   ingredient: string[];
   technique: string[];
@@ -49,14 +49,15 @@ const CATEGORIES = new Set(['korean cuisine','italian cuisine','japanese cuisine
 function parseQuery(raw: string): ParsedFilters {
   const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
   const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
-  const rawFilters: Record<string, string[]> = {
+  const rawFilters: ParsedFilters = {
+    q: '',
     country: [], cuisine: [], type: [], ingredient: [], technique: [], period: [],
   };
   for (const tok of tokens) {
     const colon = tok.indexOf(':');
     const key = tok.slice(0, colon).toLowerCase();
     const val = tok.slice(colon + 1).toLowerCase();
-    if (key === 'origin' || key === 'country') {
+    if (key === 'origin' || key === 'country' || key === 'region') {
       rawFilters.country.push(val);
     } else if (key === 'cuisine' || key === 'category') {
       // cuisine vs type is inferred from the value itself
@@ -75,7 +76,8 @@ function parseQuery(raw: string): ParsedFilters {
       rawFilters.period.push(val);
     }
   }
-  return { q: freetext, ...rawFilters };
+  rawFilters.q = freetext;
+  return rawFilters;
 }
 
 // ─── Atlas view ─────────────────────────────────────────────────────────────
@@ -100,7 +102,7 @@ function AtlasView({
       if (!map.has(r)) map.set(r, []);
       map.get(r)!.push(d);
     }
-    return [...map.entries()]
+    return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([region, dishes]) => ({
         region,

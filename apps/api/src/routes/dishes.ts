@@ -157,6 +157,13 @@ export function registerDishRoutes(app: FastifyInstance): void {
       }
     }
 
+    if (params.region) {
+      // Legacy alias for country — same ILIKE on geo_entities.name
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.region + '%'})`
+      );
+    }
+
     if (params.category) {
       // Match by category slug (cuisine or dish-type) via the join table.
       whereClauses.push(

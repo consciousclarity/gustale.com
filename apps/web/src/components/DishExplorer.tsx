@@ -23,7 +23,8 @@ function parseStructuredQuery(raw: string): {
   technique: string[];
   region: string[];   // legacy alias for country
   category: string[];  // legacy alias for cuisine
-  period: string[]; {
+  period: string[];
+} {
   const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
   const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
   const filters = {
@@ -85,11 +86,14 @@ export function DishExplorer({ initial }: DishExplorerProps) {
       setError(null);
       listDishes({
         search: parsed.q.trim() || undefined,
-        origin: parsed.origin[0],
+        country: parsed.country[0],
+        cuisine: parsed.cuisine[0],
+        type: parsed.type[0],
         ingredient: parsed.ingredient[0],
         technique: parsed.technique[0],
         region: parsed.region[0],
         category: parsed.category[0],
+        period: parsed.period[0],
         limit: PAGE_SIZE,
       })
         .then((res) => setData(res))
