@@ -1,0 +1,47 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { AdminDishList } from '../../../components/admin/AdminDishList';
+
+const apiBase = import.meta.env.PUBLIC_API_BASE ?? 'https://api.gustale.recipes';
+const adminKey = import.meta.env.ADMIN_KEY ?? '';
+
+// Server-side fetch for initial data (optional — island loads from API if not provided)
+let initialDishes: unknown[] = [];
+let initialTotal = 0;
+try {
+  const res = await fetch(`${apiBase}/api/admin/dishes?limit=200`, {
+    headers: { 'X-Admin-Key': adminKey },
+  });
+  if (res.ok) {
+    const data = await res.json() as { dishes: unknown[]; total: number };
+    initialDishes = data.dishes;
+    initialTotal = data.total;
+  }
+} catch {
+  // API unreachable — island will load client-side
+}
+---
+<script define:vars={{ adminKey }}>
+  window.ENV_ADMIN_KEY = adminKey;
+</script>
+
+<Layout title="Dishes — Admin — Gustale" description="Admin dish list">
+  <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Dishes' }]} />
+
+  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+      <div>
+        <h1 style="font-family: var(--display); font-size: 1.75rem; margin: 0 0 0.25rem;">Dishes</h1>
+        <p class="sub" style="margin: 0;">{initialTotal} dishes total</p>
+      </div>
+    </div>
+
+    <AdminDishList
+      client:load
+      initialDishes={initialDishes as Parameters<typeof AdminDishList>[0]['initialDishes']}
+      initialTotal={initialTotal}
+      apiBase={apiBase}
+    />
+  </main>
+</Layout>

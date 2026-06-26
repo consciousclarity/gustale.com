@@ -1,0 +1,32 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { AdminDishEditor } from '../../../components/admin/AdminDishEditor';
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect('/admin/dishes');
+
+const apiBase = import.meta.env.PUBLIC_API_BASE ?? 'https://api.gustale.recipes';
+const adminKey = import.meta.env.ADMIN_KEY ?? '';
+---
+<script define:vars={{ adminKey }}>
+  window.ENV_ADMIN_KEY = adminKey;
+</script>
+
+<Layout title={`${slug} — Admin — Gustale`} description="Edit dish">
+  <Breadcrumbs
+    items={[
+      { label: 'Admin', href: '/admin' },
+      { label: 'Dishes', href: '/admin/dishes' },
+      { label: slug },
+    ]}
+  />
+
+  <main style="padding-bottom: 4rem;">
+    <AdminDishEditor
+      client:load
+      dishSlug={slug}
+      apiBase={apiBase}
+    />
+  </main>
+</Layout>

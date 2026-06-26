@@ -1,0 +1,104 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { AdminDishList } from '../../../components/admin/AdminDishList';
+
+const apiBase = import.meta.env.PUBLIC_API_BASE ?? 'https://api.gustale.recipes';
+const adminKey = import.meta.env.ADMIN_KEY ?? '';
+
+// Inject admin key into the page so the React island can access it client-side
+---
+<script define:vars={{ adminKey }}>
+  window.ENV_ADMIN_KEY = adminKey;
+</script>
+
+<Layout title="Admin — Gustale" description="Admin dashboard">
+  <Breadcrumbs items={[{ label: 'Admin' }]} />
+
+  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem;">
+    <h1 style="font-family: var(--display); font-size: 2rem; margin-bottom: 0.5rem;">Admin</h1>
+    <p class="sub" style="margin-bottom: 2rem;">Manage dishes, ingredients, and taxonomy.</p>
+
+    <div class="admin-grid">
+      <a href="/admin/dishes" class="admin-card">
+        <div class="admin-card-icon">🍽</div>
+        <div>
+          <h2>Dishes</h2>
+          <p>Edit dish names, descriptions, ingredients, preparation methods, and categories.</p>
+        </div>
+      </a>
+
+      <a href="/admin/ingredients" class="admin-card">
+        <div class="admin-card-icon">🥕</div>
+        <div>
+          <h2>Ingredients</h2>
+          <p>Manage ingredient names and canonical names.</p>
+        </div>
+      </a>
+
+      <a href="/admin/regions" class="admin-card">
+        <div class="admin-card-icon">🌍</div>
+        <div>
+          <h2>Regions</h2>
+          <p>Edit country and region names.</p>
+        </div>
+      </a>
+
+      <a href="/admin/lineages" class="admin-card">
+        <div class="admin-card-icon">🔥</div>
+        <div>
+          <h2>Lineages</h2>
+          <p>Manage preparation methods (how dishes are cooked).</p>
+        </div>
+      </a>
+
+      <a href="/admin/families" class="admin-card">
+        <div class="admin-card-icon">📂</div>
+        <div>
+          <h2>Families</h2>
+          <p>Manage dish-type categories (Soup, Pasta, etc.).</p>
+        </div>
+      </a>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .admin-card {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1.25rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .admin-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .admin-card-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .admin-card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+  }
+  .admin-card p {
+    font-size: 0.85rem;
+    color: var(--sub);
+    margin: 0;
+    line-height: 1.4;
+  }
+</style>
