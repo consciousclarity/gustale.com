@@ -169,9 +169,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Wait for API to be reachable
-        run: node apps/web/scripts/wait-for-api.mjs https://api.gustale.recipes
-        
+      # NOTE: We deliberately do NOT wait for the live API here. GHA runner
+      # IPs are firewall-blocked from the VPS, so api.gustale.recipes is not
+      # reachable from CI (see apps/web/Dockerfile for the same reason the web
+      # build uses a local mock). Building the API image does not depend on the
+      # live API at all, so gating the build on its reachability only added
+      # flaky failures that skipped deploy. Removed.
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:
