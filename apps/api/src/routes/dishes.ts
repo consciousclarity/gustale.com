@@ -186,30 +186,13 @@ export function registerDishRoutes(app: FastifyInstance): void {
         canonicalName: dishes.canonicalName,
         shortDescription: dishes.shortDescription,
         originGeoId: dishes.originGeoId,
-        originName: sql<string | null>`
-          SELECT g.name FROM geo_entities g WHERE g.id = dishes.origin_geo_id LIMIT 1
-        `,
+        originName: sql<string | null>`SELECT g.name FROM geo_entities g WHERE g.id = dishes.origin_geo_id LIMIT 1`,
         status: dishes.status,
         viewCount: dishes.viewCount,
         updatedAt: dishes.updatedAt,
-        // Primary dish-type category — used as 'family' for the /families page grouping.
-        // Falls back to the first dish-type category if no primary is marked.
-        familySlug: sql<string | null>`
-          SELECT c.slug
-          FROM dish_categories dc
-          JOIN categories c ON c.id = dc.category_id
-          WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type'
-          ORDER BY dc.is_primary DESC
-          LIMIT 1
-        `,
-        familyName: sql<string | null>`
-          SELECT c.name
-          FROM dish_categories dc
-          JOIN categories c ON c.id = dc.category_id
-          WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type'
-          ORDER BY dc.is_primary DESC
-          LIMIT 1
-        `,
+        // Primary dish-type category — used as 'family' for /families page grouping.
+        familySlug: sql<string | null>`SELECT c.slug FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type' ORDER BY dc.is_primary DESC LIMIT 1`,
+        familyName: sql<string | null>`SELECT c.name FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type' ORDER BY dc.is_primary DESC LIMIT 1`,
       })
       .from(dishes)
       .where(and(...whereClauses))
