@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { AuthMenu } from '../components/AuthMenu';
+import Nav from '../components/Nav.astro';
 
 export interface Props {
   title: string;
@@ -23,26 +23,7 @@ const isGeo = domain === 'geo';
     <title>{title}</title>
   </head>
   <body class="gst">
-    <nav class="gst-nav">
-      <div class="wrap gst-nav-in">
-        <a href="/" class="gst-brand">
-          <span class="gst-wordmark">Gustale</span>
-          <span class="sub">{isGeo ? 'Atlas' : 'Recipes'}</span>
-        </a>
-
-        <div class="gst-navlinks">
-          <a href="/dishes">Dishes</a>
-          <a href="/families">Families</a>
-          <a href="/lineages">Lineages</a>
-          {isGeo && <a href="/map">Map</a>}
-          <a href="/about">About</a>
-        </div>
-
-        <div class="gst-navr">
-          <AuthMenu client:load />
-        </div>
-      </div>
-    </nav>
+    <Nav />
 
     <main>
       <slot />
@@ -52,15 +33,39 @@ const isGeo = domain === 'geo';
       <div class="wrap">
         <div>
           <div class="fm">Gustale</div>
-          <div class="fcap">Open knowledge, slow cooking — {new Date().getFullYear()}</div>
+          <div class="fcap">
+            <a href="https://gustale.com" class="foot-domain" data-active={isGeo ? 'true' : undefined}>Atlas</a>
+            <span class="foot-sep">·</span>
+            <a href="https://gustale.recipes" class="foot-domain" data-active={!isGeo ? 'true' : undefined}>Recipes</a>
+            <span class="foot-sep">·</span>
+            Open knowledge, slow cooking — {new Date().getFullYear()}
+          </div>
         </div>
         <div class="fl">
-          <a href="/about">About</a>
-          <a href="/dishes">Dishes</a>
+          <a href="https://gustale.com">Atlas</a>
+          <a href="https://gustale.recipes">Recipes</a>
           <a href="/families">Families</a>
-          <a href="/map">Map</a>
+          <a href="/lineages">Lineages</a>
+          <a href="/about">About</a>
         </div>
       </div>
     </footer>
   </body>
 </html>
+
+<style>
+  .foot-domain {
+    color: var(--sub);
+    text-decoration: none;
+    transition: color 0.14s;
+  }
+  .foot-domain:hover,
+  .foot-domain[data-active='true'] {
+    color: var(--accent);
+  }
+  .foot-sep {
+    color: var(--sub);
+    opacity: 0.4;
+    margin: 0 2px;
+  }
+</style>
