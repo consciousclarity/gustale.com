@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { AuthMenu } from '../components/AuthMenu';
+import SiteHeader from '../components/SiteHeader.astro';
 
 export interface Props {
   title: string;
@@ -8,8 +8,6 @@ export interface Props {
 }
 
 const { title, description = 'Gustale — a digital culinary archive.' } = Astro.props;
-const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
-const isGeo = domain === 'geo';
 ---
 
 <!doctype html>
@@ -23,28 +21,11 @@ const isGeo = domain === 'geo';
     <title>{title}</title>
   </head>
   <body class="gst">
-    <nav class="gst-nav">
-      <div class="wrap gst-nav-in">
-        <a href="/" class="gst-brand">
-          <span class="gst-wordmark">Gustale</span>
-          <span class="sub">{isGeo ? 'Atlas' : 'Recipes'}</span>
-        </a>
+    <a class="skip-link" href="#main">Skip to content</a>
 
-        <div class="gst-navlinks">
-          <a href="/dishes">Dishes</a>
-          <a href="/families">Families</a>
-          <a href="/lineages">Lineages</a>
-          {isGeo && <a href="/map">Map</a>}
-          <a href="/about">About</a>
-        </div>
+    <SiteHeader />
 
-        <div class="gst-navr">
-          <AuthMenu client:load />
-        </div>
-      </div>
-    </nav>
-
-    <main>
+    <main id="main">
       <slot />
     </main>
 
