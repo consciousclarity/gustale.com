@@ -33,10 +33,15 @@ gustale.com/
 │   └── web/                    Astro + React islands frontend (port 4001 → Caddy :443)
 ├── packages/
 │   ├── db/                     Drizzle schema, migrations, seed
-│   └── shared/                 Shared TS types
-├── .github/workflows/ci.yml    5-job CI: lint, test, build-api, build-web, deploy
-├── .hermes/                    Shared state, tasks, this file (gitignored below)
-└── docs/                       Project documentation
+│   └── ui/                     Shared UI components + types
+├── .devcontainer/              Dev container: Postgres 16 + PostGIS + MinIO
+│   ├── devcontainer.json        VS Code Dev Containers config
+│   ├── docker-compose.yml       Local dev services
+│   └── setup.sh                Post-create: install deps, run migrations, seed buckets
+├── .github/workflows/ci.yml      CI: build + deploy on merge to main
+├── .hermes/                     Shared state, tasks, this file
+└── docs/
+    └── DEV_SETUP.md             Full local dev guide
 ```
 
 ## Critical files to know about
@@ -60,10 +65,13 @@ gustale.com/
 
 ## Environment
 
-- Node 22, pnpm 9 (via corepack)
-- Postgres 16 + PostGIS 3.4 (in shared-postgres container)
-- No real `.env` — env comes from CI secrets for tests, from `/root/.env` on VPS for prod
-- MinIO for media (not yet actively used in seed data)
+- Node 22, pnpm 10+ (via corepack or npm)
+- **Dev container** (`.devcontainer/`): Postgres 16 + PostGIS + MinIO
+  - VS Code: open in container → done
+  - Manual: `docker compose -f .devcontainer/docker-compose.yml up -d`
+- Postgres 16 + PostGIS 3.4 (in shared-postgres container on VPS)
+- MinIO for media storage
+- `.env` is local-only — CI uses secrets; VPS uses `/root/.env`
 
 ## Live URLs (for smoke-testing after deploy)
 

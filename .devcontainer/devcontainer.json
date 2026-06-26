@@ -1,0 +1,55 @@
+{
+  "name": "Gustale",
+  "dockerComposeFile": ["docker-compose.yml"],
+  "service": "postgres",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22",
+      "pnpm": "latest"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest"
+    }
+  },
+  "portsAttributes": {
+    "4321": {
+      "label": "Astro (Web)",
+      "onAutoForward": "openBrowser"
+    },
+    "4000": {
+      "label": "API",
+      "onAutoForward": "notify"
+    },
+    "9001": {
+      "label": "MinIO Console",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "astro-build.astro-vscode",
+        "prisma.prisma",
+        "mtxr.sqltools-driver-pg"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[typescript]": {
+          "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+        },
+        "[astro]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  }
+}

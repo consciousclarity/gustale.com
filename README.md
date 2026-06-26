@@ -1,66 +1,62 @@
-# Gustale — Open-source geo-located encyclopedia of dishes and ingredients
+# Gustale — Open-source geo-located encyclopedia of dishes
 
 **License:** AGPL-3.0 (code) + CC-BY-SA-4.0 (content)
 
+## Quick start (VS Code)
+
+1. Open this repo in VS Code
+2. Install the **"Dev Containers"** extension (Microsoft)
+3. `Cmd+Shift+P` → **"Dev Containers: Reopen in Container"**
+4. Wait ~2 min for setup to finish
+5. Two terminals:
+   ```
+   pnpm --filter @gustale/api dev   # http://localhost:4000
+   pnpm --filter @gustale/web dev   # http://localhost:4321
+   ```
+
+See [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md) for full documentation including manual setup without VS Code.
+
 ## Stack
 
-- **Backend**: Node 20+ / Fastify / TypeScript (strict)
-- **Database**: PostgreSQL 16 + PostGIS 3.4
-- **Object storage**: MinIO (S3-compatible)
-- **Frontend**: Astro + React islands (planned)
-- **Auth**: Better-auth (magic link + email+password + passkeys + Google OAuth)
-- **Reverse proxy**: Caddy with auto-HTTPS via Let's Encrypt
+| Layer | Technology |
+|---|---|
+| Frontend | Astro + React islands |
+| Backend | Fastify + TypeScript (strict) |
+| Database | PostgreSQL 16 + PostGIS 3.4 |
+| Auth | Better-auth (magic link, email+password, passkeys, Google OAuth) |
+| Storage | MinIO (S3-compatible) |
+| Reverse proxy | Caddy (auto-HTTPS) |
 
 ## Project structure
 
 ```
 gustale.com/
 ├── apps/
-│   ├── api/              Fastify backend
-│   └── web/              Astro frontend (planned)
+│   ├── api/           Fastify backend
+│   └── web/           Astro frontend
 ├── packages/
-│   ├── db/               Drizzle schema + migrations (@gustale/db)
-│   └── shared/           Shared types (@gustale/shared)
-├── db/                   SQL migration files
-├── infra/                Docker compose, Caddyfile, deploy scripts
-└── docs/                 Project documentation
+│   ├── db/            Drizzle schema + migrations
+│   └── ui/            Shared UI components
+├── .devcontainer/     Dev container (Postgres + MinIO)
+│   ├── devcontainer.json
+│   ├── docker-compose.yml
+│   └── setup.sh
+└── docs/
+    └── DEV_SETUP.md   Full setup guide
 ```
 
-## Local development (Geekom)
+## Scripts
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Set up environment
-cp apps/api/.env.example apps/api/.env
-# Edit with your local DATABASE_URL, MINIO creds, etc.
-
-# Run database migrations (against your local or remote Postgres)
-pnpm db:migrate
-
-# Start the API in watch mode
-pnpm --filter @gustale/api dev
+pnpm install               # Install all dependencies
+pnpm --filter @gustale/api dev   # Start API (port 4000)
+pnpm --filter @gustale/web dev   # Start web (port 4321)
+pnpm --filter @gustale/api test  # Run API tests
+pnpm build                 # Build both apps for production
 ```
 
 ## Deployment
 
-The app is deployed to the Hostinger VPS at `/home/deploy/gustale.com/`.
-See `infra/` for Docker compose files and deploy scripts.
+The app runs on the Hostinger VPS at `62.72.7.218`. CI/CD is handled by GitHub Actions — a successful merge to `main` triggers a build and deploy.
 
-## Build order (Phase 7)
-
-- [x] **7a** Backend skeleton
-- [ ] **7b** Auth (Better-auth: email+password, magic link, passkeys, Google OAuth)
-- [ ] **7c** Dish CRUD (read endpoints live, write needs auth)
-- [ ] **7d** Image upload to MinIO
-- [ ] **7e** Frontend skeleton (Astro)
-- [ ] **7f** Globe.gl integration
-- [ ] **7g** i18n
-- [ ] **7h** SEO, sitemaps, robots.txt
-
-See `PROJECT_DECISIONS.md` for the full stack rationale.
-
-## Contributing
-
-This is a personal project currently. The first contribution from a second human is still pending.
+See [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md) for the full development guide.

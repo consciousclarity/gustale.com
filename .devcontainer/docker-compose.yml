@@ -1,0 +1,52 @@
+# Gustale — Local development services
+# Run: docker compose -f .devcontainer/docker-compose.yml up -d
+# Then: pnpm install && pnpm dev
+#
+# Services exposed to host:
+#   Postgres  → localhost:5432
+#   MinIO     → localhost:9000 (API) + localhost:9001 (Console)
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: gustale-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gustale
+      POSTGRES_PASSWORD: gustale_dev
+      POSTGRES_DB: gustale
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persistent data across restarts
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gustale -d gustale"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio:
+    image: minio/minio:latest
+    container_name: gustale-minio-dev
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: gustale_dev
+      MINIO_ROOT_PASSWORD: gustale_dev_password
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    volumes:
+      - minio_dev_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_dev_data:
+  minio_dev_data:
