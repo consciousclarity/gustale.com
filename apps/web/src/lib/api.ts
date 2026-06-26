@@ -184,6 +184,7 @@ export interface ListDishesParams {
   region?: string;     // legacy alias for country
   category?: string;    // legacy alias for cuisine
   period?: string;     // historical era e.g. 1920-1950
+  family?: string;      // kind='family' category slug (Dumplings, Noodle soups…)
 }
 
 export function listDishes(
@@ -202,6 +203,7 @@ export function listDishes(
   if (params.region) qs.set('region', params.region);
   if (params.category) qs.set('category', params.category);
   if (params.period) qs.set('period', params.period);
+  if (params.family) qs.set('family', params.family);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }

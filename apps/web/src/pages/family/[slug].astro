@@ -162,7 +162,7 @@ const blurb = KNOWN_BLURBS[slug] ?? familyDescription ?? null;
               <h3>{d.canonicalName}</h3>
               {d.shortDescription && <p class="def">{d.shortDescription}</p>}
               <div class="foot">
-                <span class="counts mono-sub">{d.methodSlug ?? '—'}</span>
+                <span class="counts mono-sub">{d.familyName ?? '—'}</span>
                 <span class="go">Explore <span class="arr">→</span></span>
               </div>
             </a>

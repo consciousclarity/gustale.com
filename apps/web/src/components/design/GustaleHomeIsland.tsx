@@ -159,7 +159,7 @@ function AtlasView({
                 onMouseLeave={() => setActive(null)}
               >
                 <span className="nm">{d.canonicalName}</span>
-                <span className="co">{d.list?.methodSlug ?? ''}</span>
+                <span className="co">{d.list?.familyName ?? ''}</span>
                 <span className="cd">{region}</span>
               </a>
             ))}
@@ -179,7 +179,7 @@ function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
     return [...dishes].sort((a, b) => {
       if (sort === 'name') return a.canonicalName.localeCompare(b.canonicalName);
       if (sort === 'origin') return (a.originName ?? '').localeCompare(b.originName ?? '');
-      if (sort === 'family') return (a.methodSlug ?? '').localeCompare(b.methodSlug ?? '');
+      if (sort === 'family') return (a.familyName ?? '').localeCompare(b.familyName ?? '');
       return 0;
     });
   }, [dishes, sort]);
@@ -196,7 +196,7 @@ function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
         <a key={d.slug} href={`/dishes/${d.slug}`} className="idx-row">
           <span className="name">{d.canonicalName}</span>
           <span className="org">{d.originName ?? '—'}</span>
-          <span className="idx-tag">{d.methodSlug ?? '—'}</span>
+          <span className="idx-tag">{d.familyName ?? '—'}</span>
           <span style={{ color: 'var(--sub)', fontSize: '14px' }}>{d.shortDescription ?? ''}</span>
         </a>
       ))}
@@ -246,7 +246,7 @@ function FeedView({ dishes }: { dishes: DishListResponse['dishes'] }) {
             <h3>{d.canonicalName}</h3>
             <p>{d.shortDescription ?? ''}</p>
             <div className="feed-meta">
-              <span>Family <b>{d.methodSlug ?? '—'}</b></span>
+              <span>Family <b>{d.familyName ?? '—'}</b></span>
               <span>Origin <b>{d.originName ?? '—'}</b></span>
             </div>
           </div>

@@ -5,9 +5,9 @@ import { ApiError, listDishes } from '../lib/api';
 import type { DishListResponse, DishSummary } from '../types/dish';
 
 // Server-render the first paint with all published dishes so we can
-// group them by method/family on the server. Same fallback pattern as
-// the dish list page — if the API is unreachable during build, the page
-// still renders and the client island takes over with a live fetch.
+// group them by family (primary dish-type category) and region on the
+// server. If the API is unreachable during build, the page still renders
+// and the client island takes over with a live fetch.
 let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
 let serverError: string | null = null;
 let totalDishes = 0;
@@ -25,74 +25,78 @@ try {
   }
 }
 
-// Group dishes by preparation method (the "family"). Dishes without a
-// method go into "Other". Sort groups by member count descending —
-// most-shared form first.
+// ── Group dishes by family (primary dish-type category) ──────────────────
+// familySlug comes from the API (primary dish-type category per dish).
+// Unknown slugs fall back to "Other".
 const groups = new Map<string, DishSummary[]>();
 for (const d of initial.dishes) {
-  const key = d.methodSlug ?? 'other';
+  const key = d.familySlug ?? 'other';
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key)!.push(d);
 }
 
-const sortedGroups = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+// Sort families by member count descending — most-represented form first.
+const sortedFamilies = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
 
-// Family display names — match the seed-data slugs. Unknown slugs fall
-// back to a Title-Cased version of the slug.
+// ── Collect unique regions (origin countries) ──────────────────────────────
+const regionSet = new Set<string>();
+for (const d of initial.dishes) {
+  if (d.originName) regionSet.add(d.originName);
+}
+const sortedRegions = [...regionSet].sort();
+
+// ── Human-readable family labels ──────────────────────────────────────────
+// Covers every dish-type slug in the DB. Unknown slugs get title-cased.
 const FAMILY_LABELS: Record<string, string> = {
-  'poached-in-sauce': 'Poached in sauce',
-  'omelettes-and-scrambles': 'Omelettes & scrambles',
-  'fried-and-topped': 'Fried & topped',
-  'steamed-and-custard': 'Steamed & custard',
-  'boiled-and-cured': 'Boiled & cured',
-  pasta: 'Pasta',
-  'noodle-soup': 'Noodle soups',
-  stew: 'Stews & braises',
-  'fried-rice': 'Rice bowls',
-  dumpling: 'Dumplings',
-  bread: 'Breads & doughs',
-  pancake: 'Flatbreads',
-  dessert: 'Sweets & custards',
-  curry: 'Stews & braises',
-  kebab: 'Grilled & skewered',
-  salad: 'Small plates & preserves',
-  other: 'Other',
-};
-
-// Color dots per family — matches the Atlas island palette
-const FAMILY_COLORS: Record<string, string> = {
-  'poached-in-sauce': '#C2742F',
-  'omelettes-and-scrambles': '#C2742F',
-  'fried-and-topped': '#A0522D',
-  'steamed-and-custard': '#C99A48',
-  'boiled-and-cured': '#8B7355',
-  pasta: '#6E7F4E',
-  'noodle-soup': '#8B7355',
-  stew: '#A0522D',
-  'fried-rice': '#C9A849',
-  dumpling: '#C99A48',
-  bread: '#D4A853',
-  pancake: '#D4A853',
-  dessert: '#C4706B',
-  curry: '#B8542A',
-  kebab: '#A0522D',
-  salad: '#7A8B5C',
-  other: '#6B6052',
+  'noodle-soup':        'Noodle soups',
+  'soup':               'Soups',
+  'stew':               'Stews & braises',
+  'curry':              'Curries',
+  'pasta':              'Pasta',
+  'bread':              'Breads',
+  'dumpling':           'Dumplings',
+  'rice-dish':          'Rice dishes',
+  'fried-rice':         'Fried rice',
+  'kebab':              'Grilled & skewered',
+  'salad':              'Salads',
+  'pancake':            'Flatbreads & griddled',
+  'casserole':          'Casseroles & baked',
+  'sandwich':           'Sandwiches',
+  'appetizer':          'Appetizers',
+  'main-course':        'Main courses',
+  'side':               'Side dishes',
+  'dessert':            'Desserts',
+  'sauce':              'Sauces & condiments',
+  'moussaka':           'Moussaka',
+  'stir-fry':           'Stir-fries',
+  'street-snack':        'Street snacks',
+  'fermented':          'Fermented',
+  'egg-dishes':         'Egg dishes',
+  'other':              'Other',
 };
 
 function labelFor(slug: string): string {
-  if (FAMILY_LABELS[slug]) return FAMILY_LABELS[slug];
-  return slug
-    .split('-')
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-    .join(' ');
+  return FAMILY_LABELS[slug]
+    ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
 }
 
-function colorFor(slug: string): string {
-  return FAMILY_COLORS[slug] ?? '#B8552F';
+// ── Region color dots (consistent per region across the site) ────────────
+const REGION_COLORS: Record<string, string> = {
+  Argentina: '#8B4513', Austria: '#8B7355', Brazil: '#C2742F', Canada: '#A0522D',
+  China: '#B8552F', France: '#6E7F4E', Greece: '#C99A48', Hungary: '#8B7355',
+  India: '#D4A853', Indonesia: '#B8552F', Israel: '#C4706B', Italy: '#6E7F4E',
+  Japan: '#8B7355', Jordan: '#C99A48', Lebanon: '#D4A853', Mexico: '#B8552F',
+  Morocco: '#C2742F', Nepal: '#8B7355', Nigeria: '#8B4513', Peru: '#C4706B',
+  Poland: '#8B7355', Portugal: '#6E7F4E', 'Puerto Rico': '#A0522D',
+  Singapore: '#C99A48', 'South Korea': '#B8552F', Spain: '#8B7355',
+  Thailand: '#C99A48', Tunisia: '#D4A853', Ukraine: '#8B7355',
+  'United Kingdom': '#6E7F4E', 'United States': '#A0522D', Vietnam: '#C4706B',
+};
+function regionColor(r: string): string {
+  return REGION_COLORS[r] ?? '#B8552F';
 }
 
-const totalFamilies = sortedGroups.length;
+const totalFamilies = sortedFamilies.length;
 ---
 
 <Layout
@@ -125,32 +129,46 @@ const totalFamilies = sortedGroups.length;
         <span>Dishes</span>
       </div>
       <div>
-        <b>26</b>
-        <span>Max regions</span>
+        <b>{sortedRegions.length}</b>
+        <span>Origins</span>
       </div>
     </div>
   </section>
 
-  {/* ─── Filter bar ─────────────────────────────────────────────── */}
-  <div class="fam-filter-bar">
+  {/* ─── Filter bar ───────────────────────────────────────────────── */}
+  <div class="fam-filter-bar" id="filter-bar">
     <div class="wrap">
       <div class="inner">
-        <span class="fb-label">Filter by family</span>
 
-        {/* All chip */}
-        <button class="fam-chip" data-family="all" data-on="1">
-          All
-          <span class="ct">{totalDishes}</span>
-        </button>
+        {/* Family filter */}
+        <span class="fb-label">Family</span>
+        <div class="fb-chips" id="family-chips">
+          <button class="fam-chip active" data-family="all">All<span class="ct">{totalDishes}</span></button>
+          {sortedFamilies.map(([slug, dishes]) => (
+            <button class="fam-chip" data-family={slug}>
+              <span class="dot" style={`background:${REGION_COLORS[slug] ?? '#B8552F'}`}></span>
+              {labelFor(slug)}
+              <span class="ct">{dishes.length}</span>
+            </button>
+          ))}
+        </div>
 
-        {/* Per-family chips */}
-        {sortedGroups.map(([slug, dishes]) => (
-          <button class="fam-chip" data-family={slug} data-on="0">
-            <span class="dot" style={`background:${colorFor(slug)}`}></span>
-            {labelFor(slug)}
-            <span class="ct">{dishes.length}</span>
-          </button>
-        ))}
+        <span class="fb-sep"></span>
+
+        {/* Region filter */}
+        <span class="fb-label">Region</span>
+        <div class="fb-chips" id="region-chips">
+          <button class="fam-chip active" data-region="all">All<span class="ct">{totalDishes}</span></button>
+          {sortedRegions.map((region) => (
+            <button class="fam-chip" data-region={region}>
+              <span class="dot" style={`background:${regionColor(region)}`}></span>
+              {region}
+              <span class="ct">
+                {initial.dishes.filter((d) => d.originName === region).length}
+              </span>
+            </button>
+          ))}
+        </div>
 
         <span class="fb-spacer"></span>
         <span class="fb-result" id="fam-result">
@@ -170,24 +188,28 @@ const totalFamilies = sortedGroups.length;
   )}
 
   {/* ─── Family groups ─────────────────────────────────────────────── */}
-  {sortedGroups.map(([slug, dishes]) => (
-    <section class="fam-group wrap" data-family={slug}>
+  {sortedFamilies.map(([familySlug, familyDishes]) => (
+    <section
+      class="fam-group wrap"
+      data-family={familySlug}
+      data-regions={JSON.stringify([...new Set(familyDishes.map((d) => d.originName).filter(Boolean))])}
+    >
       <header class="fam-group__head">
         <div>
-          <span class="eyebrow">{slug}</span>
-          <h2>{labelFor(slug)}</h2>
+          <span class="eyebrow">{familySlug}</span>
+          <h2>{labelFor(familySlug)}</h2>
         </div>
-        <span class="mono-sub">{dishes.length} dishes</span>
+        <span class="mono-sub">{familyDishes.length} dishes</span>
       </header>
 
       <ul class="fam-grid">
-        {dishes.map((d) => (
+        {familyDishes.map((d) => (
           <li>
-            <a href={`/dishes/${d.slug}`} class="fam-tile">
+            <a href={`/dishes/${d.slug}`} class="fam-tile" data-origin={d.originName ?? ''}>
               <h3>{d.canonicalName}</h3>
               {d.shortDescription && <p class="def">{d.shortDescription}</p>}
               <div class="foot">
-                <span class="counts mono-sub">{d.country ?? d.region ?? '—'}</span>
+                <span class="counts mono-sub">{d.originName ?? '—'}</span>
                 <span class="go">Explore <span class="arr">→</span></span>
               </div>
             </a>
@@ -196,6 +218,14 @@ const totalFamilies = sortedGroups.length;
       </ul>
     </section>
   ))}
+
+  {/* ─── Empty state (shown/hidden by JS) ─────────────────────────── */}
+  <div id="empty-state" class="wrap" style="display:none; padding: 60px 0; text-align:center;">
+    <p class="sub" style="font-size: 1.1rem; margin-bottom: 20px;">
+      No dishes match the selected filters.
+    </p>
+    <button class="btn-outline" id="reset-filters">Clear filters</button>
+  </div>
 
   {/* ─── Closing CTA ───────────────────────────────────────────────── */}
   <section class="wrap" style="padding: 48px 0; text-align: center;">
@@ -210,34 +240,66 @@ const totalFamilies = sortedGroups.length;
 
 <script>
   (function () {
-    const chips = document.querySelectorAll<HTMLButtonElement>('.fam-chip');
-    const groups = document.querySelectorAll<HTMLElement>('.fam-group');
-    const countEl = document.getElementById('fam-count');
+    const familyChips  = document.querySelectorAll<HTMLButtonElement>('#family-chips .fam-chip');
+    const regionChips  = document.querySelectorAll<HTMLButtonElement>('#region-chips .fam-chip');
+    const groups       = document.querySelectorAll<HTMLElement>('.fam-group');
+    const countEl      = document.getElementById('fam-count');
+    const emptyState   = document.getElementById('empty-state') as HTMLElement | null;
+    const resetBtn     = document.getElementById('reset-filters') as HTMLButtonElement | null;
 
-    function setFilter(family: string) {
+    let activeFamily = 'all';
+    let activeRegion = 'all';
+
+    function applyFilters() {
       // Update chip active states
-      chips.forEach((c) => {
-        c.dataset.on = c.dataset.family === family ? '1' : '0';
+      familyChips.forEach((c) => {
+        c.classList.toggle('active', c.dataset.family === activeFamily);
+      });
+      regionChips.forEach((c) => {
+        c.classList.toggle('active', c.dataset.region === activeRegion);
       });
 
-      // Show/hide groups
-      let visible = 0;
+      let visibleFamilies = 0;
+      let totalVisible    = 0;
+
       groups.forEach((g) => {
-        const match = family === 'all' || g.dataset.family === family;
-        g.style.display = match ? '' : 'none';
-        if (match) visible++;
+        const regions: string[] = JSON.parse(g.dataset.regions ?? '[]');
+        const familyMatch = activeFamily === 'all' || g.dataset.family === activeFamily;
+        const regionMatch = activeRegion === 'all' || regions.includes(activeRegion);
+        const show = familyMatch && regionMatch;
+        g.style.display = show ? '' : 'none';
+        if (show) {
+          visibleFamilies++;
+          totalVisible += g.querySelectorAll('.fam-tile').length;
+        }
       });
 
-      // Update count
       if (countEl) {
-        countEl.textContent = String(visible);
+        countEl.textContent = String(visibleFamilies);
+      }
+      if (emptyState) {
+        emptyState.style.display = visibleFamilies === 0 ? 'block' : 'none';
       }
     }
 
-    chips.forEach((c) => {
+    familyChips.forEach((c) => {
       c.addEventListener('click', () => {
-        setFilter(c.dataset.family ?? 'all');
+        activeFamily = c.dataset.family ?? 'all';
+        applyFilters();
       });
+    });
+
+    regionChips.forEach((c) => {
+      c.addEventListener('click', () => {
+        activeRegion = c.dataset.region ?? 'all';
+        applyFilters();
+      });
+    });
+
+    resetBtn?.addEventListener('click', () => {
+      activeFamily = 'all';
+      activeRegion = 'all';
+      applyFilters();
     });
   })();
 </script>

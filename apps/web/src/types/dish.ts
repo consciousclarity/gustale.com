@@ -36,7 +36,10 @@ export interface DishSummary {
   originName: string | null;
   viewCount: number;
   updatedAt: string; // ISO timestamp
-  methodSlug?: string | null;
+  /** Primary dish-type category slug — used as 'family' for /families page grouping. */
+  familySlug: string | null;
+  /** Primary dish-type category display name. */
+  familyName: string | null;
 }
 
 export interface DishListResponse {

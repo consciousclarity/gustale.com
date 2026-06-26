@@ -49,6 +49,7 @@ const listQuerySchema = z.object({
   region: z.string().max(100).optional(),     // legacy alias for country
   category: z.string().max(100).optional(),    // legacy alias for cuisine
   period: z.string().max(100).optional(),       // historical era e.g. 1920-1950
+  family: z.string().max(100).optional(),       // kind='family' category slug (Dumplings, Noodle soups…)
 });
 
 const slugParamSchema = z.object({
@@ -171,6 +172,13 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
 
+    if (params.family) {
+      // Match by kind='family' category slug (Dumplings, Noodle soups…)
+      whereClauses.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = dishes.id AND c4.slug = ${params.family} AND c4.kind = 'family')`
+      );
+    }
+
     const result = await db
       .select({
         id: dishes.id,
@@ -178,19 +186,30 @@ export function registerDishRoutes(app: FastifyInstance): void {
         canonicalName: dishes.canonicalName,
         shortDescription: dishes.shortDescription,
         originGeoId: dishes.originGeoId,
-        originName: sql<string | null>`(
+        originName: sql<string | null>`
           SELECT g.name FROM geo_entities g WHERE g.id = dishes.origin_geo_id LIMIT 1
-        )`,
+        `,
         status: dishes.status,
         viewCount: dishes.viewCount,
-        methodSlug: sql<string | null>`(
-          SELECT pm.slug
-          FROM dish_preparations dp
-          JOIN preparation_methods pm ON pm.id = dp.method_id
-          WHERE dp.dish_id = dishes.id
-          ORDER BY dp.sequence_order
+        updatedAt: dishes.updatedAt,
+        // Primary dish-type category — used as 'family' for the /families page grouping.
+        // Falls back to the first dish-type category if no primary is marked.
+        familySlug: sql<string | null>`
+          SELECT c.slug
+          FROM dish_categories dc
+          JOIN categories c ON c.id = dc.category_id
+          WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type'
+          ORDER BY dc.is_primary DESC
           LIMIT 1
-        )`,
+        `,
+        familyName: sql<string | null>`
+          SELECT c.name
+          FROM dish_categories dc
+          JOIN categories c ON c.id = dc.category_id
+          WHERE dc.dish_id = dishes.id AND c.kind = 'dish-type'
+          ORDER BY dc.is_primary DESC
+          LIMIT 1
+        `,
       })
       .from(dishes)
       .where(and(...whereClauses))

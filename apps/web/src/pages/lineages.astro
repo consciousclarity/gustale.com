@@ -45,7 +45,7 @@ const coordBySlug = new Map(mapDishes.map((m) => [m.slug, m]));
 // ---------------------------------------------------------------------------
 const groups = new Map<string, DishSummary[]>();
 for (const d of initial.dishes) {
-  const key = d.methodSlug ?? 'other';
+  const key = d.familySlug ?? 'other';
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key)!.push(d);
 }
@@ -156,7 +156,7 @@ for (const d of initial.dishes) {
     name: d.canonicalName,
     region: m.regionName || d.originName || '',
     x, y,
-    lineage: d.methodSlug ?? 'other',
+    lineage: d.familySlug ?? 'other',
   });
 }
 
