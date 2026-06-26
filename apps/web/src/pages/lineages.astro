@@ -286,10 +286,13 @@ const nodesMarkup = allNodes
 // Build legend chip markup — one per lineage that actually has plotted nodes.
 const legendLineages = Array.from(new Set(allNodes.map((n) => n.lineage)));
 const legendMarkup = legendLineages
-  .map((slug) => `
-    <button class="chip" data-lineage="${slug}" data-active="1">
-      <span class="sw" style="background:${colorFor(slug)}"></span>${labelFor(slug)}
-    </button>`)
+  .map((slug) => {
+    const color = colorFor(slug);
+    const label = labelFor(slug);
+    return '<button class="chip" data-lineage="' + slug + '" data-active="1">' +
+      '<span class="sw" style="background:' + color + '"></span>' + label +
+      '</button>';
+  })
   .join('');
 
 const totalLineages = sortedGroups.length;
