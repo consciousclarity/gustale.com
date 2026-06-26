@@ -40,6 +40,10 @@ export interface DishSummary {
   familySlug: string | null;
   /** Primary dish-type category display name. */
   familyName: string | null;
+  /** Primary preparation method slug — used as 'lineage' for /lineages page grouping. */
+  methodSlug: string | null;
+  /** Primary preparation method display name. */
+  methodName: string | null;
 }
 
 export interface DishListResponse {

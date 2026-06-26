@@ -232,7 +232,9 @@ export function registerDishRoutes(app: FastifyInstance): void {
         d.view_count          AS view_count,
         d.updated_at           AS updated_at,
         fam.slug              AS family_slug,
-        fam.name              AS family_name
+        fam.name              AS family_name,
+        meth.slug             AS method_slug,
+        meth.name             AS method_name
       FROM dishes d
       LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
       LEFT JOIN LATERAL (
@@ -244,6 +246,14 @@ export function registerDishRoutes(app: FastifyInstance): void {
         ORDER BY dc.is_primary DESC
         LIMIT 1
       ) fam ON true
+      LEFT JOIN LATERAL (
+        SELECT pm.slug, pm.name
+        FROM dish_preparations dp
+        JOIN preparation_methods pm ON pm.id = dp.method_id
+        WHERE dp.dish_id = d.id
+        ORDER BY dp.sequence ASC
+        LIMIT 1
+      ) meth ON true
       WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
       ORDER BY d.view_count DESC, d.canonical_name ASC
       LIMIT ${params.limit}
@@ -260,6 +270,8 @@ export function registerDishRoutes(app: FastifyInstance): void {
       updated_at: Date;
       family_slug: string | null;
       family_name: string | null;
+      method_slug: string | null;
+      method_name: string | null;
     }[];
 
     const result = rows.map((row) => ({
@@ -274,6 +286,8 @@ export function registerDishRoutes(app: FastifyInstance): void {
       updatedAt: typeof row.updated_at === 'string' ? row.updated_at : (row.updated_at as Date).toISOString(),
       familySlug: row.family_slug,
       familyName: row.family_name,
+      methodSlug: row.method_slug,
+      methodName: row.method_name,
     }));
 
     return { dishes: result, limit: params.limit, offset: params.offset };

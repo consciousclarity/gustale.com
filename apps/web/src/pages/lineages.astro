@@ -45,7 +45,7 @@ const coordBySlug = new Map(mapDishes.map((m) => [m.slug, m]));
 // ---------------------------------------------------------------------------
 const groups = new Map<string, DishSummary[]>();
 for (const d of initial.dishes) {
-  const key = d.familySlug ?? 'other';
+  const key = d.methodSlug ?? 'other';
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key)!.push(d);
 }
@@ -69,7 +69,7 @@ const LINEAGE_LABELS: Record<string, string> = {
   bread:                    'Breads & doughs',
   pancake:                  'Flatbreads',
   dessert:                  'Sweets & custards',
-  curry:                    'Stews & braises',
+  curry:                    'Curries',
   kebab:                    'Grilled & skewered',
   salad:                    'Small plates & preserves',
   other:                    'Other preparations',
@@ -102,6 +102,14 @@ const LINEAGE_STORY: Record<string, string> = {
     'Leftover cooked grain meets high heat — a technique born of frugality that became a craft. The wok, the griddle, the clay pot: the method travels with the grain.',
   other:
     'Preparations that resist easy category — hybrids of technique, crossings of tradition, and dishes that belong to the spaces between lineages.',
+  'poached-in-sauce':
+    'An ingredient set gently into a simmering sauce and cooked through in it — egg into tomato, tofu into chili oil. The sauce is the medium and the seasoning at once; the result tastes of where it was made.',
+  'fried-and-topped':
+    'Fry a base for crispness, then crown it — with sauce, with cheese, with a second cooked layer. The contrast of crisp and soft is the whole idea, and it recurs from cutlet to casserole to loaded fries.',
+  'steamed-and-custard':
+    'Wet heat with no browning: dough, masa, or batter set by steam alone. The wrapper — leaf, husk, cloth — is part of the method, and the technique follows wherever a pot and a lid could be carried.',
+  'boiled-and-cured':
+    'Transformation without a flame — acid, salt, or vinegar doing the cooking. Curing and pickling preserve first and flavor second, a logic that appears wherever catch and harvest outpaced appetite.',
 };
 
 // Distinct color per lineage — reuses the family palette so Families and
@@ -156,7 +164,7 @@ for (const d of initial.dishes) {
     name: d.canonicalName,
     region: m.regionName || d.originName || '',
     x, y,
-    lineage: d.familySlug ?? 'other',
+    lineage: d.methodSlug ?? 'other',
   });
 }
 

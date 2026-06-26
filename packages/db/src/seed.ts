@@ -14,7 +14,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './schema/index.js';
-import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS } from './seed-data.js';
+import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS, LINEAGE_METHODS, DISH_LINEAGES } from './seed-data.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -64,16 +64,10 @@ async function main(): Promise<void> {
     ])
     .onConflictDoNothing();
 
-  // 4. Preparation methods
-  const bakeMethod = 'bake';
-  const simmerMethod = 'simmer';
-  await db
-    .insert(schema.preparationMethods)
-    .values([
-      { slug: bakeMethod, name: 'Baking', category: 'dry-heat' },
-      { slug: simmerMethod, name: 'Simmering', category: 'moist-heat' },
-    ])
-    .onConflictDoNothing();
+  // 4. Preparation methods — the 16 lineage methods. These MUST stay 1:1
+  //    with the LINEAGE_LABELS map in apps/web/src/pages/lineages.astro;
+  //    the /lineages page groups dishes by their first preparation method.
+  await db.insert(schema.preparationMethods).values(LINEAGE_METHODS).onConflictDoNothing();
 
   // 5. Geo entity: Greece
   const greeceId = '00000000-0000-0000-0000-000000000010';
@@ -192,32 +186,25 @@ async function main(): Promise<void> {
       { dishId, ingredientId: ingredients[3]!, position: 3, quantity: '500', unit: 'ml' },
     ]);
 
-    // 11. Preparations
-    const methods = await db
-      .select({ id: schema.preparationMethods.id, slug: schema.preparationMethods.slug })
-      .from(schema.preparationMethods)
-      .where(sql`${schema.preparationMethods.slug} IN (${bakeMethod}, ${simmerMethod})`);
-    const bakeId = methods.find((m) => m.slug === bakeMethod)!.id;
-    const simmerId = methods.find((m) => m.slug === simmerMethod)!.id;
-    await db.insert(schema.dishPreparations).values([
-      {
+    // 11. Preparations — Moussaka's lineage is "fried & topped" (fried eggplant
+    //     layered with meat sauce, topped with béchamel, baked). Drives methodSlug.
+    const friedTopped = (
+      await db
+        .select({ id: schema.preparationMethods.id })
+        .from(schema.preparationMethods)
+        .where(eq(schema.preparationMethods.slug, 'fried-and-topped'))
+        .limit(1)
+    )[0];
+    if (friedTopped) {
+      await db.insert(schema.dishPreparations).values({
         dishId,
-        methodId: simmerId,
+        methodId: friedTopped.id,
         sequenceOrder: 0,
-        durationMinutes: 45,
-        difficulty: 2,
-        steps: 'Brown the minced lamb with onion and garlic. Add tomatoes, cinnamon, and a pinch of allspice. Simmer 30 minutes until thickened.',
-      },
-      {
-        dishId,
-        methodId: bakeId,
-        sequenceOrder: 1,
-        durationMinutes: 60,
+        durationMinutes: 90,
         difficulty: 3,
-        steps:
-          'Layer fried eggplant slices and the meat sauce in a baking dish. Pour béchamel on top, sprinkle with kefalotyri. Bake at 180°C for 45 minutes until golden.',
-      },
-    ]);
+        steps: 'Brown the minced lamb with onion, garlic, cinnamon, and allspice; simmer until thick. Fry the eggplant slices. Layer eggplant and meat sauce in a baking dish, top with béchamel and kefalotyri, and bake at 180°C until golden.',
+      });
+    }
 
     // 12. Media (one cover image)
     const mediaId = '00000000-0000-0000-0000-000000000100';
@@ -280,6 +267,9 @@ async function main(): Promise<void> {
 
   // ─── Encyclopedia bulk seed ────────────────────────────────────────────
   await seedEncyclopedia(db, userId);
+
+  // ─── Dish lineage preparations (methodSlug on the list endpoint) ──────
+  await seedDishLineages(db);
 
   // ─── Dish relations (the food-genealogy network) ──────────────────────
   await seedDishRelations(db);
@@ -539,6 +529,54 @@ async function seedDishRelations(
   }
 
   console.log(`  + ${inserted} dish-relation edges inserted (${DISH_RELATIONS.length} curated pairs × 2)`);
+}
+
+/**
+ * Seed dish_preparations from DISH_LINEAGES — every published dish gets exactly
+ * one row at sequence 0 linking it to its primary preparation method (its
+ * "lineage"). This is what populates methodSlug on the list endpoint and
+ * drives the /lineages page.
+ *
+ * Idempotent: dishes that already have a preparation row are skipped.
+ */
+async function seedDishLineages(db: ReturnType<typeof drizzle>): Promise<void> {
+  const methodIdBySlug = new Map(
+    (
+      await db
+        .select({ id: schema.preparationMethods.id, slug: schema.preparationMethods.slug })
+        .from(schema.preparationMethods)
+    ).map((m) => [m.slug, m.id]),
+  );
+
+  const dishIdBySlug = new Map(
+    (await db.select({ id: schema.dishes.id, slug: schema.dishes.slug }).from(schema.dishes)).map(
+      (d) => [d.slug, d.id],
+    ),
+  );
+
+  const dishesWithPrep = new Set(
+    (
+      await db
+        .select({ dishId: schema.dishPreparations.dishId })
+        .from(schema.dishPreparations)
+        .where(eq(schema.dishPreparations.sequenceOrder, 0))
+    ).map((r) => r.dishId),
+  );
+
+  let prepInserted = 0;
+  for (const [dishSlug, lineage] of Object.entries(DISH_LINEAGES)) {
+    const dishId = dishIdBySlug.get(dishSlug);
+    if (!dishId || dishesWithPrep.has(dishId)) continue;
+    const methodId = methodIdBySlug.get(lineage);
+    if (!methodId) {
+      console.warn(`  ! ${dishSlug}: lineage method "${lineage}" missing from preparation_methods`);
+      continue;
+    }
+    await db.insert(schema.dishPreparations).values({ dishId, methodId, sequenceOrder: 0 });
+    prepInserted++;
+  }
+
+  console.log(`  + ${prepInserted} dish_preparations (lineage) inserted`);
 }
 
 main().catch((err) => {
