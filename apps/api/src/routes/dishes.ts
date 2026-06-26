@@ -179,50 +179,104 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
 
-    // Fetch all dish IDs + their primary dish-type category in one additional query.
-    // This avoids Drizzle's postgres-js prepared-statement incompatibility with
-    // scalar-subquery columns in .select() — we do the join in JS instead.
-    const dishFamilyRows = (await db.execute(
-      sql`SELECT dc.dish_id, c.slug AS family_slug, c.name AS family_name
-          FROM dish_categories dc
-          JOIN categories c ON c.id = dc.category_id
-          WHERE c.kind = 'dish-type'
-          ORDER BY dc.is_primary DESC`,
-    )) as { dish_id: string; family_slug: string | null; family_name: string | null }[];
-
-    const familyByDishId = new Map<string, { slug: string | null; name: string | null }>();
-    for (const row of dishFamilyRows) {
-      // Keep the first (highest priority / most primary) entry per dish.
-      if (!familyByDishId.has(row.dish_id)) {
-        familyByDishId.set(row.dish_id, { slug: row.family_slug, name: row.family_name });
-      }
+    // Build dynamic WHERE conditions as raw SQL fragments.
+    const whereFragments: (SQL | undefined)[] = [sql`d.status = ${params.status}`];
+    if (params.q) {
+      whereFragments.push(sql`d.canonical_name ILIKE ${'%' + params.q + '%'}`);
     }
+    if (params.country) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${'%' + params.country + '%'})`);
+    }
+    if (params.cuisine) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = d.id AND c2.name ILIKE ${'%' + params.cuisine + '%'})`);
+    }
+    if (params.type) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = d.id AND c3.name ILIKE ${'%' + params.type + '%'})`);
+    }
+    if (params.ingredient) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = d.id AND i.canonical_name ILIKE ${'%' + params.ingredient + '%'})`);
+    }
+    if (params.technique) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = d.id AND pm2.slug = ${params.technique})`);
+    }
+    if (params.region) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${'%' + params.region + '%'})`);
+    }
+    if (params.category) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = d.id AND c.slug = ${params.category})`);
+    }
+    if (params.family) {
+      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = d.id AND c4.slug = ${params.family} AND c4.kind = 'family')`);
+    }
+    if (params.period) {
+      const parts = params.period.replace(/_/g, '-').split('-').filter(Boolean);
+      const earliest = parts[0] ? parseInt(parts[0]) : null;
+      const latest = parts[1] ? parseInt(parts[1]) : earliest;
+      if (earliest !== null) whereFragments.push(sql`d.origin_date_latest >= ${earliest}`);
+      if (latest !== null) whereFragments.push(sql`d.origin_date_earliest <= ${latest}`);
+    }
+    const whereClause = whereFragments.filter((f): f is SQL => f !== undefined);
 
-    const result = await db
-      .select({
-        id: dishes.id,
-        slug: dishes.slug,
-        canonicalName: dishes.canonicalName,
-        shortDescription: dishes.shortDescription,
-        originGeoId: dishes.originGeoId,
-        originName: sql<string | null>`SELECT g.name FROM geo_entities g WHERE g.id = dishes.origin_geo_id LIMIT 1`,
-        status: dishes.status,
-        viewCount: dishes.viewCount,
-        updatedAt: dishes.updatedAt,
-      })
-      .from(dishes)
-      .where(and(...whereClauses))
-      .orderBy(desc(dishes.viewCount), dishes.canonicalName)
-      .limit(params.limit)
-      .offset(params.offset);
+    // Use raw SQL to avoid Drizzle's postgres-js prepared-statement incompatibility
+    // with scalar-subquery columns in .select(). All values are parameterized via
+    // ${} so there is no SQL injection risk.
+    const rows = (await db.execute(sql`
+      SELECT
+        d.id,
+        d.slug,
+        d.canonical_name      AS canonical_name,
+        d.short_description   AS short_description,
+        d.origin_geo_id        AS origin_geo_id,
+        g.name                AS origin_name,
+        d.status,
+        d.view_count          AS view_count,
+        d.updated_at           AS updated_at,
+        fam.slug              AS family_slug,
+        fam.name              AS family_name
+      FROM dishes d
+      LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
+      LEFT JOIN LATERAL (
+        SELECT c.slug, c.name
+        FROM dish_categories dc
+        JOIN categories c ON c.id = dc.category_id
+        WHERE dc.dish_id = d.id
+          AND c.kind = 'dish-type'
+        ORDER BY dc.is_primary DESC
+        LIMIT 1
+      ) fam ON true
+      WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
+      ORDER BY d.view_count DESC, d.canonical_name ASC
+      LIMIT ${params.limit}
+      OFFSET ${params.offset}
+    `)) as {
+      id: string;
+      slug: string;
+      canonical_name: string;
+      short_description: string | null;
+      origin_geo_id: string | null;
+      origin_name: string | null;
+      status: string;
+      view_count: number;
+      updated_at: Date;
+      family_slug: string | null;
+      family_name: string | null;
+    }[];
 
-    // Attach family data (from JS join — avoids postgres-js scalar-subquery issue).
-    const dishesWithFamily = result.map((row) => {
-      const fam = familyByDishId.get(row.id) ?? { slug: null, name: null };
-      return { ...row, familySlug: fam.slug, familyName: fam.name };
-    });
+    const result = rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      canonicalName: row.canonical_name,
+      shortDescription: row.short_description,
+      originGeoId: row.origin_geo_id,
+      originName: row.origin_name,
+      status: row.status as 'draft' | 'published' | 'archived',
+      viewCount: row.view_count,
+      updatedAt: row.updated_at.toISOString(),
+      familySlug: row.family_slug,
+      familyName: row.family_name,
+    }));
 
-    return { dishes: dishesWithFamily, limit: params.limit, offset: params.offset };
+    return { dishes: result, limit: params.limit, offset: params.offset };
   });
 
   // Map view: flat list of all published dishes with origin coordinates.
