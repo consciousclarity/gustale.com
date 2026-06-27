@@ -1095,7 +1095,7 @@ export type SeedLineageHistoricalForce =
   | "migration" | "trade_route" | "empire" | "colonization" | "diaspora"
   | "religious_exchange" | "port_city_exchange" | "agricultural_spread"
   | "technological_change" | "local_adaptation" | "parallel_evolution"
-  | "cultural_exchange" | "nomadic_pastoral" | "war_and_displacement";
+  | "colonial_spread" | "cultural_exchange" | "nomadic_pastoral" | "war_and_displacement";
 
 export type SeedLineageRole =
   | "ancestor" | "descendant" | "cousin" | "regional_variant"
@@ -1573,7 +1573,7 @@ export const LINEAGES: SeedLineage[] = [
     confidenceLevel: "documented",
     uncertaintyNote: "The transmission from Chinese soy paste to Korean doenjang and Japanese miso is well documented through trade and Buddhist monastic exchange. The link to Indonesian tempeh is more debated — possibly independent fermentation of local beans (temu, before soy arrived).",
     culturalPracticeNote: "Miso is considered a daily staple in Japan, used in miso soup at breakfast and as a base for many sauces. Gochujang is used in Korean ancestral rites — the fermented red paste is offered to ancestors during Lunar New Year.",
-    sourceSources: "Wikipedia: Tempeh, Miso, Soy sauce, Doenjang, Gochujang; Shurtleff & Aoyagi, The Book of Miso (1976); Han Kee-sue, Gochujang: Korea's Favorite Condiment (2018).",
+    sourceNotes: "Wikipedia: Tempeh, Miso, Soy sauce, Doenjang, Gochujang; Shurtleff & Aoyagi, The Book of Miso (1976); Han Kee-sue, Gochujang: Korea's Favorite Condiment (2018).",
     displayOrder: 80,
     dishMappings: [
       {

@@ -23,6 +23,10 @@ import type {
   DishListResponse,
   TagListItem,
 } from '../types/dish';
+import type {
+  LineageDetailResponse,
+  LineageListResponse,
+} from '../types/lineage';
 
 // Build-time API host — used only during SSR. In the browser we always
 // use a relative /api path so same-origin proxying handles the routing.
@@ -692,5 +696,34 @@ export async function deleteAdminDishSource(
   return request<{ removed: boolean; citationId: string }>(
     `/api/admin/dishes/${encodeURIComponent(slug)}/sources/${encodeURIComponent(citationId)}`,
     { method: 'DELETE', credentials: 'include' },
+  );
+}
+
+// ─── Lineages (GET /api/lineages, GET /api/lineages/:slug) ──────────────
+
+export interface ListLineagesParams {
+  search?: string;
+  origin?: string;
+  technique?: string;
+  historicalForce?: string;
+  confidence?: string;
+}
+
+export function listLineages(
+  params: ListLineagesParams = {},
+): Promise<LineageListResponse> {
+  const qs = new URLSearchParams();
+  if (params.search) qs.set('search', params.search);
+  if (params.origin) qs.set('origin', params.origin);
+  if (params.technique) qs.set('technique', params.technique);
+  if (params.historicalForce) qs.set('historicalForce', params.historicalForce);
+  if (params.confidence) qs.set('confidence', params.confidence);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<LineageListResponse>(`/api/lineages${suffix}`);
+}
+
+export function getLineage(slug: string): Promise<LineageDetailResponse> {
+  return request<LineageDetailResponse>(
+    `/api/lineages/${encodeURIComponent(slug)}`,
   );
 }

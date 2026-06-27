@@ -1,0 +1,2855 @@
+{
+  "list": {
+    "lineages": [
+      {
+        "id": "filled-dough",
+        "slug": "filled-dough",
+        "name": "Filled Dough Across Eurasia",
+        "shortDescription": "Dough wrapped around a filling, then steamed, boiled, baked, or fried — the most traveled food shape on earth.",
+        "conceptSummary": "A portable, hand-shaped meal: a wrapper of grain flour, a savory or sweet interior, and a fast cooking method. The lineage is a network of cousins, not a single family tree.",
+        "originSummary": "No single origin. Wheat-based filled dough appears in Mediterranean antiquity (Roman lagana, later ravioli); wheat- and millet-based filled dough appears independently in northern China by the Han dynasty. The shape spread along trade and conquest routes, then absorbed local fillings.",
+        "originRegions": [
+          "East Asia",
+          "Central Asia",
+          "Mediterranean basin",
+          "Northern China"
+        ],
+        "relatedRegions": [
+          "Eastern Europe",
+          "South Asia",
+          "Central Asia",
+          "Italy",
+          "Mongolia",
+          "Tibet",
+          "Nepal"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "empire",
+          "parallel_evolution",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "filling-and-sealing",
+        "techniques": [
+          "steaming",
+          "boiling",
+          "pan-frying",
+          "deep-frying",
+          "baking"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "rice flour",
+          "minced meat",
+          "vegetables",
+          "cheese",
+          "legumes"
+        ],
+        "courseGroups": [
+          "main-course",
+          "appetizer",
+          "street-snack"
+        ],
+        "relatedFamilies": [
+          "dumpling",
+          "pasta",
+          "pancake"
+        ],
+        "representativeDishes": [
+          "Jiaozi",
+          "Momo",
+          "Manti",
+          "Mantı",
+          "Pelmeni",
+          "Pierogi",
+          "Ravioli",
+          "Tortellini",
+          "Gyoza",
+          "Mandu",
+          "Empanada",
+          "Samosa",
+          "Khinkali",
+          "Pasty"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The relationship between Central Asian manti and East Asian jiaozi is well documented through Silk Road transmission. The relationship between those and Italian ravioli is more debated — direct transmission vs. shared Mediterranean + Levantine roots is unresolved.",
+        "culturalPracticeNote": "Filled dough is overwhelmingly festive food: Lunar New Year jiaozi in northern China, Tibetan Losar momo, Christmas pierogi in Poland, Ramadan manti in some Central Asian households. The act of folding is often communal.",
+        "displayOrder": 10,
+        "dishCount": 4,
+        "relationCount": 5,
+        "sourceNotes": null
+      },
+      {
+        "id": "flatbread",
+        "slug": "flatbread",
+        "name": "Flatbread",
+        "shortDescription": "Unleavened or lightly leavened grain flatbread, baked on a griddle, in a clay oven, or stuck to the wall of a tandoor — the oldest bread idea on earth.",
+        "conceptSummary": "Grain flour + water + heat = a flat cooked bread. The shape of the bread is a record of the grain, the oven, and the meal that surrounds it.",
+        "originSummary": "No single origin. Flatbread is the default bread form whenever grain cultivation begins: Neolithic Middle East for wheat and barley, the Ethiopian highlands for teff, Mesoamerica for maize, the Indian subcontinent for millet flatbreads.",
+        "originRegions": [
+          "Fertile Crescent",
+          "Ethiopian Highlands",
+          "Mesoamerica",
+          "South Asia"
+        ],
+        "relatedRegions": [
+          "North Africa",
+          "Andean region",
+          "Levant",
+          "Iranian Plateau",
+          "Italy",
+          "Mexico"
+        ],
+        "historicalForces": [
+          "agricultural_spread",
+          "empire",
+          "trade_route",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "griddle-or-oven-baking",
+        "techniques": [
+          "griddle-baking",
+          "tandoor-baking",
+          "clay-oven-baking",
+          "pan-frying"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "maize flour",
+          "teff flour",
+          "millet flour",
+          "rice flour",
+          "water",
+          "salt",
+          "yeast"
+        ],
+        "courseGroups": [
+          "side",
+          "main-course",
+          "appetizer",
+          "bread"
+        ],
+        "relatedFamilies": [
+          "bread",
+          "pancake"
+        ],
+        "representativeDishes": [
+          "Naan",
+          "Pita",
+          "Lavash",
+          "Roti",
+          "Chapati",
+          "Tortilla",
+          "Arepa",
+          "Injera",
+          "Focaccia",
+          "Manakish",
+          "Yufka",
+          "Markook"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "Each flatbread tradition has its own grain and oven, and 'shared ancestor' claims across continents are weaker than within a continent. The wheat flatbreads of West Asia form a coherent family; the maize flatbreads of the Americas form another.",
+        "culturalPracticeNote": "Flatbread is the daily bread of roughly half the world's population. Breaking bread together is a near-universal ritual; in Ethiopia, gursha (feeding a friend by hand from one's own injera) is a sign of deep affection.",
+        "displayOrder": 20,
+        "dishCount": 2,
+        "relationCount": 3,
+        "sourceNotes": null
+      },
+      {
+        "id": "rice-pilaf",
+        "slug": "rice-pilaf",
+        "name": "Rice as Carrier",
+        "shortDescription": "Rice cooked in fat with aromatics, then steamed with broth, spices, meat, or seafood — a lineage shaped by Mughal, Persian, Mediterranean, and West African traditions.",
+        "conceptSummary": "Rice cooked with a flavorful fat and aromatic base, with regional spice and protein choices layered in.",
+        "originSummary": "Rice domestication is in the Yangtze valley (c. 8000 BCE). Pilaf/polo techniques developed in Persian-influenced Central Asia and spread westward through Mughal India, Ottoman Turkey, and into the Mediterranean. West African jollof evolved separately through rice cultivation in the Niger basin.",
+        "originRegions": [
+          "Persia",
+          "Mughal India",
+          "Mediterranean",
+          "West Africa"
+        ],
+        "relatedRegions": [
+          "Spain",
+          "Iranian Plateau",
+          "Indian subcontinent",
+          "Indonesia",
+          "Mali",
+          "Senegal",
+          "Italy"
+        ],
+        "historicalForces": [
+          "agricultural_spread",
+          "empire",
+          "trade_route",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "toasted-rice-then-steamed",
+        "techniques": [
+          "pilaf method",
+          "dum cooking",
+          "absorbption method",
+          "risotto method"
+        ],
+        "baseIngredients": [
+          "rice",
+          "onion",
+          "oil or ghee",
+          "broth",
+          "saffron",
+          "spices",
+          "meat",
+          "seafood"
+        ],
+        "courseGroups": [
+          "main-course"
+        ],
+        "relatedFamilies": [
+          "rice-dish",
+          "fried-rice",
+          "stew"
+        ],
+        "representativeDishes": [
+          "Pilaf",
+          "Plov",
+          "Biryani",
+          "Kabsa",
+          "Paella",
+          "Risotto",
+          "Nasi Goreng",
+          "Jollof Rice",
+          "Arroz con Pollo",
+          "Mandi"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Persian polo and Indian biryani is well documented via Mughal expansion. The link between Persian polo and West African jollof is much weaker — both use rice-as-carrier but developed independently. Spanish paella is a Mediterranean cousin, not a descendant of Persian pilaf.",
+        "culturalPracticeNote": "Biryani is a festive dish across South Asia, often served at weddings and Eid. Paella is cooked communally over an open fire in Valencia. Jollof rice is a point of friendly rivalry between Ghana, Nigeria, Senegal, and Cameroon — each claims the best version.",
+        "displayOrder": 30,
+        "dishCount": 6,
+        "relationCount": 6,
+        "sourceNotes": null
+      },
+      {
+        "id": "noodle-soup",
+        "slug": "noodle-soup",
+        "name": "Noodle Soup Across Asia and Beyond",
+        "shortDescription": "Wheat or rice noodles served in broth, transformed by stock base, spice paste, toppings, and migration — one of the most traveled broth-and-noodle traditions.",
+        "conceptSummary": "Noodles + broth + toppings, with the broth being the most culturally specific part.",
+        "originSummary": "Noodles likely originated in northern China during the Han dynasty (c. 200 BCE). Wheat noodles spread west through the Silk Road; rice noodles developed in southern China and Southeast Asia. Each region built its own broth tradition on top of the imported noodle.",
+        "originRegions": [
+          "Northern China",
+          "Southeast Asia",
+          "Mediterranean"
+        ],
+        "relatedRegions": [
+          "Japan",
+          "Korea",
+          "Vietnam",
+          "Thailand",
+          "Malaysia",
+          "Indonesia",
+          "Italy"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "colonial_spread",
+          "diaspora",
+          "local_adaptation"
+        ],
+        "primaryTechnique": "broth-cooked-noodles",
+        "techniques": [
+          "broth simmering",
+          "wok hei (breath of the wok)",
+          "topping arrangement",
+          "noodle pulling"
+        ],
+        "baseIngredients": [
+          "wheat noodles",
+          "rice noodles",
+          "broth (meat, fish, or bone)",
+          "aromatics",
+          "toppings"
+        ],
+        "courseGroups": [
+          "main-course",
+          "street-snack"
+        ],
+        "relatedFamilies": [
+          "noodle-soup",
+          "pasta"
+        ],
+        "representativeDishes": [
+          "Ramen",
+          "Pho",
+          "Laksa",
+          "Soto Mie",
+          "Khao Soi",
+          "Udon",
+          "Mie Ayam",
+          "Bakso",
+          "Saimin"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "The transmission from Chinese lamian to Japanese ramen is well documented (Chinese immigrants in Yokohama, late 19th century). The link between Asian noodle soups and Italian pasta is more contested — both derive from noodle-making traditions that may share ancient Central Asian roots, but the parallel-evolution hypothesis is also strong.",
+        "culturalPracticeNote": "Slurping noodles is the polite way to eat ramen in Japan (it cools the noodles and shows appreciation). Pho is a breakfast food in Vietnam. Khao Soi is a regional specialty of northern Thailand with Burmese-Muslim influences.",
+        "displayOrder": 40,
+        "dishCount": 4,
+        "relationCount": 4,
+        "sourceNotes": null
+      },
+      {
+        "id": "stuffed-leaves",
+        "slug": "stuffed-leaves",
+        "name": "Stuffed Leaves and Vegetables",
+        "shortDescription": "Edible wrappers — vine leaves, cabbage, peppers, tomatoes, eggplant — filled with grains, herbs, meat, or legumes, then braised. A Mediterranean-to-Central-Asian family with deep ritual roots.",
+        "conceptSummary": "An edible wrapper or vessel filled with a seasoned grain or meat mixture, then slow-braised until the wrapper softens and absorbs the filling's flavor.",
+        "originSummary": "Stuffed vegetables are documented in Ottoman and Persian court cuisines by the medieval period. The technique likely predates the Ottoman Empire through Persian and Arab cookery. Related forms (cabbage rolls) exist independently in Eastern European cuisine.",
+        "originRegions": [
+          "Ottoman Empire",
+          "Levant",
+          "Persia"
+        ],
+        "relatedRegions": [
+          "Greece",
+          "Turkey",
+          "Armenia",
+          "Lebanon",
+          "Egypt",
+          "Eastern Europe"
+        ],
+        "historicalForces": [
+          "empire",
+          "religious_exchange",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "filling-then-braising",
+        "techniques": [
+          "rolling",
+          "braising",
+          "baking",
+          "simmering in oil and lemon"
+        ],
+        "baseIngredients": [
+          "grape leaves",
+          "cabbage",
+          "peppers",
+          "tomatoes",
+          "zucchini",
+          "rice",
+          "minced meat",
+          "herbs",
+          "olive oil",
+          "lemon"
+        ],
+        "courseGroups": [
+          "appetizer",
+          "main-course",
+          "side"
+        ],
+        "relatedFamilies": [
+          "casserole",
+          "stew"
+        ],
+        "representativeDishes": [
+          "Dolma",
+          "Sarma",
+          "Gemista",
+          "Stuffed Peppers",
+          "Cabbage Rolls",
+          "Warak Enab",
+          "Tolma",
+          "Yaprak Sarma"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "Eastern European cabbage rolls (holubtsi, golabki, sarma) are related to the Ottoman stuffed-grape-leaves family but the precise route of transmission is debated. Some scholars argue parallel invention; others argue Ottoman influence via the Balkans.",
+        "culturalPracticeNote": "In Armenian, Levantine, and Greek households, the preparation of stuffed vegetables is a multi-generational activity — usually women and older girls, with the eldest supervising the rolling technique.",
+        "displayOrder": 50,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      {
+        "id": "skewered-grilled-meat",
+        "slug": "skewered-grilled-meat",
+        "name": "Skewered and Grilled Meat",
+        "shortDescription": "Small pieces or minced meat threaded on sticks and cooked over open fire — shaped by street food, nomadic cooking, ritual, and marinades across Eurasia and beyond.",
+        "conceptSummary": "Small pieces of meat or offal on a stick, cooked over fire. The marinade and the context (street food, festival, daily meal) are the cultural signature.",
+        "originSummary": "Skewered cooking likely emerged independently wherever open-fire cooking met nomadic or street-food culture. Persian kebab traditions spread through the Ottoman Empire; satay likely reflects Indian-Muslim trade influence on Indonesian cuisine; yakitori developed in Edo-period Japan.",
+        "originRegions": [
+          "Persian Plateau",
+          "Anatolia",
+          "Levant",
+          "Indian subcontinent",
+          "Southeast Asia",
+          "Andean region"
+        ],
+        "relatedRegions": [
+          "Greece",
+          "Turkey",
+          "Japan",
+          "Indonesia",
+          "Malaysia",
+          "Peru",
+          "Mongolia"
+        ],
+        "historicalForces": [
+          "empire",
+          "trade_route",
+          "nomadic_pastoral",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "skewer-and-grill",
+        "techniques": [
+          "skewering",
+          "marinating",
+          "open-flame grilling",
+          "charcoal grilling"
+        ],
+        "baseIngredients": [
+          "lamb",
+          "beef",
+          "chicken",
+          "pork",
+          "offal",
+          "yogurt",
+          "spice pastes",
+          "soy sauce",
+          "peanut sauce"
+        ],
+        "courseGroups": [
+          "main-course",
+          "street-snack",
+          "appetizer"
+        ],
+        "relatedFamilies": [
+          "kebab"
+        ],
+        "representativeDishes": [
+          "Kebab",
+          "Satay",
+          "Yakitori",
+          "Souvlaki",
+          "Anticucho",
+          "Shashlik",
+          "Brochette",
+          "Seekh Kebab",
+          "Chuan'r"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Persian kebab and Greek souvlaki is debated: Ottoman influence is likely, but Greek grilling traditions predate the Ottoman Empire. Japanese yakitori and Andean anticuchos are parallel inventions, not descendants of the Persian tradition.",
+        "culturalPracticeNote": "Satay is the national street food of Indonesia, with regional variations from Madura (sweet, ketupat accompaniment) to Padang (thick yellow sauce). Anticuchos are tied to the Afro-Peruvian cooking tradition, using beef heart — a legacy of African diaspora and Andean guinea-pig (cuy) cooking.",
+        "displayOrder": 60,
+        "dishCount": 1,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      {
+        "id": "curry-spiced-stew",
+        "slug": "curry-spiced-stew",
+        "name": "Curry and Spiced Stew",
+        "shortDescription": "Spiced sauce/stew systems — but not one thing. Local names, local spice logic, local techniques. A lineage of related ideas rather than a single dish.",
+        "conceptSummary": "A spiced sauce or stew where the spice blend is the cultural signature, not the protein.",
+        "originSummary": "Spiced stews are ancient in the Indian subcontinent (sambar, kuzhambu). Trade carried curry traditions to Southeast Asia (Thai massaman, Malay laksa paste, Indonesian rendang), East Asia (Japanese curry via British colonial influence), and the Caribbean (via Indian indentured labour in the 19th century).",
+        "originRegions": [
+          "Indian subcontinent"
+        ],
+        "relatedRegions": [
+          "Thailand",
+          "Japan",
+          "Malaysia",
+          "Indonesia",
+          "Caribbean",
+          "South Africa"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "colonial_spread",
+          "diaspora",
+          "religious_exchange"
+        ],
+        "primaryTechnique": "spice-paste-cooking",
+        "techniques": [
+          "dry-roasting spices",
+          "wet grinding",
+          "tempering (tadka)",
+          "slow braising",
+          "coconut-milk reduction"
+        ],
+        "baseIngredients": [
+          "turmeric",
+          "cumin",
+          "coriander",
+          "chili",
+          "ginger",
+          "garlic",
+          "coconut milk",
+          "yogurt",
+          "onion",
+          "tomato"
+        ],
+        "courseGroups": [
+          "main-course"
+        ],
+        "relatedFamilies": [
+          "curry",
+          "stew"
+        ],
+        "representativeDishes": [
+          "Indian Curry",
+          "Thai Curry",
+          "Japanese Curry",
+          "Kari Ayam",
+          "Rendang",
+          "Massaman Curry",
+          "Dal",
+          "Tagine",
+          "Vindaloo"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Indian curry and Thai massaman is documented (massaman derives from the Malay word 'masam' meaning sour, and the spice profile reflects Persian/Indian trade). The link between Indian curry and Japanese curry is more recent — late-19th-century British colonial influence. Caribbean curry reflects 19th-century Indian diaspora.",
+        "culturalPracticeNote": "Rendang is cooked for hours until the coconut milk is fully absorbed and the spices caramelize on the meat — it's a Minangkabau ceremonial dish. Japanese curry is a weekly staple and is often considered a 'homestyle' dish.",
+        "displayOrder": 70,
+        "dishCount": 6,
+        "relationCount": 6,
+        "sourceNotes": null
+      },
+      {
+        "id": "fermented-bean",
+        "slug": "fermented-bean",
+        "name": "Fermented Soy and Bean Products",
+        "shortDescription": "Beans transformed by microbial fermentation into umami-dense condiments, pastes, and solids — preservation, religion, regional bean-processing traditions.",
+        "conceptSummary": "Beans + salt + time + microbial transformation = a concentrated source of umami and a powerful preservative.",
+        "originSummary": "Soy fermentation likely emerged in China during the Zhou dynasty (c. 1000 BCE). Tempeh spread from Indonesia through Dutch colonial trade. Japanese miso and Korean doenjang developed independently from Chinese soy paste traditions.",
+        "originRegions": [
+          "Northern China"
+        ],
+        "relatedRegions": [
+          "Japan",
+          "Korea",
+          "Indonesia",
+          "Southeast Asia",
+          "India",
+          "Nepal"
+        ],
+        "historicalForces": [
+          "agricultural_spread",
+          "religious_exchange",
+          "trade_route"
+        ],
+        "primaryTechnique": "fermentation",
+        "techniques": [
+          "solid-state fermentation",
+          "liquid fermentation",
+          "mold cultivation",
+          "long aging"
+        ],
+        "baseIngredients": [
+          "soybeans",
+          "salt",
+          "water",
+          "grains (rice, barley, wheat)",
+          "chili",
+          "koji mold"
+        ],
+        "courseGroups": [
+          "condiment",
+          "side",
+          "main-course"
+        ],
+        "relatedFamilies": [
+          "fermented",
+          "sauce"
+        ],
+        "representativeDishes": [
+          "Tempeh",
+          "Miso",
+          "Natto",
+          "Soy Sauce",
+          "Doenjang",
+          "Gochujang",
+          "Tauco",
+          "Tofu",
+          "Doubanjiang",
+          "Miso Soup"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "The transmission from Chinese soy paste to Korean doenjang and Japanese miso is well documented through trade and Buddhist monastic exchange. The link to Indonesian tempeh is more debated — possibly independent fermentation of local beans (temu, before soy arrived).",
+        "culturalPracticeNote": "Miso is considered a daily staple in Japan, used in miso soup at breakfast and as a base for many sauces. Gochujang is used in Korean ancestral rites — the fermented red paste is offered to ancestors during Lunar New Year.",
+        "displayOrder": 80,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      {
+        "id": "fried-dough-pastry",
+        "slug": "fried-dough-pastry",
+        "name": "Fried Dough and Pastry",
+        "shortDescription": "Dough fried in fat, then sweetened or savoured — festival food, street food, religious fast-day food.",
+        "conceptSummary": "Wheat or rice flour dough, deep-fried, often sugared, often shaped (rings, sticks, balls, twists). Festival food almost universally.",
+        "originSummary": "Multiple origins. Fried dough appears in ancient Mediterranean, Indian, and East Asian cuisines. Specific forms — churros, loukoumades, jalebi, youtiao — have distinct documented histories.",
+        "originRegions": [
+          "Mediterranean",
+          "South Asia",
+          "East Asia"
+        ],
+        "relatedRegions": [
+          "Iberia",
+          "Mesoamerica",
+          "Southeast Asia",
+          "North Africa",
+          "Middle East"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "religious_exchange",
+          "cultural_exchange",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "deep-frying",
+        "techniques": [
+          "deep-frying",
+          "shaping by hand or mold",
+          "syrup-glazing",
+          "sugar-dusting"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "rice flour",
+          "yeast",
+          "eggs",
+          "sugar",
+          "honey",
+          "oil"
+        ],
+        "courseGroups": [
+          "dessert",
+          "street-snack"
+        ],
+        "relatedFamilies": [
+          "dessert",
+          "street-snack"
+        ],
+        "representativeDishes": [
+          "Donut",
+          "Churros",
+          "Loukoumades",
+          "Jalebi",
+          "Beignet",
+          "Zeppole",
+          "Youtiao",
+          "Sfenj",
+          "Gujia",
+          "Boortsog"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Spanish churros and Portuguese filhós is debated; both derive from a Mediterranean fried-pastry tradition. The link between Indian jalebi and Middle Eastern zalabiya is documented (the name and shape travelled). The relationship between East Asian youtiao and European fried dough is largely parallel invention.",
+        "culturalPracticeNote": "Youtiao (oil strip) is eaten with congee for breakfast across China. Churros are a Spanish late-night snack. Jalebi is offered at Hindu temples and is central to Diwali celebrations.",
+        "displayOrder": 90,
+        "dishCount": 1,
+        "relationCount": 1,
+        "sourceNotes": null
+      },
+      {
+        "id": "preserved-fish",
+        "slug": "preserved-fish",
+        "name": "Preserved Fish and Fermented Seafood",
+        "shortDescription": "Salt, fermentation, and time transform fish and shellfish into umami-dense condiments and pastes — a coastal foodway that links the Mediterranean to Southeast Asia.",
+        "conceptSummary": "Fish + salt + fermentation time = a concentrated source of salt and umami. Used as a condiment, a cooking base, or a finishing note.",
+        "originSummary": "Fish fermentation is documented in ancient Mediterranean (garum), Southeast Asia (fish sauces of the Austronesian world), and East Asia. The technique appears independently in coastal cultures with abundant fish stocks and salt.",
+        "originRegions": [
+          "Mediterranean",
+          "Southeast Asia",
+          "East Asia"
+        ],
+        "relatedRegions": [
+          "Italy",
+          "Vietnam",
+          "Thailand",
+          "Philippines",
+          "Japan",
+          "Korea",
+          "Rome"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "cultural_exchange",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "salt-fermentation",
+        "techniques": [
+          "salt curing",
+          "liquid fermentation",
+          "paste fermentation",
+          "long aging"
+        ],
+        "baseIngredients": [
+          "small fish",
+          "shrimp",
+          "salt",
+          "water"
+        ],
+        "courseGroups": [
+          "condiment",
+          "side"
+        ],
+        "relatedFamilies": [
+          "sauce",
+          "fermented"
+        ],
+        "representativeDishes": [
+          "Garum",
+          "Fish Sauce (Nuoc Mam)",
+          "Shrimp Paste (Belacan)",
+          "Pla Ra",
+          "Bagoong",
+          "Cincalok",
+          "Anchovy Paste",
+          "Colatura di Alici"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "The parallel between Roman garum and Southeast Asian fish sauces is well documented as parallel invention rather than direct transmission. Korean salted shrimp (saeu-jeot) and Japanese shiokara are part of the same coastal-fermentation family.",
+        "culturalPracticeNote": "In Vietnam, nuoc mam is a daily condiment and a marker of family identity — every family has its preferred brand and source. Garum was so central to Roman cooking that it was a major industry in Pompeii and salted-fish factories dotted the Mediterranean coast.",
+        "displayOrder": 100,
+        "dishCount": 0,
+        "relationCount": 0,
+        "sourceNotes": null
+      },
+      {
+        "id": "chili-condiment",
+        "slug": "chili-condiment",
+        "name": "Chili Sauces and Condiments",
+        "shortDescription": "Chili as a post-Columbian global ingredient — ground, fermented, and preserved into local condiment systems. Sambal, harissa, salsa, gochujang, sriracha — same ingredient, five continents of adaptation.",
+        "conceptSummary": "Chili + local grinding/fermenting/preserving = a condiment that becomes the signature flavor of a regional table.",
+        "originSummary": "Chili domestication is in central Mexico (c. 6000 BCE). After 1492, chili spread to the Philippines (via Spanish galleon trade), then to China, India, Southeast Asia, Africa, and the Middle East. Each region integrated it into existing condiment traditions.",
+        "originRegions": [
+          "Mesoamerica"
+        ],
+        "relatedRegions": [
+          "Mexico",
+          "Peru",
+          "Korea",
+          "Sichuan",
+          "Indonesia",
+          "Malaysia",
+          "North Africa",
+          "Thailand"
+        ],
+        "historicalForces": [
+          "colonial_spread",
+          "agricultural_spread",
+          "local_adaptation"
+        ],
+        "primaryTechnique": "grinding-and-fermenting",
+        "techniques": [
+          "stone-grinding",
+          "mortar-grinding",
+          "fermentation",
+          "oil-infusion",
+          "smoking"
+        ],
+        "baseIngredients": [
+          "chili peppers",
+          "salt",
+          "garlic",
+          "vinegar",
+          "sugar",
+          "oil",
+          "fermented bean paste"
+        ],
+        "courseGroups": [
+          "condiment",
+          "sauce"
+        ],
+        "relatedFamilies": [
+          "sauce",
+          "fermented"
+        ],
+        "representativeDishes": [
+          "Sambal",
+          "Harissa",
+          "Salsa Roja",
+          "Gochujang",
+          "Sriracha",
+          "Ajvar",
+          "Zhug",
+          "Nam Prik",
+          "Chili Oil",
+          "Shatta"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "All chili condiments share a common ancestor (Mesoamerican domesticated chili), but the preparation methods diverged radically — sambal is fresh-ground chili, harissa is a wet paste, gochujang is fermented with soybeans. We list this as a lineage because the shared ingredient is the spine; the variations are the story.",
+        "culturalPracticeNote": "Gochujang is used in Korean ancestral rites and is one of the three foundational sauces (with soy sauce and doenjang). Sambal is the daily chili accompaniment in Indonesia and Malaysia — every meal has sambal. Harissa is central to Maghrebi identity and is eaten with almost every savory dish in Tunisia.",
+        "displayOrder": 110,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      {
+        "id": "wrapped-leaf",
+        "slug": "wrapped-leaf",
+        "name": "Wrapped Leaf and Packet Cooking",
+        "shortDescription": "Food wrapped in leaves for steaming, grilling, carrying, preserving, or ritual — banana leaves, corn husks, palm leaves, lotus leaves, bamboo leaves.",
+        "conceptSummary": "Food wrapped in leaves, then steamed, grilled, or boiled. The leaf contributes flavor, structure, and ritual meaning.",
+        "originSummary": "Leaf-wrapping appears independently in Mesoamerica (corn-husk tamales), East Asia (bamboo-leaf zongzi), and Southeast Asia (banana-leaf pepes). Each tradition is tied to local grain agriculture and ritual cycles.",
+        "originRegions": [
+          "Mesoamerica",
+          "East Asia",
+          "Southeast Asia"
+        ],
+        "relatedRegions": [
+          "Mexico",
+          "China",
+          "Vietnam",
+          "Indonesia",
+          "Caribbean",
+          "Singapore"
+        ],
+        "historicalForces": [
+          "religious_exchange",
+          "agricultural_spread",
+          "parallel_evolution",
+          "war_and_displacement"
+        ],
+        "primaryTechnique": "leaf-wrapping-and-steaming",
+        "techniques": [
+          "steaming in leaves",
+          "grilling in leaves",
+          "boiling in leaves",
+          "long steaming"
+        ],
+        "baseIngredients": [
+          "corn husks",
+          "banana leaves",
+          "bamboo leaves",
+          "lotus leaves",
+          "palm leaves",
+          "rice",
+          "meat",
+          "fish",
+          "coconut"
+        ],
+        "courseGroups": [
+          "main-course",
+          "snack",
+          "festival-food"
+        ],
+        "relatedFamilies": [
+          "casserole",
+          "steamed-and-custard"
+        ],
+        "representativeDishes": [
+          "Tamales",
+          "Pepes",
+          "Otak-Otak",
+          "Zongzi",
+          "Pasteles",
+          "Lemper",
+          "Bánh Chưng",
+          "Pamonha",
+          "Hallaca"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "All leaf-wrapped foods share the 'leaf as vessel' logic but emerged independently in multiple continents. The Mesoamerican tamal tradition predates European contact by thousands of years; Chinese zongzi dates back at least to the Warring States period. They are parallel inventions, not transmissions.",
+        "culturalPracticeNote": "Bánh chưng is the symbolic dish of Vietnamese Lunar New Year (Tết): the square shape represents the Earth, the filling represents prosperity. Tamales are central to Mesoamerican Day of the Dead (Día de los Muertos) celebrations, with families gathering to make them together.",
+        "displayOrder": 120,
+        "dishCount": 0,
+        "relationCount": 1,
+        "sourceNotes": null
+      },
+      {
+        "id": "fermented-batter",
+        "slug": "fermented-batter",
+        "name": "Fermented Batter and Sour Grain",
+        "shortDescription": "Grain or legume batter transformed by natural fermentation, then cooked on a griddle, pan, or steamer — a global family from Ethiopian injera to South Indian dosa.",
+        "conceptSummary": "Grain or legume batter, naturally fermented, then cooked thin on a hot surface.",
+        "originSummary": "Fermented batter cooking is documented in Ethiopia (teff) and South India (rice-lentil) at least 2000 years ago, almost certainly independently. Sourdough pancake traditions in Eastern Europe and Russia are part of the same logic but with wheat flour.",
+        "originRegions": [
+          "Ethiopian Highlands",
+          "South India",
+          "Eastern Europe"
+        ],
+        "relatedRegions": [
+          "India",
+          "Sri Lanka",
+          "Russia",
+          "Ukraine",
+          "Ethiopia",
+          "Eritrea"
+        ],
+        "historicalForces": [
+          "parallel_evolution",
+          "religious_exchange",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "fermented-batter-cooking",
+        "techniques": [
+          "long fermentation",
+          "griddle cooking",
+          "steaming (for idli)",
+          "thin pouring"
+        ],
+        "baseIngredients": [
+          "teff flour",
+          "rice flour",
+          "lentil flour",
+          "wheat flour",
+          "sourdough starter",
+          "salt",
+          "water"
+        ],
+        "courseGroups": [
+          "main-course",
+          "side",
+          "bread"
+        ],
+        "relatedFamilies": [
+          "pancake",
+          "bread"
+        ],
+        "representativeDishes": [
+          "Injera",
+          "Dosa",
+          "Idli",
+          "Appam",
+          "Sourdough Pancakes",
+          "Blini",
+          "Dhokla",
+          "Pesarattu"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "Injera (teff), dosa (rice-lentil), and Russian blini (wheat) are parallel inventions — the same logic, three different continents, three different grains. They form a lineage because the shared technique is the spine, not the grain or the geography.",
+        "culturalPracticeNote": "In Ethiopia and Eritrea, injera is the plate: stews and salads are served on top, and you eat by tearing off pieces of injera with your right hand. South Indian dosa is often eaten with coconut chutney and sambar; idli with sambar and a variety of chutneys.",
+        "displayOrder": 130,
+        "dishCount": 1,
+        "relationCount": 1,
+        "sourceNotes": null
+      },
+      {
+        "id": "stuffed-pasta",
+        "slug": "stuffed-pasta",
+        "name": "Stuffed Pasta and Filled European Dough",
+        "shortDescription": "Filled dough in European and Eurasian branches — ravioli, tortellini, agnolotti, maultaschen, pelmeni, vareniki, pierogi. Connected to the broader filled-dough lineage but with European and Slavic specifics.",
+        "conceptSummary": "Filled wheat dough, often served in broth or with butter and cheese, distinguished by filling and shape.",
+        "originSummary": "Italian stuffed pasta is documented in the 14th century (Bolognese ravioli references); pelmeni are documented in Siberian cuisine from the 15th century onward. Whether they share a Silk Road ancestor or arose from parallel Mediterranean + Slavic traditions is unresolved.",
+        "originRegions": [
+          "Italy",
+          "Siberia",
+          "Eastern Europe",
+          "Germany"
+        ],
+        "relatedRegions": [
+          "Italy",
+          "Siberia",
+          "Ukraine",
+          "Poland",
+          "Germany",
+          "Slovenia",
+          "Romania"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "parallel_evolution",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "filling-and-sealing",
+        "techniques": [
+          "boiling",
+          "sautéing in butter",
+          "serving in broth",
+          "pan-frying"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "egg",
+          "ricotta",
+          "potato",
+          "sauerkraut",
+          "minced meat",
+          "mushroom",
+          "onion"
+        ],
+        "courseGroups": [
+          "main-course",
+          "appetizer"
+        ],
+        "relatedFamilies": [
+          "pasta",
+          "dumpling"
+        ],
+        "representativeDishes": [
+          "Ravioli",
+          "Tortellini",
+          "Agnolotti",
+          "Maultaschen",
+          "Pelmeni",
+          "Vareniki",
+          "Pierogi",
+          "Cappelletti",
+          "Kalduny"
+        ],
+        "confidenceLevel": "possible",
+        "uncertaintyNote": "The link between Italian stuffed pasta and Slavic pelmeni is debated. Some scholars argue Silk Road transmission from Central Asian manti; others argue parallel European and Slavic invention. We list this as a separate lineage because the European and Slavic forms have enough local character to be studied on their own, while still flagging the overlap with the broader filled-dough lineage.",
+        "culturalPracticeNote": "Tortellini are stuffed with a meat-and-cheese filling and served in capon broth, especially around Christmas and New Year in Emilia-Romagna. Pelmeni are central to Siberian cuisine and are often frozen in bulk for winter. Pierogi are served at Polish Christmas Eve dinner.",
+        "displayOrder": 140,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      }
+    ],
+    "totalLineages": 14,
+    "totalDishes": 29,
+    "totalRelations": 37,
+    "uncertainOrParallelCount": 13,
+    "regions": [
+      "Anatolia",
+      "Andean region",
+      "Armenia",
+      "Caribbean",
+      "Central Asia",
+      "China",
+      "East Asia",
+      "Eastern Europe",
+      "Egypt",
+      "Eritrea",
+      "Ethiopia",
+      "Ethiopian Highlands",
+      "Fertile Crescent",
+      "Germany",
+      "Greece",
+      "Iberia",
+      "India",
+      "Indian subcontinent",
+      "Indonesia",
+      "Iranian Plateau",
+      "Italy",
+      "Japan",
+      "Korea",
+      "Lebanon",
+      "Levant",
+      "Malaysia",
+      "Mali",
+      "Mediterranean",
+      "Mediterranean basin",
+      "Mesoamerica",
+      "Mexico",
+      "Middle East",
+      "Mongolia",
+      "Mughal India",
+      "Nepal",
+      "North Africa",
+      "Northern China",
+      "Ottoman Empire",
+      "Persia",
+      "Persian Plateau",
+      "Peru",
+      "Philippines",
+      "Poland",
+      "Romania",
+      "Rome",
+      "Russia",
+      "Senegal",
+      "Siberia",
+      "Sichuan",
+      "Singapore",
+      "Slovenia",
+      "South Africa",
+      "South Asia",
+      "South India",
+      "Southeast Asia",
+      "Spain",
+      "Sri Lanka",
+      "Thailand",
+      "Tibet",
+      "Turkey",
+      "Ukraine",
+      "Vietnam",
+      "West Africa"
+    ],
+    "techniques": [
+      "absorbption method",
+      "baking",
+      "boiling",
+      "boiling in leaves",
+      "braising",
+      "broth simmering",
+      "charcoal grilling",
+      "clay-oven-baking",
+      "coconut-milk reduction",
+      "deep-frying",
+      "dry-roasting spices",
+      "dum cooking",
+      "fermentation",
+      "griddle cooking",
+      "griddle-baking",
+      "grilling in leaves",
+      "liquid fermentation",
+      "long aging",
+      "long fermentation",
+      "long steaming",
+      "marinating",
+      "mold cultivation",
+      "mortar-grinding",
+      "noodle pulling",
+      "oil-infusion",
+      "open-flame grilling",
+      "pan-frying",
+      "paste fermentation",
+      "pilaf method",
+      "risotto method",
+      "rolling",
+      "salt curing",
+      "sautéing in butter",
+      "serving in broth",
+      "shaping by hand or mold",
+      "simmering in oil and lemon",
+      "skewering",
+      "slow braising",
+      "smoking",
+      "solid-state fermentation",
+      "steaming",
+      "steaming (for idli)",
+      "steaming in leaves",
+      "stone-grinding",
+      "sugar-dusting",
+      "syrup-glazing",
+      "tandoor-baking",
+      "tempering (tadka)",
+      "thin pouring",
+      "topping arrangement",
+      "wet grinding",
+      "wok hei (breath of the wok)"
+    ],
+    "historicalForces": [
+      "agricultural_spread",
+      "colonial_spread",
+      "cultural_exchange",
+      "diaspora",
+      "empire",
+      "local_adaptation",
+      "nomadic_pastoral",
+      "parallel_evolution",
+      "religious_exchange",
+      "trade_route",
+      "war_and_displacement"
+    ],
+    "confidenceLevels": [
+      "documented",
+      "likely",
+      "possible"
+    ],
+    "_generatedFrom": "packages/db/src/seed-data.ts LINEAGES"
+  },
+  "details": {
+    "filled-dough": {
+      "lineage": {
+        "id": "filled-dough",
+        "slug": "filled-dough",
+        "name": "Filled Dough Across Eurasia",
+        "shortDescription": "Dough wrapped around a filling, then steamed, boiled, baked, or fried — the most traveled food shape on earth.",
+        "conceptSummary": "A portable, hand-shaped meal: a wrapper of grain flour, a savory or sweet interior, and a fast cooking method. The lineage is a network of cousins, not a single family tree.",
+        "originSummary": "No single origin. Wheat-based filled dough appears in Mediterranean antiquity (Roman lagana, later ravioli); wheat- and millet-based filled dough appears independently in northern China by the Han dynasty. The shape spread along trade and conquest routes, then absorbed local fillings.",
+        "originRegions": [
+          "East Asia",
+          "Central Asia",
+          "Mediterranean basin",
+          "Northern China"
+        ],
+        "relatedRegions": [
+          "Eastern Europe",
+          "South Asia",
+          "Central Asia",
+          "Italy",
+          "Mongolia",
+          "Tibet",
+          "Nepal"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "empire",
+          "parallel_evolution",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "filling-and-sealing",
+        "techniques": [
+          "steaming",
+          "boiling",
+          "pan-frying",
+          "deep-frying",
+          "baking"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "rice flour",
+          "minced meat",
+          "vegetables",
+          "cheese",
+          "legumes"
+        ],
+        "courseGroups": [
+          "main-course",
+          "appetizer",
+          "street-snack"
+        ],
+        "relatedFamilies": [
+          "dumpling",
+          "pasta",
+          "pancake"
+        ],
+        "representativeDishes": [
+          "Jiaozi",
+          "Momo",
+          "Manti",
+          "Mantı",
+          "Pelmeni",
+          "Pierogi",
+          "Ravioli",
+          "Tortellini",
+          "Gyoza",
+          "Mandu",
+          "Empanada",
+          "Samosa",
+          "Khinkali",
+          "Pasty"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The relationship between Central Asian manti and East Asian jiaozi is well documented through Silk Road transmission. The relationship between those and Italian ravioli is more debated — direct transmission vs. shared Mediterranean + Levantine roots is unresolved.",
+        "culturalPracticeNote": "Filled dough is overwhelmingly festive food: Lunar New Year jiaozi in northern China, Tibetan Losar momo, Christmas pierogi in Poland, Ramadan manti in some Central Asian households. The act of folding is often communal.",
+        "displayOrder": 10,
+        "dishCount": 4,
+        "relationCount": 5,
+        "sourceNotes": null
+      },
+      "longDescription": "No single origin. Wheat-based filled dough appears in Mediterranean antiquity (Roman lagana, later ravioli); wheat- and millet-based filled dough appears independently in northern China by the Han dynasty. The shape spread along trade and conquest routes, then absorbed local fillings.",
+      "groupedDishes": [
+        {
+          "title": "Anchor forms",
+          "note": "The clearest historical anchors in this lineage.",
+          "dishes": [
+            {
+              "id": "7bef8544-5768-57c8-a42b-fd2d9b38d8ea",
+              "slug": "jiaozi",
+              "canonicalName": "Jiaozi",
+              "shortDescription": "Northern Chinese crescent-shaped dumplings with a thin wheat-flour wrapper and a filling of ground pork, cabbage, ginger, scallions, and soy sauce. Boiled (shuijiao), steamed (zhengjiao), or pan-fried (guotie).",
+              "originName": "China",
+              "role": "ancestor",
+              "explanation": "Wheat-flour wrapper folded around pork or vegetable filling, then boiled or pan-fried. The Han-dynasty reference (c. 200 CE) is one of the earliest documented filled doughs in East Asia.",
+              "changedElements": [
+                "dough",
+                "filling",
+                "shape",
+                "cooking_method"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 10
+            }
+          ]
+        },
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "51f770fd-bdf0-568c-ad63-ff6a48f858a4",
+              "slug": "momo",
+              "canonicalName": "Momo",
+              "shortDescription": "A Himalayan steamed dumpling of Tibetan origin, made from a thin wheat-flour wrapper and a filling of ground meat or vegetables. Now widely eaten across Nepal, Sikkim, Bhutan, and the Tibetan diaspora.",
+              "originName": "Nepal",
+              "role": "cousin",
+              "explanation": "Thin wheat wrapper, finely ground meat or vegetable filling, steamed. Likely transmitted from Chinese jiaozi along Himalayan trade routes, then adapted to local ingredients (yak, buffalo, Tibetan herbs). The 'likely related' link to jiaozi is widely accepted; the specifics of transmission are debated.",
+              "changedElements": [
+                "filling",
+                "shape",
+                "wrapper",
+                "serving_context"
+              ],
+              "confidenceLevel": "likely",
+              "sortOrder": 9
+            },
+            {
+              "id": "b2ada13a-ad8c-42b6-8a31-876078a106f5",
+              "slug": "pierogi",
+              "canonicalName": "Pierogi",
+              "shortDescription": "Filled dumplings of unleavened dough, traditionally stuffed with potato, sauerkraut, meat, cheese, or fruit. A staple of Polish cuisine.",
+              "originName": "Poland",
+              "role": "cousin",
+              "explanation": "Wheat-flour wrapper folded over a savory filling (potato, cheese, sauerkraut, mushroom, meat), then boiled and often pan-fried with onions. Eastern European adaptation with influences from Italian and Ottoman cuisine — direct line is debated.",
+              "changedElements": [
+                "filling",
+                "cooking_fat",
+                "serving_context"
+              ],
+              "confidenceLevel": "possible",
+              "sortOrder": 7
+            },
+            {
+              "id": "3ff7bd06-8c52-5d00-82c9-ae416e111690",
+              "slug": "empanada",
+              "canonicalName": "Empanada",
+              "shortDescription": "A baked or fried pastry turnover filled with seasoned meat, cheese, or vegetables. Found across Latin America from Argentina to the Philippines, each region claiming its own folded style and filling.",
+              "originName": "Argentina",
+              "role": "cousin",
+              "explanation": "Wheat or corn dough folded around a meat or vegetable filling, then baked or fried. Iberian in origin (likely from the Arabic influence on medieval Spain), then carried to the Americas. Shares the 'folded filled dough' idea with Eurasian dumplings but the historical connection is indirect.",
+              "changedElements": [
+                "dough",
+                "cooking_method",
+                "filling"
+              ],
+              "confidenceLevel": "possible",
+              "sortOrder": 6
+            }
+          ]
+        }
+      ]
+    },
+    "flatbread": {
+      "lineage": {
+        "id": "flatbread",
+        "slug": "flatbread",
+        "name": "Flatbread",
+        "shortDescription": "Unleavened or lightly leavened grain flatbread, baked on a griddle, in a clay oven, or stuck to the wall of a tandoor — the oldest bread idea on earth.",
+        "conceptSummary": "Grain flour + water + heat = a flat cooked bread. The shape of the bread is a record of the grain, the oven, and the meal that surrounds it.",
+        "originSummary": "No single origin. Flatbread is the default bread form whenever grain cultivation begins: Neolithic Middle East for wheat and barley, the Ethiopian highlands for teff, Mesoamerica for maize, the Indian subcontinent for millet flatbreads.",
+        "originRegions": [
+          "Fertile Crescent",
+          "Ethiopian Highlands",
+          "Mesoamerica",
+          "South Asia"
+        ],
+        "relatedRegions": [
+          "North Africa",
+          "Andean region",
+          "Levant",
+          "Iranian Plateau",
+          "Italy",
+          "Mexico"
+        ],
+        "historicalForces": [
+          "agricultural_spread",
+          "empire",
+          "trade_route",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "griddle-or-oven-baking",
+        "techniques": [
+          "griddle-baking",
+          "tandoor-baking",
+          "clay-oven-baking",
+          "pan-frying"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "maize flour",
+          "teff flour",
+          "millet flour",
+          "rice flour",
+          "water",
+          "salt",
+          "yeast"
+        ],
+        "courseGroups": [
+          "side",
+          "main-course",
+          "appetizer",
+          "bread"
+        ],
+        "relatedFamilies": [
+          "bread",
+          "pancake"
+        ],
+        "representativeDishes": [
+          "Naan",
+          "Pita",
+          "Lavash",
+          "Roti",
+          "Chapati",
+          "Tortilla",
+          "Arepa",
+          "Injera",
+          "Focaccia",
+          "Manakish",
+          "Yufka",
+          "Markook"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "Each flatbread tradition has its own grain and oven, and 'shared ancestor' claims across continents are weaker than within a continent. The wheat flatbreads of West Asia form a coherent family; the maize flatbreads of the Americas form another.",
+        "culturalPracticeNote": "Flatbread is the daily bread of roughly half the world's population. Breaking bread together is a near-universal ritual; in Ethiopia, gursha (feeding a friend by hand from one's own injera) is a sign of deep affection.",
+        "displayOrder": 20,
+        "dishCount": 2,
+        "relationCount": 3,
+        "sourceNotes": null
+      },
+      "longDescription": "No single origin. Flatbread is the default bread form whenever grain cultivation begins: Neolithic Middle East for wheat and barley, the Ethiopian highlands for teff, Mesoamerica for maize, the Indian subcontinent for millet flatbreads.",
+      "groupedDishes": [
+        {
+          "title": "Anchor forms",
+          "note": "The clearest historical anchors in this lineage.",
+          "dishes": [
+            {
+              "id": "58854b46-fa55-441e-b53b-c24bd4f70118",
+              "slug": "pizza-margherita",
+              "canonicalName": "Pizza Margherita",
+              "shortDescription": "A Neapolitan pizza topped with San Marzano tomato sauce, fresh mozzarella, fresh basil, and olive oil. Named for Queen Margherita of Savoy in 1889.",
+              "originName": "Italy",
+              "role": "descendant",
+              "explanation": "Italian flatbread topped with tomato, cheese, and oil. The flatbread lineage is ancient; pizza-as-topped-flatbread emerged in Naples in the 18th–19th century after tomato arrived from the Americas.",
+              "changedElements": [
+                "filling",
+                "cooking_method",
+                "serving_context"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 9
+            }
+          ]
+        },
+        {
+          "title": "Trade routes & colonial spread",
+          "note": "Forms shaped by trade and colonial contact.",
+          "dishes": [
+            {
+              "id": "a392ec10-a6cd-4c6a-9f59-52b01f17fef2",
+              "slug": "banh-mi",
+              "canonicalName": "Bánh mì",
+              "shortDescription": "A Vietnamese sandwich of a short baguette with grilled pork, pâté, pickled vegetables, fresh herbs, and chili. A legacy of French colonial rule.",
+              "originName": "Vietnam",
+              "role": "fusion",
+              "explanation": "Vietnamese baguette sandwich. The baguette itself is a French colonial import; the sandwich is a fusion of French bread with Vietnamese fillings (pâté, pickled vegetables, cilantro, chili). A clear case of colonial-era transmission.",
+              "changedElements": [
+                "filling",
+                "serving_context",
+                "shape"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 8
+            }
+          ]
+        }
+      ]
+    },
+    "rice-pilaf": {
+      "lineage": {
+        "id": "rice-pilaf",
+        "slug": "rice-pilaf",
+        "name": "Rice as Carrier",
+        "shortDescription": "Rice cooked in fat with aromatics, then steamed with broth, spices, meat, or seafood — a lineage shaped by Mughal, Persian, Mediterranean, and West African traditions.",
+        "conceptSummary": "Rice cooked with a flavorful fat and aromatic base, with regional spice and protein choices layered in.",
+        "originSummary": "Rice domestication is in the Yangtze valley (c. 8000 BCE). Pilaf/polo techniques developed in Persian-influenced Central Asia and spread westward through Mughal India, Ottoman Turkey, and into the Mediterranean. West African jollof evolved separately through rice cultivation in the Niger basin.",
+        "originRegions": [
+          "Persia",
+          "Mughal India",
+          "Mediterranean",
+          "West Africa"
+        ],
+        "relatedRegions": [
+          "Spain",
+          "Iranian Plateau",
+          "Indian subcontinent",
+          "Indonesia",
+          "Mali",
+          "Senegal",
+          "Italy"
+        ],
+        "historicalForces": [
+          "agricultural_spread",
+          "empire",
+          "trade_route",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "toasted-rice-then-steamed",
+        "techniques": [
+          "pilaf method",
+          "dum cooking",
+          "absorbption method",
+          "risotto method"
+        ],
+        "baseIngredients": [
+          "rice",
+          "onion",
+          "oil or ghee",
+          "broth",
+          "saffron",
+          "spices",
+          "meat",
+          "seafood"
+        ],
+        "courseGroups": [
+          "main-course"
+        ],
+        "relatedFamilies": [
+          "rice-dish",
+          "fried-rice",
+          "stew"
+        ],
+        "representativeDishes": [
+          "Pilaf",
+          "Plov",
+          "Biryani",
+          "Kabsa",
+          "Paella",
+          "Risotto",
+          "Nasi Goreng",
+          "Jollof Rice",
+          "Arroz con Pollo",
+          "Mandi"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Persian polo and Indian biryani is well documented via Mughal expansion. The link between Persian polo and West African jollof is much weaker — both use rice-as-carrier but developed independently. Spanish paella is a Mediterranean cousin, not a descendant of Persian pilaf.",
+        "culturalPracticeNote": "Biryani is a festive dish across South Asia, often served at weddings and Eid. Paella is cooked communally over an open fire in Valencia. Jollof rice is a point of friendly rivalry between Ghana, Nigeria, Senegal, and Cameroon — each claims the best version.",
+        "displayOrder": 30,
+        "dishCount": 6,
+        "relationCount": 6,
+        "sourceNotes": null
+      },
+      "longDescription": "Rice domestication is in the Yangtze valley (c. 8000 BCE). Pilaf/polo techniques developed in Persian-influenced Central Asia and spread westward through Mughal India, Ottoman Turkey, and into the Mediterranean. West African jollof evolved separately through rice cultivation in the Niger basin.",
+      "groupedDishes": [
+        {
+          "title": "Regional adaptations",
+          "note": "Local variants of the core idea — same family, different kitchen.",
+          "dishes": [
+            {
+              "id": "e3187604-124a-4fac-824f-87ed42f3bed9",
+              "slug": "biryani-hyderabadi",
+              "canonicalName": "Hyderabadi Biryani",
+              "shortDescription": "A mixed rice dish of layered basmati rice, marinated meat (typically chicken, mutton, or goat), fried onions, saffron, and whole spices. The Hyderabadi version is among the most famous.",
+              "originName": "India",
+              "role": "regional_variant",
+              "explanation": "Hyderabadi biryani: basmati rice layered with marinated meat, fried onions, saffron, and aromatics, then slow-cooked sealed (dum). A clear descendant of Persian pilaf via Mughal influence, adapted with local spice profiles.",
+              "changedElements": [
+                "spice_profile",
+                "cooking_method",
+                "serving_context"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 10
+            },
+            {
+              "id": "8c143316-666b-4c9a-99ee-3cc9864a80d3",
+              "slug": "paella-valenciana",
+              "canonicalName": "Paella",
+              "shortDescription": "A Valencian rice dish with saffron, olive oil, vegetables, and a choice of seafood, meat, or beans. Cooked in a wide, shallow pan over an open fire.",
+              "originName": "Spain",
+              "role": "regional_variant",
+              "explanation": "Valencia's rice-as-carrier: short-grain bomba rice, saffron, olive oil, seafood or rabbit, cooked uncovered over an open fire. Shares the 'toasted rice + broth' technique with Persian polo but evolved independently in Spain.",
+              "changedElements": [
+                "spice_profile",
+                "cooking_fat",
+                "serving_context"
+              ],
+              "confidenceLevel": "likely",
+              "sortOrder": 9
+            }
+          ]
+        },
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "9f592080-5ac2-4faf-9f92-449371d436c2",
+              "slug": "nasi-goreng",
+              "canonicalName": "Nasi Goreng",
+              "shortDescription": "An Indonesian fried rice dish cooked with kecap manis (sweet soy sauce), shallots, garlic, tamarind, and chilli, typically topped with a fried egg.",
+              "originName": "Indonesia",
+              "role": "cousin",
+              "explanation": "Indonesian fried rice: leftover rice stir-fried with kecap manis, garlic, shallots, and toppings. Carries Indian and Chinese rice-cooking influence via trade; uses local sweet soy and sambal.",
+              "changedElements": [
+                "cooking_method",
+                "spice_profile",
+                "serving_context"
+              ],
+              "confidenceLevel": "likely",
+              "sortOrder": 6
+            },
+            {
+              "id": "49291b0c-b8f8-54c0-bcae-7142704715a5",
+              "slug": "risotto-alla-milanese",
+              "canonicalName": "Risotto alla Milanese",
+              "shortDescription": "A Northern Italian short-grain rice dish cooked in a bone-marrow-enriched beef broth with saffron and onions, giving it a deep yellow color and a faintly metallic, floral finish.",
+              "originName": "Italy",
+              "role": "cousin",
+              "explanation": "Italian rice cooked by gradually adding hot broth, with saffron and beef-bone-marrow fat. Shares 'rice cooked in flavorful liquid' with pilaf but uses a different technique (stirred addition vs. absorption).",
+              "changedElements": [
+                "cooking_method",
+                "cooking_fat",
+                "spice_profile"
+              ],
+              "confidenceLevel": "parallel_evolution",
+              "sortOrder": 6
+            },
+            {
+              "id": "5aad5862-56e9-43e4-998d-e6ebc7e86fbb",
+              "slug": "bibimbap",
+              "canonicalName": "Bibimbap",
+              "shortDescription": "A Korean rice dish of steamed white rice topped with sautéed and seasoned vegetables, beef, a raw or fried egg, and gochujang (chilli paste).",
+              "originName": "South Korea",
+              "role": "cousin",
+              "explanation": "Korean rice bowl with seasoned vegetables, meat, egg, and gochujang. A 'rice-as-base' dish with local toppings; the technique is closer to fried rice than to pilaf but shares the carrier-grain idea.",
+              "changedElements": [
+                "serving_context",
+                "spice_profile",
+                "cooking_method"
+              ],
+              "confidenceLevel": "parallel_evolution",
+              "sortOrder": 4
+            }
+          ]
+        },
+        {
+          "title": "Tentative connections",
+          "note": "Plausible but unproven.",
+          "dishes": [
+            {
+              "id": "497ee0ef-465d-42c7-9bf8-3296ce0a380b",
+              "slug": "jollof-rice",
+              "canonicalName": "Jollof Rice",
+              "shortDescription": "A West African one-pot rice dish of long-grain rice simmered in a tomato-and-red-pepper sauce with onions, garlic, ginger, thyme, and assorted proteins.",
+              "originName": "Nigeria",
+              "role": "parallel_evolution",
+              "explanation": "West African rice cooked in a tomato-pepper base with onions, scotch bonnets, and thyme. The tomato-pepper base is post-Columbian; the rice-cooking technique has local roots. The relationship to pilaf is 'same logic, different ingredients, different history.'",
+              "changedElements": [
+                "ingredient",
+                "spice_profile",
+                "cooking_method"
+              ],
+              "confidenceLevel": "parallel_evolution",
+              "sortOrder": 7
+            }
+          ]
+        }
+      ]
+    },
+    "noodle-soup": {
+      "lineage": {
+        "id": "noodle-soup",
+        "slug": "noodle-soup",
+        "name": "Noodle Soup Across Asia and Beyond",
+        "shortDescription": "Wheat or rice noodles served in broth, transformed by stock base, spice paste, toppings, and migration — one of the most traveled broth-and-noodle traditions.",
+        "conceptSummary": "Noodles + broth + toppings, with the broth being the most culturally specific part.",
+        "originSummary": "Noodles likely originated in northern China during the Han dynasty (c. 200 BCE). Wheat noodles spread west through the Silk Road; rice noodles developed in southern China and Southeast Asia. Each region built its own broth tradition on top of the imported noodle.",
+        "originRegions": [
+          "Northern China",
+          "Southeast Asia",
+          "Mediterranean"
+        ],
+        "relatedRegions": [
+          "Japan",
+          "Korea",
+          "Vietnam",
+          "Thailand",
+          "Malaysia",
+          "Indonesia",
+          "Italy"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "colonial_spread",
+          "diaspora",
+          "local_adaptation"
+        ],
+        "primaryTechnique": "broth-cooked-noodles",
+        "techniques": [
+          "broth simmering",
+          "wok hei (breath of the wok)",
+          "topping arrangement",
+          "noodle pulling"
+        ],
+        "baseIngredients": [
+          "wheat noodles",
+          "rice noodles",
+          "broth (meat, fish, or bone)",
+          "aromatics",
+          "toppings"
+        ],
+        "courseGroups": [
+          "main-course",
+          "street-snack"
+        ],
+        "relatedFamilies": [
+          "noodle-soup",
+          "pasta"
+        ],
+        "representativeDishes": [
+          "Ramen",
+          "Pho",
+          "Laksa",
+          "Soto Mie",
+          "Khao Soi",
+          "Udon",
+          "Mie Ayam",
+          "Bakso",
+          "Saimin"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "The transmission from Chinese lamian to Japanese ramen is well documented (Chinese immigrants in Yokohama, late 19th century). The link between Asian noodle soups and Italian pasta is more contested — both derive from noodle-making traditions that may share ancient Central Asian roots, but the parallel-evolution hypothesis is also strong.",
+        "culturalPracticeNote": "Slurping noodles is the polite way to eat ramen in Japan (it cools the noodles and shows appreciation). Pho is a breakfast food in Vietnam. Khao Soi is a regional specialty of northern Thailand with Burmese-Muslim influences.",
+        "displayOrder": 40,
+        "dishCount": 4,
+        "relationCount": 4,
+        "sourceNotes": null
+      },
+      "longDescription": "Noodles likely originated in northern China during the Han dynasty (c. 200 BCE). Wheat noodles spread west through the Silk Road; rice noodles developed in southern China and Southeast Asia. Each region built its own broth tradition on top of the imported noodle.",
+      "groupedDishes": [
+        {
+          "title": "Regional adaptations",
+          "note": "Local variants of the core idea — same family, different kitchen.",
+          "dishes": [
+            {
+              "id": "4f6aeb4a-e8ef-443d-94d4-2f59dbff9f44",
+              "slug": "ramen-japanese",
+              "canonicalName": "Ramen",
+              "shortDescription": "A Japanese noodle soup with wheat noodles in a meat- or fish-based broth, flavoured with soy sauce or miso and topped with ingredients like sliced pork, nori, and scallions.",
+              "originName": "Japan",
+              "role": "adaptation",
+              "explanation": "Wheat noodles in a meat or fish broth with tare (seasoning base) and toppings. Adapted from Chinese lamian by immigrants in late-19th-century Japan; evolved into a fully Japanese dish with dashi and shoyu.",
+              "changedElements": [
+                "serving_context",
+                "spice_profile",
+                "ingredient"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 10
+            },
+            {
+              "id": "eddd86af-b937-42dc-8906-faaec1681496",
+              "slug": "pad-thai",
+              "canonicalName": "Pad Thai",
+              "shortDescription": "A stir-fried rice noodle dish from Thailand with eggs, vegetables, tofu or shrimp, peanuts, and a tangy sauce of tamarind, fish sauce, and palm sugar.",
+              "originName": "Thailand",
+              "role": "regional_variant",
+              "explanation": "Stir-fried rice noodles with tamarind, fish sauce, peanuts, and lime. A 20th-century Thai nationalist dish that incorporates Chinese noodle technique with local Southeast Asian flavors.",
+              "changedElements": [
+                "cooking_method",
+                "spice_profile",
+                "serving_context"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 7
+            }
+          ]
+        },
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "38faac1f-67f5-43c1-a2cb-77d702cb8068",
+              "slug": "tom-yum",
+              "canonicalName": "Tom Yum",
+              "shortDescription": "A hot and sour Thai soup with shrimp, lemongrass, kaffir lime leaves, galangal, lime juice, fish sauce, and crushed chili peppers.",
+              "originName": "Thailand",
+              "role": "cousin",
+              "explanation": "Hot-and-sour Thai soup, often served with rice or noodles. Shares 'broth + aromatics' with noodle soups but the dish itself is soup-with-optional-noodles, not noodles-in-broth.",
+              "changedElements": [
+                "serving_context",
+                "spice_profile"
+              ],
+              "confidenceLevel": "possible",
+              "sortOrder": 5
+            }
+          ]
+        },
+        {
+          "title": "Trade routes & colonial spread",
+          "note": "Forms shaped by trade and colonial contact.",
+          "dishes": [
+            {
+              "id": "ed87c09c-fb03-4c2c-af75-0f3835321923",
+              "slug": "pho-vietnamese",
+              "canonicalName": "Phở",
+              "shortDescription": "A Vietnamese noodle soup of bone broth, rice noodles, herbs, and meat (typically beef or chicken). Considered Vietnam's national dish.",
+              "originName": "Vietnam",
+              "role": "fusion",
+              "explanation": "Rice noodles in beef or chicken broth with star anise, cinnamon, and charred onion. Combines Chinese noodle technique with Vietnamese broth traditions; emerged in northern Vietnam in the early 20th century.",
+              "changedElements": [
+                "ingredient",
+                "spice_profile",
+                "cooking_method"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 9
+            }
+          ]
+        }
+      ]
+    },
+    "stuffed-leaves": {
+      "lineage": {
+        "id": "stuffed-leaves",
+        "slug": "stuffed-leaves",
+        "name": "Stuffed Leaves and Vegetables",
+        "shortDescription": "Edible wrappers — vine leaves, cabbage, peppers, tomatoes, eggplant — filled with grains, herbs, meat, or legumes, then braised. A Mediterranean-to-Central-Asian family with deep ritual roots.",
+        "conceptSummary": "An edible wrapper or vessel filled with a seasoned grain or meat mixture, then slow-braised until the wrapper softens and absorbs the filling's flavor.",
+        "originSummary": "Stuffed vegetables are documented in Ottoman and Persian court cuisines by the medieval period. The technique likely predates the Ottoman Empire through Persian and Arab cookery. Related forms (cabbage rolls) exist independently in Eastern European cuisine.",
+        "originRegions": [
+          "Ottoman Empire",
+          "Levant",
+          "Persia"
+        ],
+        "relatedRegions": [
+          "Greece",
+          "Turkey",
+          "Armenia",
+          "Lebanon",
+          "Egypt",
+          "Eastern Europe"
+        ],
+        "historicalForces": [
+          "empire",
+          "religious_exchange",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "filling-then-braising",
+        "techniques": [
+          "rolling",
+          "braising",
+          "baking",
+          "simmering in oil and lemon"
+        ],
+        "baseIngredients": [
+          "grape leaves",
+          "cabbage",
+          "peppers",
+          "tomatoes",
+          "zucchini",
+          "rice",
+          "minced meat",
+          "herbs",
+          "olive oil",
+          "lemon"
+        ],
+        "courseGroups": [
+          "appetizer",
+          "main-course",
+          "side"
+        ],
+        "relatedFamilies": [
+          "casserole",
+          "stew"
+        ],
+        "representativeDishes": [
+          "Dolma",
+          "Sarma",
+          "Gemista",
+          "Stuffed Peppers",
+          "Cabbage Rolls",
+          "Warak Enab",
+          "Tolma",
+          "Yaprak Sarma"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "Eastern European cabbage rolls (holubtsi, golabki, sarma) are related to the Ottoman stuffed-grape-leaves family but the precise route of transmission is debated. Some scholars argue parallel invention; others argue Ottoman influence via the Balkans.",
+        "culturalPracticeNote": "In Armenian, Levantine, and Greek households, the preparation of stuffed vegetables is a multi-generational activity — usually women and older girls, with the eldest supervising the rolling technique.",
+        "displayOrder": 50,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      "longDescription": "Stuffed vegetables are documented in Ottoman and Persian court cuisines by the medieval period. The technique likely predates the Ottoman Empire through Persian and Arab cookery. Related forms (cabbage rolls) exist independently in Eastern European cuisine.",
+      "groupedDishes": [
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "00000000-0000-0000-0000-000000000020",
+              "slug": "moussaka-greek",
+              "canonicalName": "Moussaka",
+              "shortDescription": "A layered casserole of fried eggplant, spiced minced meat, and béchamel sauce, baked until golden. Considered the national dish of Greece.",
+              "originName": "Greece",
+              "role": "cousin",
+              "explanation": "Greek moussaka is a layered casserole (eggplant, meat, béchamel) rather than a stuffed-leaf dish, but it shares the 'assembled-and-baked vegetable' logic with gemista and is part of the broader Ottoman-influenced Greek repertoire.",
+              "changedElements": [
+                "shape",
+                "cooking_method",
+                "serving_context"
+              ],
+              "confidenceLevel": "possible",
+              "sortOrder": 4
+            }
+          ]
+        },
+        {
+          "title": "Tentative connections",
+          "note": "Plausible but unproven.",
+          "dishes": [
+            {
+              "id": "4a602897-3efc-4bd0-af41-9c43b0d91a2e",
+              "slug": "hummus",
+              "canonicalName": "Hummus",
+              "shortDescription": "A Levantine dip or spread made from cooked, mashed chickpeas blended with tahini, lemon juice, garlic, and olive oil.",
+              "originName": "Israel",
+              "role": "uncertain",
+              "explanation": "Chickpea-tahini spread, a Levantine staple. Listed here as 'uncertain' because hummus is not stuffed but the dish is a frequent partner to stuffed leaves in the same meal context.",
+              "changedElements": [
+                "serving_context"
+              ],
+              "confidenceLevel": "uncertain",
+              "sortOrder": 2
+            }
+          ]
+        }
+      ]
+    },
+    "skewered-grilled-meat": {
+      "lineage": {
+        "id": "skewered-grilled-meat",
+        "slug": "skewered-grilled-meat",
+        "name": "Skewered and Grilled Meat",
+        "shortDescription": "Small pieces or minced meat threaded on sticks and cooked over open fire — shaped by street food, nomadic cooking, ritual, and marinades across Eurasia and beyond.",
+        "conceptSummary": "Small pieces of meat or offal on a stick, cooked over fire. The marinade and the context (street food, festival, daily meal) are the cultural signature.",
+        "originSummary": "Skewered cooking likely emerged independently wherever open-fire cooking met nomadic or street-food culture. Persian kebab traditions spread through the Ottoman Empire; satay likely reflects Indian-Muslim trade influence on Indonesian cuisine; yakitori developed in Edo-period Japan.",
+        "originRegions": [
+          "Persian Plateau",
+          "Anatolia",
+          "Levant",
+          "Indian subcontinent",
+          "Southeast Asia",
+          "Andean region"
+        ],
+        "relatedRegions": [
+          "Greece",
+          "Turkey",
+          "Japan",
+          "Indonesia",
+          "Malaysia",
+          "Peru",
+          "Mongolia"
+        ],
+        "historicalForces": [
+          "empire",
+          "trade_route",
+          "nomadic_pastoral",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "skewer-and-grill",
+        "techniques": [
+          "skewering",
+          "marinating",
+          "open-flame grilling",
+          "charcoal grilling"
+        ],
+        "baseIngredients": [
+          "lamb",
+          "beef",
+          "chicken",
+          "pork",
+          "offal",
+          "yogurt",
+          "spice pastes",
+          "soy sauce",
+          "peanut sauce"
+        ],
+        "courseGroups": [
+          "main-course",
+          "street-snack",
+          "appetizer"
+        ],
+        "relatedFamilies": [
+          "kebab"
+        ],
+        "representativeDishes": [
+          "Kebab",
+          "Satay",
+          "Yakitori",
+          "Souvlaki",
+          "Anticucho",
+          "Shashlik",
+          "Brochette",
+          "Seekh Kebab",
+          "Chuan'r"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Persian kebab and Greek souvlaki is debated: Ottoman influence is likely, but Greek grilling traditions predate the Ottoman Empire. Japanese yakitori and Andean anticuchos are parallel inventions, not descendants of the Persian tradition.",
+        "culturalPracticeNote": "Satay is the national street food of Indonesia, with regional variations from Madura (sweet, ketupat accompaniment) to Padang (thick yellow sauce). Anticuchos are tied to the Afro-Peruvian cooking tradition, using beef heart — a legacy of African diaspora and Andean guinea-pig (cuy) cooking.",
+        "displayOrder": 60,
+        "dishCount": 1,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      "longDescription": "Skewered cooking likely emerged independently wherever open-fire cooking met nomadic or street-food culture. Persian kebab traditions spread through the Ottoman Empire; satay likely reflects Indian-Muslim trade influence on Indonesian cuisine; yakitori developed in Edo-period Japan.",
+      "groupedDishes": [
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "ef91c8d4-41a2-478a-8d9a-a34a73a5c05d",
+              "slug": "shawarma",
+              "canonicalName": "Shawarma",
+              "shortDescription": "A Middle Eastern dish of slow-roasted, thinly sliced meat (lamb, mutton, beef, chicken, or mixed) served in a flatbread with vegetables and tahini or yogurt sauce.",
+              "originName": "Lebanon",
+              "role": "cousin",
+              "explanation": "Levantine spit-roasted meat, shaved and served in flatbread. Related to doner kebab (Ottoman/Turkish) and döner (modern Turkish). Shares the grilled-meat-as-meal idea with kebab but uses vertical spit roasting.",
+              "changedElements": [
+                "cooking_method",
+                "shape",
+                "serving_context"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 9
+            }
+          ]
+        }
+      ]
+    },
+    "curry-spiced-stew": {
+      "lineage": {
+        "id": "curry-spiced-stew",
+        "slug": "curry-spiced-stew",
+        "name": "Curry and Spiced Stew",
+        "shortDescription": "Spiced sauce/stew systems — but not one thing. Local names, local spice logic, local techniques. A lineage of related ideas rather than a single dish.",
+        "conceptSummary": "A spiced sauce or stew where the spice blend is the cultural signature, not the protein.",
+        "originSummary": "Spiced stews are ancient in the Indian subcontinent (sambar, kuzhambu). Trade carried curry traditions to Southeast Asia (Thai massaman, Malay laksa paste, Indonesian rendang), East Asia (Japanese curry via British colonial influence), and the Caribbean (via Indian indentured labour in the 19th century).",
+        "originRegions": [
+          "Indian subcontinent"
+        ],
+        "relatedRegions": [
+          "Thailand",
+          "Japan",
+          "Malaysia",
+          "Indonesia",
+          "Caribbean",
+          "South Africa"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "colonial_spread",
+          "diaspora",
+          "religious_exchange"
+        ],
+        "primaryTechnique": "spice-paste-cooking",
+        "techniques": [
+          "dry-roasting spices",
+          "wet grinding",
+          "tempering (tadka)",
+          "slow braising",
+          "coconut-milk reduction"
+        ],
+        "baseIngredients": [
+          "turmeric",
+          "cumin",
+          "coriander",
+          "chili",
+          "ginger",
+          "garlic",
+          "coconut milk",
+          "yogurt",
+          "onion",
+          "tomato"
+        ],
+        "courseGroups": [
+          "main-course"
+        ],
+        "relatedFamilies": [
+          "curry",
+          "stew"
+        ],
+        "representativeDishes": [
+          "Indian Curry",
+          "Thai Curry",
+          "Japanese Curry",
+          "Kari Ayam",
+          "Rendang",
+          "Massaman Curry",
+          "Dal",
+          "Tagine",
+          "Vindaloo"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Indian curry and Thai massaman is documented (massaman derives from the Malay word 'masam' meaning sour, and the spice profile reflects Persian/Indian trade). The link between Indian curry and Japanese curry is more recent — late-19th-century British colonial influence. Caribbean curry reflects 19th-century Indian diaspora.",
+        "culturalPracticeNote": "Rendang is cooked for hours until the coconut milk is fully absorbed and the spices caramelize on the meat — it's a Minangkabau ceremonial dish. Japanese curry is a weekly staple and is often considered a 'homestyle' dish.",
+        "displayOrder": 70,
+        "dishCount": 6,
+        "relationCount": 6,
+        "sourceNotes": null
+      },
+      "longDescription": "Spiced stews are ancient in the Indian subcontinent (sambar, kuzhambu). Trade carried curry traditions to Southeast Asia (Thai massaman, Malay laksa paste, Indonesian rendang), East Asia (Japanese curry via British colonial influence), and the Caribbean (via Indian indentured labour in the 19th century).",
+      "groupedDishes": [
+        {
+          "title": "Regional adaptations",
+          "note": "Local variants of the core idea — same family, different kitchen.",
+          "dishes": [
+            {
+              "id": "cb8e6e4b-e4d7-55b8-930a-7ae8f3ae75f7",
+              "slug": "rendang",
+              "canonicalName": "Rendang",
+              "shortDescription": "A West Sumatran dry curry of beef slow-cooked for hours in coconut milk and a paste of ginger, galangal, turmeric, chili, lemongrass, garlic, and shallots until the sauce fully reduces and the meat darkens.",
+              "originName": "Indonesia",
+              "role": "regional_variant",
+              "explanation": "Minangkabau slow-cooked dry curry: beef simmered in coconut milk and spice paste for hours until dry and deeply caramelized. A distinct Indonesian curry tradition.",
+              "changedElements": [
+                "cooking_method",
+                "serving_context",
+                "spice_profile"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 9
+            },
+            {
+              "id": "e6b44561-1a88-460f-98dc-020ad7613143",
+              "slug": "chicken-tikka-masala",
+              "canonicalName": "Chicken Tikka Masala",
+              "shortDescription": "A dish of roasted marinated chicken chunks (chicken tikka) in a spiced, creamy tomato sauce. Often considered a British national dish due to its invention in Glasgow.",
+              "originName": "United Kingdom",
+              "role": "regional_variant",
+              "explanation": "Roasted chicken chunks in a creamy tomato-onion sauce with garam masala. Often called a British-Indian dish — likely invented in the UK by Bangladeshi chefs in the 1960s. A diaspora adaptation of Indian murgh makhani.",
+              "changedElements": [
+                "ingredient",
+                "spice_profile",
+                "cooking_method"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 8
+            },
+            {
+              "id": "485cd99a-9019-5a63-8e33-73f0b68cbec6",
+              "slug": "vindaloo",
+              "canonicalName": "Vindaloo",
+              "shortDescription": "A Goan curry of Portuguese origin: meat (traditionally pork) marinated in vinegar, garlic, and Kashmiri chili, then cooked with onions, ginger, and warm spices. The Portuguese carne de vinha d'alhos became vindaloo over centuries.",
+              "originName": "India",
+              "role": "regional_variant",
+              "explanation": "Goan Portuguese-influenced curry: meat marinated in vinegar, garlic, and chili. Reflects Portuguese colonial influence on Indian cooking; the name derives from Portuguese 'carne de vinha d'alhos' (meat in wine vinegar and garlic).",
+              "changedElements": [
+                "spice_profile",
+                "ingredient",
+                "cooking_method"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 7
+            }
+          ]
+        },
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "3ec1ea8c-a3e3-4b85-93dc-d36d2111980f",
+              "slug": "goulash-hungarian",
+              "canonicalName": "Goulash",
+              "shortDescription": "A Hungarian soup or stew of meat and vegetables seasoned with paprika and other spices. The name derives from the Hungarian word gulyás, meaning 'herdsman'.",
+              "originName": "Hungary",
+              "role": "cousin",
+              "explanation": "Hungarian beef stew with paprika, onion, and sometimes peppers and potatoes. A Central European spiced stew — shares 'spiced braised meat' with curry but uses Hungarian paprika as the signature spice.",
+              "changedElements": [
+                "spice_profile",
+                "cooking_method",
+                "serving_context"
+              ],
+              "confidenceLevel": "parallel_evolution",
+              "sortOrder": 5
+            },
+            {
+              "id": "3b521d38-14e7-41e4-8a67-269941745dd5",
+              "slug": "tagine-moroccan",
+              "canonicalName": "Tagine",
+              "shortDescription": "A slow-cooked North African stew named after the conical clay pot in which it is cooked. Combines meat (typically lamb or chicken) with vegetables, fruits, and warming spices.",
+              "originName": "Morocco",
+              "role": "cousin",
+              "explanation": "Moroccan slow-cooked stew named after the clay pot. Spiced with ras el hanout and preserved lemon. Shares 'slow-cooked spiced stew' with curry but uses North African spice traditions.",
+              "changedElements": [
+                "spice_profile",
+                "cooking_method",
+                "serving_context"
+              ],
+              "confidenceLevel": "parallel_evolution",
+              "sortOrder": 5
+            }
+          ]
+        },
+        {
+          "title": "Tentative connections",
+          "note": "Plausible but unproven.",
+          "dishes": [
+            {
+              "id": "985a120f-7e09-45e9-be22-81828956472a",
+              "slug": "kimchi-jjigae",
+              "canonicalName": "Kimchi Jjigae",
+              "shortDescription": "A Korean stew made with aged kimchi, pork or tuna, tofu, scallions, and gochujang, simmered together until bubbling and tangy.",
+              "originName": "South Korea",
+              "role": "parallel_evolution",
+              "explanation": "Korean kimchi stew: fermented kimchi simmered with pork or tuna. A spiced stew with a fermented base — shares the 'spice-forward slow-cooked stew' idea with curry but the spice profile and base are entirely distinct.",
+              "changedElements": [
+                "ingredient",
+                "spice_profile",
+                "cooking_method"
+              ],
+              "confidenceLevel": "parallel_evolution",
+              "sortOrder": 4
+            }
+          ]
+        }
+      ]
+    },
+    "fermented-bean": {
+      "lineage": {
+        "id": "fermented-bean",
+        "slug": "fermented-bean",
+        "name": "Fermented Soy and Bean Products",
+        "shortDescription": "Beans transformed by microbial fermentation into umami-dense condiments, pastes, and solids — preservation, religion, regional bean-processing traditions.",
+        "conceptSummary": "Beans + salt + time + microbial transformation = a concentrated source of umami and a powerful preservative.",
+        "originSummary": "Soy fermentation likely emerged in China during the Zhou dynasty (c. 1000 BCE). Tempeh spread from Indonesia through Dutch colonial trade. Japanese miso and Korean doenjang developed independently from Chinese soy paste traditions.",
+        "originRegions": [
+          "Northern China"
+        ],
+        "relatedRegions": [
+          "Japan",
+          "Korea",
+          "Indonesia",
+          "Southeast Asia",
+          "India",
+          "Nepal"
+        ],
+        "historicalForces": [
+          "agricultural_spread",
+          "religious_exchange",
+          "trade_route"
+        ],
+        "primaryTechnique": "fermentation",
+        "techniques": [
+          "solid-state fermentation",
+          "liquid fermentation",
+          "mold cultivation",
+          "long aging"
+        ],
+        "baseIngredients": [
+          "soybeans",
+          "salt",
+          "water",
+          "grains (rice, barley, wheat)",
+          "chili",
+          "koji mold"
+        ],
+        "courseGroups": [
+          "condiment",
+          "side",
+          "main-course"
+        ],
+        "relatedFamilies": [
+          "fermented",
+          "sauce"
+        ],
+        "representativeDishes": [
+          "Tempeh",
+          "Miso",
+          "Natto",
+          "Soy Sauce",
+          "Doenjang",
+          "Gochujang",
+          "Tauco",
+          "Tofu",
+          "Doubanjiang",
+          "Miso Soup"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "The transmission from Chinese soy paste to Korean doenjang and Japanese miso is well documented through trade and Buddhist monastic exchange. The link to Indonesian tempeh is more debated — possibly independent fermentation of local beans (temu, before soy arrived).",
+        "culturalPracticeNote": "Miso is considered a daily staple in Japan, used in miso soup at breakfast and as a base for many sauces. Gochujang is used in Korean ancestral rites — the fermented red paste is offered to ancestors during Lunar New Year.",
+        "displayOrder": 80,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      "longDescription": "Soy fermentation likely emerged in China during the Zhou dynasty (c. 1000 BCE). Tempeh spread from Indonesia through Dutch colonial trade. Japanese miso and Korean doenjang developed independently from Chinese soy paste traditions.",
+      "groupedDishes": [
+        {
+          "title": "Regional adaptations",
+          "note": "Local variants of the core idea — same family, different kitchen.",
+          "dishes": [
+            {
+              "id": "2de9ed87-b7fe-57fa-adef-992034732819",
+              "slug": "mapo-tofu",
+              "canonicalName": "Mapo Tofu",
+              "shortDescription": "A Sichuan dish of silken tofu simmered in a fiery red sauce of fermented broad-bean paste (doubanjiang), ground pork or beef, douchi, Sichuan peppercorns, chili oil, and scallions.",
+              "originName": "China",
+              "role": "regional_variant",
+              "explanation": "Sichuan tofu in a fermented bean paste and doubanjiang sauce with chili and sichuan pepper. A direct descendant of the Chinese fermented-bean lineage, served as a tofu dish.",
+              "changedElements": [
+                "serving_context",
+                "spice_profile",
+                "cooking_method"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 8
+            }
+          ]
+        },
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "985a120f-7e09-45e9-be22-81828956472a",
+              "slug": "kimchi-jjigae",
+              "canonicalName": "Kimchi Jjigae",
+              "shortDescription": "A Korean stew made with aged kimchi, pork or tuna, tofu, scallions, and gochujang, simmered together until bubbling and tangy.",
+              "originName": "South Korea",
+              "role": "cousin",
+              "explanation": "Korean stew using aged kimchi and often doenjang. Shares the 'fermented base + slow-cooked stew' idea with Chinese fermented bean pastes but the kimchi fermentation is distinct.",
+              "changedElements": [
+                "ingredient",
+                "serving_context"
+              ],
+              "confidenceLevel": "likely",
+              "sortOrder": 5
+            }
+          ]
+        }
+      ]
+    },
+    "fried-dough-pastry": {
+      "lineage": {
+        "id": "fried-dough-pastry",
+        "slug": "fried-dough-pastry",
+        "name": "Fried Dough and Pastry",
+        "shortDescription": "Dough fried in fat, then sweetened or savoured — festival food, street food, religious fast-day food.",
+        "conceptSummary": "Wheat or rice flour dough, deep-fried, often sugared, often shaped (rings, sticks, balls, twists). Festival food almost universally.",
+        "originSummary": "Multiple origins. Fried dough appears in ancient Mediterranean, Indian, and East Asian cuisines. Specific forms — churros, loukoumades, jalebi, youtiao — have distinct documented histories.",
+        "originRegions": [
+          "Mediterranean",
+          "South Asia",
+          "East Asia"
+        ],
+        "relatedRegions": [
+          "Iberia",
+          "Mesoamerica",
+          "Southeast Asia",
+          "North Africa",
+          "Middle East"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "religious_exchange",
+          "cultural_exchange",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "deep-frying",
+        "techniques": [
+          "deep-frying",
+          "shaping by hand or mold",
+          "syrup-glazing",
+          "sugar-dusting"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "rice flour",
+          "yeast",
+          "eggs",
+          "sugar",
+          "honey",
+          "oil"
+        ],
+        "courseGroups": [
+          "dessert",
+          "street-snack"
+        ],
+        "relatedFamilies": [
+          "dessert",
+          "street-snack"
+        ],
+        "representativeDishes": [
+          "Donut",
+          "Churros",
+          "Loukoumades",
+          "Jalebi",
+          "Beignet",
+          "Zeppole",
+          "Youtiao",
+          "Sfenj",
+          "Gujia",
+          "Boortsog"
+        ],
+        "confidenceLevel": "likely",
+        "uncertaintyNote": "The link between Spanish churros and Portuguese filhós is debated; both derive from a Mediterranean fried-pastry tradition. The link between Indian jalebi and Middle Eastern zalabiya is documented (the name and shape travelled). The relationship between East Asian youtiao and European fried dough is largely parallel invention.",
+        "culturalPracticeNote": "Youtiao (oil strip) is eaten with congee for breakfast across China. Churros are a Spanish late-night snack. Jalebi is offered at Hindu temples and is central to Diwali celebrations.",
+        "displayOrder": 90,
+        "dishCount": 1,
+        "relationCount": 1,
+        "sourceNotes": null
+      },
+      "longDescription": "Multiple origins. Fried dough appears in ancient Mediterranean, Indian, and East Asian cuisines. Specific forms — churros, loukoumades, jalebi, youtiao — have distinct documented histories.",
+      "groupedDishes": [
+        {
+          "title": "Tentative connections",
+          "note": "Plausible but unproven.",
+          "dishes": [
+            {
+              "id": "07a1413b-e5fa-5ae1-b76a-92d90b7e2fae",
+              "slug": "tiramisu",
+              "canonicalName": "Tiramisù",
+              "shortDescription": "A layered Italian dessert of espresso-soaked savoiardi biscuits and a mascarpone cream, dusted with cocoa. Origins contested between Veneto and Friuli-Venezia Giulia; emerged in its modern form in the 1960s–80s.",
+              "originName": "Italy",
+              "role": "uncertain",
+              "explanation": "Italian coffee-flavored dessert with mascarpone and soaked ladyfingers. Not fried — included to flag a known gap in Gustale's coverage of fried-dough and pastry forms.",
+              "changedElements": [],
+              "confidenceLevel": "uncertain",
+              "sortOrder": 1
+            }
+          ]
+        }
+      ]
+    },
+    "preserved-fish": {
+      "lineage": {
+        "id": "preserved-fish",
+        "slug": "preserved-fish",
+        "name": "Preserved Fish and Fermented Seafood",
+        "shortDescription": "Salt, fermentation, and time transform fish and shellfish into umami-dense condiments and pastes — a coastal foodway that links the Mediterranean to Southeast Asia.",
+        "conceptSummary": "Fish + salt + fermentation time = a concentrated source of salt and umami. Used as a condiment, a cooking base, or a finishing note.",
+        "originSummary": "Fish fermentation is documented in ancient Mediterranean (garum), Southeast Asia (fish sauces of the Austronesian world), and East Asia. The technique appears independently in coastal cultures with abundant fish stocks and salt.",
+        "originRegions": [
+          "Mediterranean",
+          "Southeast Asia",
+          "East Asia"
+        ],
+        "relatedRegions": [
+          "Italy",
+          "Vietnam",
+          "Thailand",
+          "Philippines",
+          "Japan",
+          "Korea",
+          "Rome"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "cultural_exchange",
+          "parallel_evolution"
+        ],
+        "primaryTechnique": "salt-fermentation",
+        "techniques": [
+          "salt curing",
+          "liquid fermentation",
+          "paste fermentation",
+          "long aging"
+        ],
+        "baseIngredients": [
+          "small fish",
+          "shrimp",
+          "salt",
+          "water"
+        ],
+        "courseGroups": [
+          "condiment",
+          "side"
+        ],
+        "relatedFamilies": [
+          "sauce",
+          "fermented"
+        ],
+        "representativeDishes": [
+          "Garum",
+          "Fish Sauce (Nuoc Mam)",
+          "Shrimp Paste (Belacan)",
+          "Pla Ra",
+          "Bagoong",
+          "Cincalok",
+          "Anchovy Paste",
+          "Colatura di Alici"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "The parallel between Roman garum and Southeast Asian fish sauces is well documented as parallel invention rather than direct transmission. Korean salted shrimp (saeu-jeot) and Japanese shiokara are part of the same coastal-fermentation family.",
+        "culturalPracticeNote": "In Vietnam, nuoc mam is a daily condiment and a marker of family identity — every family has its preferred brand and source. Garum was so central to Roman cooking that it was a major industry in Pompeii and salted-fish factories dotted the Mediterranean coast.",
+        "displayOrder": 100,
+        "dishCount": 0,
+        "relationCount": 0,
+        "sourceNotes": null
+      },
+      "longDescription": "Fish fermentation is documented in ancient Mediterranean (garum), Southeast Asia (fish sauces of the Austronesian world), and East Asia. The technique appears independently in coastal cultures with abundant fish stocks and salt.",
+      "groupedDishes": []
+    },
+    "chili-condiment": {
+      "lineage": {
+        "id": "chili-condiment",
+        "slug": "chili-condiment",
+        "name": "Chili Sauces and Condiments",
+        "shortDescription": "Chili as a post-Columbian global ingredient — ground, fermented, and preserved into local condiment systems. Sambal, harissa, salsa, gochujang, sriracha — same ingredient, five continents of adaptation.",
+        "conceptSummary": "Chili + local grinding/fermenting/preserving = a condiment that becomes the signature flavor of a regional table.",
+        "originSummary": "Chili domestication is in central Mexico (c. 6000 BCE). After 1492, chili spread to the Philippines (via Spanish galleon trade), then to China, India, Southeast Asia, Africa, and the Middle East. Each region integrated it into existing condiment traditions.",
+        "originRegions": [
+          "Mesoamerica"
+        ],
+        "relatedRegions": [
+          "Mexico",
+          "Peru",
+          "Korea",
+          "Sichuan",
+          "Indonesia",
+          "Malaysia",
+          "North Africa",
+          "Thailand"
+        ],
+        "historicalForces": [
+          "colonial_spread",
+          "agricultural_spread",
+          "local_adaptation"
+        ],
+        "primaryTechnique": "grinding-and-fermenting",
+        "techniques": [
+          "stone-grinding",
+          "mortar-grinding",
+          "fermentation",
+          "oil-infusion",
+          "smoking"
+        ],
+        "baseIngredients": [
+          "chili peppers",
+          "salt",
+          "garlic",
+          "vinegar",
+          "sugar",
+          "oil",
+          "fermented bean paste"
+        ],
+        "courseGroups": [
+          "condiment",
+          "sauce"
+        ],
+        "relatedFamilies": [
+          "sauce",
+          "fermented"
+        ],
+        "representativeDishes": [
+          "Sambal",
+          "Harissa",
+          "Salsa Roja",
+          "Gochujang",
+          "Sriracha",
+          "Ajvar",
+          "Zhug",
+          "Nam Prik",
+          "Chili Oil",
+          "Shatta"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "All chili condiments share a common ancestor (Mesoamerican domesticated chili), but the preparation methods diverged radically — sambal is fresh-ground chili, harissa is a wet paste, gochujang is fermented with soybeans. We list this as a lineage because the shared ingredient is the spine; the variations are the story.",
+        "culturalPracticeNote": "Gochujang is used in Korean ancestral rites and is one of the three foundational sauces (with soy sauce and doenjang). Sambal is the daily chili accompaniment in Indonesia and Malaysia — every meal has sambal. Harissa is central to Maghrebi identity and is eaten with almost every savory dish in Tunisia.",
+        "displayOrder": 110,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      "longDescription": "Chili domestication is in central Mexico (c. 6000 BCE). After 1492, chili spread to the Philippines (via Spanish galleon trade), then to China, India, Southeast Asia, Africa, and the Middle East. Each region integrated it into existing condiment traditions.",
+      "groupedDishes": [
+        {
+          "title": "Cousins & parallel forms",
+          "note": "Same logic, possibly separate origin.",
+          "dishes": [
+            {
+              "id": "985a120f-7e09-45e9-be22-81828956472a",
+              "slug": "kimchi-jjigae",
+              "canonicalName": "Kimchi Jjigae",
+              "shortDescription": "A Korean stew made with aged kimchi, pork or tuna, tofu, scallions, and gochujang, simmered together until bubbling and tangy.",
+              "originName": "South Korea",
+              "role": "cousin",
+              "explanation": "Korean stew often seasoned with gochujang or served with kimchi. The chili-condiment backbone of Korean cuisine.",
+              "changedElements": [
+                "serving_context"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 3
+            },
+            {
+              "id": "ba0f4361-a550-5865-b954-974e77a9ba6f",
+              "slug": "soto-ayam",
+              "canonicalName": "Soto Ayam",
+              "shortDescription": "An Indonesian clear chicken soup fragrant with turmeric, lemongrass, and lime leaves, served with rice or vermicelli, shredded chicken, boiled egg, bean sprouts, and crispy shallots.",
+              "originName": "Indonesia",
+              "role": "cousin",
+              "explanation": "Indonesian chicken soup with sambal and lime. Sambal is the chili condiment backbone of Indonesian cuisine; soto-ayam is one of many dishes built around it.",
+              "changedElements": [
+                "serving_context"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 3
+            }
+          ]
+        }
+      ]
+    },
+    "wrapped-leaf": {
+      "lineage": {
+        "id": "wrapped-leaf",
+        "slug": "wrapped-leaf",
+        "name": "Wrapped Leaf and Packet Cooking",
+        "shortDescription": "Food wrapped in leaves for steaming, grilling, carrying, preserving, or ritual — banana leaves, corn husks, palm leaves, lotus leaves, bamboo leaves.",
+        "conceptSummary": "Food wrapped in leaves, then steamed, grilled, or boiled. The leaf contributes flavor, structure, and ritual meaning.",
+        "originSummary": "Leaf-wrapping appears independently in Mesoamerica (corn-husk tamales), East Asia (bamboo-leaf zongzi), and Southeast Asia (banana-leaf pepes). Each tradition is tied to local grain agriculture and ritual cycles.",
+        "originRegions": [
+          "Mesoamerica",
+          "East Asia",
+          "Southeast Asia"
+        ],
+        "relatedRegions": [
+          "Mexico",
+          "China",
+          "Vietnam",
+          "Indonesia",
+          "Caribbean",
+          "Singapore"
+        ],
+        "historicalForces": [
+          "religious_exchange",
+          "agricultural_spread",
+          "parallel_evolution",
+          "war_and_displacement"
+        ],
+        "primaryTechnique": "leaf-wrapping-and-steaming",
+        "techniques": [
+          "steaming in leaves",
+          "grilling in leaves",
+          "boiling in leaves",
+          "long steaming"
+        ],
+        "baseIngredients": [
+          "corn husks",
+          "banana leaves",
+          "bamboo leaves",
+          "lotus leaves",
+          "palm leaves",
+          "rice",
+          "meat",
+          "fish",
+          "coconut"
+        ],
+        "courseGroups": [
+          "main-course",
+          "snack",
+          "festival-food"
+        ],
+        "relatedFamilies": [
+          "casserole",
+          "steamed-and-custard"
+        ],
+        "representativeDishes": [
+          "Tamales",
+          "Pepes",
+          "Otak-Otak",
+          "Zongzi",
+          "Pasteles",
+          "Lemper",
+          "Bánh Chưng",
+          "Pamonha",
+          "Hallaca"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "All leaf-wrapped foods share the 'leaf as vessel' logic but emerged independently in multiple continents. The Mesoamerican tamal tradition predates European contact by thousands of years; Chinese zongzi dates back at least to the Warring States period. They are parallel inventions, not transmissions.",
+        "culturalPracticeNote": "Bánh chưng is the symbolic dish of Vietnamese Lunar New Year (Tết): the square shape represents the Earth, the filling represents prosperity. Tamales are central to Mesoamerican Day of the Dead (Día de los Muertos) celebrations, with families gathering to make them together.",
+        "displayOrder": 120,
+        "dishCount": 0,
+        "relationCount": 1,
+        "sourceNotes": null
+      },
+      "longDescription": "Leaf-wrapping appears independently in Mesoamerica (corn-husk tamales), East Asia (bamboo-leaf zongzi), and Southeast Asia (banana-leaf pepes). Each tradition is tied to local grain agriculture and ritual cycles.",
+      "groupedDishes": []
+    },
+    "fermented-batter": {
+      "lineage": {
+        "id": "fermented-batter",
+        "slug": "fermented-batter",
+        "name": "Fermented Batter and Sour Grain",
+        "shortDescription": "Grain or legume batter transformed by natural fermentation, then cooked on a griddle, pan, or steamer — a global family from Ethiopian injera to South Indian dosa.",
+        "conceptSummary": "Grain or legume batter, naturally fermented, then cooked thin on a hot surface.",
+        "originSummary": "Fermented batter cooking is documented in Ethiopia (teff) and South India (rice-lentil) at least 2000 years ago, almost certainly independently. Sourdough pancake traditions in Eastern Europe and Russia are part of the same logic but with wheat flour.",
+        "originRegions": [
+          "Ethiopian Highlands",
+          "South India",
+          "Eastern Europe"
+        ],
+        "relatedRegions": [
+          "India",
+          "Sri Lanka",
+          "Russia",
+          "Ukraine",
+          "Ethiopia",
+          "Eritrea"
+        ],
+        "historicalForces": [
+          "parallel_evolution",
+          "religious_exchange",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "fermented-batter-cooking",
+        "techniques": [
+          "long fermentation",
+          "griddle cooking",
+          "steaming (for idli)",
+          "thin pouring"
+        ],
+        "baseIngredients": [
+          "teff flour",
+          "rice flour",
+          "lentil flour",
+          "wheat flour",
+          "sourdough starter",
+          "salt",
+          "water"
+        ],
+        "courseGroups": [
+          "main-course",
+          "side",
+          "bread"
+        ],
+        "relatedFamilies": [
+          "pancake",
+          "bread"
+        ],
+        "representativeDishes": [
+          "Injera",
+          "Dosa",
+          "Idli",
+          "Appam",
+          "Sourdough Pancakes",
+          "Blini",
+          "Dhokla",
+          "Pesarattu"
+        ],
+        "confidenceLevel": "documented",
+        "uncertaintyNote": "Injera (teff), dosa (rice-lentil), and Russian blini (wheat) are parallel inventions — the same logic, three different continents, three different grains. They form a lineage because the shared technique is the spine, not the grain or the geography.",
+        "culturalPracticeNote": "In Ethiopia and Eritrea, injera is the plate: stews and salads are served on top, and you eat by tearing off pieces of injera with your right hand. South Indian dosa is often eaten with coconut chutney and sambar; idli with sambar and a variety of chutneys.",
+        "displayOrder": 130,
+        "dishCount": 1,
+        "relationCount": 1,
+        "sourceNotes": null
+      },
+      "longDescription": "Fermented batter cooking is documented in Ethiopia (teff) and South India (rice-lentil) at least 2000 years ago, almost certainly independently. Sourdough pancake traditions in Eastern Europe and Russia are part of the same logic but with wheat flour.",
+      "groupedDishes": [
+        {
+          "title": "Anchor forms",
+          "note": "The clearest historical anchors in this lineage.",
+          "dishes": [
+            {
+              "id": "e99a0869-8c06-5999-b676-fe160a0babda",
+              "slug": "dosa",
+              "canonicalName": "Dosa",
+              "shortDescription": "A thin, crispy South Indian crepe made from a fermented batter of rice and urad dal, served with coconut chutney and sambar. Sambar is closely related to the rasam and other lentil-stew traditions of the Deccan.",
+              "originName": "India",
+              "role": "ancestor",
+              "explanation": "South Indian dosa: fermented rice and lentil batter cooked thin on a griddle. A canonical example of the fermented-batter lineage. Often served with coconut chutney and sambar.",
+              "changedElements": [
+                "serving_context",
+                "shape"
+              ],
+              "confidenceLevel": "documented",
+              "sortOrder": 10
+            }
+          ]
+        }
+      ]
+    },
+    "stuffed-pasta": {
+      "lineage": {
+        "id": "stuffed-pasta",
+        "slug": "stuffed-pasta",
+        "name": "Stuffed Pasta and Filled European Dough",
+        "shortDescription": "Filled dough in European and Eurasian branches — ravioli, tortellini, agnolotti, maultaschen, pelmeni, vareniki, pierogi. Connected to the broader filled-dough lineage but with European and Slavic specifics.",
+        "conceptSummary": "Filled wheat dough, often served in broth or with butter and cheese, distinguished by filling and shape.",
+        "originSummary": "Italian stuffed pasta is documented in the 14th century (Bolognese ravioli references); pelmeni are documented in Siberian cuisine from the 15th century onward. Whether they share a Silk Road ancestor or arose from parallel Mediterranean + Slavic traditions is unresolved.",
+        "originRegions": [
+          "Italy",
+          "Siberia",
+          "Eastern Europe",
+          "Germany"
+        ],
+        "relatedRegions": [
+          "Italy",
+          "Siberia",
+          "Ukraine",
+          "Poland",
+          "Germany",
+          "Slovenia",
+          "Romania"
+        ],
+        "historicalForces": [
+          "trade_route",
+          "parallel_evolution",
+          "cultural_exchange"
+        ],
+        "primaryTechnique": "filling-and-sealing",
+        "techniques": [
+          "boiling",
+          "sautéing in butter",
+          "serving in broth",
+          "pan-frying"
+        ],
+        "baseIngredients": [
+          "wheat flour",
+          "egg",
+          "ricotta",
+          "potato",
+          "sauerkraut",
+          "minced meat",
+          "mushroom",
+          "onion"
+        ],
+        "courseGroups": [
+          "main-course",
+          "appetizer"
+        ],
+        "relatedFamilies": [
+          "pasta",
+          "dumpling"
+        ],
+        "representativeDishes": [
+          "Ravioli",
+          "Tortellini",
+          "Agnolotti",
+          "Maultaschen",
+          "Pelmeni",
+          "Vareniki",
+          "Pierogi",
+          "Cappelletti",
+          "Kalduny"
+        ],
+        "confidenceLevel": "possible",
+        "uncertaintyNote": "The link between Italian stuffed pasta and Slavic pelmeni is debated. Some scholars argue Silk Road transmission from Central Asian manti; others argue parallel European and Slavic invention. We list this as a separate lineage because the European and Slavic forms have enough local character to be studied on their own, while still flagging the overlap with the broader filled-dough lineage.",
+        "culturalPracticeNote": "Tortellini are stuffed with a meat-and-cheese filling and served in capon broth, especially around Christmas and New Year in Emilia-Romagna. Pelmeni are central to Siberian cuisine and are often frozen in bulk for winter. Pierogi are served at Polish Christmas Eve dinner.",
+        "displayOrder": 140,
+        "dishCount": 2,
+        "relationCount": 2,
+        "sourceNotes": null
+      },
+      "longDescription": "Italian stuffed pasta is documented in the 14th century (Bolognese ravioli references); pelmeni are documented in Siberian cuisine from the 15th century onward. Whether they share a Silk Road ancestor or arose from parallel Mediterranean + Slavic traditions is unresolved.",
+      "groupedDishes": [
+        {
+          "title": "Regional adaptations",
+          "note": "Local variants of the core idea — same family, different kitchen.",
+          "dishes": [
+            {
+              "id": "b2ada13a-ad8c-42b6-8a31-876078a106f5",
+              "slug": "pierogi",
+              "canonicalName": "Pierogi",
+              "shortDescription": "Filled dumplings of unleavened dough, traditionally stuffed with potato, sauerkraut, meat, cheese, or fruit. A staple of Polish cuisine.",
+              "originName": "Poland",
+              "role": "regional_variant",
+              "explanation": "Polish filled dumplings: wheat-flour dough folded over potato-and-cheese, sauerkraut, mushroom, or meat filling, then boiled and often pan-fried. A Slavic regional variant of the broader filled-dough lineage.",
+              "changedElements": [
+                "filling",
+                "cooking_fat",
+                "serving_context"
+              ],
+              "confidenceLevel": "likely",
+              "sortOrder": 8
+            }
+          ]
+        },
+        {
+          "title": "Tentative connections",
+          "note": "Plausible but unproven.",
+          "dishes": [
+            {
+              "id": "49291b0c-b8f8-54c0-bcae-7142704715a5",
+              "slug": "risotto-alla-milanese",
+              "canonicalName": "Risotto alla Milanese",
+              "shortDescription": "A Northern Italian short-grain rice dish cooked in a bone-marrow-enriched beef broth with saffron and onions, giving it a deep yellow color and a faintly metallic, floral finish.",
+              "originName": "Italy",
+              "role": "uncertain",
+              "explanation": "Italian saffron risotto. Listed here as uncertain because risotto is not a stuffed pasta but the Lombardy region also has stuffed pasta traditions (agnolotti) — overlap with the lineage.",
+              "changedElements": [],
+              "confidenceLevel": "uncertain",
+              "sortOrder": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
