@@ -1,0 +1,150 @@
+---
+/**
+ * /admin — Admin dashboard
+ *
+ * Phase 4 (Admin Dish Editor redo). Lists five admin surfaces:
+ *   - Dishes        (live in v2)
+ *   - Ingredients   (v3)
+ *   - Regions       (v3)
+ *   - Lineages      (v3)
+ *   - Families      (v3)
+ *
+ * Layout.astro + Breadcrumbs.astro use the correct two-dot relative
+ * paths (this file is at src/pages/admin/, two levels deep). The
+ * reverted PR used three-dot paths which caused "Cannot find module"
+ * errors at astro build.
+ */
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+
+const surfaces = [
+  {
+    href: '/admin/dishes',
+    icon: '🍽',
+    title: 'Dishes',
+    description: 'Edit dish names, descriptions, origins, ingredients, and taxonomy.',
+    status: 'live' as const,
+  },
+  {
+    href: '/admin/ingredients',
+    icon: '🥕',
+    title: 'Ingredients',
+    description: 'Manage ingredient names and canonical names.',
+    status: 'planned' as const,
+  },
+  {
+    href: '/admin/regions',
+    icon: '🌍',
+    title: 'Regions',
+    description: 'Edit country and region names.',
+    status: 'planned' as const,
+  },
+  {
+    href: '/admin/lineages',
+    icon: '🔥',
+    title: 'Lineages',
+    description: 'Manage preparation methods (how dishes are cooked).',
+    status: 'planned' as const,
+  },
+  {
+    href: '/admin/families',
+    icon: '📂',
+    title: 'Families',
+    description: 'Manage dish-type categories (Soup, Pasta, etc.).',
+    status: 'planned' as const,
+  },
+];
+---
+
+<Layout title="Admin — Gustale" description="Admin dashboard">
+  <Breadcrumbs crumbs={[{ label: 'Admin' }]} />
+
+  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem;">
+    <h1 style="font-family: var(--display); font-size: 2rem; margin-bottom: 0.5rem;">Admin</h1>
+    <p class="sub" style="margin-bottom: 2rem;">Manage dishes, ingredients, and taxonomy.</p>
+
+    <div class="admin-grid">
+      {surfaces.map((s) => (
+        <a
+          href={s.status === 'live' ? s.href : '#'}
+          class={`admin-card${s.status === 'planned' ? ' admin-card-planned' : ''}`}
+          aria-disabled={s.status === 'planned' ? 'true' : 'false'}
+        >
+          <div class="admin-card-icon">{s.icon}</div>
+          <div class="admin-card-body">
+            <h2>
+              {s.title}
+              {s.status === 'planned' && <span class="admin-card-v3">v3</span>}
+            </h2>
+            <p>{s.description}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+  .admin-card {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1.25rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .admin-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .admin-card-planned {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .admin-card-planned:hover {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  .admin-card-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .admin-card-body {
+    flex: 1;
+  }
+  .admin-card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .admin-card-v3 {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--sub);
+    background: var(--bg);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+  }
+  .admin-card p {
+    font-size: 0.85rem;
+    color: var(--sub);
+    margin: 0;
+    line-height: 1.4;
+  }
+</style>

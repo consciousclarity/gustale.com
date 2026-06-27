@@ -11,6 +11,7 @@ import sensible from '@fastify/sensible';
 import { env } from './env.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerDishRoutes } from './routes/dishes.js';
+import { registerAdminDishRoutes } from './routes/admin-dishes.js';
 import { registerDishWriteRoutes } from './routes/dishes-write.js';
 import { registerTaxonomyRoutes } from './routes/taxonomy.js';
 import { registerIngredientRoutes } from './routes/ingredients.js';
@@ -76,6 +77,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerHealthRoutes(app);
   registerDishRoutes(app);
   registerDishWriteRoutes(app);
+  registerAdminDishRoutes(app);
   registerTaxonomyRoutes(app);
   await app.register(registerIngredientRoutes);
   // The two new route groups are FastifyPluginAsync — await their register

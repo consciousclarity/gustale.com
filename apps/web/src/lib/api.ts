@@ -375,3 +375,108 @@ export function getMediaSignedUrl(
     `/api/media/${encodeURIComponent(mediaId)}/signed-url`,
   );
 }
+
+// ─── Admin endpoints (Phase 4 — Admin Dish Editor redo) ──────────────────
+//
+// These endpoints are gated by the API's `requireRole(request, 'admin')`
+// (see apps/api/src/routes/admin-dishes.ts). The Astro middleware
+// (apps/web/src/middleware.ts) also gates /admin/* at the page layer.
+// On SSR, pass the request's cookie header through `init.headers` so the
+// API can authenticate the caller.
+
+export interface AdminLookupsResponse {
+  categories: Array<{ id: string; name: string; slug: string; kind: string }>;
+  preparationMethods: Array<{ id: string; name: string; slug: string }>;
+  geoEntities: Array<{ id: string; name: string; country: string | null }>;
+  ingredients: Array<{ id: string; canonicalName: string }>;
+}
+
+export function getAdminLookups(init?: RequestInit): Promise<AdminLookupsResponse> {
+  return request<AdminLookupsResponse>('/api/admin/lookups', init);
+}
+
+export interface AdminDishSummary {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  shortDescription: string | null;
+  status: 'draft' | 'published' | 'archived';
+  viewCount: number;
+  updatedAt: string;
+  originGeoId: string | null;
+  originName: string | null;
+}
+
+export interface AdminDishListResponse {
+  dishes: AdminDishSummary[];
+  total: number;
+}
+
+export function listAdminDishes(
+  params: { q?: string; status?: string; limit?: number; offset?: number } = {},
+  init?: RequestInit,
+): Promise<AdminDishListResponse> {
+  const search = new URLSearchParams();
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  if (params.limit) search.set('limit', String(params.limit));
+  if (params.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  return request<AdminDishListResponse>(
+    `/api/admin/dishes${qs ? `?${qs}` : ''}`,
+    init,
+  );
+}
+
+export interface AdminDishDetail {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  shortDescription: string | null;
+  longDescription: string | null;
+  status: 'draft' | 'published' | 'archived';
+  originGeoId: string | null;
+  originDateEarliest: number | null;
+  originDateLatest: number | null;
+  originPeriodLabel: string | null;
+  viewCount: number;
+  editCount: number;
+  updatedAt: string;
+  ingredients: Array<{
+    ingredientId: string;
+    ingredientName: string | null;
+    quantity: string | null;
+    unit: string | null;
+    isOptional: boolean;
+    preparationNote: string | null;
+    position: number;
+  }>;
+  preparations: Array<{
+    id: string;
+    methodId: string;
+    methodName: string | null;
+    methodSlug: string | null;
+    sequenceOrder: number;
+  }>;
+  categories: Array<{
+    categoryId: string;
+    categoryName: string | null;
+    categorySlug: string | null;
+  }>;
+  relatedDishes: Array<{
+    id: string;
+    relationType: string;
+    reason: string | null;
+    strength: number;
+    relatedDishId: string;
+    relatedSlug: string | null;
+    relatedName: string | null;
+  }>;
+}
+
+export function getAdminDish(slug: string, init?: RequestInit): Promise<AdminDishDetail> {
+  return request<AdminDishDetail>(
+    `/api/admin/dishes/${encodeURIComponent(slug)}`,
+    init,
+  );
+}
