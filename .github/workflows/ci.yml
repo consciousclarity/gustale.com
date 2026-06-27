@@ -236,6 +236,39 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # DIAGNOSTIC: confirm that mock-api-data.json on disk matches git HEAD
+      # exactly before the build runs. The recurring CI failure shows the
+      # mock-api reading a 32KB API-response-shaped file instead of the
+      # 228KB stored-shape file committed in git; this step proves whether
+      # the discrepancy originates in actions/checkout (file mismatch here)
+      # or somewhere between here and the running container (file matches
+      # here but differs in the container). Remove once the root cause is
+      # identified and fixed.
+      - name: DIAG inspect mock-api-data.json pre-build
+        run: |
+          echo "=== ls -la ==="
+          ls -la apps/web/scripts/mock-api-data.json
+          echo "=== wc -c ==="
+          wc -c apps/web/scripts/mock-api-data.json
+          echo "=== git status (porcelain) ==="
+          git status --porcelain apps/web/scripts/mock-api-data.json
+          echo "=== git hash-object (on-disk blob) ==="
+          ON_DISK=$(git hash-object apps/web/scripts/mock-api-data.json)
+          echo "$ON_DISK"
+          echo "=== git ls-tree HEAD (committed blob) ==="
+          COMMITTED=$(git ls-tree HEAD apps/web/scripts/mock-api-data.json | awk '{print $3}')
+          echo "$COMMITTED"
+          echo "=== match? ==="
+          if [ "$ON_DISK" = "$COMMITTED" ]; then
+            echo "MATCH: on-disk file equals git HEAD"
+          else
+            echo "MISMATCH: on-disk differs from git HEAD"
+            echo "--- diff (first 30 lines, --stat) ---"
+            git diff --stat apps/web/scripts/mock-api-data.json || true
+          fi
+          echo "=== sha256sum ==="
+          sha256sum apps/web/scripts/mock-api-data.json
+
       - name: Build and push ${{ matrix.image }} variant
         uses: docker/build-push-action@v6
         with:
