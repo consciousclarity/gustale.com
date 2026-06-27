@@ -356,6 +356,154 @@ export const dishRelations = pgTable('dish_relations', {
 }));
 
 // =====================================================================
+// LINEAGES — dish ancestry, migration, transformation, and influence
+// =====================================================================
+//
+// A lineage is the *story* of how a dish idea travels across regions,
+// generations, and cultures. It is distinct from a family (which
+// classifies by form: dumpling, flatbread, stew) and from a cuisine
+// (which classifies by origin region). Lineages are *graph-shaped*:
+//   - chains   (A → B → C, clear historical transmission)
+//   - clusters (shared-technique cousins)
+//   - cousins  (parallel evolution, no provable ancestor)
+//   - fusions  (contact-zone hybrids: ports, diasporas, colonies)
+//
+// Fields kept as jsonb arrays so we can evolve the shape without
+// migrations — historical_forces, techniques, base_ingredients,
+// course_groups, related_families, representative_dishes, regions.
+//
+// `confidence_level` is a deliberate uncertainty knob. We do NOT
+// pretend to know what we don't. Many relationships are "likely
+// related" or "possible influence" rather than "descendant of".
+
+export const confidenceLevel = [
+  'documented',
+  'likely',
+  'probable',
+  'possible',
+  'uncertain',
+  'parallel_evolution',
+] as const;
+export type ConfidenceLevel = typeof confidenceLevel[number];
+
+export const historicalForce = [
+  'migration',
+  'trade_route',
+  'empire',
+  'colonization',
+  'diaspora',
+  'religious_exchange',
+  'port_city_exchange',
+  'agricultural_spread',
+  'technological_change',
+  'local_adaptation',
+  'parallel_evolution',
+  'cultural_exchange',
+  'nomadic_pastoral',
+  'war_and_displacement',
+] as const;
+export type HistoricalForce = typeof historicalForce[number];
+
+export const lineages = pgTable('lineages', {
+  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  shortDescription: text('short_description').notNull(),
+  longDescription: text('long_description'),
+  conceptSummary: text('concept_summary'),
+  originSummary: text('origin_summary'),
+  // jsonb arrays so the taxonomy can evolve without schema migrations
+  originRegions: jsonb('origin_regions').notNull().default(sql`'[]'::jsonb`),
+  relatedRegions: jsonb('related_regions').notNull().default(sql`'[]'::jsonb`),
+  historicalForces: jsonb('historical_forces').notNull().default(sql`'[]'::jsonb`),
+  primaryTechnique: text('primary_technique'),
+  techniques: jsonb('techniques').notNull().default(sql`'[]'::jsonb`),
+  baseIngredients: jsonb('base_ingredients').notNull().default(sql`'[]'::jsonb`),
+  courseGroups: jsonb('course_groups').notNull().default(sql`'[]'::jsonb`),
+  relatedFamilies: jsonb('related_families').notNull().default(sql`'[]'::jsonb`),
+  representativeDishes: jsonb('representative_dishes').notNull().default(sql`'[]'::jsonb`),
+  confidenceLevel: text('confidence_level').$type<ConfidenceLevel>().notNull().default('likely'),
+  uncertaintyNote: text('uncertainty_note'),
+  culturalPracticeNote: text('cultural_practice_note'),
+  // for future map work: lat/lng centroid of the origin region(s)
+  routeHints: jsonb('route_hints').notNull().default(sql`'[]'::jsonb`),
+  sourceNotes: text('source_notes'),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  slugIdx: index('lineages_slug_idx').on(t.slug),
+  displayIdx: index('lineages_display_order_idx').on(t.displayOrder),
+}));
+
+// ─── Dish ↔ Lineage relationship ─────────────────────────────────────────
+//
+// Many-to-many with rich metadata. The `role` enum is the editorial
+// claim: is this dish an ancestor of the lineage, a descendant, a
+// regional variant, a diaspora adaptation, a parallel invention?
+//
+// We deliberately allow the SAME dish to map to multiple lineages
+// (momo lives in the filled-dough lineage AND the noodle-soup-sibling
+// cluster). The (dishId, lineageId) pair is unique; same dish can map
+// twice with different roles via... no, actually we keep it strict:
+// one row per (dish, lineage). If two roles apply, curators pick the
+// most informative one and explain in `explanation`.
+
+export const dishLineageRole = [
+  'ancestor',
+  'descendant',
+  'cousin',
+  'regional_variant',
+  'adaptation',
+  'fusion',
+  'diaspora_adaptation',
+  'trade_route_spread',
+  'colonial_spread',
+  'technique_relative',
+  'ingredient_relative',
+  'possible_influence',
+  'parallel_evolution',
+  'uncertain',
+] as const;
+export type DishLineageRole = typeof dishLineageRole[number];
+
+export const changedElement = [
+  'ingredient',
+  'spice_profile',
+  'cooking_method',
+  'shape',
+  'filling',
+  'dough',
+  'grain',
+  'preservation_method',
+  'serving_context',
+  'religious_rule',
+  'local_availability',
+  'cooking_fat',
+  'wrapper',
+  'fermentation_time',
+] as const;
+export type ChangedElement = typeof changedElement[number];
+
+export const dishLineages = pgTable('dish_lineages', {
+  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
+  lineageId: uuid('lineage_id').notNull().references(() => lineages.id, { onDelete: 'cascade' }),
+  role: text('role').$type<DishLineageRole>().notNull(),
+  explanation: text('explanation'),
+  // array of what changed between an ancestor/relative and this dish
+  changedElements: jsonb('changed_elements').notNull().default(sql`'[]'::jsonb`),
+  confidenceLevel: text('confidence_level').$type<ConfidenceLevel>().notNull().default('likely'),
+  // 1-10 editorial sort weight: anchors first (10), then strong members (5-7),
+  // then tentative ones (1-3). Lets the UI push canonical dishes to the top.
+  sortOrder: integer('sort_order').notNull().default(5),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.dishId, t.lineageId] }),
+  lineageIdx: index('dish_lineages_lineage_idx').on(t.lineageId),
+  roleIdx: index('dish_lineages_role_idx').on(t.role),
+}));
+
+// =====================================================================
 // SOURCES & CITATIONS
 // =====================================================================
 

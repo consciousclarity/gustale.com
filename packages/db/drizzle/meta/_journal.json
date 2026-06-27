@@ -36,6 +36,13 @@
       "when": 1782500000000,
       "tag": "0005_user_role_index",
       "breakpoints": false
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0006_lineages",
+      "breakpoints": false
     }
   ]
 }
