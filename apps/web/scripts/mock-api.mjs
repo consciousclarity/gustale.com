@@ -41,9 +41,28 @@ import { fileURLToPath, URL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_PATH = join(__dirname, 'mock-api-data.json');
 const DATA = JSON.parse(
-  readFileSync(join(__dirname, 'mock-api-data.json'), 'utf-8'),
+  readFileSync(DATA_PATH, 'utf-8'),
 );
+// DEBUG: dump the path, byte size, and top-level shape so CI failures
+// like "[mock-api] 0 dishes loaded" are diagnosable from the build log.
+// Remove once the CI cache-staleness root cause is fixed.
+console.log(`[mock-api] DEBUG: __dirname=${__dirname}`);
+console.log(`[mock-api] DEBUG: DATA_PATH=${DATA_PATH}`);
+console.log(`[mock-api] DEBUG: DATA_PATH exists=${existsSync(DATA_PATH)}`);
+try {
+  const raw = readFileSync(DATA_PATH, 'utf-8');
+  console.log(`[mock-api] DEBUG: raw byte length=${raw.length}`);
+  console.log(`[mock-api] DEBUG: raw first 120 chars=${raw.slice(0, 120).replace(/\n/g, '\\n')}`);
+  console.log(`[mock-api] DEBUG: raw last 60 chars=${raw.slice(-60).replace(/\n/g, '\\n')}`);
+  const parsed = JSON.parse(raw);
+  console.log(`[mock-api] DEBUG: parsed top-level keys=${Object.keys(parsed).join(',')}`);
+  console.log(`[mock-api] DEBUG: parsed.list.length=${parsed.list?.length ?? 'undefined'}`);
+  console.log(`[mock-api] DEBUG: parsed.list[0]?.slug=${parsed.list?.[0]?.slug ?? 'undefined'}`);
+} catch (e) {
+  console.log(`[mock-api] DEBUG: re-read failed: ${e.message}`);
+}
 
 // Lineages live in a separate JSON file (generated from packages/db seed-data.ts
 // at seed time). Optional so older builds without lineages still work.
