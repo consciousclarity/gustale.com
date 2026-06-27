@@ -78,8 +78,8 @@ export function DishDetail({
 
           <h1 className="rec-title">{dish.name}</h1>
 
-          {(dish.description || dish.longDescription) && (
-            <p className="rec-intro">{dish.description ?? dish.longDescription}</p>
+          {dish.description && (
+            <p className="rec-intro">{dish.description}</p>
           )}
 
           <div className="rec-byline">
@@ -270,6 +270,23 @@ export function DishDetail({
               </li>
             ))}
           </ol>
+        </section>
+      )}
+
+      {/* ─── Full description (long-form article) ──────────────────────── */}
+      {/* Per the editor layout, long_description appears AFTER Sources so the
+          reader sees citations before the full narrative that cites them.
+          short_description stays in the hero as the dish intro.            */}
+      {dish.longDescription && (
+        <section className="section" aria-labelledby="long-description-heading">
+          <div className="sec-rule">
+            <h2 id="long-description-heading">About this dish</h2>
+          </div>
+          <div className="prose">
+            {dish.longDescription.split(/\n{2,}/).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
         </section>
       )}
 
