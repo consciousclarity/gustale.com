@@ -14,7 +14,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './schema/index.js';
-import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS, LINEAGE_METHODS, DISH_LINEAGES } from './seed-data.js';
+import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS, LINEAGE_METHODS, DISH_LINEAGES, LINEAGES } from './seed-data.js';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -577,6 +577,131 @@ async function seedDishLineages(db: ReturnType<typeof drizzle>): Promise<void> {
   }
 
   console.log(`  + ${prepInserted} dish_preparations (lineage) inserted`);
+
+  // ─── Lineages (new domain, migration 0006) ─────────────────────────────
+  // Reuse the dishIdBySlug map we just built.
+  await seedLineages(dishIdBySlug);
+}
+
+/**
+ * Seed the new Lineages domain (migration 0006).
+ *
+ * For each entry in LINEAGES:
+ *   - insert the lineage row (idempotent on slug)
+ *   - for each dishMapping, insert a dish_lineages row linking the dish
+ *     to the lineage with role/explanation/changed_elements/confidence
+ *
+ * Idempotent: re-running skips lineages that already exist and skips
+ * dish-lineage edges whose (dish_id, lineage_id) PK already exists.
+ */
+async function seedLineages(
+  dishIdBySlug: Map<string, string>,
+): Promise<void> {
+  console.log('Seeding lineages…');
+
+  // 1. Existing lineage slugs (so we can skip them on re-seed).
+  const existing = new Set(
+    (
+      await db
+        .select({ slug: schema.lineages.slug })
+        .from(schema.lineages)
+    ).map((r) => r.slug),
+  );
+
+  // 2. Build a slug → id map for lineages so dish-lineage edges can FK correctly.
+  const lineageIdBySlug = new Map<string, string>(
+    (
+      await db
+        .select({ id: schema.lineages.id, slug: schema.lineages.slug })
+        .from(schema.lineages)
+    ).map((r) => [r.slug, r.id]),
+  );
+
+  let lineageInserted = 0;
+  for (const lin of LINEAGES) {
+    if (existing.has(lin.slug)) {
+      console.log(`  = lineage "${lin.slug}" already seeded`);
+      continue;
+    }
+    const inserted = await db
+      .insert(schema.lineages)
+      .values({
+        slug: lin.slug,
+        name: lin.name,
+        shortDescription: lin.shortDescription,
+        longDescription: lin.longDescription,
+        conceptSummary: lin.conceptSummary,
+        originSummary: lin.originSummary,
+        originRegions: lin.originRegions,
+        relatedRegions: lin.relatedRegions,
+        historicalForces: lin.historicalForces,
+        primaryTechnique: lin.primaryTechnique,
+        techniques: lin.techniques,
+        baseIngredients: lin.baseIngredients,
+        courseGroups: lin.courseGroups,
+        relatedFamilies: lin.relatedFamilies,
+        representativeDishes: lin.representativeDishes,
+        confidenceLevel: lin.confidenceLevel,
+        uncertaintyNote: lin.uncertaintyNote,
+        culturalPracticeNote: lin.culturalPracticeNote,
+        routeHints: [],
+        sourceNotes: lin.sourceNotes,
+        displayOrder: lin.displayOrder,
+      })
+      .returning({ id: schema.lineages.id, slug: schema.lineages.slug });
+    const row = inserted[0]!;
+    lineageIdBySlug.set(row.slug, row.id);
+    lineageInserted++;
+    console.log(`  + lineage "${lin.slug}"`);
+  }
+
+  // 3. Seed dish-lineage edges. Look up which edges already exist (PK).
+  const existingEdges = new Set(
+    (
+      await db
+        .select({
+          dishId: schema.dishLineages.dishId,
+          lineageId: schema.dishLineages.lineageId,
+        })
+        .from(schema.dishLineages)
+    ).map((r) => `${r.dishId}::${r.lineageId}`),
+  );
+
+  let edgesInserted = 0;
+  let edgesSkipped = 0;
+  for (const lin of LINEAGES) {
+    const lineageId = lineageIdBySlug.get(lin.slug);
+    if (!lineageId) continue; // shouldn't happen — we just inserted
+    for (const edge of lin.dishMappings) {
+      const dishId = dishIdBySlug.get(edge.dishSlug);
+      if (!dishId) {
+        console.warn(
+          `  ! ${lin.slug} → ${edge.dishSlug}: dish not found in seeded set, skipping edge`,
+        );
+        edgesSkipped++;
+        continue;
+      }
+      const edgeKey = `${dishId}::${lineageId}`;
+      if (existingEdges.has(edgeKey)) {
+        edgesSkipped++;
+        continue;
+      }
+      await db.insert(schema.dishLineages).values({
+        dishId,
+        lineageId,
+        role: edge.role,
+        explanation: edge.explanation,
+        changedElements: edge.changedElements,
+        confidenceLevel: edge.confidenceLevel,
+        sortOrder: edge.sortOrder,
+      });
+      edgesInserted++;
+    }
+  }
+
+  console.log(
+    `  + ${lineageInserted} lineages inserted, ${edgesInserted} dish-lineage edges inserted, ${edgesSkipped} edges skipped`,
+  );
 }
 
 main().catch((err) => {

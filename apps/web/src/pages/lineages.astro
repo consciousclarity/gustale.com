@@ -1,31 +1,33 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { ApiError, listDishes, getMapDishes } from '../lib/api';
-import type { DishListResponse, DishSummary } from '../types/dish';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { ApiError, listLineages } from '../lib/api';
+import type { LineageListResponse, LineageSummary } from '../types/lineage';
 
-// ---------------------------------------------------------------------------
-// Server-side data fetch.
-// We need two things: dish list (for grouping + names) and the map endpoint
-// (for lat/lng to plot on the origins map). Both run in parallel.
-// ---------------------------------------------------------------------------
-let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
+// Server-render the first paint with all lineages so filters can hydrate
+// from real data. The client island then handles filter chips and search.
+// If the API is unreachable during build, the page still renders and
+// shows an empty state.
+//
+// Concept distinction (kept visible in the UI):
+//   /families answers: "What kind of dish is this?"
+//   /lineages answers: "How did this dish idea travel, evolve, split,
+//                       merge, adapt, or reappear across cultures?"
+let initial: LineageListResponse = {
+  lineages: [],
+  totalLineages: 0,
+  totalDishes: 0,
+  totalRelations: 0,
+  uncertainOrParallelCount: 0,
+  regions: [],
+  techniques: [],
+  historicalForces: [],
+  confidenceLevels: [],
+};
 let serverError: string | null = null;
-let mapDishes: { slug: string; lat: number; lng: number; regionName: string }[] = [];
 
 try {
-  const [list, mapRes] = await Promise.all([
-    listDishes({ status: 'published', limit: 100 }),
-    getMapDishes({ limit: 200 }).catch(() => ({ dishes: [] as any[], count: 0 })),
-  ]);
-  initial = list;
-  mapDishes = (mapRes.dishes ?? [])
-    .filter((d: any) => d.lat != null && d.lng != null)
-    .map((d: any) => ({
-      slug: d.slug,
-      lat: d.lat,
-      lng: d.lng,
-      regionName: d.region?.name ?? '',
-    }));
+  initial = await listLineages();
 } catch (err: unknown) {
   if (err instanceof ApiError) {
     serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
@@ -36,584 +38,371 @@ try {
   }
 }
 
-// Index map data by dish slug for O(1) lookup.
-const coordBySlug = new Map(mapDishes.map((m) => [m.slug, m]));
+// ─── Display labels ─────────────────────────────────────────────────────
+const CONFIDENCE_LABELS: Record<string, string> = {
+  documented: 'Documented',
+  likely: 'Likely related',
+  probable: 'Probable',
+  possible: 'Possible influence',
+  uncertain: 'Uncertain',
+  parallel_evolution: 'Parallel evolution',
+};
 
-// ---------------------------------------------------------------------------
-// Group dishes by preparation method (a.k.a. family) → "lineage".
-// Each lineage is an idea traced across regions.
-// ---------------------------------------------------------------------------
-const groups = new Map<string, DishSummary[]>();
-for (const d of initial.dishes) {
-  const key = d.methodSlug ?? 'other';
-  if (!groups.has(key)) groups.set(key, []);
-  groups.get(key)!.push(d);
+const FORCE_LABELS: Record<string, string> = {
+  migration: 'Migration',
+  trade_route: 'Trade route',
+  empire: 'Empire',
+  colonization: 'Colonization',
+  diaspora: 'Diaspora',
+  religious_exchange: 'Religious exchange',
+  port_city_exchange: 'Port city exchange',
+  agricultural_spread: 'Agricultural spread',
+  technological_change: 'Technological change',
+  local_adaptation: 'Local adaptation',
+  parallel_evolution: 'Parallel evolution',
+  cultural_exchange: 'Cultural exchange',
+  nomadic_pastoral: 'Nomadic / pastoral',
+  war_and_displacement: 'War & displacement',
+};
+
+function labelFor(map: Record<string, string>, key: string): string {
+  return map[key] ?? key.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
 }
-const sortedGroups = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
 
-// ---------------------------------------------------------------------------
-// Lineage labels, narrative, and color (color matches the family palette
-// used elsewhere so the two pages feel like one system).
-// ---------------------------------------------------------------------------
-const LINEAGE_LABELS: Record<string, string> = {
-  'poached-in-sauce':       'Poached in sauce',
-  'omelettes-and-scrambles':'Omelettes & scrambles',
-  'fried-and-topped':       'Fried & topped',
-  'steamed-and-custard':    'Steamed & custard',
-  'boiled-and-cured':       'Boiled & cured',
-  pasta:                    'Pasta',
-  'noodle-soup':            'Noodle soups',
-  stew:                     'Stews & braises',
-  'fried-rice':             'Rice bowls',
-  dumpling:                 'Dumplings',
-  bread:                    'Breads & doughs',
-  pancake:                  'Flatbreads',
-  dessert:                  'Sweets & custards',
-  curry:                    'Curries',
-  kebab:                    'Grilled & skewered',
-  salad:                    'Small plates & preserves',
-  other:                    'Other preparations',
-};
+function confidenceLabel(level: string): string {
+  return CONFIDENCE_LABELS[level] ?? level;
+}
 
-const LINEAGE_STORY: Record<string, string> = {
-  dumpling:
-    'A pocket of dough and a filling — the same idea born on trade routes, carried by migration, and reinvented in every kitchen that received it. From Central Asia outward: the dumpling is everywhere.',
-  'noodle-soup':
-    'Stretched, cut, or rolled dough dropped into broth — a form that follows the Silk Road east and south through every coast it touched. Climate and ingredient swap everything; the logic stays the same.',
-  bread:
-    'Fire and grain: the oldest covenant in food. The same flat or leavened disc of dough appears at every latitude where people settled and built ovens.',
-  pancake:
-    'The griddle predates the oven. A poured batter, a hot flat surface — this technique crossed deserts and oceans independently, arriving at injera, dosa, blini, and crepe without knowing the others existed.',
-  stew:
-    'Slow time and a sealed vessel: patience in cooking has no single origin. The stew is wherever people wait for flavors to merge — clay pot, tagine, cast iron, banana leaf.',
-  curry:
-    'Spice, fat, and aromatics ground together as a base — a technique as much as a dish. Trade in pepper, turmeric, and chili wrote the migration routes; the curry shows where those routes led.',
-  pasta:
-    'Dried grain shaped into strands or sheets — a technology of preservation and trade. Its travel west from China or east from Persia is debated; its spread across the Mediterranean is history.',
-  'omelettes-and-scrambles':
-    "The egg as a medium: technique separates every culture's answer. Same raw material, wholly different results from Japan's tamagoyaki to Tunisia's shakshuka to Spain's tortilla.",
-  kebab:
-    'Meat on heat, over fire — one of the first cooking techniques. The skewer traces nomadic routes across the steppe and down through the Levant, each stop reshaping the cut and the spice.',
-  salad:
-    "Small plates assembled from what's available: preserved, fermented, or raw. The logic of preservation and contrast appears wherever kitchens needed to stretch ingredients across seasons.",
-  dessert:
-    'Sugar, fat, and starch shaped into celebration. Sweet preparations followed trade in cane, honey, and fruit — gifted between courts, carried by merchants, adapted by every cuisine that received them.',
-  'fried-rice':
-    'Leftover cooked grain meets high heat — a technique born of frugality that became a craft. The wok, the griddle, the clay pot: the method travels with the grain.',
-  other:
-    'Preparations that resist easy category — hybrids of technique, crossings of tradition, and dishes that belong to the spaces between lineages.',
-  'poached-in-sauce':
-    'An ingredient set gently into a simmering sauce and cooked through in it — egg into tomato, tofu into chili oil. The sauce is the medium and the seasoning at once; the result tastes of where it was made.',
-  'fried-and-topped':
-    'Fry a base for crispness, then crown it — with sauce, with cheese, with a second cooked layer. The contrast of crisp and soft is the whole idea, and it recurs from cutlet to casserole to loaded fries.',
-  'steamed-and-custard':
-    'Wet heat with no browning: dough, masa, or batter set by steam alone. The wrapper — leaf, husk, cloth — is part of the method, and the technique follows wherever a pot and a lid could be carried.',
-  'boiled-and-cured':
-    'Transformation without a flame — acid, salt, or vinegar doing the cooking. Curing and pickling preserve first and flavor second, a logic that appears wherever catch and harvest outpaced appetite.',
-};
-
-// Distinct color per lineage — reuses the family palette so Families and
-// Lineages feel like one system. Falls back to a stable hash-based color.
-const PALETTE = [
-  '#B8542A', '#C99A48', '#A0522D', '#8B7355', '#6E7F4E',
-  '#C9A849', '#D4A853', '#7A8B5C', '#C4706B', '#3F7C8C',
-  '#5E6B3A', '#6B6052',
+// ─── Deterministic palette per lineage (visual anchor) ──────────────────
+const LINEAGE_PALETTE = [
+  '#B8552F', '#6E7F4E', '#C99A48', '#C4706B', '#8B7355',
+  '#C2742F', '#D4A853', '#A0522D', '#8B4513', '#7B6F4D',
+  '#946847', '#B57A50', '#6E8B74', '#A8806B',
 ];
-
-function hashStr(s: string): number {
+function lineageColor(slug: string): string {
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
+  return LINEAGE_PALETTE[h % LINEAGE_PALETTE.length];
 }
 
-function colorFor(slug: string): string {
-  const idx = hashStr(slug) % PALETTE.length;
-  return PALETTE[idx];
-}
-
-function labelFor(slug: string): string {
-  return LINEAGE_LABELS[slug] ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-}
-
-function storyFor(slug: string): string {
-  return LINEAGE_STORY[slug] ?? 'A culinary form found across multiple traditions — shaped by the same human impulse, expressed in different kitchens.';
-}
-
-// ---------------------------------------------------------------------------
-// Origins map projection.
-// Simple equirectangular on a 1200×800 viewBox. x = (lng+180)/360*1200,
-// y = (90-lat)/180*800. Good enough for "where are these dishes roughly".
-// ---------------------------------------------------------------------------
-type Node = { slug: string; name: string; region: string; x: number; y: number; lineage: string };
-type Arc  = { from: Node; to: Node; lineage: string };
-
-function project(lat: number, lng: number): { x: number; y: number } {
-  const x = ((lng + 180) / 360) * 1200;
-  const y = ((90 - lat) / 180) * 800;
-  return { x, y };
-}
-
-// Build all origin nodes (one per dish that has coordinates).
-const allNodes: Node[] = [];
-for (const d of initial.dishes) {
-  const m = coordBySlug.get(d.slug);
-  if (!m) continue;
-  const { x, y } = project(m.lat, m.lng);
-  allNodes.push({
-    slug: d.slug,
-    name: d.canonicalName,
-    region: m.regionName || d.originName || '',
-    x, y,
-    lineage: d.methodSlug ?? 'other',
-  });
-}
-
-// Build arc set: for each lineage with ≥2 plotted dishes, connect
-// consecutive nodes when sorted by longitude (east→west flow).
-const arcs: Arc[] = [];
-for (const [slug, dishes] of sortedGroups) {
-  const plotted = dishes
-    .map((d) => allNodes.find((n) => n.slug === d.slug))
-    .filter((n): n is Node => !!n);
-  if (plotted.length < 2) continue;
-  plotted.sort((a, b) => a.x - b.x);
-  for (let i = 0; i < plotted.length - 1; i++) {
-    const a = plotted[i];
-    const b = plotted[i + 1];
-    // Skip arcs that span more than half the map (probably artefacts).
-    if (Math.abs(a.x - b.x) > 900) continue;
-    arcs.push({ from: a, to: b, lineage: slug });
-  }
-}
-
-// Distinct origins (dedup by region name) for the "26 regions" stat.
-const uniqueRegions = new Set(
-  initial.dishes.map((d) => d.originName).filter((n): n is string => !!n),
+// Sort lineages by displayOrder then by dish count desc so the most
+// populated lineages show first (within the "canonical anchors" group).
+const sortedLineages = [...initial.lineages].sort(
+  (a, b) => a.displayOrder - b.displayOrder,
 );
 
-// ---------------------------------------------------------------------------
-// Per-lineage display data + featured pick (the largest lineage).
-// ---------------------------------------------------------------------------
-type LineageRow = {
-  slug: string;
-  label: string;
-  story: string;
-  color: string;
-  dishes: DishSummary[];
-  dishCount: number;
-  regionCount: number;
-  regionTags: string[];
-  tone: 'solid' | 'open' | 'ghost';
-};
+const totalLineages = sortedLineages.length;
+const totalDishes = initial.totalDishes;
+const totalRelations = initial.totalRelations;
+const uncertainCount = initial.uncertainOrParallelCount;
 
-const lineages: LineageRow[] = sortedGroups.map(([slug, dishes], i) => {
-  // Top 4 distinct origin names → shown as region chips on the card.
-  const regions = Array.from(
-    new Set(dishes.map((d) => d.originName).filter((n): n is string => !!n)),
-  ).slice(0, 4);
-  // Status tone: featured lineage = solid; large lineages = open; small = ghost.
-  let tone: 'solid' | 'open' | 'ghost' = 'open';
-  if (i === 0) tone = 'solid';
-  else if (dishes.length >= 3) tone = 'open';
-  else tone = 'ghost';
-  return {
-    slug,
-    label: labelFor(slug),
-    story: storyFor(slug),
-    color: colorFor(slug),
-    dishes,
-    dishCount: dishes.length,
-    regionCount: regions.length,
-    regionTags: regions,
-    tone,
-  };
-});
-
-const featured = lineages[0];
-
-// Per-lineage signature SVG — abstract motif, parameterized by color.
-// Three "stems" radiating from a center dot, with a few dots. Reads as
-// "sprouting" without being literal food imagery.
-function signatureSvg(color: string): string {
-  return `
-    <svg viewBox="0 0 200 132" xmlns="http://www.w3.org/2000/svg">
-      <g stroke="${color}" stroke-width="1.6" fill="none" opacity="0.55">
-        <path d="M100 78 Q70 50 50 30" />
-        <path d="M100 78 Q130 50 150 30" />
-        <path d="M100 78 Q100 50 100 22" />
-        <path d="M100 78 Q75 95 60 110" />
-        <path d="M100 78 Q125 95 140 110" />
-      </g>
-      <g fill="${color}">
-        <circle cx="50"  cy="30"  r="4.5" />
-        <circle cx="150" cy="30"  r="4.5" />
-        <circle cx="100" cy="22"  r="4.5" />
-        <circle cx="60"  cy="110" r="4.5" />
-        <circle cx="140" cy="110" r="4.5" />
-        <circle cx="100" cy="78"  r="7" />
-      </g>
-    </svg>`;
+// Helper to slug-ify a force for data-* attributes (kebab-case).
+function kebab(s: string): string {
+  return s.toLowerCase().replace(/_/g, '-');
 }
-
-// Build arcs SVG markup. Each arc gets data-lineage for the filter script.
-const arcsMarkup = arcs
-  .map((a) => {
-    const c = colorFor(a.lineage);
-    // Quadratic Bézier: control point lifted above the midpoint to give
-    // a gentle arc rather than a straight line.
-    const mx = (a.from.x + a.to.x) / 2;
-    const my = (a.from.y + a.to.y) / 2;
-    const cx = mx;
-    const cy = my - 40;
-    return `<path class="lx-arc" data-lineage="${a.lineage}" d="M${a.from.x.toFixed(0)} ${a.from.y.toFixed(0)} Q${cx.toFixed(0)} ${cy.toFixed(0)} ${a.to.x.toFixed(0)} ${a.to.y.toFixed(0)}" stroke="${c}" stroke-width="3" stroke-opacity="0.7"/>`;
-  })
-  .join('\n      ');
-
-// Build origin-node SVG markup.
-const nodesMarkup = allNodes
-  .map((n) => {
-    const c = colorFor(n.lineage);
-    const label = n.region || n.name;
-    return `
-        <g class="lx-onode" data-lineage="${n.lineage}" data-slug="${n.slug}">
-          <circle class="halo" cx="${n.x.toFixed(0)}" cy="${n.y.toFixed(0)}" r="14"/>
-          <circle class="dot"  cx="${n.x.toFixed(0)}" cy="${n.y.toFixed(0)}" r="6" fill="${c}"/>
-          <text x="${(n.x + 10).toFixed(0)}" y="${(n.y + 4).toFixed(0)}">${label}</text>
-        </g>`;
-  })
-  .join('\n      ');
-
-// Build legend chip markup — one per lineage that actually has plotted nodes.
-const legendLineages = Array.from(new Set(allNodes.map((n) => n.lineage)));
-const legendMarkup = legendLineages
-  .map((slug) => {
-    const color = colorFor(slug);
-    const label = labelFor(slug);
-    return '<button class="chip" data-lineage="' + slug + '" data-active="1">' +
-      '<span class="sw" style="background:' + color + '"></span>' + label +
-      '</button>';
-  })
-  .join('');
-
-const totalLineages = sortedGroups.length;
-const totalDishes = initial.dishes.length;
-const totalOrigins = mapDishes.length;
 ---
 
 <Layout
   title="Lineages — Gustale"
-  description="Trace the paths food travels. Lineages gather dishes by preparation method and follow them across regions."
+  description="Explore how dish ideas travel, split, merge, and reappear across cultures — the migration and influence atlas of Gustale."
 >
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Lineages' }]} />
 
-  {/* ─── Breadcrumb ─────────────────────────────────────────────── */}
-  <div class="wrap">
-    <nav class="lx-crumb" aria-label="Breadcrumb">
-      <a href="/">Atlas</a>
-      <span class="sep">›</span>
-      <a href="/dishes">Dishes</a>
-      <span class="sep">›</span>
-      <a href="/families">Families</a>
-      <span class="sep">›</span>
-      <span>Lineages</span>
-    </nav>
-  </div>
+  {/* ─── Hero ─────────────────────────────────────────────────────── */}
+  <section class="lin-hero wrap">
+    <p class="eyebrow">
+      Trace the journey · {totalLineages} lineages · {totalDishes} dish links
+    </p>
+    <h1>
+      Every dish belongs<br />to a bigger <em>story</em>.
+    </h1>
+    <p class="sub">
+      Explore how dish ideas travel, split, merge, adapt, and reappear
+      across cultures. Lineages trace movement, influence, adaptation —
+      and the honest gaps where the record runs out.
+    </p>
 
-  {/* ─── Hero ──────────────────────────────────────────────────── */}
-  <section class="lx-hero wrap">
-    <div>
-      <p class="lx-eyebrow">The long threads · {totalLineages} lineages</p>
-      <h1 class="lx-title">The paths food <em>travels</em>.</h1>
-      <p class="lx-intro">
-        Before a dish has a name, it has a lineage — an idea that crossed a
-        border, changed hands, and arrived somewhere new wearing different
-        clothes. Lineages trace those journeys.
-      </p>
-      <div class="lx-stats">
-        <div class="s"><b>{totalLineages}</b><span>Lineages</span></div>
-        <div class="s"><b>{totalDishes}</b><span>Dishes</span></div>
-        <div class="s"><b>{uniqueRegions.size}</b><span>Origins</span></div>
-        <div class="s"><b>{totalOrigins}</b><span>Plotted</span></div>
+    {/* ─── Concept explainer: family vs lineage ─────────────────── */}
+    <div class="lin-explainer">
+      <div class="lin-explainer__col">
+        <span class="lin-explainer__label">/families</span>
+        <p class="lin-explainer__body">
+          Answers <em>“What kind of dish is this?”</em> Form and role —
+          dumpling, flatbread, stew. A classification.
+        </p>
+      </div>
+      <div class="lin-explainer__divider"></div>
+      <div class="lin-explainer__col">
+        <span class="lin-explainer__label lin-explainer__label--accent">/lineages</span>
+        <p class="lin-explainer__body">
+          Answers <em>“How did this dish idea travel?”</em> Trade,
+          migration, diaspora, empire, parallel invention, uncertain
+          connection. A story.
+        </p>
       </div>
     </div>
 
-    {/* ─── Origins map ─────────────────────────────────────────── */}
-    <div class="lx-mapwrap">
-      <div class="lx-map-head">
-        <h2>Origins</h2>
-        <span class="hint">Click a node or chip to isolate a lineage</span>
-      </div>
-      <svg class="lx-map-svg" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg" aria-label="World map of dish origins">
-        {/* Water background */}
-        <rect width="1200" height="800" fill="var(--water)"/>
-        {/* Schematic continent silhouettes — abstract landmasses, not geographically precise. */}
-        <g fill="var(--land)" stroke="var(--landstroke)" stroke-width="1" opacity="0.85">
-          {/* Americas */}
-          <path d="M180 220 Q220 160 280 170 L300 240 Q290 320 260 380 Q230 460 220 540 L200 620 Q180 660 200 700 L240 720 Q220 700 230 660 L260 540 Q280 440 300 360 Q320 280 310 220 Z"/>
-          {/* Eurasia */}
-          <path d="M520 140 Q620 120 720 140 L820 160 Q900 180 940 220 L960 280 Q940 340 900 360 L820 380 Q740 400 660 380 L580 360 Q540 340 520 300 Q500 260 510 200 Z"/>
-          {/* Africa */}
-          <path d="M540 380 Q580 380 620 400 L640 480 Q630 560 600 620 L580 680 Q560 700 540 680 L520 620 Q510 540 520 460 Q530 420 540 380 Z"/>
-          {/* SE Asia / India */}
-          <path d="M720 380 Q780 360 820 380 L840 440 Q820 480 780 480 L740 460 Q720 420 720 380 Z"/>
-          {/* Oceania */}
-          <path d="M880 540 Q940 520 980 540 L1000 580 Q980 620 940 620 L900 600 Q880 580 880 540 Z"/>
-        </g>
-        {/* Equator hint */}
-        <line x1="0" y1="400" x2="1200" y2="400" stroke="var(--landstroke)" stroke-width="0.6" stroke-dasharray="4 6" opacity="0.5"/>
-        {/* Arcs first (under nodes) */}
-        <g id="lx-arcs">
-          <Fragment set:html={arcsMarkup} />
-        </g>
-        {/* Nodes on top */}
-        <g id="lx-nodes">
-          <Fragment set:html={nodesMarkup} />
-        </g>
-      </svg>
-      <div class="lx-legend">
-        <button class="chip" data-lineage="all" data-active="1">
-          <span class="sw" style="background:var(--ink)"></span>All lineages
-        </button>
-        <Fragment set:html={legendMarkup} />
-      </div>
+    {/* ─── Summary stats ──────────────────────────────────────────── */}
+    <div class="lin-stats">
+      <div><b>{totalLineages}</b><span>Lineages</span></div>
+      <div><b>{totalDishes}</b><span>Dishes mapped</span></div>
+      <div><b>{initial.regions.length}</b><span>Regions</span></div>
+      <div><b>{initial.historicalForces.length}</b><span>Forces</span></div>
+      <div><b>{uncertainCount}</b><span>Uncertain / parallel</span></div>
     </div>
   </section>
 
-  {serverError && (
-    <div class="wrap" style="padding-top: 8px;">
-      <div class="alert alert-warning">
-        <strong>Note:</strong> the API was unreachable at build time ({serverError}). Showing empty data.
+  {/* ─── Filter bar ─────────────────────────────────────────────── */}
+  <div class="lin-filter-bar" id="lin-filter-bar">
+    <div class="wrap">
+      <div class="lin-fb-row">
+        <input
+          type="search"
+          id="lin-search"
+          class="lin-search"
+          placeholder="Search lineages, techniques, regions…"
+          autocomplete="off"
+        />
       </div>
-    </div>
-  )}
 
-  {/* ─── Featured lineage ──────────────────────────────────────── */}
-  {featured && (
-    <section class="wrap">
-      <div class="lx-shead">
-        <h2>Featured lineage</h2>
-        <span class="sub">Largest spread · {featured.dishCount} dishes · {featured.regionCount} regions</span>
-      </div>
-      <article
-        class="lx-feat"
-        style={`--feat: ${featured.color}`}
-        data-lineage={featured.slug}
-      >
-        <div class="lx-feat-sig" set:html={signatureSvg(featured.color)} />
-        <div class="lx-feat-body">
-          <p class="lx-feat-tag">{featured.slug}</p>
-          <h3>{featured.label}</h3>
-          <p class="lx-feat-meta">
-            {featured.dishCount} dishes · {featured.regionCount} regions
-          </p>
-          <p>{featured.story}</p>
-          <div class="lx-feat-foot">
-            <div class="lx-feat-stats">
-              <div class="s"><b>{featured.dishCount}</b><span>Dishes</span></div>
-              <div class="s"><b>{featured.regionCount}</b><span>Regions</span></div>
-            </div>
-            <a class="btn-accent lx-feat-cta" href={`/families#${featured.slug}`}>
-              Explore lineage →
-            </a>
+      {initial.regions.length > 0 && (
+        <div class="lin-fb-row">
+          <span class="lin-fb-label">Origin / region</span>
+          <div class="lin-fb-chips" id="lin-region-chips">
+            <button class="lin-chip active" data-region="all">All</button>
+            {initial.regions.slice(0, 18).map((r) => (
+              <button class="lin-chip" data-region={kebab(r)}>{r}</button>
+            ))}
           </div>
         </div>
-      </article>
-    </section>
+      )}
+
+      {initial.techniques.length > 0 && (
+        <div class="lin-fb-row">
+          <span class="lin-fb-label">Technique</span>
+          <div class="lin-fb-chips" id="lin-tech-chips">
+            <button class="lin-chip active" data-tech="all">All</button>
+            {initial.techniques.slice(0, 14).map((t) => (
+              <button class="lin-chip" data-tech={kebab(t)}>{t}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {initial.historicalForces.length > 0 && (
+        <div class="lin-fb-row">
+          <span class="lin-fb-label">Historical force</span>
+          <div class="lin-fb-chips" id="lin-force-chips">
+            <button class="lin-chip active" data-force="all">All</button>
+            {initial.historicalForces.map((f) => (
+              <button class="lin-chip" data-force={kebab(f)}>{labelFor(FORCE_LABELS, f)}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {initial.confidenceLevels.length > 0 && (
+        <div class="lin-fb-row">
+          <span class="lin-fb-label">Confidence</span>
+          <div class="lin-fb-chips" id="lin-conf-chips">
+            <button class="lin-chip active" data-conf="all">All</button>
+            {initial.confidenceLevels.map((c) => (
+              <button class="lin-chip" data-conf={c}>{confidenceLabel(c)}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {serverError && (
+    <div class="wrap" style="padding-top: 24px;">
+      <div class="alert alert-warning">
+        <strong>Heads up:</strong> the gustale-api could not be reached at build
+        time ({serverError}). Showing an empty list — refresh once the API is up.
+      </div>
+    </div>
   )}
 
-  {/* ─── Toolbar (filters) ─────────────────────────────────────── */}
-  <section class="wrap">
-    <div class="lx-toolbar">
-      <div class="lx-filters" role="tablist" aria-label="Filter lineages">
-        <button data-filter="all" data-on="1">All</button>
-        <button data-filter="solid" data-on="0">Featured</button>
-        <button data-filter="open" data-on="0">Open</button>
-        <button data-filter="ghost" data-on="0">Small</button>
-      </div>
-      <span class="lx-tb-spacer"></span>
-      <span class="lx-count">Showing <b id="lx-count">{lineages.length}</b> lineages</span>
-    </div>
+  {/* ─── Lineage cards ──────────────────────────────────────────── */}
+  <section class="lin-grid wrap" id="lin-grid">
+    {sortedLineages.map((lin) => (
+      <article
+        class="lin-card"
+        data-slug={lin.slug}
+        data-lineage={lin.slug}
+        data-regions={JSON.stringify([...lin.originRegions, ...lin.relatedRegions].map(kebab))}
+        data-techniques={JSON.stringify(lin.techniques.map(kebab))}
+        data-forces={JSON.stringify(lin.historicalForces.map(kebab))}
+        data-conf={lin.confidenceLevel}
+        data-search={`${lin.name} ${lin.shortDescription} ${lin.conceptSummary ?? ''} ${lin.techniques.join(' ')} ${lin.originRegions.join(' ')} ${lin.relatedRegions.join(' ')}`.toLowerCase()}
+      >
+        <header class="lin-card__head">
+          <span
+            class="lin-card__dot"
+            style={`background:${lineageColor(lin.slug)}`}
+            aria-hidden="true"
+          ></span>
+          <span class="lin-card__slug mono-sub">{lin.slug}</span>
+          <span class={`lin-card__conf lin-card__conf--${lin.confidenceLevel}`}>
+            {confidenceLabel(lin.confidenceLevel)}
+          </span>
+        </header>
+        <h2 class="lin-card__title">
+          <a href={`/lineages/${lin.slug}`}>{lin.name}</a>
+        </h2>
+        {lin.conceptSummary && (
+          <p class="lin-card__concept">{lin.conceptSummary}</p>
+        )}
 
-    {/* ─── Card grid ─────────────────────────────────────────── */}
-    <div class="lx-grid">
-      {lineages.map((row) => (
-        <a
-          href={`/families#${row.slug}`}
-          class="lx-card"
-          data-tone={row.tone}
-          data-lineage={row.slug}
-          data-status={row.tone}
-          style={`--cardcol: ${row.color}`}
-        >
-          <div class="lx-card-sig" set:html={signatureSvg(row.color)}>
-            <span class="lx-card-status" data-tone={row.tone}>
-              {row.tone === 'solid' ? 'Featured' : row.tone === 'open' ? 'Open' : 'Small'}
-            </span>
+        {lin.originSummary && (
+          <p class="lin-card__origin">
+            <span class="lin-card__origin-label">Origin</span>
+            {lin.originSummary}
+          </p>
+        )}
+
+        {lin.historicalForces.length > 0 && (
+          <div class="lin-card__forces">
+            {lin.historicalForces.slice(0, 4).map((f) => (
+              <span class="lin-pill">{labelFor(FORCE_LABELS, f)}</span>
+            ))}
           </div>
-          <div class="lx-card-body">
-            <h3>{row.label}</h3>
-            <p class="lx-card-meta">
-              {row.slug} · {row.dishCount} dishes
-            </p>
-            <p>{row.story}</p>
-            {row.regionTags.length > 0 && (
-              <div class="lx-chips">
-                {row.regionTags.map((r) => (
-                  <span class="vchip">{r}</span>
-                ))}
-              </div>
-            )}
-            <div class="lx-card-foot">
-              <span class="nums">{row.dishCount} dishes · {row.regionCount} regions</span>
-              <span class="go">Explore →</span>
-            </div>
-          </div>
+        )}
+
+        <div class="lin-card__meta">
+          <span><b>{lin.dishCount}</b> dishes</span>
+          <span>·</span>
+          <span>{lin.originRegions.slice(0, 2).join(', ')}{lin.originRegions.length > 2 ? ` +${lin.originRegions.length - 2}` : ''}</span>
+        </div>
+
+        {lin.representativeDishes.length > 0 && (
+          <p class="lin-card__reps">
+            <span class="lin-card__reps-label">Representative</span>
+            {lin.representativeDishes.slice(0, 5).join(' · ')}{lin.representativeDishes.length > 5 ? '…' : ''}
+          </p>
+        )}
+
+        <a href={`/lineages/${lin.slug}`} class="lin-card__cta">
+          Open the lineage <span class="arr">→</span>
         </a>
-      ))}
-    </div>
+      </article>
+    ))}
   </section>
 
-  {/* ─── Contribute band ──────────────────────────────────────── */}
-  <section class="wrap">
-    <div class="lx-cta-band">
-      <div>
-        <h3>Every lineage lives on the map.</h3>
-        <p>Open the atlas and follow the migration routes yourself — or
-          contribute a dish and add a new point to the lineage you care about.</p>
-      </div>
-      <div class="lx-cta-actions">
-        <a href="/map" class="btn-accent">Open the atlas →</a>
-        <a href="/dishes/new" class="lx-cta-ghost">Add a dish</a>
-      </div>
+  {/* ─── Empty state ───────────────────────────────────────────── */}
+  <div id="lin-empty" class="wrap" style="display:none; padding: 80px 0; text-align:center;">
+    <p class="sub" style="font-size: 1.1rem; margin-bottom: 20px;">
+      No lineages match these filters. Try removing one filter or searching
+      by technique, region, ingredient, or historical force.
+    </p>
+    <button class="btn-outline" id="lin-reset">Clear filters</button>
+  </div>
+
+  {/* ─── Closing CTA ───────────────────────────────────────────── */}
+  <section class="wrap" style="padding: 48px 0; text-align: center;">
+    <p class="eyebrow">
+      Lineages are best read alongside families and the map
+    </p>
+    <div style="display:flex; justify-content:center; gap: 16px; margin-top: 1rem; flex-wrap: wrap;">
+      <a href="/families" class="btn-outline">Browse by form →</a>
+      <a href="/map" class="btn-accent">Open the atlas →</a>
     </div>
   </section>
-
 </Layout>
 
 <script>
-  // -------------------------------------------------------------------------
-  // Filter interactions — two axes, both share state:
-  //   1. Map legend chips: highlight a single lineage (dim everything else).
-  //   2. Toolbar pills: filter cards by status (all / solid / open / ghost).
-  // Hovering an origin node also pulses its matching card.
-  // -------------------------------------------------------------------------
   (function () {
-    const arcs   = document.querySelectorAll<SVGPathElement>('.lx-arc');
-    const nodes  = document.querySelectorAll<SVGGElement>('.lx-onode');
-    const cards  = document.querySelectorAll<HTMLElement>('.lx-card');
-    const mapChips = document.querySelectorAll<HTMLButtonElement>('.lx-legend .chip');
-    const tbBtns = document.querySelectorAll<HTMLButtonElement>('.lx-filters button');
-    const countEl = document.getElementById('lx-count');
+    const searchEl    = document.getElementById('lin-search') as HTMLInputElement | null;
+    const cards       = Array.from(document.querySelectorAll<HTMLElement>('.lin-card'));
+    const emptyState  = document.getElementById('lin-empty') as HTMLElement | null;
+    const resetBtn    = document.getElementById('lin-reset') as HTMLButtonElement | null;
 
-    let activeLineage: string | null = null;
-    let activeTone: string = 'all';
+    let activeRegion = 'all';
+    let activeTech   = 'all';
+    let activeForce  = 'all';
+    let activeConf   = 'all';
+    let activeSearch = '';
 
-    function apply() {
-      // Cards: visible iff lineage matches (or "all") AND tone matches.
+    function setChipActive(group: string, value: string) {
+      document
+        .querySelectorAll<HTMLButtonElement>(`#${group} .lin-chip`)
+        .forEach((c) => c.classList.toggle('active', c.dataset[group.replace('lin-', '').replace('-chips', '')] === value));
+    }
+
+    function applyFilters() {
       let visible = 0;
       cards.forEach((card) => {
-        const lineage = card.dataset.lineage ?? '';
-        const tone = card.dataset.tone ?? '';
-        const lineageOk = activeLineage === null || lineage === activeLineage;
-        const toneOk = activeTone === 'all' || tone === activeTone;
-        const show = lineageOk && toneOk;
+        const regions   = JSON.parse(card.dataset.regions   ?? '[]') as string[];
+        const techniques = JSON.parse(card.dataset.techniques ?? '[]') as string[];
+        const forces    = JSON.parse(card.dataset.forces    ?? '[]') as string[];
+        const conf      = card.dataset.conf ?? '';
+        const search    = card.dataset.search ?? '';
+
+        const matchRegion = activeRegion === 'all' || regions.includes(activeRegion);
+        const matchTech   = activeTech   === 'all' || techniques.includes(activeTech);
+        const matchForce  = activeForce  === 'all' || forces.includes(activeForce);
+        const matchConf   = activeConf   === 'all' || conf === activeConf;
+        const matchSearch = !activeSearch || search.includes(activeSearch);
+
+        const show = matchRegion && matchTech && matchForce && matchConf && matchSearch;
         card.style.display = show ? '' : 'none';
         if (show) visible++;
-        card.dataset.active = lineageOk && tone === 'solid' ? '1' : '0';
       });
-
-      // Map arcs: dim those not matching active lineage.
-      arcs.forEach((arc) => {
-        const lin = arc.getAttribute('data-lineage') ?? '';
-        const dim = activeLineage !== null && lin !== activeLineage;
-        arc.setAttribute('data-dim', dim ? '1' : '0');
-      });
-
-      // Map nodes: highlight active lineage.
-      nodes.forEach((node) => {
-        const lin = node.getAttribute('data-lineage') ?? '';
-        node.setAttribute('data-active', activeLineage === null || lin === activeLineage ? '0' : (lin === activeLineage ? '1' : '0'));
-      });
-
-      // Map chips: mark the active one.
-      mapChips.forEach((chip) => {
-        const lin = chip.getAttribute('data-lineage') ?? 'all';
-        const match = (activeLineage === null && lin === 'all') || (activeLineage !== null && lin === activeLineage);
-        chip.setAttribute('data-active', match ? '1' : '0');
-      });
-
-      if (countEl) countEl.textContent = String(visible);
+      if (emptyState) emptyState.style.display = visible === 0 ? 'block' : 'none';
     }
 
-    function setLineage(lineage: string | null) {
-      activeLineage = lineage === 'all' ? null : lineage;
-      apply();
-    }
-
-    function setTone(tone: string) {
-      activeTone = tone;
-      tbBtns.forEach((b) => b.setAttribute('data-on', b.dataset.filter === tone ? '1' : '0'));
-      apply();
-    }
-
-    // Map legend chips
-    mapChips.forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const lin = chip.getAttribute('data-lineage') ?? 'all';
-        // Toggle off if clicking the already-active lineage chip
-        if (activeLineage === (lin === 'all' ? null : lin)) {
-          setLineage('all');
-        } else {
-          setLineage(lin);
-        }
+    // Region chips
+    document.querySelectorAll<HTMLButtonElement>('#lin-region-chips .lin-chip').forEach((c) => {
+      c.addEventListener('click', () => {
+        activeRegion = c.dataset.region ?? 'all';
+        setChipActive('lin-region-chips', activeRegion);
+        applyFilters();
+      });
+    });
+    // Technique chips
+    document.querySelectorAll<HTMLButtonElement>('#lin-tech-chips .lin-chip').forEach((c) => {
+      c.addEventListener('click', () => {
+        activeTech = c.dataset.tech ?? 'all';
+        setChipActive('lin-tech-chips', activeTech);
+        applyFilters();
+      });
+    });
+    // Force chips
+    document.querySelectorAll<HTMLButtonElement>('#lin-force-chips .lin-chip').forEach((c) => {
+      c.addEventListener('click', () => {
+        activeForce = c.dataset.force ?? 'all';
+        setChipActive('lin-force-chips', activeForce);
+        applyFilters();
+      });
+    });
+    // Confidence chips
+    document.querySelectorAll<HTMLButtonElement>('#lin-conf-chips .lin-chip').forEach((c) => {
+      c.addEventListener('click', () => {
+        activeConf = c.dataset.conf ?? 'all';
+        setChipActive('lin-conf-chips', activeConf);
+        applyFilters();
       });
     });
 
-    // Toolbar pills
-    tbBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const tone = btn.dataset.filter ?? 'all';
-        setTone(tone);
-      });
+    // Search
+    searchEl?.addEventListener('input', () => {
+      activeSearch = (searchEl.value ?? '').toLowerCase().trim();
+      applyFilters();
     });
 
-    // Hover an origin node → highlight its lineage in the map + cards
-    nodes.forEach((node) => {
-      node.addEventListener('mouseenter', () => {
-        const lin = node.getAttribute('data-lineage');
-        if (!lin) return;
-        arcs.forEach((arc) => {
-          const aLin = arc.getAttribute('data-lineage') ?? '';
-          arc.setAttribute('data-dim', aLin !== lin ? '1' : '0');
-        });
-      });
-      node.addEventListener('mouseleave', () => {
-        // Restore previous filter state
-        apply();
-      });
-      node.addEventListener('click', () => {
-        const lin = node.getAttribute('data-lineage');
-        if (!lin) return;
-        setLineage(lin);
-        // Scroll to the first matching card
-        const target = document.querySelector(`.lx-card[data-lineage="${lin}"]`);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
+    resetBtn?.addEventListener('click', () => {
+      activeRegion = 'all';
+      activeTech   = 'all';
+      activeForce  = 'all';
+      activeConf   = 'all';
+      activeSearch = '';
+      if (searchEl) searchEl.value = '';
+      setChipActive('lin-region-chips', 'all');
+      setChipActive('lin-tech-chips', 'all');
+      setChipActive('lin-force-chips', 'all');
+      setChipActive('lin-conf-chips', 'all');
+      applyFilters();
     });
-
-    // Hover a card → temporarily highlight its lineage on the map
-    cards.forEach((card) => {
-      card.addEventListener('mouseenter', () => {
-        const lin = card.dataset.lineage;
-        if (!lin) return;
-        arcs.forEach((arc) => {
-          const aLin = arc.getAttribute('data-lineage') ?? '';
-          arc.setAttribute('data-dim', aLin !== lin ? '1' : '0');
-        });
-      });
-      card.addEventListener('mouseleave', () => apply());
-    });
-
-    // Initial render
-    apply();
   })();
 </script>

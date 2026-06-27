@@ -1,0 +1,317 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { ApiError, getLineage } from '../../lib/api';
+import type { LineageDetailResponse, LineageRole } from '../../types/lineage';
+
+export async function getStaticPaths() {
+  // SSG: pre-render one page per lineage at build time. The mock-api
+  // (apps/web/scripts/mock-api.mjs) serves /api/lineages inside CI so
+  // builds don't depend on the production API being reachable.
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    // No API configured — fall back to a placeholder so build doesn't fail.
+    // The runtime SPA fallback recovers via /lineages list.
+    return [{ params: { slug: 'filled-dough' } }];
+  }
+  try {
+    const res = await fetch(`${apiBase}/api/lineages`);
+    if (!res.ok) throw new Error(`Lineages list returned ${res.status}`);
+    const json = (await res.json()) as {
+      lineages: Array<{ slug: string }>;
+    };
+    return json.lineages.map((l) => ({ params: { slug: l.slug } }));
+  } catch (err) {
+    console.warn('[lineages/[slug]] getStaticPaths failed, using placeholder:', err);
+    return [{ params: { slug: 'filled-dough' } }];
+  }
+}
+
+const { slug } = Astro.params as { slug: string };
+
+let data: LineageDetailResponse | null = null;
+let serverError: string | null = null;
+
+try {
+  data = await getLineage(slug);
+} catch (err: unknown) {
+  if (err instanceof ApiError) {
+    serverError = `API ${err.status} — ${err.message}`;
+  } else if (err instanceof Error) {
+    serverError = err.message;
+  } else {
+    serverError = 'Unknown error';
+  }
+}
+
+if (!data) {
+  return new Response('Lineage not found', { status: 404 });
+}
+
+const lin = data.lineage;
+
+// ─── Display labels ─────────────────────────────────────────────────────
+const ROLE_LABELS: Record<string, string> = {
+  ancestor: 'Ancestor',
+  descendant: 'Descendant',
+  cousin: 'Cousin',
+  regional_variant: 'Regional variant',
+  adaptation: 'Adaptation',
+  fusion: 'Fusion',
+  diaspora_adaptation: 'Diaspora adaptation',
+  trade_route_spread: 'Trade-route spread',
+  colonial_spread: 'Colonial spread',
+  technique_relative: 'Technique relative',
+  ingredient_relative: 'Ingredient relative',
+  possible_influence: 'Possible influence',
+  parallel_evolution: 'Parallel evolution',
+  uncertain: 'Uncertain',
+};
+
+const FORCE_LABELS: Record<string, string> = {
+  migration: 'Migration',
+  trade_route: 'Trade route',
+  empire: 'Empire',
+  colonization: 'Colonization',
+  diaspora: 'Diaspora',
+  religious_exchange: 'Religious exchange',
+  port_city_exchange: 'Port city exchange',
+  agricultural_spread: 'Agricultural spread',
+  technological_change: 'Technological change',
+  local_adaptation: 'Local adaptation',
+  parallel_evolution: 'Parallel evolution',
+  cultural_exchange: 'Cultural exchange',
+  nomadic_pastoral: 'Nomadic / pastoral',
+  war_and_displacement: 'War & displacement',
+};
+
+const CONFIDENCE_LABELS: Record<string, string> = {
+  documented: 'Documented',
+  likely: 'Likely related',
+  probable: 'Probable',
+  possible: 'Possible influence',
+  uncertain: 'Uncertain',
+  parallel_evolution: 'Parallel evolution',
+};
+
+function labelFor(map: Record<string, string>, key: string): string {
+  return map[key] ?? key.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+}
+
+function confidenceLabel(level: string): string {
+  return CONFIDENCE_LABELS[level] ?? level;
+}
+
+// Total mapped dish count (distinct dishes)
+const totalMapped = data.groupedDishes.reduce(
+  (sum, g) => sum + new Set(g.dishes.map((d) => d.id)).size,
+  0,
+);
+const uncertainDishesCount = data.groupedDishes
+  .filter((g) => g.title === 'Tentative connections')
+  .reduce((sum, g) => sum + g.dishes.length, 0);
+---
+
+<Layout
+  title={`${lin.name} — Lineage — Gustale`}
+  description={lin.shortDescription}
+>
+  <Breadcrumbs
+    crumbs={[
+      { href: '/', label: 'Home' },
+      { href: '/lineages', label: 'Lineages' },
+      { label: lin.name },
+    ]}
+  />
+
+  {/* ─── Hero ─────────────────────────────────────────────────────── */}
+  <section class="ld-hero wrap">
+    <p class="eyebrow">
+      Lineage · <span class="mono-sub">{lin.slug}</span> · {totalMapped} mapped
+    </p>
+    <h1>{lin.name}</h1>
+    <p class="sub">{lin.shortDescription}</p>
+
+    {lin.culturalPracticeNote && (
+      <blockquote class="ld-quote">
+        <span class="ld-quote__mark">“</span>
+        {lin.culturalPracticeNote}
+      </blockquote>
+    )}
+
+    <div class="ld-meta">
+      <span class={`ld-conf ld-conf--${lin.confidenceLevel}`}>
+        Confidence: {confidenceLabel(lin.confidenceLevel)}
+      </span>
+      {lin.primaryTechnique && (
+        <span class="ld-meta__chip">Primary technique: {lin.primaryTechnique}</span>
+      )}
+    </div>
+  </section>
+
+  {/* ─── Concept + Origin ─────────────────────────────────────────── */}
+  <section class="ld-columns wrap">
+    <div class="ld-col">
+      <p class="eyebrow">Concept</p>
+      {lin.conceptSummary ? (
+        <p class="ld-body">{lin.conceptSummary}</p>
+      ) : (
+        <p class="ld-body ld-muted">No concept summary yet.</p>
+      )}
+    </div>
+    <div class="ld-col">
+      <p class="eyebrow">Origin</p>
+      {lin.originSummary ? (
+        <p class="ld-body">{lin.originSummary}</p>
+      ) : (
+        <p class="ld-body ld-muted">Origin is unclear or multiple.</p>
+      )}
+    </div>
+  </section>
+
+  {/* ─── Uncertainty note (when relevant) ─────────────────────────── */}
+  {lin.uncertaintyNote && (
+    <section class="ld-uncertainty wrap">
+      <p class="eyebrow">A note on certainty</p>
+      <p>{lin.uncertaintyNote}</p>
+    </section>
+  )}
+
+  {/* ─── Long description ────────────────────────────────────────── */}
+  {data.longDescription && (
+    <section class="ld-long wrap">
+      <p>{data.longDescription}</p>
+    </section>
+  )}
+
+  {/* ─── Forces, regions, techniques, ingredients ────────────────── */}
+  <section class="ld-traits wrap">
+    {lin.historicalForces.length > 0 && (
+      <div class="ld-trait">
+        <span class="ld-trait__label">Historical forces</span>
+        <div class="ld-trait__items">
+          {lin.historicalForces.map((f) => (
+            <span class="ld-pill">{labelFor(FORCE_LABELS, f)}</span>
+          ))}
+        </div>
+      </div>
+    )}
+    {lin.techniques.length > 0 && (
+      <div class="ld-trait">
+        <span class="ld-trait__label">Techniques</span>
+        <div class="ld-trait__items">
+          {lin.techniques.map((t) => (
+            <span class="ld-pill ld-pill--ghost">{t}</span>
+          ))}
+        </div>
+      </div>
+    )}
+    {lin.baseIngredients.length > 0 && (
+      <div class="ld-trait">
+        <span class="ld-trait__label">Base ingredients</span>
+        <div class="ld-trait__items">
+          {lin.baseIngredients.map((i) => (
+            <span class="ld-pill ld-pill--ghost">{i}</span>
+          ))}
+        </div>
+      </div>
+    )}
+    {lin.relatedFamilies.length > 0 && (
+      <div class="ld-trait">
+        <span class="ld-trait__label">Related families</span>
+        <div class="ld-trait__items">
+          {lin.relatedFamilies.map((f) => (
+            <span class="ld-pill ld-pill--ghost">{f}</span>
+          ))}
+        </div>
+      </div>
+    )}
+  </section>
+
+  {/* ─── Representative dishes ──────────────────────────────────── */}
+  {lin.representativeDishes.length > 0 && (
+    <section class="ld-reps wrap">
+      <p class="eyebrow">Representative dishes (illustrative)</p>
+      <ul class="ld-reps__list">
+        {lin.representativeDishes.map((d) => (
+          <li>{d}</li>
+        ))}
+      </ul>
+      <p class="ld-reps__note">
+        Some of these dishes may not yet be in Gustale's encyclopedia —
+        they are listed to show the breadth of the lineage, not as a
+        claim that every dish exists here.
+      </p>
+    </section>
+  )}
+
+  {/* ─── Network view: dishes grouped by role ────────────────────── */}
+  <section class="ld-network wrap">
+    <p class="eyebrow">The network · {totalMapped} dish{totalMapped === 1 ? '' : 'es'} mapped</p>
+    {totalMapped === 0 ? (
+      <div class="ld-empty">
+        <p>
+          No Gustale dishes have been mapped to this lineage yet. The
+          lineage still has a rich story (see above) — it just hasn't been
+          connected to specific entries in the encyclopedia.
+        </p>
+        <p class="ld-muted">
+          Help us map more dishes by contributing: every dish can be
+          attached to one or more lineages with a role (ancestor,
+          regional variant, diaspora adaptation, parallel evolution…) and
+          a confidence level.
+        </p>
+      </div>
+    ) : (
+      data.groupedDishes.map((group) => (
+        <article class="ld-group">
+          <header class="ld-group__head">
+            <h2>{group.title}</h2>
+            <span class="ld-group__count">{group.dishes.length}</span>
+          </header>
+          <p class="ld-group__note">{group.note}</p>
+          <ul class="ld-group__list">
+            {group.dishes.map((d) => (
+              <li class="ld-dish">
+                <a href={`/dishes/${d.slug}`} class="ld-dish__link">
+                  <h3>{d.canonicalName}</h3>
+                  <div class="ld-dish__meta">
+                    <span class="ld-dish__role">{labelFor(ROLE_LABELS, d.role)}</span>
+                    {d.originName && <span class="ld-dish__origin">· {d.originName}</span>}
+                    <span class={`ld-dish__conf ld-conf--${d.confidenceLevel}`}>
+                      · {confidenceLabel(d.confidenceLevel)}
+                    </span>
+                  </div>
+                  {d.explanation && (
+                    <p class="ld-dish__expl">{d.explanation}</p>
+                  )}
+                  {d.changedElements.length > 0 && (
+                    <div class="ld-dish__changes">
+                      <span class="ld-dish__changes-label">What changed</span>
+                      {d.changedElements.map((c) => (
+                        <span class="ld-pill ld-pill--micro">{c.replace(/_/g, ' ')}</span>
+                      ))}
+                    </div>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))
+    )}
+  </section>
+
+  {/* ─── Source notes ─────────────────────────────────────────────── */}
+  {lin.sourceNotes && (
+    <section class="ld-sources wrap">
+      <p class="eyebrow">Sources & notes</p>
+      <p>{lin.sourceNotes}</p>
+    </section>
+  )}
+
+  {/* ─── Closing ─────────────────────────────────────────────────── */}
+  <section class="wrap" style="padding: 48px 0; text-align: center;">
+    <a href="/lineages" class="btn-outline">← All lineages</a>
+  </section>
+</Layout>
