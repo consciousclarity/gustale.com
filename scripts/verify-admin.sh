@@ -62,6 +62,24 @@ echo "  recipes      = $HOST_RECIPES"
 echo "  api          = $HOST_API"
 echo ""
 
+echo "[ADM-05] Admin endpoint shape (returns 4xx on public hosts; 200/401 from recipes)"
+# Without a session cookie, all admin endpoints should reject. On
+# gustale.com the Caddy block returns 404; on gustale.recipes (after
+# Plan 5 + manual VPS reload) the API handler returns 401.
+# We accept any 4xx — different layers of the stack reject differently.
+ACTUAL_LOOKUPS=$(curl_status "https://$HOST_API/api/admin/lookups")
+case "$ACTUAL_LOOKUPS" in
+  4*) pass "  /api/admin/lookups returns 4xx (got $ACTUAL_LOOKUPS — auth or Caddy block)" ;;
+  200) fail "  /api/admin/lookups returned 200 — endpoint is OPEN without auth!" ;;
+  *)   fail "  /api/admin/lookups unexpected status: $ACTUAL_LOOKUPS" ;;
+esac
+ACTUAL_DISHES=$(curl_status "https://$HOST_API/api/admin/dishes?limit=1")
+case "$ACTUAL_DISHES" in
+  4*) pass "  /api/admin/dishes returns 4xx (got $ACTUAL_DISHES)" ;;
+  200) fail "  /api/admin/dishes returned 200 — endpoint is OPEN without auth!" ;;
+  *)   fail "  /api/admin/dishes unexpected status: $ACTUAL_DISHES" ;;
+esac
+
 echo "[ADM-06] Read API non-regression (filter params preserved)"
 check "  /api/dishes?country=japan"       200 "$(curl_status "https://$HOST_API/api/dishes?country=japan&limit=5")"
 check "  /api/dishes?cuisine=Italian"    200 "$(curl_status "https://$HOST_API/api/dishes?cuisine=Italian&limit=5")"
@@ -104,14 +122,10 @@ fi
 echo ""
 
 echo "[ADM-03] Auth gate on admin endpoints (no session → 401)"
-# On gustale.recipes the admin endpoints SHOULD be reachable but require auth.
-# Without a session cookie, the API still returns 401 (auth check happens
-# inside the handler regardless of the host).
-# We can't easily test against gustale.recipes/api here (DNS may not have
-# /api routed yet), so test the api.gustale.com endpoint, which after PR #12
-# will return 404 from the Caddy layer (see ADM-04 check above).
-# What we CAN test: the existing api.gustale.com /api/admin/lookups
-# should now return 404 (Caddy) instead of 401 (handler) — see ADM-04.
+# After Plan 5, gustale.recipes/admin is reachable but the auth check
+# is in the API handler. We can't test gustale.recipes/api here without
+# DNS routing, so this is checked implicitly via ADM-04 (Caddy blocks
+# gustale.com/api/admin/* with 404, defense in depth).
 echo ""
 
 echo "[Smoke] Other public site paths still work"
@@ -119,7 +133,7 @@ check "  gustale.com/ (200)"               200 "$(curl_status "https://$HOST_GUS
 check "  gustale.com/dishes (200)"         200 "$(curl_status "https://$HOST_GUSTALE_COM/dishes")"
 check "  gustale.com/map (200)"            200 "$(curl_status "https://$HOST_GUSTALE_COM/map")"
 check "  gustale.com/lineages (200)"       200 "$(curl_status "https://$HOST_GUSTALE_COM/lineages")"
-check "  api.gustale.com/api/health (200)" 200 "$(curl_status "https://$HOST_API/api/health")"
+check "  api.gustale.com/health (200)"     200 "$(curl_status "https://$HOST_API/health")"
 check "  api.gustale.com/api/dishes (200)" 200 "$(curl_status "https://$HOST_API/api/dishes?limit=1")"
 echo ""
 
