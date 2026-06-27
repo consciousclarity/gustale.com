@@ -1,100 +1,111 @@
 # Gustale — Caddyfile
-# 2026-06-15 — switched from scribe.recipes placeholder to gustale.com
-# 2026-06-27 — Phase 4 Plan 5: explicit gustale.recipes vhost + /admin exclusion
-#               on public vhosts. See .planning/phases/04-admin-dish-editor/
-#               for context (PR #11 ships admin UI; this PR gates it).
-
+# 2026-06-17 — added gustale-web upstream (Astro static site, port 4001)
+# 2026-06-27 — Phase 4 Plan 5 (PROD): block /admin on public hosts;
+#              block /api/admin/* on API host + public hosts;
+#              keep gustale.recipes/admin reachable (admins use this).
 {
-    admin off
-    email alex_aguilar@gmx.ch
+	email alex_aguilar@gmx.ch
 }
 
-# ─── API host — all traffic goes to the Fastify API on port 4000 ──────────
-api.gustale.com {
-    reverse_proxy 127.0.0.1:4000
+# ─── API host — block /api/admin/* with 404 ──────────────────────────────
+# Defense in depth: even though /api/admin/* requires admin auth, never
+# let admin endpoints be reachable from the public API host. Admin API
+# calls go through the gustale.recipes host (same upstream, different
+# virtual host).
+api.gustale.com,
+api.gustale.recipes {
+	@admin_api path /api/admin /api/admin/*
+	handle @admin_api {
+		respond 404
+	}
 
-    # Defense in depth: even though /api/admin/* requires admin auth, never
-    # let admin endpoints be reachable from the public API host. The same
-    # endpoints are also served by gustale.recipes via the gustale.recipes
-    # vhost below, where authenticated admins can hit them.
-    @admin_api path /api/admin/* /api/admin
-    route @admin_api {
-        respond 404
-    }
+	reverse_proxy 127.0.0.1:4000
 
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        -Server
-    }
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
 
-    encode gzip zstd
+	encode gzip zstd
 
-    log {
-        output file /var/log/caddy/api.gustale.com.log {
-            roll_size 100mb
-            roll_keep 5
-        }
-    }
+	log {
+		output file /var/log/caddy/api.gustale.com.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
 }
 
-# ─── Recipes host — proxy to the same API container ──────────────────────
-# Same reverse proxy target as gustale.com; the API container serves both
-# domains and returns the right host context to the React app via Host
-# header. Adding this as an explicit vhost makes /admin access auditable
-# (we know which vhost the admin editor lives on).
-gustale.recipes,
-www.gustale.recipes {
-    reverse_proxy 127.0.0.1:4000
-
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        -Server
-    }
-
-    encode gzip zstd
-
-    log {
-        output file /var/log/caddy/gustale.recipes.log {
-            roll_size 100mb
-            roll_keep 5
-        }
-    }
-}
-
-# ─── Public root + www — proxy to the API for non-/admin paths ────────────
-# /admin/* explicitly responded with 404 here. Admins use gustale.recipes.
+# ─── Root + www — block /admin and /api/admin/* with 404 ─────────────────
+# /admin is for gustale.recipes admins only. /api/admin/* is blocked
+# here too so admin API calls don't leak through the inner /api/* handle.
 gustale.com,
 www.gustale.com {
-    reverse_proxy 127.0.0.1:4000
+	@admin_block path /admin /admin/* /admin/
+	handle @admin_block {
+		respond 404
+	}
 
-    @admin_block path /admin /admin/* /admin/
-    route @admin_block {
-        respond 404
-    }
+	@admin_api_block path /api/admin /api/admin/*
+	handle @admin_api_block {
+		respond 404
+	}
 
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        -Server
-    }
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
 
-    encode gzip zstd
+	reverse_proxy 127.0.0.1:4002
 
-    log {
-        output file /var/log/caddy/gustale.com.log {
-            roll_size 100mb
-            roll_keep 5
-        }
-    }
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	encode gzip zstd
+
+	log {
+		output file /var/log/caddy/gustale.com.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
+}
+
+# ─── gustale.recipes — encyclopedia domain ───────────────────────────────
+# /admin is reachable here (the admin editor's actual home). Block only
+# /api/admin/* so admin API calls can't be reached from the static site
+# path matcher (admin UI uses same-origin relative paths anyway, so this
+# is mostly defense in depth).
+gustale.recipes,
+www.gustale.recipes {
+	@admin_api_block path /api/admin /api/admin/*
+	handle @admin_api_block {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	reverse_proxy 127.0.0.1:4001
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	encode gzip zstd
 }
