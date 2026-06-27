@@ -51,12 +51,28 @@ RUN pnpm install --frozen-lockfile
 # PUBLIC_DOMAIN picks which page subset to keep (recipes|geo).
 ARG PUBLIC_DOMAIN=recipes
 ARG PUBLIC_API_BASE=https://api.gustale.recipes
+# CACHEBUST is set by CI to the per-commit SHA so the build RUN below
+# is never reused from a stale GHA layer cache (the previous symptom was
+# "[mock-api] 0 dishes loaded" + a 30-page dist, repeated across PRs that
+# had no source changes to the relevant files). Pass via
+# `--build-arg CACHEBUST=${{ github.sha }}` in ci.yml.
+ARG CACHEBUST=local
 ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
 # Now copy the rest of the source. This layer's cache key is the full
 # monorepo tree, so it (and everything below) invalidates on every commit.
 COPY . .
+
+# Stamp the CACHEBUST value into a file the final RUN step will read.
+# This forces buildx to consider the final mock-api+astro layer invalid
+# on every commit (since CI passes CACHEBUST=${{ github.sha }}), even
+# when the source files referenced by COPY . . are byte-identical to a
+# previous (potentially failed) run. Without this stamp, the GHA cache
+# can return a "successful" layer from a prior PR whose mock-api
+# happened to load 0 dishes — leaving us with a 30-page dist and a
+# post-build refusal on every cache hit.
+RUN echo "CACHEBUST=${CACHEBUST}" > /tmp/.gustale-cachebust
 
 # Clean the web app's previous build + Astro cache before building.
 # This guards against stale `.astro/` cache producing a partial dist
@@ -84,7 +100,12 @@ RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 # Use the right build script per domain.
 #   recipes → build:recipes  (drops /map)
 #   geo     → build:geo      (drops /ingredients, edit/new; keeps /dishes list)
-RUN node apps/web/scripts/mock-api.mjs --port 8742 & \
+# `cat /tmp/.gustale-cachebust` makes this layer's cache key depend on
+# the CACHEBUST ARG, so CI never reuses a stale "0 dishes" layer from
+# a previous (failed) run with identical source files. See CACHEBUST
+# ARG above for the full rationale.
+RUN cat /tmp/.gustale-cachebust >/dev/null && \
+    node apps/web/scripts/mock-api.mjs --port 8742 & \
     MOCK_PID=$!; \
     trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \
     node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742; \

@@ -244,6 +244,10 @@ jobs:
           build-args: |
             PUBLIC_DOMAIN=${{ matrix.domain }}
             PUBLIC_API_BASE=https://api.gustale.recipes
+            # CACHEBUST pins the mock-api+astro RUN layer to the current
+            # commit SHA, so the GHA cache can't return a "0 dishes"
+            # layer from a previous run. See apps/web/Dockerfile.
+            CACHEBUST=${{ github.sha }}
           tags: >-
             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}
