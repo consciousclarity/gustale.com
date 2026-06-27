@@ -480,3 +480,217 @@ export function getAdminDish(slug: string, init?: RequestInit): Promise<AdminDis
     init,
   );
 }
+
+// ─── Admin dish media (Phase 5 — admin editor expansion) ──────────────────
+//
+// Wraps the existing public media endpoints (POST /api/media/upload,
+// POST /api/dishes/:slug/media, DELETE /api/dishes/:slug/media/:id)
+// so the admin editor can manage photos without hand-rolling fetch calls.
+//
+// Auth: existing endpoints — POST /api/media/upload requires contributor+,
+// POST/DELETE /api/dishes/:slug/media requires contributor+. The admin UI
+// only shows these to admin-role users (gated by the Astro middleware).
+
+export interface AdminDishMediaItem {
+  id: string;
+  mediaId: string;
+  role: 'cover' | 'gallery';
+  position: number;
+  attachedAt: string;
+  media: {
+    id: string;
+    storageKey: string;
+    mimeType: string;
+    byteSize: number;
+    altText: string | null;
+    credit: string | null;
+    license: string | null;
+    uploadedAt: string;
+  };
+  signedUrl?: string;
+}
+
+export interface AdminDishMediaResponse {
+  media: AdminDishMediaItem[];
+}
+
+/**
+ * List media attached to a dish. The public /api/dishes/:slug endpoint
+ * already returns media[] (with positions + signed URLs already
+ * pre-fetched by DishDetail). For the editor we use the same source.
+ * The /api/dishes/:slug/media list endpoint doesn't exist — media is
+ * returned as a sub-resource of the dish detail.
+ */
+export async function listAdminDishMedia(
+  slug: string,
+  init?: RequestInit,
+): Promise<AdminDishMediaResponse> {
+  // Fetch the public dish detail which includes media[]. Caller can then
+  // call getMediaSignedUrl(mediaId) for each one to render the preview.
+  // We don't bundle the signed URL fetch here because the dish detail
+  // returns mediaIds + positions, not the full signed URL set.
+  const result = await request<{ media: AdminDishMediaItem[] }>(
+    `/api/dishes/${encodeURIComponent(slug)}`,
+    init,
+  );
+  return { media: result.media };
+}
+
+/**
+ * Upload a file via the existing /api/media/upload endpoint. Returns the
+ * new media row (id, storageKey, mimeType, etc). Caller still needs to
+ * attach the media to a dish via attachMediaToDish.
+ */
+export async function uploadMedia(
+  file: File,
+  meta?: { altText?: string; credit?: string; license?: string },
+): Promise<AdminDishMediaItem['media']> {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (meta?.altText) fd.append('altText', meta.altText);
+  if (meta?.credit) fd.append('credit', meta.credit);
+  if (meta?.license) fd.append('license', meta.license);
+  const res = await fetch(`${API_BASE}/api/media/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: fd,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Upload failed (${res.status}): ${text || 'unknown'}`);
+  }
+  const data = (await res.json()) as { media: AdminDishMediaItem['media'] };
+  return data.media;
+}
+
+/**
+ * Attach an existing media row to a dish. role='cover' sets it as the
+ * hero image (replaces any existing cover atomically).
+ */
+export async function attachMediaToDish(
+  slug: string,
+  mediaId: string,
+  role: 'cover' | 'gallery' = 'gallery',
+): Promise<AdminDishMediaItem> {
+  return request<AdminDishMediaItem>(`/api/dishes/${encodeURIComponent(slug)}/media`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ mediaId, role }),
+    credentials: 'include',
+  });
+}
+
+/**
+ * Detach a media attachment from a dish. The media row itself is
+ * preserved (can be re-attached or kept as an unattached asset).
+ */
+export async function detachMediaFromDish(
+  slug: string,
+  attachmentId: string,
+): Promise<{ removed: boolean; attachmentId: string }> {
+  return request<{ removed: boolean; attachmentId: string }>(
+    `/api/dishes/${encodeURIComponent(slug)}/media/${encodeURIComponent(attachmentId)}`,
+    { method: 'DELETE', credentials: 'include' },
+  );
+}
+
+// ─── Admin dish sources (Phase 5 — admin editor expansion) ───────────────
+//
+// CRUD against the existing sources + citations tables via new
+// /api/admin/dishes/:slug/sources endpoints. The admin endpoint also
+// dedups sources by (title, url) — if a source with the same URL already
+// exists, it's reused instead of duplicated.
+
+export interface AdminDishSource {
+  citationId: string;
+  claimText: string | null;
+  location: string | null;
+  addedAt: string;
+  source: {
+    id: string;
+    sourceType: 'book' | 'article' | 'web' | 'video' | 'audio' | 'archive' | 'personal_communication';
+    title: string;
+    authors: string[] | null;
+    year: number | null;
+    publisher: string | null;
+    url: string | null;
+    isbn: string | null;
+    doi: string | null;
+    citationText: string | null;
+    language: string;
+    reliability: 'primary' | 'secondary' | 'tertiary' | 'speculative' | null;
+  };
+}
+
+export interface AdminDishSourcesResponse {
+  sources: AdminDishSource[];
+}
+
+export interface CreateSourceInput {
+  sourceType: AdminDishSource['source']['sourceType'];
+  title: string;
+  authors?: string[];
+  year?: number | null;
+  publisher?: string | null;
+  isbn?: string | null;
+  doi?: string | null;
+  url?: string | null;
+  archiveName?: string | null;
+  archiveCatalogId?: string | null;
+  citationText?: string | null;
+  language?: string;
+  reliability?: 'primary' | 'secondary' | 'tertiary' | 'speculative' | null;
+  claimText?: string | null;
+  location?: string | null;
+}
+
+export async function listAdminDishSources(
+  slug: string,
+  init?: RequestInit,
+): Promise<AdminDishSourcesResponse> {
+  return request<AdminDishSourcesResponse>(
+    `/api/admin/dishes/${encodeURIComponent(slug)}/sources`,
+    init,
+  );
+}
+
+export async function createAdminDishSource(
+  slug: string,
+  input: CreateSourceInput,
+): Promise<{ citation: { id: string; sourceId: string; claimText: string | null; location: string | null; addedAt: string } }> {
+  return request<{ citation: { id: string; sourceId: string; claimText: string | null; location: string | null; addedAt: string } }>(
+    `/api/admin/dishes/${encodeURIComponent(slug)}/sources`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+      credentials: 'include',
+    },
+  );
+}
+
+export async function updateAdminDishSource(
+  slug: string,
+  citationId: string,
+  input: Partial<CreateSourceInput>,
+): Promise<{ citationId: string; updated: boolean }> {
+  return request<{ citationId: string; updated: boolean }>(
+    `/api/admin/dishes/${encodeURIComponent(slug)}/sources/${encodeURIComponent(citationId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+      credentials: 'include',
+    },
+  );
+}
+
+export async function deleteAdminDishSource(
+  slug: string,
+  citationId: string,
+): Promise<{ removed: boolean; citationId: string }> {
+  return request<{ removed: boolean; citationId: string }>(
+    `/api/admin/dishes/${encodeURIComponent(slug)}/sources/${encodeURIComponent(citationId)}`,
+    { method: 'DELETE', credentials: 'include' },
+  );
+}
