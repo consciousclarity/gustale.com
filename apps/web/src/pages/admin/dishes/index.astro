@@ -1,0 +1,79 @@
+---
+/**
+ * /admin/dishes — Admin dish list (Phase 4 — Admin Dish Editor redo)
+ *
+ * SSR-fetches the dish list from GET /api/admin/dishes?limit=200.
+ * Passes the visitor's cookie header through to the API so the
+ * server-side requireRole('admin') check succeeds. If the API is
+ * unreachable (CI build), the page renders with empty data + a banner.
+ *
+ * Bug fix: Breadcrumbs uses `crumbs` prop (NOT `items`). The reverted
+ * PR had `<Breadcrumbs items={...} />` which TypeScript rejected.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { AdminDishList } from '../../../components/admin/AdminDishList';
+import { listAdminDishes } from '../../../lib/api';
+
+// At static-build time, Astro.request.headers is unavailable (warning
+// from the Astro build pipeline). When SSR is enabled (future hybrid
+// mode), the cookie header is forwarded so the API can authenticate.
+// When running as a true static build, apiInit stays undefined and the
+// React island does its own auth check via /api/auth/get-session on
+// the client.
+const cookieHeader =
+  typeof Astro.request?.headers?.get === 'function'
+    ? (Astro.request.headers.get('cookie') ?? '')
+    : '';
+const apiInit = cookieHeader ? { headers: { cookie: cookieHeader } } : undefined;
+
+let initialDishes: Awaited<ReturnType<typeof listAdminDishes>>['dishes'] = [];
+let initialTotal = 0;
+let loadError: string | null = null;
+try {
+  const data = await listAdminDishes({ limit: 200 }, apiInit);
+  initialDishes = data.dishes;
+  initialTotal = data.total;
+} catch (err) {
+  loadError = err instanceof Error ? err.message : String(err);
+}
+---
+
+<Layout title="Admin · Dishes — Gustale" description="Manage dishes">
+  <Breadcrumbs crumbs={[
+    { href: '/admin', label: 'Admin' },
+    { label: 'Dishes' },
+  ]} />
+
+  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem;">
+    <h1 style="font-family: var(--display); font-size: 2rem; margin-bottom: 0.5rem;">Dishes</h1>
+    <p class="sub" style="margin-bottom: 2rem;">
+      {initialTotal} {initialTotal === 1 ? 'dish' : 'dishes'} total
+    </p>
+
+    {loadError && (
+      <div class="admin-error-banner">
+        Could not load dish list: {loadError}
+      </div>
+    )}
+
+    <AdminDishList
+      client:load
+      initialDishes={initialDishes}
+      initialTotal={initialTotal}
+      apiBase=""
+    />
+  </main>
+</Layout>
+
+<style>
+  .admin-error-banner {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--accent-ink);
+    padding: 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+</style>

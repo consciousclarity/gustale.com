@@ -7,3 +7,17 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare namespace App {
+  interface Locals {
+    runtime?: {
+      env?: ImportMetaEnv;
+    };
+    user?: {
+      id: string;
+      email: string;
+      name?: string;
+      role?: 'visitor' | 'contributor' | 'moderator' | 'admin';
+    } | null;
+  }
+}

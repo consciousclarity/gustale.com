@@ -1,0 +1,115 @@
+---
+/**
+ * /admin/dishes/[slug] — Admin dish editor (Phase 4 — Admin Dish Editor redo)
+ *
+ * SSR-fetches BOTH the dish detail AND the lookups in parallel, then
+ * passes them as props to <AdminDishEditor client:load />. The page
+ * itself is the route shell — all editing happens in the React island.
+ *
+ * Bug fix: the reverted PR passed only `dishSlug` + `apiBase` props to
+ * the editor, but AdminDishEditor expects `initialDish` + `lookups` +
+ * `apiBase` (per the SPEC's Props contract). The component would crash
+ * on render. The fix is to SSR-fetch and pass the data through.
+ *
+ * Bug fix: Breadcrumbs uses `crumbs` prop (NOT `items`).
+ *
+ * Static-site constraint: this project ships as fully-static Astro
+ * (no SSR adapter). Therefore admin pages must be pre-rendered at
+ * build time, with the slug list pulled from the public API (which
+ * doesn't require admin auth). Drafts are included so the editor
+ * can reach them. The runtime auth gate is enforced by the Caddy
+ * vhost (Plan 5) and by the admin React island itself (which 401s
+ * on /api/admin/* without a session).
+ */
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { AdminDishEditor } from '../../../components/admin/AdminDishEditor';
+import { getAdminDish, getAdminLookups } from '../../../lib/api';
+
+export async function getStaticPaths() {
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    // No API configured at build time. Fall back to a placeholder slug
+    // so the build doesn't fail; the runtime SPA fallback in the React
+    // island will handle the real slug.
+    return [{ params: { slug: 'moussaka-greek' } }];
+  }
+  try {
+    // Fetch slugs for every status (draft, published, archived) since
+    // the admin editor needs to reach drafts too. /api/dishes defaults
+    // to status=published, so we have to query explicitly.
+    const allSlugs = new Set<string>();
+    for (const status of ['draft', 'published', 'archived'] as const) {
+      const res = await fetch(
+        `${apiBase}/api/dishes?limit=100&offset=0&status=${status}`,
+      );
+      if (!res.ok) continue;
+      const json = (await res.json()) as { dishes: Array<{ slug: string }> };
+      for (const d of json.dishes) allSlugs.add(d.slug);
+    }
+    if (allSlugs.size === 0) {
+      return [{ params: { slug: 'moussaka-greek' } }];
+    }
+    return Array.from(allSlugs).map((slug) => ({ params: { slug } }));
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[getStaticPaths] admin dish list fetch failed:', err);
+    return [{ params: { slug: 'moussaka-greek' } }];
+  }
+}
+
+const { slug } = Astro.params;
+
+if (!slug || typeof slug !== 'string') {
+  return new Response('Not found', { status: 404 });
+}
+
+const cookieHeader =
+  typeof Astro.request?.headers?.get === 'function'
+    ? (Astro.request.headers.get('cookie') ?? '')
+    : '';
+const apiInit = cookieHeader ? { headers: { cookie: cookieHeader } } : undefined;
+
+const [initialDishResult, lookupsResult] = await Promise.all([
+  getAdminDish(slug, apiInit)
+    .then((d) => ({ ok: true as const, data: d }))
+    .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+  getAdminLookups(apiInit)
+    .then((l) => ({ ok: true as const, data: l }))
+    .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+]);
+
+const loadError = !initialDishResult.ok
+  ? initialDishResult.error
+  : !lookupsResult.ok
+    ? lookupsResult.error
+    : null;
+
+if (loadError) {
+  return new Response(`Failed to load dish editor: ${loadError}`, { status: 502 });
+}
+
+const initialDish = initialDishResult.ok ? initialDishResult.data : null;
+const lookups = lookupsResult.ok ? lookupsResult.data : null;
+
+if (!initialDish || !lookups) {
+  return new Response('Failed to load dish editor: missing data', { status: 502 });
+}
+---
+
+<Layout title={`Admin · ${slug} — Gustale`} description="Edit dish">
+  <Breadcrumbs crumbs={[
+    { href: '/admin', label: 'Admin' },
+    { href: '/admin/dishes', label: 'Dishes' },
+    { label: slug },
+  ]} />
+
+  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem; max-width: 880px;">
+    <AdminDishEditor
+      client:load
+      initialDish={initialDish}
+      lookups={lookups}
+      apiBase=""
+    />
+  </main>
+</Layout>
