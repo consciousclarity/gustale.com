@@ -67,6 +67,23 @@ function AtlasView({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [active, setActive] = useState<string | null>(null);
+  const [showRegions, setShowRegions] = useState(true);
+  const [regionData, setRegionData] = useState(null);
+  const [countryFilter, setCountryFilter] = useState('all');
+
+  // Fetch region data
+  useEffect(() => {
+    fetch('/data/regions/sample-food-regions.geojson')
+      .then(response => response.json())
+      .then(data => setRegionData(data))
+      .catch(error => console.error('Error loading region data:', error));
+  }, []);
+  
+  // Create a unique list of countries from the dish data for the filter
+  const countries = useMemo(() => {
+    const countrySet = new Set(mapDishes.map(d => d.region.name).filter(Boolean));
+    return ['all', ...Array.from(countrySet).sort()];
+  }, [mapDishes]);
 
   // Group list dishes by region for the sidebar
   const byRegion = useMemo(() => {
@@ -90,26 +107,174 @@ function AtlasView({
       if (!mapRef.current || mapInstanceRef.current) return;
       const map = new (window as any).maplibregl.Map({
         container: mapRef.current,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: '© OpenStreetMap contributors',
-            },
-          },
-          layers: [{ id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }],
-        },
+        style: 'https://demotiles.maplibre.org/style.json', // A clean, free vector style
         center: [20, 20],
         zoom: 1.5,
+        projection: 'globe', // The magic!
         attributionControl: false,
       });
+
+      map.on('style.load', () => {
+        map.setFog({}); // Adds a realistic atmospheric fog effect to the globe
+      });
+
       map.addControl(new (window as any).maplibregl.NavigationControl(), 'top-right');
       mapInstanceRef.current = map;
+
+      map.on('load', () => {
+        // Add dish points source
+        map.addSource('dish-points', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: mapDishes.map(dish => ({
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [dish.lng, dish.lat]
+              },
+              properties: {
+                slug: dish.slug,
+                name: dish.canonicalName,
+                description: dish.shortDescription,
+                region: dish.region.name,
+              }
+            }))
+          },
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50
+        });
+
+        // Add layer for clusters
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: 'dish-points',
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#51bbd6',
+              100,
+              '#f1f075',
+              750,
+              '#f28cb1'
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              20,
+              100,
+              30,
+              750,
+              40
+            ]
+          }
+        });
+
+        // Add layer for cluster count text
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: 'dish-points',
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+            'text-size': 12
+          }
+        });
+
+        // Add layer for unclustered points
+        map.addLayer({
+          id: 'unclustered-point',
+          type: 'circle',
+          source: 'dish-points',
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': '#11b4da',
+            'circle-radius': 6,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff'
+          }
+        });
+
+        // Click event for unclustered points to show popup
+        map.on('click', 'unclustered-point', (e) => {
+          const coordinates = e.features[0].geometry.coordinates.slice();
+          const { name, description, region, slug } = e.features[0].properties;
+
+          // Ensure that if the map is zoomed out such that multiple
+          // copies of the feature are visible, the popup appears
+          // over the copy being pointed to.
+          while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+          }
+
+          new (window as any).maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-family: sans-serif; max-width: 200px;">
+                <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 4px 0;">${name}</h3>
+                <p style="font-size: 0.8rem; margin: 0 0 8px 0; color: #555;">${description || region}</p>
+                <a href="/dishes/${slug}" style="font-size: 0.8rem; color: #007bff;">View Dish &rarr;</a>
+              </div>
+            `)
+            .addTo(map);
+        });
+
+        // Change cursor to pointer on hover
+        map.on('mouseenter', 'unclustered-point', () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', 'unclustered-point', () => {
+          map.getCanvas().style.cursor = '';
+        });
+
+        // Add food region layer
+        if (regionData) {
+            map.addSource('food-regions', {
+                'type': 'geojson',
+                'data': regionData
+            });
+
+            map.addLayer({
+                'id': 'regions-layer',
+                'type': 'fill',
+                'source': 'food-regions',
+                'paint': {
+                    'fill-color': '#088',
+                    'fill-opacity': 0.3
+                }
+            });
+        }
+      });
     });
-  }, []);
+  }, [mapDishes, regionData]);
+
+  // Effect to toggle layer visibility
+  useEffect(() => {
+    if (mapInstanceRef.current?.getLayer('regions-layer')) {
+      mapInstanceRef.current.setLayoutProperty('regions-layer', 'visibility', showRegions ? 'visible' : 'none');
+    }
+  }, [showRegions]);
+
+  // Effect to filter points by country
+  useEffect(() => {
+    if (mapInstanceRef.current?.getSource('dish-points')) {
+      if (countryFilter === 'all') {
+        mapInstanceRef.current.setFilter('unclustered-point', ['!', ['has', 'point_count']]);
+        mapInstanceRef.current.setFilter('clusters', ['has', 'point_count']);
+      } else {
+        mapInstanceRef.current.setFilter('unclustered-point', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'region'], countryFilter]]);
+        // Note: This simple filter will hide clusters if they contain points from multiple countries.
+        // A more advanced implementation would require data-driven styling or source-side filtering.
+        mapInstanceRef.current.setFilter('clusters', ['has', 'point_count']);
+      }
+    }
+  }, [countryFilter]);
 
   return (
     <div className="atl-grid">
@@ -118,6 +283,14 @@ function AtlasView({
         <div className="atl-maplabel">
           <span>{mapDishes.length} dishes plotted</span>
           <span>© OpenStreetMap</span>
+        </div>
+        <div className="atl-filters">
+          <select onChange={(e) => setCountryFilter(e.target.value)} value={countryFilter}>
+            {countries.map(c => <option key={c} value={c}>{c === 'all' ? 'All Countries' : c}</option>)}
+          </select>
+          <button onClick={() => setShowRegions(!showRegions)}>
+            {showRegions ? 'Hide' : 'Show'} Regions
+          </button>
         </div>
       </div>
       <div className="atl-list">

@@ -122,7 +122,7 @@ importers:
         specifier: ^0.9.9
         version: 0.9.9(prettier@3.8.4)(typescript@5.9.3)
       '@types/geojson':
-        specifier: ^7946.0.16
+        specifier: ^7946.0.10
         version: 7946.0.16
       typescript:
         specifier: ^5.6.3
