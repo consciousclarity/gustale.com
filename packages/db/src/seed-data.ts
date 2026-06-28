@@ -751,6 +751,104 @@ export const DISH_TYPE_CATEGORIES: Array<{ slug: string; name: string; descripti
 ];
 
 // =====================================================================
+// LINEAGE PREPARATION METHODS — the "family" axis of the encyclopedia.
+// =====================================================================
+//
+// Every published dish is assigned exactly ONE primary preparation method
+// (its "lineage"). The slugs here MUST stay 1:1 with the LINEAGE_LABELS map
+// in apps/web/src/pages/lineages.astro — that page groups dishes by the
+// dish's first preparation method (methodSlug) to render lineage cards.
+//
+// The seeder (seed.ts) inserts these into `preparation_methods` and then
+// writes one `dish_preparations` row per dish using DISH_LINEAGES below.
+
+export const LINEAGE_METHODS: Array<{ slug: string; name: string; category: string }> = [
+  { slug: "poached-in-sauce", name: "Poached in sauce", category: "moist-heat" },
+  { slug: "omelettes-and-scrambles", name: "Omelettes & scrambles", category: "dry-heat" },
+  { slug: "fried-and-topped", name: "Fried & topped", category: "dry-heat" },
+  { slug: "steamed-and-custard", name: "Steamed & custard", category: "moist-heat" },
+  { slug: "boiled-and-cured", name: "Boiled & cured", category: "moist-heat" },
+  { slug: "pasta", name: "Pasta", category: "moist-heat" },
+  { slug: "noodle-soup", name: "Noodle soup", category: "moist-heat" },
+  { slug: "stew", name: "Stew & braise", category: "moist-heat" },
+  { slug: "fried-rice", name: "Rice bowl", category: "dry-heat" },
+  { slug: "dumpling", name: "Dumpling", category: "moist-heat" },
+  { slug: "bread", name: "Bread & dough", category: "dry-heat" },
+  { slug: "pancake", name: "Flatbread", category: "dry-heat" },
+  { slug: "dessert", name: "Sweets & custard", category: "dry-heat" },
+  { slug: "curry", name: "Curry", category: "moist-heat" },
+  { slug: "kebab", name: "Grilled & skewered", category: "dry-heat" },
+  { slug: "salad", name: "Small plates & preserves", category: "raw" },
+];
+
+// dish slug → lineage method slug (one of LINEAGE_METHODS above).
+// Distribution: stew 11 · rice 9 · small-plates 7 · noodle-soup 7 · dumpling 4
+// · bread/fried-topped/kebab/curry 3 each · dessert/boiled-cured/poached 2 each
+// · pasta/pancake/omelette/steamed 1 each. No dish falls back to "other".
+export const DISH_LINEAGES: Record<string, string> = {
+  "moussaka-greek": "fried-and-topped",
+  "cacio-e-pepe": "pasta",
+  "pizza-margherita": "bread",
+  "paella-valenciana": "fried-rice",
+  "gazpacho": "salad",
+  "tarte-tatin": "dessert",
+  "boeuf-bourguignon": "stew",
+  "wiener-schnitzel": "fried-and-topped",
+  "pierogi": "dumpling",
+  "goulash-hungarian": "stew",
+  "ramen-japanese": "noodle-soup",
+  "sushi": "boiled-and-cured",
+  "pad-thai": "noodle-soup",
+  "tom-yum": "stew",
+  "pho-vietnamese": "noodle-soup",
+  "banh-mi": "bread",
+  "hainanese-chicken-rice": "fried-rice",
+  "nasi-goreng": "fried-rice",
+  "bibimbap": "fried-rice",
+  "kimchi-jjigae": "stew",
+  "hummus": "salad",
+  "falafel": "salad",
+  "shawarma": "kebab",
+  "biryani-hyderabadi": "fried-rice",
+  "chicken-tikka-masala": "curry",
+  "feijoada": "stew",
+  "ceviche-peruvian": "boiled-and-cured",
+  "hamburger-american": "bread",
+  "poutine": "fried-and-topped",
+  "tagine-moroccan": "stew",
+  "jollof-rice": "fried-rice",
+  "babi-guling": "kebab",
+  "rendang": "curry",
+  "soto-ayam": "stew",
+  "rawon": "stew",
+  "gado-gado": "salad",
+  "pempek": "salad",
+  "nasi-campur-bali": "fried-rice",
+  "sate-lilit": "kebab",
+  "laksa": "noodle-soup",
+  "khao-soi": "noodle-soup",
+  "udon": "noodle-soup",
+  "mapo-tofu": "poached-in-sauce",
+  "congee": "fried-rice",
+  "jiaozi": "dumpling",
+  "japchae": "noodle-soup",
+  "dosa": "pancake",
+  "vindaloo": "curry",
+  "momo": "dumpling",
+  "risotto-alla-milanese": "fried-rice",
+  "couscous": "stew",
+  "shakshuka": "poached-in-sauce",
+  "mansaf": "stew",
+  "borscht": "stew",
+  "bacalhau-a-bras": "omelettes-and-scrambles",
+  "tiramisu": "dessert",
+  "tamales": "steamed-and-custard",
+  "empanada": "dumpling",
+  "tostones": "salad",
+  "acaraje": "salad",
+};
+
+// =====================================================================
 // DISH RELATIONS — the curated food-genealogy network.
 // =====================================================================
 //
