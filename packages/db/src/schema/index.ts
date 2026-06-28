@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, timestamp, boolean, integer, jsonb, customType, index, unique, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, boolean, integer, numeric, jsonb, customType, index, unique, primaryKey } from 'drizzle-orm/pg-core';
 import { geometry } from './custom-types.js';
 import * as authSchema from './auth.js';
 
@@ -498,4 +498,151 @@ export const mediaAttachments = pgTable('media_attachments', {
   attachedAt: timestamp('attached_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   targetIdx: index('media_attachments_target_idx').on(t.targetType, t.targetId),
+}));
+
+// =====================================================================
+// FOOD GEOGRAPHY (Phase 2A)
+// =====================================================================
+//
+// A flexible, multi-faceted geography layer for dishes. Phase 2A is
+// metadata-first: geometry is NOT stored in the database. Region polygons
+// live in versioned GeoJSON files (e.g.
+// apps/web/public/data/regions/the-levant.geojson) authored via the QGIS
+// workflow documented at docs/gis-workflow.md.
+//
+// food_regions     → culinary / cultural / historical regions (polygons
+//                    referenced by file path, not stored as PostGIS).
+// dish_regions     → join table describing a dish's relationship to a
+//                    region (origin, variation, diaspora, ...).
+// dish_locations   → multiple, typed point locations per dish (origin,
+//                    popularity, variation, ...).
+// *_sources        → join tables to the existing `sources` table so
+//                    citations remain first-class and reusable.
+//
+// Phase 2A deliberately does NOT enforce a partial unique index on
+// `is_primary` per (dish, relationship_type) — that rule will live in
+// service/admin logic in Phase 2D.
+
+export const foodRegionType = [
+  'culinary',
+  'cultural',
+  'geographic',
+  'historical',
+  'diaspora',
+  'trade_route',
+  'ingredient_zone',
+] as const;
+export type FoodRegionType = typeof foodRegionType[number];
+
+export const foodRegionStatus = ['draft', 'reviewed', 'published', 'deprecated'] as const;
+export type FoodRegionStatus = typeof foodRegionStatus[number];
+
+export const foodRegions = pgTable('food_regions', {
+  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  type: text('type').$type<FoodRegionType>().notNull(),
+  status: text('status').$type<FoodRegionStatus>().notNull().default('draft'),
+  description: text('description'),
+  countryCodes: text('country_codes').array(),
+  geojsonPath: text('geojson_path').notNull(),
+  bbox: jsonb('bbox'),
+  centroidLatitude: numeric('centroid_latitude'),
+  centroidLongitude: numeric('centroid_longitude'),
+  parentRegionId: uuid('parent_region_id').references((): any => foodRegions.id, { onDelete: 'set null' }),
+  confidence: integer('confidence'),
+  sourceNotes: text('source_notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  typeIdx: index('food_regions_type_idx').on(t.type),
+  statusIdx: index('food_regions_status_idx').on(t.status),
+}));
+
+export const dishRegionRelationshipType = [
+  'origin',
+  'core_region',
+  'variation_region',
+  'popularity_region',
+  'diaspora_region',
+  'disputed_origin',
+  'ingredient_origin',
+  'historical_spread',
+] as const;
+export type DishRegionRelationshipType = typeof dishRegionRelationshipType[number];
+
+export const dishRegions = pgTable('dish_regions', {
+  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
+  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
+  regionId: uuid('region_id').notNull().references(() => foodRegions.id, { onDelete: 'cascade' }),
+  relationshipType: text('relationship_type').$type<DishRegionRelationshipType>().notNull(),
+  confidence: integer('confidence'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  compositeUnique: unique('dish_regions_dish_region_type_unique').on(t.dishId, t.regionId, t.relationshipType),
+  dishIdx: index('dish_regions_dish_id_idx').on(t.dishId),
+  regionIdx: index('dish_regions_region_id_idx').on(t.regionId),
+  typeIdx: index('dish_regions_relationship_type_idx').on(t.relationshipType),
+}));
+
+export const dishLocationType = [
+  'origin_point',
+  'representative_point',
+  'popularity_point',
+  'variation_point',
+  'diaspora_point',
+  'market_point',
+] as const;
+export type DishLocationType = typeof dishLocationType[number];
+
+export const dishLocations = pgTable('dish_locations', {
+  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
+  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
+  locationType: text('location_type').$type<DishLocationType>().notNull(),
+  latitude: numeric('latitude').notNull(),
+  longitude: numeric('longitude').notNull(),
+  label: text('label'),
+  countryCode: text('country_code'),
+  adminRegion: text('admin_region'),
+  confidence: integer('confidence'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dishIdx: index('dish_locations_dish_id_idx').on(t.dishId),
+  typeIdx: index('dish_locations_location_type_idx').on(t.locationType),
+  countryIdx: index('dish_locations_country_code_idx').on(t.countryCode),
+}));
+
+// -- Source junction tables -------------------------------------------------
+// Each links a record to the canonical `sources` table via composite primary
+// keys. Cascade on delete matches the rest of the project (e.g.
+// ingredientTranslations, mediaAttachments).
+
+export const foodRegionSources = pgTable('food_region_sources', {
+  regionId: uuid('region_id').notNull().references(() => foodRegions.id, { onDelete: 'cascade' }),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.regionId, t.sourceId] }),
+}));
+
+export const dishRegionSources = pgTable('dish_region_sources', {
+  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
+  regionId: uuid('region_id').notNull().references(() => foodRegions.id, { onDelete: 'cascade' }),
+  relationshipType: text('relationship_type').$type<DishRegionRelationshipType>().notNull(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.dishId, t.regionId, t.relationshipType, t.sourceId] }),
+  sourceIdx: index('dish_region_sources_source_id_idx').on(t.sourceId),
+}));
+
+export const dishLocationSources = pgTable('dish_location_sources', {
+  locationId: uuid('location_id').notNull().references(() => dishLocations.id, { onDelete: 'cascade' }),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.locationId, t.sourceId] }),
 }));
