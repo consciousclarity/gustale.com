@@ -98,8 +98,12 @@ export function registerLineageRoutes(app: FastifyInstance): void {
     const countsSubquery = db
       .select({
         lineageId: dishLineages.lineageId,
-        dishCount: sql<number>`COUNT(DISTINCT ${dishLineages.dishId})::int`,
-        relationCount: sql<number>`COUNT(*)::int`,
+        // Raw SQL fields referenced from outside the subquery (lines below)
+        // MUST carry an explicit .as() alias, or drizzle throws at query-build
+        // time ("...doesn't have an alias declared"). This is what 500'd
+        // /api/lineages in prod after PR #15.
+        dishCount: sql<number>`COUNT(DISTINCT ${dishLineages.dishId})::int`.as('dishCount'),
+        relationCount: sql<number>`COUNT(*)::int`.as('relationCount'),
       })
       .from(dishLineages)
       .groupBy(dishLineages.lineageId)
