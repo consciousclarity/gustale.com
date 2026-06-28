@@ -1,0 +1,32 @@
+{
+  "type": "FeatureCollection",
+  "name": "Sample Food Regions",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "region_id": "levant",
+        "name": "The Levant",
+        "type": "historical",
+        "country_codes": "SY,LB,JO,PS,IL,TR,EG",
+        "confidence": "conceptual",
+        "source": "Wikipedia",
+        "notes": "This is a simplified, conceptual boundary for demo purposes. It broadly represents the historical and cultural region of the Levant."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [34.2, 31.0],
+            [36.0, 31.0],
+            [37.0, 33.0],
+            [38.0, 37.0],
+            [35.5, 37.0],
+            [34.5, 34.0],
+            [34.2, 31.0]
+          ]
+        ]
+      }
+    }
+  ]
+}
