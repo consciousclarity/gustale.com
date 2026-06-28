@@ -399,6 +399,33 @@ export function getAdminLookups(init?: RequestInit): Promise<AdminLookupsRespons
   return request<AdminLookupsResponse>('/api/admin/lookups', init);
 }
 
+// ─── Admin dashboard stats (GET /api/admin/stats) ─────────────────────────
+// Aggregate counts for the control-center dashboard: dish status breakdown,
+// taxonomy term counts, total media, and content-health gaps. One call.
+
+export interface AdminStatsResponse {
+  dishes: { total: number; published: number; draft: number; archived: number };
+  taxonomy: {
+    categories: number;
+    families: number;
+    lineages: number;
+    regions: number;
+    ingredients: number;
+    tags: number;
+  };
+  media: { total: number };
+  health: {
+    missingDescription: number;
+    missingPhoto: number;
+    missingSources: number;
+    missingOrigin: number;
+  };
+}
+
+export function getAdminStats(init?: RequestInit): Promise<AdminStatsResponse> {
+  return request<AdminStatsResponse>('/api/admin/stats', init);
+}
+
 export interface AdminDishSummary {
   id: string;
   slug: string;

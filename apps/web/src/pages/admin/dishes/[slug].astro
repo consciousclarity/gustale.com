@@ -21,8 +21,7 @@
  * vhost (Plan 5) and by the admin React island itself (which 401s
  * on /api/admin/* without a session).
  */
-import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { AdminDishEditor } from '../../../components/admin/AdminDishEditor';
 import { getAdminDish, getAdminLookups } from '../../../lib/api';
 
@@ -97,19 +96,23 @@ if (!initialDish || !lookups) {
 }
 ---
 
-<Layout title={`Admin · ${slug} — Gustale`} description="Edit dish">
-  <Breadcrumbs crumbs={[
+<AdminLayout
+  title={`Admin · ${initialDish.canonicalName} — Gustale`}
+  pageTitle="Edit dish"
+  active="dishes"
+  crumbs={[
     { href: '/admin', label: 'Admin' },
     { href: '/admin/dishes', label: 'Dishes' },
-    { label: slug },
-  ]} />
-
-  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem; max-width: 880px;">
+    { label: initialDish.canonicalName },
+  ]}
+  description="Edit dish"
+>
+  <div style="max-width: 880px;">
     <AdminDishEditor
       client:load
       initialDish={initialDish}
       lookups={lookups}
       apiBase=""
     />
-  </main>
-</Layout>
+  </div>
+</AdminLayout>
