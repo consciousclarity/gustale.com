@@ -6,11 +6,21 @@
 
 ## Last updated
 
-2026-06-26 by Claude Code — **/families and /lineages fully verified. 18 families, 14 lineages. CI passing.**
+2026-06-28 by Claude Code — **PR #15 (entity Lineages domain) landed + deployed; `/api/lineages` 500 fixed; migration `0006` applied + 14 lineages seeded to prod. Main green at `ae1fc29`.**
 
 ---
 
 ## ✅ Completed this session
+
+### 2026-06-28 — PR #15: entity Lineages domain (NEW — distinct from method-lineages)
+
+Shipped a **third** taxonomy axis: first-class **lineage entities** (`lineages` + `dish_lineages` tables, migration `0006_lineages`), `/lineages` index + `/lineages/[slug]` detail, and the `/api/lineages` route. 14 entities: filled-dough, stuffed-pasta, stuffed-leaves, flatbread, rice-pilaf, noodle-soup, skewered-grilled-meat, curry-spiced-stew, fermented-bean, fried-dough-pastry, preserved-fish, chili-condiment, wrapped-leaf, fermented-batter. **This is NOT the method-lineage axis** (`dish_preparations`/`methodSlug`, documented below) — both coexist.
+
+- **Merged:** PR #15 squash `b7ec20d`; `/api/lineages` 500 fix [PR #17] `ae1fc29`. **Main green at `ae1fc29`.**
+- **Prod DB:** migration `0006_lineages` applied manually; 14 lineages + 33 dish-lineage edges seeded (targeted seed, no other tables touched). `/api/lineages` → 200, `totalLineages: 14`.
+- **`/api/lineages` 500 bug (fixed):** the `counts` subquery in `apps/api/src/routes/lineages.ts` selected raw `sql\`\`` `dishCount`/`relationCount` without `.as()` → drizzle threw. CI missed it (web build uses the JS mock-api; vitest doesn't hit the query).
+- **⚠️ mock-api-data.json SHAPE HAZARD:** the blob MUST stay `{ generatedFrom, list, map, details }` (~228 KB). A raw `/api/dishes` dump `{ dishes, limit, offset }` (~32 KB) makes `mock-api.mjs` serve 0 dishes → CI red. `alex` (geekom) pushed that wrong shape to main **3×** (`502dcf2`, `3b6b32f`, `f0f5da2`) via an automated *"refresh SSG mock data from live API"* — each was reverted/restored. **Do not run that refresh against main.**
+- **Migration deploy note:** CI deploy does NOT run migrations, and the documented `/srv/gustale` path is **stale** (deploy dir is `/home/deploy/gustale.com`, image-only). Apply via `docker exec -u postgres shared-postgres psql` + insert the drizzle `__drizzle_migrations` tracking row (resync the `__drizzle_migrations_id_seq` sequence first — it was behind `max(id)`).
 
 ### Mock API architecture (the SSG stale-data solution)
 
@@ -55,7 +65,7 @@ GitHub Actions runner IPs are blocked by the VPS firewall, so CI cannot reach `a
 | `b3b58f9` | fix(ci): drop firewall-blocked API health-check gate | Passed (#139) |
 | `284d566` | fix(ci): mock API serves real 60-dish data | Passed (#138) |
 
-Main branch SHA: `01cd64c`
+Main branch SHA: `ae1fc29` (2026-06-28 — PR #15 lineages + #17 api fix; CI green, deployed)
 
 ---
 
