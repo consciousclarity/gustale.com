@@ -1,0 +1,276 @@
+---
+/**
+ * AdminLayout.astro — shell for the admin control panel.
+ *
+ * Provides a persistent left sidebar (collapses to an off-canvas drawer
+ * on tablet/mobile), a sticky top bar with the page title + breadcrumbs +
+ * admin context, and a centered content column for the page <slot/>.
+ *
+ * Used by every /admin/* page so the navigation persists across the
+ * section. Access is gated upstream by src/middleware.ts (admin role)
+ * and by each admin API endpoint; this layout only reads the resolved
+ * user from Astro.locals for display.
+ *
+ * Props:
+ *   - title:       <title> text
+ *   - pageTitle:   heading shown in the top bar
+ *   - active:      which sidebar nav key is current (highlight)
+ *   - crumbs:      optional breadcrumb trail rendered in the top bar
+ *   - description: meta description
+ */
+import '../styles/global.css';
+import '../styles/admin.css';
+
+interface Crumb {
+  href?: string;
+  label: string;
+}
+
+export interface Props {
+  title: string;
+  pageTitle?: string;
+  active?: string;
+  crumbs?: Crumb[];
+  description?: string;
+}
+
+const {
+  title,
+  pageTitle,
+  active = '',
+  crumbs = [],
+  description = 'Gustale admin control panel.',
+} = Astro.props;
+
+const user = Astro.locals.user ?? null;
+const userName = user?.name || user?.email?.split('@')[0] || 'Admin';
+const userRole = user?.role ?? 'admin';
+
+// Thin stroke-based icon set (matches the site's line work).
+const ICONS: Record<string, string> = {
+  dashboard: '<rect x="3" y="3" width="6.5" height="8" rx="1"/><rect x="3" y="13" width="6.5" height="4" rx="1"/><rect x="10.5" y="3" width="6.5" height="4" rx="1"/><rect x="10.5" y="9" width="6.5" height="8" rx="1"/>',
+  dishes: '<path d="M3 11h14"/><path d="M10 4a6 6 0 0 1 6 6H4a6 6 0 0 1 6-6Z"/><path d="M6 16h8"/>',
+  plus: '<path d="M10 4v12M4 10h12"/>',
+  families: '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/>',
+  lineages: '<circle cx="5" cy="5" r="2"/><circle cx="15" cy="15" r="2"/><path d="M6.5 6.5 13.5 13.5"/><path d="M13 5h2v2"/>',
+  regions: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14"/><path d="M10 3c2.5 2 2.5 12 0 14M10 3c-2.5 2-2.5 12 0 14"/>',
+  external: '<path d="M7 4H4v12h12v-3"/><path d="M11 4h5v5"/><path d="M16 4l-7 7"/>',
+  menu: '<path d="M3 6h14M3 10h14M3 14h14"/>',
+  sun: '<circle cx="10" cy="10" r="3.6"/><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6 16 16M16 4l-1.4 1.4M5.4 14.6 4 16"/>',
+  moon: '<path d="M16 11.5A6.5 6.5 0 1 1 8.5 4a5 5 0 0 0 7.5 7.5Z"/>',
+};
+
+interface NavLink {
+  key: string;
+  href: string;
+  label: string;
+  icon: string;
+  external?: boolean;
+}
+interface NavGroup {
+  label: string;
+  links: NavLink[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Manage',
+    links: [
+      { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: 'dashboard' },
+      { key: 'dishes', href: '/admin/dishes', label: 'Dishes', icon: 'dishes' },
+      { key: 'new', href: '/dishes/new', label: 'Add dish', icon: 'plus' },
+    ],
+  },
+  {
+    label: 'Taxonomy',
+    links: [
+      { key: 'families', href: '/families', label: 'Families', icon: 'families' },
+      { key: 'lineages', href: '/lineages', label: 'Lineages', icon: 'lineages' },
+      { key: 'regions', href: '/regions', label: 'Regions', icon: 'regions' },
+    ],
+  },
+  {
+    label: 'System',
+    links: [
+      { key: 'site', href: '/', label: 'View public site', icon: 'external', external: true },
+    ],
+  },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title}</title>
+    <!-- Set theme before paint to avoid a flash. -->
+    <script is:inline>
+      try {
+        var t = localStorage.getItem('gustale-admin-theme');
+        if (t === 'dark' || t === 'light') {
+          document.documentElement.setAttribute('data-theme', t);
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div class="adm" id="adm-shell">
+      <button class="adm-scrim" id="adm-scrim" aria-label="Close menu" tabindex="-1"></button>
+
+      <aside class="adm-sidebar" id="adm-sidebar" aria-label="Admin navigation">
+        <a class="adm-brand" href="/admin">
+          <span class="adm-brand__mark">Gustale</span>
+          <span class="adm-brand__tag">Admin</span>
+        </a>
+
+        <nav class="adm-nav">
+          {navGroups.map((group) => (
+            <div class="adm-nav__group">
+              <div class="adm-nav__label">{group.label}</div>
+              {group.links.map((link) => (
+                <a
+                  class="adm-nav__link"
+                  href={link.href}
+                  aria-current={active === link.key ? 'page' : undefined}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    set:html={ICONS[link.icon]}
+                  />
+                  <span>{link.label}</span>
+                  {link.external && (
+                    <svg
+                      class="adm-nav__ext"
+                      width="13"
+                      height="13"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                      set:html={ICONS.external}
+                    />
+                  )}
+                </a>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div class="adm-side-foot">
+          <span class="adm-avatar" aria-hidden="true"></span>
+          <span class="adm-side-foot__txt">
+            <span class="adm-side-foot__name">{userName}</span>
+            <span class="adm-side-foot__role">{userRole}</span>
+          </span>
+        </div>
+      </aside>
+
+      <div class="adm-main">
+        <header class="adm-topbar">
+          <button
+            class="adm-iconbtn adm-burger"
+            id="adm-burger"
+            aria-label="Open navigation menu"
+            aria-controls="adm-sidebar"
+            aria-expanded="false"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" set:html={ICONS.menu} />
+          </button>
+
+          {crumbs.length > 0 ? (
+            <nav class="adm-topbar__crumbs" aria-label="Breadcrumb">
+              {crumbs.map((c, i) => (
+                <span style="display:inline-flex;align-items:center;">
+                  {i > 0 && <span class="adm-topbar__sep">/</span>}
+                  {c.href ? (
+                    <a href={c.href}>{c.label}</a>
+                  ) : (
+                    <span class="adm-topbar__cur">{c.label}</span>
+                  )}
+                </span>
+              ))}
+            </nav>
+          ) : (
+            <h1 class="adm-topbar__title">{pageTitle ?? title}</h1>
+          )}
+
+          <div class="adm-topbar__spacer"></div>
+
+          <div class="adm-topbar__actions">
+            <button class="adm-iconbtn" id="adm-theme" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="adm-theme-sun" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={ICONS.sun} />
+              <svg class="adm-theme-moon" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:none" set:html={ICONS.moon} />
+            </button>
+            <a class="adm-viewsite" href="/" >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" set:html={ICONS.external} />
+              <span>View site</span>
+            </a>
+          </div>
+        </header>
+
+        <main class="adm-content">
+          <slot />
+        </main>
+      </div>
+    </div>
+
+    <script is:inline>
+      (function () {
+        var shell = document.getElementById('adm-shell');
+        var burger = document.getElementById('adm-burger');
+        var scrim = document.getElementById('adm-scrim');
+
+        function setDrawer(open) {
+          if (!shell) return;
+          shell.setAttribute('data-drawer', open ? 'open' : 'closed');
+          if (burger) burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        if (burger) burger.addEventListener('click', function () {
+          setDrawer(shell.getAttribute('data-drawer') !== 'open');
+        });
+        if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') setDrawer(false);
+        });
+        // Close the drawer after following a nav link on mobile.
+        document.querySelectorAll('.adm-nav__link').forEach(function (a) {
+          a.addEventListener('click', function () { setDrawer(false); });
+        });
+
+        // Theme toggle.
+        var themeBtn = document.getElementById('adm-theme');
+        var sun = document.querySelector('.adm-theme-sun');
+        var moon = document.querySelector('.adm-theme-moon');
+        function syncThemeIcon() {
+          var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+          if (sun) sun.style.display = dark ? 'none' : '';
+          if (moon) moon.style.display = dark ? '' : 'none';
+        }
+        syncThemeIcon();
+        if (themeBtn) themeBtn.addEventListener('click', function () {
+          var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+          var next = dark ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          try { localStorage.setItem('gustale-admin-theme', next); } catch (e) {}
+          syncThemeIcon();
+        });
+      })();
+    </script>
+  </body>
+</html>

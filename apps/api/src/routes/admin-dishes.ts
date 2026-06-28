@@ -28,6 +28,9 @@ import {
   preparationMethods,
   geoEntities,
   ingredients,
+  tags,
+  media,
+  mediaAttachments,
   sources,
   citations,
   editHistory,
@@ -117,6 +120,82 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       preparationMethods: methods,
       geoEntities: geos,
       ingredients: ings,
+    });
+  });
+
+  // ─── GET /api/admin/stats ────────────────────────────────────────────
+  // Aggregate counts for the admin dashboard control center. Read-only,
+  // admin-gated. Returns dish status counts, taxonomy term counts, total
+  // media, and content-health gaps (dishes missing a cover photo, a
+  // description, any source, or an origin). One round-trip; cheap at the
+  // current corpus size. The dashboard degrades gracefully if this
+  // endpoint is absent (older deploy) by deriving partial counts from
+  // /api/admin/dishes + /api/admin/lookups instead.
+  app.get('/api/admin/stats', async (request, reply) => {
+    await app.requireRole(request, 'admin');
+
+    const [
+      dishCounts,
+      healthCounts,
+      catCount,
+      familyCount,
+      methodCount,
+      geoCount,
+      ingCount,
+      tagCount,
+      mediaCount,
+    ] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`cast(count(*) as int)`,
+          published: sql<number>`cast(count(*) filter (where ${dishes.status} = 'published') as int)`,
+          draft: sql<number>`cast(count(*) filter (where ${dishes.status} = 'draft') as int)`,
+          archived: sql<number>`cast(count(*) filter (where ${dishes.status} = 'archived') as int)`,
+        })
+        .from(dishes),
+      db
+        .select({
+          missingDescription: sql<number>`cast(count(*) filter (where ${dishes.shortDescription} is null or ${dishes.longDescription} is null) as int)`,
+          missingOrigin: sql<number>`cast(count(*) filter (where ${dishes.originGeoId} is null) as int)`,
+          missingPhoto: sql<number>`cast(count(*) filter (where not exists (select 1 from ${mediaAttachments} ma where ma.target_type = 'dish' and ma.target_id = ${dishes.id} and ma.role = 'cover')) as int)`,
+          missingSources: sql<number>`cast(count(*) filter (where not exists (select 1 from ${citations} c where c.target_type = 'dish' and c.target_id = ${dishes.id})) as int)`,
+        })
+        .from(dishes),
+      db.select({ n: sql<number>`cast(count(*) as int)` }).from(categories),
+      db
+        .select({ n: sql<number>`cast(count(*) as int)` })
+        .from(categories)
+        .where(sql`${categories.slug} like 'family-%'`),
+      db.select({ n: sql<number>`cast(count(*) as int)` }).from(preparationMethods),
+      db.select({ n: sql<number>`cast(count(*) as int)` }).from(geoEntities),
+      db.select({ n: sql<number>`cast(count(*) as int)` }).from(ingredients),
+      db.select({ n: sql<number>`cast(count(*) as int)` }).from(tags),
+      db.select({ n: sql<number>`cast(count(*) as int)` }).from(media),
+    ]);
+
+    reply.header('Cache-Control', 'private, max-age=30');
+    return reply.send({
+      dishes: {
+        total: dishCounts[0]?.total ?? 0,
+        published: dishCounts[0]?.published ?? 0,
+        draft: dishCounts[0]?.draft ?? 0,
+        archived: dishCounts[0]?.archived ?? 0,
+      },
+      taxonomy: {
+        categories: catCount[0]?.n ?? 0,
+        families: familyCount[0]?.n ?? 0,
+        lineages: methodCount[0]?.n ?? 0,
+        regions: geoCount[0]?.n ?? 0,
+        ingredients: ingCount[0]?.n ?? 0,
+        tags: tagCount[0]?.n ?? 0,
+      },
+      media: { total: mediaCount[0]?.n ?? 0 },
+      health: {
+        missingDescription: healthCounts[0]?.missingDescription ?? 0,
+        missingPhoto: healthCounts[0]?.missingPhoto ?? 0,
+        missingSources: healthCounts[0]?.missingSources ?? 0,
+        missingOrigin: healthCounts[0]?.missingOrigin ?? 0,
+      },
     });
   });
 

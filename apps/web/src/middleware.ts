@@ -11,11 +11,17 @@
  * user including role. This avoids re-implementing session validation
  * and signature checks in the middleware.
  *
- * Build-time safety: if the API is unreachable (e.g. CI / local build
- * with no DB), the middleware fails open on /admin/* — pages render but
- * with no session data, and the admin React islands will fail their
- * own /api/admin/* requests with 401 if a real visitor hits them.
- * This means `astro build` always succeeds.
+ * Build-time safety: the site ships as a fully-static Astro build (no
+ * SSR adapter), so this middleware runs only during `astro build`, where
+ * there is no request cookie. In that case — and for any request without
+ * a session cookie — it FAILS OPEN: the admin pages are emitted as real
+ * static HTML (shell only; no data) instead of a /login redirect stub.
+ *
+ * That is safe because the static shell carries no privileged data: every
+ * /api/admin/* call requires admin auth (401 otherwise) and the edge
+ * (Caddy, infra/prod/Caddyfile) only exposes /admin on the admins' host
+ * and 404s it everywhere else. When a session cookie IS present (e.g. an
+ * SSR deploy, or local dev), the full role gate below still applies.
  */
 import { defineMiddleware } from 'astro:middleware';
 
@@ -49,6 +55,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
     ?? 'https://api.gustale.recipes';
 
   const cookieHeader = context.request.headers.get('cookie') ?? '';
+
+  // No session cookie → no session context to validate. This is the
+  // build-time (static prerender) path, and also any anonymous request.
+  // Fail open: render the admin shell and let the edge (Caddy) + the
+  // admin API (401 on /api/admin/*) enforce access. Without this guard,
+  // `astro build` would bake a /login redirect stub into every /admin
+  // page, making the admin UI unreachable in the static deploy.
+  if (!cookieHeader) {
+    return next();
+  }
 
   let user: SessionUser | null = null;
   try {

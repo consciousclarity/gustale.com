@@ -7,11 +7,10 @@
  * server-side requireRole('admin') check succeeds. If the API is
  * unreachable (CI build), the page renders with empty data + a banner.
  *
- * Bug fix: Breadcrumbs uses `crumbs` prop (NOT `items`). The reverted
- * PR had `<Breadcrumbs items={...} />` which TypeScript rejected.
+ * Shell: AdminLayout (persistent sidebar + top bar). The list itself is
+ * the unchanged <AdminDishList /> React island.
  */
-import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { AdminDishList } from '../../../components/admin/AdminDishList';
 import { listAdminDishes } from '../../../lib/api';
 
@@ -39,38 +38,40 @@ try {
 }
 ---
 
-<Layout title="Admin · Dishes — Gustale" description="Manage dishes">
-  <Breadcrumbs crumbs={[
-    { href: '/admin', label: 'Admin' },
-    { label: 'Dishes' },
-  ]} />
-
-  <main class="wrap" style="padding-top: 2rem; padding-bottom: 4rem;">
-    <h1 style="font-family: var(--display); font-size: 2rem; margin-bottom: 0.5rem;">Dishes</h1>
-    <p class="sub" style="margin-bottom: 2rem;">
-      {initialTotal} {initialTotal === 1 ? 'dish' : 'dishes'} total
+<AdminLayout
+  title="Admin · Dishes — Gustale"
+  pageTitle="Dishes"
+  active="dishes"
+  crumbs={[{ href: '/admin', label: 'Admin' }, { label: 'Dishes' }]}
+  description="Manage dishes"
+>
+  <header class="a-pagehead">
+    <p class="a-eyebrow">Dishes</p>
+    <h1>All <em>dishes</em></h1>
+    <p class="a-pagehead__lede">
+      {initialTotal} {initialTotal === 1 ? 'dish' : 'dishes'} in the archive — search, filter and edit.
     </p>
+  </header>
 
-    {loadError && (
-      <div class="admin-error-banner">
-        Could not load dish list: {loadError}
-      </div>
-    )}
+  {loadError && (
+    <div class="admin-error-banner">
+      Could not load dish list: {loadError}
+    </div>
+  )}
 
-    <AdminDishList
-      client:load
-      initialDishes={initialDishes}
-      initialTotal={initialTotal}
-      apiBase=""
-    />
-  </main>
-</Layout>
+  <AdminDishList
+    client:load
+    initialDishes={initialDishes}
+    initialTotal={initialTotal}
+    apiBase=""
+  />
+</AdminLayout>
 
 <style>
   .admin-error-banner {
     background: var(--accent-soft);
     border: 1px solid var(--accent);
-    color: var(--accent-ink);
+    color: var(--accent-dark);
     padding: 1rem;
     border-radius: var(--radius);
     margin-bottom: 1.5rem;
