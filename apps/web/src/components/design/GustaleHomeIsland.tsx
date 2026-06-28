@@ -36,48 +36,23 @@ type SortKey = 'name' | 'origin' | 'family';
 
 interface ParsedFilters {
   q: string;
-  country: string[];   // origin country: Japan, Italy, Thailand…
-  cuisine: string[];   // cuisine category (legacy: category key)
-  type: string[];     // dish-type category: Noodle soup, Stew, Pasta…
+  origin: string[];
   ingredient: string[];
   technique: string[];
-  period: string[];   // historical era: 1880-1900, 1920-1950…
+  region: string[];
 }
-
-const CATEGORIES = new Set(['korean cuisine','italian cuisine','japanese cuisine','thai cuisine','vietnamese cuisine','spanish cuisine','french cuisine','indian cuisine','indonesian cuisine','singaporean cuisine','israeli cuisine','polish cuisine','greek cuisine','american cuisine','canadian cuisine','brazilian cuisine','peruvian cuisine','moroccan cuisine','hungarian cuisine','british cuisine','nigerian cuisine','lebanese cuisine','austrian cuisine','main course','stew','pasta','soup','noodle soup','appetizer','salad','sandwich','dumpling','moussaka','kebab','fried rice','stir-fry','dessert','rice dish']);
 
 function parseQuery(raw: string): ParsedFilters {
   const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
   const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
-  const rawFilters: ParsedFilters = {
-    q: '',
-    country: [], cuisine: [], type: [], ingredient: [], technique: [], period: [],
-  };
+  const filters = { origin: [] as string[], ingredient: [] as string[], technique: [] as string[], region: [] as string[] };
   for (const tok of tokens) {
     const colon = tok.indexOf(':');
     const key = tok.slice(0, colon).toLowerCase();
-    const val = tok.slice(colon + 1).toLowerCase();
-    if (key === 'origin' || key === 'country' || key === 'region') {
-      rawFilters.country.push(val);
-    } else if (key === 'cuisine' || key === 'category') {
-      // cuisine vs type is inferred from the value itself
-      if (CATEGORIES.has(val) || val.includes('cuisine') || val.includes('soup') || val.includes('stew') || val.includes('pasta') || val.includes('salad') || val.includes('sandwich') || val.includes('dumpling') || val.includes('kebab') || val.includes('rice') || val.includes('stir-fry') || val.includes('dessert')) {
-        rawFilters.cuisine.push(val);
-      } else {
-        rawFilters.cuisine.push(val);
-      }
-    } else if (key === 'type' || key === 'dish-type') {
-      rawFilters.type.push(val);
-    } else if (key === 'ingredient') {
-      rawFilters.ingredient.push(val);
-    } else if (key === 'technique') {
-      rawFilters.technique.push(val);
-    } else if (key === 'period' || key === 'era' || key === 'date') {
-      rawFilters.period.push(val);
-    }
+    const val = tok.slice(colon + 1);
+    if (key in filters) (filters as any)[key].push(val);
   }
-  rawFilters.q = freetext;
-  return rawFilters;
+  return { q: freetext, ...filters };
 }
 
 // ─── Atlas view ─────────────────────────────────────────────────────────────
@@ -92,6 +67,23 @@ function AtlasView({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [active, setActive] = useState<string | null>(null);
+  const [showRegions, setShowRegions] = useState(true);
+  const [regionData, setRegionData] = useState(null);
+  const [countryFilter, setCountryFilter] = useState('all');
+
+  // Fetch region data
+  useEffect(() => {
+    fetch('/data/regions/sample-food-regions.geojson')
+      .then(response => response.json())
+      .then(data => setRegionData(data))
+      .catch(error => console.error('Error loading region data:', error));
+  }, []);
+  
+  // Create a unique list of countries from the dish data for the filter
+  const countries = useMemo(() => {
+    const countrySet = new Set(mapDishes.map(d => d.region.name).filter(Boolean));
+    return ['all', ...Array.from(countrySet).sort()];
+  }, [mapDishes]);
 
   // Group list dishes by region for the sidebar
   const byRegion = useMemo(() => {
@@ -102,7 +94,7 @@ function AtlasView({
       if (!map.has(r)) map.set(r, []);
       map.get(r)!.push(d);
     }
-    return Array.from(map.entries())
+    return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([region, dishes]) => ({
         region,
@@ -115,26 +107,174 @@ function AtlasView({
       if (!mapRef.current || mapInstanceRef.current) return;
       const map = new (window as any).maplibregl.Map({
         container: mapRef.current,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: '© OpenStreetMap contributors',
-            },
-          },
-          layers: [{ id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }],
-        },
+        style: 'https://demotiles.maplibre.org/style.json', // A clean, free vector style
         center: [20, 20],
         zoom: 1.5,
+        projection: 'globe', // The magic!
         attributionControl: false,
       });
+
+      map.on('style.load', () => {
+        map.setFog({}); // Adds a realistic atmospheric fog effect to the globe
+      });
+
       map.addControl(new (window as any).maplibregl.NavigationControl(), 'top-right');
       mapInstanceRef.current = map;
+
+      map.on('load', () => {
+        // Add dish points source
+        map.addSource('dish-points', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: mapDishes.map(dish => ({
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [dish.lng, dish.lat]
+              },
+              properties: {
+                slug: dish.slug,
+                name: dish.canonicalName,
+                description: dish.shortDescription,
+                region: dish.region.name,
+              }
+            }))
+          },
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50
+        });
+
+        // Add layer for clusters
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: 'dish-points',
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#51bbd6',
+              100,
+              '#f1f075',
+              750,
+              '#f28cb1'
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              20,
+              100,
+              30,
+              750,
+              40
+            ]
+          }
+        });
+
+        // Add layer for cluster count text
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: 'dish-points',
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+            'text-size': 12
+          }
+        });
+
+        // Add layer for unclustered points
+        map.addLayer({
+          id: 'unclustered-point',
+          type: 'circle',
+          source: 'dish-points',
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': '#11b4da',
+            'circle-radius': 6,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff'
+          }
+        });
+
+        // Click event for unclustered points to show popup
+        map.on('click', 'unclustered-point', (e) => {
+          const coordinates = e.features[0].geometry.coordinates.slice();
+          const { name, description, region, slug } = e.features[0].properties;
+
+          // Ensure that if the map is zoomed out such that multiple
+          // copies of the feature are visible, the popup appears
+          // over the copy being pointed to.
+          while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+          }
+
+          new (window as any).maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-family: sans-serif; max-width: 200px;">
+                <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 4px 0;">${name}</h3>
+                <p style="font-size: 0.8rem; margin: 0 0 8px 0; color: #555;">${description || region}</p>
+                <a href="/dishes/${slug}" style="font-size: 0.8rem; color: #007bff;">View Dish &rarr;</a>
+              </div>
+            `)
+            .addTo(map);
+        });
+
+        // Change cursor to pointer on hover
+        map.on('mouseenter', 'unclustered-point', () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', 'unclustered-point', () => {
+          map.getCanvas().style.cursor = '';
+        });
+
+        // Add food region layer
+        if (regionData) {
+            map.addSource('food-regions', {
+                'type': 'geojson',
+                'data': regionData
+            });
+
+            map.addLayer({
+                'id': 'regions-layer',
+                'type': 'fill',
+                'source': 'food-regions',
+                'paint': {
+                    'fill-color': '#088',
+                    'fill-opacity': 0.3
+                }
+            });
+        }
+      });
     });
-  }, []);
+  }, [mapDishes, regionData]);
+
+  // Effect to toggle layer visibility
+  useEffect(() => {
+    if (mapInstanceRef.current?.getLayer('regions-layer')) {
+      mapInstanceRef.current.setLayoutProperty('regions-layer', 'visibility', showRegions ? 'visible' : 'none');
+    }
+  }, [showRegions]);
+
+  // Effect to filter points by country
+  useEffect(() => {
+    if (mapInstanceRef.current?.getSource('dish-points')) {
+      if (countryFilter === 'all') {
+        mapInstanceRef.current.setFilter('unclustered-point', ['!', ['has', 'point_count']]);
+        mapInstanceRef.current.setFilter('clusters', ['has', 'point_count']);
+      } else {
+        mapInstanceRef.current.setFilter('unclustered-point', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'region'], countryFilter]]);
+        // Note: This simple filter will hide clusters if they contain points from multiple countries.
+        // A more advanced implementation would require data-driven styling or source-side filtering.
+        mapInstanceRef.current.setFilter('clusters', ['has', 'point_count']);
+      }
+    }
+  }, [countryFilter]);
 
   return (
     <div className="atl-grid">
@@ -143,6 +283,14 @@ function AtlasView({
         <div className="atl-maplabel">
           <span>{mapDishes.length} dishes plotted</span>
           <span>© OpenStreetMap</span>
+        </div>
+        <div className="atl-filters">
+          <select onChange={(e) => setCountryFilter(e.target.value)} value={countryFilter}>
+            {countries.map(c => <option key={c} value={c}>{c === 'all' ? 'All Countries' : c}</option>)}
+          </select>
+          <button onClick={() => setShowRegions(!showRegions)}>
+            {showRegions ? 'Hide' : 'Show'} Regions
+          </button>
         </div>
       </div>
       <div className="atl-list">
@@ -159,7 +307,7 @@ function AtlasView({
                 onMouseLeave={() => setActive(null)}
               >
                 <span className="nm">{d.canonicalName}</span>
-                <span className="co">{d.list?.familyName ?? ''}</span>
+                <span className="co">{d.list?.methodSlug ?? ''}</span>
                 <span className="cd">{region}</span>
               </a>
             ))}
@@ -179,7 +327,7 @@ function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
     return [...dishes].sort((a, b) => {
       if (sort === 'name') return a.canonicalName.localeCompare(b.canonicalName);
       if (sort === 'origin') return (a.originName ?? '').localeCompare(b.originName ?? '');
-      if (sort === 'family') return (a.familyName ?? '').localeCompare(b.familyName ?? '');
+      if (sort === 'family') return (a.methodSlug ?? '').localeCompare(b.methodSlug ?? '');
       return 0;
     });
   }, [dishes, sort]);
@@ -196,7 +344,7 @@ function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
         <a key={d.slug} href={`/dishes/${d.slug}`} className="idx-row">
           <span className="name">{d.canonicalName}</span>
           <span className="org">{d.originName ?? '—'}</span>
-          <span className="idx-tag">{d.familyName ?? '—'}</span>
+          <span className="idx-tag">{d.methodSlug ?? '—'}</span>
           <span style={{ color: 'var(--sub)', fontSize: '14px' }}>{d.shortDescription ?? ''}</span>
         </a>
       ))}
@@ -246,7 +394,7 @@ function FeedView({ dishes }: { dishes: DishListResponse['dishes'] }) {
             <h3>{d.canonicalName}</h3>
             <p>{d.shortDescription ?? ''}</p>
             <div className="feed-meta">
-              <span>Family <b>{d.familyName ?? '—'}</b></span>
+              <span>Family <b>{d.methodSlug ?? '—'}</b></span>
               <span>Origin <b>{d.originName ?? '—'}</b></span>
             </div>
           </div>
@@ -266,12 +414,10 @@ function FilterChips({
   onRemove: (key: string, val: string) => void;
 }) {
   const all = [
-    ...filters.country.map(v => ({ k: 'country', v })),
-    ...filters.cuisine.map(v => ({ k: 'cuisine', v })),
-    ...filters.type.map(v => ({ k: 'type', v })),
+    ...filters.origin.map(v => ({ k: 'origin', v })),
     ...filters.ingredient.map(v => ({ k: 'ingredient', v })),
     ...filters.technique.map(v => ({ k: 'technique', v })),
-    ...filters.period.map(v => ({ k: 'period', v })),
+    ...filters.region.map(v => ({ k: 'region', v })),
   ];
   if (all.length === 0) return null;
   return (
@@ -309,12 +455,10 @@ export default function GustaleHomeIsland() {
       setError(null);
       const params: any = { limit: 100 };
       if (parsed.q) params.search = parsed.q;
-      if (parsed.country[0]) params.country = parsed.country[0];
-      if (parsed.cuisine[0]) params.cuisine = parsed.cuisine[0];
-      if (parsed.type[0]) params.type = parsed.type[0];
+      if (parsed.origin[0]) params.origin = parsed.origin[0];
       if (parsed.ingredient[0]) params.ingredient = parsed.ingredient[0];
       if (parsed.technique[0]) params.technique = parsed.technique[0];
-      if (parsed.period[0]) params.period = parsed.period[0];
+      if (parsed.region[0]) params.region = parsed.region[0];
       listDishes(params)
         .then(setListData)
         .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
@@ -358,7 +502,7 @@ export default function GustaleHomeIsland() {
           <div className="hero-search">
             <input
               type="search"
-              placeholder='Try "ramen", country:Japan, cuisine:Korean, type:Noodle soup, ingredient:saffron, technique:baking, period:1920…'
+              placeholder='Try "ramen", origin:Japan, ingredient:saffron…'
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
