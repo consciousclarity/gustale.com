@@ -1,303 +1,504 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { listDishes } from '../../lib/api';
-import type { DishListResponse } from '../../types/dish';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { listDishes, getMapDishes } from '../../lib/api';
+import type { MapDish } from '../../lib/api';
+import type { DishSummary } from '../../types/dish';
+import type { FoodRegionFeature } from '../../types/map';
 
-// MapLibre — loaded from CDN on demand
-let mapLoaded = false;
-let mapLoading = false;
-const loadCallbacks: Array<() => void> = [];
-function ensureMapLibre(cb: () => void) {
-  if (mapLoaded) { cb(); return; }
-  loadCallbacks.push(cb);
-  if (mapLoading) return;
-  mapLoading = true;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css';
-  document.head.appendChild(link);
-  const script = document.createElement('script');
-  script.src = 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js';
-  script.onload = () => { mapLoaded = true; mapLoading = false; loadCallbacks.forEach(c => c()); loadCallbacks.length = 0; };
-  document.head.appendChild(script);
-}
-
-// Map endpoint types
-interface MapDish {
-  slug: string;
-  canonicalName: string;
-  shortDescription: string | null;
-  lat: number;
-  lng: number;
-  region: { name: string; localName: string | null; isoCode: string | null };
-}
+// IMPORTANT: maplibre-gl is dynamically imported inside the effect, NOT
+// statically imported at the top. A static import executes at module-eval
+// time, which means the component would try to evaluate MapLibre's WebGL
+// helpers during Astro SSR and crash the build / blank the island. The
+// dynamic import keeps the initial payload tiny and defers the WebGL
+// dependency until the user actually sees the map. This mirrors the
+// pattern already used by <WorldMap> and <DishMap>.
+//
+// Type-only imports below are erased at build time — no runtime cost, no
+// module evaluation.
+import type {
+  Map as MlMap,
+  MapMouseEvent,
+  GeoJSONSource,
+  StyleSpecification,
+} from 'maplibre-gl';
 
 type ViewMode = 'atlas' | 'index' | 'gallery' | 'feed';
 type SortKey = 'name' | 'origin' | 'family';
 
-interface ParsedFilters {
-  q: string;
-  origin: string[];
-  ingredient: string[];
-  technique: string[];
-  region: string[];
+/**
+ * One unified record per dish, merged from two API endpoints:
+ *  - GET /api/dishes      → name, origin country, dish-type family, description
+ *  - GET /api/dishes/map  → lat/lng + region (only dishes that have coords)
+ *
+ * Every view (Atlas map + sidebar, Index, Gallery, Feed) and the filter
+ * controls all read from this single shape, so the map markers and the
+ * lists always follow the exact same filtered dataset.
+ */
+interface AtlasDish {
+  slug: string;
+  name: string;
+  /** Origin country/place. '' when unknown. */
+  country: string;
+  /** Primary dish-type category ("Noodle soup", "Stew"…). '' when unknown. */
+  family: string;
+  description: string;
+  lat: number | null;
+  lng: number | null;
+  /** True when the dish has usable origin coordinates. */
+  hasLocation: boolean;
 }
 
-function parseQuery(raw: string): ParsedFilters {
-  const tokens = raw.match(/(\S+):(\S+)/g) ?? [];
-  const freetext = raw.replace(/(\S+):(\S+)/g, '').trim();
-  const filters = { origin: [] as string[], ingredient: [] as string[], technique: [] as string[], region: [] as string[] };
-  for (const tok of tokens) {
-    const colon = tok.indexOf(':');
-    const key = tok.slice(0, colon).toLowerCase();
-    const val = tok.slice(colon + 1);
-    if (key in filters) (filters as any)[key].push(val);
-  }
-  return { q: freetext, ...filters };
+function mergeDishes(list: DishSummary[], map: MapDish[]): AtlasDish[] {
+  const mapBySlug = new Map(map.map((m) => [m.slug, m]));
+  return list.map((d) => {
+    const m = mapBySlug.get(d.slug);
+    const lat =
+      typeof m?.lat === 'number' && Number.isFinite(m.lat) ? m.lat : null;
+    const lng =
+      typeof m?.lng === 'number' && Number.isFinite(m.lng) ? m.lng : null;
+    return {
+      slug: d.slug,
+      name: d.canonicalName,
+      country: d.originName ?? m?.region?.name ?? '',
+      family: d.familyName ?? '',
+      description: d.shortDescription ?? '',
+      lat,
+      lng,
+      hasLocation: lat !== null && lng !== null,
+    };
+  });
 }
+
+// Cheap synchronous WebGL probe — the same guard used by <WorldMap> /
+// <DishMap>. If the browser can't get a WebGL context we never fetch the
+// ~1MB maplibre-gl bundle; we render the sidebar list as the fallback.
+function detectWebGL(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = (canvas.getContext('webgl2') ??
+      canvas.getContext('webgl') ??
+      canvas.getContext('experimental-webgl')) as unknown as
+      | WebGLRenderingContext
+      | null;
+    if (!gl) return false;
+    gl.getParameter(gl.VERSION);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Carto positron-voyager raster basemap — same look as the standalone
+// /map page and the per-dish mini-map. Free, no API key, OSM-derived.
+const MAP_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    'carto-positron': {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution:
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+    },
+  },
+  layers: [
+    {
+      id: 'carto-positron-layer',
+      type: 'raster',
+      source: 'carto-positron',
+    },
+  ],
+};
+
+function toFeatureCollection(dishes: AtlasDish[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: dishes.map((d) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [d.lng as number, d.lat as number] },
+      properties: {
+        slug: d.slug,
+        name: d.name,
+        country: d.country,
+        family: d.family,
+      },
+    })),
+  };
+}
+
+// Source/layer IDs we add on top of the basemap. Pulled out so cleanup
+// paths can find them without re-implementing the lookup.
+const REGION_SOURCE_ID = 'food-regions';
+const REGION_FILL_LAYER_ID = 'food-regions-fill';
 
 // ─── Atlas view ─────────────────────────────────────────────────────────────
 
-function AtlasView({
-  mapDishes,
-  listDishes,
-}: {
-  mapDishes: MapDish[];
-  listDishes: DishListResponse['dishes'];
-}) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+interface AtlasViewProps {
+  dishes: AtlasDish[];
+  showRegions: boolean;
+}
+
+function AtlasView({ dishes, showRegions }: AtlasViewProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MlMap | null>(null);
+  // True once the GeoJSON source/layers exist — gates marker updates.
+  const [styleLoaded, setStyleLoaded] = useState(false);
+  // True once the dynamic import resolves (hides the loading hint).
+  const [mapReady, setMapReady] = useState(false);
+  // Set when the map can't render at all (no WebGL, init failure, bundle
+  // load failure). Triggers the list-only fallback instead of a blank box.
+  const [mapError, setMapError] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
-  const [showRegions, setShowRegions] = useState(true);
-  const [regionData, setRegionData] = useState(null);
-  const [countryFilter, setCountryFilter] = useState('all');
 
-  // Fetch region data
-  useEffect(() => {
-    fetch('/data/regions/sample-food-regions.geojson')
-      .then(response => response.json())
-      .then(data => setRegionData(data))
-      .catch(error => console.error('Error loading region data:', error));
-  }, []);
-  
-  // Create a unique list of countries from the dish data for the filter
-  const countries = useMemo(() => {
-    const countrySet = new Set(mapDishes.map(d => d.region.name).filter(Boolean));
-    return ['all', ...Array.from(countrySet).sort()];
-  }, [mapDishes]);
+  // Dishes with usable coordinates — the only ones that can be plotted.
+  const plotted = useMemo(() => dishes.filter((d) => d.hasLocation), [dishes]);
 
-  // Group list dishes by region for the sidebar
+  // Sidebar: every filtered dish grouped by origin country (not just the
+  // plotted ones — the list is useful even without coords).
   const byRegion = useMemo(() => {
-    const slugToList = new Map(listDishes.map(d => [d.slug, d]));
-    const map = new Map<string, MapDish[]>();
-    for (const d of mapDishes) {
-      const r = d.region?.name ?? 'Unknown';
-      if (!map.has(r)) map.set(r, []);
-      map.get(r)!.push(d);
+    const groups = new Map<string, AtlasDish[]>();
+    for (const d of dishes) {
+      const key = d.country || 'Unknown';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(d);
     }
-    return [...map.entries()]
+    return Array.from(groups.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([region, dishes]) => ({
+      .map(([region, items]) => ({
         region,
-        dishes: dishes.map(d => ({ ...d, list: slugToList.get(d.slug) })),
+        items: items.slice().sort((a, b) => a.name.localeCompare(b.name)),
       }));
-  }, [mapDishes, listDishes]);
+  }, [dishes]);
 
+  // Initialise the map once on mount. Marker data is pushed separately by
+  // the effect below whenever the filtered set changes.
   useEffect(() => {
-    ensureMapLibre(() => {
-      if (!mapRef.current || mapInstanceRef.current) return;
-      const map = new (window as any).maplibregl.Map({
-        container: mapRef.current,
-        style: 'https://demotiles.maplibre.org/style.json', // A clean, free vector style
-        center: [20, 20],
-        zoom: 1.5,
-        projection: 'globe', // The magic!
-        attributionControl: false,
-      });
+    if (!containerRef.current) return;
+    let cancelled = false;
+    let map: MlMap | null = null;
 
-      map.on('style.load', () => {
-        map.setFog({}); // Adds a realistic atmospheric fog effect to the globe
-      });
+    if (!detectWebGL()) {
+      // eslint-disable-next-line no-console
+      console.warn('[GustaleHome] WebGL unavailable — showing list fallback');
+      setMapError(
+        'Your browser does not support WebGL, which is required for the interactive map. Browse the list of dishes instead.',
+      );
+      setMapReady(true);
+      return;
+    }
 
-      map.addControl(new (window as any).maplibregl.NavigationControl(), 'top-right');
-      mapInstanceRef.current = map;
+    void import('maplibre-gl')
+      .then((mod) => {
+        if (cancelled) return;
+        const maplibregl = mod.default ?? mod;
 
-      map.on('load', () => {
-        // Add dish points source
-        map.addSource('dish-points', {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: mapDishes.map(dish => ({
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: [dish.lng, dish.lat]
-              },
-              properties: {
-                slug: dish.slug,
-                name: dish.canonicalName,
-                description: dish.shortDescription,
-                region: dish.region.name,
-              }
-            }))
-          },
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 50
-        });
+        const accent =
+          (typeof document !== 'undefined' &&
+            getComputedStyle(document.documentElement)
+              .getPropertyValue('--accent')
+              .trim()) ||
+          '#B8552F';
 
-        // Add layer for clusters
-        map.addLayer({
-          id: 'clusters',
-          type: 'circle',
-          source: 'dish-points',
-          filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': [
-              'step',
-              ['get', 'point_count'],
-              '#51bbd6',
-              100,
-              '#f1f075',
-              750,
-              '#f28cb1'
-            ],
-            'circle-radius': [
-              'step',
-              ['get', 'point_count'],
-              20,
-              100,
-              30,
-              750,
-              40
-            ]
-          }
-        });
-
-        // Add layer for cluster count text
-        map.addLayer({
-          id: 'cluster-count',
-          type: 'symbol',
-          source: 'dish-points',
-          filter: ['has', 'point_count'],
-          layout: {
-            'text-field': '{point_count_abbreviated}',
-            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-            'text-size': 12
-          }
-        });
-
-        // Add layer for unclustered points
-        map.addLayer({
-          id: 'unclustered-point',
-          type: 'circle',
-          source: 'dish-points',
-          filter: ['!', ['has', 'point_count']],
-          paint: {
-            'circle-color': '#11b4da',
-            'circle-radius': 6,
-            'circle-stroke-width': 1,
-            'circle-stroke-color': '#fff'
-          }
-        });
-
-        // Click event for unclustered points to show popup
-        map.on('click', 'unclustered-point', (e) => {
-          const coordinates = e.features[0].geometry.coordinates.slice();
-          const { name, description, region, slug } = e.features[0].properties;
-
-          // Ensure that if the map is zoomed out such that multiple
-          // copies of the feature are visible, the popup appears
-          // over the copy being pointed to.
-          while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
-          }
-
-          new (window as any).maplibregl.Popup()
-            .setLngLat(coordinates)
-            .setHTML(`
-              <div style="font-family: sans-serif; max-width: 200px;">
-                <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 4px 0;">${name}</h3>
-                <p style="font-size: 0.8rem; margin: 0 0 8px 0; color: #555;">${description || region}</p>
-                <a href="/dishes/${slug}" style="font-size: 0.8rem; color: #007bff;">View Dish &rarr;</a>
-              </div>
-            `)
-            .addTo(map);
-        });
-
-        // Change cursor to pointer on hover
-        map.on('mouseenter', 'unclustered-point', () => {
-          map.getCanvas().style.cursor = 'pointer';
-        });
-        map.on('mouseleave', 'unclustered-point', () => {
-          map.getCanvas().style.cursor = '';
-        });
-
-        // Add food region layer
-        if (regionData) {
-            map.addSource('food-regions', {
-                'type': 'geojson',
-                'data': regionData
-            });
-
-            map.addLayer({
-                'id': 'regions-layer',
-                'type': 'fill',
-                'source': 'food-regions',
-                'paint': {
-                    'fill-color': '#088',
-                    'fill-opacity': 0.3
-                }
-            });
+        try {
+          map = new maplibregl.Map({
+            container: containerRef.current!,
+            style: MAP_STYLE,
+            center: [20, 20],
+            zoom: 1.4,
+            minZoom: 0.5,
+            maxZoom: 16,
+            attributionControl: { compact: true },
+          });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[GustaleHome] MapLibre init failed:', err);
+          setMapError(
+            'The interactive map could not be initialised in this browser. Browse the list of dishes instead.',
+          );
+          setMapReady(true);
+          return;
         }
+
+        const mapInstance = map;
+
+        mapInstance.on('error', (e: { error?: Error }) => {
+          // eslint-disable-next-line no-console
+          console.warn('[GustaleHome] MapLibre error:', e?.error?.message ?? e);
+        });
+
+        mapInstance.addControl(
+          new maplibregl.NavigationControl({ showCompass: false }),
+          'top-right',
+        );
+
+        mapRef.current = mapInstance;
+        setMapReady(true);
+
+        mapInstance.on('load', () => {
+          if (cancelled) return;
+
+          mapInstance.addSource('atlas', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+            cluster: true,
+            clusterRadius: 34,
+            clusterMaxZoom: 6,
+          });
+
+          // Soft halo behind each individual dot.
+          mapInstance.addLayer({
+            id: 'atlas-halo',
+            type: 'circle',
+            source: 'atlas',
+            filter: ['!', ['has', 'point_count']],
+            paint: {
+              'circle-radius': 11,
+              'circle-color': accent,
+              'circle-opacity': 0.2,
+            },
+          });
+
+          // Solid dot.
+          mapInstance.addLayer({
+            id: 'atlas-dot',
+            type: 'circle',
+            source: 'atlas',
+            filter: ['!', ['has', 'point_count']],
+            paint: {
+              'circle-radius': 5.5,
+              'circle-color': accent,
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 1.5,
+            },
+          });
+
+          // Cluster bubbles + counts.
+          mapInstance.addLayer({
+            id: 'atlas-clusters',
+            type: 'circle',
+            source: 'atlas',
+            filter: ['has', 'point_count'],
+            paint: {
+              'circle-radius': ['step', ['get', 'point_count'], 15, 10, 20, 25, 26],
+              'circle-color': accent,
+              'circle-opacity': 0.85,
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 2,
+            },
+          });
+          mapInstance.addLayer({
+            id: 'atlas-cluster-count',
+            type: 'symbol',
+            source: 'atlas',
+            filter: ['has', 'point_count'],
+            layout: {
+              'text-field': '{point_count_abbreviated}',
+              'text-size': 12,
+            },
+            paint: { 'text-color': '#ffffff' },
+          });
+
+          // Click a dot → open the dish. Click a cluster → zoom in.
+          const onDotClick = (
+            e: MapMouseEvent & { features?: GeoJSON.Feature[] },
+          ): void => {
+            const slug = e.features?.[0]?.properties?.slug as string | undefined;
+            if (slug) window.location.href = `/dishes/${slug}`;
+          };
+          const onClusterClick = (
+            e: MapMouseEvent & { features?: GeoJSON.Feature[] },
+          ): void => {
+            const f = e.features?.[0];
+            const clusterId = f?.properties?.cluster_id as number | undefined;
+            if (clusterId == null) return;
+            const src = mapInstance.getSource('atlas') as GeoJSONSource;
+            src
+              .getClusterExpansionZoom(clusterId)
+              .then((zoom) => {
+                const coords = (f!.geometry as GeoJSON.Point).coordinates as [
+                  number,
+                  number,
+                ];
+                mapInstance.easeTo({ center: coords, zoom, duration: 500 });
+              })
+              .catch(() => undefined);
+          };
+
+          for (const layer of ['atlas-dot', 'atlas-halo']) {
+            mapInstance.on('click', layer, onDotClick);
+            mapInstance.on('mouseenter', layer, () => {
+              mapInstance.getCanvas().style.cursor = 'pointer';
+            });
+            mapInstance.on('mouseleave', layer, () => {
+              mapInstance.getCanvas().style.cursor = '';
+            });
+          }
+          mapInstance.on('click', 'atlas-clusters', onClusterClick);
+          mapInstance.on('mouseenter', 'atlas-clusters', () => {
+            mapInstance.getCanvas().style.cursor = 'pointer';
+          });
+          mapInstance.on('mouseleave', 'atlas-clusters', () => {
+            mapInstance.getCanvas().style.cursor = '';
+          });
+
+          // Promote the basemap to a 3D globe. setProjection() is the
+          // MapLibre 5.x entry point — the constructor's `projection`
+          // option isn't in the public types yet. Mirrors the pattern
+          // already used by <WorldMap>.
+          mapInstance.setProjection({ type: 'globe' });
+          // Atmospheric horizon glow. MapLibre 5.x replaced `setFog` with
+          // `setSky`; the spec usesky-color / sky-horizon-blend / etc.
+          // Bound on `style.load` (not `load`) so the paint properties
+          // resolve against the loaded style. Errors are swallowed —
+          // a globe without sky still works.
+          try {
+            mapInstance.on('style.load', () => {
+              if (cancelled) return;
+              try {
+                mapInstance.setSky({
+                  'sky-color': '#1992ff',
+                  'sky-horizon-blend': 0.7,
+                  'horizon-color': '#dde7e8',
+                  'horizon-fog-blend': 0.8,
+                  'fog-color': '#e8e0d6',
+                  'fog-ground-blend': 0.6,
+                  'atmosphere-blend': 0.9,
+                } as Parameters<MlMap['setSky']>[0]);
+              } catch {
+                // Atmosphere is decorative; absent sky is fine.
+              }
+            });
+          } catch {
+            // Atmosphere is decorative; absent sky is fine.
+          }
+
+          // Region overlay: load the sample Food Regions GeoJSON
+          // fail-soft. If the fetch fails or the geometry is empty, the
+          // map still works — we just never set the toggle to "on" by
+          // default (the user can re-enable it).
+          (async () => {
+            try {
+              const res = await fetch('/data/regions/sample-food-regions.geojson');
+              if (!res.ok) throw new Error(`region fetch ${res.status}`);
+              const data = (await res.json()) as GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
+              if (!data?.features?.length) return;
+              // Validate against the canonical FoodRegionFeature type. We
+              // only render polygons (the SchemaGIS workflow produces
+              // these). Anything else is dropped silently.
+              const features = (data.features as FoodRegionFeature[]).filter(
+                (f): f is FoodRegionFeature =>
+                  f.geometry?.type === 'Polygon' ||
+                  f.geometry?.type === 'MultiPolygon',
+              );
+              if (!features.length) {
+                setStyleLoaded(true);
+                return;
+              }
+              const typed: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon> = {
+                type: 'FeatureCollection',
+                features,
+              };
+              mapInstance.addSource(REGION_SOURCE_ID, {
+                type: 'geojson',
+                data: typed,
+              });
+              mapInstance.addLayer({
+                id: REGION_FILL_LAYER_ID,
+                type: 'fill',
+                source: REGION_SOURCE_ID,
+                paint: {
+                  'fill-color': accent,
+                  'fill-opacity': 0.18,
+                  'fill-outline-color': accent,
+                },
+                layout: {
+                  visibility: showRegions ? 'visible' : 'none',
+                },
+              });
+              setStyleLoaded(true);
+            } catch (err) {
+              // eslint-disable-next-line no-console
+              console.warn('[GustaleHome] region overlay skipped:', err);
+              setStyleLoaded(true);
+            }
+          })();
+        });
+      })
+      .catch((err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[GustaleHome] failed to load maplibre-gl', err);
+        if (cancelled) return;
+        setMapError(
+          'The interactive map could not be loaded. Browse the list of dishes instead.',
+        );
+        setMapReady(true);
       });
-    });
-  }, [mapDishes, regionData]);
 
-  // Effect to toggle layer visibility
+    return () => {
+      cancelled = true;
+      if (map) map.remove();
+      mapRef.current = null;
+      setStyleLoaded(false);
+    };
+    // showRegions participates in *layer* visibility only, not in the
+    // map instance itself, so intentionally excluded from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push the current (filtered) dish set onto the map whenever it changes,
+  // so the markers always match the lists/sidebar.
   useEffect(() => {
-    if (mapInstanceRef.current?.getLayer('regions-layer')) {
-      mapInstanceRef.current.setLayoutProperty('regions-layer', 'visibility', showRegions ? 'visible' : 'none');
-    }
+    const map = mapRef.current;
+    if (!map || !styleLoaded) return;
+    const src = map.getSource('atlas') as GeoJSONSource | undefined;
+    if (src) src.setData(toFeatureCollection(plotted));
+  }, [plotted, styleLoaded]);
+
+  // Toggle the region overlay layer's visibility when the user flips the
+  // filter switch. No re-fetch, no re-add — we just flip the layout flag.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!map.getLayer(REGION_FILL_LAYER_ID)) return;
+    map.setLayoutProperty(
+      REGION_FILL_LAYER_ID,
+      'visibility',
+      showRegions ? 'visible' : 'none',
+    );
   }, [showRegions]);
-
-  // Effect to filter points by country
-  useEffect(() => {
-    if (mapInstanceRef.current?.getSource('dish-points')) {
-      if (countryFilter === 'all') {
-        mapInstanceRef.current.setFilter('unclustered-point', ['!', ['has', 'point_count']]);
-        mapInstanceRef.current.setFilter('clusters', ['has', 'point_count']);
-      } else {
-        mapInstanceRef.current.setFilter('unclustered-point', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'region'], countryFilter]]);
-        // Note: This simple filter will hide clusters if they contain points from multiple countries.
-        // A more advanced implementation would require data-driven styling or source-side filtering.
-        mapInstanceRef.current.setFilter('clusters', ['has', 'point_count']);
-      }
-    }
-  }, [countryFilter]);
 
   return (
     <div className="atl-grid">
       <div className="atl-map">
-        <div ref={mapRef} className="atl-mapbox" style={{ height: '460px' }} />
-        <div className="atl-maplabel">
-          <span>{mapDishes.length} dishes plotted</span>
-          <span>© OpenStreetMap</span>
+        <div className="atl-mapbox">
+          <div
+            ref={containerRef}
+            style={{ width: '100%', height: '100%', display: mapError ? 'none' : 'block' }}
+            aria-label="Interactive map of dish origins"
+          />
+          {!mapReady && !mapError && (
+            <div className="atl-mapmsg">Loading map…</div>
+          )}
+          {mapError && (
+            <div className="atl-mapmsg atl-mapmsg--err">{mapError}</div>
+          )}
         </div>
-        <div className="atl-filters">
-          <select onChange={(e) => setCountryFilter(e.target.value)} value={countryFilter}>
-            {countries.map(c => <option key={c} value={c}>{c === 'all' ? 'All Countries' : c}</option>)}
-          </select>
-          <button onClick={() => setShowRegions(!showRegions)}>
-            {showRegions ? 'Hide' : 'Show'} Regions
-          </button>
+        <div className="atl-maplabel">
+          <span>{plotted.length} dishes plotted</span>
+          <span>© OpenStreetMap · CARTO</span>
         </div>
       </div>
       <div className="atl-list">
-        {byRegion.map(({ region, dishes }) => (
+        {byRegion.map(({ region, items }) => (
           <div key={region}>
-            <div className="atl-region-h">{region} — {dishes.length}</div>
-            {dishes.map(d => (
+            <div className="atl-region-h">
+              {region} — {items.length}
+            </div>
+            {items.map((d) => (
               <a
                 key={d.slug}
                 href={`/dishes/${d.slug}`}
@@ -306,8 +507,8 @@ function AtlasView({
                 onMouseEnter={() => setActive(d.slug)}
                 onMouseLeave={() => setActive(null)}
               >
-                <span className="nm">{d.canonicalName}</span>
-                <span className="co">{d.list?.methodSlug ?? ''}</span>
+                <span className="nm">{d.name}</span>
+                <span className="co">{d.family}</span>
                 <span className="cd">{region}</span>
               </a>
             ))}
@@ -320,14 +521,14 @@ function AtlasView({
 
 // ─── Index view ─────────────────────────────────────────────────────────────
 
-function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
+function IndexView({ dishes }: { dishes: AtlasDish[] }) {
   const [sort, setSort] = useState<SortKey>('name');
 
   const sorted = useMemo(() => {
     return [...dishes].sort((a, b) => {
-      if (sort === 'name') return a.canonicalName.localeCompare(b.canonicalName);
-      if (sort === 'origin') return (a.originName ?? '').localeCompare(b.originName ?? '');
-      if (sort === 'family') return (a.methodSlug ?? '').localeCompare(b.methodSlug ?? '');
+      if (sort === 'name') return a.name.localeCompare(b.name);
+      if (sort === 'origin') return a.country.localeCompare(b.country);
+      if (sort === 'family') return a.family.localeCompare(b.family);
       return 0;
     });
   }, [dishes, sort]);
@@ -337,15 +538,15 @@ function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
       <div className="idx-head">
         <span onClick={() => setSort('name')}>Name {sort === 'name' ? '↑' : ''}</span>
         <span onClick={() => setSort('origin')}>Origin {sort === 'origin' ? '↑' : ''}</span>
-        <span onClick={() => setSort('family')}>Family</span>
+        <span onClick={() => setSort('family')}>Family {sort === 'family' ? '↑' : ''}</span>
         <span>Description</span>
       </div>
-      {sorted.map(d => (
+      {sorted.map((d) => (
         <a key={d.slug} href={`/dishes/${d.slug}`} className="idx-row">
-          <span className="name">{d.canonicalName}</span>
-          <span className="org">{d.originName ?? '—'}</span>
-          <span className="idx-tag">{d.methodSlug ?? '—'}</span>
-          <span style={{ color: 'var(--sub)', fontSize: '14px' }}>{d.shortDescription ?? ''}</span>
+          <span className="name">{d.name}</span>
+          <span className="org">{d.country || '—'}</span>
+          <span className="idx-tag">{d.family || '—'}</span>
+          <span style={{ color: 'var(--sub)', fontSize: '14px' }}>{d.description}</span>
         </a>
       ))}
     </div>
@@ -354,15 +555,15 @@ function IndexView({ dishes }: { dishes: DishListResponse['dishes'] }) {
 
 // ─── Gallery view ────────────────────────────────────────────────────────────
 
-function GalleryView({ dishes }: { dishes: DishListResponse['dishes'] }) {
+function GalleryView({ dishes }: { dishes: AtlasDish[] }) {
   return (
     <div className="gal">
-      {dishes.map(d => (
+      {dishes.map((d) => (
         <a key={d.slug} href={`/dishes/${d.slug}`} className="gal-card">
           <div className="ph" style={{ background: 'var(--accent-soft)', height: '180px', borderRadius: '6px' }} />
-          <h3>{d.canonicalName}</h3>
-          <div className="place">{d.originName ?? '—'}</div>
-          <p className="note-long">{d.shortDescription ?? ''}</p>
+          <h3>{d.name}</h3>
+          <div className="place">{d.country || '—'}</div>
+          <p className="note-long">{d.description}</p>
         </a>
       ))}
     </div>
@@ -371,7 +572,7 @@ function GalleryView({ dishes }: { dishes: DishListResponse['dishes'] }) {
 
 // ─── Feed view ──────────────────────────────────────────────────────────────
 
-function FeedView({ dishes }: { dishes: DishListResponse['dishes'] }) {
+function FeedView({ dishes }: { dishes: AtlasDish[] }) {
   return (
     <div className="feed">
       {dishes.map((d, i) => (
@@ -390,47 +591,15 @@ function FeedView({ dishes }: { dishes: DishListResponse['dishes'] }) {
             }}
           />
           <div className="feed-txt">
-            <div className="place">{d.originName ?? '—'}</div>
-            <h3>{d.canonicalName}</h3>
-            <p>{d.shortDescription ?? ''}</p>
+            <div className="place">{d.country || '—'}</div>
+            <h3>{d.name}</h3>
+            <p>{d.description}</p>
             <div className="feed-meta">
-              <span>Family <b>{d.methodSlug ?? '—'}</b></span>
-              <span>Origin <b>{d.originName ?? '—'}</b></span>
+              <span>Family <b>{d.family || '—'}</b></span>
+              <span>Origin <b>{d.country || '—'}</b></span>
             </div>
           </div>
         </a>
-      ))}
-    </div>
-  );
-}
-
-// ─── Filter chips ─────────────────────────────────────────────────────────────
-
-function FilterChips({
-  filters,
-  onRemove,
-}: {
-  filters: ParsedFilters;
-  onRemove: (key: string, val: string) => void;
-}) {
-  const all = [
-    ...filters.origin.map(v => ({ k: 'origin', v })),
-    ...filters.ingredient.map(v => ({ k: 'ingredient', v })),
-    ...filters.technique.map(v => ({ k: 'technique', v })),
-    ...filters.region.map(v => ({ k: 'region', v })),
-  ];
-  if (all.length === 0) return null;
-  return (
-    <div className="filter-chips">
-      {all.map(({ k, v }) => (
-        <button
-          key={`${k}:${v}`}
-          className="filter-chip"
-          onClick={() => onRemove(k, v)}
-        >
-          {k}:{v}
-          <span className="fc-x">×</span>
-        </button>
       ))}
     </div>
   );
@@ -440,51 +609,101 @@ function FilterChips({
 
 export default function GustaleHomeIsland() {
   const [view, setView] = useState<ViewMode>('atlas');
-  const [search, setSearch] = useState('');
-  const [listData, setListData] = useState<DishListResponse | null>(null);
-  const [mapDishes, setMapDishes] = useState<MapDish[]>([]);
+  const [dishes, setDishes] = useState<AtlasDish[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const parsed = useMemo(() => parseQuery(search), [search]);
+  // Filters
+  const [search, setSearch] = useState('');
+  const [country, setCountry] = useState('');
+  const [family, setFamily] = useState('');
+  const [exactOnly, setExactOnly] = useState(false);
+  // Globe-only: show the cultural/regional polygon overlay. The layer
+  // exists once the map style loads; flipping this just toggles the
+  // layer's visibility, no re-fetch.
+  const [showRegions, setShowRegions] = useState(false);
 
-  // Fetch list data (Index, Gallery, Feed, Atlas sidebar)
+  // Load the full dataset once on hydration, merging the list + map
+  // endpoints. A map-endpoint failure must NOT blank the homepage — we
+  // fall back to the list data with no coordinates. Only a list-endpoint
+  // failure surfaces an error (and even then the hero still renders).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(true);
-      setError(null);
-      const params: any = { limit: 100 };
-      if (parsed.q) params.search = parsed.q;
-      if (parsed.origin[0]) params.origin = parsed.origin[0];
-      if (parsed.ingredient[0]) params.ingredient = parsed.ingredient[0];
-      if (parsed.technique[0]) params.technique = parsed.technique[0];
-      if (parsed.region[0]) params.region = parsed.region[0];
-      listDishes(params)
-        .then(setListData)
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
-        .finally(() => setLoading(false));
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [parsed]);
-
-  // Fetch map data (Atlas pins) — only when Atlas view is active or could be
-  useEffect(() => {
-    if (view !== 'atlas') return;
-    ensureMapLibre(() => {
-      fetch('/api/dishes/map')
-        .then(r => r.json())
-        .then((data: { dishes: MapDish[] }) => setMapDishes(data.dishes ?? []))
-        .catch(() => {});
-    });
-  }, [view]);
-
-  const removeFilter = useCallback((key: string, val: string) => {
-    const regex = new RegExp(`${key}:${val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
-    setSearch(prev => prev.replace(regex, '').replace(/\s+/g, ' ').trim());
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    Promise.allSettled([
+      listDishes({ limit: 200 }),
+      getMapDishes({ limit: 2000 }),
+    ])
+      .then(([listRes, mapRes]) => {
+        if (cancelled) return;
+        if (listRes.status === 'fulfilled') {
+          const mapDishes =
+            mapRes.status === 'fulfilled' ? mapRes.value.dishes : [];
+          setDishes(mergeDishes(listRes.value.dishes, mapDishes));
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn('[GustaleHome] dish list fetch failed:', listRes.reason);
+          setError(
+            listRes.reason instanceof Error
+              ? listRes.reason.message
+              : 'Failed to load dishes',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const listDishes_data = listData?.dishes ?? [];
-  const total = listDishes_data.length;
+  // Dropdown options derived from the loaded data (not hardcoded).
+  const countryOptions = useMemo(
+    () =>
+      Array.from(new Set(dishes.map((d) => d.country).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [dishes],
+  );
+  const familyOptions = useMemo(
+    () =>
+      Array.from(new Set(dishes.map((d) => d.family).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [dishes],
+  );
+
+  // The single filtered dataset every view + the map reads from.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return dishes.filter((d) => {
+      if (country && d.country !== country) return false;
+      if (family && d.family !== family) return false;
+      if (exactOnly && !d.hasLocation) return false;
+      if (q) {
+        const hay = `${d.name} ${d.country} ${d.family} ${d.description}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [dishes, search, country, family, exactOnly]);
+
+  const hasActiveFilters = Boolean(search || country || family || exactOnly);
+  const resetFilters = useCallback(() => {
+    setSearch('');
+    setCountry('');
+    setFamily('');
+    setExactOnly(false);
+  }, []);
+
+  const total = dishes.length;
+  const shown = filtered.length;
+  const plottedCount = useMemo(
+    () => dishes.filter((d) => d.hasLocation).length,
+    [dishes],
+  );
 
   return (
     <main className="gst">
@@ -502,17 +721,17 @@ export default function GustaleHomeIsland() {
           <div className="hero-search">
             <input
               type="search"
-              placeholder='Try "ramen", origin:Japan, ingredient:saffron…'
+              placeholder="Search dishes — ramen, Japan, stew…"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search dishes"
             />
             <button aria-label="Search">⌕</button>
           </div>
-          <FilterChips filters={parsed} onRemove={removeFilter} />
           <div className="hero-meta">
             <div><b>{total}</b> dishes</div>
-            <div><b>30+</b> families</div>
-            <div><b>100+</b> origins</div>
+            <div><b>{familyOptions.length}</b> families</div>
+            <div><b>{countryOptions.length}</b> origins</div>
           </div>
         </div>
         <div className="hero-frame">
@@ -527,7 +746,7 @@ export default function GustaleHomeIsland() {
           />
           <div className="hero-coord">
             <span>0°N 0°E</span>
-            <span>{mapDishes.length} dishes plotted</span>
+            <span>{plottedCount} dishes plotted</span>
           </div>
         </div>
       </section>
@@ -540,11 +759,73 @@ export default function GustaleHomeIsland() {
             <p>
               {loading
                 ? 'Loading…'
-                : `${total} dish${total !== 1 ? 's' : ''}${parsed.q ? ` matching "${parsed.q}"` : ''}`}
+                : `${shown} of ${total} dish${total !== 1 ? 'es' : ''}`}
             </p>
           </div>
           <span className="ws-count">
             {view === 'atlas' ? 'Map' : view === 'index' ? 'Table' : view === 'gallery' ? 'Cards' : 'Stories'} view
+          </span>
+        </div>
+
+        {/* Filter bar — stacks above the views on mobile, sits inline on
+            desktop. Options are generated from the loaded data. */}
+        <div className="ws-filters">
+          <input
+            className="filt-search"
+            type="search"
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search dishes"
+          />
+          <select
+            className="filt-select"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            aria-label="Filter by region or country"
+          >
+            <option value="">All regions</option>
+            {countryOptions.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select
+            className="filt-select"
+            value={family}
+            onChange={(e) => setFamily(e.target.value)}
+            aria-label="Filter by category"
+          >
+            <option value="">All categories</option>
+            {familyOptions.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <label className="filt-toggle">
+            <input
+              type="checkbox"
+              checked={exactOnly}
+              onChange={(e) => setExactOnly(e.target.checked)}
+            />
+            Only exact locations
+          </label>
+          <label className="filt-toggle">
+            <input
+              type="checkbox"
+              checked={showRegions}
+              onChange={(e) => setShowRegions(e.target.checked)}
+            />
+            Show food regions
+          </label>
+          <button
+            className="filt-reset"
+            type="button"
+            onClick={resetFilters}
+            disabled={!hasActiveFilters}
+          >
+            Reset
+          </button>
+          <span className="filt-count">
+            Showing {shown} dish{shown === 1 ? '' : 'es'}
           </span>
         </div>
 
@@ -594,18 +875,33 @@ export default function GustaleHomeIsland() {
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)', fontFamily: 'var(--mono)', fontSize: '14px' }}>
             Loading dishes…
           </div>
-        ) : listDishes_data.length === 0 ? (
+        ) : error ? (
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)' }}>
-            No dishes found{parsed.q ? ` for "${parsed.q}"` : ''}.
+            Couldn't load dishes right now. Please try again in a moment.
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)' }}>
+            No dishes match your filters.
+            {hasActiveFilters && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="filt-reset"
+                  style={{ marginLeft: 8 }}
+                  onClick={resetFilters}
+                >
+                  Reset filters
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>
-            {view === 'atlas' && (
-              <AtlasView mapDishes={mapDishes} listDishes={listDishes_data} />
-            )}
-            {view === 'index' && <IndexView dishes={listDishes_data} />}
-            {view === 'gallery' && <GalleryView dishes={listDishes_data} />}
-            {view === 'feed' && <FeedView dishes={listDishes_data} />}
+            {view === 'atlas' && <AtlasView dishes={filtered} showRegions={showRegions} />}
+            {view === 'index' && <IndexView dishes={filtered} />}
+            {view === 'gallery' && <GalleryView dishes={filtered} />}
+            {view === 'feed' && <FeedView dishes={filtered} />}
           </>
         )}
       </section>
