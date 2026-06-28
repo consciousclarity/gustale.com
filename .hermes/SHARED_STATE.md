@@ -101,3 +101,35 @@ After any non-trivial change:
 - **Sophisticated menu**: `AuthMenu.tsx` deployed; `GustaleMenu.tsx` is design reference not implemented
 - **Breadcrumbs everywhere**: `Breadcrumbs.astro` exists, used on some pages; full audit needed
 - **Structured dish filters on home island**: Implemented (8 filter keys)
+
+---
+
+## 2026-06-28 — Graphify + Layout handoff
+
+Graphify was run for `/Users/ghostx/DEV/gustale/repo_clone`.
+Output path:
+`/Users/ghostx/DEV/gustale/repo_clone/graphify-out/`
+Generated files:
+- `graph.html`
+- `GRAPH_REPORT.md`
+- `graph.json`
+`repo_clone/CLAUDE.md` was updated with the Graphify output path.
+
+Trace completed:
+- `../layouts/Layout.astro` bridges 7 communities because it is the shared HTML shell.
+- All 19 Graphify edges to `Layout.astro` are real extracted import dependencies, not artifacts.
+- `Layout.astro` is healthy and should not be refactored.
+- Do not split `Layout.astro`.
+- Do not split `SiteHeader.astro`.
+- Do not fix Graphify warnings yet.
+
+Pending Hermes task:
+Move MapLibre CSS so it loads only on `/map`.
+Required change:
+- Remove MapLibre CDN import from `apps/web/src/styles/global.css`
+- Add `import 'maplibre-gl/dist/maplibre-gl.css';` to `apps/web/src/pages/map.astro`
+
+Validation for Hermes:
+- run repo typecheck/build commands
+- confirm `/map` still builds
+- confirm non-map pages no longer import MapLibre CSS globally
