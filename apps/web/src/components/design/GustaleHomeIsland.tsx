@@ -632,7 +632,7 @@ export default function GustaleHomeIsland() {
     setLoading(true);
     setError(null);
     Promise.allSettled([
-      listDishes({ limit: 200 }),
+      listDishes({ limit: 100 }),
       getMapDishes({ limit: 2000 }),
     ])
       .then(([listRes, mapRes]) => {
