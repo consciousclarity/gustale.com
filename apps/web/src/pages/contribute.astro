@@ -1,0 +1,310 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Contribute — Gustale"
+  description="Help document dishes, origins, photos, sources, families, and lineages in Gustale's open culinary atlas."
+>
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Contribute' }]} />
+
+  <article class="contribute inner">
+    <!-- Hero -->
+    <header class="contribute-hero">
+      <p class="kicker">Contribute to Gustale</p>
+      <h1 class="h1">Help document the world's dishes</h1>
+      <p class="lede">
+        Gustale is built by people who cook, eat, and document. Every dish
+        you add — origins, family classifications, lineages, photos,
+        descriptions, sources — makes the atlas more useful for the next
+        cook who comes looking.
+      </p>
+    </header>
+
+    <!-- What you can add -->
+    <section class="section" aria-labelledby="what-you-can-add">
+      <h2 id="what-you-can-add" class="h2">What you can add</h2>
+
+      <div class="card-grid">
+        <article class="card">
+          <p class="card-num">01</p>
+          <h3 class="card-title">A dish</h3>
+          <p class="card-body">
+            A new entry for a dish we haven't documented yet — name,
+            origin, ingredients, method. The most common contribution.
+          </p>
+        </article>
+
+        <article class="card">
+          <p class="card-num">02</p>
+          <h3 class="card-title">A correction</h3>
+          <p class="card-body">
+            A wrong region, a misspelled name, an ingredient that doesn't
+            belong. Fixes are contributions too.
+          </p>
+        </article>
+
+        <article class="card">
+          <p class="card-num">03</p>
+          <h3 class="card-title">A source citation</h3>
+          <p class="card-body">
+            A cookbook, an article, an oral history — anything that backs
+            up a claim that's not obvious. Citations travel with the dish.
+          </p>
+        </article>
+
+        <article class="card">
+          <p class="card-num">04</p>
+          <h3 class="card-title">A photo</h3>
+          <p class="card-body">
+            A photograph of the dish as it actually looks — plated,
+            served, or being cooked. Clear and well-lit is enough.
+          </p>
+        </article>
+
+        <article class="card">
+          <p class="card-num">05</p>
+          <h3 class="card-title">Regional context</h3>
+          <p class="card-body">
+            Where the dish sits in its local cuisine, which regions have
+            their own variant, when it's traditionally eaten.
+          </p>
+        </article>
+
+        <article class="card">
+          <p class="card-num">06</p>
+          <h3 class="card-title">A story or preparation note</h3>
+          <p class="card-body">
+            A family method, a festival tradition, a tip from the kitchen.
+            Short and lived-in, not promotional.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Guidelines -->
+    <section class="section guidelines" aria-labelledby="guidelines">
+      <h2 id="guidelines" class="h2">Guidelines</h2>
+      <ul class="rules">
+        <li>Cite sources where claims are non-obvious.</li>
+        <li>Use original or properly credited images.</li>
+        <li>Keep a neutral point of view.</li>
+        <li>No promotional copy.</li>
+        <li>No AI-generated filler content.</li>
+        <li>Mark uncertain origin claims as uncertain.</li>
+      </ul>
+    </section>
+
+    <!-- Primary CTA -->
+    <section class="section cta" aria-labelledby="ready">
+      <h2 id="ready" class="h2">Ready when you are</h2>
+      <p class="cta-lede">
+        Start with a dish you know well. Editors will review the draft
+        before it goes live.
+      </p>
+      <div class="cta-row">
+        <a href="/dishes/new" class="btn-accent">Add a dish →</a>
+        <a href="/dishes" class="btn-ghost">Browse dishes →</a>
+        <a href="/about" class="btn-ghost">Learn about Gustale →</a>
+      </div>
+    </section>
+
+    <!-- Closing -->
+    <p class="closing">
+      Free forever. No account required to browse.
+    </p>
+  </article>
+</Layout>
+
+<style>
+  /* ── Page-local: contribute ──────────────────────────────────── */
+  .contribute {
+    max-width: 880px;
+    padding: 36px 36px 96px;
+  }
+
+  /* ── Hero ── */
+  .contribute-hero {
+    padding: 32px 0 56px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 56px;
+  }
+
+  .kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+
+  .h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(36px, 5vw, 56px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 20px;
+    color: var(--ink);
+  }
+
+  .lede {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(18px, 2vw, 22px);
+    line-height: 1.5;
+    color: var(--sub);
+    max-width: 640px;
+    margin: 0;
+  }
+
+  /* ── Section base ── */
+  .section {
+    margin: 0 0 72px;
+  }
+
+  .h2 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--sub);
+    margin: 0 0 28px;
+    font-weight: 500;
+  }
+
+  /* ── Card grid: 3 cols desktop, 2 cols tablet, 1 col mobile ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  @media (max-width: 900px) {
+    .card-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 560px) {
+    .card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 24px 22px 26px;
+    transition: border-color 0.14s, transform 0.14s;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .card-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin: 0 0 14px;
+    opacity: 0.85;
+  }
+
+  .card-title {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.2;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+
+  .card-body {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--sub);
+    margin: 0;
+  }
+
+  /* ── Guidelines list ── */
+  .guidelines {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 36px 32px;
+  }
+
+  .rules {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 28px;
+  }
+
+  @media (max-width: 640px) {
+    .rules {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+
+  .rules li {
+    position: relative;
+    padding-left: 22px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  .rules li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 8px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  /* ── CTA section ── */
+  .cta {
+    text-align: left;
+    border-top: 1px solid var(--line);
+    padding-top: 56px;
+  }
+
+  .cta-lede {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--sub);
+    margin: 0 0 28px;
+    max-width: 520px;
+  }
+
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* ── Closing line ── */
+  .closing {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--sub);
+    text-align: center;
+    padding: 48px 0 0;
+    margin: 0;
+  }
+</style>
