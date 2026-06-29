@@ -1,0 +1,144 @@
+---
+/**
+ * /dashboard — Contributor dashboard shell (Phase 1, slice 1).
+ *
+ * Static, read-only, contributor-gated. Six cards in the public visual
+ * language (cream surface, terracotta accent, serif headings, mono
+ * eyebrows). All cards are empty states — no live data, no write
+ * paths, no upload. Page-local CSS keeps this slice self-contained.
+ *
+ * Access control: `apps/web/src/middleware.ts` gates /dashboard/*
+ *   - anonymous  → redirect to /login?redirect=/dashboard
+ *   - visitor    → 403 (clear "register or sign in as a contributor")
+ *   - contributor, moderator, admin → allowed
+ *
+ * Static-build behavior: middleware fails open when no request cookie
+ * is present (matches the existing /admin pattern), so `astro build`
+ * emits the shell HTML. After hydration, a tiny client island reads
+ * the better-auth session and upgrades the "Signed in as …" line.
+ *
+ * What this slice deliberately does NOT include:
+ *   - No new tables, no migrations.
+ *   - No new write/upload/read endpoints.
+ *   - No moderator review queue.
+ *   - No proposed-change table.
+ *   - No edits to admin pages, AdminLayout, or admin.css.
+ */
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import ContributorDashboardHero from '../../components/dashboard/ContributorDashboardHero.astro';
+import ContributorCard from '../../components/dashboard/ContributorCard.astro';
+import ContributionGuidelines from '../../components/dashboard/ContributionGuidelines.astro';
+
+// Read the resolved user from middleware (populated on real SSR
+// requests; null at static-build time per fail-open semantics).
+type DashboardUser = {
+  id: string;
+  email?: string;
+  name?: string;
+  role?: 'visitor' | 'contributor' | 'moderator' | 'admin';
+};
+
+const user = (Astro.locals?.user ?? null) as DashboardUser | null;
+
+const userName = user?.name ?? null;
+const userEmail = user?.email ?? null;
+const userRole = (user?.role ?? null) as
+  | 'visitor'
+  | 'contributor'
+  | 'moderator'
+  | 'admin'
+  | null;
+---
+
+<Layout
+  title="Contributor dashboard — Gustale"
+  description="Manage your drafts, submitted edits, photos, and sources for Gustale."
+>
+  <Breadcrumbs
+    crumbs={[{ href: '/', label: 'Home' }, { label: 'Contributor dashboard' }]}
+  />
+
+  <article class="cd inner">
+    <ContributorDashboardHero
+      userName={userName}
+      userEmail={userEmail}
+      userRole={userRole}
+    />
+
+    <section class="cd-cards" aria-label="Dashboard sections">
+      <ContributorCard
+        eyebrow="01"
+        title="My drafts"
+        body="Draft dishes you're working on. Editors will review before publishing."
+        href="/dishes/new"
+        cta="Add a new dish"
+      />
+      <ContributorCard
+        eyebrow="02"
+        title="Submitted edits"
+        body="Changes you've proposed to existing dishes and how they're progressing."
+      />
+      <ContributorCard
+        eyebrow="03"
+        title="Photos"
+        body="Photos you've uploaded and where they've been attached."
+      />
+      <ContributorCard
+        eyebrow="04"
+        title="Sources"
+        body="Citations and references you've contributed."
+      />
+      <ContributorCard
+        eyebrow="05"
+        title="Moderator feedback"
+        body="Comments from editors on your contributions."
+      />
+      <ContributorCard
+        eyebrow="06"
+        title="Contribution guidelines"
+        body="Cite non-obvious claims. Original images. Neutral point of view. No promotional copy. No AI filler. Mark uncertainty."
+        status="Read first"
+        href="#guidelines"
+        cta="Jump to guidelines"
+      />
+    </section>
+
+    <ContributionGuidelines />
+
+    <section class="cd-cta" aria-label="Quick actions">
+      <a class="btn-accent" href="/dishes/new">Add a new dish →</a>
+      <a class="btn-ghost" href="/dishes">Browse dishes →</a>
+      <a class="btn-ghost" href="#guidelines">Contribution guidelines</a>
+    </section>
+  </article>
+</Layout>
+
+<style>
+  .cd.inner {
+    max-width: 1100px;
+    padding: 36px 36px 96px;
+  }
+
+  .cd-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  @media (max-width: 960px) {
+    .cd-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 600px) {
+    .cd-cards { grid-template-columns: 1fr; }
+  }
+
+  .cd-cta {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+</style>
