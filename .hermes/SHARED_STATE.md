@@ -6,6 +6,8 @@
 
 ## Last updated
 
+2026-06-29 by Hermes Agent (Telegram) — Phase 2A food_geography migration applied to production `gustale` database via PR #19. All six target tables created, all FKs/indexes in place, baseline preserved, no regression. Phase 7 password rotation deferred to a separate authorized operation.
+
 2026-06-18 19:30 WITA by Hermes Agent (commit `fc36bc4` on branch
 feat/maplibre-per-dish, awaiting PR).
 
@@ -232,7 +234,83 @@ verification pending on a real device after the PR merges and deploys.
   Mime allow-list (JPEG/PNG/WebP/AVIF/GIF), 20MB cap, transactional
   DB insert with orphan cleanup. Signed URLs fetched client-side on
   hydration (15-min expiry, not baked into static HTML).
+- 2026-06-29: **PR #19 production migration applied — Phase 2A
+  `food_geography` schema deployed to `gustale` database on the VPS.**
+  Migration file `0005_food_geography_phase_2a.sql` (197 lines,
+  8265 bytes, sha256 `5157d40ed9c50703858b183dab645e2f835a48b66856a267842a3e51812588d2`)
+  staged on VPS at
+  `/home/deploy/gustale.com/migrations/0005_food_geography_phase_2a.sql`
+  (Phase 1). Pipe-safe preflight (Phase 2): connection test
+  `gustale|gustale`, target-table existence returned 0 rows,
+  baseline `dishes (total) = 61`, `dishes (published) = 60`
+  (saved to `/tmp/migration-audit/baseline-dishes.txt` on VPS).
+  Custom-format `pg_dump` backup (Phase 3):
+  `/home/deploy/gustale.com/backups/gustale_pre_phase2a_20260629T103158Z.dump`,
+  372,675 bytes, sha256 `a3d80744162f6c07ecea5305dbd918f177729e32d5c474ff9f0381b7daeabfac`,
+  1023 TOC entries verified via `pg_restore --list` (Postgres 16.4
+  Debian, format=CUSTOM, compression=gzip). Apply (Phase 4): exit 0,
+  26 DDL statements (6 CREATE TABLE + 9 CREATE INDEX + 11 ALTER TABLE),
+  no errors, no warnings. Verification (Phase 5): all six target
+  tables exist (`to_regclass() = t`); row counts all 0; 11 FK
+  constraints (10 CASCADE + 1 SET NULL on `food_regions.parent_region_id`
+  self-reference for hierarchical regions); 17 indexes (4 PK indexes
+  + 2 unique-constraint indexes + 11 declared non-PK / non-unique
+  indexes); `dishes (total) = 61`, `dishes (published) = 60` — exact
+  match to pre-apply baseline, no regression; homepage HTTP 200 with
+  60 dishes rendered post-hydration (hero meta `60 dishes / 18
+  families / 32 origins`, breadcrumb `60 dishes`, Index view `60 of
+  60 dishes`, filter footer `Showing 60 dishes`); `/api/dishes?limit=100`
+  HTTP 200 with 60 dishes; `/api/dishes/map?limit=2000` HTTP 200 with
+  60 dishes. The migration is purely additive (CREATE TABLE/INDEX/
+  ALTER TABLE only; no INSERT/UPDATE/DELETE). All DB operations used
+  the v5 pipe-safe canonical form (URL pipe from
+  `docker exec gustale-api printenv DATABASE_URL` →
+  `docker exec -i shared-postgres bash -lc 'IFS= read -r DATABASE_URL;
+  export DATABASE_URL; …'`). No `docker inspect ... {{range .Config.Env}}`,
+  no `-e DATABASE_URL=`, no URL stored in any host shell variable,
+  file, or env, no URL printed/echoed/length-measured. v5 runbook
+  artifact at `/tmp/runbook-pipesafe-v5.md` (609 lines, 26746 bytes,
+  sha256 `24a99afbd93b60940cf8695cc439046714d5ad7904873f572a1fa771090cd088`)
+  is the source-of-truth for any re-execution. Migration staging
+  scripts under `/tmp/migration-audit/` on the VPS (ephemeral, in
+  `/tmp`). Phase 6 (rollback) NOT executed; Phase 7 (password
+  rotation) NOT executed — see "Active blockers" below. No `.env`
+  edits, no container restarts, no `pnpm db:migrate`, no
+  `drizzle-kit generate`, no rollback, no password rotation in this
+  round.
+- 2026-06-28: **PR #23 merged → `origin/main @ 8fdc8ab`**.
+  `apps/web/src/components/design/GustaleHomeIsland.tsx` line 635
+  changed from `listDishes({ limit: 200 })` to `listDishes({ limit: 100 })`
+  to respect the API's `limit` Zod cap (`apps/api/src/routes/dishes.ts:41`,
+  `z.coerce.number().int().min(1).max(100).default(20)`). PR #22 had
+  shipped `limit: 200` per its reconcile work; that conflicted with
+  the API contract and resulted in `/api/dishes?limit=200` returning
+  HTTP 400 (VPS Fastify log: `ZodError too_big maximum: 100 path: ["limit"]`
+  at `file:///app/dist/routes/dishes.js:58:40`). Fix: align web to
+  the API contract. Result: 60 dishes rendered post-hydration, all
+  filters visible, no console errors. **PR #21 remains open** (head
+  `cdb1553`, base `9f099fd`, `mergeable: false` — branch/base
+  divergence with `origin/main`) and is functionally superseded by
+  PRs #22 + #23; closing PR #21 requires a separate authorization
+  since it cannot be merged cleanly without conflict resolution.
 
 ## Active blockers (none right now)
 
-(none)
+- **Phase 7 — DB password rotation (deferred, separate operation).** The
+  production `gustale` role `DATABASE_URL` was exposed in chat
+  transcript earlier in this session (during initial reconnaissance,
+  before the migration work began). The password value is treated as
+  compromised. Rotation is **not** part of the PR #19 migration closeout
+  and was not performed in this round. When scheduled, the operation
+  is: (1) generate a new password; (2) `ALTER ROLE gustale WITH
+  PASSWORD '<new>'` as `postgres` superuser via the shared-postgres
+  container (note: superuser password lives in `/root/.env` on the VPS,
+  which is out of our normal SSH access scope); (3) update
+  `/home/deploy/gustale.com/.env` and `/home/deploy/gustale.com/.db-password`
+  on the VPS; (4) recreate `gustale-api` container
+  (`docker stop && docker rm` then `docker compose up -d --force-recreate api`)
+  — `docker restart` does NOT re-read `.env`; (5) re-run Phase 5.5
+  smoke (homepage 200, `/api/dishes?limit=100` 200, `/api/dishes/map?limit=2000` 200);
+  (6) audit-log the rotation timestamp.
+
+(none right now besides the Phase 7 item above)
