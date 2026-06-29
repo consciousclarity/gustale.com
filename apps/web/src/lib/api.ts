@@ -426,6 +426,72 @@ export function getAdminStats(init?: RequestInit): Promise<AdminStatsResponse> {
   return request<AdminStatsResponse>('/api/admin/stats', init);
 }
 
+// ─── Contributor dashboard (Slice 2 — read-only) ─────────────────────
+// Endpoints that surface the caller's own contributions on /dashboard.
+// Auth is `requireUser` server-side; the request body / query never
+// accepts a userId — ownership is always derived from `request.user.id`.
+
+export interface DashboardDraft {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  shortDescription: string | null;
+  status: 'draft' | 'published' | 'archived';
+  viewCount: number;
+  editCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface DashboardDraftsResponse {
+  drafts: DashboardDraft[];
+  limit: number;
+  offset: number;
+}
+
+export function getDashboardDrafts(
+  params: { limit?: number; offset?: number } = {},
+  init?: RequestInit,
+): Promise<DashboardDraftsResponse> {
+  const search = new URLSearchParams();
+  if (params.limit != null) search.set('limit', String(params.limit));
+  if (params.offset != null) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  return request<DashboardDraftsResponse>(
+    `/api/dashboard/drafts${qs ? `?${qs}` : ''}`,
+    init,
+  );
+}
+
+export interface DashboardSubmission {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface DashboardSubmissionsResponse {
+  submissions: DashboardSubmission[];
+  limit: number;
+  offset: number;
+}
+
+export function getDashboardSubmissions(
+  params: { limit?: number; offset?: number } = {},
+  init?: RequestInit,
+): Promise<DashboardSubmissionsResponse> {
+  const search = new URLSearchParams();
+  if (params.limit != null) search.set('limit', String(params.limit));
+  if (params.offset != null) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  return request<DashboardSubmissionsResponse>(
+    `/api/dashboard/submissions${qs ? `?${qs}` : ''}`,
+    init,
+  );
+}
+
 export interface AdminDishSummary {
   id: string;
   slug: string;

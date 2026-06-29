@@ -4,22 +4,28 @@
  *
  * Static, read-only, contributor-gated. Six cards in the public visual
  * language (cream surface, terracotta accent, serif headings, mono
- * eyebrows). All cards are empty states — no live data, no write
+ * eyebrows). All cards start as empty states — no live data, no write
  * paths, no upload. Page-local CSS keeps this slice self-contained.
+ *
+ * Slice 2 (this version): the "My drafts" and "Submitted edits" cards
+ * now mount small client islands that fetch the new contributor
+ * dashboard endpoints (see apps/api/src/routes/dashboard.ts). The hero
+ * user display also hydrates client-side via ContributorDashboardUserBadge.
+ * Photos / Sources / Moderator feedback cards remain "Coming soon".
  *
  * Access control: `apps/web/src/middleware.ts` gates /dashboard/*
  *   - anonymous  → redirect to /login?redirect=/dashboard
- *   - visitor    → 403 (clear "register or sign in as a contributor")
+ *   - visitor    → 403 (clear "register or contributor access required")
  *   - contributor, moderator, admin → allowed
  *
  * Static-build behavior: middleware fails open when no request cookie
  * is present (matches the existing /admin pattern), so `astro build`
- * emits the shell HTML. After hydration, a tiny client island reads
- * the better-auth session and upgrades the "Signed in as …" line.
+ * emits the shell HTML. After hydration, the islands upgrade the
+ * content with the live session and per-user data.
  *
  * What this slice deliberately does NOT include:
  *   - No new tables, no migrations.
- *   - No new write/upload/read endpoints.
+ *   - No new write/upload endpoints.
  *   - No moderator review queue.
  *   - No proposed-change table.
  *   - No edits to admin pages, AdminLayout, or admin.css.
@@ -27,7 +33,10 @@
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import ContributorDashboardHero from '../../components/dashboard/ContributorDashboardHero.astro';
+import ContributorDashboardUserBadge from '../../components/dashboard/ContributorDashboardUserBadge.tsx';
 import ContributorCard from '../../components/dashboard/ContributorCard.astro';
+import ContributorDraftsList from '../../components/dashboard/ContributorDraftsList.tsx';
+import ContributorSubmissionsList from '../../components/dashboard/ContributorSubmissionsList.tsx';
 import ContributionGuidelines from '../../components/dashboard/ContributionGuidelines.astro';
 
 // Read the resolved user from middleware (populated on real SSR
@@ -65,6 +74,12 @@ const userRole = (user?.role ?? null) as
       userEmail={userEmail}
       userRole={userRole}
     />
+
+    {/* Client-side hydration: upgrades the hero line with the live
+        session after mount. Falls back silently to no-render on
+        static build or before the session check resolves; the static
+        hero copy above remains the fallback for anonymous users. */}
+    <ContributorDashboardUserBadge client:load />
 
     <section class="cd-cards" aria-label="Dashboard sections">
       <ContributorCard
@@ -104,6 +119,21 @@ const userRole = (user?.role ?? null) as
       />
     </section>
 
+    {/* Live, per-user data islands. Mounted client:load so they fire
+        after hydration. Each island handles its own empty / loading /
+        error / 401 states — the static card copy above remains as the
+        fallback for the no-JS static-build path. */}
+    <section class="cd-feeds" aria-label="Your live activity">
+      <div class="cd-feed">
+        <h2 class="cd-feed__title">My drafts — live</h2>
+        <ContributorDraftsList client:load />
+      </div>
+      <div class="cd-feed">
+        <h2 class="cd-feed__title">Submitted edits — live</h2>
+        <ContributorSubmissionsList client:load />
+      </div>
+    </section>
+
     <ContributionGuidelines />
 
     <section class="cd-cta" aria-label="Quick actions">
@@ -130,6 +160,30 @@ const userRole = (user?.role ?? null) as
   }
   @media (max-width: 600px) {
     .cd-cards { grid-template-columns: 1fr; }
+  }
+
+  .cd-feeds {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 760px) {
+    .cd-feeds { grid-template-columns: 1fr; }
+  }
+  .cd-feed {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 22px 22px 24px;
+  }
+  .cd-feed__title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
   }
 
   .cd-cta {
