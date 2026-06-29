@@ -7,10 +7,24 @@
 
 ## In progress
 
-(none)
+- 2026-06-26: **Editorial site header** (PR #7, `feat/nav-editorial`). Branch pushed, PR opened via web UI. Awaiting CI matrix + Alex review + merge. After merge → Hermes does live smoke test on both domains. — Mavis
 
 ## Done (recent — last 10)
 
+- 2026-06-26: **/lineages real-lineage data fix** (PR #9, `feat/lineages-data-fix`, base `feat/nav-editorial` — stacked). Root cause: `seedEncyclopedia()` never wrote `dish_preparations`, so 59/60 published dishes had `methodSlug=null` → all "Other preparations". Also found: (1) the static `/lineages` is built from `mock-api.mjs`, not the DB — its dish list lacked `methodSlug`/`originName`, so the page was "other" regardless of DB; mock was stale (31 vs 60 dishes); (2) the live `/api/dishes` **list endpoint returns HTTP 500** (map endpoint fine) — runtime issue in the deployed API image, **needs VPS investigation + redeploy** (no VPS SSH on my end). Fix: `seed-data.ts` adds `LINEAGE_METHODS` (16, 1:1 with page `LINEAGE_LABELS`) + `DISH_LINEAGES`; `seed.ts` seeds methods + idempotent per-dish prep pass; `mock-api.mjs` → 60 dishes emitting `methodSlug`+`originName`; `lineages.astro` fixes stew/curry double-label + adds 4 stories. **Live geekom DB updated directly** (idempotent SQL): 16 methods, 60 dish_preparations, 0 published without a prep. typecheck + astro check clean; web build emits 16 distinct lineages, no "other", featured = Stews & braises (11). **VPS owner: please debug the `/api/dishes` 500 + redeploy the API.** — Claude Code
+
+- 2026-06-26: **Editorial site header pushed + PR opened.** Rebased onto `main`, 8 files (+1215/-357), two new React islands (`MobileNav.tsx` full-bleed mobile takeover, `NavSearch.tsx` full-bleed search overlay) + new typed `lib/navigation.ts` config. `astro check` 0/0. Families `originName` fix rides along as identical patch on the taxonomy branch — Git dedups on merge. `gh` CLI auth not configured this session, so the PR body was drafted as `pr-nav-editorial-body.md` at workspace root for Alex to paste into the GitHub PR description textarea. — Mavis
+
+- 2026-06-25: **Homepage sophistication pass** (PR #6, `feat/site-sophistication-pass`). SSR-first split: `index.astro` server-renders an editorial hero ("Every dish has a place."), a rotating `HeroFeaturedCard` island, "Most connected" + "Families & lineages" rails, and a schema-stats band; the atlas/index/gallery/feed explorer is now the `HomeWorkspace` island (seeded from a `#explore=` URL hash). New `GET /api/dishes/featured` API endpoint (top dishes by `dish_relations` count; tested). Nav Contribute CTA + columned footer. Verified: astro check clean, build:recipes+geo green, API suite 48 pass/3 skip. **Follow-up:** run `pnpm --filter @gustale/db run seed` against the dev DB — it has 0 relations + only 31 dishes, so the most-connected rail/hero card render empty until seeded. — Claude Code
+
+- 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
+
+- 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
+  6 commits shipped: MapLibre per-dish map, CI matrix/cache improvements,
+  lint gate fix, gallery hydration fix. Deployed to VPS. — Claude (Cowork)
+- 2026-06-23: Fixed DishGallery hydration — added `client:load` to
+  `<DishDetail>` in `pages/dishes/[slug].astro` (commit `2da83d1`).
+  Gallery useState/useEffect now run; signed-URL fetch on mount works. — Claude (Cowork)
 - 2026-06-18: Migrated per-dish `<DishMap>` from react-leaflet to
   MapLibre GL JS — single map library across the site, same CARTO
   Voyager basemap and emerald marker style as standalone /map,
@@ -203,17 +217,53 @@ Map-based discovery + unified search. Plan summary:
 - **9c (3h)** — "Cuisines near me" + taste-based similarity via
   shared categories and shared origin regions.
 
+### P3 — Seed-data enrichment pass (dishes, methodSlug, ingredients, relations)
+**Owner:** unassigned · **Estimate:** ~1 day
+Surfaced 2026-06-25 (PR #6, homepage). All `packages/db/src/seed-data.ts`
+content quality. The homepage code is correct and degrades gracefully;
+these are data gaps that keep several surfaces sparse. Merged from two
+earlier items after a read-only audit of `DISH_RELATIONS` vs `DISHES`.
+
+Audit results (60 dishes, 110 relation entries = 220 directed edges; 31
+entries reference a dish slug not in `DISHES`, so 31 edges silently drop
+on seed):
+
+**(a) ~25 referenced dishes are missing from `DISHES`** — NOT typos (an
+edit-distance check produced only false positives; these are real,
+distinct dishes the relation graph names but the dish set never added).
+Recovering these edges means *adding the dishes*, then re-seeding. The 27
+distinct dangling slugs:
+`samosa ×3, soba ×2, sambal ×2, menemen, fries, idli, cotoletta,
+tonkatsu, döner, bacon-and-cabbage, fish-cake, focaccia, pita, curry,
+lechon, kofta, porridge, patacones, vada, humita, bulgur, lamb-and-rice,
+ikan-bakar, poke, baba-ganoush` — plus the two moussaka variants below.
+
+**(b) 2 moussaka-variant slugs** — `musakka-turkish`, `moussaka-levant`
+are referenced but don't exist; almost certainly intended as regional
+variants of the existing `moussaka-greek`. The only true data
+*inconsistency* (vs missing content). Quick optional sub-task: remap
+these two to `moussaka-greek` (or add them as dishes) to cut "31 skipped"
+toward zero without a full content pass.
+
+**(c) Dishes missing `methodSlug`** — across the 60 dishes only **2
+distinct `methodSlug` values** exist, so `/families` and the homepage
+"Families & lineages" rail collapse most dishes into "Other".
+`FAMILY_LABELS` in `families.astro` already anticipates ~16 families.
+Populate `methodSlug` per dish using the existing family slugs.
+
+**(d) Sparse ingredients** — only 4 published ingredients; enrich
+alongside the dishes for a fuller `/ingredients` + homepage schema stat.
+
+**Do it as one pass:** add the missing dishes (a) with proper
+`methodSlug` (c) and ingredients (d); fix the moussaka slugs (b); re-run
+`pnpm --filter @gustale/db run seed` (idempotent) and confirm "0 relation
+entries skipped". Re-running the read-only audit: a ~30-line tsx script
+over `DISHES`/`DISH_RELATIONS` (see PR #6 session) regenerates the
+dangling list on demand.
+
 ## Backlog (longer-term)
 
 - **i18n** — frontend and content. README has this as Phase 7g.
 - **Public read API for third parties** — rate limits + API keys.
 - **Mobile-first redesign** — current layout is desktop-first; map
-  needs mobile UX (pinch-zoom already works via MapLibre + Leaflet,
-  but bottom-sheet style overlays for the map popup).
-- **DMCA process** — required for opening up open editing publicly.
-  Document in `docs/dmca.md`.
-- **Moderator UI** — partially built (review queue); see P1 above
-  for the rest.
-- **API delete `/api/dishes/map`** — currently consumed by both
-  `/map` (MapLibre globe) and reserved for Phase 9 nearby-dishes
-  work. Keep.
+ 
