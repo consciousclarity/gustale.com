@@ -18,6 +18,7 @@ import { registerLineageRoutes } from './routes/lineages.js';
 import { registerIngredientRoutes } from './routes/ingredients.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerDishMediaRoutes } from './routes/dishes-media.js';
+import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerErrorHandler } from './errors.js';
 import betterAuthPlugin from './plugins/auth.js';
 import authContextPlugin from './plugins/auth-context.js';
@@ -87,6 +88,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   // rather than as a 500 on the first request.
   await app.register(registerMediaRoutes);
   await app.register(registerDishMediaRoutes);
+  registerDashboardRoutes(app);
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {

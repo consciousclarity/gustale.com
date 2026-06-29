@@ -115,6 +115,12 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
             >
               Account
             </a>
+            <a
+              href="/dashboard"
+              className="auth-dropdown-item"
+            >
+              Dashboard
+            </a>
             <button
               onClick={handleSignOut}
               className="auth-dropdown-item auth-signout-btn"
