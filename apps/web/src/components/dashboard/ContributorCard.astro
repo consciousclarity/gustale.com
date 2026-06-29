@@ -1,0 +1,148 @@
+---
+/**
+ * ContributorCard.astro — static card primitive for /dashboard.
+ *
+ * Mirrors the visual language of `pages/contribute.astro` and the
+ * admin `.gst-card` token: cream surface, terracotta border on hover,
+ * mono eyebrow number, serif title, italic-leaning body. No JS.
+ */
+export interface Props {
+  /** Small numeric or label shown above the title, mono uppercase. */
+  eyebrow?: string;
+  /** Card title (h3). */
+  title: string;
+  /** Short body copy (1–2 sentences). */
+  body: string;
+  /**
+   * Status pill text. Defaults to "Coming soon". Pass an explicit
+   * "Read first" for the guidelines card.
+   */
+  status?: string;
+  /** When set, the card renders as a link to this href. */
+  href?: string;
+  /** When set with href, renders an inline CTA label below the body. */
+  cta?: string;
+}
+
+const {
+  eyebrow,
+  title,
+  body,
+  status = 'Coming soon',
+  href,
+  cta,
+} = Astro.props;
+
+// Open in same tab unless the link is to /dishes/new which we keep
+// inside the app. Anchor links (#…) stay here too.
+const isAnchor = href?.startsWith('#');
+---
+
+{isAnchor ? (
+  <a class="cd-card" href={href}>
+    {eyebrow && <p class="cd-card__num">{eyebrow}</p>}
+    <h3 class="cd-card__title">{title}</h3>
+    <p class="cd-card__body">{body}</p>
+    <p class="cd-card__status">{status}</p>
+    {cta && <span class="cd-card__cta">{cta} →</span>}
+  </a>
+) : href ? (
+  <a class="cd-card" href={href}>
+    {eyebrow && <p class="cd-card__num">{eyebrow}</p>}
+    <h3 class="cd-card__title">{title}</h3>
+    <p class="cd-card__body">{body}</p>
+    <p class="cd-card__status cd-card__status--soon">{status}</p>
+    {cta && <span class="cd-card__cta cd-card__cta--disabled" aria-disabled="true">{cta}</span>}
+  </a>
+) : (
+  <article class="cd-card cd-card--static">
+    {eyebrow && <p class="cd-card__num">{eyebrow}</p>}
+    <h3 class="cd-card__title">{title}</h3>
+    <p class="cd-card__body">{body}</p>
+    <p class="cd-card__status cd-card__status--soon">{status}</p>
+  </article>
+)}
+
+<style>
+  .cd-card,
+  .cd-card--static {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 22px 22px 24px;
+    color: var(--ink);
+    text-decoration: none;
+    transition: border-color 0.14s, transform 0.14s;
+  }
+  a.cd-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .cd-card--static {
+    cursor: default;
+  }
+
+  .cd-card__num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+    opacity: 0.85;
+  }
+
+  .cd-card__title {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.2;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+
+  .cd-card__body {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--sub);
+    margin: 0 0 14px;
+  }
+
+  .cd-card__status {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 4px 10px;
+    margin: 0;
+  }
+  /* Anchor-linked "Read first" gets a different color so it reads as
+     actionable rather than a placeholder. */
+  a.cd-card .cd-card__status:not(.cd-card__status--soon) {
+    color: var(--accent-ink);
+    background: var(--accent);
+  }
+
+  .cd-card__cta {
+    display: inline-block;
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .cd-card__cta--disabled {
+    color: var(--sub);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  a.cd-card:hover .cd-card__cta {
+    color: var(--accent-dark);
+  }
+</style>

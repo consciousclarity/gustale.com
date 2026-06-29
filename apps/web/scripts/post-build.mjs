@@ -12,6 +12,9 @@
  *
  * Pages kept on BOTH domains:
  *   - /, /about, /login, /register, /account
+ *   - /dashboard          (contributor dashboard — contributor auth is
+ *                         domain-agnostic: same roles exist on recipes
+ *                         and geo, so the shell ships on both)
  *   - /dishes/<slug> (single dish view)
  *   - /404
  *

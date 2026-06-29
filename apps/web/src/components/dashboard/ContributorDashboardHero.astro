@@ -1,0 +1,114 @@
+---
+/**
+ * ContributorDashboardHero.astro — static hero block for /dashboard.
+ *
+ * Server-rendered (no client JS). Reads Astro.locals.user when present
+ * (after the middleware has populated it on a real SSR request). At
+ * static-build time the middleware fails open (no request cookie → no
+ * user), and we render a sign-in CTA instead. Client-side hydration on
+ * the dashboard page upgrades the display with the live session after
+ * the page paints.
+ */
+export interface Props {
+  /** Filled-in display name (better-auth `name` field). */
+  userName?: string | null;
+  /** Better-auth email — used as a fallback identifier. */
+  userEmail?: string | null;
+  /** Role string from better-auth additional fields. */
+  userRole?: 'visitor' | 'contributor' | 'moderator' | 'admin' | null;
+}
+
+const { userName, userEmail, userRole } = Astro.props;
+
+const displayName =
+  (userName && userName.trim().length > 0 ? userName : null) ??
+  (userEmail && userEmail.length > 0 ? userEmail : null) ??
+  null;
+---
+
+<section class="cd-hero">
+  <p class="cd-eyebrow">Contributor dashboard</p>
+  <h1 class="cd-h1">Your contributions to Gustale</h1>
+  <p class="cd-lede">
+    Manage drafts, suggestions, photos, and sources for Gustale — your
+    private workbench, separate from the public encyclopedia.
+  </p>
+
+  {displayName ? (
+    <p class="cd-user">
+      Signed in as <span class="cd-user__name">{displayName}</span>
+      {userRole && userRole !== 'visitor' ? (
+        <span class="cd-user__role"> · {userRole}</span>
+      ) : null}
+    </p>
+  ) : (
+    <p class="cd-user cd-user--anon">
+      <a class="cd-signin" href="/login?redirect=/dashboard">
+        Sign in to view your dashboard →
+      </a>
+    </p>
+  )}
+</section>
+
+<style>
+  .cd-hero {
+    padding: 56px 0 48px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 40px;
+  }
+  .cd-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  .cd-h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(36px, 5vw, 56px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 20px;
+    color: var(--ink);
+  }
+  .cd-lede {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(18px, 2vw, 22px);
+    line-height: 1.5;
+    color: var(--sub);
+    max-width: 640px;
+    margin: 0 0 24px;
+  }
+  .cd-user {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--sub);
+    margin: 0;
+  }
+  .cd-user__name {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .cd-user__role {
+    color: var(--accent);
+    text-transform: capitalize;
+  }
+  .cd-user--anon {
+    margin-top: 8px;
+  }
+  .cd-signin {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent);
+    padding-bottom: 1px;
+  }
+  .cd-signin:hover {
+    color: var(--accent-dark);
+    border-bottom-color: var(--accent-dark);
+  }
+</style>

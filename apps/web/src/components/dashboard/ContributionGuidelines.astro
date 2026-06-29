@@ -1,0 +1,85 @@
+---
+/**
+ * ContributionGuidelines.astro — guidelines panel for /dashboard.
+ *
+ * The same six rules as the public /contribute page. Renders as an
+ * in-page section so the dashboard card can anchor-link to it.
+ */
+---
+
+<section id="guidelines" class="cd-guidelines" aria-labelledby="cd-guidelines-h">
+  <p class="cd-eyebrow">Guidelines</p>
+  <h2 id="cd-guidelines-h" class="cd-h2">Contribution guidelines</h2>
+  <p class="cd-guidelines__lede">
+    Read first. The same rules apply to drafts, edits, photos, and
+    sources you contribute from this dashboard.
+  </p>
+  <ul class="cd-rules">
+    <li>Cite non-obvious claims.</li>
+    <li>Use original or properly credited images.</li>
+    <li>Keep neutral point of view.</li>
+    <li>No promotional copy.</li>
+    <li>No AI-generated filler content.</li>
+    <li>Mark uncertain origin claims as uncertain.</li>
+  </ul>
+</section>
+
+<style>
+  .cd-guidelines {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 36px 32px;
+    margin-top: 40px;
+  }
+  .cd-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  .cd-h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 32px);
+    line-height: 1.2;
+    margin: 0 0 12px;
+    color: var(--ink);
+  }
+  .cd-guidelines__lede {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--sub);
+    margin: 0 0 22px;
+    max-width: 540px;
+  }
+  .cd-rules {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 28px;
+  }
+  @media (max-width: 640px) {
+    .cd-rules { grid-template-columns: 1fr; gap: 12px; }
+  }
+  .cd-rules li {
+    position: relative;
+    padding-left: 22px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .cd-rules li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 8px;
+    height: 1px;
+    background: var(--accent);
+  }
+</style>
