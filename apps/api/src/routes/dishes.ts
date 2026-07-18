@@ -113,7 +113,18 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .limit(params.limit)
       .offset(params.offset);
 
-    return { dishes: result, limit: params.limit, offset: params.offset };
+    const totalRow = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(dishes)
+      .where(and(...whereClauses));
+    const total = totalRow[0]?.count ?? 0;
+
+    return {
+      dishes: result,
+      total: total,
+      limit: params.limit,
+      offset: params.offset,
+    };
   });
 
   // Map view: flat list of all published dishes with origin coordinates.
