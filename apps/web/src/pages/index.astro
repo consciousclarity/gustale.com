@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import AtlasHeroKpi from '../components/AtlasHeroKpi.astro';
 import GustaleHomeIsland from '../components/design/GustaleHomeIsland.tsx';
 ---
 
@@ -7,5 +8,9 @@ import GustaleHomeIsland from '../components/design/GustaleHomeIsland.tsx';
   title="Gustale — Browse the atlas your way"
   description="Explore the world's dishes by map, by name, by family, or by story."
 >
-  <GustaleHomeIsland client:load />
+  {/* P0-1: SSR'd catalog counts visible on first paint, BEFORE the React
+      island hydrates below. See AtlasHeroKpi.astro. */}
+  <AtlasHeroKpi />
+
+  <GustaleHomeIsland client:only="react" />
 </Layout>
