@@ -28,15 +28,24 @@
  * Implementation notes:
  *   - pg_trgm must be installed on `gustale` DB. Migration 0007_pg_trgm.sql
  *     creates the extension; this endpoint assumes it's present.
+ *   - Per-group similarity threshold: 0.15. Verified against the current
+ *     ~60-dish / 14-lineage dataset — at this level `vitna` resolves to
+ *     Vindaloo (0.154) without false positives on `china`/`italia`/`indonesia`.
+ *     Bumping the threshold to 0.3 was too strict; 0.15 is the floor for
+ *     recall-without-spam on Gustale's current catalog size. As the catalog
+ *     grows past ~200 rows, re-tune via the verify-by-query smoke in this
+ *     file's README block.
  *   - Each group runs in parallel (Promise.all) with a per-group timeout; a
  *     thrown query returns an empty group (not a 500) so a single broken
  *     table doesn't fail the whole search.
- *   - All queries filter `status='published'` for the public surface; draft
- *     items remain invisible.
- *   - Cache-Control: public, max-age=60, stale-while-revalidate=300 — search
- *     results can be slightly stale; same query 60s apart hits the cache.
- *     This is the 95%+ bandwidth win for repeat queries.
- *   - No auth required (read-only public surface).
+ *   - `dishes`, `ingredients`, `food_regions` have a `status` column and
+ *     filter to `status='published'`. The `lineages` table has no `status`
+ *     column — every lineage is public content, so the lineage query
+ *     omits the filter entirely (would 500 otherwise).
+ *   - All queries are read-only. No auth required (public surface).
+ *   - Cache-Control: public, max-age=60, stale-while-revalidate=300 —
+ *     search results can be slightly stale; same query 60s apart hits
+ *     the cache. This is the 95%+ bandwidth win for repeat queries.
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -135,8 +144,8 @@ async function searchDishes(q: string, limit: number): Promise<SearchGroup> {
     WHERE status = 'published'
       AND (
         LOWER(canonical_name) LIKE '%' || LOWER(${q}) || '%'
-        OR similarity(LOWER(canonical_name), LOWER(${q})) > 0.3
-        OR similarity(LOWER(COALESCE(short_description, '')), LOWER(${q})) > 0.3
+        OR similarity(LOWER(canonical_name), LOWER(${q})) > 0.15
+        OR similarity(LOWER(COALESCE(short_description, '')), LOWER(${q})) > 0.15
       )
     ORDER BY score DESC NULLS LAST, view_count DESC, canonical_name
     LIMIT ${limit * 4}
@@ -161,6 +170,9 @@ async function searchDishes(q: string, limit: number): Promise<SearchGroup> {
 }
 
 async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
+  // The `lineages` table doesn't have a `status` column — every lineage
+  // row is public content (all published together with the 0006_lineages
+  // migration). Verified via information_schema.columns on prod.
   const rows = (await db.execute(sql`
     SELECT
       slug,
@@ -173,12 +185,10 @@ async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
       )::float8 AS score,
       COUNT(*) OVER ()::int AS total
     FROM lineages
-    WHERE status = 'published'
-      AND (
-        LOWER(name) LIKE '%' || LOWER(${q}) || '%'
-        OR similarity(LOWER(name), LOWER(${q})) > 0.3
-        OR similarity(LOWER(COALESCE(short_description, '')), LOWER(${q})) > 0.3
-      )
+    WHERE
+      LOWER(name) LIKE '%' || LOWER(${q}) || '%'
+      OR similarity(LOWER(name), LOWER(${q})) > 0.15
+      OR similarity(LOWER(COALESCE(short_description, '')), LOWER(${q})) > 0.15
     ORDER BY score DESC NULLS LAST, name
     LIMIT ${limit * 4}
   `)) as Array<{
@@ -217,8 +227,8 @@ async function searchIngredients(q: string, limit: number): Promise<SearchGroup>
     WHERE status = 'published'
       AND (
         LOWER(canonical_name) LIKE '%' || LOWER(${q}) || '%'
-        OR similarity(LOWER(canonical_name), LOWER(${q})) > 0.3
-        OR similarity(LOWER(COALESCE(short_description, '')), LOWER(${q})) > 0.3
+        OR similarity(LOWER(canonical_name), LOWER(${q})) > 0.15
+        OR similarity(LOWER(COALESCE(short_description, '')), LOWER(${q})) > 0.15
       )
     ORDER BY score DESC NULLS LAST, canonical_name
     LIMIT ${limit * 4}
@@ -254,7 +264,7 @@ async function searchRegions(q: string, limit: number): Promise<SearchGroup> {
     WHERE status = 'published'
       AND (
         LOWER(name) LIKE '%' || LOWER(${q}) || '%'
-        OR similarity(LOWER(name), LOWER(${q})) > 0.3
+        OR similarity(LOWER(name), LOWER(${q})) > 0.15
       )
     ORDER BY score DESC NULLS LAST, name
     LIMIT ${limit * 4}
