@@ -6,8 +6,10 @@
 /* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
-/* MapLibre — only needed on /map, but loaded from CDN with long cache */
-@import url('https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css');
+/* MapLibre CSS is imported only on routes that mount <WorldMap> / <DishMap>
+   (apps/web/src/pages/map.astro and dishes/[slug].astro) — see P2-7 in
+   .hermes/COMPETITIVE_ROADMAP.md. Loading it globally costs extra bytes on
+   every page and a font/control-layout flash for visitors who never see a map. */
 
 /* ── Design tokens ── */
 :root {

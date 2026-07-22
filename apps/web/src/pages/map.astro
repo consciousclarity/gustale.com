@@ -6,6 +6,13 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { getMapDishes, ApiError } from '../lib/api';
 import type { MapDish } from '../lib/api';
 
+// MapLibre control + popup CSS — required by <WorldMap> and not loaded
+// globally (see global.css). Imported here (not via JS) so it ships with
+// the static HTML for the /map route; the bundle's <link rel="stylesheet">
+// bypasses any FOUC-on-hydration window. Pinned to match the running JS
+// package (5.24.0 in apps/web/package.json). P2-7.
+import 'maplibre-gl/dist/maplibre-gl.css';
+
 // Server-render the first paint with real dish coordinates so the globe
 // has dots from the moment it appears — the React island only adds
 // interactivity (hover, click, projection toggle) on hydration.

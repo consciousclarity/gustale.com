@@ -7,6 +7,11 @@ import { RelatedDishes } from '../../components/RelatedDishes';
 import { getDishDetail } from '../../lib/api';
 import type { DishDetailResponse } from '../../types/dish';
 
+// MapLibre control + popup CSS — required by <DishMap> mounted below.
+// Not loaded globally (see global.css); this per-route import is paired
+// with the matching one in pages/map.astro for <WorldMap>. P2-7.
+import 'maplibre-gl/dist/maplibre-gl.css';
+
 // Generate static paths for every published dish at build time.
 // This gives us SSG (HTML pre-rendered, not just SSR-on-request) so crawlers
 // and slow clients get a real dish page on first byte, not the SPA fallback.
