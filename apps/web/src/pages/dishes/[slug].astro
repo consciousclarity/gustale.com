@@ -91,19 +91,27 @@ const seoDescription =
 <Layout title={seoTitle} description={seoDescription}>
   {data ? (
     <>
-      {/* ─── Origin (per-dish mini-map) ─────────────────────────────────
-          client:only because Leaflet touches `window` at import time.
-          Renders nothing during SSR — that's expected. The placeholder
-          text below keeps the page readable if JS fails to load. */}
+      {/* Media-first: full-bleed cover + editorial body lead the page.
+          Origin map sits below so the first viewport is image + title, not a widget. */}
+      <DishDetail
+        dish={data.dish}
+        origin={data.origin}
+        variants={data.variants}
+        ingredients={data.ingredients}
+        categories={data.categories}
+        tags={data.tags}
+        preparations={data.preparations}
+        sources={data.sources}
+        media={data.media}
+        client:load
+      />
+
       {data.origin && (
         <section
           aria-labelledby="origin-heading"
-          class="wrap"
-          style="padding-top: 32px;"
+          class="wrap dish-origin-band"
         >
-          <h2
-            id="origin-heading"
-          >
+          <h2 id="origin-heading">
             Origin
           </h2>
           <p class="sub">
@@ -132,35 +140,22 @@ const seoDescription =
         </section>
       )}
 
-      <DishDetail
-        dish={data.dish}
-        origin={data.origin}
-        variants={data.variants}
-        ingredients={data.ingredients}
-        categories={data.categories}
-        tags={data.tags}
-        preparations={data.preparations}
-        sources={data.sources}
-        media={data.media}
-        client:load
-      />
-
       {/* Related dishes — the food-genealogy network. Mounted as its own
           island so the SSR-rendered dish body stays fast and the relations
           load asynchronously without blocking the page. `client:visible`
           defers the fetch until the user scrolls near it. */}
-      <div class="wrap" style="padding-bottom: 32px;">
+      <div class="wrap" style="padding-bottom: var(--space-8);">
         <RelatedDishes slug={data.dish.slug} client:visible />
       </div>
 
       {/* Edit button — separate island so it's auth-gated but the rest of
           the dish page remains a static, fast, fully-cached page. */}
-      <div class="wrap" style="padding-bottom: 32px;">
+      <div class="wrap" style="padding-bottom: var(--space-8);">
         <EditDishButton slug={data.dish.slug} client:load />
       </div>
     </>
   ) : (
-    <section class="wrap text-center" style="padding: 80px 0;">
+    <section class="wrap text-center" style="padding: var(--space-9) 0;">
       <h1 class="page-header">Dish not found</h1>
       <p class="sub">
         We don't have a dish with the slug{' '}
