@@ -8,6 +8,10 @@
 
 2026-07-22 by Hermes Agent (Telegram) — **Phase 7 DB password rotation EXECUTED on VPS `62.72.7.218`.** New gustale role password generated, `ALTER ROLE gustale` applied via pipe-safe `docker exec` heredoc, `.env` + `.db-password` updated on disk, `gustale-api` container recreated with the same GHCR image SHA `606cdd2…`. Phase 5.5 smoke fully green (health 200, 60 dishes, 60 map points, both domains 200). See `### 2026-07-22 — Phase 7` below for full audit. Pre-state preserved as `.env.pre-phase7.20260722T172341Z` and `.db-password.pre-phase7.20260722T172341Z` in `/home/deploy/gustale.com/backups/`.
 
+2026-07-22 by Cursor Cloud Agent — (1) **methodSlug/lineage data-cleanup task VERIFIED RESOLVED** (stale note cleared — see "Pending Data-Cleanup Tasks" below): all 60 published dishes carry a `methodSlug` in the seed source of truth (`DISH_LINEAGES` covers 60/60 `DISHES`), in the SSG mock (`mock-api-data.json`: 0/60 null), and on the live API (`/api/dishes?status=published&limit=100`: 0/60 null); live `/lineages` has no "Other" bucket. (2) **DB password rotation cannot be executed from the Cursor Cloud Agent env** — no VPS SSH key and no DB/superuser creds are present in the cloud sandbox. (Note: rotation was subsequently executed by Hermes on the same day from the Telegram-side session — see the entry above and `### 2026-07-22 — Phase 7`.)
+
+2026-07-22 by Cursor Cloud Agent — PR #28 opened: editorial site header + dish cover hero (rebases PR #8 nav onto main; no /families taxonomy regression). DishDetail hero loads cover via signed URL on hydration.
+
 2026-06-29 by Hermes Agent (Telegram) — PR #19 production migration applied (Phase 2A `food_geography` schema deployed to `gustale` database on the VPS); PR #23 limit-fix verified; Phase 7 password rotation deferred to a separate authorized operation (now done — see 2026-07-22 entry).
 
 2026-06-28 by Claude Code — **PR #15 (entity Lineages domain) landed + deployed; `/api/lineages` 500 fixed; migration `0006` applied + 14 lineages seeded to prod. Main green at `ae1fc29`.**
@@ -157,8 +161,8 @@ Main branch SHA: `ae1fc29` (2026-06-28 — PR #15 lineages + #17 api fix; CI gre
 
 ## Pending Data-Cleanup Tasks
 
-- [ ] 15 dishes still have `methodSlug=null` in mock data — list: Kimbap, Tacos al pastor, Croffle, Som tam, Poutine, Bánh mì, Pho bo, Khao soi, Biryani, Butter chicken, Pad thai, Feijoada, Tandoori chicken, Tteokbokki
-- [ ] After seeding those 15: re-generate `mock-api-data.json` and push → CI rebuilds
+- [x] ~~15 dishes still have `methodSlug=null` in mock data~~ — **RESOLVED / stale note (verified 2026-07-22 by Cursor Cloud Agent).** Fixed earlier by PR #9. Re-verified 3 ways: seed `DISH_LINEAGES` covers 60/60 `DISHES` (0 missing); `mock-api-data.json` has 0/60 dishes with null `methodSlug`; live `/api/dishes?status=published&limit=100` has 0/60 null. Live `/lineages` shows no "Other" bucket. NB: the dishes named in the old note (Kimbap, Croffle, Som tam, Butter chicken, Tandoori chicken, Tteokbokki) are **not in the current 60-dish dataset** at all — they were never added, so there was nothing to seed.
+- Minor (optional, non-blocking): `DISH_LINEAGES` in `packages/db/src/seed-data.ts` has **13 orphan keys** pointing at dish slugs not in `DISHES` (`moussaka-levant, baba-ganoush, tacos-al-pastor, tamales-mexican, dim-sum, pho-bo, ramen-tonkotsu, tonkatsu, okonomiyaki, croque-monsieur, omelette, khachapuri, bigos`). Harmless (the seeder skips slugs it can't find), but they're dead entries — clean up if/when those dishes are added or drop them.
 
 ---
 
