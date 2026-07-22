@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import Nav from '../components/Nav.astro';
+import SiteHeader from '../components/SiteHeader.astro';
 
 export interface Props {
   title: string;
@@ -23,9 +23,11 @@ const isGeo = domain === 'geo';
     <title>{title}</title>
   </head>
   <body class="gst">
-    <Nav />
+    <a class="skip-link" href="#main">Skip to content</a>
 
-    <main>
+    <SiteHeader />
+
+    <main id="main">
       <slot />
     </main>
 
@@ -45,8 +47,10 @@ const isGeo = domain === 'geo';
           <a href="https://gustale.com">Atlas</a>
           <a href="https://gustale.recipes">Recipes</a>
           <a href="/families">Families</a>
+          <a href="/regions">Regions</a>
           <a href="/lineages">Lineages</a>
           <a href="/about">About</a>
+          <a href="/contribute">Contribute</a>
         </div>
       </div>
     </footer>

@@ -96,7 +96,8 @@ export function DishGallery({ media }: DishGalleryProps) {
       <section aria-labelledby="media-heading" className="space-y-4">
         <h2
           id="media-heading"
-          className="text-2xl font-bold text-slate-900"
+          className="text-2xl font-bold"
+          style={{ color: 'var(--ink)', fontFamily: 'var(--display)' }}
         >
           Gallery
         </h2>
@@ -104,7 +105,12 @@ export function DishGallery({ media }: DishGalleryProps) {
         {loadError && (
           <div
             role="status"
-            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+            className="rounded-md px-3 py-2 text-sm"
+            style={{
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+              background: 'var(--accent-soft)',
+              color: 'var(--ink)',
+            }}
           >
             {loadError}
           </div>
@@ -115,7 +121,12 @@ export function DishGallery({ media }: DishGalleryProps) {
           <figure className="space-y-2">
             <button
               type="button"
-              className="block w-full overflow-hidden rounded-lg bg-slate-100 text-left transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="block w-full overflow-hidden text-left transition hover:opacity-90 focus:outline-none"
+              style={{
+                borderRadius: 'var(--radius)',
+                background: 'var(--card)',
+                boxShadow: 'inset 0 0 0 1px var(--line)',
+              }}
               onClick={() => setLightbox(cover)}
               aria-label={`Open larger view of cover image${cover.altText ? `: ${cover.altText}` : ''}`}
             >
@@ -129,13 +140,16 @@ export function DishGallery({ media }: DishGalleryProps) {
                   className="aspect-[16/9] w-full object-cover"
                 />
               ) : (
-                <div className="flex aspect-[16/9] w-full items-center justify-center text-sm text-slate-400">
+                <div
+                  className="flex aspect-[16/9] w-full items-center justify-center text-sm"
+                  style={{ color: 'var(--sub)' }}
+                >
                   Loading cover…
                 </div>
               )}
             </button>
             {(cover.altText || cover.credit || cover.license) && (
-              <figcaption className="text-xs text-slate-500">
+              <figcaption className="text-xs" style={{ color: 'var(--sub)' }}>
                 {cover.altText && <span>{cover.altText}</span>}
                 {cover.credit && (
                   <span className="ml-2 italic">
@@ -143,7 +157,10 @@ export function DishGallery({ media }: DishGalleryProps) {
                   </span>
                 )}
                 {cover.license && (
-                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono">
+                  <span
+                    className="ml-2 px-1.5 py-0.5 font-mono"
+                    style={{ background: 'var(--card)', borderRadius: 4 }}
+                  >
                     {cover.license}
                   </span>
                 )}
@@ -161,7 +178,12 @@ export function DishGallery({ media }: DishGalleryProps) {
                 <li key={m.attachmentId}>
                   <button
                     type="button"
-                    className="block w-full overflow-hidden rounded-md bg-slate-100 text-left transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="block w-full overflow-hidden text-left transition hover:opacity-90 focus:outline-none"
+                    style={{
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--card)',
+                      boxShadow: 'inset 0 0 0 1px var(--line)',
+                    }}
                     onClick={() => setLightbox(m)}
                     aria-label={`Open larger view${m.altText ? `: ${m.altText}` : ''}`}
                   >
@@ -175,7 +197,10 @@ export function DishGallery({ media }: DishGalleryProps) {
                         className="aspect-square w-full object-cover"
                       />
                     ) : (
-                      <div className="flex aspect-square w-full items-center justify-center text-xs text-slate-400">
+                      <div
+                        className="flex aspect-square w-full items-center justify-center text-xs"
+                        style={{ color: 'var(--sub)' }}
+                      >
                         Loading…
                       </div>
                     )}
@@ -186,7 +211,7 @@ export function DishGallery({ media }: DishGalleryProps) {
           </ul>
         )}
 
-        <p className="text-xs text-slate-400">
+        <p className="text-xs" style={{ color: 'var(--sub)' }}>
           {sorted.length} image{sorted.length === 1 ? '' : 's'} on record · URLs
           expire after 15 minutes
         </p>

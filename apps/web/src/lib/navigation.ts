@@ -100,6 +100,7 @@ const RECIPES: PropertyRef = {
 const GEO_PRIMARY: NavLink[] = [
   { label: 'Atlas', href: '/', match: 'exact' },
   { label: 'Families', href: '/families', match: 'prefix' },
+  { label: 'Regions', href: '/regions', match: 'prefix' },
   { label: 'Lineages', href: '/lineages', match: 'prefix' },
   { label: 'Map', href: '/map', match: 'prefix' },
 ];
@@ -108,6 +109,7 @@ const GEO_PRIMARY: NavLink[] = [
 const RECIPES_PRIMARY: NavLink[] = [
   { label: 'Recipes', href: '/dishes', match: 'prefix' },
   { label: 'Families', href: '/families', match: 'prefix' },
+  { label: 'Regions', href: '/regions', match: 'prefix' },
   { label: 'Lineages', href: '/lineages', match: 'prefix' },
 ];
 
@@ -115,6 +117,7 @@ const GEO_SEARCH: SearchRow[] = [
   { group: 'Dishes', label: 'Khachapuri', meta: 'Georgia', href: '/dishes/khachapuri' },
   { group: 'Dishes', label: 'Pho', meta: 'Vietnam', href: '/dishes/pho' },
   { group: 'Families', label: 'Egg dishes', meta: 'Family', href: '/families' },
+  { group: 'Regions', label: 'Browse by region', meta: 'Atlas', href: '/regions' },
   { group: 'Lineages', label: 'The lineage of pizza', meta: 'Lineage', href: '/lineages' },
   { group: 'Places', label: 'Morocco', meta: 'Atlas', href: '/map' },
 ];
@@ -123,6 +126,7 @@ const RECIPES_SEARCH: SearchRow[] = [
   { group: 'Dishes', label: 'Tagine', meta: 'Morocco', href: '/dishes/tagine' },
   { group: 'Dishes', label: 'Shakshuka', meta: 'Maghreb / Levant', href: '/dishes/shakshuka' },
   { group: 'Families', label: 'Soups & broths', meta: 'Family', href: '/families' },
+  { group: 'Regions', label: 'Browse by region', meta: 'Atlas', href: '/regions' },
   { group: 'Lineages', label: 'The lineage of pizza', meta: 'Lineage', href: '/lineages' },
 ];
 

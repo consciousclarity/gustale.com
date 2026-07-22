@@ -132,6 +132,9 @@ const seoDescription =
         </section>
       )}
 
+      {/* client:load is required so DishGallery / cover signed-URL fetches
+          run after hydration. Without it, useState/useEffect never execute
+          and media (e.g. moussaka-greek/cover.jpg) stays blank. */}
       <DishDetail
         dish={data.dish}
         origin={data.origin}

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type {
   DishCategory,
   DishCitation,
@@ -9,6 +10,7 @@ import type {
   DishTag,
   DishVariant,
 } from '../types/dish';
+import { getMediaSignedUrl } from '../lib/api';
 import { DishGallery } from './DishGallery';
 import { AlsoExplore } from './AlsoExplore';
 
@@ -29,7 +31,8 @@ const HERO_TONES = ['#D98A53', '#C8743C'] as const;
 /**
  * Renders the full editorial dish detail view (same design language as the
  * gustale.recipes "Gustale Recipes" template). All data is server-rendered
- * into the island props (SSR-safe) — no client-side fetch.
+ * into the island props (SSR-safe). Cover media uses a short-lived signed
+ * URL fetched on hydration — never baked at build time.
  */
 export function DishDetail({
   dish,
@@ -43,6 +46,32 @@ export function DishDetail({
   media,
 }: DishDetailProps) {
   const primaryCategory = categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
+  const cover =
+    media.find((m) => m.role === 'cover') ??
+    [...media].sort((a, b) => a.position - b.position)[0] ??
+    null;
+  const coverMediaId = cover?.mediaId ?? null;
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!coverMediaId) {
+      setCoverUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await getMediaSignedUrl(coverMediaId);
+        if (!cancelled) setCoverUrl(res.url);
+      } catch {
+        // Keep the patterned placeholder if the signed URL fails.
+        if (!cancelled) setCoverUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [coverMediaId]);
 
   return (
     <article className="dish-page">
@@ -125,18 +154,36 @@ export function DishDetail({
         </div>
 
         <div className="rec-heroimg">
-          <div
-            className="ph"
-            style={{
-              height: 360,
-              borderRadius: 'var(--radius)',
-              background: `repeating-linear-gradient(135deg, ${HERO_TONES[0]} 0 14px, ${HERO_TONES[1]} 14px 28px)`,
-            }}
-          >
-            <span>{dish.name.toLowerCase()}</span>
-          </div>
+          {coverUrl ? (
+            <img
+              src={coverUrl}
+              alt={cover?.altText ?? `${dish.name} cover`}
+              width={cover?.width ?? undefined}
+              height={cover?.height ?? undefined}
+              loading="eager"
+              decoding="async"
+              style={{
+                display: 'block',
+                width: '100%',
+                height: 360,
+                objectFit: 'cover',
+                borderRadius: 'var(--radius)',
+              }}
+            />
+          ) : (
+            <div
+              className="ph"
+              style={{
+                height: 360,
+                borderRadius: 'var(--radius)',
+                background: `repeating-linear-gradient(135deg, ${HERO_TONES[0]} 0 14px, ${HERO_TONES[1]} 14px 28px)`,
+              }}
+            >
+              <span>{cover ? 'Loading cover…' : dish.name.toLowerCase()}</span>
+            </div>
+          )}
           <div className="cap">
-            <span>HERO · 4:3</span>
+            <span>{cover ? 'COVER · PHOTO' : 'HERO · 4:3'}</span>
             <span>{(origin?.isoCode ?? origin?.name ?? '').toString().toUpperCase()}</span>
           </div>
         </div>

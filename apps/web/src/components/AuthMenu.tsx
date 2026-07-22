@@ -13,6 +13,10 @@ interface Props {
  * "Sign out" once the user is authenticated. Always starts unauthenticated
  * in production (the session cookie lives on api.gustale.com and can't be
  * read by SSR here on gustale.com), then upgrades after hydration.
+ *
+ * Styled with the terracotta editorial design tokens (var(--ink) / --sub /
+ * --line / --card / --accent) — no slate/emerald utilities. The avatar is a
+ * quiet initial badge on var(--card), never a solid colored circle.
  */
 export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) {
   const [user, setUser] = useState<SessionUser | null>(
@@ -72,16 +76,12 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
 
     if (variant === 'mobile') {
       return (
-        <div className="auth-mobile">
-          <a href="/account" className="auth-avatar-sm">
-            <span className="auth-initials-sm">{initials}</span>
-            <span className="auth-label">{label}</span>
+        <div className="gnav-auth-mobile">
+          <a href="/account" className="gnav-auth-id">
+            <span className="gnav-avatar" aria-hidden="true">{initials}</span>
+            <span className="gnav-auth-name">{label}</span>
           </a>
-          <button
-            onClick={handleSignOut}
-            className="auth-signout"
-            type="button"
-          >
+          <button onClick={handleSignOut} className="gnav-auth-link" type="button">
             Sign out
           </button>
         </div>
@@ -89,10 +89,10 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
     }
 
     return (
-      <div className="auth-relative">
+      <div className="gnav-auth-desktop">
         <button
           onClick={() => setMenuOpen((open) => !open)}
-          className="auth-avatar-btn"
+          className="gnav-avatar gnav-avatar-btn"
           type="button"
           aria-haspopup="true"
           aria-expanded={menuOpen}
@@ -101,30 +101,23 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
           {initials}
         </button>
         {menuOpen && (
-          <div className="auth-dropdown">
-            <div className="auth-dropdown-header">
-              <p className="auth-dropdown-name">{label}</p>
-              {user.email && (
-                <p className="auth-dropdown-email">{user.email}</p>
-              )}
+          <div className="gnav-auth-pop" role="menu">
+            <div className="gnav-auth-pop-head">
+              <p className="gnav-auth-pop-name">{label}</p>
+              {user.email && <p className="gnav-auth-pop-email">{user.email}</p>}
             </div>
-            <div className="auth-dropdown-divider" />
-            <a
-              href="/account"
-              className="auth-dropdown-item"
-            >
+            <div className="gnav-auth-pop-rule" />
+            <a href="/account" className="gnav-auth-pop-item" role="menuitem">
               Account
             </a>
-            <a
-              href="/dashboard"
-              className="auth-dropdown-item"
-            >
+            <a href="/dashboard" className="gnav-auth-pop-item" role="menuitem">
               Dashboard
             </a>
             <button
               onClick={handleSignOut}
-              className="auth-dropdown-item auth-signout-btn"
+              className="gnav-auth-pop-item gnav-auth-pop-signout"
               type="button"
+              role="menuitem"
             >
               Sign out
             </button>
@@ -140,24 +133,20 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
 function UnauthedMenu({ variant }: { variant: 'desktop' | 'mobile' }) {
   if (variant === 'mobile') {
     return (
-      <div className="auth-mobile">
-        <span className="auth-signed-out">Not signed in</span>
-        <a href="/login" className="auth-signin-link">
-          Sign in
-        </a>
+      <div className="gnav-auth-mobile">
+        <span className="gnav-auth-muted">Not signed in</span>
+        <span className="gnav-auth-links">
+          <a href="/login" className="gnav-auth-link">Sign in</a>
+          <a href="/register" className="gnav-auth-link">Register</a>
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="auth-links">
-      <a
-        href="/login"
-        className="btn btn-outline"
-      >
-        Sign in
-      </a>
-    </div>
+    <a href="/login" className="gnav-auth-link gnav-auth-signin">
+      Sign in
+    </a>
   );
 }
 
