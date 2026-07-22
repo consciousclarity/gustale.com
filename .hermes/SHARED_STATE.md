@@ -6,6 +6,8 @@
 
 ## Last updated
 
+2026-07-22 by Cursor Cloud Agent — PR #28 opened: editorial site header + dish cover hero (rebases PR #8 nav onto main; no /families taxonomy regression). DishDetail hero loads cover via signed URL on hydration.
+
 2026-06-29 by Hermes Agent (Telegram) — PR #19 production migration applied (Phase 2A `food_geography` schema deployed to `gustale` database on the VPS); PR #23 limit-fix verified; Phase 7 password rotation deferred to a separate authorized operation.
 
 2026-06-28 by Claude Code — **PR #15 (entity Lineages domain) landed + deployed; `/api/lineages` 500 fixed; migration `0006` applied + 14 lineages seeded to prod. Main green at `ae1fc29`.**

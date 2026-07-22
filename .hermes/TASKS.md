@@ -7,9 +7,11 @@
 
 ## In progress
 
-- 2026-06-26: **Editorial site header** (PR #7, `feat/nav-editorial`). Branch pushed, PR opened via web UI. Awaiting CI matrix + Alex review + merge. After merge → Hermes does live smoke test on both domains. — Mavis
+- (none)
 
 ## Done (recent — last 10)
+
+- 2026-07-22: **Editorial site header + dish cover hero** (PR #28, `cursor/gallery-and-nav-editorial-6cb3`). Landed config-driven SiteHeader/NavSearch/MobileNav on current main (avoids /families taxonomy regression from old PR #8). DishDetail hero now fetches cover signed URL on hydration; gallery restyled to editorial tokens. — Cursor Cloud Agent
 
 - 2026-06-26: **/lineages real-lineage data fix** (PR #9, `feat/lineages-data-fix`, base `feat/nav-editorial` — stacked). Root cause: `seedEncyclopedia()` never wrote `dish_preparations`, so 59/60 published dishes had `methodSlug=null` → all "Other preparations". Also found: (1) the static `/lineages` is built from `mock-api.mjs`, not the DB — its dish list lacked `methodSlug`/`originName`, so the page was "other" regardless of DB; mock was stale (31 vs 60 dishes); (2) the live `/api/dishes` **list endpoint returns HTTP 500** (map endpoint fine) — runtime issue in the deployed API image, **needs VPS investigation + redeploy** (no VPS SSH on my end). Fix: `seed-data.ts` adds `LINEAGE_METHODS` (16, 1:1 with page `LINEAGE_LABELS`) + `DISH_LINEAGES`; `seed.ts` seeds methods + idempotent per-dish prep pass; `mock-api.mjs` → 60 dishes emitting `methodSlug`+`originName`; `lineages.astro` fixes stew/curry double-label + adds 4 stories. **Live geekom DB updated directly** (idempotent SQL): 16 methods, 60 dish_preparations, 0 published without a prep. typecheck + astro check clean; web build emits 16 distinct lineages, no "other", featured = Stews & braises (11). **VPS owner: please debug the `/api/dishes` 500 + redeploy the API.** — Claude Code
 
@@ -140,17 +142,6 @@ the front-end is missing. Build:
   just enforce it in the form)
 - Show the edit_history timeline (create + every update since)
 
-### P2 — Fix DishGallery hydration
-**Owner:** unassigned · **Estimate:** 30 min
-`DishDetail` is rendered without a `client:` directive in
-`pages/dishes/[slug].astro`, so the embedded `DishGallery`'s
-`useState`/`useEffect` never runs. The seed image for
-`moussaka-greek/cover.jpg` is on record but won't render until
-this is fixed. Two clean fixes:
-- Add `client:load` to `<DishDetail>` in `[slug].astro` (simplest)
-- Hoist gallery into a top-level `client:load` island like we did
-  for `<DishMap>` (more surgical — only the gallery hydrates, not
-  the whole detail view)
 
 ### P2 — Image upload UI
 **Owner:** unassigned · **Estimate:** half-day
