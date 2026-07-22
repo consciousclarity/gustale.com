@@ -3089,3 +3089,165 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   color: var(--sub);
 }
 .ld-sources p { max-width: 720px; margin: 8px 0 0; }
+
+/* ── Global search (P0-3) ─────────────────────────────────────────────────
+   Mounted in Nav.astro and at the top of the mobile drawer via
+   <GlobalSearch client:load />. Class names are prefixed gs-*; collisions
+   with existing globals are checked (none as of 2026-07-23). */
+.gs-container { position: relative; }
+.gs-container.gs-header { flex: 0 1 auto; max-width: 280px; min-width: 0; }
+.gs-container.gs-drawer { width: 100%; }
+
+.gs-form {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--card, #fbf8f1);
+  border: 1px solid var(--line, rgba(33,28,22,0.14));
+  border-radius: 999px;
+  padding: 0 12px;
+  height: 36px;
+  transition: border-color .14s, box-shadow .14s;
+}
+.gs-form:focus-within {
+  border-color: var(--accent, #b8552f);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(184,85,47,0.10));
+}
+.gs-container.gs-drawer .gs-form {
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 16px;
+  background: #fff;
+}
+
+.gs-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink, #211c16);
+  padding: 0;
+  outline: none;
+}
+.gs-container.gs-drawer .gs-input { font-size: 16px; }
+.gs-input::placeholder { color: var(--sub, #6b6052); opacity: .8; }
+.gs-input::-webkit-search-cancel-button { display: none; }
+
+.gs-submit {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  padding: 0 0 0 8px;
+  color: var(--sub, #6b6052);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.gs-submit:hover { color: var(--accent, #b8552f); }
+
+/* Dropdown — anchored under the input on desktop, full-screen overlay on mobile. */
+.gs-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--card, #fbf8f1);
+  border: 1px solid var(--line, rgba(33,28,22,0.14));
+  border-radius: 12px;
+  padding: 8px 0;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(33, 28, 22, 0.08);
+  min-width: 280px;
+}
+
+.gs-empty {
+  padding: 16px 18px;
+  font-size: 13px;
+  color: var(--sub, #6b6052);
+}
+.gs-empty--error a { color: var(--accent, #b8552f); text-decoration: underline; }
+
+.gs-suggestion {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent, #b8552f);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.gs-suggestion:hover { color: var(--accent-dark, #94391e); }
+
+.gs-group { padding: 6px 0; }
+.gs-group + .gs-group { border-top: 1px dashed var(--line, rgba(33,28,22,0.14)); }
+
+.gs-group-label {
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sub, #6b6052);
+  margin: 0;
+  padding: 8px 18px 4px;
+  font-weight: 500;
+}
+
+.gs-list { list-style: none; margin: 0; padding: 0; }
+
+.gs-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 18px;
+  text-decoration: none;
+  color: var(--ink, #211c16);
+  border-left: 3px solid transparent;
+}
+.gs-hit--active,
+.gs-hit:hover {
+  background: var(--accent-soft, rgba(184,85,47,0.10));
+  border-left-color: var(--accent, #b8552f);
+}
+.gs-hit-name { font-size: 14px; font-weight: 500; }
+.gs-hit-desc {
+  font-size: 12px;
+  color: var(--sub, #6b6052);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.gs-more {
+  display: block;
+  padding: 8px 18px 4px;
+  font-size: 12px;
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  text-decoration: none;
+  color: var(--accent, #b8552f);
+}
+.gs-more:hover { color: var(--accent-dark, #94391e); }
+
+/* On narrow viewports the drawer variant takes over the viewport. */
+@media (max-width: 640px) {
+  .gs-container.gs-drawer .gs-dropdown {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 100vh;
+    border-radius: 0;
+    border: 0;
+    padding: 24px 16px;
+    box-shadow: none;
+    background: var(--bg, #f6f1e7);
+  }
+  .gs-container.gs-drawer .gs-dropdown .gs-group-label { font-size: 12px; padding-left: 8px; }
+}

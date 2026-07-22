@@ -19,6 +19,7 @@ import { registerIngredientRoutes } from './routes/ingredients.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerDishMediaRoutes } from './routes/dishes-media.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
+import { registerSearchRoutes } from './routes/search.js';
 import { registerErrorHandler } from './errors.js';
 import betterAuthPlugin from './plugins/auth.js';
 import authContextPlugin from './plugins/auth-context.js';
@@ -89,6 +90,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(registerMediaRoutes);
   await app.register(registerDishMediaRoutes);
   registerDashboardRoutes(app);
+  registerSearchRoutes(app);
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {

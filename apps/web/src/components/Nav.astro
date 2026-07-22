@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { AuthMenu } from './AuthMenu';
+import { GlobalSearch } from './GlobalSearch';
 
 const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
 const isGeo = domain === 'geo';
@@ -48,6 +49,10 @@ const links = isGeo
       {otherLabel}
     </a>
 
+    <!-- P0-3: Global search. Compact pill on desktop; opens an anchored
+         dropdown below the input on focus/typing. See GlobalSearch.tsx. -->
+    <GlobalSearch client:load variant="compact" placement="header" />
+
     <!-- Primary nav links -->
     <div class="gst-navlinks" id="nav-links">
       {links.map(link => (
@@ -84,6 +89,11 @@ const links = isGeo
   <!-- Mobile drawer -->
   <div class="nav-mobile-drawer" id="nav-mobile-drawer" hidden>
     <div class="nav-mobile-inner">
+      <!-- P0-3 mobile search: full-width input at the top of the drawer.
+           Dropdown transitions to a full-screen overlay on narrow viewports
+           (see GlobalSearch's CSS for the @media breakpoint). -->
+      <GlobalSearch client:load variant="full" placement="drawer" />
+      <div class="nav-mobile-divider" />
       {links.map(link => (
         <a href={link.href} class="nav-mobile-link">{link.label}</a>
       ))}
