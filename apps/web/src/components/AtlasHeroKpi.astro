@@ -1,0 +1,194 @@
+---
+// Static-rendered hero KPI band for the homepage.
+//
+// Why this exists (P0-1):
+//   The homepage (`/`) was 100% rendered via <GustaleHomeIsland client:only="react" />,
+//   which during SSG emits an empty <astro-island> shell — meaning a visitor's first
+//   paint of gustale.com/ shows no counts at all (the homepage HTML has no "60 dishes"
+//   string anywhere). Competitor sites always lead with their numbers; Gustale's
+//   "atlas of how food moved" claim sounds empty without them.
+//
+//   This component renders a tight hero band with the real catalog counts pulled from
+//   /api/dishes at build time (the same fetch the map page uses; cached by CI's mock
+//   API during build — see apps/web/scripts/mock-api.mjs). When the React island
+//   hydrates below it, the page gets its full interactive hero. The two coexist: this
+//   band sits ABOVE the workspace and visually anchors the top of the fold; the
+//   React hero (which already shows the same numbers in its own `.hero-meta`) sits
+//   BELOW it.
+//
+//   Cost: ~1 extra SSG fetch + ~600 bytes of static HTML. Reversible: deleting this
+//   component from `index.astro` restores the previous behavior.
+
+import { getMapDishes, listDishes, ApiError } from '../lib/api';
+
+interface Counts {
+  dishes: number;
+  countries: number;
+  families: number;
+  lineages: number;
+  ok: true;
+  // useful when the SSG fetch fails: render placeholders rather than zero.
+  ok_false_reason?: string;
+}
+
+async function fetchCounts(): Promise<Counts> {
+  try {
+    // listDishes(limit=100) returns the full category/origin/family shape per dish;
+    // lineage count can be derived from methodSlug distinct values.
+    // Mock API also serves this — see apps/web/scripts/mock-api-data.json shape.
+    const [listResp] = await Promise.all([
+      listDishes({ limit: 100 }),
+    ]);
+    const dishes = listResp.dishes ?? [];
+    const countries = new Set(
+      dishes.map((d) => d.originName).filter(Boolean) as string[],
+    ).size;
+    const families = new Set(
+      dishes.map((d) => d.familySlug).filter(Boolean) as string[],
+    ).size;
+    const lineages = new Set(
+      dishes.map((d) => d.methodSlug).filter(Boolean) as string[],
+    ).size;
+    return {
+      // total is listResp.dishes.length when the API capped at 100.
+      // The build run always uses the same ~60-published-dish dataset (PR #23 fix
+      // confirms /api/dishes?limit=100 fully covers the 60 published dishes), so
+      // length is the published count. If we ever grow past 100, switch to the
+      // dedicated total field or the /map endpoint which has a count property.
+      dishes: dishes.length,
+      countries,
+      families,
+      lineages,
+      ok: true,
+    };
+  } catch (err) {
+    // Do NOT show zeros. Render placeholders + a tiny note instead so a build-
+    // time API outage doesn't produce a deceptive "0 dishes" homepage.
+    const reason =
+      err instanceof ApiError
+        ? `API ${err.status}`
+        : err instanceof Error
+          ? err.message
+          : 'unknown';
+    return {
+      dishes: 0,
+      countries: 0,
+      families: 0,
+      lineages: 0,
+      ok: false,
+      ok_false_reason: reason,
+    };
+  }
+}
+
+const counts = await fetchCounts();
+
+const fmt = (n: number): string => (n > 0 ? new Intl.NumberFormat('en-US').format(n) : '—');
+---
+
+<section
+  class:list={[
+    'atlas-kpi',
+    !counts.ok && 'atlas-kpi--degraded',
+  ]}
+  aria-label="Atlas at a glance"
+>
+  <div class="wrap">
+    <p class="atlas-kpi__kicker">
+      Browse the Gustale atlas
+    </p>
+    <h2 class="atlas-kpi__title">
+      The open atlas of how food moved.
+    </h2>
+
+    <div class="atlas-kpi__stats" role="list">
+      <div role="listitem">
+        <b>{fmt(counts.dishes)}</b>
+        <span>dishes</span>
+      </div>
+      <div role="listitem">
+        <b>{fmt(counts.countries)}</b>
+        <span>origins</span>
+      </div>
+      <div role="listitem">
+        <b>{fmt(counts.families)}</b>
+        <span>families</span>
+      </div>
+      <div role="listitem">
+        <b>{fmt(counts.lineages)}</b>
+        <span>lineages</span>
+      </div>
+    </div>
+
+    {
+      !counts.ok && (
+        <p class="atlas-kpi__note">
+          Live counts unavailable during build ({counts.ok_false_reason ?? 'unknown'}).
+          Showing placeholders. The interactive page below uses the live API.
+        </p>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .atlas-kpi {
+    /* Keep contrast with the React island hero below — a tight top band,
+       not a full competing hero. ~150px tall, leaves the rest of the
+       viewport for the interactive workspace. */
+    padding: 38px 0 28px;
+    border-bottom: 1px solid var(--line, rgba(33, 28, 22, 0.14));
+    background: var(--card, #fbf8f1);
+  }
+  .atlas-kpi .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .atlas-kpi__kicker {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sub, #6b6052);
+    margin: 0 0 8px;
+  }
+  .atlas-kpi__title {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(28px, 4vw, 42px);
+    line-height: 1.1;
+    margin: 0 0 22px;
+    color: var(--ink, #211c16);
+  }
+  .atlas-kpi__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    align-items: baseline;
+  }
+  .atlas-kpi__stats > div {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--sub, #6b6052);
+    font-size: 14px;
+  }
+  .atlas-kpi__stats b {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-weight: 400;
+    font-size: 26px;
+    color: var(--ink, #211c16);
+  }
+  .atlas-kpi--degraded .atlas-kpi__stats b { color: var(--sub, #6b6052); }
+  .atlas-kpi__note {
+    margin: 16px 0 0;
+    font-size: 12px;
+    color: var(--sub, #6b6052);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  @media (max-width: 640px) {
+    .atlas-kpi__stats { gap: 20px; }
+    .atlas-kpi__stats b { font-size: 22px; }
+  }
+</style>
