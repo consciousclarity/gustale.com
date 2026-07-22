@@ -18,7 +18,7 @@ travel blog. Mirror IDs below; update both files when claiming work.
 
 ### Wave A — Trust (pick first)
 - [ ] **P0-1** Homepage never shows zeros before hydration
-- [ ] **P0-2** Dish cover / media reliability (no infinite “Loading cover…”)
+- [x] **P0-2** Dish cover / media reliability — PR #29 (media-first Phase A; merge pending)
 - [ ] **P2-7** MapLibre CSS only on map routes
 - [ ] **P0-4** Re-enable email verification (Resend + `hello@gustale.com`)
 

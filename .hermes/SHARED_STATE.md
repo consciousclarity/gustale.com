@@ -6,6 +6,8 @@
 
 ## Last updated
 
+2026-07-22 by Cursor Cloud Agent — **Media-first Phase A PR #29** (`cursor/media-first-phase-a-51fa`): full-bleed dish cover hero + typographic never-empty fallback, spacing scale tokens, gallery without duplicate cover, origin map moved below hero. Implements competitive roadmap P0-2 / Wave A design air.
+
 2026-07-22 by Cursor Cloud Agent — **Competitive roadmap published** at `.hermes/COMPETITIVE_ROADMAP.md` (Waves A–E). Built from review of Explore.co.uk food-origins, theworldonaplate.co.uk, and Khoury et al. 2016 (crop primary regions). Positioning locked: Gustale = open atlas of how food moved. Top bets: (P0) homepage never-zero + covers; (P1) Dish Journey UI, ingredient origins via empty `food_geography`, region guides, `/stories`, confidence surfacing, Atlas→Recipes bridge. TASKS.md mirrors wave checklists. Explicit non-goals: meal planner, trip CTAs, faking Khoury’s 68.7% stat.
 
 2026-07-22 by Hermes Agent (Telegram) — **Phase 7 DB password rotation EXECUTED on VPS `62.72.7.218`.** New gustale role password generated, `ALTER ROLE gustale` applied via pipe-safe `docker exec` heredoc, `.env` + `.db-password` updated on disk, `gustale-api` container recreated with the same GHCR image SHA `606cdd2…`. Phase 5.5 smoke fully green (health 200, 60 dishes, 60 map points, both domains 200). See `### 2026-07-22 — Phase 7` below for full audit. Pre-state preserved as `.env.pre-phase7.20260722T172341Z` and `.db-password.pre-phase7.20260722T172341Z` in `/home/deploy/gustale.com/backups/`.

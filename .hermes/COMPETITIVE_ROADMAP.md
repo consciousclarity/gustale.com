@@ -70,7 +70,7 @@ with JS disabled; hydrated UI matches.
 ---
 
 ## P0-2 · Dish cover / media reliability
-**Status:** `todo` · **Owner:** unassigned
+**Status:** `in_progress` · **Owner:** Cursor Cloud Agent · **PR:** https://github.com/consciousclarity/gustale.com/pull/29 (Phase A: full-bleed cover + never-empty fallback + spacing scale)
 
 **Problem.** Dish pages still show “Loading cover…” / empty hero states;
 gallery depends on signed URLs. Empty heroes make encyclopedia pages feel
