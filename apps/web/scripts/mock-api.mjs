@@ -221,6 +221,82 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/search?q=&type=&limit=  (P0-3)
+  // Substring-only mock — no pg_trgm in JS. The CI build doesn't actually
+  // call this endpoint at SSG time (search is a client-only live API call),
+  // but it exists so dev builds and any future prod-like tests don't break.
+  // Returns the canonical response shape the React island expects:
+  //   { query, took_ms, groups: [{ type, total, results: [...] }] }
+  // Empty groups are skipped; type param narrows to one group if given.
+  if (url.pathname === '/api/search' && req.method === 'GET') {
+    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+    const limit = Math.max(1, Math.min(20, parseInt(url.searchParams.get('limit') ?? '5', 10) || 5));
+    const typeFilter = url.searchParams.get('type'); // optional: dish|region|lineage|ingredient
+    const start = Date.now();
+    const matchScore = (haystack, needle) => {
+      if (!needle) return 0;
+      const h = (haystack ?? '').toLowerCase();
+      if (h.startsWith(needle)) return 1.0;
+      const idx = h.indexOf(needle);
+      if (idx >= 0) return 0.5 - idx * 0.01; // earlier matches rank higher
+      return 0;
+    };
+    const groups = [];
+
+    if (!typeFilter || typeFilter === 'dish') {
+      const hits = LIST
+        .filter((d) => d.status === 'published')
+        .map((d) => ({
+          slug: d.slug,
+          name: d.canonicalName,
+          shortDescription: d.shortDescription ?? null,
+          href: `/dishes/${d.slug}`,
+          score: Math.max(
+            matchScore(d.canonicalName, q),
+            matchScore(d.shortDescription, q),
+          ),
+        }))
+        .filter((h) => h.score > 0)
+        .sort((a, b) => b.score - a.score);
+      groups.push({ type: 'dish', total: hits.length, results: hits.slice(0, limit) });
+    }
+    if (!typeFilter || typeFilter === 'lineage') {
+      const list = HAS_LINEAGES ? LINEAGES_DATA.list : [];
+      const hits = list
+        .filter((l) => l.status === 'published')
+        .map((l) => ({
+          slug: l.slug,
+          name: l.name,
+          shortDescription: l.shortDescription ?? null,
+          href: `/lineages/${l.slug}`,
+          score: Math.max(
+            matchScore(l.name, q),
+            matchScore(l.shortDescription, q),
+          ),
+        }))
+        .filter((h) => h.score > 0)
+        .sort((a, b) => b.score - a.score);
+      groups.push({ type: 'lineage', total: hits.length, results: hits.slice(0, limit) });
+    }
+    if (!typeFilter || typeFilter === 'ingredient') {
+      // No ingredient data captured in mock; return empty group rather than fabricate.
+      groups.push({ type: 'ingredient', total: 0, results: [] });
+    }
+    if (!typeFilter || typeFilter === 'region') {
+      // food_regions not in mock; same treatment as ingredients.
+      groups.push({ type: 'region', total: 0, results: [] });
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.end(JSON.stringify({
+      query: q,
+      took_ms: Date.now() - start,
+      groups,
+    }));
+    return;
+  }
+
   // Fallback 404
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found', message: `Unknown route: ${url.pathname}` }));

@@ -1,0 +1,23 @@
+-- 0007_pg_trgm.sql — enable pg_trgm extension for fuzzy text search.
+--
+-- The /api/search endpoint (apps/api/src/routes/search.ts) uses
+-- `pg_trgm.similarity()` and the `%` operator to give typo tolerance —
+-- "vinda" finds Vindaloo via trigram overlap on canonical_name.
+--
+-- `pg_trgm` is part of PostgreSQL contrib. The `postgis/postgis:16-3.4`
+-- container image bundles it (verified `pg_available_extensions` on prod
+-- shows `pg_trgm | 1.6 |` as available). Adding `IF NOT EXISTS` makes
+-- this safe to re-run on a database that already has it.
+--
+-- This migration is purely an extension install — no schema, no table,
+-- no row changes. It MUST run before any /api/search query touches the
+-- similarity function, otherwise the SQL fails at runtime with
+-- `function similarity(text, text) does not exist`.
+--
+-- Companion code: apps/api/src/routes/search.ts
+-- Companion metadata: drizzle/meta/_journal.json updates handled by
+-- `drizzle-kit generate`; we add the .sql by hand and the next
+-- `drizzle-kit generate` run after this will register it in the journal.
+-- Until then, on prod we apply it manually with the pipe-safe pattern
+-- (docker exec -i shared-postgres bash -lc '... psql $DATABASE_URL -f -').
+CREATE EXTENSION IF NOT EXISTS pg_trgm;

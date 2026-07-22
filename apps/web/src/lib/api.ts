@@ -820,3 +820,47 @@ export function getLineage(slug: string): Promise<LineageDetailResponse> {
     `/api/lineages/${encodeURIComponent(slug)}`,
   );
 }
+
+// ─── Global search ──────────────────────────────────────────────────────
+// Powers the header <GlobalSearch> island. Mirrors apps/api/src/routes/search.ts
+// response shape (SearchResponse, SearchGroup, SearchHit). Caching is done by
+// the API (Cache-Control: public, max-age=60); the client doesn't need its own
+// cache layer for the in-memory dedup that component already does.
+
+export interface SearchHit {
+  slug: string;
+  name: string;
+  shortDescription: string | null;
+  href: string;
+  score: number;
+}
+
+export type SearchGroupType = 'dish' | 'region' | 'lineage' | 'ingredient';
+
+export interface SearchGroup {
+  type: SearchGroupType;
+  total: number;
+  results: SearchHit[];
+}
+
+export interface SearchResponse {
+  query: string;
+  took_ms: number;
+  groups: SearchGroup[];
+}
+
+export interface GlobalSearchParams {
+  q: string;
+  type?: SearchGroupType;
+  limit?: number;
+}
+
+export function globalSearch(
+  params: GlobalSearchParams,
+): Promise<SearchResponse> {
+  const qs = new URLSearchParams();
+  qs.set('q', params.q);
+  if (params.type) qs.set('type', params.type);
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  return request<SearchResponse>(`/api/search?${qs.toString()}`);
+}
