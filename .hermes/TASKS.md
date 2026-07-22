@@ -9,7 +9,49 @@
 
 - (none)
 
+## Competitive roadmap (source of truth)
+
+Full detailed backlog with problem / scope / done-means lives in
+**`.hermes/COMPETITIVE_ROADMAP.md`** (added 2026-07-22). Positioning:
+Gustale = open atlas of how food moved — not a recipe homepage, not a
+travel blog. Mirror IDs below; update both files when claiming work.
+
+### Wave A — Trust (pick first)
+- [ ] **P0-1** Homepage never shows zeros before hydration
+- [ ] **P0-2** Dish cover / media reliability (no infinite “Loading cover…”)
+- [ ] **P2-7** MapLibre CSS only on map routes
+- [ ] **P0-4** Re-enable email verification (Resend + `hello@gustale.com`)
+
+### Wave B — Stand-out core
+- [ ] **P1-1** Dish Journey UI (timeline + map path) + seed 10–15 flagships
+- [ ] **P1-5** Surface scholarly confidence on homepage + About
+- [ ] **P1-4** `/stories` layer (launch ≥5) + homepage rail
+- [ ] **P1-6** Atlas → Recipes bridge / never-blank prep section
+
+### Wave C — Science + geography moat
+- [ ] **P1-2** Ingredient origins (`food_geography` seed) + `/ingredients`
+- [ ] **P1-3** Region guides for top 12 regions
+- [ ] **P2-2** Country ↔ crop-origin connectivity visualization
+
+### Wave D — Density + contribution
+- [ ] **P2-3** Seed enrichment pass (≥90 dishes, 0 skipped relations, fix orphans)
+- [ ] **P2-4** Moderation queue UI
+- [ ] **P2-5** Image upload UI
+- [ ] **P2-1** “Also on the table” companions
+- [ ] **P2-6** OG cards + honest JSON-LD
+- [ ] **P0-3** Global grouped search (dish/region/lineage/ingredient)
+
+### Wave E — Moat
+- [ ] **P3-1** Nearby / geolocation discovery
+- [ ] **P3-2** Public read API + attribution
+- [ ] **P3-3** i18n
+- [ ] **P3-4** Brand/handle lock-in (human)
+- [ ] **P3-5** Real linting (Biome) in CI
+
 ## Done (recent — last 10)
+
+- 2026-07-22: **Competitive roadmap written** (`.hermes/COMPETITIVE_ROADMAP.md`) from review of Explore food-origins blog, The World on a Plate, and Khoury et al. 2016 crop-origins paper. Waves A–E mirrored into TASKS. — Cursor Cloud Agent
+
 
 - 2026-07-22: **Verified the "15 dishes missing methodSlug/lineage" cleanup is already resolved** (no code change needed; stale note cleared in SHARED_STATE.md). All 60 published dishes have a `methodSlug` across seed source (`DISH_LINEAGES` 60/60), SSG mock (`mock-api-data.json` 0/60 null), and live API (0/60 null); live `/lineages` has no "Other" bucket. Named dishes in the old note (Kimbap, Croffle, Som tam, Butter chicken, Tandoori chicken, Tteokbokki) aren't in the dataset at all. Also flagged 13 harmless orphan `DISH_LINEAGES` keys for optional cleanup. **DB password rotation** was requested in the same turn but is NOT executable from the Cursor Cloud Agent sandbox (no VPS SSH key / no DB creds injected) — a ready-to-run runbook is recorded in SHARED_STATE.md "Pending User Asks" for Hermes / a VPS-root operator. — Cursor Cloud Agent
 
