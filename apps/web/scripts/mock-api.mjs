@@ -25,11 +25,13 @@
  * live API (list ?status=published&limit=100, /map?limit=200, and each
  * /dishes/:slug) and regenerate mock-api-data.json. See SHARED_STATE.md.
  *
- * Endpoints served (mirroring apps/api/src/routes/dishes.ts):
+ * Endpoints served (mirroring apps/api routes used at SSG time):
  *   GET /health
- *   GET /api/dishes              → { dishes, limit, offset }
+ *   GET /api/dishes              → { dishes, limit, offset } (supports ?category=)
  *   GET /api/dishes/map          → { dishes, count }
  *   GET /api/dishes/:slug        → full dish detail
+ *   GET /api/categories          → { categories } (derived from list familySlug)
+ *   GET /api/lineages …          → optional lineages blob
  *
  * Usage:
  *   node scripts/mock-api.mjs [--port 8742]
@@ -56,6 +58,25 @@ const LINEAGES_DATA = HAS_LINEAGES
 const LIST = DATA.list ?? [];
 const MAP = DATA.map ?? [];
 const DETAILS = DATA.details ?? {};
+
+// Categories for /family/[slug] getStaticPaths — derived from published list
+// familySlug/familyName (dish-type taxonomy). Mirrors GET /api/categories
+// shape enough for SSG (slug + name + description).
+const CATEGORIES = (() => {
+  const bySlug = new Map();
+  for (const d of LIST) {
+    if (!d.familySlug || bySlug.has(d.familySlug)) continue;
+    bySlug.set(d.familySlug, {
+      id: `mock-cat-${d.familySlug}`,
+      name: d.familyName ?? d.familySlug,
+      slug: d.familySlug,
+      parentId: null,
+      icon: null,
+      description: null,
+    });
+  }
+  return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name));
+})();
 
 let PORT = 8742;
 for (let i = 2; i < process.argv.length; i++) {
@@ -91,10 +112,27 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /api/dishes — list all published dishes
+  // GET /api/categories — flat category list (used by /family/[slug] SSG)
+  if (url.pathname === '/api/categories' && req.method === 'GET') {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ categories: CATEGORIES }));
+    return;
+  }
+
+  // GET /api/dishes — list published dishes (optional ?category= familySlug)
   if (url.pathname === '/api/dishes' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ dishes: LIST, limit: 100, offset: 0 }));
+    const category = (url.searchParams.get('category') ?? '').trim();
+    const family = (url.searchParams.get('family') ?? '').trim();
+    const filterSlug = category || family;
+    let dishes = LIST;
+    if (filterSlug) {
+      dishes = LIST.filter((d) => d.familySlug === filterSlug);
+    }
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') ?? '100', 10) || 100));
+    const offset = Math.max(0, parseInt(url.searchParams.get('offset') ?? '0', 10) || 0);
+    const page = dishes.slice(offset, offset + limit);
+    res.end(JSON.stringify({ dishes: page, limit, offset }));
     return;
   }
 
@@ -304,5 +342,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`[mock-api] listening on http://${HOST}:${PORT}`);
-  console.log(`[mock-api] ${LIST.length} dishes loaded (${DATA.generatedFrom ?? 'mock-api-data.json'})`);
+  console.log(`[mock-api] ${LIST.length} dishes, ${CATEGORIES.length} categories loaded (${DATA.generatedFrom ?? 'mock-api-data.json'})`);
 });

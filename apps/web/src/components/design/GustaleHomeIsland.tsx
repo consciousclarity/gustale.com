@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { listDishes, getMapDishes } from '../../lib/api';
 import type { MapDish } from '../../lib/api';
+import { authoringHref } from '../../lib/domain';
 import type { DishSummary } from '../../types/dish';
 import type { FoodRegionFeature } from '../../types/map';
 
@@ -919,7 +920,7 @@ export default function GustaleHomeIsland() {
             </p>
           </div>
           <div className="band-cta">
-            <button onClick={() => { window.location.href = '/dishes/new'; }}>
+            <button onClick={() => { window.location.href = authoringHref('/dishes/new'); }}>
               Add a dish →
             </button>
             <small>Free forever. No account required to browse.</small>

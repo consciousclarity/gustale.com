@@ -9,6 +9,7 @@ import type {
   DishTag,
   DishVariant,
 } from '../types/dish';
+import { authoringHref } from '../lib/domain';
 import { selectDishHeroMedia } from '../lib/dishMedia';
 import { DishCoverHero } from './DishCoverHero';
 import { DishGallery } from './DishGallery';
@@ -162,7 +163,7 @@ export function DishDetail({
                       {ing.quantity ?? ''}{ing.quantity && ing.unit ? ` ${ing.unit}` : ing.unit ?? ''}
                     </span>
                     <span className="nm">
-                      <a href={`/ingredients/${ing.slug}`}>{ing.name}</a>
+                      <a href={authoringHref(`/ingredients/${ing.slug}`)}>{ing.name}</a>
                       {ing.isOptional && <small> optional</small>}
                       {ing.preparationNote && <small>{ing.preparationNote}</small>}
                     </span>

@@ -1,9 +1,11 @@
 ---
 import { AuthMenu } from './AuthMenu';
+import { authoringHref } from '../lib/domain';
 
 const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
 const isGeo = domain === 'geo';
 const currentPath = Astro.url.pathname;
+const addDishHref = authoringHref('/dishes/new');
 
 const property = isGeo
   ? {
@@ -155,7 +157,7 @@ const searchRows = isGeo
     </div>
 
     <div class="hidden shrink-0 items-center gap-2 md:flex">
-      <a href="/dishes/new" class="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+      <a href={addDishHref} class="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path d="M10 4v12M4 10h12" stroke-linecap="round"></path>
         </svg>
@@ -207,7 +209,7 @@ const searchRows = isGeo
   </nav>
   <div class="mx-4 h-px bg-slate-100"></div>
   <div class="px-4 py-3">
-    <a href="/dishes/new" class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-[15px] font-semibold text-white">
+    <a href={addDishHref} class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-[15px] font-semibold text-white">
       <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
         <path d="M10 4v12M4 10h12" stroke-linecap="round"></path>
       </svg>

@@ -22,11 +22,14 @@ import type {
   AdminDishListResponse,
   AdminLookupsResponse,
 } from '../../lib/api';
+import { authoringHref } from '../../lib/domain';
 
 type Phase = 'loading' | 'ready' | 'error';
 
 // -1 marks a metric that can't be computed without the stats endpoint.
 const UNKNOWN = -1;
+
+const ADD_DISH_HREF = authoringHref('/dishes/new');
 
 function formatRelative(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -251,7 +254,7 @@ export function AdminDashboard() {
           {/* Quick actions */}
           <div className="a-section-rule"><h2>Quick actions</h2></div>
           <div className="adm-actions">
-            <Action href="/dishes/new" icon="plus" primary title="Add new dish" sub="Create a dish entry" />
+            <Action href={ADD_DISH_HREF} icon="plus" primary title="Add new dish" sub="Create a dish entry" />
             <Action href="/admin/dishes" icon="edit" title="Edit dishes" sub="Browse &amp; edit all" />
             <Action href="/admin/dishes" icon="review" title="Review incomplete" sub={`${stats.dishes.draft} in draft`} />
             <Action href="/families" icon="families" title="Manage families" sub="Dish-type groups" />
@@ -306,7 +309,7 @@ export function AdminDashboard() {
               <div className="a-empty__icon"><Icon name="dishes" size={24} /></div>
               <h3>No dishes yet</h3>
               <p>Create your first dish entry to start building the archive.</p>
-              <a className="a-btn a-btn--accent" href="/dishes/new">Add a dish</a>
+              <a className="a-btn a-btn--accent" href={ADD_DISH_HREF}>Add a dish</a>
             </div>
           ) : (
             <div className="a-recent">

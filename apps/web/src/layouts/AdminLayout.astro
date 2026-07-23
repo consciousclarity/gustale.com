@@ -20,6 +20,7 @@
  */
 import '../styles/global.css';
 import '../styles/admin.css';
+import { authoringHref } from '../lib/domain';
 
 interface Crumb {
   href?: string;
@@ -41,6 +42,8 @@ const {
   crumbs = [],
   description = 'Gustale admin control panel.',
 } = Astro.props;
+
+const addDishHref = authoringHref('/dishes/new');
 
 const user = Astro.locals.user ?? null;
 const userName = user?.name || user?.email?.split('@')[0] || 'Admin';
@@ -78,7 +81,7 @@ const navGroups: NavGroup[] = [
     links: [
       { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: 'dashboard' },
       { key: 'dishes', href: '/admin/dishes', label: 'Dishes', icon: 'dishes' },
-      { key: 'new', href: '/dishes/new', label: 'Add dish', icon: 'plus' },
+      { key: 'new', href: addDishHref, label: 'Add dish', icon: 'plus' },
     ],
   },
   {

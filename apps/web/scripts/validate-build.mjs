@@ -134,6 +134,74 @@ check('/regions does not use family/lineage filter state',
   !/data-family=|data-lineage=/.test(regionsHtml ?? ''),
   'regions page references another taxonomy\'s data-* filter');
 
+// ─── 9. Representative /family/:slug pages (SSG from mock /api/categories) ──
+const dumplingFamilyPath = `${DIST}family/dumpling/index.html`;
+check('/family/dumpling/ exists', await exists(dumplingFamilyPath), dumplingFamilyPath);
+
+// ─── 10. Domain identity baked at Astro render (PUBLIC_DOMAIN) ─────────────
+const homeHtml = await read(`${DIST}index.html`);
+const navHtml = homeHtml ?? regionsHtml ?? '';
+if (DOMAIN === 'geo') {
+  check('Atlas build identifies as Atlas',
+    />Atlas</.test(navHtml) && /data-domain="geo"/.test(navHtml),
+    'expected Atlas wordmark + data-domain="geo"');
+  check('Atlas build does not claim Recipes as active brand',
+    !/<span class="sub">Recipes<\/span>/.test(navHtml),
+    'found Recipes sub-brand on geo build');
+} else {
+  check('Recipes build identifies as Recipes',
+    />Recipes</.test(navHtml) && /data-domain="recipes"/.test(navHtml),
+    'expected Recipes wordmark + data-domain="recipes"');
+  check('Recipes build does not claim Atlas as active brand',
+    !/<span class="sub">Atlas<\/span>/.test(navHtml),
+    'found Atlas sub-brand on recipes build');
+}
+
+// ─── 11. Post-build route ownership ────────────────────────────────────────
+const newDishExists = await exists(`${DIST}dishes/new/index.html`)
+  || await exists(`${DIST}dishes/new.html`);
+const ingredientsExists = await exists(`${DIST}ingredients`);
+const mapExists = await exists(`${DIST}map/index.html`) || await exists(`${DIST}map.html`);
+
+if (DOMAIN === 'geo') {
+  check('geo removes /dishes/new', !newDishExists, 'dishes/new still present');
+  check('geo removes /ingredients', !ingredientsExists, 'ingredients/ still present');
+  check('geo keeps /map', mapExists, 'map/ missing from geo dist');
+} else {
+  check('recipes retains /dishes/new', newDishExists, 'dishes/new missing');
+  check('recipes retains /ingredients', ingredientsExists, 'ingredients/ missing');
+  check('recipes removes /map', !mapExists, 'map/ still present on recipes');
+}
+
+// ─── 12. Atlas must not point authoring CTAs at removed local routes ───────
+// Scan baked HTML for relative authoring hrefs that geo post-build deletes.
+if (DOMAIN === 'geo') {
+  const pagesToScan = [
+    homeHtml,
+    await read(`${DIST}contribute/index.html`),
+    await read(`${DIST}404.html`),
+    await read(`${DIST}dishes/index.html`),
+    await read(dumplingFamilyPath),
+  ].filter(Boolean);
+
+  const badLocalAuthoring = [];
+  const badPatterns = [
+    /href="\/dishes\/new"/g,
+    /href="\/dishes\/[^"]+\/edit"/g,
+    /href="\/ingredients\/[^"]*"/g,
+  ];
+  for (const html of pagesToScan) {
+    for (const re of badPatterns) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(html)) !== null) badLocalAuthoring.push(m[0]);
+    }
+  }
+  check('Atlas CTAs do not use removed local authoring routes',
+    badLocalAuthoring.length === 0,
+    badLocalAuthoring.slice(0, 8).join(', '));
+}
+
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(`\n[validate-build] domain=${DOMAIN} — ${passes.length} passed, ${failures.length} failed`);
 for (const p of passes) console.log(`  ✓ ${p}`);
@@ -143,4 +211,4 @@ if (failures.length > 0) {
   console.error(`\n[validate-build] FAILED: ${failures.length} check(s) did not pass.`);
   process.exit(1);
 }
-console.log('[validate-build] all taxonomy checks passed.\n');
+console.log('[validate-build] all taxonomy + domain checks passed.\n');

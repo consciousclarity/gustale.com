@@ -38,6 +38,9 @@ import ContributorCard from '../../components/dashboard/ContributorCard.astro';
 import ContributorDraftsList from '../../components/dashboard/ContributorDraftsList.tsx';
 import ContributorSubmissionsList from '../../components/dashboard/ContributorSubmissionsList.tsx';
 import ContributionGuidelines from '../../components/dashboard/ContributionGuidelines.astro';
+import { authoringHref } from '../../lib/domain';
+
+const addDishHref = authoringHref('/dishes/new');
 
 // Read the resolved user from middleware (populated on real SSR
 // requests; null at static-build time per fail-open semantics).
@@ -86,7 +89,7 @@ const userRole = (user?.role ?? null) as
         eyebrow="01"
         title="My drafts"
         body="Draft dishes you're working on. Editors will review before publishing."
-        href="/dishes/new"
+        href={addDishHref}
         cta="Add a new dish"
       />
       <ContributorCard
@@ -137,7 +140,7 @@ const userRole = (user?.role ?? null) as
     <ContributionGuidelines />
 
     <section class="cd-cta" aria-label="Quick actions">
-      <a class="btn-accent" href="/dishes/new">Add a new dish →</a>
+      <a class="btn-accent" href={addDishHref}>Add a new dish →</a>
       <a class="btn-ghost" href="/dishes">Browse dishes →</a>
       <a class="btn-ghost" href="#guidelines">Contribution guidelines</a>
     </section>
