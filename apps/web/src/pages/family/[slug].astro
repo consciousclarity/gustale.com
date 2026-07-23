@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { ApiError, listDishes } from '../../lib/api';
+import { collectFamiliesFromPublishedDishes } from '../../lib/collectDishFamilies';
 import { atlasUrl, isRecipesDomain } from '../../lib/domain';
 import type { DishListResponse } from '../../types/dish';
 
@@ -19,7 +20,7 @@ import type { DishListResponse } from '../../types/dish';
 export async function getStaticPaths() {
   // SSG-only: never depend on the live production API from a browser.
   // Prefer /api/categories; fall back to distinct familySlug values from
-  // the dishes list so a missing categories route cannot wipe /family/*.
+  // the paged dishes list so a missing categories route cannot wipe /family/*.
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
     console.warn('[family/getStaticPaths] PUBLIC_API_BASE unset — no family pages');
@@ -44,21 +45,9 @@ export async function getStaticPaths() {
   }
 
   async function fromDishFamilies(): Promise<Cat[]> {
-    const res = await fetch(`${apiBase}/api/dishes?status=published&limit=100`);
-    if (!res.ok) return [];
-    const json = (await res.json()) as {
-      dishes?: Array<{ familySlug?: string | null; familyName?: string | null }>;
-    };
-    const bySlug = new Map<string, Cat>();
-    for (const d of json.dishes ?? []) {
-      if (!d.familySlug || bySlug.has(d.familySlug)) continue;
-      bySlug.set(d.familySlug, {
-        slug: d.familySlug,
-        name: d.familyName ?? d.familySlug,
-        description: null,
-      });
-    }
-    return [...bySlug.values()];
+    // API caps limit at 100 and paginates via offset — never assume a
+    // single large limit. See collectDishFamilies.ts.
+    return collectFamiliesFromPublishedDishes(apiBase);
   }
 
   try {

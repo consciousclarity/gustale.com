@@ -1,9 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { GlobalSearch } from '../components/GlobalSearch';
-import { recipesUrl } from '../lib/domain';
+import { isGeoDomain, recipesUrl } from '../lib/domain';
 
-const isGeo = (import.meta.env.PUBLIC_DOMAIN || 'geo') !== 'recipes';
+const isGeo = isGeoDomain();
 ---
 
 <Layout title="Page not found · Gustale">

@@ -18,9 +18,16 @@
  * Run:  PUBLIC_DOMAIN=geo node scripts/validate-build.mjs
  */
 import { readFile, stat } from 'node:fs/promises';
+import {
+  LATE_PAGE_FAMILY_SLUG,
+  DISH_LIST_PAGE_LIMIT,
+  collectFamiliesFromPublishedDishes,
+  resolveGustaleDomain,
+} from './collect-dish-families.mjs';
 
 const DIST = new URL('../dist/', import.meta.url).pathname;
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? 'recipes';
+const API_BASE = process.env.PUBLIC_API_BASE ?? '';
 
 // Minimum distinct filter chips a taxonomy page must expose. Below this a page
 // has almost certainly collapsed to "All"/"Other" (the bug this guards).
@@ -134,12 +141,17 @@ check('/regions does not use family/lineage filter state',
   !/data-family=|data-lineage=/.test(regionsHtml ?? ''),
   'regions page references another taxonomy\'s data-* filter');
 
-// ─── 9. Representative /family/:slug pages (SSG from mock /api/categories) ──
+// ─── 9. Representative /family/:slug pages ─────────────────────────────────
 const dumplingFamilyPath = `${DIST}family/dumpling/index.html`;
 check('/family/dumpling/ exists', await exists(dumplingFamilyPath), dumplingFamilyPath);
 
+const lateFamilyPath = `${DIST}family/${LATE_PAGE_FAMILY_SLUG}/index.html`;
+check('/family/late-page-family/ exists (pagination fixture)',
+  await exists(lateFamilyPath), lateFamilyPath);
+
 // ─── 10. Domain identity baked at Astro render (PUBLIC_DOMAIN) ─────────────
 const homeHtml = await read(`${DIST}index.html`);
+const notFoundHtml = await read(`${DIST}404.html`);
 const navHtml = homeHtml ?? regionsHtml ?? '';
 if (DOMAIN === 'geo') {
   check('Atlas build identifies as Atlas',
@@ -148,6 +160,9 @@ if (DOMAIN === 'geo') {
   check('Atlas build does not claim Recipes as active brand',
     !/<span class="sub">Recipes<\/span>/.test(navHtml),
     'found Recipes sub-brand on geo build');
+  check('404 identifies as Atlas',
+    /Gustale Atlas/.test(notFoundHtml ?? ''),
+    'expected "Gustale Atlas" on geo 404');
 } else {
   check('Recipes build identifies as Recipes',
     />Recipes</.test(navHtml) && /data-domain="recipes"/.test(navHtml),
@@ -155,7 +170,20 @@ if (DOMAIN === 'geo') {
   check('Recipes build does not claim Atlas as active brand',
     !/<span class="sub">Atlas<\/span>/.test(navHtml),
     'found Atlas sub-brand on recipes build');
+  check('404 identifies as Recipes',
+    /Gustale Recipes/.test(notFoundHtml ?? ''),
+    'expected "Gustale Recipes" on recipes 404');
 }
+
+// Unset/default PUBLIC_DOMAIN must resolve to recipes (404, SiteHeader, helpers).
+check('unset PUBLIC_DOMAIN resolves to recipes',
+  resolveGustaleDomain(undefined) === 'recipes'
+    && resolveGustaleDomain(null) === 'recipes'
+    && resolveGustaleDomain('') === 'recipes'
+    && resolveGustaleDomain('recipes') === 'recipes',
+  'expected recipes default');
+check('PUBLIC_DOMAIN=geo resolves to geo',
+  resolveGustaleDomain('geo') === 'geo');
 
 // ─── 11. Post-build route ownership ────────────────────────────────────────
 const newDishExists = await exists(`${DIST}dishes/new/index.html`)
@@ -179,7 +207,7 @@ if (DOMAIN === 'geo') {
   const pagesToScan = [
     homeHtml,
     await read(`${DIST}contribute/index.html`),
-    await read(`${DIST}404.html`),
+    notFoundHtml,
     await read(`${DIST}dishes/index.html`),
     await read(dumplingFamilyPath),
   ].filter(Boolean);
@@ -200,6 +228,67 @@ if (DOMAIN === 'geo') {
   check('Atlas CTAs do not use removed local authoring routes',
     badLocalAuthoring.length === 0,
     badLocalAuthoring.slice(0, 8).join(', '));
+}
+
+// ─── 13. Family fallback pagination (late-page fixture via mock) ───────────
+// Requires PUBLIC_API_BASE (set during CI/local mock builds). Proves a family
+// that only appears after offset>=100 is discovered by offset paging, and that
+// limit>100 is clamped (never silently omit post-first-page families).
+if (API_BASE) {
+  try {
+    const fixtureFetch = (url, init = {}) =>
+      fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers ?? {}),
+          'X-Gustale-Fixture': 'pagination',
+        },
+      });
+
+    const page0Res = await fixtureFetch(
+      `${API_BASE}/api/dishes?status=published&limit=${DISH_LIST_PAGE_LIMIT}&offset=0`,
+    );
+    const page0 = page0Res.ok ? await page0Res.json() : { dishes: [] };
+    const page0HasLate = (page0.dishes ?? []).some(
+      (d) => d.familySlug === LATE_PAGE_FAMILY_SLUG,
+    );
+    check('pagination fixture: late family absent from first page',
+      !page0HasLate,
+      'late-page-family unexpectedly on offset=0');
+
+    const page1Res = await fixtureFetch(
+      `${API_BASE}/api/dishes?status=published&limit=${DISH_LIST_PAGE_LIMIT}&offset=${DISH_LIST_PAGE_LIMIT}`,
+    );
+    const page1 = page1Res.ok ? await page1Res.json() : { dishes: [] };
+    const page1HasLate = (page1.dishes ?? []).some(
+      (d) => d.familySlug === LATE_PAGE_FAMILY_SLUG,
+    );
+    check('pagination fixture: late family present on second page',
+      page1HasLate,
+      'late-page-family missing at offset=100');
+
+    // Oversized limit must clamp to 100 (API contract) — still not enough
+    // to reach the late family in a single request.
+    const bigRes = await fixtureFetch(
+      `${API_BASE}/api/dishes?status=published&limit=500&offset=0`,
+    );
+    const big = bigRes.ok ? await bigRes.json() : { dishes: [], limit: 0 };
+    check('pagination fixture: limit=500 clamps to 100',
+      big.limit === 100 && (big.dishes ?? []).length <= 100,
+      `limit=${big.limit} len=${(big.dishes ?? []).length}`);
+    check('pagination fixture: clamped page still omits late family',
+      !(big.dishes ?? []).some((d) => d.familySlug === LATE_PAGE_FAMILY_SLUG),
+      'late family visible without paging — fixture broken');
+
+    const collected = await collectFamiliesFromPublishedDishes(API_BASE, fixtureFetch);
+    check('family fallback pagination discovers late-page family',
+      collected.some((c) => c.slug === LATE_PAGE_FAMILY_SLUG),
+      `families found: ${collected.map((c) => c.slug).slice(0, 12).join(', ')}`);
+  } catch (err) {
+    check('family fallback pagination checks ran', false, String(err));
+  }
+} else {
+  console.warn('[validate-build] PUBLIC_API_BASE unset — skipping live pagination fixture checks');
 }
 
 // ─── Report ─────────────────────────────────────────────────────────────────

@@ -1,9 +1,9 @@
 ---
 import { AuthMenu } from './AuthMenu';
-import { authoringHref } from '../lib/domain';
+import { authoringHref, currentDomain, isGeoDomain } from '../lib/domain';
 
-const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
-const isGeo = domain === 'geo';
+const domain = currentDomain();
+const isGeo = isGeoDomain();
 const currentPath = Astro.url.pathname;
 const addDishHref = authoringHref('/dishes/new');
 
