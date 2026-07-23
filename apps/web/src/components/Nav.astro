@@ -13,9 +13,11 @@ import {
   currentDomain,
   isGeoDomain,
 } from '../lib/domain';
+import { isPrimaryNavActive } from '../lib/searchNav';
 
 const domain = currentDomain();
 const isGeo = isGeoDomain();
+const pathname = Astro.url.pathname;
 
 const atlasProperty = {
   id: 'atlas' as const,
@@ -35,21 +37,20 @@ const currentProperty = isGeo ? atlasProperty : recipesProperty;
 /** Primary nav — only routes that exist in the corresponding post-build dist. */
 const primaryLinks = isGeo
   ? [
-      { href: '/', label: 'Globe', match: (p: string) => p === '/' },
-      { href: '/regions', label: 'Countries', match: (p: string) => p.startsWith('/regions') },
-      { href: '/families', label: 'Food families', match: (p: string) => p.startsWith('/families') || p.startsWith('/family') },
-      { href: '/lineages', label: 'Lineages', match: (p: string) => p.startsWith('/lineages') },
-      { href: '/about', label: 'About', match: (p: string) => p.startsWith('/about') },
+      { href: '/', label: 'Globe' },
+      { href: '/regions', label: 'Countries' },
+      { href: '/families', label: 'Food families' },
+      { href: '/lineages', label: 'Lineages' },
+      { href: '/about', label: 'About' },
     ]
   : [
-      { href: '/dishes', label: 'Recipes', match: (p: string) => p === '/dishes' || p.startsWith('/dishes/') },
-      { href: '/ingredients', label: 'Ingredients', match: (p: string) => p.startsWith('/ingredients') },
-      { href: '/families', label: 'Food families', match: (p: string) => p.startsWith('/families') || p.startsWith('/family') },
-      { href: '/lineages', label: 'Lineages', match: (p: string) => p.startsWith('/lineages') },
-      { href: '/about', label: 'About', match: (p: string) => p.startsWith('/about') },
+      { href: '/dishes', label: 'Recipes' },
+      { href: '/ingredients', label: 'Ingredients' },
+      { href: '/families', label: 'Food families' },
+      { href: '/lineages', label: 'Lineages' },
+      { href: '/about', label: 'About' },
     ];
 
-const contributeHref = '/contribute';
 const addDishHref = authoringHref('/dishes/new');
 ---
 
@@ -68,7 +69,7 @@ const addDishHref = authoringHref('/dishes/new');
 
       <!-- Explicit Atlas / Recipes switcher (absolute URLs) -->
       <div
-        class="property-switch"
+        class="property-switch property-switch--desktop"
         role="group"
         aria-label="Gustale property"
       >
@@ -76,7 +77,7 @@ const addDishHref = authoringHref('/dishes/new');
           href={atlasProperty.href}
           class="property-switch__opt"
           data-active={isGeo ? 'true' : undefined}
-          aria-current={isGeo ? 'page' : undefined}
+          aria-current={isGeo ? 'true' : undefined}
           title={atlasProperty.description}
         >
           <span class="property-switch__name">Atlas</span>
@@ -86,7 +87,7 @@ const addDishHref = authoringHref('/dishes/new');
           href={recipesProperty.href}
           class="property-switch__opt"
           data-active={!isGeo ? 'true' : undefined}
-          aria-current={!isGeo ? 'page' : undefined}
+          aria-current={!isGeo ? 'true' : undefined}
           title={recipesProperty.description}
         >
           <span class="property-switch__name">Recipes</span>
@@ -94,24 +95,42 @@ const addDishHref = authoringHref('/dishes/new');
         </a>
       </div>
 
-      <GlobalSearch client:load variant="compact" placement="header" />
+      <div class="gst-header-search">
+        <GlobalSearch client:load variant="compact" placement="header" />
+      </div>
 
       <div class="gst-navlinks" id="nav-links">
-        {primaryLinks.map((link) => (
-          <a
-            href={link.href}
-            class="gst-navlink"
-            data-nav-href={link.href}
-          >
-            {link.label}
-          </a>
-        ))}
+        {primaryLinks.map((link) => {
+          const on = isPrimaryNavActive(link.href, pathname, domain);
+          return (
+            <a
+              href={link.href}
+              class:list={['gst-navlink', { 'gst-navlink--on': on }]}
+              aria-current={on ? 'page' : undefined}
+            >
+              {link.label}
+            </a>
+          );
+        })}
       </div>
 
       <div class="gst-navr" id="nav-right">
         <AuthMenu client:load />
-        <a href={contributeHref} class="btn-accent gst-nav-contribute">Contribute</a>
-        <a href={addDishHref} class="gst-ghost gst-nav-add-dish">Add a dish</a>
+        <a href={addDishHref} class="btn-accent gst-nav-add-dish">Add a dish</a>
+
+        <button
+          class="nav-mobile-search"
+          id="nav-mobile-search"
+          type="button"
+          aria-label="Open search"
+          aria-expanded="false"
+          aria-controls="nav-mobile-panel"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
 
         <button
           class="nav-mobile-toggle"
@@ -119,7 +138,7 @@ const addDishHref = authoringHref('/dishes/new');
           type="button"
           aria-label="Open menu"
           aria-expanded="false"
-          aria-controls="nav-mobile-drawer"
+          aria-controls="nav-mobile-panel"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -128,102 +147,251 @@ const addDishHref = authoringHref('/dishes/new');
       </div>
     </div>
 
-    <div class="nav-mobile-drawer" id="nav-mobile-drawer" hidden>
+    <div
+      class="nav-mobile-backdrop"
+      id="nav-mobile-backdrop"
+      hidden
+      data-nav-backdrop
+    ></div>
+
+    <div
+      class="nav-mobile-panel"
+      id="nav-mobile-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Gustale ${currentProperty.label} menu`}
+      hidden
+      data-mode=""
+    >
       <div class="nav-mobile-inner wrap">
-        <p class="nav-mobile-property" aria-live="polite">
-          <strong>Gustale {currentProperty.label}</strong>
-          <span>{currentProperty.description}</span>
-        </p>
-
-        <GlobalSearch client:load variant="full" placement="drawer" />
-
-        <div class="nav-mobile-divider" role="presentation" />
-
-        <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
-        <div role="group" aria-labelledby="nav-mobile-primary-label">
-          {primaryLinks.map((link) => (
-            <a href={link.href} class="nav-mobile-link" data-nav-href={link.href}>{link.label}</a>
-          ))}
+        <div class="nav-mobile-toolbar">
+          <p class="nav-mobile-property">
+            <strong>Gustale {currentProperty.label}</strong>
+            <span>{currentProperty.description}</span>
+          </p>
+          <button
+            type="button"
+            class="nav-mobile-close"
+            id="nav-mobile-close"
+            aria-label="Close"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
 
-        <div class="nav-mobile-divider" role="presentation" />
-
-        <p class="nav-mobile-section" id="nav-mobile-switch-label">Switch property</p>
-        <div class="property-switch property-switch--mobile" role="group" aria-labelledby="nav-mobile-switch-label">
-          <a
-            href={atlasProperty.href}
-            class="property-switch__opt"
-            data-active={isGeo ? 'true' : undefined}
-            aria-current={isGeo ? 'page' : undefined}
-          >
-            <span class="property-switch__name">Atlas</span>
-            <span class="property-switch__hint">{atlasProperty.description}</span>
-          </a>
-          <a
-            href={recipesProperty.href}
-            class="property-switch__opt"
-            data-active={!isGeo ? 'true' : undefined}
-            aria-current={!isGeo ? 'page' : undefined}
-          >
-            <span class="property-switch__name">Recipes</span>
-            <span class="property-switch__hint">{recipesProperty.description}</span>
-          </a>
+        <div class="nav-mobile-search-slot" data-panel-section="search">
+          <GlobalSearch client:load variant="full" placement="drawer" />
         </div>
 
-        <div class="nav-mobile-divider" role="presentation" />
+        <div class="nav-mobile-nav-slot" data-panel-section="menu">
+          <div class="nav-mobile-divider" role="presentation"></div>
 
-        <a href="/login" class="nav-mobile-link">Sign in</a>
-        <a href={contributeHref} class="nav-mobile-link">Contribute</a>
-        <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
+          <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
+          <div role="group" aria-labelledby="nav-mobile-primary-label">
+            {primaryLinks.map((link) => {
+              const on = isPrimaryNavActive(link.href, pathname, domain);
+              return (
+                <a
+                  href={link.href}
+                  class:list={['nav-mobile-link', { 'nav-mobile-link--on': on }]}
+                  aria-current={on ? 'page' : undefined}
+                >
+                  {link.label}
+                </a>
+              );
+            })}
+          </div>
+
+          <div class="nav-mobile-divider" role="presentation"></div>
+
+          <p class="nav-mobile-section" id="nav-mobile-switch-label">Switch property</p>
+          <div class="property-switch property-switch--mobile" role="group" aria-labelledby="nav-mobile-switch-label">
+            <a
+              href={atlasProperty.href}
+              class="property-switch__opt"
+              data-active={isGeo ? 'true' : undefined}
+              aria-current={isGeo ? 'true' : undefined}
+            >
+              <span class="property-switch__name">Atlas</span>
+              <span class="property-switch__hint">{atlasProperty.description}</span>
+            </a>
+            <a
+              href={recipesProperty.href}
+              class="property-switch__opt"
+              data-active={!isGeo ? 'true' : undefined}
+              aria-current={!isGeo ? 'true' : undefined}
+            >
+              <span class="property-switch__name">Recipes</span>
+              <span class="property-switch__hint">{recipesProperty.description}</span>
+            </a>
+          </div>
+
+          <div class="nav-mobile-divider" role="presentation"></div>
+
+          <div class="nav-mobile-auth">
+            <AuthMenu client:load variant="mobile" />
+          </div>
+          <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
+        </div>
       </div>
     </div>
   </nav>
 </header>
 
 <script>
-const nav = document.getElementById('main-nav');
-const pathname = window.location.pathname;
+const panel = document.getElementById('nav-mobile-panel');
+const backdrop = document.getElementById('nav-mobile-backdrop');
+const menuBtn = document.getElementById('nav-mobile-toggle');
+const searchBtn = document.getElementById('nav-mobile-search');
+const closeBtn = document.getElementById('nav-mobile-close');
 
-document.querySelectorAll<HTMLElement>('[data-nav-href]').forEach((link) => {
-  const href = link.getAttribute('data-nav-href') ?? '';
-  let on = false;
-  if (href === '/') {
-    on = pathname === '/';
-  } else if (href === '/dishes') {
-    on = pathname === '/dishes' || pathname === '/dishes/' || pathname.startsWith('/dishes/');
-  } else {
-    on = pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(href);
+/** @type {HTMLElement | null} */
+let lastTrigger = null;
+/** @type {HTMLElement | null} */
+let previouslyFocused = null;
+
+/** @param {HTMLElement} root */
+function focusableIn(root) {
+  const sel = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(',');
+  return Array.from(root.querySelectorAll(sel)).filter((el) => {
+    const htmlEl = /** @type {HTMLElement} */ (el);
+    return !htmlEl.hasAttribute('disabled') && htmlEl.offsetParent !== null;
+  });
+}
+
+/** @param {boolean} locked */
+function setBodyLock(locked) {
+  document.documentElement.classList.toggle('nav-panel-open', locked);
+  document.body.classList.toggle('nav-panel-open', locked);
+  document.body.style.overflow = locked ? 'hidden' : '';
+}
+
+/** @param {'' | 'search' | 'menu'} mode */
+function syncTriggers(mode) {
+  const open = mode !== '';
+  if (menuBtn) {
+    menuBtn.setAttribute('aria-expanded', String(mode === 'menu'));
+    menuBtn.setAttribute('aria-label', mode === 'menu' ? 'Close menu' : 'Open menu');
   }
-  // Food families: also highlight for /family/:slug
-  if (href === '/families' && pathname.startsWith('/family')) on = true;
-  if (on) link.dataset.on = '1';
-});
+  if (searchBtn) {
+    searchBtn.setAttribute('aria-expanded', String(mode === 'search'));
+    searchBtn.setAttribute('aria-label', mode === 'search' ? 'Close search' : 'Open search');
+  }
+  if (panel) {
+    panel.hidden = !open;
+    panel.dataset.mode = mode;
+    panel.setAttribute('aria-label', mode === 'search' ? 'Search' : 'Gustale menu');
+  }
+  if (backdrop) backdrop.hidden = !open;
+  setBodyLock(open);
+}
 
-const toggle = document.getElementById('nav-mobile-toggle');
-const drawer = document.getElementById('nav-mobile-drawer');
-if (toggle && drawer) {
-  toggle.addEventListener('click', () => {
-    const open = drawer.hidden !== true;
-    drawer.hidden = open;
-    toggle.setAttribute('aria-expanded', String(!open));
-    toggle.setAttribute('aria-label', open ? 'Open menu' : 'Close menu');
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && drawer.hidden === false) {
-      drawer.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.setAttribute('aria-label', 'Open menu');
-      toggle.focus();
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (!nav?.contains(e.target as Node) && drawer.hidden === false) {
-      drawer.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.setAttribute('aria-label', 'Open menu');
+/**
+ * @param {'search' | 'menu'} mode
+ * @param {HTMLElement | null} trigger
+ */
+function openPanel(mode, trigger) {
+  if (!panel) return;
+  previouslyFocused = /** @type {HTMLElement | null} */ (document.activeElement);
+  lastTrigger = trigger;
+  syncTriggers(mode);
+
+  requestAnimationFrame(() => {
+    if (mode === 'search') {
+      const input = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('gs-input-drawer')
+      );
+      input?.focus();
+    } else {
+      const nodes = focusableIn(panel);
+      nodes[0]?.focus();
     }
   });
 }
+
+function closePanel() {
+  if (!panel || panel.hidden) return;
+  syncTriggers('');
+  const restore = lastTrigger ?? previouslyFocused;
+  lastTrigger = null;
+  previouslyFocused = null;
+  restore?.focus();
+}
+
+/**
+ * @param {'search' | 'menu'} mode
+ * @param {HTMLElement | null} trigger
+ */
+function togglePanel(mode, trigger) {
+  if (!panel) return;
+  const current = panel.dataset.mode ?? '';
+  if (!panel.hidden && current === mode) {
+    closePanel();
+    return;
+  }
+  openPanel(mode, trigger);
+}
+
+menuBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  togglePanel('menu', menuBtn);
+});
+searchBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  togglePanel('search', searchBtn);
+});
+closeBtn?.addEventListener('click', () => closePanel());
+backdrop?.addEventListener('click', () => closePanel());
+
+document.addEventListener('keydown', (e) => {
+  if (!panel || panel.hidden) return;
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closePanel();
+    return;
+  }
+
+  if (e.key !== 'Tab') return;
+  const nodes = focusableIn(panel);
+  if (nodes.length === 0) return;
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  const active = document.activeElement;
+
+  if (e.shiftKey) {
+    if (active === first || !panel.contains(/** @type {Node} */ (active))) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else if (active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!panel || panel.hidden) return;
+  const t = /** @type {Node} */ (e.target);
+  if (panel.contains(t)) return;
+  if (menuBtn?.contains(t) || searchBtn?.contains(t)) return;
+  closePanel();
+});
+
+window.addEventListener('pagehide', () => {
+  document.body.style.overflow = '';
+  document.documentElement.classList.remove('nav-panel-open');
+  document.body.classList.remove('nav-panel-open');
+});
 </script>
 
 <style>
@@ -294,7 +462,7 @@ if (toggle && drawer) {
   background: var(--accent-soft);
 }
 .property-switch__opt[data-active='true'],
-.property-switch__opt[aria-current='page'] {
+.property-switch__opt[aria-current='true'] {
   color: var(--ink);
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--accent);
@@ -330,6 +498,7 @@ if (toggle && drawer) {
   display: flex;
   align-items: center;
   gap: 2px;
+  min-width: 0;
 }
 .gst-navlink {
   color: var(--ink);
@@ -342,57 +511,85 @@ if (toggle && drawer) {
   white-space: nowrap;
 }
 .gst-navlink:hover,
-.gst-navlink[data-on='1'] {
+.gst-navlink--on,
+.gst-navlink[aria-current='page'] {
   opacity: 1;
   color: var(--accent);
 }
 .gst-navlink:focus-visible,
 .property-switch__opt:focus-visible,
 .nav-mobile-link:focus-visible,
-.nav-mobile-toggle:focus-visible {
+.nav-mobile-toggle:focus-visible,
+.nav-mobile-search:focus-visible,
+.nav-mobile-close:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.gst-ghost {
-  color: var(--ink);
-  text-decoration: none;
-  font-size: 14px;
-  opacity: 0.72;
-  transition: opacity 0.14s, color 0.14s;
-}
-.gst-ghost:hover {
-  opacity: 1;
-  color: var(--accent);
+.gst-header-search {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 280px;
 }
 
-.nav-mobile-toggle {
+.nav-mobile-search,
+.nav-mobile-toggle,
+.nav-mobile-close {
   display: none;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--ink);
-  padding: 4px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border-radius: var(--radius);
+  flex-shrink: 0;
 }
 
-.nav-mobile-drawer {
+.nav-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  top: 68px;
+  background: rgba(33, 28, 22, 0.28);
+  z-index: 45;
+}
+
+.nav-mobile-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 68px;
+  z-index: 50;
   border-top: 1px solid var(--line);
   background: var(--bg);
-  max-height: min(80vh, 640px);
+  max-height: min(calc(100dvh - 68px), 720px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 16px 40px rgba(33, 28, 22, 0.1);
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 .nav-mobile-inner {
   display: flex;
   flex-direction: column;
-  padding: 12px 0 20px;
+  padding: 12px 0 24px;
   gap: 2px;
+}
+.nav-mobile-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 8px;
 }
 .nav-mobile-property {
   margin: 4px 18px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 .nav-mobile-property strong {
   font-family: var(--display);
@@ -423,7 +620,8 @@ if (toggle && drawer) {
   box-sizing: border-box;
 }
 .nav-mobile-link:hover,
-.nav-mobile-link[data-on='1'] {
+.nav-mobile-link--on,
+.nav-mobile-link[aria-current='page'] {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -443,28 +641,71 @@ if (toggle && drawer) {
   background: var(--line);
   margin: 10px 18px;
 }
+.nav-mobile-search-slot {
+  padding: 0 18px;
+}
+.nav-mobile-auth {
+  padding: 4px 18px 8px;
+}
+
+/* Mode visibility: search vs menu never simultaneous */
+.nav-mobile-panel[data-mode='search'] [data-panel-section='menu'] {
+  display: none;
+}
+.nav-mobile-panel[data-mode='menu'] [data-panel-section='search'] {
+  display: none;
+}
 
 @media (max-width: 960px) {
   .gst-navlinks {
     display: none;
   }
-  .gst-navr > .gst-ghost,
-  .gst-navr > .btn-accent,
-  .gst-nav-add-dish,
-  .gst-nav-contribute {
+  .gst-navr > .gst-nav-add-dish,
+  .gst-navr :global(.auth-links),
+  .gst-navr :global(.auth-relative),
+  .gst-header-search,
+  .property-switch--desktop {
     display: none;
   }
-  .nav-mobile-toggle {
-    display: flex;
+  .nav-mobile-toggle,
+  .nav-mobile-search,
+  .nav-mobile-close {
+    display: inline-flex;
   }
-  .property-switch:not(.property-switch--mobile) {
-    display: none;
+  .gst-nav-in {
+    gap: 6px;
+  }
+  .gst-brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .gst-wordmark {
+    font-size: clamp(20px, 6vw, 28px);
+  }
+  .gst-navr {
+    gap: 2px;
+    flex-shrink: 0;
   }
 }
 
 @media (max-width: 640px) {
   .gst-property-desc {
     display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .gst-property-label {
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .property-switch__opt,
+  .gst-navlink,
+  .nav-mobile-link,
+  .nav-mobile-panel {
+    transition: none !important;
   }
 }
 </style>
