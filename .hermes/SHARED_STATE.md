@@ -6,9 +6,9 @@
 
 ## Last updated
 
-2026-07-23 by Hermes Agent (Telegram) — **Incident: API 500 on all DB routes due to stale `DATABASE_URL` secret.** `gustale-api` container was rebuilt today (2026-07-22T23:48 UTC) carrying a stale CI secret value (`6203879c7e95f8af…`, 64 chars) that no longer matches the Phase 7 SCRAM-SHA-256 hash stored in Postgres for the `gustale` role (which matches `.env` / `.db-password`: `584095ba…`, 32 chars). All DB-bound routes return HTTP 500 with `password authentication failed for user "gustale"`; only `/health` (which never touches the DB) returns 200. Root cause: GitHub Actions `DATABASE_URL` secret was not updated when Phase 7 rotated the DB password on 2026-07-22. Fix path: update the CI secret to match `.db-password` on the VPS, trigger a rebuild. See `### 2026-07-23 — API auth divergence` below for full diagnostic and fix recipe.
+2026-07-23 by Hermes Agent (Telegram) — **Correction to the API auth divergence entry below.** The first version of this entry misidentified the fix as "update the GitHub Actions `DATABASE_URL` secret and trigger a rebuild." That was wrong: the `DATABASE_URL` in `.github/workflows/ci.yml` line 24 is a hardcoded literal used only by the `lint` and `test` jobs against the ephemeral CI Postgres service container — it does NOT control the prod deploy. The actual root cause is that **Phase 7's 2026-07-22 password rotation did not update `/root/.env` on the VPS**, which is the file the `ci.yml` `deploy_container` step reads via `--env-file /root/.env` to start `gustale-api`. The container is therefore started with the pre-Phase-7 password `6203879c…` (64 chars), which does not match the post-Phase-7 SCRAM-SHA-256 hash for the `gustale` role. **Correct fix:** update `/root/.env` on the VPS so its `DATABASE_URL` line matches `/home/deploy/gustale.com/.env`, then `docker restart gustale-api`. No CI changes, no DB ops, no image rebuild needed. See the new sub-section `### 2026-07-23 — API auth divergence (corrected)` below the original (wrong) entry for the full corrected diagnostic. **The original entry is left in place for the audit trail** — it is wrong, do not follow it; the new entry supersedes it.
 
-2026-07-23 by Hermes Agent (Telegram) — **Wave A of `COMPETITIVE_ROADMAP.md` shipped to `origin/main` via three squash-merges: PR #30 (P2-7 MapLibre CSS scope), PR #31 (P0-1 homepage SSR real counts), PR #32 (P0-3 global grouped search).** A3 needed a follow-up commit `db8c30c` on the same branch lowering the similarity threshold from 0.3 → 0.15 and removing the `WHERE status='published'` filter from the `lineages` query (the table has no `status` column). `pg_trgm` extension installed on the prod `gustale` DB at 2026-07-22T18:33:06Z; migration file `packages/db/drizzle/0007_pg_trgm.sql` is in the repo. The API incident above currently masks A3's `/api/search` from being reachable on prod — once the CI secret is fixed and the API rebuilds, the search endpoint will be live.
+2026-07-23 by Hermes Agent (Telegram) — **Wave A of `COMPETITIVE_ROADMAP.md` shipped to `origin/main` via three squash-merges: PR #30 (P2-7 MapLibre CSS scope), PR #31 (P0-1 homepage SSR real counts), PR #32 (P0-3 global grouped search).** A3 needed a follow-up commit `db8c30c` on the same branch lowering the similarity threshold from 0.3 → 0.15 and removing the `WHERE status='published'` filter from the `lineages` query (the table has no `status` column). `pg_trgm` extension installed on the prod `gustale` DB at 2026-07-22T18:33:06Z; migration file `packages/db/drizzle/0007_pg_trgm.sql` is in the repo. The API incident above currently masks A3's `/api/search` from being reachable on prod — once `/root/.env` is corrected and `gustale-api` is restarted, the search endpoint will be live.
 
 2026-07-22 by Cursor Cloud Agent — **Media-first Phase A PR #29** (`cursor/media-first-phase-a-51fa`): full-bleed dish cover hero + typographic never-empty fallback, spacing scale tokens, gallery without duplicate cover, origin map moved below hero. Implements competitive roadmap P0-2 / Wave A design air.
 
@@ -130,6 +130,73 @@ sudo docker exec shared-postgres bash -c 'grep -vE "^($|#)" /var/lib/postgresql/
 ```
 
 If the API container resolves `shared-postgres` to a non-loopback IP, the `host all all 127.0.0.1/32 trust` rule does **not** apply and SCRAM is enforced — which is exactly the divergence we're seeing. This may be the actual reason Phase 7's negative test against the OLD password worked: the gustale-api path was hitting a different IP than the loopback probe. **This is worth pinning down in a follow-up.**
+
+### 2026-07-23 — API auth divergence (CORRECTED) — DO NOT FOLLOW THE ENTRY ABOVE
+
+**The entry above this one (`### 2026-07-23 — API auth divergence (incident + recipe)`) is WRONG. Do not follow it. The fix path it prescribes (update the GitHub Actions `DATABASE_URL` secret, trigger a rebuild) is a no-op against prod — the CI "secret" is a hardcoded literal in `ci.yml` line 24 used only by the `lint` and `test` jobs against the ephemeral CI Postgres service container, not by the prod deploy step. The real root cause was found on second pass and is documented below.**
+
+**Verification chain (re-confirmed 2026-07-23 against the live VPS after the user's "ci deploy is done" signal did not restore service):**
+
+```
+$ sudo docker ps --format '{{.Names}} {{.Image}}' | grep gustale-api
+gustale-api   ghcr.io/consciousclarity/gustale.com/gustale-api:b07ac4b030767ddfcbc66b3219d83c91b51703b5
+
+$ sudo docker inspect gustale-api --format '{{.Created}}'
+2026-07-23T00:37:02.243411488Z     ← fresh container (post-deploy, today)
+
+$ sudo docker exec gustale-api bash -c 'P=${DATABASE_URL}; PASS=${P#*://}; PASS=${PASS#*:}; PASS=${PASS%@*}; echo substr=${PASS:0:8} len=${#PASS}'
+substr=6203879c len=64             ← SAME stale password as before deploy
+
+$ sudo cat /root/.env | grep DATABASE_URL
+DATABASE_URL=postgres://gustale:***@127.0.0.1:5432/gustale
+                                  ← also starts with 6203879c (the pre-Phase-7 value)
+
+$ grep DATABASE_URL /home/deploy/gustale.com/.env
+DATABASE_URL=postgresql://gustale:***@127.0.0.1:5432/gustale
+                                  ← starts with 584095ba (the Phase 7 value, 32 chars)
+
+$ awk -F= '/^GUSTALE_DB_PASSWORD=/{print substr($2,1,8)}' /home/deploy/gustale.com/.db-password
+584095ba                         ← matches .env above (Phase 7 value)
+
+$ sudo docker exec shared-postgres psql ... -c "SELECT substr(rolpassword, 1, 18) FROM pg_authid WHERE rolname='gustale';"
+SCRAM-SHA-256$4096                ← SCRAM hash format, length 133 bytes (matches .db-password via the auth probe)
+```
+
+**Conclusion of the re-investigation:** Three of the four credential stores agree (`/home/deploy/gustale.com/.env`, `/home/deploy/gustale.com/.db-password`, Postgres `pg_authid` SCRAM hash for `gustale` — all correspond to the post-Phase-7 password starting `584095ba…`). The fourth — **`/root/.env` on the VPS** — is the outlier, still holding the pre-Phase-7 value starting `6203879c…`. The `gustale-api` container's env comes from `--env-file /root/.env` per `ci.yml` line 403 (`deploy_container "gustale-api" "$API_IMAGE" "4000" "4000" "--network host --env-file /root/.env"`), so every prod deploy starts the API with the wrong password. The image is fine; the deployment script is fine; the database is fine. The file `/root/.env` was missed by Phase 7.
+
+**Actual fix (manual, 4 commands, ~5 s):**
+
+```bash
+NEW_URL=$(grep -E '^DATABASE_URL=' /home/deploy/gustale.com/.env)
+sudo cp /root/.env /root/.env.pre-fix-$(date -u +%Y%m%dT%H%M%SZ)
+sudo sed -i "s|^DATABASE_URL=.*$|$NEW_URL|" /root/.env
+sudo docker restart gustale-api
+```
+
+That's it. The pre-fix backup is at `/root/.env.pre-fix-YYYYMMDDTHHMMSSZ` (mode 0600, owned by root). After restart (~5 s), `/api/dishes?limit=5` should return 200 and `/api/search?q=vindaloo` should return `{groups: [..., {type: "dish", total: 1, results: [{name: "Vindaloo", ...}]}, ...]}`.
+
+**Verification after fix:**
+
+```bash
+sleep 5
+curl -sS -o /dev/null -w "/health=%{http_code}\n" https://api.gustale.recipes/health
+curl -sS -o /dev/null -w "/api/dishes=%{http_code}\n" 'https://api.gustale.recipes/api/dishes?limit=5'
+curl -sS 'https://api.gustale.recipes/api/search?q=vindaloo' | jq '.groups[].total'
+# expect: /health=200, /api/dishes=200, vindaloo group total=1
+```
+
+**Why the original entry was wrong — the meta-failure mode:**
+
+The first diagnosis assumed the password was baked into the API image because that's how most containerized apps work. It was the natural default assumption. The actual architecture (`gustale-api` running with `--env-file /root/.env` from the host) is unusual and the diagnosis missed it. Two contributing factors:
+
+1. **No first-principles check of the deploy step.** I should have read `ci.yml` lines 380-410 (the `deploy_container` function) before concluding where the env comes from. That would have shown `--env-file /root/.env` and saved the round-trip.
+2. **Phase 7's audit log did not mention `/root/.env`.** The audit entry under `### 2026-07-22 — Phase 7` (below) lists the files that were updated: `.env`, `.db-password`, `gustale-api` container recreated. `/root/.env` is not mentioned because the rotation script was authored without the deploy-step in scope — the author (also Hermes) was thinking of the API container as the target, and the container recreates with whatever env was set when the script ran. The new password was generated, the API container was stopped and recreated, the smoke was green at 17:25 UTC. The author of the rotation did not separately read `/root/.env` to check whether it was being used as the env source.
+
+**Lessons (for any future rotation):**
+
+- The deploy step is `ci.yml` `deploy_container` (lines 380-410) using `--env-file /root/.env`. Any rotation of secrets read by `gustale-api` MUST update `/root/.env`, NOT (only) the Phase 7 / canonical-location files.
+- The "source of truth" claim in this file's own "Conventions" section (`/root/.env` is the source of truth) is correct and was right there to read before diagnosing. The original entry quoted the symptom correctly but skipped the file-location claim.
+- Add a defensive check in the rotation script: after updating the canonical files, `diff -q /home/deploy/gustale.com/.env /root/.env` and warn on mismatch. Would have caught this in Phase 7.
 
 ### 2026-07-22 — Phase 7: DB password rotation (executed)
 
