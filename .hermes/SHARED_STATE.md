@@ -6,7 +6,33 @@
 
 ## Last updated
 
-2026-07-23 by Cursor Cloud Agent — **Codex handoff for gustale.com usability-first overhaul** written to `.hermes/CODEX_BRIEF_USABILITY.md`. Locks domain contract: `.com` = atlas/geo/discovery; `.recipes` = cook/contribute/recipes. Waves U0–U3 prioritize trust → browse → journey → recipes bridge. Includes pasteable Codex prompt, Greptile PR #29 debt, and API `/root/.env` blocker note.
+2026-07-23 by Hermes Agent (Telegram) — **✓ Resolved at 2026-07-23T10:14Z (UTC).** The `### 2026-07-23 — API auth divergence (CORRECTED)` entry below documents the root cause (Phase 7 missed updating `/root/.env` on the VPS; CI's `deploy_container` reads that file via `--env-file`). The fix that was actually applied:
+
+```bash
+# 1. Update /root/.env DATABASE_URL line to match /home/deploy/gustale.com/.env
+NEW_URL=$(grep -E '^DATABASE_URL=' /home/deploy/gustale.com/.env)
+sudo cp -a /root/.env /root/.env.pre-fix-$(date -u +%Y%m%dT%H%M%SZ)
+sudo sed -i "s|^DATABASE_URL=.*\$|$NEW_URL|" /root/.env
+# (the sed here ran locally on the VPS as root; the URL value was not displayed)
+
+# 2. Recreate the gustale-api container (docker restart alone does NOT
+#    re-read --env-file; the env is set at docker run time):
+sudo docker stop gustale-api
+sudo docker rm gustale-api
+sudo docker run -d --name gustale-api --restart unless-stopped \
+  -p 4000:4000 --network host --env-file /root/.env \
+  ghcr.io/consciousclarity/gustale.com/gustale-api:b07ac4b030767ddfcbc66b3219d83c91b51703b5
+```
+
+Post-fix verification (all 200):
+- `/health=200`, `/api/dishes?limit=5=200`, `/api/dishes/map?limit=5=200`, `/api/lineages=200`, `/api/search?q=vindaloo=200`
+- `/api/search?q=vindaloo` body: `dish=1 (Vindaloo), lineage=0, ingredient=0, region=0` — A3's pg_trgm path live end-to-end
+- `/api/dishes/map?limit=2000` returns 60 dishes — the homepage globe's data source is full
+- `gustale.recipes/` server-rendered HTML contains `<b>60</b> dishes, <b>32</b> origins, <b>18</b> families, <b>14</b> lineages` — A2's `AtlasHeroKpi` band live
+
+The earlier 4-attempt fix-script sequence (`/tmp/fix_root_env*.sh`) had three lessons: (1) running `sudo` from a script piped over SSH to a TTY-less hermes shell fails; (2) `docker restart` does not re-read `--env-file`; (3) `[[ ! -f $BACKUP_PATH ]]` from a non-root shell on `/root/` is permission-bound (the parent dir must be +x for `test -f` to stat the file). All three were workarounds; the four-line fix above is the clean form. The intermediate backup `/root/.env.pre-fix-20260723T023545Z` is preserved (mode 0600, root:root) for audit.
+
+2026-07-23 by Cursor Cloud Agent — **Codex handoff for gustale.com usability-first overhaul** written to `.hermes/CODEX_BRIEF_USABILITY.md`. Locks domain contract: `.com` = atlas/geo/discovery; `.recipes` = cook/contribute/recipes. Waves U0–U3 prioritize trust → browse → journey → recipes bridge. Includes pasteable Codex prompt, Greptile PR #29 debt, and API `/root/.env` blocker note. (This line is reconstructed by Hermes from `54b1a05`'s commit message; see the commit directly if the brief itself was renamed.)
 
 2026-07-23 by Hermes Agent (Telegram) — **Correction to the API auth divergence entry below.** The first version of this entry misidentified the fix as "update the GitHub Actions `DATABASE_URL` secret and trigger a rebuild." That was wrong: the `DATABASE_URL` in `.github/workflows/ci.yml` line 24 is a hardcoded literal used only by the `lint` and `test` jobs against the ephemeral CI Postgres service container — it does NOT control the prod deploy. The actual root cause is that **Phase 7's 2026-07-22 password rotation did not update `/root/.env` on the VPS**, which is the file the `ci.yml` `deploy_container` step reads via `--env-file /root/.env` to start `gustale-api`. The container is therefore started with the pre-Phase-7 password `6203879c…` (64 chars), which does not match the post-Phase-7 SCRAM-SHA-256 hash for the `gustale` role. **Correct fix:** update `/root/.env` on the VPS so its `DATABASE_URL` line matches `/home/deploy/gustale.com/.env`, then `docker restart gustale-api`. No CI changes, no DB ops, no image rebuild needed. See the new sub-section `### 2026-07-23 — API auth divergence (corrected)` below the original (wrong) entry for the full corrected diagnostic. **The original entry is left in place for the audit trail** — it is wrong, do not follow it; the new entry supersedes it.
 
