@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMediaSignedUrl } from '../lib/api';
+import { selectDishHeroMedia } from '../lib/dishMedia';
 import type { DishMediaAttachment, DishOrigin } from '../types/dish';
 
 export interface DishCoverHeroProps {
@@ -12,14 +13,13 @@ export interface DishCoverHeroProps {
  * Full-bleed cover for dish pages.
  *
  * Always paints a finished hero — never "Loading cover…".
- * - With cover media: fetch signed URL, fade image in over the fallback.
+ * - With selected media: fetch signed URL, fade image in over the fallback.
  * - Without media / on error: keep the typographic origin composition.
+ *
+ * Selection matches `selectDishHeroMedia` — gallery must exclude that mediaId.
  */
 export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
-  const cover =
-    media.find((m) => m.role === 'cover') ??
-    [...media].sort((a, b) => a.position - b.position)[0] ??
-    null;
+  const cover = selectDishHeroMedia(media);
 
   const [url, setUrl] = useState<string | null>(null);
   const [imageReady, setImageReady] = useState(false);

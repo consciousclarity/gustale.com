@@ -3,17 +3,22 @@ import { getMediaSignedUrl, ApiError } from '../lib/api';
 import type { DishMediaAttachment } from '../types/dish';
 
 export interface DishGalleryProps {
-  /** All media attached to the dish. Cover is shown in DishCoverHero — omitted here. */
+  /** All media attached to the dish. Hero media is omitted via excludeMediaId. */
   media: DishMediaAttachment[];
+  /**
+   * mediaId currently shown in DishCoverHero (explicit cover or gallery fallback).
+   * Excluded by ID so gallery-only dishes do not duplicate the hero image.
+   */
+  excludeMediaId?: string | null;
 }
 
 /**
- * Secondary gallery (non-cover images). Cover lives in the full-bleed hero.
+ * Secondary gallery. Hero lives in DishCoverHero — exclude that mediaId here.
  * Empty / loading cells use a quiet placeholder — never "Loading cover…".
  */
-export function DishGallery({ media }: DishGalleryProps) {
+export function DishGallery({ media, excludeMediaId = null }: DishGalleryProps) {
   const gallery = [...media]
-    .filter((m) => m.role !== 'cover')
+    .filter((m) => m.mediaId !== excludeMediaId)
     .sort((a, b) => a.position - b.position);
 
   const [galleryUrls, setGalleryUrls] = useState<Record<string, string>>({});

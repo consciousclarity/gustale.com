@@ -2316,10 +2316,6 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   .fam-related-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 680px) {
-  .dish-page .rec-meta { flex-wrap: wrap; }
-}
-
 /* ─── AuthMenu ─────────────────────────────────────────────────────────── */
 
 /* Desktop unauthed: Sign in button */
