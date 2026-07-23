@@ -1,6 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { ApiError, listDishes } from '../../lib/api';
+import { collectFamiliesFromPublishedDishes } from '../../lib/collectDishFamilies';
+import { atlasUrl, isRecipesDomain } from '../../lib/domain';
 import type { DishListResponse } from '../../types/dish';
 
 // ---------------------------------------------------------------------------
@@ -16,26 +18,55 @@ import type { DishListResponse } from '../../types/dish';
 // ---------------------------------------------------------------------------
 
 export async function getStaticPaths() {
-  // We don't know the category list at module-eval time without querying,
-  // but the web app is fully static. Astro's `getStaticPaths` runs at
-  // build time so we can fetch them from the API.
+  // SSG-only: never depend on the live production API from a browser.
+  // Prefer /api/categories; fall back to distinct familySlug values from
+  // the paged dishes list so a missing categories route cannot wipe /family/*.
   const apiBase = import.meta.env.PUBLIC_API_BASE;
-  if (!apiBase) return [];
+  if (!apiBase) {
+    console.warn('[family/getStaticPaths] PUBLIC_API_BASE unset — no family pages');
+    return [];
+  }
+  const base = apiBase;
 
-  try {
-    const res = await fetch(`${apiBase}/api/categories`);
+  type Cat = { slug: string; name: string; description: string | null };
+
+  async function fromCategories(): Promise<Cat[]> {
+    const res = await fetch(`${base}/api/categories`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
-      categories: Array<{ slug: string; name: string; description: string | null }>;
+      categories?: Array<{ slug: string; name: string; description?: string | null }>;
     };
+    return (json.categories ?? [])
+      .filter((c) => c.slug && c.name)
+      .map((c) => ({
+        slug: c.slug,
+        name: c.name,
+        description: c.description ?? null,
+      }));
+  }
 
-    // Build a slug → { name, description } map we can reference from each
-    // page's frontmatter.
-    return json.categories.map((c) => ({
+  async function fromDishFamilies(): Promise<Cat[]> {
+    // API caps limit at 100 and paginates via offset — never assume a
+    // single large limit. See collectDishFamilies.ts.
+    return collectFamiliesFromPublishedDishes(base);
+  }
+
+  try {
+    let cats = await fromCategories();
+    if (cats.length === 0) {
+      console.warn('[family/getStaticPaths] /api/categories empty — falling back to dish familySlug');
+      cats = await fromDishFamilies();
+    }
+    if (cats.length === 0) {
+      console.warn('[family/getStaticPaths] no categories resolved — emitting zero family pages');
+      return [];
+    }
+    return cats.map((c) => ({
       params: { slug: c.slug },
       props: { name: c.name, description: c.description },
     }));
-  } catch {
+  } catch (err) {
+    console.error('[family/getStaticPaths] failed:', err);
     return [];
   }
 }
@@ -194,7 +225,7 @@ const blurb = KNOWN_BLURBS[slug] ?? familyDescription ?? null;
         <span class="mono-sub">By provenance</span>
         <span>See how dishes traveled between regions</span>
       </a>
-      <a href="/map" class="fam-related-card">
+      <a href={isRecipesDomain() ? atlasUrl('/map') : '/map'} class="fam-related-card">
         <span class="mono-sub">Atlas</span>
         <span>Plot this family on the world map</span>
       </a>

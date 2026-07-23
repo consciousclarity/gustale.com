@@ -2,9 +2,10 @@
 import '../styles/global.css';
 import { AuthMenu } from './AuthMenu';
 import { GlobalSearch } from './GlobalSearch';
+import { currentDomain, isGeoDomain } from '../lib/domain';
 
-const domain = import.meta.env.PUBLIC_DOMAIN ?? 'recipes';
-const isGeo = domain === 'geo';
+const domain = currentDomain();
+const isGeo = isGeoDomain();
 
 // The "other" domain URL — used for the cross-domain switcher
 const otherDomain = isGeo ? 'https://gustale.recipes' : 'https://gustale.com';

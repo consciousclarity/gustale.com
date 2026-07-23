@@ -25,11 +25,13 @@
  * live API (list ?status=published&limit=100, /map?limit=200, and each
  * /dishes/:slug) and regenerate mock-api-data.json. See SHARED_STATE.md.
  *
- * Endpoints served (mirroring apps/api/src/routes/dishes.ts):
+ * Endpoints served (mirroring apps/api routes used at SSG time):
  *   GET /health
- *   GET /api/dishes              → { dishes, limit, offset }
+ *   GET /api/dishes              → { dishes, limit, offset } (supports ?category=)
  *   GET /api/dishes/map          → { dishes, count }
  *   GET /api/dishes/:slug        → full dish detail
+ *   GET /api/categories          → { categories } (derived from list familySlug)
+ *   GET /api/lineages …          → optional lineages blob
  *
  * Usage:
  *   node scripts/mock-api.mjs [--port 8742]
@@ -56,6 +58,72 @@ const LINEAGES_DATA = HAS_LINEAGES
 const LIST = DATA.list ?? [];
 const MAP = DATA.map ?? [];
 const DETAILS = DATA.details ?? {};
+
+// Pagination fixture list: production GET /api/dishes caps limit at 100 and
+// uses offset. This padded list is served only when the request asks for it
+// (`X-Gustale-Fixture: pagination`) so normal SSG / homepage catalogs stay
+// on the real captured snapshot. A unique familySlug appears only after the
+// first page — used by validate-build to prove family fallback pagination.
+export const LATE_PAGE_FAMILY_SLUG = 'late-page-family';
+const DISH_LIST_PAGE_LIMIT = 100;
+
+function withPaginationFixture(baseList) {
+  if (!Array.isArray(baseList) || baseList.length === 0) return baseList ?? [];
+  const list = baseList.slice();
+  const template = baseList[0];
+  let i = 0;
+  while (list.length < DISH_LIST_PAGE_LIMIT) {
+    i += 1;
+    list.push({
+      ...template,
+      id: `mock-pad-${i}`,
+      slug: `__pad-${i}`,
+      canonicalName: `Pagination pad ${i}`,
+      familySlug: template.familySlug,
+      familyName: template.familyName,
+    });
+  }
+  list.push({
+    ...template,
+    id: 'mock-late-page-family',
+    slug: '__late-page-family-dish',
+    canonicalName: 'Late Page Family Fixture',
+    familySlug: LATE_PAGE_FAMILY_SLUG,
+    familyName: 'Late Page Family',
+  });
+  return list;
+}
+
+const LIST_PAGINATION_FIXTURE = withPaginationFixture(LIST);
+
+// Categories for /family/[slug] getStaticPaths — derived from published list
+// familySlug/familyName, plus the late-page fixture family so the page is
+// generated via the preferred /api/categories path.
+const CATEGORIES = (() => {
+  const bySlug = new Map();
+  for (const d of LIST) {
+    if (!d.familySlug || bySlug.has(d.familySlug)) continue;
+    bySlug.set(d.familySlug, {
+      id: `mock-cat-${d.familySlug}`,
+      name: d.familyName ?? d.familySlug,
+      slug: d.familySlug,
+      parentId: null,
+      icon: null,
+      description: null,
+    });
+  }
+  if (!bySlug.has(LATE_PAGE_FAMILY_SLUG)) {
+    bySlug.set(LATE_PAGE_FAMILY_SLUG, {
+      id: `mock-cat-${LATE_PAGE_FAMILY_SLUG}`,
+      name: 'Late Page Family',
+      slug: LATE_PAGE_FAMILY_SLUG,
+      parentId: null,
+      icon: null,
+      description: 'CI fixture: family discoverable only after the first dishes page.',
+    });
+  }
+  return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name));
+})();
 
 let PORT = 8742;
 for (let i = 2; i < process.argv.length; i++) {
@@ -91,10 +159,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /api/dishes — list all published dishes
+  // GET /api/categories — flat category list (used by /family/[slug] SSG)
+  if (url.pathname === '/api/categories' && req.method === 'GET') {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ categories: CATEGORIES }));
+    return;
+  }
+
+  // GET /api/dishes — list published dishes (optional ?category= / ?family=)
+  // Pagination mirrors apps/api listQuerySchema: limit max 100, offset >= 0.
   if (url.pathname === '/api/dishes' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ dishes: LIST, limit: 100, offset: 0 }));
+    const category = (url.searchParams.get('category') ?? '').trim();
+    const family = (url.searchParams.get('family') ?? '').trim();
+    const filterSlug = category || family;
+    const useFixture = (req.headers['x-gustale-fixture'] ?? '') === 'pagination';
+    let dishes = useFixture ? LIST_PAGINATION_FIXTURE : LIST;
+    if (filterSlug) {
+      dishes = dishes.filter((d) => d.familySlug === filterSlug);
+    }
+    // Match production zod: limit 1..100 (default 20), offset >= 0.
+    const rawLimit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(100, Math.max(1, rawLimit))
+      : 20;
+    const rawOffset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+    const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.min(10000, rawOffset)) : 0;
+    const page = dishes.slice(offset, offset + limit);
+    res.end(JSON.stringify({ dishes: page, limit, offset }));
     return;
   }
 
@@ -304,5 +396,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`[mock-api] listening on http://${HOST}:${PORT}`);
-  console.log(`[mock-api] ${LIST.length} dishes loaded (${DATA.generatedFrom ?? 'mock-api-data.json'})`);
+  console.log(`[mock-api] ${LIST.length} dishes, ${CATEGORIES.length} categories loaded (${DATA.generatedFrom ?? 'mock-api-data.json'})`);
 });

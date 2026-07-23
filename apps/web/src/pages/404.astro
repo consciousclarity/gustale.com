@@ -1,35 +1,80 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { GlobalSearch } from '../components/GlobalSearch';
+import { isGeoDomain, recipesUrl } from '../lib/domain';
 
-export const prerender = true;
-
-const title = 'Not found — Gustale';
-const description = 'The page you are looking for does not exist on Gustale.';
+const isGeo = isGeoDomain();
 ---
 
-<Layout title={title} description={description}>
-  <section class="not-found">
-    <p class="mono-sub">404</p>
-    <h1 class="not-found h1">
-      Page not found
-    </h1>
-    <p>
-      The page you are looking for doesn't exist — it may have been renamed,
-      moved, or never existed at all.
+<Layout title="Page not found · Gustale">
+  <div class="wrap not-found">
+    <p class="eyebrow">{isGeo ? 'Gustale Atlas' : 'Gustale Recipes'}</p>
+    <h1>This page isn’t here</h1>
+    <p class="lede">
+      The link may be outdated, or the dish may have moved. Search the catalog, or jump back into exploration.
     </p>
-    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-      <a
-        href="/dishes"
-        class="btn-accent"
-      >
-        Browse dishes
-      </a>
-      <a
-        href="/map"
-        class="btn-ghost"
-      >
-        View the map
-      </a>
+
+    <div class="search-slot">
+      <GlobalSearch client:load variant="full" placement="drawer" />
     </div>
-  </section>
+
+    <nav class="routes" aria-label="Helpful destinations">
+      {
+        isGeo ? (
+          <>
+            <a class="btn-accent" href="/">Return to globe</a>
+            <a class="btn-ghost" href="/regions">Explore countries</a>
+            <a class="btn-ghost" href="/families">Explore food families</a>
+            <a class="btn-ghost" href={recipesUrl('/')}>Gustale Recipes</a>
+          </>
+        ) : (
+          <>
+            <a class="btn-accent" href="/">Recipes home</a>
+            <a class="btn-ghost" href="/dishes">Browse dishes</a>
+            <a class="btn-ghost" href="/families">Explore food families</a>
+            <a class="btn-ghost" href="https://gustale.com/">Gustale Atlas</a>
+          </>
+        )
+      }
+    </nav>
+  </div>
 </Layout>
+
+<style>
+  .not-found {
+    max-width: 40rem;
+    padding-block: 3rem 4rem;
+  }
+
+  .eyebrow {
+    margin: 0 0 0.5rem;
+    color: var(--muted, var(--sub));
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 0 0 0.65rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.85rem, 4vw, 2.45rem);
+    line-height: 1.15;
+  }
+
+  .lede {
+    margin: 0 0 1.25rem;
+    color: var(--muted, var(--sub));
+    line-height: 1.55;
+  }
+
+  .search-slot {
+    margin-bottom: 1.35rem;
+  }
+
+  .routes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+</style>

@@ -1,6 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { authoringHref } from '../lib/domain';
+
+const addDishHref = authoringHref('/dishes/new');
 ---
 
 <Layout
@@ -104,7 +107,7 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
         before it goes live.
       </p>
       <div class="cta-row">
-        <a href="/dishes/new" class="btn-accent">Add a dish →</a>
+        <a href={addDishHref} class="btn-accent">Add a dish →</a>
         <a href="/dishes" class="btn-ghost">Browse dishes →</a>
         <a href="/about" class="btn-ghost">Learn about Gustale →</a>
       </div>
