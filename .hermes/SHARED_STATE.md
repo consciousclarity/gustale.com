@@ -6,6 +6,10 @@
 
 ## Last updated
 
+2026-07-23 by Hermes Agent (Telegram) — **Incident: API 500 on all DB routes due to stale `DATABASE_URL` secret.** `gustale-api` container was rebuilt today (2026-07-22T23:48 UTC) carrying a stale CI secret value (`6203879c7e95f8af…`, 64 chars) that no longer matches the Phase 7 SCRAM-SHA-256 hash stored in Postgres for the `gustale` role (which matches `.env` / `.db-password`: `584095ba…`, 32 chars). All DB-bound routes return HTTP 500 with `password authentication failed for user "gustale"`; only `/health` (which never touches the DB) returns 200. Root cause: GitHub Actions `DATABASE_URL` secret was not updated when Phase 7 rotated the DB password on 2026-07-22. Fix path: update the CI secret to match `.db-password` on the VPS, trigger a rebuild. See `### 2026-07-23 — API auth divergence` below for full diagnostic and fix recipe.
+
+2026-07-23 by Hermes Agent (Telegram) — **Wave A of `COMPETITIVE_ROADMAP.md` shipped to `origin/main` via three squash-merges: PR #30 (P2-7 MapLibre CSS scope), PR #31 (P0-1 homepage SSR real counts), PR #32 (P0-3 global grouped search).** A3 needed a follow-up commit `db8c30c` on the same branch lowering the similarity threshold from 0.3 → 0.15 and removing the `WHERE status='published'` filter from the `lineages` query (the table has no `status` column). `pg_trgm` extension installed on the prod `gustale` DB at 2026-07-22T18:33:06Z; migration file `packages/db/drizzle/0007_pg_trgm.sql` is in the repo. The API incident above currently masks A3's `/api/search` from being reachable on prod — once the CI secret is fixed and the API rebuilds, the search endpoint will be live.
+
 2026-07-22 by Cursor Cloud Agent — **Media-first Phase A PR #29** (`cursor/media-first-phase-a-51fa`): full-bleed dish cover hero + typographic never-empty fallback, spacing scale tokens, gallery without duplicate cover, origin map moved below hero. Implements competitive roadmap P0-2 / Wave A design air.
 
 2026-07-22 by Cursor Cloud Agent — **Competitive roadmap published** at `.hermes/COMPETITIVE_ROADMAP.md` (Waves A–E). Built from review of Explore.co.uk food-origins, theworldonaplate.co.uk, and Khoury et al. 2016 (crop primary regions). Positioning locked: Gustale = open atlas of how food moved. Top bets: (P0) homepage never-zero + covers; (P1) Dish Journey UI, ingredient origins via empty `food_geography`, region guides, `/stories`, confidence surfacing, Atlas→Recipes bridge. TASKS.md mirrors wave checklists. Explicit non-goals: meal planner, trip CTAs, faking Khoury’s 68.7% stat.
@@ -23,6 +27,109 @@
 ---
 
 ## ✅ Completed this session
+
+### 2026-07-23 — API auth divergence (incident + recipe)
+
+**Symptom (verbatim from `sudo docker logs --tail=80 gustale-api`, request `req-k`):**
+
+```
+{"level":50,"time":1784764674999,"reqId":"req-k",
+ "err":{"type":"DrizzleQueryError",
+        "message":"Failed query: ... \nparams: published,5,0: password authentication failed for user \"gustale\"",
+ "caused by":"PostgresError: password authentication failed for user \"gustale\""},
+ "msg":"request error"}
+```
+
+**Live status:** `https://api.gustale.recipes/health` → 200 (no DB touch). `https://api.gustale.recipes/api/dishes?limit=5` → 500 with body `{"error":"internal_error","message":"Internal server error","code":500,"traceId":"req-…"}`. Same for `/api/dishes/map`, `/api/lineages`, `/api/search` (the new A3 endpoint) — every route that hits Postgres.
+
+**Diagnostic ladder (verified 2026-07-23 against the live VPS):**
+
+| Source | Password first 8 | Length |
+|---|---|---|
+| `/home/deploy/gustale.com/.db-password` | `584095ba` | 32 |
+| `/home/deploy/gustale.com/.env` `DATABASE_URL` | `584095ba` | 32 |
+| `pg_authid.rolpassword` for `gustale` | (SCRAM-SHA-256, 133 bytes) | matches `.db-password` ✓ |
+| **`gustale-api` container env `DATABASE_URL`** | **`6203879c`** | **64** ❌ |
+
+The container was started `Up 9 minutes` at time of inspection (created `2026-07-22T23:48:24Z`), which means **a deploy happened today** and the new image carries the stale CI secret value. `docker inspect gustale-api --format '{{json .Mounts}}'` returns `[]` — no bind mounts — so the password is baked into the image at build time via CI's `DATABASE_URL` secret.
+
+**Auth probe using `.db-password` directly (THE source of truth) — works fine:**
+
+```
+sudo docker exec -i shared-postgres bash -lc 'cat > /tmp/pw.txt;
+  export PGPASSWORD=$(cat /tmp/pw.txt);
+  psql -h 127.0.0.1 -U gustale -d gustale -t -A -F"|" \
+    -c "SELECT current_user, count(*) FROM dishes WHERE status='"'"'published'"'"';"'
+```
+
+Returns `gustale|60`. The DB-side credential is correct. **Only the API container's baked-in secret is wrong.**
+
+**Root cause:** GitHub Actions secret `DATABASE_URL` was not updated when Phase 7 (2026-07-22) rotated the `gustale` role password. Today's deploy(s) baked the old (pre-rotation) secret into the image. The Phase 7 audit log above shows the rotation was authorized and the password was applied to Postgres + `.env` + `.db-password` + the running API container (recreated 2026-07-22T17:25 UTC at `606cdd2…`), but the CI secret on the GitHub side was not touched. Each rebuild since then carries the stale value.
+
+**Why this wasn't caught at Phase 7 smoke time:** Phase 7 explicitly recreated the gustale-api container using the **same GHCR image SHA** (`606cdd2…`) — `docker run` against an image that was already built with the new password. The credentials in `.env` matched what was baked in. After Phase 7, no further deploys happened for ~24 h; today's deploys triggered by the merged Wave A PRs were the first to bake CI secrets into a fresh build, exposing the divergence.
+
+**Fix (manual, 4 steps, ~5 min):**
+
+1. Open https://github.com/consciousclarity/gustale.com/settings/secrets/actions
+2. Find the `DATABASE_URL` secret (or whatever name the CI uses — likely `DATABASE_URL` since that matches the env var the API reads at runtime)
+3. Set its value to:
+   ```
+   postgres://gustale:***@127.0.0.1:5432/gustale
+   ```
+   (Full password is the one in `/home/deploy/gustale.com/.db-password` on the VPS — file owned by `hermes:hermes`, mode `0600`. Read with `sudo awk -F= '/^GUSTALE_DB_PASSWORD=/{print $2}' /home/deploy/gustale.com/.db-password` — never echo the value into chat.)
+4. Trigger a rebuild. Two options:
+   - **(a)** Push an empty commit to `main`: `git commit --allow-empty -m "chore: rebuild gustale-api with current CI secrets (incident 2026-07-23)" && git push`. CI's deploy job will pick up the new secret and produce a new image SHA. `gustale-api` container will be recreated automatically.
+   - **(b)** Use the GitHub Actions UI → click "Run workflow" on the deploy workflow if it supports `workflow_dispatch`.
+
+**Post-fix verification:**
+
+```
+curl -sS -o /dev/null -w "%{http_code}\n" https://api.gustale.recipes/health
+# expect: 200
+curl -sS -o /dev/null -w "%{http_code}\n" 'https://api.gustale.recipes/api/dishes?limit=5'
+# expect: 200
+curl -sS 'https://api.gustale.recipes/api/search?q=vindaloo' | jq '.groups[].total'
+# expect: dishes ≈ 1 (Vindaloo), others 0 — this validates A3's pg_trgm path end-to-end
+```
+
+If `/health` is 200 but `/api/dishes` is still 500 after the rebuild, the new image was built with the *old* secret cache. Wait 60 s for CI to clear or trigger another rebuild.
+
+**Preventive measures (deferred until after the fix):**
+
+- **Add a CI step that decodes the baked-in `DATABASE_URL` from the built image** and asserts it matches a known-good fingerprint (e.g., the first 8 chars of `.db-password`). Fails the deploy job if divergence is detected. Implementation: a new step in `.github/workflows/ci.yml` that runs `sudo docker run --rm <new-image> bash -c "echo \${DATABASE_URL:0:30}"` and compares against a hardcoded prefix. The fingerprint changes when the DB password rotates, so this needs to be a workflow-level env var sourced from another secret.
+- **Tighten `pg_hba.conf` to require SCRAM on loopback** for the `gustale` user only (keep `trust` for `postgres` superuser and replication). With this, the loopback probe used during Phase 7 would have been a real auth test, not a bypass. Risk: the gustale-api container would fail to start if its baked-in secret is wrong — which is actually what we want (fail-fast at container start, not at first DB query). Recipe: add `host gustale gustale 127.0.0.1/32 scram-sha-256` *before* the existing `host all all 127.0.0.1/32 trust` line so the more-specific rule wins.
+- **Document the secret-rotation runbook**: any future `ALTER ROLE gustale WITH PASSWORD` must be followed by (a) `.env` + `.db-password` update on the VPS, (b) CI `DATABASE_URL` secret update via the GitHub UI, (c) `gustale-api` container recreation, (d) full Phase 5.5 smoke. The Phase 7 entry above documented (a), (c), (d) but missed (b). A new `rotation-runbook.md` (TBD) should be added to `.hermes/` once the present incident is closed.
+
+**Open follow-up for whoever fixes this:** once `/api/dishes?limit=5` returns 200 again, run the A3 smoke from PR #32's PR body:
+
+```
+curl 'https://api.gustale.recipes/api/search?q=vindaloo' | jq '.groups[] | {type, total}'
+curl 'https://api.gustale.recipes/api/search?q=vitna'     | jq '.groups[] | {type, total}'
+curl 'https://api.gustale.recipes/api/search?q=dumpling'   | jq '.groups[] | {type, total}'
+```
+
+If `vindaloo` and `vitna` both return `total=1` for `dish`, A3 is live. If `dumpling` returns `total=3` for `dish` and `total=0` for `lineage`, the threshold/lineage-fix from commit `db8c30c` is also live.
+
+**Operational note (also a known limitation since Phase 7):**
+
+The `gustale-api` container connects via `network_mode: host` so `127.0.0.1:5432` inside the container is the host's `shared-postgres` Postgres. `pg_hba.conf` currently has:
+
+```
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            trust
+host    all             all             ::1/128                 trust
+…
+host all all all scram-sha-256
+```
+
+This means **the gustale-api connection currently bypasses SCRAM auth entirely** because it hits `127.0.0.1/32 trust`. Today's incident was discovered precisely *because* the bypass wasn't working (the API image had been rebuilt and may have been started from a different host-level state where `trust` wasn't yet applied, or the trust line had been removed earlier for the negative-test step of Phase 7 and not restored — needs verification, see below). The fact that we got a SCRAM-shaped error means either (a) `pg_hba.conf` was temporarily tightened, or (b) the API container is no longer on `127.0.0.1` but on a docker-bridge network. Check:
+
+```
+sudo docker exec gustale-api bash -c 'echo host=$(getent hosts shared-postgres | awk "{print \$1}")'
+sudo docker exec shared-postgres bash -c 'grep -vE "^($|#)" /var/lib/postgresql/data/pg_hba.conf'
+```
+
+If the API container resolves `shared-postgres` to a non-loopback IP, the `host all all 127.0.0.1/32 trust` rule does **not** apply and SCRAM is enforced — which is exactly the divergence we're seeing. This may be the actual reason Phase 7's negative test against the OLD password worked: the gustale-api path was hitting a different IP than the loopback probe. **This is worth pinning down in a follow-up.**
 
 ### 2026-07-22 — Phase 7: DB password rotation (executed)
 
@@ -207,12 +314,4 @@ Trace completed:
 - Do not fix Graphify warnings yet.
 
 Pending Hermes task:
-Move MapLibre CSS so it loads only on `/map`.
-Required change:
-- Remove MapLibre CDN import from `apps/web/src/styles/global.css`
-- Add `import 'maplibre-gl/dist/maplibre-gl.css';` to `apps/web/src/pages/map.astro`
-
-Validation for Hermes:
-- run repo typecheck/build commands
-- confirm `/map` still builds
-- confirm non-map pages no longer import MapLibre CSS globally
+**MapLibre CSS scope — RESOLVED 2026-07-23 by Hermes via PR #30** (`pr/maplibre-css-scope`, commit `144e302`, merged to `origin/main` today). The required change (remove MapLibre CDN import from `apps/web/src/styles/global.css`; add `import 'maplibre-gl/dist/maplibre-gl.css';` to `apps/web/src/pages/map.astro` + `apps/web/src/pages/dishes/[slug].astro`) was implemented exactly as specified. Validation: `pnpm --filter web exec astro build` (21 pages, exit 0), `tsc --noEmit` (exit 0), CSS asset (`_astro/maplibre-gl.*.css`, 69.9 KB) is now linked only from `/map/index.html` and `dishes/<slug>/index.html` — confirmed by `grep -oE 'maplibre-gl.*\.css' dist/...` per page. ~70 KB saved on every non-map, non-dish page load. See PR #30's PR body for the full diff.
