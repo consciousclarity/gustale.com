@@ -9,6 +9,17 @@
 
 - (none)
 
+## Codex — usability-first (.com)
+
+Source: `.hermes/CODEX_BRIEF_USABILITY.md` (2026-07-23).
+Owner target: Codex. Domain: **gustale.com** only for product UX; recipes stay on **gustale.recipes**.
+
+- [ ] Greptile PR #29 P1 cover/gallery duplicate + P2 duplicate CSS
+- [ ] U0 trust (never-zero home, covers, search, /family/:slug, domain switcher)
+- [ ] U1 browse usability (home + lists + mobile find + empty states)
+- [ ] U2 Journey + confidence flagships
+- [ ] U3 Atlas→Recipes CTAs / never-blank prep
+
 ## Competitive roadmap (source of truth)
 
 Full detailed backlog with problem / scope / done-means lives in
