@@ -110,13 +110,15 @@ check('nav links to absolute Recipes origin',
 
 if (DOMAIN === 'geo') {
   // Atlas nav uses "Countries" (href=/regions), not "Regions".
-  const countriesLabelCount = countOccurrences(regionsHtml, '>Countries<');
+  // Astro may emit whitespace inside the anchor: "> Countries <".
+  const countriesLabelCount = countOccurrences(regionsHtml, 'Countries');
   check('main navigation contains Countries → /regions',
     countOccurrences(regionsHtml, 'href="/regions"') >= 1,
     'no href="/regions" in nav');
   check('mobile navigation includes Countries',
-    countriesLabelCount >= 1,
-    `expected ≥1 "Countries" nav labels, found ${countriesLabelCount}`);
+    /nav-mobile-link[\s\S]{0,120}Countries/.test(regionsHtml ?? '')
+      && countriesLabelCount >= 1,
+    `expected Countries in mobile nav, found ${countriesLabelCount} total`);
   check('nav identifies Atlas property in text',
     /Gustale[\s\S]*?Atlas/.test(regionsHtml ?? '') || /Current property: Atlas/.test(regionsHtml ?? ''),
     'Atlas property label missing from nav');

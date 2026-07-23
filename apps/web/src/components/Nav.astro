@@ -241,19 +241,18 @@ const addDishHref = authoringHref('/dishes/new');
 </header>
 
 <script>
+type PanelMode = '' | 'search' | 'menu';
+
 const panel = document.getElementById('nav-mobile-panel');
 const backdrop = document.getElementById('nav-mobile-backdrop');
 const menuBtn = document.getElementById('nav-mobile-toggle');
 const searchBtn = document.getElementById('nav-mobile-search');
 const closeBtn = document.getElementById('nav-mobile-close');
 
-/** @type {HTMLElement | null} */
-let lastTrigger = null;
-/** @type {HTMLElement | null} */
-let previouslyFocused = null;
+let lastTrigger: HTMLElement | null = null;
+let previouslyFocused: HTMLElement | null = null;
 
-/** @param {HTMLElement} root */
-function focusableIn(root) {
+function focusableIn(root: HTMLElement): HTMLElement[] {
   const sel = [
     'a[href]',
     'button:not([disabled])',
@@ -262,21 +261,18 @@ function focusableIn(root) {
     'textarea:not([disabled])',
     '[tabindex]:not([tabindex="-1"])',
   ].join(',');
-  return Array.from(root.querySelectorAll(sel)).filter((el) => {
-    const htmlEl = /** @type {HTMLElement} */ (el);
-    return !htmlEl.hasAttribute('disabled') && htmlEl.offsetParent !== null;
-  });
+  return Array.from(root.querySelectorAll<HTMLElement>(sel)).filter(
+    (el) => !el.hasAttribute('disabled') && el.offsetParent !== null,
+  );
 }
 
-/** @param {boolean} locked */
-function setBodyLock(locked) {
+function setBodyLock(locked: boolean): void {
   document.documentElement.classList.toggle('nav-panel-open', locked);
   document.body.classList.toggle('nav-panel-open', locked);
   document.body.style.overflow = locked ? 'hidden' : '';
 }
 
-/** @param {'' | 'search' | 'menu'} mode */
-function syncTriggers(mode) {
+function syncTriggers(mode: PanelMode): void {
   const open = mode !== '';
   if (menuBtn) {
     menuBtn.setAttribute('aria-expanded', String(mode === 'menu'));
@@ -295,22 +291,17 @@ function syncTriggers(mode) {
   setBodyLock(open);
 }
 
-/**
- * @param {'search' | 'menu'} mode
- * @param {HTMLElement | null} trigger
- */
-function openPanel(mode, trigger) {
+function openPanel(mode: 'search' | 'menu', trigger: HTMLElement | null): void {
   if (!panel) return;
-  previouslyFocused = /** @type {HTMLElement | null} */ (document.activeElement);
+  previouslyFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
   lastTrigger = trigger;
   syncTriggers(mode);
 
   requestAnimationFrame(() => {
     if (mode === 'search') {
-      const input = /** @type {HTMLInputElement | null} */ (
-        document.getElementById('gs-input-drawer')
-      );
-      input?.focus();
+      const input = document.getElementById('gs-input-drawer');
+      if (input instanceof HTMLInputElement) input.focus();
     } else {
       const nodes = focusableIn(panel);
       nodes[0]?.focus();
@@ -318,7 +309,7 @@ function openPanel(mode, trigger) {
   });
 }
 
-function closePanel() {
+function closePanel(): void {
   if (!panel || panel.hidden) return;
   syncTriggers('');
   const restore = lastTrigger ?? previouslyFocused;
@@ -327,13 +318,9 @@ function closePanel() {
   restore?.focus();
 }
 
-/**
- * @param {'search' | 'menu'} mode
- * @param {HTMLElement | null} trigger
- */
-function togglePanel(mode, trigger) {
+function togglePanel(mode: 'search' | 'menu', trigger: HTMLElement | null): void {
   if (!panel) return;
-  const current = panel.dataset.mode ?? '';
+  const current = (panel.dataset.mode ?? '') as PanelMode;
   if (!panel.hidden && current === mode) {
     closePanel();
     return;
@@ -364,12 +351,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
   const nodes = focusableIn(panel);
   if (nodes.length === 0) return;
-  const first = nodes[0];
-  const last = nodes[nodes.length - 1];
+  const first = nodes[0]!;
+  const last = nodes[nodes.length - 1]!;
   const active = document.activeElement;
 
   if (e.shiftKey) {
-    if (active === first || !panel.contains(/** @type {Node} */ (active))) {
+    if (active === first || !(active instanceof Node) || !panel.contains(active)) {
       e.preventDefault();
       last.focus();
     }
@@ -381,7 +368,8 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('click', (e) => {
   if (!panel || panel.hidden) return;
-  const t = /** @type {Node} */ (e.target);
+  const t = e.target;
+  if (!(t instanceof Node)) return;
   if (panel.contains(t)) return;
   if (menuBtn?.contains(t) || searchBtn?.contains(t)) return;
   closePanel();

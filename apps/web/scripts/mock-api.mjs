@@ -421,9 +421,9 @@ const server = http.createServer((req, res) => {
       groups.push({ type: 'dish', total: hits.length, results: hits.slice(0, limit) });
     }
     if (!typeFilter || typeFilter === 'lineage') {
-      const list = HAS_LINEAGES ? LINEAGES_DATA.list : [];
+      const list = HAS_LINEAGES ? (LINEAGES_DATA.list?.lineages ?? []) : [];
       const hits = list
-        .filter((l) => l.status === 'published')
+        .filter((l) => (l.status ?? 'published') === 'published')
         .map((l) => ({
           slug: l.slug,
           name: l.name,
