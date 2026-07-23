@@ -5,7 +5,7 @@
  * Authoring/cook routes are stripped from geo post-build — always use
  * `authoringHref()` for those links so Atlas never points at a removed path.
  *
- * Default when unset: `recipes` (matches Nav, SiteHeader, post-build.mjs).
+ * Default when unset: `recipes` (matches Nav, post-build.mjs).
  */
 
 export type GustaleDomain = 'geo' | 'recipes';

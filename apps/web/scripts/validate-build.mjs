@@ -90,14 +90,47 @@ check('/regions page exists', await exists(regionsPath), regionsPath);
 check('/families page exists', await exists(familiesPath), familiesPath);
 check('/lineages page exists', await exists(lineagesPath), lineagesPath);
 
-// ─── 2. Nav (desktop + mobile) contains "Regions" ──────────────────────────
-// The nav renders in every page. Desktop link + mobile drawer link = ≥2
-// occurrences of the label, and the href must be present.
-const navLabelCount = countOccurrences(regionsHtml, '>Regions<');
-check('main navigation contains "Regions"', countOccurrences(regionsHtml, 'href="/regions"') >= 1,
-  'no href="/regions" in nav');
-check('mobile navigation includes "Regions"', navLabelCount >= 2,
-  `expected ≥2 "Regions" nav labels (desktop+mobile), found ${navLabelCount}`);
+// ─── 2. Domain-aware primary navigation ────────────────────────────────────
+// Domain switcher must use absolute property URLs on both desktop and mobile.
+check('nav links to absolute Atlas origin',
+  countOccurrences(regionsHtml, 'href="https://gustale.com/"') >= 1,
+  'missing https://gustale.com/ switcher link');
+check('nav links to absolute Recipes origin',
+  countOccurrences(regionsHtml, 'href="https://gustale.recipes/"') >= 1,
+  'missing https://gustale.recipes/ switcher link');
+
+if (DOMAIN === 'geo') {
+  // Atlas nav uses "Countries" (href=/regions), not "Regions".
+  const countriesLabelCount = countOccurrences(regionsHtml, '>Countries<');
+  check('main navigation contains Countries → /regions',
+    countOccurrences(regionsHtml, 'href="/regions"') >= 1,
+    'no href="/regions" in nav');
+  check('mobile navigation includes Countries',
+    countriesLabelCount >= 1,
+    `expected ≥1 "Countries" nav labels, found ${countriesLabelCount}`);
+  check('nav identifies Atlas property in text',
+    /Gustale[\s\S]*?Atlas/.test(regionsHtml ?? '') || /Current property: Atlas/.test(regionsHtml ?? ''),
+    'Atlas property label missing from nav');
+  check('geo nav does not link locally to /ingredients',
+    !/href="\/ingredients"/.test(regionsHtml ?? ''),
+    'geo nav has local /ingredients link');
+  check('geo nav Add a dish points at Recipes host',
+    /href="https:\/\/gustale\.recipes\/dishes\/new"/.test(regionsHtml ?? ''),
+    'missing absolute Add a dish CTA');
+} else {
+  check('nav identifies Recipes property in text',
+    /Gustale[\s\S]*?Recipes/.test(regionsHtml ?? '') || /Current property: Recipes/.test(regionsHtml ?? ''),
+    'Recipes property label missing from nav');
+  check('recipes nav includes Ingredients',
+    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
+    'missing /ingredients in recipes nav');
+  check('recipes dist includes /ingredients index',
+    await exists(`${DIST}ingredients/index.html`),
+    'ingredients/index.html missing');
+  check('recipes nav includes Recipes → /dishes',
+    countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
+    'missing /dishes in recipes nav');
+}
 
 // ─── 3. /regions has real region filters (not collapsed) ───────────────────
 const regionFilters = distinctAttr(regionsHtml, 'data-region', ['all']);
@@ -175,7 +208,7 @@ if (DOMAIN === 'geo') {
     'expected "Gustale Recipes" on recipes 404');
 }
 
-// Unset/default PUBLIC_DOMAIN must resolve to recipes (404, SiteHeader, helpers).
+// Unset/default PUBLIC_DOMAIN must resolve to recipes (404, Nav, helpers).
 check('unset PUBLIC_DOMAIN resolves to recipes',
   resolveGustaleDomain(undefined) === 'recipes'
     && resolveGustaleDomain(null) === 'recipes'

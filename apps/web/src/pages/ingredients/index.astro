@@ -1,0 +1,122 @@
+---
+/**
+ * /ingredients — Recipes-domain encyclopedia index.
+ * Geo builds drop this tree in post-build.mjs.
+ */
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { listIngredients, type IngredientListItem } from '../../lib/api';
+
+let ingredients: IngredientListItem[] = [];
+let fetchError: string | null = null;
+
+try {
+  const res = await listIngredients({ limit: 200 });
+  ingredients = res.ingredients ?? [];
+} catch (err) {
+  fetchError = err instanceof Error ? err.message : String(err);
+}
+---
+
+<Layout
+  title="Ingredients — Gustale Recipes"
+  description="Browse the Gustale ingredient encyclopedia — the pantry behind world dishes."
+>
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Ingredients' }]} />
+
+  <article class="wrap page ingredients-index">
+    <header class="ing-hero">
+      <p class="eyebrow">Gustale Recipes</p>
+      <h1>Ingredients</h1>
+      <p class="lede">
+        The pantry behind the atlas — open entries that link dishes across regions.
+        Pick an ingredient to see which published dishes use it.
+      </p>
+    </header>
+
+    {fetchError && (
+      <p class="alert alert-warning">
+        Could not load ingredients at build time ({fetchError}). The list may be incomplete.
+      </p>
+    )}
+
+    {ingredients.length === 0 && !fetchError ? (
+      <p class="alert alert-warning">No published ingredients yet.</p>
+    ) : (
+      <ul class="ing-list" aria-label="Ingredients">
+        {ingredients.map((ing) => (
+          <li>
+            <a class="ing-row" href={`/ingredients/${ing.slug}`}>
+              <span class="ing-name">{ing.canonicalName}</span>
+              <span class="ing-meta">
+                {ing.category ? <span>{ing.category}</span> : null}
+                <span class="mono-sub">
+                  {ing.dishCount} {ing.dishCount === 1 ? 'dish' : 'dishes'}
+                </span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </article>
+</Layout>
+
+<style>
+  .ingredients-index {
+    padding-block: 2rem 4rem;
+    max-width: 42rem;
+  }
+  .ing-hero {
+    margin-bottom: 1.75rem;
+  }
+  .eyebrow {
+    margin: 0 0 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sub);
+  }
+  h1 {
+    margin: 0 0 0.65rem;
+    font-family: var(--font-display, var(--display));
+    font-size: clamp(1.85rem, 4vw, 2.45rem);
+    line-height: 1.15;
+  }
+  .lede {
+    margin: 0;
+    color: var(--sub);
+    line-height: 1.55;
+  }
+  .ing-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+  .ing-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+    color: inherit;
+  }
+  .ing-row:hover .ing-name {
+    color: var(--accent);
+  }
+  .ing-name {
+    font-size: 1.05rem;
+    font-weight: 500;
+  }
+  .ing-meta {
+    display: flex;
+    gap: 0.75rem;
+    color: var(--sub);
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+</style>

@@ -59,6 +59,36 @@ const LIST = DATA.list ?? [];
 const MAP = DATA.map ?? [];
 const DETAILS = DATA.details ?? {};
 
+// Ingredient encyclopedia stubs derived from dish detail payloads so
+// /ingredients and /ingredients/:slug SSG work offline in CI.
+const INGREDIENTS = (() => {
+  const bySlug = new Map();
+  for (const detail of Object.values(DETAILS)) {
+    const list = detail?.ingredients ?? [];
+    for (const ing of list) {
+      if (!ing?.slug) continue;
+      const prev = bySlug.get(ing.slug);
+      bySlug.set(ing.slug, {
+        slug: ing.slug,
+        canonicalName: ing.name ?? ing.canonicalName ?? ing.slug,
+        category: ing.category ?? null,
+        dishCount: (prev?.dishCount ?? 0) + 1,
+      });
+    }
+  }
+  if (bySlug.size === 0) {
+    bySlug.set('eggplant', {
+      slug: 'eggplant',
+      canonicalName: 'Eggplant',
+      category: 'vegetable',
+      dishCount: 1,
+    });
+  }
+  return [...bySlug.values()].sort((a, b) =>
+    a.canonicalName.localeCompare(b.canonicalName),
+  );
+})();
+
 // Pagination fixture list: production GET /api/dishes caps limit at 100 and
 // uses offset. This padded list is served only when the request asks for it
 // (`X-Gustale-Fixture: pagination`) so normal SSG / homepage catalogs stay
@@ -163,6 +193,44 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/categories' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ categories: CATEGORIES }));
+    return;
+  }
+
+  // GET /api/ingredients — flat list (powers /ingredients index)
+  if (url.pathname === '/api/ingredients' && req.method === 'GET') {
+    res.setHeader('Content-Type', 'application/json');
+    const rawLimit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(200, Math.max(1, rawLimit))
+      : 50;
+    const rawOffset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+    const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
+    const page = INGREDIENTS.slice(offset, offset + limit);
+    res.end(JSON.stringify({ ingredients: page }));
+    return;
+  }
+
+  // GET /api/ingredients/:slug — detail stub for SSG
+  const ingMatch = url.pathname.match(/^\/api\/ingredients\/([^/]+)$/);
+  if (ingMatch && req.method === 'GET') {
+    const ing = INGREDIENTS.find((i) => i.slug === ingMatch[1]);
+    if (!ing) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found', message: `No ingredient "${ingMatch[1]}"` }));
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      ingredient: {
+        slug: ing.slug,
+        canonicalName: ing.canonicalName,
+        scientificName: null,
+        category: ing.category,
+        shortDescription: null,
+        longDescription: null,
+      },
+      dishes: [],
+    }));
     return;
   }
 
@@ -371,8 +439,17 @@ const server = http.createServer((req, res) => {
       groups.push({ type: 'lineage', total: hits.length, results: hits.slice(0, limit) });
     }
     if (!typeFilter || typeFilter === 'ingredient') {
-      // No ingredient data captured in mock; return empty group rather than fabricate.
-      groups.push({ type: 'ingredient', total: 0, results: [] });
+      const hits = INGREDIENTS
+        .map((ing) => ({
+          slug: ing.slug,
+          name: ing.canonicalName,
+          shortDescription: ing.category,
+          href: `/ingredients/${ing.slug}`,
+          score: matchScore(ing.canonicalName, q),
+        }))
+        .filter((h) => h.score > 0)
+        .sort((a, b) => b.score - a.score);
+      groups.push({ type: 'ingredient', total: hits.length, results: hits.slice(0, limit) });
     }
     if (!typeFilter || typeFilter === 'region') {
       // food_regions not in mock; same treatment as ingredients.

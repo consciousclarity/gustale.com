@@ -34,17 +34,17 @@ const isGeo = isGeoDomain();
         <div>
           <div class="fm">Gustale</div>
           <div class="fcap">
-            <a href="https://gustale.com" class="foot-domain" data-active={isGeo ? 'true' : undefined}>Atlas</a>
+            <a href="https://gustale.com/" class="foot-domain" data-active={isGeo ? 'true' : undefined} aria-current={isGeo ? 'page' : undefined}>Atlas</a>
             <span class="foot-sep">·</span>
-            <a href="https://gustale.recipes" class="foot-domain" data-active={!isGeo ? 'true' : undefined}>Recipes</a>
+            <a href="https://gustale.recipes/" class="foot-domain" data-active={!isGeo ? 'true' : undefined} aria-current={!isGeo ? 'page' : undefined}>Recipes</a>
             <span class="foot-sep">·</span>
             Open knowledge, slow cooking — {new Date().getFullYear()}
           </div>
         </div>
         <div class="fl">
-          <a href="https://gustale.com">Atlas</a>
-          <a href="https://gustale.recipes">Recipes</a>
-          <a href="/families">Families</a>
+          <a href="https://gustale.com/">Atlas</a>
+          <a href="https://gustale.recipes/">Recipes</a>
+          <a href="/families">Food families</a>
           <a href="/lineages">Lineages</a>
           <a href="/about">About</a>
         </div>

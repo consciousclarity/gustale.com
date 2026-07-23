@@ -326,6 +326,28 @@ export function getTags(): Promise<{ tags: TagListItem[] }> {
 
 // ─── Ingredient detail (GET /api/ingredients/:slug) ───────────────────────
 
+export interface IngredientListItem {
+  slug: string;
+  canonicalName: string;
+  category: string | null;
+  dishCount: number;
+}
+
+export interface IngredientListResponse {
+  ingredients: IngredientListItem[];
+}
+
+/** Flat published ingredient list — powers /ingredients index. */
+export function listIngredients(
+  params: { limit?: number; offset?: number } = {},
+): Promise<IngredientListResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  if (params.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<IngredientListResponse>(`/api/ingredients${suffix}`);
+}
+
 export interface IngredientDetailResponse {
   ingredient: {
     slug: string;
