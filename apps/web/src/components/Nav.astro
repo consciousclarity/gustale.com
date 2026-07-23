@@ -146,98 +146,98 @@ const addDishHref = authoringHref('/dishes/new');
         </button>
       </div>
     </div>
+  </nav>
 
-    <div
-      class="nav-mobile-backdrop"
-      id="nav-mobile-backdrop"
-      hidden
-      data-nav-backdrop
-    ></div>
+  <div
+    class="nav-mobile-backdrop"
+    id="nav-mobile-backdrop"
+    hidden
+    data-nav-backdrop
+  ></div>
 
-    <div
-      class="nav-mobile-panel"
-      id="nav-mobile-panel"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Gustale ${currentProperty.label} menu`}
-      hidden
-      data-mode=""
-    >
-      <div class="nav-mobile-inner wrap">
-        <div class="nav-mobile-toolbar">
-          <p class="nav-mobile-property">
-            <strong>Gustale {currentProperty.label}</strong>
-            <span>{currentProperty.description}</span>
-          </p>
-          <button
-            type="button"
-            class="nav-mobile-close"
-            id="nav-mobile-close"
-            aria-label="Close"
+  <div
+    class="nav-mobile-panel"
+    id="nav-mobile-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-label={`Gustale ${currentProperty.label} menu`}
+    hidden
+    data-mode=""
+  >
+    <div class="nav-mobile-inner wrap">
+      <div class="nav-mobile-toolbar">
+        <p class="nav-mobile-property">
+          <strong>Gustale {currentProperty.label}</strong>
+          <span>{currentProperty.description}</span>
+        </p>
+        <button
+          type="button"
+          class="nav-mobile-close"
+          id="nav-mobile-close"
+          aria-label="Close"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="nav-mobile-search-slot" data-panel-section="search">
+        <GlobalSearch client:load variant="full" placement="drawer" />
+      </div>
+
+      <div class="nav-mobile-nav-slot" data-panel-section="menu">
+        <div class="nav-mobile-divider" role="presentation"></div>
+
+        <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
+        <div role="group" aria-labelledby="nav-mobile-primary-label">
+          {primaryLinks.map((link) => {
+            const on = isPrimaryNavActive(link.href, pathname, domain);
+            return (
+              <a
+                href={link.href}
+                class:list={['nav-mobile-link', { 'nav-mobile-link--on': on }]}
+                aria-current={on ? 'page' : undefined}
+              >
+                {link.label}
+              </a>
+            );
+          })}
+        </div>
+
+        <div class="nav-mobile-divider" role="presentation"></div>
+
+        <p class="nav-mobile-section" id="nav-mobile-switch-label">Switch property</p>
+        <div class="property-switch property-switch--mobile" role="group" aria-labelledby="nav-mobile-switch-label">
+          <a
+            href={atlasProperty.href}
+            class="property-switch__opt"
+            data-active={isGeo ? 'true' : undefined}
+            aria-current={isGeo ? 'true' : undefined}
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            </svg>
-          </button>
+            <span class="property-switch__name">Atlas</span>
+            <span class="property-switch__hint">{atlasProperty.description}</span>
+          </a>
+          <a
+            href={recipesProperty.href}
+            class="property-switch__opt"
+            data-active={!isGeo ? 'true' : undefined}
+            aria-current={!isGeo ? 'true' : undefined}
+          >
+            <span class="property-switch__name">Recipes</span>
+            <span class="property-switch__hint">{recipesProperty.description}</span>
+          </a>
         </div>
 
-        <div class="nav-mobile-search-slot" data-panel-section="search">
-          <GlobalSearch client:load variant="full" placement="drawer" />
+        <div class="nav-mobile-divider" role="presentation"></div>
+
+        <div class="nav-mobile-auth">
+          <AuthMenu client:load variant="mobile" />
         </div>
-
-        <div class="nav-mobile-nav-slot" data-panel-section="menu">
-          <div class="nav-mobile-divider" role="presentation"></div>
-
-          <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
-          <div role="group" aria-labelledby="nav-mobile-primary-label">
-            {primaryLinks.map((link) => {
-              const on = isPrimaryNavActive(link.href, pathname, domain);
-              return (
-                <a
-                  href={link.href}
-                  class:list={['nav-mobile-link', { 'nav-mobile-link--on': on }]}
-                  aria-current={on ? 'page' : undefined}
-                >
-                  {link.label}
-                </a>
-              );
-            })}
-          </div>
-
-          <div class="nav-mobile-divider" role="presentation"></div>
-
-          <p class="nav-mobile-section" id="nav-mobile-switch-label">Switch property</p>
-          <div class="property-switch property-switch--mobile" role="group" aria-labelledby="nav-mobile-switch-label">
-            <a
-              href={atlasProperty.href}
-              class="property-switch__opt"
-              data-active={isGeo ? 'true' : undefined}
-              aria-current={isGeo ? 'true' : undefined}
-            >
-              <span class="property-switch__name">Atlas</span>
-              <span class="property-switch__hint">{atlasProperty.description}</span>
-            </a>
-            <a
-              href={recipesProperty.href}
-              class="property-switch__opt"
-              data-active={!isGeo ? 'true' : undefined}
-              aria-current={!isGeo ? 'true' : undefined}
-            >
-              <span class="property-switch__name">Recipes</span>
-              <span class="property-switch__hint">{recipesProperty.description}</span>
-            </a>
-          </div>
-
-          <div class="nav-mobile-divider" role="presentation"></div>
-
-          <div class="nav-mobile-auth">
-            <AuthMenu client:load variant="mobile" />
-          </div>
-          <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
-        </div>
+        <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
       </div>
     </div>
-  </nav>
+  </div>
 </header>
 
 <script>
