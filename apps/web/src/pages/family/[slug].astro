@@ -26,11 +26,12 @@ export async function getStaticPaths() {
     console.warn('[family/getStaticPaths] PUBLIC_API_BASE unset — no family pages');
     return [];
   }
+  const base = apiBase;
 
   type Cat = { slug: string; name: string; description: string | null };
 
   async function fromCategories(): Promise<Cat[]> {
-    const res = await fetch(`${apiBase}/api/categories`);
+    const res = await fetch(`${base}/api/categories`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
       categories?: Array<{ slug: string; name: string; description?: string | null }>;
@@ -47,7 +48,7 @@ export async function getStaticPaths() {
   async function fromDishFamilies(): Promise<Cat[]> {
     // API caps limit at 100 and paginates via offset — never assume a
     // single large limit. See collectDishFamilies.ts.
-    return collectFamiliesFromPublishedDishes(apiBase);
+    return collectFamiliesFromPublishedDishes(base);
   }
 
   try {
