@@ -251,6 +251,16 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   justify-content: space-between;
   align-items: flex-end;
   border-top: 1px solid var(--line);
+  max-width: 100%;
+  overflow-x: clip;
+}
+.gst-foot > .wrap {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
 }
 .gst-foot .fm { font-family: var(--display); font-size: 26px; }
 .gst.display-sans .gst-foot .fm { font-weight: 700; }
@@ -259,8 +269,9 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   font-size: 12px;
   color: var(--sub);
   margin-top: 6px;
+  overflow-wrap: anywhere;
 }
-.gst-foot .fl { display: flex; gap: 28px; font-size: 14px; }
+.gst-foot .fl { display: flex; flex-wrap: wrap; gap: 28px; font-size: 14px; min-width: 0; }
 .gst-foot .fl a { color: var(--sub); text-decoration: none; }
 .gst-foot .fl a:hover { color: var(--accent); }
 
@@ -655,7 +666,10 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
   .fam-grid { grid-template-columns: 1fr; }
   .page-header h1 { letter-spacing: -1px; }
   .auth-page .auth-card { padding: 0 18px; }
-  .gst-foot { flex-direction: column; gap: 20px; align-items: flex-start; }
+  .gst-foot { flex-direction: column; gap: 20px; align-items: flex-start; max-width: 100%; }
+  .gst-foot > .wrap { flex-direction: column; align-items: flex-start; }
+  .gst-foot .fl { flex-wrap: wrap; gap: 12px 18px; max-width: 100%; }
+  .seg { flex-wrap: wrap; max-width: 100%; }
 }
 
 /* ============================================================
@@ -3130,6 +3144,18 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
 .gs-container.gs-drawer .gs-input { font-size: 16px; }
 .gs-input::placeholder { color: var(--sub, #6b6052); opacity: .8; }
 .gs-input::-webkit-search-cancel-button { display: none; }
+.gs-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.gs-label-text { /* visually hidden via .gs-label */ }
 
 .gs-submit {
   flex: 0 0 auto;
@@ -3230,20 +3256,85 @@ h1, h2, h3, h4 { font-family: var(--display); margin: 0; }
 }
 .gs-more:hover { color: var(--accent-dark, #94391e); }
 
-/* On narrow viewports the drawer variant takes over the viewport. */
-@media (max-width: 640px) {
-  .gs-container.gs-drawer .gs-dropdown {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-height: 100vh;
-    border-radius: 0;
-    border: 0;
-    padding: 24px 16px;
-    box-shadow: none;
-    background: var(--bg, #f6f1e7);
+.gs-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.gs-help { padding: 12px 18px 16px; }
+.gs-help-lead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--ink, #211c16);
+  line-height: 1.45;
+}
+.gs-help-label {
+  margin: 10px 0 6px;
+  font-family: var(--mono, 'IBM Plex Mono', monospace);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sub, #6b6052);
+}
+.gs-browse-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gs-browse-link {
+  display: block;
+  padding: 8px 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  color: var(--accent, #b8552f);
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.gs-browse-link:hover { text-decoration: underline; }
+.gs-empty p { margin: 0 0 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.gs-empty--loading {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+}
+.gs-hit-name {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+html.nav-panel-open,
+body.nav-panel-open {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-form,
+  .gs-hit,
+  .gs-dropdown {
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
-  .gs-container.gs-drawer .gs-dropdown .gs-group-label { font-size: 12px; padding-left: 8px; }
+}
+
+/* Drawer search dropdown stays in-flow inside the mobile dialog (not fullscreen overlay). */
+.gs-container.gs-drawer .gs-dropdown {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  min-width: 0;
+  max-height: min(50dvh, 360px);
+  margin-top: 8px;
 }

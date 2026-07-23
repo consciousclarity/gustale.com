@@ -17,13 +17,22 @@
  *
  * Run:  PUBLIC_DOMAIN=geo node scripts/validate-build.mjs
  */
-import { readFile, stat } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   LATE_PAGE_FAMILY_SLUG,
   DISH_LIST_PAGE_LIMIT,
   collectFamiliesFromPublishedDishes,
   resolveGustaleDomain,
 } from './collect-dish-families.mjs';
+import {
+  addDishHref,
+  isPrimaryNavActive,
+  searchErrorBrowseLinks,
+  searchHelpLinks,
+  seeAllDishesHref,
+} from './search-nav-helpers.mjs';
 
 const DIST = new URL('../dist/', import.meta.url).pathname;
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? 'recipes';
@@ -90,14 +99,49 @@ check('/regions page exists', await exists(regionsPath), regionsPath);
 check('/families page exists', await exists(familiesPath), familiesPath);
 check('/lineages page exists', await exists(lineagesPath), lineagesPath);
 
-// ─── 2. Nav (desktop + mobile) contains "Regions" ──────────────────────────
-// The nav renders in every page. Desktop link + mobile drawer link = ≥2
-// occurrences of the label, and the href must be present.
-const navLabelCount = countOccurrences(regionsHtml, '>Regions<');
-check('main navigation contains "Regions"', countOccurrences(regionsHtml, 'href="/regions"') >= 1,
-  'no href="/regions" in nav');
-check('mobile navigation includes "Regions"', navLabelCount >= 2,
-  `expected ≥2 "Regions" nav labels (desktop+mobile), found ${navLabelCount}`);
+// ─── 2. Domain-aware primary navigation ────────────────────────────────────
+// Domain switcher must use absolute property URLs on both desktop and mobile.
+check('nav links to absolute Atlas origin',
+  countOccurrences(regionsHtml, 'href="https://gustale.com/"') >= 1,
+  'missing https://gustale.com/ switcher link');
+check('nav links to absolute Recipes origin',
+  countOccurrences(regionsHtml, 'href="https://gustale.recipes/"') >= 1,
+  'missing https://gustale.recipes/ switcher link');
+
+if (DOMAIN === 'geo') {
+  // Atlas nav uses "Countries" (href=/regions), not "Regions".
+  // Astro may emit whitespace inside the anchor: "> Countries <".
+  const countriesLabelCount = countOccurrences(regionsHtml, 'Countries');
+  check('main navigation contains Countries → /regions',
+    countOccurrences(regionsHtml, 'href="/regions"') >= 1,
+    'no href="/regions" in nav');
+  check('mobile navigation includes Countries',
+    /nav-mobile-link[\s\S]{0,120}Countries/.test(regionsHtml ?? '')
+      && countriesLabelCount >= 1,
+    `expected Countries in mobile nav, found ${countriesLabelCount} total`);
+  check('nav identifies Atlas property in text',
+    /Gustale[\s\S]*?Atlas/.test(regionsHtml ?? '') || /Current property: Atlas/.test(regionsHtml ?? ''),
+    'Atlas property label missing from nav');
+  check('geo nav does not link locally to /ingredients',
+    !/href="\/ingredients"/.test(regionsHtml ?? ''),
+    'geo nav has local /ingredients link');
+  check('geo nav Add a dish points at Recipes host',
+    /href="https:\/\/gustale\.recipes\/dishes\/new"/.test(regionsHtml ?? ''),
+    'missing absolute Add a dish CTA');
+} else {
+  check('nav identifies Recipes property in text',
+    /Gustale[\s\S]*?Recipes/.test(regionsHtml ?? '') || /Current property: Recipes/.test(regionsHtml ?? ''),
+    'Recipes property label missing from nav');
+  check('recipes nav includes Ingredients',
+    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
+    'missing /ingredients in recipes nav');
+  check('recipes dist includes /ingredients index',
+    await exists(`${DIST}ingredients/index.html`),
+    'ingredients/index.html missing');
+  check('recipes nav includes Recipes → /dishes',
+    countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
+    'missing /dishes in recipes nav');
+}
 
 // ─── 3. /regions has real region filters (not collapsed) ───────────────────
 const regionFilters = distinctAttr(regionsHtml, 'data-region', ['all']);
@@ -175,7 +219,7 @@ if (DOMAIN === 'geo') {
     'expected "Gustale Recipes" on recipes 404');
 }
 
-// Unset/default PUBLIC_DOMAIN must resolve to recipes (404, SiteHeader, helpers).
+// Unset/default PUBLIC_DOMAIN must resolve to recipes (404, Nav, helpers).
 check('unset PUBLIC_DOMAIN resolves to recipes',
   resolveGustaleDomain(undefined) === 'recipes'
     && resolveGustaleDomain(null) === 'recipes'
@@ -290,6 +334,78 @@ if (API_BASE) {
 } else {
   console.warn('[validate-build] PUBLIC_API_BASE unset — skipping live pagination fixture checks');
 }
+
+// ─── 14. U0-B navigation / search invariants ───────────────────────────────
+const webRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+try {
+  await access(join(webRoot, 'src/components/SiteHeader.astro'));
+  check('SiteHeader.astro remains absent', false, 'SiteHeader.astro unexpectedly exists');
+} catch {
+  check('SiteHeader.astro remains absent', true);
+}
+check('Nav.astro remains canonical source',
+  await exists(join(webRoot, 'src/components/Nav.astro')));
+
+check('mobile search control present',
+  /id="nav-mobile-search"/.test(navHtml),
+  'missing #nav-mobile-search');
+check('mobile menu control present',
+  /id="nav-mobile-toggle"/.test(navHtml),
+  'missing #nav-mobile-toggle');
+check('mobile panel is a modal dialog',
+  /id="nav-mobile-panel"[\s\S]*?role="dialog"/.test(navHtml)
+    || /role="dialog"[\s\S]*?id="nav-mobile-panel"/.test(navHtml),
+  'nav-mobile-panel missing role=dialog');
+
+// No ambiguous duplicate public Contribute CTA in the header/drawer.
+check('public nav does not include Contribute CTA',
+  !/gst-nav-contribute/.test(navHtml)
+    && !/>Contribute<\/a>/.test(navHtml),
+  'found Contribute CTA in baked nav');
+
+check('Add a dish CTA matches domain helper',
+  navHtml.includes(`href="${addDishHref(resolveGustaleDomain(DOMAIN))}"`),
+  `expected href=${addDishHref(resolveGustaleDomain(DOMAIN))}`);
+
+// Static aria-current on taxonomy pages (no client JS required).
+if (DOMAIN === 'geo') {
+  check('static aria-current on Countries for /regions',
+    /href="\/regions"[^>]*aria-current="page"/.test(regionsHtml ?? '')
+      || /aria-current="page"[^>]*href="\/regions"/.test(regionsHtml ?? ''),
+    'Countries link missing aria-current=page on /regions');
+  const dumplingHtml = await read(dumplingFamilyPath);
+  check('static aria-current on Food families for /family/:slug',
+    /href="\/families"[^>]*aria-current="page"/.test(dumplingHtml ?? '')
+      || /aria-current="page"[^>]*href="\/families"/.test(dumplingHtml ?? ''),
+    'Food families missing aria-current on /family/dumpling');
+} else {
+  const dishesHtml = await read(`${DIST}dishes/index.html`);
+  check('static aria-current on Recipes for /dishes',
+    /href="\/dishes"[^>]*aria-current="page"/.test(dishesHtml ?? '')
+      || /aria-current="page"[^>]*href="\/dishes"/.test(dishesHtml ?? ''),
+    'Recipes link missing aria-current=page on /dishes');
+}
+
+check('both absolute property-switch destinations present',
+  countOccurrences(navHtml, 'href="https://gustale.com/"') >= 1
+    && countOccurrences(navHtml, 'href="https://gustale.recipes/"') >= 1);
+
+// Helper parity: Atlas see-all + fallbacks never emit local /dishes or /ingredients.
+const atlasSeeAll = seeAllDishesHref('test query', 'geo');
+check('Atlas see-all URL is absolute Recipes dishes',
+  atlasSeeAll === 'https://gustale.recipes/dishes?q=test%20query');
+const atlasHelp = searchHelpLinks('geo');
+const atlasErr = searchErrorBrowseLinks('geo');
+check('Atlas help links omit local recipes-only paths',
+  atlasHelp.every((l) => l.href !== '/dishes' && !l.href.startsWith('/ingredients')));
+check('Atlas error fallback includes Food families + Browse recipes',
+  atlasErr.some((l) => l.href === '/families')
+    && atlasErr.some((l) => l.href === 'https://gustale.recipes/dishes'));
+
+check('primary-nav match: /family/:slug → Food families',
+  isPrimaryNavActive('/families', '/family/dumpling/', 'geo') === true);
+check('primary-nav match: /dishes/:slug → Recipes (recipes build)',
+  isPrimaryNavActive('/dishes', '/dishes/vindaloo/', 'recipes') === true);
 
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(`\n[validate-build] domain=${DOMAIN} — ${passes.length} passed, ${failures.length} failed`);

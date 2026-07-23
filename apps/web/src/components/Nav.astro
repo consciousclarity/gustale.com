@@ -1,262 +1,615 @@
 ---
+/**
+ * Canonical public header — mounted by Layout.astro.
+ * SiteHeader.astro is a stale unused alternative and must not be reintroduced.
+ */
 import '../styles/global.css';
 import { AuthMenu } from './AuthMenu';
 import { GlobalSearch } from './GlobalSearch';
-import { currentDomain, isGeoDomain } from '../lib/domain';
+import {
+  ATLAS_ORIGIN,
+  RECIPES_ORIGIN,
+  authoringHref,
+  currentDomain,
+  isGeoDomain,
+} from '../lib/domain';
+import { isPrimaryNavActive } from '../lib/searchNav';
 
 const domain = currentDomain();
 const isGeo = isGeoDomain();
+const pathname = Astro.url.pathname;
 
-// The "other" domain URL — used for the cross-domain switcher
-const otherDomain = isGeo ? 'https://gustale.recipes' : 'https://gustale.com';
-const otherLabel   = isGeo ? 'Recipes'               : 'Atlas';
+const atlasProperty = {
+  id: 'atlas' as const,
+  label: 'Atlas',
+  description: 'Explore the world through food.',
+  href: `${ATLAS_ORIGIN}/`,
+};
+const recipesProperty = {
+  id: 'recipes' as const,
+  label: 'Recipes',
+  description: 'Cook and contribute recipes.',
+  href: `${RECIPES_ORIGIN}/`,
+};
 
-// Domain-specific link that only appears on one domain
-const domainLink = isGeo
-  ? { href: '/map',           label: 'Map' }
-  : { href: '/dishes',        label: 'Recipes' };
+const currentProperty = isGeo ? atlasProperty : recipesProperty;
 
-// Shared links present on both domains.
-// Taxonomy pages are grouped together: Families (dish form), Regions
-// (geographic origin), Lineages (preparation method).
-const sharedLinks = [
-  { href: '/dishes',   label: 'Dishes'   },
-  { href: '/families', label: 'Families' },
-  { href: '/regions',  label: 'Regions'  },
-  { href: '/lineages', label: 'Lineages' },
-  { href: '/about',    label: 'About'    },
-];
+/** Primary nav — only routes that exist in the corresponding post-build dist. */
+const primaryLinks = isGeo
+  ? [
+      { href: '/', label: 'Globe' },
+      { href: '/regions', label: 'Countries' },
+      { href: '/families', label: 'Food families' },
+      { href: '/lineages', label: 'Lineages' },
+      { href: '/about', label: 'About' },
+    ]
+  : [
+      { href: '/dishes', label: 'Recipes' },
+      { href: '/ingredients', label: 'Ingredients' },
+      { href: '/families', label: 'Food families' },
+      { href: '/lineages', label: 'Lineages' },
+      { href: '/about', label: 'About' },
+    ];
 
-// On geo domain, filter out /dishes from shared links (Map is the geo entry point)
-const links = isGeo
-  ? sharedLinks.filter(l => l.href !== '/dishes')
-  : sharedLinks;
+const addDishHref = authoringHref('/dishes/new');
 ---
 
-<nav class="gst-nav" id="main-nav" data-domain={domain}>
-  <div class="wrap gst-nav-in">
+<header class="gst-header" data-domain={domain}>
+  <nav class="gst-nav" id="main-nav" aria-label="Primary" data-domain={domain}>
+    <div class="wrap gst-nav-in">
 
-    <!-- Wordmark -->
-    <a href="/" class="gst-brand">
-      <span class="gst-wordmark">Gustale</span>
-      <span class="sub">{isGeo ? 'Atlas' : 'Recipes'}</span>
-    </a>
+      <!-- Brand: Gustale + current property (text, not color-only) -->
+      <a href="/" class="gst-brand">
+        <span class="gst-wordmark">Gustale</span>
+        <span class="gst-property" aria-label={`Current property: ${currentProperty.label}`}>
+          <span class="gst-property-label">{currentProperty.label}</span>
+          <span class="gst-property-desc gst-property-desc--desktop">{currentProperty.description}</span>
+        </span>
+      </a>
 
-    <!-- Cross-domain switcher — slim pill top-right of wordmark -->
-    <a href={otherDomain} class="domain-switch" aria-label={`Switch to ${otherLabel}`}>
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-        <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      {otherLabel}
-    </a>
-
-    <!-- P0-3: Global search. Compact pill on desktop; opens an anchored
-         dropdown below the input on focus/typing. See GlobalSearch.tsx. -->
-    <GlobalSearch client:load variant="compact" placement="header" />
-
-    <!-- Primary nav links -->
-    <div class="gst-navlinks" id="nav-links">
-      {links.map(link => (
+      <!-- Explicit Atlas / Recipes switcher (absolute URLs) -->
+      <div
+        class="property-switch property-switch--desktop"
+        role="group"
+        aria-label="Gustale property"
+      >
         <a
-          href={link.href}
-          class="gst-navlink"
-          data-domain-link={link.href.startsWith('/') ? link.href : undefined}
+          href={atlasProperty.href}
+          class="property-switch__opt"
+          data-active={isGeo ? 'true' : undefined}
+          aria-current={isGeo ? 'true' : undefined}
+          title={atlasProperty.description}
         >
-          {link.label}
+          <span class="property-switch__name">Atlas</span>
+          <span class="property-switch__hint">gustale.com</span>
         </a>
-      ))}
+        <a
+          href={recipesProperty.href}
+          class="property-switch__opt"
+          data-active={!isGeo ? 'true' : undefined}
+          aria-current={!isGeo ? 'true' : undefined}
+          title={recipesProperty.description}
+        >
+          <span class="property-switch__name">Recipes</span>
+          <span class="property-switch__hint">gustale.recipes</span>
+        </a>
+      </div>
 
-      <!-- Domain-specific primary link (Map on geo, Recipes on recipes) -->
-      <a href={domainLink.href} class="gst-navlink gst-navlink--domain">
-        {domainLink.label}
-      </a>
+      <div class="gst-header-search">
+        <GlobalSearch client:load variant="compact" placement="header" />
+      </div>
+
+      <div class="gst-navlinks" id="nav-links">
+        {primaryLinks.map((link) => {
+          const on = isPrimaryNavActive(link.href, pathname, domain);
+          return (
+            <a
+              href={link.href}
+              class:list={['gst-navlink', { 'gst-navlink--on': on }]}
+              aria-current={on ? 'page' : undefined}
+            >
+              {link.label}
+            </a>
+          );
+        })}
+      </div>
+
+      <div class="gst-navr" id="nav-right">
+        <AuthMenu client:load />
+        <a href={addDishHref} class="btn-accent gst-nav-add-dish">Add a dish</a>
+
+        <button
+          class="nav-mobile-search"
+          id="nav-mobile-search"
+          type="button"
+          aria-label="Open search"
+          aria-expanded="false"
+          aria-controls="nav-mobile-panel"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <button
+          class="nav-mobile-toggle"
+          id="nav-mobile-toggle"
+          type="button"
+          aria-label="Open menu"
+          aria-expanded="false"
+          aria-controls="nav-mobile-panel"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
     </div>
+  </nav>
 
-    <!-- Right side: Auth + Contribute -->
-    <div class="gst-navr" id="nav-right">
-      <AuthMenu client:load />
-      <a href="/contribute" class="btn-accent">Contribute</a>
+  <div
+    class="nav-mobile-backdrop"
+    id="nav-mobile-backdrop"
+    hidden
+    data-nav-backdrop
+  ></div>
 
-      <!-- Mobile menu toggle -->
-      <button class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="Open menu" aria-expanded="false">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-      </button>
+  <div
+    class="nav-mobile-panel"
+    id="nav-mobile-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-label={`Gustale ${currentProperty.label} menu`}
+    hidden
+    data-mode=""
+  >
+    <div class="nav-mobile-inner wrap">
+      <div class="nav-mobile-toolbar">
+        <p class="nav-mobile-property">
+          <strong>Gustale {currentProperty.label}</strong>
+          <span>{currentProperty.description}</span>
+        </p>
+        <button
+          type="button"
+          class="nav-mobile-close"
+          id="nav-mobile-close"
+          aria-label="Close"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="nav-mobile-search-slot" data-panel-section="search">
+        <GlobalSearch client:load variant="full" placement="drawer" />
+      </div>
+
+      <div class="nav-mobile-nav-slot" data-panel-section="menu">
+        <div class="nav-mobile-divider" role="presentation"></div>
+
+        <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
+        <div role="group" aria-labelledby="nav-mobile-primary-label">
+          {primaryLinks.map((link) => {
+            const on = isPrimaryNavActive(link.href, pathname, domain);
+            return (
+              <a
+                href={link.href}
+                class:list={['nav-mobile-link', { 'nav-mobile-link--on': on }]}
+                aria-current={on ? 'page' : undefined}
+              >
+                {link.label}
+              </a>
+            );
+          })}
+        </div>
+
+        <div class="nav-mobile-divider" role="presentation"></div>
+
+        <p class="nav-mobile-section" id="nav-mobile-switch-label">Switch property</p>
+        <div class="property-switch property-switch--mobile" role="group" aria-labelledby="nav-mobile-switch-label">
+          <a
+            href={atlasProperty.href}
+            class="property-switch__opt"
+            data-active={isGeo ? 'true' : undefined}
+            aria-current={isGeo ? 'true' : undefined}
+          >
+            <span class="property-switch__name">Atlas</span>
+            <span class="property-switch__hint">{atlasProperty.description}</span>
+          </a>
+          <a
+            href={recipesProperty.href}
+            class="property-switch__opt"
+            data-active={!isGeo ? 'true' : undefined}
+            aria-current={!isGeo ? 'true' : undefined}
+          >
+            <span class="property-switch__name">Recipes</span>
+            <span class="property-switch__hint">{recipesProperty.description}</span>
+          </a>
+        </div>
+
+        <div class="nav-mobile-divider" role="presentation"></div>
+
+        <div class="nav-mobile-auth">
+          <AuthMenu client:load variant="mobile" />
+        </div>
+        <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
+      </div>
     </div>
-
   </div>
-
-  <!-- Mobile drawer -->
-  <div class="nav-mobile-drawer" id="nav-mobile-drawer" hidden>
-    <div class="nav-mobile-inner">
-      <!-- P0-3 mobile search: full-width input at the top of the drawer.
-           Dropdown transitions to a full-screen overlay on narrow viewports
-           (see GlobalSearch's CSS for the @media breakpoint). -->
-      <GlobalSearch client:load variant="full" placement="drawer" />
-      <div class="nav-mobile-divider" />
-      {links.map(link => (
-        <a href={link.href} class="nav-mobile-link">{link.label}</a>
-      ))}
-      <a href={domainLink.href} class="nav-mobile-link nav-mobile-link--domain">{domainLink.label}</a>
-      <div class="nav-mobile-divider" />
-      <a href="/login"    class="nav-mobile-link">Sign in</a>
-      <a href="/contribute" class="nav-mobile-link nav-mobile-link--accent">Contribute</a>
-      <a href={otherDomain} class="nav-mobile-link nav-mobile-link--switch">
-        Switch to {otherLabel} →
-      </a>
-    </div>
-  </div>
-</nav>
+</header>
 
 <script>
-// Highlight the active nav link based on current pathname
-const nav = document.getElementById('main-nav');
-const domain = nav?.dataset.domain;
-const pathname = window.location.pathname;
+type PanelMode = '' | 'search' | 'menu';
 
-// Mark the nav link that matches the current path
-document.querySelectorAll<HTMLElement>('.gst-navlink').forEach(link => {
-  const href = link.getAttribute('href') ?? '';
-  if (href === pathname || (href !== '/' && pathname.startsWith(href))) {
-    link.dataset.on = '1';
+const panel = document.getElementById('nav-mobile-panel');
+const backdrop = document.getElementById('nav-mobile-backdrop');
+const menuBtn = document.getElementById('nav-mobile-toggle');
+const searchBtn = document.getElementById('nav-mobile-search');
+const closeBtn = document.getElementById('nav-mobile-close');
+
+let lastTrigger: HTMLElement | null = null;
+let previouslyFocused: HTMLElement | null = null;
+
+function focusableIn(root: HTMLElement): HTMLElement[] {
+  const sel = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(',');
+  return Array.from(root.querySelectorAll<HTMLElement>(sel)).filter(
+    (el) => !el.hasAttribute('disabled') && el.offsetParent !== null,
+  );
+}
+
+function setBodyLock(locked: boolean): void {
+  document.documentElement.classList.toggle('nav-panel-open', locked);
+  document.body.classList.toggle('nav-panel-open', locked);
+  document.body.style.overflow = locked ? 'hidden' : '';
+}
+
+function syncTriggers(mode: PanelMode): void {
+  const open = mode !== '';
+  if (menuBtn) {
+    menuBtn.setAttribute('aria-expanded', String(mode === 'menu'));
+    menuBtn.setAttribute('aria-label', mode === 'menu' ? 'Close menu' : 'Open menu');
   }
-});
+  if (searchBtn) {
+    searchBtn.setAttribute('aria-expanded', String(mode === 'search'));
+    searchBtn.setAttribute('aria-label', mode === 'search' ? 'Close search' : 'Open search');
+  }
+  if (panel) {
+    panel.hidden = !open;
+    panel.dataset.mode = mode;
+    panel.setAttribute('aria-label', mode === 'search' ? 'Search' : 'Gustale menu');
+  }
+  if (backdrop) backdrop.hidden = !open;
+  setBodyLock(open);
+}
 
-// Mobile menu toggle
-const toggle = document.getElementById('nav-mobile-toggle');
-const drawer = document.getElementById('nav-mobile-drawer');
-if (toggle && drawer) {
-  toggle.addEventListener('click', () => {
-    const open = drawer.hidden !== true;
-    drawer.hidden = open;
-    toggle.setAttribute('aria-expanded', String(!open));
-  });
-  // Close on outside click
-  document.addEventListener('click', (e) => {
-    if (!nav?.contains(e.target as Node) && drawer.hidden === false) {
-      drawer.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
+function openPanel(mode: 'search' | 'menu', trigger: HTMLElement | null): void {
+  if (!panel) return;
+  previouslyFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  lastTrigger = trigger;
+  syncTriggers(mode);
+
+  requestAnimationFrame(() => {
+    if (mode === 'search') {
+      const input = document.getElementById('gs-input-drawer');
+      if (input instanceof HTMLInputElement) input.focus();
+    } else {
+      const nodes = focusableIn(panel);
+      nodes[0]?.focus();
     }
   });
 }
+
+function closePanel(): void {
+  if (!panel || panel.hidden) return;
+  syncTriggers('');
+  const restore = lastTrigger ?? previouslyFocused;
+  lastTrigger = null;
+  previouslyFocused = null;
+  restore?.focus();
+}
+
+function togglePanel(mode: 'search' | 'menu', trigger: HTMLElement | null): void {
+  if (!panel) return;
+  const current = (panel.dataset.mode ?? '') as PanelMode;
+  if (!panel.hidden && current === mode) {
+    closePanel();
+    return;
+  }
+  openPanel(mode, trigger);
+}
+
+menuBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  togglePanel('menu', menuBtn);
+});
+searchBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  togglePanel('search', searchBtn);
+});
+closeBtn?.addEventListener('click', () => closePanel());
+backdrop?.addEventListener('click', () => closePanel());
+
+document.addEventListener('keydown', (e) => {
+  if (!panel || panel.hidden) return;
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closePanel();
+    return;
+  }
+
+  if (e.key !== 'Tab') return;
+  const nodes = focusableIn(panel);
+  if (nodes.length === 0) return;
+  const first = nodes[0]!;
+  const last = nodes[nodes.length - 1]!;
+  const active = document.activeElement;
+
+  if (e.shiftKey) {
+    if (active === first || !(active instanceof Node) || !panel.contains(active)) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else if (active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!panel || panel.hidden) return;
+  const t = e.target;
+  if (!(t instanceof Node)) return;
+  if (panel.contains(t)) return;
+  if (menuBtn?.contains(t) || searchBtn?.contains(t)) return;
+  closePanel();
+});
+
+window.addEventListener('pagehide', () => {
+  document.body.style.overflow = '';
+  document.documentElement.classList.remove('nav-panel-open');
+  document.body.classList.remove('nav-panel-open');
+});
 </script>
 
 <style>
-/* Domain switcher — small pill to the right of the wordmark */
-.domain-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--sub);
-  text-decoration: none;
-  padding: 3px 8px 3px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  transition: color 0.14s, border-color 0.14s, background 0.14s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.domain-switch:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.domain-switch svg {
-  transition: transform 0.2s;
-}
-.domain-switch:hover svg {
-  transform: translateX(2px);
+.gst-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
-/* Nav links */
+.gst-property {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.gst-property-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.gst-property-desc {
+  font-size: 11px;
+  color: var(--sub);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+.gst-property-desc--desktop {
+  display: none;
+}
+@media (min-width: 1100px) {
+  .gst-property-desc--desktop {
+    display: block;
+  }
+}
+
+.property-switch {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--card, #fbf8f1);
+}
+.property-switch__opt {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 10px;
+  text-decoration: none;
+  color: var(--sub);
+  min-width: 4.5rem;
+  border-right: 1px solid var(--line);
+  transition: background 0.14s, color 0.14s;
+}
+.property-switch__opt:last-child {
+  border-right: none;
+}
+.property-switch__opt:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.property-switch__opt[data-active='true'],
+.property-switch__opt[aria-current='true'] {
+  color: var(--ink);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.property-switch__name {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.property-switch__hint {
+  font-size: 10px;
+  opacity: 0.75;
+  line-height: 1.2;
+}
+.property-switch--mobile {
+  width: calc(100% - 36px);
+  margin: 0 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.property-switch--mobile .property-switch__opt {
+  min-width: 0;
+  padding: 10px 12px;
+}
+.property-switch--mobile .property-switch__hint {
+  font-size: 11px;
+  white-space: normal;
+}
+
 .gst-navlinks {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 .gst-navlink {
   color: var(--ink);
   text-decoration: none;
-  font-size: 15px;
+  font-size: 14px;
   opacity: 0.72;
-  padding: 6px 12px;
+  padding: 6px 10px;
   border-radius: var(--radius);
   transition: opacity 0.14s, color 0.14s, background 0.14s;
   white-space: nowrap;
 }
 .gst-navlink:hover,
-.gst-navlink[data-on='1'] {
+.gst-navlink--on,
+.gst-navlink[aria-current='page'] {
   opacity: 1;
   color: var(--accent);
 }
-.gst-navlink--domain {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  opacity: 0.55;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 10px;
-}
-.gst-navlink--domain:hover,
-.gst-navlink--domain[data-on='1'] {
-  opacity: 1;
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
+.gst-navlink:focus-visible,
+.property-switch__opt:focus-visible,
+.nav-mobile-link:focus-visible,
+.nav-mobile-toggle:focus-visible,
+.nav-mobile-search:focus-visible,
+.nav-mobile-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-/* Ghost + accent buttons */
-.gst-ghost {
-  color: var(--ink);
-  text-decoration: none;
-  font-size: 14px;
-  opacity: 0.72;
-  transition: opacity 0.14s, color 0.14s;
-}
-.gst-ghost:hover {
-  opacity: 1;
-  color: var(--accent);
+.gst-header-search {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 280px;
 }
 
-/* Mobile toggle — hidden on desktop */
-.nav-mobile-toggle {
+.nav-mobile-search,
+.nav-mobile-toggle,
+.nav-mobile-close {
   display: none;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--ink);
-  padding: 4px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border-radius: var(--radius);
+  flex-shrink: 0;
 }
 
-/* Mobile drawer */
-.nav-mobile-drawer {
+.nav-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  top: 68px;
+  background: rgba(33, 28, 22, 0.28);
+  z-index: 45;
+}
+
+.nav-mobile-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 68px;
+  z-index: 50;
   border-top: 1px solid var(--line);
   background: var(--bg);
+  max-height: min(calc(100dvh - 68px), 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 16px 40px rgba(33, 28, 22, 0.1);
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 .nav-mobile-inner {
   display: flex;
   flex-direction: column;
-  padding: 12px 0 16px;
+  padding: 12px 0 24px;
   gap: 2px;
+}
+.nav-mobile-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 8px;
+}
+.nav-mobile-property {
+  margin: 4px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.nav-mobile-property strong {
+  font-family: var(--display);
+  font-size: 1.25rem;
+}
+.nav-mobile-property span {
+  color: var(--sub);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.nav-mobile-section {
+  margin: 4px 18px 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--sub);
 }
 .nav-mobile-link {
   display: block;
-  padding: 10px 18px;
+  padding: 12px 18px;
   font-size: 16px;
   color: var(--ink);
   text-decoration: none;
   border-radius: var(--radius);
   transition: background 0.12s, color 0.12s;
+  min-height: 44px;
+  box-sizing: border-box;
 }
-.nav-mobile-link:hover {
+.nav-mobile-link:hover,
+.nav-mobile-link--on,
+.nav-mobile-link[aria-current='page'] {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -264,46 +617,83 @@ if (toggle && drawer) {
   background: var(--accent);
   color: var(--accent-ink) !important;
   border-radius: 999px;
-  margin: 6px 18px 0;
+  margin: 8px 18px 0;
   text-align: center;
   font-weight: 500;
 }
 .nav-mobile-link--accent:hover {
   filter: brightness(0.95);
 }
-.nav-mobile-link--switch {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--sub);
-  letter-spacing: 0.5px;
-}
-.nav-mobile-link--switch:hover {
-  color: var(--accent);
-}
 .nav-mobile-divider {
   height: 1px;
   background: var(--line);
-  margin: 8px 18px;
+  margin: 10px 18px;
+}
+.nav-mobile-search-slot {
+  padding: 0 18px;
+}
+.nav-mobile-auth {
+  padding: 4px 18px 8px;
 }
 
-/* Mobile breakpoint */
-@media (max-width: 768px) {
+/* Mode visibility: search vs menu never simultaneous */
+.nav-mobile-panel[data-mode='search'] [data-panel-section='menu'] {
+  display: none;
+}
+.nav-mobile-panel[data-mode='menu'] [data-panel-section='search'] {
+  display: none;
+}
+
+@media (max-width: 960px) {
   .gst-navlinks {
     display: none;
   }
-  .gst-navr > .gst-ghost,
-  .gst-navr > .btn-accent {
+  .gst-navr > .gst-nav-add-dish,
+  .gst-navr :global(.auth-links),
+  .gst-navr :global(.auth-relative),
+  .gst-header-search,
+  .property-switch--desktop {
     display: none;
   }
-  .nav-mobile-toggle {
-    display: flex;
+  .nav-mobile-toggle,
+  .nav-mobile-search,
+  .nav-mobile-close {
+    display: inline-flex;
   }
-  .domain-switch {
+  .gst-nav-in {
+    gap: 6px;
+  }
+  .gst-brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .gst-wordmark {
+    font-size: clamp(20px, 6vw, 28px);
+  }
+  .gst-navr {
+    gap: 2px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .gst-property-desc {
     display: none;
   }
-  /* Show domain badge inline in brand on mobile */
-  .gst-brand .sub {
-    display: none;
+}
+
+@media (max-width: 360px) {
+  .gst-property-label {
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .property-switch__opt,
+  .gst-navlink,
+  .nav-mobile-link,
+  .nav-mobile-panel {
+    transition: none !important;
   }
 }
 </style>
