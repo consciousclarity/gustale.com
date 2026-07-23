@@ -9,6 +9,7 @@ import type {
   DishTag,
   DishVariant,
 } from '../types/dish';
+import { selectDishHeroMedia } from '../lib/dishMedia';
 import { DishCoverHero } from './DishCoverHero';
 import { DishGallery } from './DishGallery';
 import { AlsoExplore } from './AlsoExplore';
@@ -41,6 +42,7 @@ export function DishDetail({
   media,
 }: DishDetailProps) {
   const primaryCategory = categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
+  const heroMedia = selectDishHeroMedia(media);
 
   return (
     <article className="dish-page">
@@ -269,8 +271,8 @@ export function DishDetail({
           </section>
         )}
 
-        {/* ─── Secondary gallery (cover already in hero) ───────────────── */}
-        <DishGallery media={media} />
+        {/* ─── Secondary gallery (hero media excluded by mediaId) ──────── */}
+        <DishGallery media={media} excludeMediaId={heroMedia?.mediaId ?? null} />
 
         {/* ─── Editor / provenance ──────────────────────────────────────── */}
         <footer className="dish-foot">
