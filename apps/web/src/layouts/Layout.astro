@@ -1,7 +1,7 @@
 ---
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
-import { currentDomain, isGeoDomain } from '../lib/domain';
+import { isGeoDomain } from '../lib/domain';
 
 export interface Props {
   title: string;
@@ -9,7 +9,6 @@ export interface Props {
 }
 
 const { title, description = 'Gustale — a digital culinary archive.' } = Astro.props;
-const domain = currentDomain();
 const isGeo = isGeoDomain();
 ---
 
