@@ -80,21 +80,27 @@ jobs:
 
       - name: Apply committed schema
         run: |
-          # Apply the full committed migration chain (not just 0000).
+          # Apply the full *committed* migration chain (not just 0000).
           # Nightly previously applied only 0000_cloudy_satana.sql, so columns that
           # 0001_text_user_id_fks.sql converts uuid→text stayed uuid and POSTs that
           # write better-auth user ids returned 500 instead of 201.
           #
+          # Source the list from `git ls-files`, NOT a filesystem glob.
+          # The preceding "Regenerate schema" step may run `drizzle-kit generate`
+          # against a drifted journal and WRITE a new untracked SQL file (e.g.
+          # 0006_worthless_riptide.sql) into packages/db/drizzle/. A plain
+          # `*.sql` glob would then re-apply that on top of committed migrations
+          # (e.g. 0006_lineages.sql) and fail with "relation already exists".
+          #
           # Journal-drift caveat: packages/db/drizzle/meta/_journal.json may omit or
-          # reorder tags relative to the filesystem (e.g. 0003_*, 0005_food_geography_*,
-          # 0007_pg_trgm.sql, and a duplicate 0005_* prefix). Nightly intentionally
-          # applies every packages/db/drizzle/*.sql in lexicographic sort order so the
-          # runtime schema matches what is checked in — do not switch this step to
-          # "journal-only" without reconciling those drifted files first.
+          # reorder tags relative to committed files (e.g. 0003_*, dual 0005_*,
+          # 0007_pg_trgm.sql). We still apply every *committed* *.sql in
+          # lexicographic sort order — do not switch this step to "journal-only"
+          # without reconciling those drifted files first.
           set -euo pipefail
-          mapfile -t files < <(printf '%s\n' packages/db/drizzle/*.sql | LC_ALL=C sort)
+          mapfile -t files < <(git ls-files 'packages/db/drizzle/*.sql' | LC_ALL=C sort)
           if [ "${#files[@]}" -eq 0 ]; then
-            echo "No packages/db/drizzle/*.sql migrations found" >&2
+            echo "No committed packages/db/drizzle/*.sql migrations found" >&2
             exit 1
           fi
           for f in "${files[@]}"; do
