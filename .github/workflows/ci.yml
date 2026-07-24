@@ -155,7 +155,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
 
 
@@ -224,7 +223,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
