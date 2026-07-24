@@ -5,7 +5,7 @@ import BrowseHeader from '../components/BrowseHeader.astro';
 import { LineageBrowse } from '../components/LineageBrowse.tsx';
 import ErrorBoundary from '../components/ErrorBoundary.tsx';
 import { listLineages } from '../lib/api';
-import { mapBrowseHref, recoveryLinks } from '../lib/browse';
+import { recoveryLinks } from '../lib/browse';
 import { currentDomain } from '../lib/domain';
 import type { LineageListResponse } from '../types/lineage';
 
@@ -30,17 +30,7 @@ try {
 
 const domain = currentDomain();
 const recovery = recoveryLinks(domain);
-const mapHref = mapBrowseHref(domain);
 const sorted = [...initial.lineages].sort((a, b) => a.displayOrder - b.displayOrder);
-
-const CONFIDENCE_LABELS: Record<string, string> = {
-  documented: 'Documented',
-  likely: 'Likely related',
-  probable: 'Probable',
-  possible: 'Possible influence',
-  uncertain: 'Uncertain',
-  parallel_evolution: 'Parallel evolution',
-};
 ---
 
 <Layout
@@ -82,28 +72,5 @@ const CONFIDENCE_LABELS: Record<string, string> = {
         confidenceLevels={initial.confidenceLevels}
       />
     </ErrorBoundary>
-
-    <noscript>
-      <p class="browse-crosslinks">
-        <a href="/families">Food families</a> · <a href={mapHref}>Open the map</a>
-      </p>
-      <section class="lin-grid">
-        {sorted.map((lin) => (
-          <article class="lin-card">
-            <header class="lin-card__head">
-              <span class="lin-card__slug mono-sub">{lin.slug}</span>
-              <span class={`lin-card__conf lin-card__conf--${lin.confidenceLevel}`}>
-                {CONFIDENCE_LABELS[lin.confidenceLevel] ?? lin.confidenceLevel}
-              </span>
-            </header>
-            <h2 class="lin-card__title">
-              <a href={`/lineages/${lin.slug}`}>{lin.name}</a>
-            </h2>
-            {lin.conceptSummary && <p class="lin-card__concept">{lin.conceptSummary}</p>}
-            <a href={`/lineages/${lin.slug}`} class="lin-card__cta">Open the lineage →</a>
-          </article>
-        ))}
-      </section>
-    </noscript>
   </section>
 </Layout>

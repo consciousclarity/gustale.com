@@ -234,17 +234,40 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /api/dishes — list published dishes (optional ?category= / ?family=)
+  // GET /api/dishes — list published dishes (optional ?category= / ?family= / ?q=)
   // Pagination mirrors apps/api listQuerySchema: limit max 100, offset >= 0.
   if (url.pathname === '/api/dishes' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
     const category = (url.searchParams.get('category') ?? '').trim();
     const family = (url.searchParams.get('family') ?? '').trim();
+    const q = (url.searchParams.get('q') ?? '').toLowerCase().trim();
+    const country = (url.searchParams.get('country') ?? '').toLowerCase().trim();
     const filterSlug = category || family;
     const useFixture = (req.headers['x-gustale-fixture'] ?? '') === 'pagination';
     let dishes = useFixture ? LIST_PAGINATION_FIXTURE : LIST;
     if (filterSlug) {
       dishes = dishes.filter((d) => d.familySlug === filterSlug);
+    }
+    if (q) {
+      dishes = dishes.filter((d) => {
+        const hay = [
+          d.canonicalName,
+          d.shortDescription,
+          d.slug,
+          d.originName,
+          d.familyName,
+          d.familySlug,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    if (country) {
+      dishes = dishes.filter(
+        (d) => (d.originName ?? '').toLowerCase().includes(country),
+      );
     }
     // Match production zod: limit 1..100 (default 20), offset >= 0.
     const rawLimit = parseInt(url.searchParams.get('limit') ?? '20', 10);

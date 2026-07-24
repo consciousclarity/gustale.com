@@ -156,7 +156,9 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
             <article className="browse-dir-card browse-dir-card--static">
               <div className="browse-dir-card__top">
                 <h2>{c.name}</h2>
-                <span className="browse-dir-card__count">{c.count} dishes</span>
+                <span className="browse-dir-card__count">
+                  {c.count} {c.count === 1 ? 'dish' : 'dishes'}
+                </span>
               </div>
               {c.dishNames.length > 0 && (
                 <ul className="browse-dir-dishes">

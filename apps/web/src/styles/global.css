@@ -3340,15 +3340,16 @@ body.nav-panel-open {
 }
 
 /* ── U0-C browse / list pages ───────────────────────────────────────────── */
-.browse-page { padding: 0 0 72px; min-width: 0; }
-.browse-shell { min-width: 0; }
+.browse-page { padding: 0 0 72px; min-width: 0; overflow-x: clip; }
+.browse-shell { min-width: 0; max-width: 100%; }
 .browse-toolbar--island,
 .browse-toolbar-island {
   position: sticky;
   top: 68px;
   z-index: 30;
-  margin: 0 -4px;
-  padding: 12px 4px;
+  margin: 0;
+  padding: 12px 0;
+  max-width: 100%;
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);

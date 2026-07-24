@@ -59,23 +59,8 @@ const countLabel =
 
   <section class="wrap browse-page">
     <ErrorBoundary name="Dish list">
+      {/* client:load keeps SSR markup for no-JS; avoid a second noscript grid. */}
       <DishExplorer initial={initial} client:load />
     </ErrorBoundary>
-
-    {/* JS-disabled fallback: SSR cards remain reachable */}
-    <noscript>
-      <ul class="browse-grid" style="margin-top: 24px;">
-        {initial.dishes.map((d) => (
-          <li>
-            <a class="browse-dir-card" href={`/dishes/${d.slug}`}>
-              <div class="browse-dir-card__top">
-                <h2>{d.canonicalName}</h2>
-              </div>
-              {d.shortDescription && <p class="browse-dir-card__meta">{d.shortDescription}</p>}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </noscript>
   </section>
 </Layout>

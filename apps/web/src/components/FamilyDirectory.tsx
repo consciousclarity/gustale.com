@@ -116,7 +116,9 @@ export function FamilyDirectory({
             <a className="browse-dir-card" href={familyDetailHref(f.slug)}>
               <div className="browse-dir-card__top">
                 <h2>{f.name}</h2>
-                <span className="browse-dir-card__count">{f.count} dishes</span>
+                <span className="browse-dir-card__count">
+                  {f.count} {f.count === 1 ? 'dish' : 'dishes'}
+                </span>
               </div>
               {f.dishNames.length > 0 && (
                 <p className="browse-dir-card__meta">

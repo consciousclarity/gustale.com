@@ -138,9 +138,10 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     } catch {
       if (ac.signal.aborted) return;
       setFailed(true);
-      // Keep existing SSR/client cards visible.
+      // Keep existing SSR/client cards visible — never surface raw API text.
     } finally {
-      if (!ac.signal.aborted) setLoading(false);
+      // Always clear loading for this request generation.
+      if (abortRef.current === ac) setLoading(false);
     }
   }
 
@@ -317,9 +318,9 @@ export function DishExplorer({ initial }: DishExplorerProps) {
                 title={d.canonicalName}
                 slug={d.slug}
                 description={
-                  [d.originName, d.familyName, d.shortDescription]
-                    .filter(Boolean)
-                    .join(' · ') || d.shortDescription
+                  [d.originName, d.familyName].filter(Boolean).join(' · ')
+                  || d.shortDescription
+                  || undefined
                 }
                 href={`/dishes/${d.slug}`}
                 status={d.status}

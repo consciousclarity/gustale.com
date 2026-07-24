@@ -7,8 +7,6 @@ import ErrorBoundary from '../components/ErrorBoundary.tsx';
 import { listDishes } from '../lib/api';
 import {
   buildFamilyDirectory,
-  familyDetailHref,
-  mapBrowseHref,
   recoveryLinks,
 } from '../lib/browse';
 import { currentDomain } from '../lib/domain';
@@ -27,7 +25,6 @@ try {
 const domain = currentDomain();
 const families = buildFamilyDirectory(initial.dishes);
 const recovery = recoveryLinks(domain);
-const mapHref = mapBrowseHref(domain);
 ---
 
 <Layout
@@ -62,26 +59,5 @@ const mapHref = mapBrowseHref(domain);
     <ErrorBoundary name="Family directory">
       <FamilyDirectory dishes={initial.dishes} client:load />
     </ErrorBoundary>
-
-    <noscript>
-      <p class="browse-crosslinks">
-        <a href="/regions">Countries</a> · <a href={mapHref}>Open the map</a>
-      </p>
-      <ul class="browse-dir">
-        {families.map((f) => (
-          <li>
-            <a class="browse-dir-card" href={familyDetailHref(f.slug)}>
-              <div class="browse-dir-card__top">
-                <h2>{f.name}</h2>
-                <span class="browse-dir-card__count">{f.count} dishes</span>
-              </div>
-              {f.dishNames.length > 0 && (
-                <p class="browse-dir-card__meta">{f.dishNames.slice(0, 4).join(' · ')}</p>
-              )}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </noscript>
   </section>
 </Layout>
