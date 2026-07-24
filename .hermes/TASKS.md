@@ -57,9 +57,11 @@ travel blog. Mirror IDs below; update both files when claiming work.
 - [ ] **P3-2** Public read API + attribution
 - [ ] **P3-3** i18n
 - [ ] **P3-4** Brand/handle lock-in (human)
-- [ ] **P3-5** Real linting (Biome) in CI
+- [x] **P3-5** Real linting (Biome) in CI — DONE via PR #40 (2026-07-24; non-breaking, error rules parked at warn, ratchet pending)
 
 ## Done (recent — last 10)
+
+- 2026-07-24 by Claude Code (terminal) — **CI hardening + prod deploys.** Merged to `origin/main` (now `8f52282`) and deployed: **#38** (remove invalid pnpm cache from Docker jobs), **#37** (U0-C browse/list usability), **#41** (gitignore `dist-recipes/` + `graphify-out/`), **#40** (real Biome lint gate, non-breaking). Prod verified healthy (gustale.com 200, gustale.recipes 200, api health 200). **#39** (nightly full migration chain) left DRAFT/blocked — Nightly dispatch fails at "Apply committed schema" (spurious generated `0006_worthless_riptide.sql` from journal drift; fix = glob committed files via `git ls-files`). SiteHeader keep-vs-redesign → **KEEP Nav.astro** (WIP superseded by #34/#36).
 
 - 2026-07-24 by Hermes Agent (Telegram) — **U0/U0-C browse usability verified and pending merge.** PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`) independently verified PASS on 2026-07-24: 12/12 search-nav tests, 17/17 browse tests, tsc clean, only pre-existing `AtlasHeroKpi.astro` baseline error, build:recipes 50/50, build:geo 53/53. Browser evidence: pagination 24→48→60 with all 60 slugs unique, Load more disappears at 60, Back/Forward/Refresh restore correct page, popstate does not grow history, search resets page to 1, later-page failure retains 48 cards with friendly Retry → 60, mock country matching exact case-insensitive, mobile 320×720 zero overflow. PR is open in draft; awaiting human review → mark ready → merge → production smoke. Do not mark U1 done until PR #37 merges.
 
@@ -126,8 +128,10 @@ travel blog. Mirror IDs below; update both files when claiming work.
 
 ## Backlog
 
-### P1 — Configure real linting in `apps/api`, `apps/web`, `packages/db`
-**Owner:** unassigned · **Estimate:** ~1 day · **Deadline:** 2026-09-30
+### P1 — Configure real linting in `apps/api`, `apps/web`, `packages/db` — ✅ RESOLVED by PR #40 (2026-07-24)
+**Owner:** Cursor Cloud · **Resolved:** 2026-07-24 (was Deadline 2026-09-30)
+
+**Resolution.** Biome (`@biomejs/biome@2.5.5` + root `biome.jsonc`) is now the real gate — root `lint` → `biome check .`, CI `Lint` job runs it (not the `echo 'lint ui'` stub), no `continue-on-error`. Non-breaking rollout: ~136 files auto-fixed; remaining error-level rules parked at **warn** with a ratchet TODO, so warnings alone do NOT fail CI today while the debt is worked down (see the "Biome ratchet" item in Backlog (longer-term)). Original problem statement kept below for history.
 
 **Problem.** The `lint` job in `.github/workflows/ci.yml` is
 misleading safety theater. `pnpm -r run lint` resolves to a single
@@ -311,6 +315,9 @@ dangling list on demand.
 
 ## Backlog (longer-term)
 
+- **P1 — Drizzle journal reconcile (blocks #39).** `packages/db/drizzle/meta/_journal.json` is out of sync with on-disk `*.sql` (orphans: `0003_add_filter_indexes`, dual `0005_*`, `0007_pg_trgm`). The drift makes `drizzle-kit generate` emit spurious migrations at runtime (e.g. `0006_worthless_riptide.sql` re-creating `dish_lineages`) — which is what breaks nightly #39. Align the journal with the committed SQL. Until then, nightly must apply the **committed** filesystem-sorted set (NOT journal-only — see §5 non-goal).
+- **P1 — Biome ratchet (from #40).** Promote rules parked at `warn` in `biome.jsonc` back to `error` in small PRs, in order: a11y cluster → suspicious → `useExhaustiveDependencies`. Track counts; no big-bang. Parked: a11y (`noStaticElementInteractions`, `noSvgWithoutTitle`, `useAriaPropsSupportedByRole`, `useButtonType`, `useGenericFontNames`, `useKeyWithClickEvents`, `useSemanticElements`, `useValidAnchor`); correctness (`noUnknownTypeSelector`, `useExhaustiveDependencies`); security (`noDangerouslySetInnerHtml`); suspicious (`noArrayIndexKey`, `noAssignInExpressions`, `noShadowRestrictedNames`, `useIterableCallbackReturn`).
+- **P3 — Nav config extract (optional).** Only if wanted: extract a typed nav config module used *inside* the shipped `Nav.astro` — no UX change, complementary refactor, NOT a SiteHeader restore. (Product decision 2026-07-24: keep U0-B Nav.astro; SiteHeader superseded.)
 - **i18n** — frontend and content. README has this as Phase 7g.
 - **Public read API for third parties** — rate limits + API keys.
 - **Mobile-first redesign** — current layout is desktop-first; map

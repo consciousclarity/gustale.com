@@ -6,6 +6,21 @@
 
 ## Last updated
 
+### CC - 2026-07-24  (Claude Code, terminal)
+
+**CI hardening merged + deployed to prod; nightly fix blocked; SiteHeader decided.** `origin/main` is now `8f52282`. Landed and **deployed to prod** today (all via green CI incl. Deploy to Hostinger; prod verified healthy — gustale.com 200, gustale.recipes 200, `api.gustale.recipes/health` 200):
+
+- **#38** `fix(ci): remove invalid pnpm cache from Docker jobs` — the `build`/`build-web` Docker jobs set `cache: pnpm` on setup-node but never run a host-side `pnpm install`, so post-job cache cleanup failed (`Path Validation Error`). Removed from those two jobs only; lint/test keep it.
+- **#37** `feat(web): U0-C browse/list usability` — merged (it had been draft; the #38 run finally got it to prod).
+- **#41** `chore: gitignore build outs` — adds `dist-recipes/` + `graphify-out/` to `.gitignore`. Nothing else.
+- **#40** `chore(ci): wire real Biome lint gate (non-breaking)` — `@biomejs/biome@2.5.5` + `biome.jsonc`; root `lint` → `biome check .`; CI `Lint` job now runs real Biome (not the `echo 'lint ui'` stub); **no `continue-on-error`**. ~136 files auto-fixed; remaining error-level rules parked at **warn** with a ratchet TODO — warnings alone do NOT fail CI yet.
+
+**#39 `fix/nightly-full-migration-chain` — BLOCKED, left DRAFT. Do NOT merge yet.** PR CI is green, but that's misleading: the Nightly workflow only runs on schedule/`workflow_dispatch`, and a manual dispatch on the branch still **fails at "Apply committed schema"** (`ERROR: relation "dish_lineages" already exists`, psql exit 3). Root cause: nightly's `Regenerate schema` step (`drizzle-kit generate`, `continue-on-error`) emits a spurious runtime `0006_worthless_riptide.sql` (a symptom of the journal drift) that re-creates `dish_lineages`; #39's new "apply all `packages/db/drizzle/*.sql` sorted" step then globs that generated file and re-applies it. **main's committed migrations are fine** (no duplicate on disk). Fix (rework → Cursor): source the apply list from `git ls-files 'packages/db/drizzle/*.sql'` (committed only) or move the generate step after the apply — still filesystem-sorted, NOT journal-only. Handoff drafted at `_handoffs/cursor-handoff-4-nightly-rework.md`. **Nightly is RED on main until #39 is reworked + merged (known issue).**
+
+**Product decision (2026-07-24): KEEP U0-B `Nav.astro`.** The Jun SiteHeader / AccountMenu / SearchTrigger WIP (PR #28 / `feat/nav-editorial` lineage) is confirmed **SUPERSEDED** by #34/#36. Do NOT reintroduce SiteHeader without a new explicit product decision. Optional future: extract a typed nav config *inside* Nav (no UX change) — tracked in TASKS backlog.
+
+---
+
 ### AL - 2026-07-24
 
 **State-only sync (no main or feature branch touched).** U0 + U0-C milestone reached today — U0 PRs #33 (Greptile dish-media cleanup), #34 (U0 trust: domain routing + family SSG + Atlas→Recipes CTAs), #35 (custom HTTP 404 from nginx), and #36 (U0 navigation + search) all **merged into `origin/main`** between 2026-07-23 11:31Z and 15:19Z. **U0-C browse/list usability** sits at PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, open, **draft**), independently verified **PASS** on 2026-07-24 with these totals:
