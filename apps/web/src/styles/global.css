@@ -3360,8 +3360,16 @@ body.nav-panel-open {
   align-items: center;
   gap: 10px;
 }
+.browse-toolbar--island .browse-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .browse-toolbar-island .browse-search--island,
-.browse-toolbar-island .browse-search {
+.browse-toolbar-island .browse-search,
+.browse-toolbar--island .browse-search {
   flex: 1 1 220px;
   min-width: 0;
   display: inline-flex;
@@ -3371,6 +3379,59 @@ body.nav-panel-open {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--bg);
+}
+.browse-toolbar-island .browse-search-field,
+.browse-toolbar--island .browse-search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  outline: none;
+}
+.browse-count {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--sub);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.browse-filters-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.browse-filters-btn[aria-expanded='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+.browse-filters-btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
 }
 .browse-search-sr {
   position: absolute;
@@ -3586,9 +3647,17 @@ body.nav-panel-open {
 
 @media (max-width: 640px) {
   .browse-grid { grid-template-columns: 1fr; }
-  .browse-toolbar-island .browse-count {
+  .browse-toolbar-island .browse-count,
+  .browse-toolbar--island .browse-count {
     width: 100%;
     order: 3;
+    white-space: normal;
+  }
+  .browse-filters-btn-label {
+    /* Keep the control ~44px on phones; icon + badge convey Filters. */
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
