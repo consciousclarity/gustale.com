@@ -1,259 +1,88 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import BrowseHeader from '../components/BrowseHeader.astro';
+import { FamilyDirectory } from '../components/FamilyDirectory.tsx';
+import ErrorBoundary from '../components/ErrorBoundary.tsx';
 import { ApiError, listDishes } from '../lib/api';
-import type { DishListResponse, DishSummary } from '../types/dish';
+import {
+  buildFamilyDirectory,
+  familyDetailHref,
+  mapBrowseHref,
+  recoveryLinks,
+} from '../lib/browse';
+import { currentDomain } from '../lib/domain';
+import type { DishListResponse } from '../types/dish';
 
-// Server-render the first paint with all published dishes so we can
-// group them by family (primary dish-type category) on the server. If the
-// API is unreachable during build, the page still renders and the client
-// island takes over with a live fetch.
-//
-// Families is about dish FORM only (dumpling, flatbread, stew, …). Browsing
-// by geographic origin lives on its own page, /regions — keep the two axes
-// separate so neither filter borrows the other's state or labels.
 let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
-let serverError: string | null = null;
-let totalDishes = 0;
+let buildFailed = false;
 
 try {
   initial = await listDishes({ status: 'published', limit: 100 });
-  totalDishes = initial.dishes.length;
 } catch (err: unknown) {
-  if (err instanceof ApiError) {
-    serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
-  } else if (err instanceof Error) {
-    serverError = err.message;
-  } else {
-    serverError = 'Unknown error';
-  }
+  buildFailed = true;
+  void err;
+  void ApiError;
 }
 
-// ── Group dishes by family (primary dish-type category) ──────────────────
-// familySlug comes from the API (primary dish-type category per dish).
-// Unknown slugs fall back to "Other".
-const groups = new Map<string, DishSummary[]>();
-for (const d of initial.dishes) {
-  const key = d.familySlug ?? 'other';
-  if (!groups.has(key)) groups.set(key, []);
-  groups.get(key)!.push(d);
-}
-
-// Sort families by member count descending — most-represented form first.
-const sortedFamilies = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
-
-// ── Human-readable family labels ──────────────────────────────────────────
-// Covers every dish-type slug in the DB. Unknown slugs get title-cased.
-const FAMILY_LABELS: Record<string, string> = {
-  'noodle-soup':        'Noodle soups',
-  'soup':               'Soups',
-  'stew':               'Stews & braises',
-  'curry':              'Curries',
-  'pasta':              'Pasta',
-  'bread':              'Breads',
-  'dumpling':           'Dumplings',
-  'rice-dish':          'Rice dishes',
-  'fried-rice':         'Fried rice',
-  'kebab':              'Grilled & skewered',
-  'salad':              'Salads',
-  'pancake':            'Flatbreads & griddled',
-  'casserole':          'Casseroles & baked',
-  'sandwich':           'Sandwiches',
-  'appetizer':          'Appetizers',
-  'main-course':        'Main courses',
-  'side':               'Side dishes',
-  'dessert':            'Desserts',
-  'sauce':              'Sauces & condiments',
-  'moussaka':           'Moussaka',
-  'stir-fry':           'Stir-fries',
-  'street-snack':        'Street snacks',
-  'fermented':          'Fermented',
-  'egg-dishes':         'Egg dishes',
-  'other':              'Other',
-};
-
-function labelFor(slug: string): string {
-  return FAMILY_LABELS[slug]
-    ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-}
-
-// ── Family color dots (a stable accent per family form) ──────────────────
-const FAMILY_PALETTE = [
-  '#B8552F', '#6E7F4E', '#C99A48', '#C4706B', '#8B7355',
-  '#C2742F', '#D4A853', '#A0522D', '#8B4513',
-];
-function familyColor(slug: string): string {
-  // Deterministic: same family always gets the same swatch.
-  let h = 0;
-  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) >>> 0;
-  return FAMILY_PALETTE[h % FAMILY_PALETTE.length];
-}
-
-const totalFamilies = sortedFamilies.length;
+const domain = currentDomain();
+const families = buildFamilyDirectory(initial.dishes);
+const recovery = recoveryLinks(domain);
+const mapHref = mapBrowseHref(domain);
 ---
 
 <Layout
-  title="Families — Gustale"
-  description="Browse Gustale's dishes grouped by the form they take — dumplings, flatbreads, eggs, noodles, and more."
+  title="Food families — Gustale"
+  description="Browse Gustale dishes by the form they take — dumplings, flatbreads, stews, and more."
 >
-  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Families' }]} />
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Food families' }]} />
 
-  {/* ─── Hero ──────────────────────────────────────────────────────── */}
-  <section class="fam-hero wrap">
-    <p class="eyebrow">
-      Browse the atlas · {totalFamilies} families
-    </p>
-    <h1>
-      The shapes<br />food <em>takes</em>.
-    </h1>
-    <p class="sub" style="margin-bottom: 16px;">
-      Before a dish has a country, it has a form — a dumpling, a flatbread,
-      an egg gently cooked. Families gather those forms across the world,
-      so you can see how one idea is told in a hundred kitchens.
-    </p>
-    <p class="sub" style="margin-bottom: 28px; font-size: 0.95rem;">
-      Looking for a particular cuisine? <a href="/regions" style="color: var(--accent); text-decoration: underline; text-underline-offset: 3px;">Browse by region →</a>
-    </p>
+  <BrowseHeader
+    eyebrow="Browse the atlas"
+    title="Food families"
+    subtitle="One entry per form — dumplings, stews, flatbreads — with counts and representative dishes."
+    countLabel={`${families.length} families`}
+    showToolbar={false}
+    showFilters={false}
+  />
 
-    <div class="fam-stats">
-      <div>
-        <b>{totalFamilies}</b>
-        <span>Families</span>
-      </div>
-      <div>
-        <b>{totalDishes}</b>
-        <span>Dishes</span>
-      </div>
-    </div>
-  </section>
-
-  {/* ─── Filter bar ───────────────────────────────────────────────── */}
-  <div class="fam-filter-bar" id="filter-bar">
+  {buildFailed && (
     <div class="wrap">
-      <div class="inner">
-
-        {/* Family filter */}
-        <span class="fb-label">Family</span>
-        <div class="fb-chips" id="family-chips">
-          <button class="fam-chip active" data-family="all">All<span class="ct">{totalDishes}</span></button>
-          {sortedFamilies.map(([slug, dishes]) => (
-            <button class="fam-chip" data-family={slug}>
-              <span class="dot" style={`background:${familyColor(slug)}`}></span>
-              {labelFor(slug)}
-              <span class="ct">{dishes.length}</span>
-            </button>
+      <div class="browse-banner browse-banner--error" role="status">
+        <p>Browse data was unavailable at build time. Cached family entries stay below when present.</p>
+        <ul class="browse-recovery">
+          {recovery.primary.map((l) => (
+            <li><a href={l.href}>{l.label}</a></li>
           ))}
-        </div>
-
-        <span class="fb-spacer"></span>
-        <span class="fb-result" id="fam-result">
-          Showing <b id="fam-count">{totalFamilies}</b> families
-        </span>
-      </div>
-    </div>
-  </div>
-
-  {serverError && (
-    <div class="wrap" style="padding-top: 24px;">
-      <div class="alert alert-warning">
-        <strong>Heads up:</strong> the gustale-api could not be reached at build
-        time ({serverError}). Showing an empty list — refresh once the API is up.
+        </ul>
       </div>
     </div>
   )}
 
-  {/* ─── Family groups ─────────────────────────────────────────────── */}
-  {sortedFamilies.map(([familySlug, familyDishes]) => (
-    <section
-      class="fam-group wrap"
-      data-family={familySlug}
-    >
-      <header class="fam-group__head">
-        <div>
-          <span class="eyebrow">{familySlug}</span>
-          <h2>{labelFor(familySlug)}</h2>
-        </div>
-        <span class="mono-sub">{familyDishes.length} dishes</span>
-      </header>
+  <section class="wrap browse-page">
+    <ErrorBoundary name="Family directory">
+      <FamilyDirectory dishes={initial.dishes} client:load />
+    </ErrorBoundary>
 
-      <ul class="fam-grid">
-        {familyDishes.map((d) => (
+    <noscript>
+      <p class="browse-crosslinks">
+        <a href="/regions">Countries</a> · <a href={mapHref}>Open the map</a>
+      </p>
+      <ul class="browse-dir">
+        {families.map((f) => (
           <li>
-            <a href={`/dishes/${d.slug}`} class="fam-tile" data-origin={d.originName ?? ''}>
-              <h3>{d.canonicalName}</h3>
-              {d.shortDescription && <p class="def">{d.shortDescription}</p>}
-              <div class="foot">
-                <span class="counts mono-sub">{d.originName ?? '—'}</span>
-                <span class="go">Explore <span class="arr">→</span></span>
+            <a class="browse-dir-card" href={familyDetailHref(f.slug)}>
+              <div class="browse-dir-card__top">
+                <h2>{f.name}</h2>
+                <span class="browse-dir-card__count">{f.count} dishes</span>
               </div>
+              {f.dishNames.length > 0 && (
+                <p class="browse-dir-card__meta">{f.dishNames.slice(0, 4).join(' · ')}</p>
+              )}
             </a>
           </li>
         ))}
       </ul>
-    </section>
-  ))}
-
-  {/* ─── Empty state (shown/hidden by JS) ─────────────────────────── */}
-  <div id="empty-state" class="wrap" style="display:none; padding: 60px 0; text-align:center;">
-    <p class="sub" style="font-size: 1.1rem; margin-bottom: 20px;">
-      No dishes match the selected filters.
-    </p>
-    <button class="btn-outline" id="reset-filters">Clear filters</button>
-  </div>
-
-  {/* ─── Closing CTA ───────────────────────────────────────────────── */}
-  <section class="wrap" style="padding: 48px 0; text-align: center;">
-    <p class="eyebrow">
-      Every family lives on the map
-    </p>
-    <div style="display:flex; justify-content:center; margin-top:1rem;">
-      <a href="/map" class="btn-accent">Open the atlas →</a>
-    </div>
+    </noscript>
   </section>
 </Layout>
-
-<script>
-  (function () {
-    const familyChips  = document.querySelectorAll<HTMLButtonElement>('#family-chips .fam-chip');
-    const groups       = document.querySelectorAll<HTMLElement>('.fam-group');
-    const countEl      = document.getElementById('fam-count');
-    const emptyState   = document.getElementById('empty-state') as HTMLElement | null;
-    const resetBtn     = document.getElementById('reset-filters') as HTMLButtonElement | null;
-
-    let activeFamily = 'all';
-
-    function applyFilters() {
-      // Update chip active states
-      familyChips.forEach((c) => {
-        c.classList.toggle('active', c.dataset.family === activeFamily);
-      });
-
-      let visibleFamilies = 0;
-
-      groups.forEach((g) => {
-        const show = activeFamily === 'all' || g.dataset.family === activeFamily;
-        g.style.display = show ? '' : 'none';
-        if (show) visibleFamilies++;
-      });
-
-      if (countEl) {
-        countEl.textContent = String(visibleFamilies);
-      }
-      if (emptyState) {
-        emptyState.style.display = visibleFamilies === 0 ? 'block' : 'none';
-      }
-    }
-
-    familyChips.forEach((c) => {
-      c.addEventListener('click', () => {
-        activeFamily = c.dataset.family ?? 'all';
-        applyFilters();
-      });
-    });
-
-    resetBtn?.addEventListener('click', () => {
-      activeFamily = 'all';
-      applyFilters();
-    });
-  })();
-</script>

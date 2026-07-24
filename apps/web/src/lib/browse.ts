@@ -5,9 +5,7 @@
  * tests run in plain Node without a DOM or React.
  *
  * Domain helpers come from `./domain` so the Atlas/Recipes rules stay
- * in one place; this module does not duplicate the property-switch
- * logic — it only resolves the local-vs-absolute question for browse
- * CTAs (See all, family detail, region entry, etc.).
+ * in one place.
  */
 
 import {
@@ -16,27 +14,26 @@ import {
   type GustaleDomain,
 } from './domain';
 
+// ─── Shared link type ───────────────────────────────────────────────────
+
+export interface BrowseLink {
+  href: string;
+  label: string;
+}
+
 // ─── Query state shape ──────────────────────────────────────────────────
 
-/** Free-text query. No structured-syntax required. */
+/** Free-text query. Structured tokens remain supported but not advertised. */
 export interface BrowseQueryState {
-  /** Free-text query, trimmed, lowercase for matching. */
   q: string;
-  /** Optional family slug (single value — UI surfaces it as a chip). */
   family: string | null;
-  /** Optional origin country / region name. */
   country: string | null;
-  /** Optional cuisine name. */
   cuisine: string | null;
-  /** Optional dish-type category (e.g. "stew"). */
   type: string | null;
-  /** Optional ingredient slug. */
   ingredient: string | null;
-  /** Optional technique. */
   technique: string | null;
-  /** Sort key, if any. Default sort is server-provided. */
   sort: string | null;
-  /** Numeric page index (1-based). Persists in the URL. */
+  /** 1-based page index for shareable URL state. */
   page: number;
 }
 
@@ -52,9 +49,8 @@ export const DEFAULT_BROWSE_STATE: BrowseQueryState = {
   page: 1,
 };
 
-// ─── URL ↔ state ────────────────────────────────────────────────────────
+export const BROWSE_PAGE_SIZE = 24;
 
-/** Field names that survive a URL round-trip. */
 export const BROWSE_URL_KEYS = [
   'q',
   'family',
@@ -67,11 +63,6 @@ export const BROWSE_URL_KEYS = [
   'page',
 ] as const;
 
-/**
- * Pull a BrowseQueryState out of a URLSearchParams-like object.
- * Pass `window.location.search` (already `URLSearchParams`-compatible)
- * or a plain object. Unknown / extra keys are ignored.
- */
 export function parseBrowseState(
   source: URLSearchParams | Record<string, string | string[] | undefined>,
 ): BrowseQueryState {
@@ -84,11 +75,11 @@ export function parseBrowseState(
   };
 
   const pageRaw = parseInt(get('page') ?? '1', 10);
-  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.min(1000, Math.floor(pageRaw)) : 1;
+  const page =
+    Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.min(1000, Math.floor(pageRaw)) : 1;
 
-  const q = (get('q') ?? '').trim();
   return {
-    q,
+    q: (get('q') ?? '').trim(),
     family: emptyToNull(get('family')),
     country: emptyToNull(get('country')),
     cuisine: emptyToNull(get('cuisine')),
@@ -106,11 +97,6 @@ function emptyToNull(v: string | null | undefined): string | null {
   return t === '' ? null : t;
 }
 
-/**
- * Serialise state to URLSearchParams. Preserves the order of BROWSE_URL_KEYS
- * for stable string output. Empty / null fields are dropped so the URL
- * stays clean.
- */
 export function serializeBrowseState(state: BrowseQueryState): URLSearchParams {
   const sp = new URLSearchParams();
   if (state.q) sp.set('q', state.q);
@@ -125,22 +111,14 @@ export function serializeBrowseState(state: BrowseQueryState): URLSearchParams {
   return sp;
 }
 
-/** Build the canonical query string for `history.pushState`. Empty ⇒ '?'. */
 export function buildBrowseQuery(state: BrowseQueryState): string {
-  const sp = serializeBrowseState(state);
-  const s = sp.toString();
+  const s = serializeBrowseState(state).toString();
   return s ? `?${s}` : '';
 }
 
-// ─── User-friendly search input ──────────────────────────────────────────
-
 /**
- * Legacy structured-syntax parser kept for back-compat with existing
- * deep-links (`?country=Italy`). New U0-C UI is plain free-text; the
- * parser still recognises `key:value` tokens so old links keep working,
- * but the user-facing surface no longer advertises the syntax.
- *
- * Returns a partial BrowseQueryState update; merges via `mergeBrowseState`.
+ * Legacy structured-syntax parser for deep-links (`country:Italy`).
+ * UI is plain free-text; this keeps old URLs working.
  */
 export function parseStructuredTokens(input: string): Partial<BrowseQueryState> {
   const tokens = input.match(/(\S+):(\S+)/g) ?? [];
@@ -151,7 +129,7 @@ export function parseStructuredTokens(input: string): Partial<BrowseQueryState> 
     const colon = tok.indexOf(':');
     if (colon < 0) continue;
     const key = tok.slice(0, colon).toLowerCase();
-    const val = tok.slice(colon + 1).toLowerCase();
+    const val = tok.slice(colon + 1);
     free = free.replace(tok, '');
     if (key === 'origin' || key === 'country' || key === 'region') {
       result.country = val;
@@ -167,12 +145,11 @@ export function parseStructuredTokens(input: string): Partial<BrowseQueryState> 
       result.family = val;
     }
   }
-  const q = (free ?? '').replace(/\s+/g, ' ').trim();
+  const q = free.replace(/\s+/g, ' ').trim();
   if (q) result.q = q;
   return result;
 }
 
-/** Merge a partial update onto a base state. */
 export function mergeBrowseState(
   base: BrowseQueryState,
   patch: Partial<BrowseQueryState>,
@@ -183,6 +160,7 @@ export function mergeBrowseState(
 // ─── Filtering (in-memory) ──────────────────────────────────────────────
 
 export interface LikeableDish {
+  slug?: string | null;
   canonicalName?: string | null;
   shortDescription?: string | null;
   familySlug?: string | null;
@@ -194,16 +172,36 @@ export interface LikeableDish {
   ingredients?: Array<{ slug?: string | null }> | null;
 }
 
-/** True if the dish matches the free-text + structured query. */
 export function matchesBrowseQuery(dish: LikeableDish, state: BrowseQueryState): boolean {
-  if (state.family && (dish.familySlug ?? '').toLowerCase() !== state.family) return false;
-  if (state.country && (dish.originName ?? '').toLowerCase() !== state.country) return false;
-  if (state.cuisine && (dish.cuisineName ?? '').toLowerCase() !== state.cuisine) return false;
-  if (state.type && (dish.typeSlug ?? '').toLowerCase() !== state.type) return false;
-  if (state.technique && (dish.techniqueSlug ?? '').toLowerCase() !== state.technique) return false;
+  if (state.family && (dish.familySlug ?? '').toLowerCase() !== state.family.toLowerCase()) {
+    return false;
+  }
+  if (
+    state.country
+    && (dish.originName ?? '').toLowerCase() !== state.country.toLowerCase()
+  ) {
+    return false;
+  }
+  if (
+    state.cuisine
+    && (dish.cuisineName ?? '').toLowerCase() !== state.cuisine.toLowerCase()
+  ) {
+    return false;
+  }
+  if (state.type && (dish.typeSlug ?? '').toLowerCase() !== state.type.toLowerCase()) {
+    return false;
+  }
+  if (
+    state.technique
+    && (dish.techniqueSlug ?? '').toLowerCase() !== state.technique.toLowerCase()
+  ) {
+    return false;
+  }
   if (state.ingredient) {
-    const slug = state.ingredient;
-    const matches = (dish.ingredients ?? []).some((i) => (i.slug ?? '').toLowerCase() === slug);
+    const slug = state.ingredient.toLowerCase();
+    const matches = (dish.ingredients ?? []).some(
+      (i) => (i.slug ?? '').toLowerCase() === slug,
+    );
     if (!matches) return false;
   }
   if (state.q) {
@@ -214,19 +212,27 @@ export function matchesBrowseQuery(dish: LikeableDish, state: BrowseQueryState):
       dish.familyName ?? '',
       dish.originName ?? '',
       dish.cuisineName ?? '',
-    ].join(' ').toLowerCase();
+    ]
+      .join(' ')
+      .toLowerCase();
     if (!haystack.includes(needle)) return false;
   }
   return true;
 }
 
-/** Apply browse-state filtering to a dish list. Stable input order. */
 export function applyBrowseFilter<T extends LikeableDish>(
   dishes: readonly T[],
   state: BrowseQueryState,
 ): T[] {
-  if (!state.q && !state.family && !state.country && !state.cuisine &&
-      !state.type && !state.ingredient && !state.technique) {
+  if (
+    !state.q
+    && !state.family
+    && !state.country
+    && !state.cuisine
+    && !state.type
+    && !state.ingredient
+    && !state.technique
+  ) {
     return dishes.slice();
   }
   return dishes.filter((d) => matchesBrowseQuery(d, state));
@@ -234,17 +240,15 @@ export function applyBrowseFilter<T extends LikeableDish>(
 
 // ─── Pagination helpers ─────────────────────────────────────────────────
 
-/** Compute the API offset for a (page, pageSize) pair. page is 1-based. */
 export function pageOffset(page: number, pageSize: number): number {
   if (!Number.isFinite(page) || page < 1) return 0;
-  return (page - 1) * pageSize;
+  return (Math.floor(page) - 1) * pageSize;
 }
 
-/**
- * Append a freshly fetched page to the existing list, deduplicating by
- * `id` so SSR + client-fetched pages don't show duplicate cards.
- */
-export function appendDishes<T extends { id: string }>(existing: readonly T[], additions: readonly T[]): T[] {
+export function appendDishes<T extends { id: string }>(
+  existing: readonly T[],
+  additions: readonly T[],
+): T[] {
   const seen = new Set(existing.map((d) => d.id));
   const merged: T[] = existing.slice();
   for (const d of additions) {
@@ -255,31 +259,17 @@ export function appendDishes<T extends { id: string }>(existing: readonly T[], a
   return merged;
 }
 
-/**
- * Compute whether another page exists given the running list size and
- * the most-recent API page size. The API doesn't return a `total` count,
- * so we infer "more pages" from whether the last page came back full
- * (or from an explicit `hasMore` flag on the response).
- */
-export function hasMorePages(
-  totalLoaded: number,
-  lastPageSize: number,
-  pageSize: number,
-): boolean {
-  if (lastPageSize < pageSize) return false;
-  return totalLoaded % pageSize === 0 && totalLoaded > 0;
+/** True when the last API page was full — there may be another page. */
+export function hasMorePages(lastPageSize: number, pageSize: number): boolean {
+  return lastPageSize >= pageSize && pageSize > 0;
 }
 
 // ─── Filter chips ───────────────────────────────────────────────────────
 
 export interface FilterChip {
-  /** Stable key, used as React list key. */
   key: string;
-  /** User-facing label. */
   label: string;
-  /** State key to clear when removed. */
   stateKey: keyof BrowseQueryState;
-  /** Current value to clear. */
   value: string;
 }
 
@@ -295,7 +285,6 @@ const FRIENDLY_LABELS: Record<keyof BrowseQueryState, string> = {
   page: 'Page',
 };
 
-/** Build removable-chip descriptors for non-empty state fields. */
 export function filterChipsFor(state: BrowseQueryState): FilterChip[] {
   const chips: FilterChip[] = [];
   for (const key of BROWSE_URL_KEYS) {
@@ -313,49 +302,339 @@ export function filterChipsFor(state: BrowseQueryState): FilterChip[] {
   return chips;
 }
 
-/** Remove a single chip from state — returns a new state object. */
 export function removeBrowseChip(
   state: BrowseQueryState,
   stateKey: keyof BrowseQueryState,
 ): BrowseQueryState {
   if (stateKey === 'page') return { ...state, page: 1 };
-  if (stateKey === 'sort') return { ...state, sort: null };
-  return { ...state, [stateKey]: keyDefault(stateKey), page: 1 };
+  if (stateKey === 'sort') return { ...state, sort: null, page: 1 };
+  if (stateKey === 'q') return { ...state, q: '', page: 1 };
+  return { ...state, [stateKey]: null, page: 1 };
 }
 
-function keyDefault(key: keyof BrowseQueryState): string | null {
-  if (key === 'q') return '';
-  return null;
+export function clearBrowseFilters(): BrowseQueryState {
+  return { ...DEFAULT_BROWSE_STATE };
 }
 
-/** Clear every filter at once — keeps only the page index (reset to 1). */
-export function clearBrowseFilters(state: BrowseQueryState): BrowseQueryState {
-  return {
-    q: '',
-    family: null,
-    country: null,
-    cuisine: null,
-    type: null,
-    ingredient: null,
-    technique: null,
-    sort: null,
-    page: 1,
+export function browseHasActiveFilters(state: BrowseQueryState): boolean {
+  return filterChipsFor(state).length > 0;
+}
+
+// ─── Family directory ───────────────────────────────────────────────────
+
+export interface FamilyEntry {
+  slug: string;
+  name: string;
+  count: number;
+  dishNames: string[];
+  sampleOrigins: string[];
+}
+
+const FAMILY_LABELS: Record<string, string> = {
+  'noodle-soup': 'Noodle soups',
+  soup: 'Soups',
+  stew: 'Stews & braises',
+  curry: 'Curries',
+  pasta: 'Pasta',
+  bread: 'Breads',
+  dumpling: 'Dumplings',
+  'rice-dish': 'Rice dishes',
+  'fried-rice': 'Fried rice',
+  kebab: 'Grilled & skewered',
+  salad: 'Salads',
+  pancake: 'Flatbreads & griddled',
+  casserole: 'Casseroles & baked',
+  sandwich: 'Sandwiches',
+  appetizer: 'Appetizers',
+  'main-course': 'Main courses',
+  side: 'Side dishes',
+  dessert: 'Desserts',
+  sauce: 'Sauces & condiments',
+  moussaka: 'Moussaka',
+  'stir-fry': 'Stir-fries',
+  'street-snack': 'Street snacks',
+  fermented: 'Fermented',
+  'egg-dishes': 'Egg dishes',
+  other: 'Other',
+};
+
+export function familyLabel(slug: string): string {
+  return (
+    FAMILY_LABELS[slug]
+    ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
+  );
+}
+
+export function buildFamilyDirectory(
+  dishes: readonly LikeableDish[],
+): FamilyEntry[] {
+  const groups = new Map<string, LikeableDish[]>();
+  for (const d of dishes) {
+    const key = d.familySlug ?? 'other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(d);
+  }
+  return [...groups.entries()]
+    .map(([slug, list]) => {
+      const origins = [
+        ...new Set(
+          list.map((d) => d.originName).filter((x): x is string => Boolean(x)),
+        ),
+      ];
+      return {
+        slug,
+        name: list[0]?.familyName || familyLabel(slug),
+        count: list.length,
+        dishNames: list
+          .map((d) => d.canonicalName)
+          .filter((x): x is string => Boolean(x))
+          .slice(0, 8),
+        sampleOrigins: origins.slice(0, 4),
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+export function filterFamilyDirectory(
+  entries: readonly FamilyEntry[],
+  q: string,
+): FamilyEntry[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return entries.slice();
+  return entries.filter((e) => {
+    if (e.name.toLowerCase().includes(needle)) return true;
+    if (e.slug.toLowerCase().includes(needle)) return true;
+    return e.dishNames.some((n) => n.toLowerCase().includes(needle));
+  });
+}
+
+// ─── Country directory (/regions) ───────────────────────────────────────
+
+export interface CountryEntry {
+  name: string;
+  count: number;
+  dishNames: string[];
+  letter: string;
+}
+
+export function buildCountryDirectory(
+  dishes: readonly LikeableDish[],
+): CountryEntry[] {
+  const groups = new Map<string, LikeableDish[]>();
+  for (const d of dishes) {
+    const key = d.originName?.trim() || 'Other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(d);
+  }
+  return [...groups.entries()]
+    .map(([name, list]) => ({
+      name,
+      count: list.length,
+      dishNames: list
+        .map((d) => d.canonicalName)
+        .filter((x): x is string => Boolean(x))
+        .slice(0, 8),
+      letter: name.charAt(0).toUpperCase(),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function filterCountryDirectory(
+  entries: readonly CountryEntry[],
+  q: string,
+): CountryEntry[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return entries.slice();
+  return entries.filter((e) => {
+    if (e.name.toLowerCase().includes(needle)) return true;
+    return e.dishNames.some((n) => n.toLowerCase().includes(needle));
+  });
+}
+
+export function countryAlphaIndex(entries: readonly CountryEntry[]): string[] {
+  const letters = new Set(entries.map((e) => e.letter));
+  return [...letters].sort();
+}
+
+// ─── Lineage filter state ───────────────────────────────────────────────
+
+export interface LineageFilterState {
+  q: string;
+  region: string | null;
+  technique: string | null;
+  force: string | null;
+  confidence: string | null;
+}
+
+export const DEFAULT_LINEAGE_FILTERS: LineageFilterState = {
+  q: '',
+  region: null,
+  technique: null,
+  force: null,
+  confidence: null,
+};
+
+export function parseLineageFilters(
+  source: URLSearchParams | Record<string, string | string[] | undefined>,
+): LineageFilterState {
+  const get = (key: string): string | null => {
+    if (source instanceof URLSearchParams) return source.get(key);
+    const v = source[key];
+    if (v == null) return null;
+    if (Array.isArray(v)) return v[0] ?? null;
+    return v;
   };
+  return {
+    q: (get('q') ?? get('search') ?? '').trim(),
+    region: emptyToNull(get('region') ?? get('origin')),
+    technique: emptyToNull(get('technique')),
+    force: emptyToNull(get('force') ?? get('historicalForce')),
+    confidence: emptyToNull(get('confidence')),
+  };
+}
+
+export function serializeLineageFilters(state: LineageFilterState): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (state.q) sp.set('q', state.q);
+  if (state.region) sp.set('region', state.region);
+  if (state.technique) sp.set('technique', state.technique);
+  if (state.force) sp.set('force', state.force);
+  if (state.confidence) sp.set('confidence', state.confidence);
+  return sp;
+}
+
+export function buildLineageQuery(state: LineageFilterState): string {
+  const s = serializeLineageFilters(state).toString();
+  return s ? `?${s}` : '';
+}
+
+export function lineageFilterChips(state: LineageFilterState): Array<{
+  key: string;
+  label: string;
+  stateKey: keyof LineageFilterState;
+  value: string;
+}> {
+  const chips: Array<{
+    key: string;
+    label: string;
+    stateKey: keyof LineageFilterState;
+    value: string;
+  }> = [];
+  if (state.q) {
+    chips.push({ key: `q:${state.q}`, label: `Search: ${state.q}`, stateKey: 'q', value: state.q });
+  }
+  if (state.region) {
+    chips.push({
+      key: `region:${state.region}`,
+      label: `Region: ${state.region}`,
+      stateKey: 'region',
+      value: state.region,
+    });
+  }
+  if (state.technique) {
+    chips.push({
+      key: `technique:${state.technique}`,
+      label: `Technique: ${state.technique}`,
+      stateKey: 'technique',
+      value: state.technique,
+    });
+  }
+  if (state.force) {
+    chips.push({
+      key: `force:${state.force}`,
+      label: `Force: ${state.force}`,
+      stateKey: 'force',
+      value: state.force,
+    });
+  }
+  if (state.confidence) {
+    chips.push({
+      key: `confidence:${state.confidence}`,
+      label: `Confidence: ${state.confidence}`,
+      stateKey: 'confidence',
+      value: state.confidence,
+    });
+  }
+  return chips;
+}
+
+export function removeLineageChip(
+  state: LineageFilterState,
+  stateKey: keyof LineageFilterState,
+): LineageFilterState {
+  if (stateKey === 'q') return { ...state, q: '' };
+  return { ...state, [stateKey]: null };
+}
+
+export function clearLineageFilters(): LineageFilterState {
+  return { ...DEFAULT_LINEAGE_FILTERS };
+}
+
+export interface LikeableLineage {
+  name: string;
+  slug: string;
+  shortDescription?: string | null;
+  conceptSummary?: string | null;
+  techniques?: string[];
+  originRegions?: string[];
+  relatedRegions?: string[];
+  historicalForces?: string[];
+  confidenceLevel?: string;
+  representativeDishes?: string[];
+}
+
+export function matchesLineageFilters(
+  lin: LikeableLineage,
+  state: LineageFilterState,
+): boolean {
+  const kebab = (s: string) => s.toLowerCase().replace(/_/g, '-');
+  if (state.region) {
+    const regions = [...(lin.originRegions ?? []), ...(lin.relatedRegions ?? [])].map(kebab);
+    if (!regions.includes(kebab(state.region))) return false;
+  }
+  if (state.technique) {
+    const techs = (lin.techniques ?? []).map(kebab);
+    if (!techs.includes(kebab(state.technique))) return false;
+  }
+  if (state.force) {
+    const forces = (lin.historicalForces ?? []).map(kebab);
+    if (!forces.includes(kebab(state.force))) return false;
+  }
+  if (state.confidence && (lin.confidenceLevel ?? '') !== state.confidence) {
+    return false;
+  }
+  if (state.q) {
+    const needle = state.q.toLowerCase();
+    const hay = [
+      lin.name,
+      lin.shortDescription ?? '',
+      lin.conceptSummary ?? '',
+      ...(lin.techniques ?? []),
+      ...(lin.originRegions ?? []),
+      ...(lin.relatedRegions ?? []),
+      ...(lin.representativeDishes ?? []),
+    ]
+      .join(' ')
+      .toLowerCase();
+    if (!hay.includes(needle)) return false;
+  }
+  return true;
+}
+
+export function applyLineageFilter<T extends LikeableLineage>(
+  lineages: readonly T[],
+  state: LineageFilterState,
+): T[] {
+  return lineages.filter((l) => matchesLineageFilters(l, state));
 }
 
 // ─── Recovery links (domain-valid) ───────────────────────────────────────
 
 export interface RecoveryLinks {
   primary: BrowseLink[];
-  altBrowse: { href: string; label: string } | null;
+  altBrowse: BrowseLink | null;
 }
 
-/**
- * Domain-valid recovery links for empty / failed browse pages.
- *
- * Atlas: Globe, Countries, Food families, Lineages and absolute Browse recipes.
- * Recipes: Recipes, Ingredients, Food families, Lineages and absolute Atlas.
- */
 export function recoveryLinks(domain: GustaleDomain): RecoveryLinks {
   if (domain === 'geo') {
     return {
@@ -379,24 +658,45 @@ export function recoveryLinks(domain: GustaleDomain): RecoveryLinks {
   };
 }
 
-// ─── Safe query encoding ────────────────────────────────────────────────
+/** Map CTA — local on Atlas, absolute on Recipes (map stripped post-build). */
+export function mapBrowseHref(domain: GustaleDomain): string {
+  if (domain === 'geo') return '/map';
+  return `${ATLAS_ORIGIN}/map`;
+}
 
-/** URL-encode a free-text query, clamping to a reasonable length. */
 export function safeQueryEncode(value: string, maxLen = 200): string {
   const trimmed = (value ?? '').trim().slice(0, maxLen);
   return encodeURIComponent(trimmed);
 }
 
-// ─── See-all-style absolute link ────────────────────────────────────────
-
-/**
- * Local /dishes index is Recipes-only (post-build removes it on geo).
- * When Geo browse surfaces need to deep-link to the recipes list, they
- * MUST use this helper so the link is absolute on Atlas.
- */
 export function absoluteDishesIndexHref(domain: GustaleDomain, query = ''): string {
   const q = query.trim();
   const suffix = q ? `?q=${safeQueryEncode(q)}` : '';
   if (domain === 'geo') return `${RECIPES_ORIGIN}/dishes${suffix}`;
   return `/dishes${suffix}`;
+}
+
+export function dishDetailHref(slug: string): string {
+  return `/dishes/${encodeURIComponent(slug)}`;
+}
+
+export function familyDetailHref(slug: string): string {
+  return `/family/${encodeURIComponent(slug)}/`;
+}
+
+export function browseStatusMessage(opts: {
+  loading: boolean;
+  failed: boolean;
+  count: number;
+  query: string;
+  noun: string;
+}): string {
+  if (opts.loading) return 'Updating results…';
+  if (opts.failed) return 'Browse data is temporarily unavailable.';
+  if (opts.count === 0) {
+    return opts.query
+      ? `No ${opts.noun} match “${opts.query}”.`
+      : `No ${opts.noun} to show.`;
+  }
+  return `${opts.count} ${opts.noun}`;
 }

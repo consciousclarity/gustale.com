@@ -2,36 +2,30 @@
 /**
  * Shared browse header for list pages.
  *
- * Renders the editorial hero (eyebrow / h1 / sub) plus a sticky toolbar
- * with the search control and optional filters disclosure. The toolbar
- * sticks 68px below the site header (which is itself sticky) and never
- * overflows its container.
+ * Editorial hero + sticky toolbar (68px below site header).
+ * Search input and optional filters panel come from slots so each
+ * page/island can own interactive controls without duplicate IDs.
  *
- * Props are intentionally minimal — list pages own their own data and
- * pass the visible fields in.
+ * Slots:
+ *   - search-input  (required for interactive pages) — the <input>
+ *   - after-search  — chips / clear / status
+ *   - filters       — disclosure panel body
  */
 
 interface Props {
-  /** Short eyebrow (e.g. "Browse the atlas"). */
   eyebrow: string;
-  /** Page title. */
   title: string;
-  /** One-sentence explanation below the title. */
   subtitle: string;
-  /**
-   * Visible result count. Pass a string with a non-breaking separator if
-   * the count is locale-sensitive ("60 dishes"). Pass empty string when
-   * the count is loading/unknown to avoid layout shift.
-   */
+  /** Initial SSR count label (island may update via data-browse-count). */
   countLabel: string;
-  /** Optional search input id (paired with a real <input>). */
   searchId?: string;
-  /** Optional filters disclosure id (paired with a real button + panel). */
-  filtersId?: string;
-  /** Number of active filters, drives the badge on the Filters button. */
+  filtersId?: string | null;
   activeFilterCount?: number;
-  /** Filters disclosure label (e.g. "Filters"). */
   filtersLabel?: string;
+  /** Hide Filters button when the page has no advanced filters. */
+  showFilters?: boolean;
+  /** When false, only the editorial hero is rendered (island owns toolbar). */
+  showToolbar?: boolean;
 }
 
 const {
@@ -43,7 +37,11 @@ const {
   filtersId = 'browse-filters',
   activeFilterCount = 0,
   filtersLabel = 'Filters',
+  showFilters = Boolean(filtersId),
+  showToolbar = true,
 } = Astro.props;
+
+const hasFilters = showFilters && Boolean(filtersId);
 ---
 
 <header class="browse-hero wrap">
@@ -52,18 +50,28 @@ const {
   <p class="browse-sub">{subtitle}</p>
 </header>
 
+{showToolbar && (
 <div class="browse-toolbar" data-browse-toolbar>
   <div class="wrap">
     <div class="browse-toolbar-row">
-      <label class="browse-search" for={searchId}>
+      <div class="browse-search">
         <span class="browse-search-icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
-            <path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"></circle>
+            <path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
           </svg>
         </span>
-        <span class="browse-search-sr">Search</span>
-      </label>
+        <slot name="search-input">
+          <input
+            id={searchId}
+            type="search"
+            class="browse-search-field"
+            placeholder="Search…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </slot>
+      </div>
 
       <p
         class="browse-count"
@@ -74,16 +82,17 @@ const {
         {countLabel}
       </p>
 
-      {filtersId && (
+      {hasFilters && (
         <button
           type="button"
           class="browse-filters-btn"
           id={`${filtersId}-trigger`}
-          aria-controls={filtersId}
+          aria-controls={filtersId!}
           aria-expanded="false"
           data-browse-filters-trigger
         >
           <span class="browse-filters-btn-label">{filtersLabel}</span>
+          <span class="browse-filters-btn-icon" aria-hidden="true">▾</span>
           {activeFilterCount > 0 && (
             <span class="browse-filters-btn-badge" data-browse-filters-badge>
               {activeFilterCount}
@@ -92,15 +101,80 @@ const {
         </button>
       )}
     </div>
+
+    <div class="browse-toolbar-extra" data-browse-extra>
+      <slot name="after-search" />
+    </div>
+
+    {hasFilters && (
+      <div
+        class="browse-filters-panel"
+        id={filtersId!}
+        hidden
+        data-browse-filters-panel
+        role="region"
+        aria-label={filtersLabel}
+      >
+        <slot name="filters" />
+      </div>
+    )}
   </div>
 </div>
+)}
+
+{showToolbar && (
+<script>
+  const toolbar = document.querySelector<HTMLElement>('[data-browse-toolbar]');
+  if (toolbar) {
+    const trigger = toolbar.querySelector<HTMLButtonElement>('[data-browse-filters-trigger]');
+    const panel = toolbar.querySelector<HTMLElement>('[data-browse-filters-panel]');
+    let lastFocus: HTMLElement | null = null;
+
+    function setOpen(open: boolean) {
+      if (!trigger || !panel) return;
+      panel.hidden = !open;
+      trigger.setAttribute('aria-expanded', String(open));
+      if (open) {
+        lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : trigger;
+        const first = panel.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        first?.focus();
+      } else {
+        (lastFocus ?? trigger).focus();
+        lastFocus = null;
+      }
+    }
+
+    trigger?.addEventListener('click', () => {
+      const open = trigger.getAttribute('aria-expanded') === 'true';
+      setOpen(!open);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!panel || panel.hidden) return;
+      e.preventDefault();
+      setOpen(false);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!panel || panel.hidden || !trigger) return;
+      const t = e.target;
+      if (!(t instanceof Node)) return;
+      if (panel.contains(t) || trigger.contains(t)) return;
+      setOpen(false);
+    });
+  }
+</script>
+)}
 
 <style>
   .browse-hero {
-    padding: 40px 0 24px;
+    padding: 36px 0 20px;
   }
   .browse-eyebrow {
-    margin: 0 0 12px;
+    margin: 0 0 10px;
     color: var(--sub);
     font-family: var(--mono);
     font-size: 11px;
@@ -125,7 +199,7 @@ const {
 
   .browse-toolbar {
     position: sticky;
-    top: 68px; /* sits below the 68px site header */
+    top: 68px;
     z-index: 30;
     background: color-mix(in srgb, var(--bg) 92%, transparent);
     backdrop-filter: blur(10px);
@@ -161,13 +235,17 @@ const {
     flex: 0 0 auto;
     color: var(--sub);
   }
-  .browse-search-sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
+  .browse-search :global(.browse-search-field),
+  .browse-search-field {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 15px;
+    color: var(--ink);
+    outline: none;
+    width: 100%;
   }
   .browse-count {
     flex: 0 0 auto;
@@ -180,7 +258,9 @@ const {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
+    min-width: 44px;
     height: 44px;
     padding: 0 14px;
     border: 1px solid var(--line);
@@ -199,7 +279,8 @@ const {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 10%, var(--bg));
   }
-  .browse-filters-btn:focus-visible {
+  .browse-filters-btn:focus-visible,
+  .browse-search-field:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
@@ -216,13 +297,30 @@ const {
     font-size: 11px;
     font-weight: 700;
   }
+  .browse-toolbar-extra:empty {
+    display: none;
+  }
+  .browse-toolbar-extra {
+    padding: 0 0 12px;
+  }
+  .browse-filters-panel {
+    padding: 0 0 16px;
+    border-top: 1px dashed var(--line);
+  }
+  .browse-filters-panel[hidden] {
+    display: none !important;
+  }
 
   @media (max-width: 640px) {
     .browse-toolbar-row {
       gap: 8px;
     }
     .browse-count {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
     }
     .browse-filters-btn-label {
       display: none;
@@ -235,6 +333,10 @@ const {
     .browse-toolbar {
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
+    }
+    .browse-search,
+    .browse-filters-btn {
+      transition: none;
     }
   }
 </style>
