@@ -143,39 +143,47 @@ if (DOMAIN === 'geo') {
     'missing /dishes in recipes nav');
 }
 
-// ─── 3. /regions has real region filters (not collapsed) ───────────────────
-const regionFilters = distinctAttr(regionsHtml, 'data-region', ['all']);
-check('/regions contains real region filters',
-  regionFilters.length >= MIN_DISTINCT_FILTERS,
-  `only ${regionFilters.length} distinct region(s): ${regionFilters.slice(0, 8).join(', ')}`);
-check('/regions filters are not collapsed to only "All"/"Other"',
-  regionFilters.length > 1 && !(regionFilters.length === 1 && regionFilters[0] === 'Other'),
-  `regions: ${regionFilters.join(', ') || '(none)'}`);
+// ─── 3. /regions presented as Countries (U0-C directory, not chip wall) ───
+check('/regions H1 presents Countries',
+  /<h1[^>]*>[\s\S]*?Countries[\s\S]*?<\/h1>/.test(regionsHtml ?? ''),
+  'expected Countries in page H1');
+check('/regions has no dead /regions/:slug links',
+  !/href="\/regions\/[^"]+"/.test(regionsHtml ?? ''),
+  'found /regions/:slug href');
+const countryDirCards = countOccurrences(regionsHtml, 'browse-dir-card');
+check('/regions country directory renders entries',
+  countryDirCards >= MIN_DISTINCT_FILTERS,
+  `only ${countryDirCards} directory cards`);
+// Keep a dish-density floor via baked dish name links or counts.
+const regionDishHints =
+  countOccurrences(regionsHtml, ' dishes') + countOccurrences(regionsHtml, '/dishes/');
+check('/regions still surfaces dish context',
+  regionDishHints >= MIN_REGION_TILES,
+  `weak dish context signals: ${regionDishHints}`);
 
-// ─── 4. Dishes display on /regions ──────────────────────────────────────────
-const regionTiles = countOccurrences(regionsHtml, 'class="fam-tile"');
-check('dishes display on /regions',
-  regionTiles >= MIN_REGION_TILES,
-  `only ${regionTiles} dish tiles (expected ≥${MIN_REGION_TILES})`);
+// ─── 5. /families is a directory (no first-viewport chip wall) ─────────────
+check('/families does NOT use legacy chip wall',
+  !(familiesHtml ?? '').includes('id="family-chips"'),
+  'found id="family-chips"');
+check('/families links to /family/:slug detail',
+  /href="\/family\/[^"]+"/.test(familiesHtml ?? ''),
+  'missing /family/:slug links');
+const familyDirCards = countOccurrences(familiesHtml, 'browse-dir-card');
+check('/families directory renders entries',
+  familyDirCards >= MIN_DISTINCT_FILTERS,
+  `only ${familyDirCards} family cards`);
 
-// ─── 5. /families has NO region UI anymore ─────────────────────────────────
-const familiesHasRegionChips = (familiesHtml ?? '').includes('id="region-chips"');
-const familiesHasRegionAttr  = /data-region=/.test(familiesHtml ?? '');
-check('/families does NOT contain region filters',
-  !familiesHasRegionChips && !familiesHasRegionAttr,
-  familiesHasRegionChips ? 'found id="region-chips"' : 'found data-region attribute');
-
-// ─── 6. /families still has real family filters ────────────────────────────
-const familyFilters = distinctAttr(familiesHtml, 'data-family', ['all']);
-check('family filters still work on /families',
-  familyFilters.length >= MIN_DISTINCT_FILTERS,
-  `only ${familyFilters.length} distinct famil(ies): ${familyFilters.slice(0, 8).join(', ')}`);
-
-// ─── 7. /lineages still has real lineage filters ───────────────────────────
-const lineageFilters = distinctAttr(lineagesHtml, 'data-lineage', ['all', 'other']);
-check('lineage filters still work on /lineages',
-  lineageFilters.length >= MIN_DISTINCT_FILTERS,
-  `only ${lineageFilters.length} distinct lineage(s): ${lineageFilters.slice(0, 8).join(', ')}`);
+// ─── 7. /lineages keeps cards + confidence + detail links ──────────────────
+const lineageCards = countOccurrences(lineagesHtml, 'lin-card');
+check('/lineages renders lineage cards',
+  lineageCards >= MIN_DISTINCT_FILTERS,
+  `only ${lineageCards} lineage cards`);
+check('/lineages links to /lineages/:slug',
+  /href="\/lineages\/[^"]+"/.test(lineagesHtml ?? ''),
+  'missing lineage detail links');
+check('/lineages keeps confidence labels',
+  /Documented|Likely related|Possible influence|Uncertain|Parallel evolution/.test(lineagesHtml ?? ''),
+  'confidence labels missing');
 
 // ─── 8. Taxonomy isolation: no cross-contamination of filter axes ──────────
 check('/families does not use lineage/region filter state',

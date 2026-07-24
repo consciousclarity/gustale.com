@@ -1,52 +1,65 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import BrowseHeader from '../../components/BrowseHeader.astro';
 import { DishExplorer } from '../../components/DishExplorer.tsx';
 import ErrorBoundary from '../../components/ErrorBoundary.tsx';
-import { listDishes, ApiError } from '../../lib/api';
+import { listDishes } from '../../lib/api';
+import { recoveryLinks } from '../../lib/browse';
+import { currentDomain } from '../../lib/domain';
 import type { DishListResponse } from '../../types/dish';
 
-// Server-render the first page of dishes so the initial paint has content
-// even if the API is slow or the user has JS disabled.
 let initial: DishListResponse = {
   dishes: [],
   limit: 24,
   offset: 0,
 };
-let serverError: string | null = null;
+let buildFailed = false;
 
 try {
   initial = await listDishes({ status: 'published', limit: 24 });
 } catch (err: unknown) {
-  if (err instanceof ApiError) {
-    serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
-  } else if (err instanceof Error) {
-    serverError = err.message;
-  } else {
-    serverError = 'Unknown error';
-  }
+  buildFailed = true;
+  // Keep page useful — no raw API internals in the UI.
+  void err;
 }
+
+const domain = currentDomain();
+const recovery = recoveryLinks(domain);
+const countLabel =
+  initial.dishes.length > 0
+    ? `${initial.dishes.length}${initial.dishes.length >= 24 ? '+' : ''} dishes`
+    : 'Recipes';
 ---
 
-<Layout title="Dishes — Gustale" description="Browse the Gustale culinary encyclopedia.">
-  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Dishes' }]} />
+<Layout title="Recipes — Gustale" description="Browse Gustale recipes and culinary encyclopedia entries.">
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Recipes' }]} />
 
-  <section class="wrap" style="padding: 48px 0 80px;">
-    <header>
-      <h1>Dishes</h1>
-      <p class="sub">
-        Explore the encyclopedia. Search, click a card, and follow the story behind each dish.
-      </p>
-    </header>
+  <BrowseHeader
+    eyebrow="Gustale Recipes"
+    title="Recipes"
+    subtitle="Browse dishes by name, country, or family. Load more to keep exploring beyond the first page."
+    countLabel={countLabel}
+    showToolbar={false}
+    showFilters={false}
+  />
 
-    {serverError && (
-      <div class="alert alert-warning">
-        <strong>Heads up:</strong> the gustale-api could not be reached at build time ({serverError}).
-        The page is still rendering — search and pagination will retry against the live API.
+  {buildFailed && (
+    <div class="wrap" style="padding-top: 8px;">
+      <div class="browse-banner browse-banner--error" role="status">
+        <p>Browse data was unavailable at build time. Live search will retry in the browser.</p>
+        <ul class="browse-recovery">
+          {recovery.primary.map((l) => (
+            <li><a href={l.href}>{l.label}</a></li>
+          ))}
+        </ul>
       </div>
-    )}
+    </div>
+  )}
 
+  <section class="wrap browse-page">
     <ErrorBoundary name="Dish list">
+      {/* client:load keeps SSR markup for no-JS; avoid a second noscript grid. */}
       <DishExplorer initial={initial} client:load />
     </ErrorBoundary>
   </section>
