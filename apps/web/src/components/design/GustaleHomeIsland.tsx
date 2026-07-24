@@ -1,10 +1,3 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { listDishes, getMapDishes } from '../../lib/api';
-import type { MapDish } from '../../lib/api';
-import { authoringHref } from '../../lib/domain';
-import type { DishSummary } from '../../types/dish';
-import type { FoodRegionFeature } from '../../types/map';
-
 // IMPORTANT: maplibre-gl is dynamically imported inside the effect, NOT
 // statically imported at the top. A static import executes at module-eval
 // time, which means the component would try to evaluate MapLibre's WebGL
@@ -16,14 +9,20 @@ import type { FoodRegionFeature } from '../../types/map';
 // Type-only imports below are erased at build time — no runtime cost, no
 // module evaluation.
 import type {
-  Map as MlMap,
-  MapMouseEvent,
   GeoJSONSource,
+  MapMouseEvent,
+  Map as MlMap,
   StyleSpecification,
-} from 'maplibre-gl';
+} from "maplibre-gl";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MapDish } from "../../lib/api";
+import { getMapDishes, listDishes } from "../../lib/api";
+import { authoringHref } from "../../lib/domain";
+import type { DishSummary } from "../../types/dish";
+import type { FoodRegionFeature } from "../../types/map";
 
-type ViewMode = 'atlas' | 'index' | 'gallery' | 'feed';
-type SortKey = 'name' | 'origin' | 'family';
+type ViewMode = "atlas" | "index" | "gallery" | "feed";
+type SortKey = "name" | "origin" | "family";
 
 /**
  * One unified record per dish, merged from two API endpoints:
@@ -53,15 +52,15 @@ function mergeDishes(list: DishSummary[], map: MapDish[]): AtlasDish[] {
   return list.map((d) => {
     const m = mapBySlug.get(d.slug);
     const lat =
-      typeof m?.lat === 'number' && Number.isFinite(m.lat) ? m.lat : null;
+      typeof m?.lat === "number" && Number.isFinite(m.lat) ? m.lat : null;
     const lng =
-      typeof m?.lng === 'number' && Number.isFinite(m.lng) ? m.lng : null;
+      typeof m?.lng === "number" && Number.isFinite(m.lng) ? m.lng : null;
     return {
       slug: d.slug,
       name: d.canonicalName,
-      country: d.originName ?? m?.region?.name ?? '',
-      family: d.familyName ?? '',
-      description: d.shortDescription ?? '',
+      country: d.originName ?? m?.region?.name ?? "",
+      family: d.familyName ?? "",
+      description: d.shortDescription ?? "",
       lat,
       lng,
       hasLocation: lat !== null && lng !== null,
@@ -73,14 +72,14 @@ function mergeDishes(list: DishSummary[], map: MapDish[]): AtlasDish[] {
 // <DishMap>. If the browser can't get a WebGL context we never fetch the
 // ~1MB maplibre-gl bundle; we render the sidebar list as the fallback.
 function detectWebGL(): boolean {
-  if (typeof document === 'undefined') return false;
+  if (typeof document === "undefined") return false;
   try {
-    const canvas = document.createElement('canvas');
-    const gl = (canvas.getContext('webgl2') ??
-      canvas.getContext('webgl') ??
-      canvas.getContext('experimental-webgl')) as unknown as
-      | WebGLRenderingContext
-      | null;
+    const canvas = document.createElement("canvas");
+    const gl = (canvas.getContext("webgl2") ??
+      canvas.getContext("webgl") ??
+      canvas.getContext(
+        "experimental-webgl",
+      )) as unknown as WebGLRenderingContext | null;
     if (!gl) return false;
     gl.getParameter(gl.VERSION);
     return true;
@@ -94,12 +93,12 @@ function detectWebGL(): boolean {
 const MAP_STYLE: StyleSpecification = {
   version: 8,
   sources: {
-    'carto-positron': {
-      type: 'raster',
+    "carto-positron": {
+      type: "raster",
       tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
       ],
       tileSize: 256,
       attribution:
@@ -108,19 +107,22 @@ const MAP_STYLE: StyleSpecification = {
   },
   layers: [
     {
-      id: 'carto-positron-layer',
-      type: 'raster',
-      source: 'carto-positron',
+      id: "carto-positron-layer",
+      type: "raster",
+      source: "carto-positron",
     },
   ],
 };
 
 function toFeatureCollection(dishes: AtlasDish[]): GeoJSON.FeatureCollection {
   return {
-    type: 'FeatureCollection',
+    type: "FeatureCollection",
     features: dishes.map((d) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [d.lng as number, d.lat as number] },
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [d.lng as number, d.lat as number],
+      },
       properties: {
         slug: d.slug,
         name: d.name,
@@ -133,8 +135,8 @@ function toFeatureCollection(dishes: AtlasDish[]): GeoJSON.FeatureCollection {
 
 // Source/layer IDs we add on top of the basemap. Pulled out so cleanup
 // paths can find them without re-implementing the lookup.
-const REGION_SOURCE_ID = 'food-regions';
-const REGION_FILL_LAYER_ID = 'food-regions-fill';
+const REGION_SOURCE_ID = "food-regions";
+const REGION_FILL_LAYER_ID = "food-regions-fill";
 
 // ─── Atlas view ─────────────────────────────────────────────────────────────
 
@@ -163,7 +165,7 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
   const byRegion = useMemo(() => {
     const groups = new Map<string, AtlasDish[]>();
     for (const d of dishes) {
-      const key = d.country || 'Unknown';
+      const key = d.country || "Unknown";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(d);
     }
@@ -184,25 +186,25 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
 
     if (!detectWebGL()) {
       // eslint-disable-next-line no-console
-      console.warn('[GustaleHome] WebGL unavailable — showing list fallback');
+      console.warn("[GustaleHome] WebGL unavailable — showing list fallback");
       setMapError(
-        'Your browser does not support WebGL, which is required for the interactive map. Browse the list of dishes instead.',
+        "Your browser does not support WebGL, which is required for the interactive map. Browse the list of dishes instead.",
       );
       setMapReady(true);
       return;
     }
 
-    void import('maplibre-gl')
+    void import("maplibre-gl")
       .then((mod) => {
         if (cancelled) return;
         const maplibregl = mod.default ?? mod;
 
         const accent =
-          (typeof document !== 'undefined' &&
+          (typeof document !== "undefined" &&
             getComputedStyle(document.documentElement)
-              .getPropertyValue('--accent')
+              .getPropertyValue("--accent")
               .trim()) ||
-          '#B8552F';
+          "#B8552F";
 
         try {
           map = new maplibregl.Map({
@@ -216,9 +218,9 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
           });
         } catch (err) {
           // eslint-disable-next-line no-console
-          console.warn('[GustaleHome] MapLibre init failed:', err);
+          console.warn("[GustaleHome] MapLibre init failed:", err);
           setMapError(
-            'The interactive map could not be initialised in this browser. Browse the list of dishes instead.',
+            "The interactive map could not be initialised in this browser. Browse the list of dishes instead.",
           );
           setMapReady(true);
           return;
@@ -226,25 +228,25 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
 
         const mapInstance = map;
 
-        mapInstance.on('error', (e: { error?: Error }) => {
+        mapInstance.on("error", (e: { error?: Error }) => {
           // eslint-disable-next-line no-console
-          console.warn('[GustaleHome] MapLibre error:', e?.error?.message ?? e);
+          console.warn("[GustaleHome] MapLibre error:", e?.error?.message ?? e);
         });
 
         mapInstance.addControl(
           new maplibregl.NavigationControl({ showCompass: false }),
-          'top-right',
+          "top-right",
         );
 
         mapRef.current = mapInstance;
         setMapReady(true);
 
-        mapInstance.on('load', () => {
+        mapInstance.on("load", () => {
           if (cancelled) return;
 
-          mapInstance.addSource('atlas', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] },
+          mapInstance.addSource("atlas", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
             cluster: true,
             clusterRadius: 34,
             clusterMaxZoom: 6,
@@ -252,62 +254,72 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
 
           // Soft halo behind each individual dot.
           mapInstance.addLayer({
-            id: 'atlas-halo',
-            type: 'circle',
-            source: 'atlas',
-            filter: ['!', ['has', 'point_count']],
+            id: "atlas-halo",
+            type: "circle",
+            source: "atlas",
+            filter: ["!", ["has", "point_count"]],
             paint: {
-              'circle-radius': 11,
-              'circle-color': accent,
-              'circle-opacity': 0.2,
+              "circle-radius": 11,
+              "circle-color": accent,
+              "circle-opacity": 0.2,
             },
           });
 
           // Solid dot.
           mapInstance.addLayer({
-            id: 'atlas-dot',
-            type: 'circle',
-            source: 'atlas',
-            filter: ['!', ['has', 'point_count']],
+            id: "atlas-dot",
+            type: "circle",
+            source: "atlas",
+            filter: ["!", ["has", "point_count"]],
             paint: {
-              'circle-radius': 5.5,
-              'circle-color': accent,
-              'circle-stroke-color': '#ffffff',
-              'circle-stroke-width': 1.5,
+              "circle-radius": 5.5,
+              "circle-color": accent,
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 1.5,
             },
           });
 
           // Cluster bubbles + counts.
           mapInstance.addLayer({
-            id: 'atlas-clusters',
-            type: 'circle',
-            source: 'atlas',
-            filter: ['has', 'point_count'],
+            id: "atlas-clusters",
+            type: "circle",
+            source: "atlas",
+            filter: ["has", "point_count"],
             paint: {
-              'circle-radius': ['step', ['get', 'point_count'], 15, 10, 20, 25, 26],
-              'circle-color': accent,
-              'circle-opacity': 0.85,
-              'circle-stroke-color': '#ffffff',
-              'circle-stroke-width': 2,
+              "circle-radius": [
+                "step",
+                ["get", "point_count"],
+                15,
+                10,
+                20,
+                25,
+                26,
+              ],
+              "circle-color": accent,
+              "circle-opacity": 0.85,
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 2,
             },
           });
           mapInstance.addLayer({
-            id: 'atlas-cluster-count',
-            type: 'symbol',
-            source: 'atlas',
-            filter: ['has', 'point_count'],
+            id: "atlas-cluster-count",
+            type: "symbol",
+            source: "atlas",
+            filter: ["has", "point_count"],
             layout: {
-              'text-field': '{point_count_abbreviated}',
-              'text-size': 12,
+              "text-field": "{point_count_abbreviated}",
+              "text-size": 12,
             },
-            paint: { 'text-color': '#ffffff' },
+            paint: { "text-color": "#ffffff" },
           });
 
           // Click a dot → open the dish. Click a cluster → zoom in.
           const onDotClick = (
             e: MapMouseEvent & { features?: GeoJSON.Feature[] },
           ): void => {
-            const slug = e.features?.[0]?.properties?.slug as string | undefined;
+            const slug = e.features?.[0]?.properties?.slug as
+              | string
+              | undefined;
             if (slug) window.location.href = `/dishes/${slug}`;
           };
           const onClusterClick = (
@@ -316,7 +328,7 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
             const f = e.features?.[0];
             const clusterId = f?.properties?.cluster_id as number | undefined;
             if (clusterId == null) return;
-            const src = mapInstance.getSource('atlas') as GeoJSONSource;
+            const src = mapInstance.getSource("atlas") as GeoJSONSource;
             src
               .getClusterExpansionZoom(clusterId)
               .then((zoom) => {
@@ -329,46 +341,46 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
               .catch(() => undefined);
           };
 
-          for (const layer of ['atlas-dot', 'atlas-halo']) {
-            mapInstance.on('click', layer, onDotClick);
-            mapInstance.on('mouseenter', layer, () => {
-              mapInstance.getCanvas().style.cursor = 'pointer';
+          for (const layer of ["atlas-dot", "atlas-halo"]) {
+            mapInstance.on("click", layer, onDotClick);
+            mapInstance.on("mouseenter", layer, () => {
+              mapInstance.getCanvas().style.cursor = "pointer";
             });
-            mapInstance.on('mouseleave', layer, () => {
-              mapInstance.getCanvas().style.cursor = '';
+            mapInstance.on("mouseleave", layer, () => {
+              mapInstance.getCanvas().style.cursor = "";
             });
           }
-          mapInstance.on('click', 'atlas-clusters', onClusterClick);
-          mapInstance.on('mouseenter', 'atlas-clusters', () => {
-            mapInstance.getCanvas().style.cursor = 'pointer';
+          mapInstance.on("click", "atlas-clusters", onClusterClick);
+          mapInstance.on("mouseenter", "atlas-clusters", () => {
+            mapInstance.getCanvas().style.cursor = "pointer";
           });
-          mapInstance.on('mouseleave', 'atlas-clusters', () => {
-            mapInstance.getCanvas().style.cursor = '';
+          mapInstance.on("mouseleave", "atlas-clusters", () => {
+            mapInstance.getCanvas().style.cursor = "";
           });
 
           // Promote the basemap to a 3D globe. setProjection() is the
           // MapLibre 5.x entry point — the constructor's `projection`
           // option isn't in the public types yet. Mirrors the pattern
           // already used by <WorldMap>.
-          mapInstance.setProjection({ type: 'globe' });
+          mapInstance.setProjection({ type: "globe" });
           // Atmospheric horizon glow. MapLibre 5.x replaced `setFog` with
           // `setSky`; the spec usesky-color / sky-horizon-blend / etc.
           // Bound on `style.load` (not `load`) so the paint properties
           // resolve against the loaded style. Errors are swallowed —
           // a globe without sky still works.
           try {
-            mapInstance.on('style.load', () => {
+            mapInstance.on("style.load", () => {
               if (cancelled) return;
               try {
                 mapInstance.setSky({
-                  'sky-color': '#1992ff',
-                  'sky-horizon-blend': 0.7,
-                  'horizon-color': '#dde7e8',
-                  'horizon-fog-blend': 0.8,
-                  'fog-color': '#e8e0d6',
-                  'fog-ground-blend': 0.6,
-                  'atmosphere-blend': 0.9,
-                } as Parameters<MlMap['setSky']>[0]);
+                  "sky-color": "#1992ff",
+                  "sky-horizon-blend": 0.7,
+                  "horizon-color": "#dde7e8",
+                  "horizon-fog-blend": 0.8,
+                  "fog-color": "#e8e0d6",
+                  "fog-ground-blend": 0.6,
+                  "atmosphere-blend": 0.9,
+                } as Parameters<MlMap["setSky"]>[0]);
               } catch {
                 // Atmosphere is decorative; absent sky is fine.
               }
@@ -383,47 +395,53 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
           // default (the user can re-enable it).
           (async () => {
             try {
-              const res = await fetch('/data/regions/sample-food-regions.geojson');
+              const res = await fetch(
+                "/data/regions/sample-food-regions.geojson",
+              );
               if (!res.ok) throw new Error(`region fetch ${res.status}`);
-              const data = (await res.json()) as GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
+              const data = (await res.json()) as GeoJSON.FeatureCollection<
+                GeoJSON.Polygon | GeoJSON.MultiPolygon
+              >;
               if (!data?.features?.length) return;
               // Validate against the canonical FoodRegionFeature type. We
               // only render polygons (the SchemaGIS workflow produces
               // these). Anything else is dropped silently.
               const features = (data.features as FoodRegionFeature[]).filter(
                 (f): f is FoodRegionFeature =>
-                  f.geometry?.type === 'Polygon' ||
-                  f.geometry?.type === 'MultiPolygon',
+                  f.geometry?.type === "Polygon" ||
+                  f.geometry?.type === "MultiPolygon",
               );
               if (!features.length) {
                 setStyleLoaded(true);
                 return;
               }
-              const typed: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon> = {
-                type: 'FeatureCollection',
+              const typed: GeoJSON.FeatureCollection<
+                GeoJSON.Polygon | GeoJSON.MultiPolygon
+              > = {
+                type: "FeatureCollection",
                 features,
               };
               mapInstance.addSource(REGION_SOURCE_ID, {
-                type: 'geojson',
+                type: "geojson",
                 data: typed,
               });
               mapInstance.addLayer({
                 id: REGION_FILL_LAYER_ID,
-                type: 'fill',
+                type: "fill",
                 source: REGION_SOURCE_ID,
                 paint: {
-                  'fill-color': accent,
-                  'fill-opacity': 0.18,
-                  'fill-outline-color': accent,
+                  "fill-color": accent,
+                  "fill-opacity": 0.18,
+                  "fill-outline-color": accent,
                 },
                 layout: {
-                  visibility: showRegions ? 'visible' : 'none',
+                  visibility: showRegions ? "visible" : "none",
                 },
               });
               setStyleLoaded(true);
             } catch (err) {
               // eslint-disable-next-line no-console
-              console.warn('[GustaleHome] region overlay skipped:', err);
+              console.warn("[GustaleHome] region overlay skipped:", err);
               setStyleLoaded(true);
             }
           })();
@@ -431,10 +449,10 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
       })
       .catch((err: unknown) => {
         // eslint-disable-next-line no-console
-        console.warn('[GustaleHome] failed to load maplibre-gl', err);
+        console.warn("[GustaleHome] failed to load maplibre-gl", err);
         if (cancelled) return;
         setMapError(
-          'The interactive map could not be loaded. Browse the list of dishes instead.',
+          "The interactive map could not be loaded. Browse the list of dishes instead.",
         );
         setMapReady(true);
       });
@@ -455,7 +473,7 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleLoaded) return;
-    const src = map.getSource('atlas') as GeoJSONSource | undefined;
+    const src = map.getSource("atlas") as GeoJSONSource | undefined;
     if (src) src.setData(toFeatureCollection(plotted));
   }, [plotted, styleLoaded]);
 
@@ -467,8 +485,8 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
     if (!map.getLayer(REGION_FILL_LAYER_ID)) return;
     map.setLayoutProperty(
       REGION_FILL_LAYER_ID,
-      'visibility',
-      showRegions ? 'visible' : 'none',
+      "visibility",
+      showRegions ? "visible" : "none",
     );
   }, [showRegions]);
 
@@ -478,7 +496,11 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
         <div className="atl-mapbox">
           <div
             ref={containerRef}
-            style={{ width: '100%', height: '100%', display: mapError ? 'none' : 'block' }}
+            style={{
+              width: "100%",
+              height: "100%",
+              display: mapError ? "none" : "block",
+            }}
             aria-label="Interactive map of dish origins"
           />
           {!mapReady && !mapError && (
@@ -504,7 +526,7 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
                 key={d.slug}
                 href={`/dishes/${d.slug}`}
                 className="atl-item"
-                data-active={active === d.slug ? '1' : '0'}
+                data-active={active === d.slug ? "1" : "0"}
                 onMouseEnter={() => setActive(d.slug)}
                 onMouseLeave={() => setActive(null)}
               >
@@ -523,13 +545,13 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
 // ─── Index view ─────────────────────────────────────────────────────────────
 
 function IndexView({ dishes }: { dishes: AtlasDish[] }) {
-  const [sort, setSort] = useState<SortKey>('name');
+  const [sort, setSort] = useState<SortKey>("name");
 
   const sorted = useMemo(() => {
     return [...dishes].sort((a, b) => {
-      if (sort === 'name') return a.name.localeCompare(b.name);
-      if (sort === 'origin') return a.country.localeCompare(b.country);
-      if (sort === 'family') return a.family.localeCompare(b.family);
+      if (sort === "name") return a.name.localeCompare(b.name);
+      if (sort === "origin") return a.country.localeCompare(b.country);
+      if (sort === "family") return a.family.localeCompare(b.family);
       return 0;
     });
   }, [dishes, sort]);
@@ -537,17 +559,25 @@ function IndexView({ dishes }: { dishes: AtlasDish[] }) {
   return (
     <div className="idx-wrap">
       <div className="idx-head">
-        <span onClick={() => setSort('name')}>Name {sort === 'name' ? '↑' : ''}</span>
-        <span onClick={() => setSort('origin')}>Origin {sort === 'origin' ? '↑' : ''}</span>
-        <span onClick={() => setSort('family')}>Family {sort === 'family' ? '↑' : ''}</span>
+        <span onClick={() => setSort("name")}>
+          Name {sort === "name" ? "↑" : ""}
+        </span>
+        <span onClick={() => setSort("origin")}>
+          Origin {sort === "origin" ? "↑" : ""}
+        </span>
+        <span onClick={() => setSort("family")}>
+          Family {sort === "family" ? "↑" : ""}
+        </span>
         <span>Description</span>
       </div>
       {sorted.map((d) => (
         <a key={d.slug} href={`/dishes/${d.slug}`} className="idx-row">
           <span className="name">{d.name}</span>
-          <span className="org">{d.country || '—'}</span>
-          <span className="idx-tag">{d.family || '—'}</span>
-          <span style={{ color: 'var(--sub)', fontSize: '14px' }}>{d.description}</span>
+          <span className="org">{d.country || "—"}</span>
+          <span className="idx-tag">{d.family || "—"}</span>
+          <span style={{ color: "var(--sub)", fontSize: "14px" }}>
+            {d.description}
+          </span>
         </a>
       ))}
     </div>
@@ -561,9 +591,16 @@ function GalleryView({ dishes }: { dishes: AtlasDish[] }) {
     <div className="gal">
       {dishes.map((d) => (
         <a key={d.slug} href={`/dishes/${d.slug}`} className="gal-card">
-          <div className="ph" style={{ background: 'var(--accent-soft)', height: '180px', borderRadius: '6px' }} />
+          <div
+            className="ph"
+            style={{
+              background: "var(--accent-soft)",
+              height: "180px",
+              borderRadius: "6px",
+            }}
+          />
           <h3>{d.name}</h3>
-          <div className="place">{d.country || '—'}</div>
+          <div className="place">{d.country || "—"}</div>
           <p className="note-long">{d.description}</p>
         </a>
       ))}
@@ -581,23 +618,27 @@ function FeedView({ dishes }: { dishes: AtlasDish[] }) {
           key={d.slug}
           href={`/dishes/${d.slug}`}
           className="feed-card"
-          style={{ textDecoration: 'none', color: 'inherit' }}
+          style={{ textDecoration: "none", color: "inherit" }}
         >
           <div
             className="feed-img"
             style={{
               background: `hsl(${30 + i * 7}, 40%, 82%)`,
-              minHeight: '280px',
-              display: 'block',
+              minHeight: "280px",
+              display: "block",
             }}
           />
           <div className="feed-txt">
-            <div className="place">{d.country || '—'}</div>
+            <div className="place">{d.country || "—"}</div>
             <h3>{d.name}</h3>
             <p>{d.description}</p>
             <div className="feed-meta">
-              <span>Family <b>{d.family || '—'}</b></span>
-              <span>Origin <b>{d.country || '—'}</b></span>
+              <span>
+                Family <b>{d.family || "—"}</b>
+              </span>
+              <span>
+                Origin <b>{d.country || "—"}</b>
+              </span>
             </div>
           </div>
         </a>
@@ -609,15 +650,15 @@ function FeedView({ dishes }: { dishes: AtlasDish[] }) {
 // ─── Main island ─────────────────────────────────────────────────────────────
 
 export default function GustaleHomeIsland() {
-  const [view, setView] = useState<ViewMode>('atlas');
+  const [view, setView] = useState<ViewMode>("atlas");
   const [dishes, setDishes] = useState<AtlasDish[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Filters
-  const [search, setSearch] = useState('');
-  const [country, setCountry] = useState('');
-  const [family, setFamily] = useState('');
+  const [search, setSearch] = useState("");
+  const [country, setCountry] = useState("");
+  const [family, setFamily] = useState("");
   const [exactOnly, setExactOnly] = useState(false);
   // Globe-only: show the cultural/regional polygon overlay. The layer
   // exists once the map style loads; flipping this just toggles the
@@ -638,17 +679,17 @@ export default function GustaleHomeIsland() {
     ])
       .then(([listRes, mapRes]) => {
         if (cancelled) return;
-        if (listRes.status === 'fulfilled') {
+        if (listRes.status === "fulfilled") {
           const mapDishes =
-            mapRes.status === 'fulfilled' ? mapRes.value.dishes : [];
+            mapRes.status === "fulfilled" ? mapRes.value.dishes : [];
           setDishes(mergeDishes(listRes.value.dishes, mapDishes));
         } else {
           // eslint-disable-next-line no-console
-          console.warn('[GustaleHome] dish list fetch failed:', listRes.reason);
+          console.warn("[GustaleHome] dish list fetch failed:", listRes.reason);
           setError(
             listRes.reason instanceof Error
               ? listRes.reason.message
-              : 'Failed to load dishes',
+              : "Failed to load dishes",
           );
         }
       })
@@ -684,7 +725,8 @@ export default function GustaleHomeIsland() {
       if (family && d.family !== family) return false;
       if (exactOnly && !d.hasLocation) return false;
       if (q) {
-        const hay = `${d.name} ${d.country} ${d.family} ${d.description}`.toLowerCase();
+        const hay =
+          `${d.name} ${d.country} ${d.family} ${d.description}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -693,9 +735,9 @@ export default function GustaleHomeIsland() {
 
   const hasActiveFilters = Boolean(search || country || family || exactOnly);
   const resetFilters = useCallback(() => {
-    setSearch('');
-    setCountry('');
-    setFamily('');
+    setSearch("");
+    setCountry("");
+    setFamily("");
     setExactOnly(false);
   }, []);
 
@@ -713,7 +755,9 @@ export default function GustaleHomeIsland() {
         <div className="hero-content">
           <p className="kicker">Browse the atlas · {total} dishes</p>
           <h1 className="hero-h1">
-            Browse the atlas<br /><em>your way.</em>
+            Browse the atlas
+            <br />
+            <em>your way.</em>
           </h1>
           <p className="hero-lede">
             Every dish has a country, but first it has a form. Explore Gustale
@@ -730,9 +774,15 @@ export default function GustaleHomeIsland() {
             <button aria-label="Search">⌕</button>
           </div>
           <div className="hero-meta">
-            <div><b>{total}</b> dishes</div>
-            <div><b>{familyOptions.length}</b> families</div>
-            <div><b>{countryOptions.length}</b> origins</div>
+            <div>
+              <b>{total}</b> dishes
+            </div>
+            <div>
+              <b>{familyOptions.length}</b> families
+            </div>
+            <div>
+              <b>{countryOptions.length}</b> origins
+            </div>
           </div>
         </div>
         <div className="hero-frame">
@@ -740,9 +790,9 @@ export default function GustaleHomeIsland() {
             className="ph"
             style={{
               background:
-                'repeating-conic-gradient(var(--accent-soft) 0% 25%, var(--card) 0% 50%) 0 0 / 40px 40px',
-              borderRadius: '9px',
-              height: '280px',
+                "repeating-conic-gradient(var(--accent-soft) 0% 25%, var(--card) 0% 50%) 0 0 / 40px 40px",
+              borderRadius: "9px",
+              height: "280px",
             }}
           />
           <div className="hero-coord">
@@ -759,12 +809,19 @@ export default function GustaleHomeIsland() {
             <h2>Explore</h2>
             <p>
               {loading
-                ? 'Loading…'
-                : `${shown} of ${total} dish${total !== 1 ? 'es' : ''}`}
+                ? "Loading…"
+                : `${shown} of ${total} dish${total !== 1 ? "es" : ""}`}
             </p>
           </div>
           <span className="ws-count">
-            {view === 'atlas' ? 'Map' : view === 'index' ? 'Table' : view === 'gallery' ? 'Cards' : 'Stories'} view
+            {view === "atlas"
+              ? "Map"
+              : view === "index"
+                ? "Table"
+                : view === "gallery"
+                  ? "Cards"
+                  : "Stories"}{" "}
+            view
           </span>
         </div>
 
@@ -787,7 +844,9 @@ export default function GustaleHomeIsland() {
           >
             <option value="">All regions</option>
             {countryOptions.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
           <select
@@ -798,7 +857,9 @@ export default function GustaleHomeIsland() {
           >
             <option value="">All categories</option>
             {familyOptions.map((f) => (
-              <option key={f} value={f}>{f}</option>
+              <option key={f} value={f}>
+                {f}
+              </option>
             ))}
           </select>
           <label className="filt-toggle">
@@ -826,7 +887,7 @@ export default function GustaleHomeIsland() {
             Reset
           </button>
           <span className="filt-count">
-            Showing {shown} dish{shown === 1 ? '' : 'es'}
+            Showing {shown} dish{shown === 1 ? "" : "es"}
           </span>
         </div>
 
@@ -834,21 +895,48 @@ export default function GustaleHomeIsland() {
         <div className="ws-toolbar">
           <span className="tb-label">View</span>
           <div className="seg">
-            <button data-on={view === 'atlas' ? '1' : '0'} onClick={() => setView('atlas')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <button
+              data-on={view === "atlas" ? "1" : "0"}
+              onClick={() => setView("atlas")}
+            >
+              <svg
+                className="ic"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <circle cx="8" cy="8" r="6" />
                 <path d="M2 8h12M8 2c-2 2-3 4-3 6s1 4 3 6M8 2c2 2 3 4 3 6s-1 4-3 6" />
               </svg>
               Atlas
             </button>
-            <button data-on={view === 'index' ? '1' : '0'} onClick={() => setView('index')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <button
+              data-on={view === "index" ? "1" : "0"}
+              onClick={() => setView("index")}
+            >
+              <svg
+                className="ic"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <path d="M2 4h12M2 8h12M2 12h12" />
               </svg>
               Index
             </button>
-            <button data-on={view === 'gallery' ? '1' : '0'} onClick={() => setView('gallery')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <button
+              data-on={view === "gallery" ? "1" : "0"}
+              onClick={() => setView("gallery")}
+            >
+              <svg
+                className="ic"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <rect x="2" y="2" width="5" height="5" rx="1" />
                 <rect x="9" y="2" width="5" height="5" rx="1" />
                 <rect x="2" y="9" width="5" height="5" rx="1" />
@@ -856,8 +944,17 @@ export default function GustaleHomeIsland() {
               </svg>
               Gallery
             </button>
-            <button data-on={view === 'feed' ? '1' : '0'} onClick={() => setView('feed')}>
-              <svg className="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <button
+              data-on={view === "feed" ? "1" : "0"}
+              onClick={() => setView("feed")}
+            >
+              <svg
+                className="ic"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <path d="M2 3h12v2H2zM2 7h8v2H2zM2 11h10v2H2z" />
               </svg>
               Feed
@@ -873,19 +970,39 @@ export default function GustaleHomeIsland() {
 
         {/* View panels */}
         {loading ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)', fontFamily: 'var(--mono)', fontSize: '14px' }}>
+          <div
+            style={{
+              padding: "60px 0",
+              textAlign: "center",
+              color: "var(--sub)",
+              fontFamily: "var(--mono)",
+              fontSize: "14px",
+            }}
+          >
             Loading dishes…
           </div>
         ) : error ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)' }}>
+          <div
+            style={{
+              padding: "60px 0",
+              textAlign: "center",
+              color: "var(--sub)",
+            }}
+          >
             Couldn't load dishes right now. Please try again in a moment.
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--sub)' }}>
+          <div
+            style={{
+              padding: "60px 0",
+              textAlign: "center",
+              color: "var(--sub)",
+            }}
+          >
             No dishes match your filters.
             {hasActiveFilters && (
               <>
-                {' '}
+                {" "}
                 <button
                   type="button"
                   className="filt-reset"
@@ -899,28 +1016,36 @@ export default function GustaleHomeIsland() {
           </div>
         ) : (
           <>
-            {view === 'atlas' && <AtlasView dishes={filtered} showRegions={showRegions} />}
-            {view === 'index' && <IndexView dishes={filtered} />}
-            {view === 'gallery' && <GalleryView dishes={filtered} />}
-            {view === 'feed' && <FeedView dishes={filtered} />}
+            {view === "atlas" && (
+              <AtlasView dishes={filtered} showRegions={showRegions} />
+            )}
+            {view === "index" && <IndexView dishes={filtered} />}
+            {view === "gallery" && <GalleryView dishes={filtered} />}
+            {view === "feed" && <FeedView dishes={filtered} />}
           </>
         )}
       </section>
 
       {/* ── CTA band ──────────────────────────────────────────────── */}
-      <div className="wrap" style={{ paddingBottom: '80px' }}>
+      <div className="wrap" style={{ paddingBottom: "80px" }}>
         <div className="band">
           <div>
             <h2>
-              Know a dish<br />we don't?
+              Know a dish
+              <br />
+              we don't?
             </h2>
             <p>
-              Gustale is built by people who cook, eat, and document. Every
-              dish you add makes the atlas richer.
+              Gustale is built by people who cook, eat, and document. Every dish
+              you add makes the atlas richer.
             </p>
           </div>
           <div className="band-cta">
-            <button onClick={() => { window.location.href = authoringHref('/dishes/new'); }}>
+            <button
+              onClick={() => {
+                window.location.href = authoringHref("/dishes/new");
+              }}
+            >
               Add a dish →
             </button>
             <small>Free forever. No account required to browse.</small>

@@ -48,10 +48,10 @@
  *     the cache. This is the 95%+ bandwidth win for repeat queries.
  */
 
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { sql } from 'drizzle-orm';
-import { db, dishes, lineages, ingredients, foodRegions } from '@gustale/db';
+import { db, dishes, foodRegions, ingredients, lineages } from "@gustale/db";
+import { sql } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 
 // ─── Query schema ────────────────────────────────────────────────────────
 
@@ -59,11 +59,9 @@ const searchQuerySchema = z.object({
   q: z
     .string()
     .trim()
-    .min(2, 'query must be at least 2 characters')
-    .max(200, 'query must be at most 200 characters'),
-  type: z
-    .enum(['dish', 'region', 'lineage', 'ingredient'])
-    .optional(),
+    .min(2, "query must be at least 2 characters")
+    .max(200, "query must be at most 200 characters"),
+  type: z.enum(["dish", "region", "lineage", "ingredient"]).optional(),
   limit: z.coerce.number().int().min(1).max(20).default(5),
 });
 
@@ -78,7 +76,7 @@ export interface SearchHit {
 }
 
 export interface SearchGroup {
-  type: 'dish' | 'region' | 'lineage' | 'ingredient';
+  type: "dish" | "region" | "lineage" | "ingredient";
   total: number;
   results: SearchHit[];
 }
@@ -93,11 +91,11 @@ export interface SearchResponse {
 
 type DrizzleDB = Parameters<typeof db.select>[0] extends never
   ? never
-  // fall back: we import the db client and pass it explicitly when calling
-  // helpers; we use the module's default `db` (typed as the kind drizzle gives).
-  // The cast is local and only widens the parameter type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  : any;
+  : // fall back: we import the db client and pass it explicitly when calling
+    // helpers; we use the module's default `db` (typed as the kind drizzle gives).
+    // The cast is local and only widens the parameter type.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any;
 
 // Per-group timeout: a slow region lookup must not stall dishes.
 const PER_GROUP_TIMEOUT_MS = 1500;
@@ -133,7 +131,7 @@ async function searchDishes(q: string, limit: number): Promise<SearchGroup> {
       canonical_name AS name,
       short_description,
       GREATEST(
-        CASE WHEN LOWER(canonical_name) LIKE LOWER(${q + '%'}) THEN 1.0 ELSE 0 END,
+        CASE WHEN LOWER(canonical_name) LIKE LOWER(${q + "%"}) THEN 1.0 ELSE 0 END,
         GREATEST(
           similarity(LOWER(canonical_name), LOWER(${q})),
           similarity(LOWER(COALESCE(short_description, '')), LOWER(${q}))
@@ -157,7 +155,7 @@ async function searchDishes(q: string, limit: number): Promise<SearchGroup> {
   }>;
 
   return {
-    type: 'dish',
+    type: "dish",
     total: rows.length > 0 ? Number(rows[0]!.total) : 0,
     results: rows.slice(0, limit).map((r) => ({
       slug: r.slug,
@@ -179,7 +177,7 @@ async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
       name,
       short_description,
       GREATEST(
-        CASE WHEN LOWER(name) LIKE LOWER(${q + '%'}) THEN 1.0 ELSE 0 END,
+        CASE WHEN LOWER(name) LIKE LOWER(${q + "%"}) THEN 1.0 ELSE 0 END,
         similarity(LOWER(name), LOWER(${q})),
         similarity(LOWER(COALESCE(short_description, '')), LOWER(${q}))
       )::float8 AS score,
@@ -199,7 +197,7 @@ async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
   }>;
 
   return {
-    type: 'lineage',
+    type: "lineage",
     total: rows.length > 0 ? Number(rows[0]!.total) : 0,
     results: rows.slice(0, limit).map((r) => ({
       slug: r.slug,
@@ -211,14 +209,17 @@ async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
   };
 }
 
-async function searchIngredients(q: string, limit: number): Promise<SearchGroup> {
+async function searchIngredients(
+  q: string,
+  limit: number,
+): Promise<SearchGroup> {
   const rows = (await db.execute(sql`
     SELECT
       slug,
       canonical_name AS name,
       short_description,
       GREATEST(
-        CASE WHEN LOWER(canonical_name) LIKE LOWER(${q + '%'}) THEN 1.0 ELSE 0 END,
+        CASE WHEN LOWER(canonical_name) LIKE LOWER(${q + "%"}) THEN 1.0 ELSE 0 END,
         similarity(LOWER(canonical_name), LOWER(${q})),
         similarity(LOWER(COALESCE(short_description, '')), LOWER(${q}))
       )::float8 AS score,
@@ -240,7 +241,7 @@ async function searchIngredients(q: string, limit: number): Promise<SearchGroup>
   }>;
 
   return {
-    type: 'ingredient',
+    type: "ingredient",
     total: rows.length > 0 ? Number(rows[0]!.total) : 0,
     results: rows.slice(0, limit).map((r) => ({
       slug: r.slug,
@@ -257,7 +258,7 @@ async function searchRegions(q: string, limit: number): Promise<SearchGroup> {
     SELECT
       slug,
       name,
-      CASE WHEN LOWER(name) LIKE LOWER(${q + '%'}) THEN 1.0 ELSE 0 END
+      CASE WHEN LOWER(name) LIKE LOWER(${q + "%"}) THEN 1.0 ELSE 0 END
         + similarity(LOWER(name), LOWER(${q}))::float8 AS score,
       COUNT(*) OVER ()::int AS total
     FROM food_regions
@@ -275,7 +276,7 @@ async function searchRegions(q: string, limit: number): Promise<SearchGroup> {
   }>;
 
   return {
-    type: 'region',
+    type: "region",
     total: rows.length > 0 ? Number(rows[0]!.total) : 0,
     results: rows.slice(0, limit).map((r) => ({
       slug: r.slug,
@@ -290,13 +291,13 @@ async function searchRegions(q: string, limit: number): Promise<SearchGroup> {
 // ─── Route registration ─────────────────────────────────────────────────
 
 export function registerSearchRoutes(app: FastifyInstance): void {
-  app.get('/api/search', async (request, reply) => {
+  app.get("/api/search", async (request, reply) => {
     const parsed = searchQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       reply.code(400);
       return {
-        error: 'invalid_query',
-        message: parsed.error.issues[0]?.message ?? 'invalid query',
+        error: "invalid_query",
+        message: parsed.error.issues[0]?.message ?? "invalid query",
         traceId: request.id,
       };
     }
@@ -308,17 +309,37 @@ export function registerSearchRoutes(app: FastifyInstance): void {
     // A failure in one group returns an empty group instead of failing the
     // whole response. This is critical: a slow lineage query must not
     // block the user from seeing dish/region results.
-    const empty = (t: SearchGroup['type']): SearchGroup => ({
+    const empty = (t: SearchGroup["type"]): SearchGroup => ({
       type: t,
       total: 0,
       results: [],
     });
 
     const allSearchers: Array<() => Promise<SearchGroup>> = [
-      () => withTimeout(searchDishes(q, limit), PER_GROUP_TIMEOUT_MS, empty('dish')),
-      () => withTimeout(searchLineages(q, limit), PER_GROUP_TIMEOUT_MS, empty('lineage')),
-      () => withTimeout(searchIngredients(q, limit), PER_GROUP_TIMEOUT_MS, empty('ingredient')),
-      () => withTimeout(searchRegions(q, limit), PER_GROUP_TIMEOUT_MS, empty('region')),
+      () =>
+        withTimeout(
+          searchDishes(q, limit),
+          PER_GROUP_TIMEOUT_MS,
+          empty("dish"),
+        ),
+      () =>
+        withTimeout(
+          searchLineages(q, limit),
+          PER_GROUP_TIMEOUT_MS,
+          empty("lineage"),
+        ),
+      () =>
+        withTimeout(
+          searchIngredients(q, limit),
+          PER_GROUP_TIMEOUT_MS,
+          empty("ingredient"),
+        ),
+      () =>
+        withTimeout(
+          searchRegions(q, limit),
+          PER_GROUP_TIMEOUT_MS,
+          empty("region"),
+        ),
     ];
 
     // If `type` is set, only run the matching searcher.
@@ -329,16 +350,22 @@ export function registerSearchRoutes(app: FastifyInstance): void {
       region: 3,
     };
     const indices = type ? [TYPE_INDEX[type]!] : [0, 1, 2, 3];
-    const order: SearchGroup['type'][] = ['dish', 'lineage', 'ingredient', 'region'];
+    const order: SearchGroup["type"][] = [
+      "dish",
+      "lineage",
+      "ingredient",
+      "region",
+    ];
 
-    const settled = await Promise.all(
-      indices.map((i) => allSearchers[i]!()),
-    );
+    const settled = await Promise.all(indices.map((i) => allSearchers[i]!()));
     const groups = order
       .map((t) => settled.find((s) => s.type === t))
       .filter((g): g is SearchGroup => Boolean(g));
 
-    reply.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    reply.header(
+      "Cache-Control",
+      "public, max-age=60, stale-while-revalidate=300",
+    );
     return {
       query: q,
       took_ms: Date.now() - start,
@@ -352,4 +379,7 @@ export function registerSearchRoutes(app: FastifyInstance): void {
 // instead of raw sql. The current implementation uses db.execute<>() so
 // the table symbols aren't strictly needed yet, but they're correct
 // canonical references for the search domain.
-void dishes; void lineages; void ingredients; void foodRegions;
+void dishes;
+void lineages;
+void ingredients;
+void foodRegions;

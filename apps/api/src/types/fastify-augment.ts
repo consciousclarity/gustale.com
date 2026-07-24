@@ -11,7 +11,7 @@
  * would silently stop applying.
  */
 
-import type { AuthenticatedUser, UserRole } from '../plugins/auth-context.js';
+import type { AuthenticatedUser, UserRole } from "../plugins/auth-context.js";
 
 declare global {
   namespace FastifyModule {
@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyRequest {
     user: AuthenticatedUser | null;
   }
@@ -32,5 +32,3 @@ declare module 'fastify' {
     ) => Promise<AuthenticatedUser>;
   }
 }
-
-export {};

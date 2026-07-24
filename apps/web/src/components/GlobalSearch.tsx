@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   globalSearch,
   type SearchGroup,
   type SearchGroupType,
   type SearchHit,
-} from '../lib/api';
-import { currentDomain, type GustaleDomain } from '../lib/domain';
+} from "../lib/api";
+import { currentDomain, type GustaleDomain } from "../lib/domain";
 import {
   clampActiveIndex,
   resolveSearchHitHref,
+  type SearchPlacement,
   searchEmptyBrowseLinks,
   searchErrorBrowseLinks,
   searchHelpLinks,
@@ -16,27 +17,34 @@ import {
   searchStatusMessage,
   seeAllDishesHref,
   shouldHandleSlashShortcut,
-  type SearchPlacement,
-} from '../lib/searchNav';
+} from "../lib/searchNav";
 
 const DEBOUNCE_MS = 220;
 const MIN_QUERY_LENGTH = 2;
 const GROUP_LABELS: Record<SearchGroupType, string> = {
-  dish: 'Dishes',
-  lineage: 'Lineages',
-  ingredient: 'Ingredients',
-  region: 'Regions',
+  dish: "Dishes",
+  lineage: "Lineages",
+  ingredient: "Ingredients",
+  region: "Regions",
 };
-const GROUP_ORDER: SearchGroupType[] = ['dish', 'lineage', 'ingredient', 'region'];
+const GROUP_ORDER: SearchGroupType[] = [
+  "dish",
+  "lineage",
+  "ingredient",
+  "region",
+];
 
 interface GlobalSearchProps {
-  variant?: 'compact' | 'full';
+  variant?: "compact" | "full";
   placement?: SearchPlacement;
 }
 
 type FlatHit = SearchHit & { groupType: SearchGroupType };
 
-function mapGroups(groups: SearchGroup[], domain: GustaleDomain): SearchGroup[] {
+function mapGroups(
+  groups: SearchGroup[],
+  domain: GustaleDomain,
+): SearchGroup[] {
   return groups.map((g) => ({
     ...g,
     results: g.results.map((hit: SearchHit) => ({
@@ -59,16 +67,19 @@ function flattenHits(groups: SearchGroup[]): FlatHit[] {
 }
 
 function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || !window.matchMedia) return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function GlobalSearch({ variant = 'compact', placement = 'header' }: GlobalSearchProps) {
+export function GlobalSearch({
+  variant = "compact",
+  placement = "header",
+}: GlobalSearchProps) {
   const domain = currentDomain();
-  const isGeo = domain === 'geo';
+  const isGeo = domain === "geo";
 
-  const [query, setQuery] = useState('');
-  const [debounced, setDebounced] = useState('');
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
   const [groups, setGroups] = useState<SearchGroup[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
@@ -79,24 +90,30 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aborterRef = useRef<AbortController | null>(null);
-  const reactId = useId().replace(/:/g, '');
+  const reactId = useId().replace(/:/g, "");
 
-  const searchLabel = isGeo ? 'Search the Gustale Atlas' : 'Search Gustale Recipes';
-  const inputId = placement === 'drawer' ? 'gs-input-drawer' : 'gs-input-header';
+  const searchLabel = isGeo
+    ? "Search the Gustale Atlas"
+    : "Search Gustale Recipes";
+  const inputId =
+    placement === "drawer" ? "gs-input-drawer" : "gs-input-header";
   const popupId = `gs-popup-${placement}-${reactId}`;
   const listboxId = `gs-listbox-${placement}-${reactId}`;
   const statusId = `gs-status-${placement}-${reactId}`;
   const placeholder = isGeo
-    ? placement === 'drawer' || variant === 'full'
-      ? 'Search dishes, countries, lineages…'
-      : 'Search Atlas'
-    : placement === 'drawer' || variant === 'full'
-      ? 'Search dishes, ingredients, lineages…'
-      : 'Search';
+    ? placement === "drawer" || variant === "full"
+      ? "Search dishes, countries, lineages…"
+      : "Search Atlas"
+    : placement === "drawer" || variant === "full"
+      ? "Search dishes, ingredients, lineages…"
+      : "Search";
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebounced(query.trim()), DEBOUNCE_MS);
+    debounceRef.current = setTimeout(
+      () => setDebounced(query.trim()),
+      DEBOUNCE_MS,
+    );
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -141,22 +158,22 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
       if (!containerRef.current) return;
       if (!containerRef.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
   // Desktop “/” focuses header search only — never register from drawer.
   useEffect(() => {
-    if (placement !== 'header') return undefined;
+    if (placement !== "header") return undefined;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
       if (!shouldHandleSlashShortcut(e.target)) return;
       e.preventDefault();
       setOpen(true);
       inputRef.current?.focus();
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [placement]);
 
   const flatHits = groups ? flattenHits(groups) : [];
@@ -176,8 +193,8 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
     if (!open || !activeOptionDomId || flatCount === 0) return;
     const el = document.getElementById(activeOptionDomId);
     el?.scrollIntoView({
-      block: 'nearest',
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      block: "nearest",
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
     });
   }, [activeOptionDomId, open, flatCount, safeActiveIdx]);
 
@@ -186,9 +203,16 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
   const showLoading = open && queryReady && loading;
   const showError = open && queryReady && !loading && unavailable;
   const showEmpty =
-    open && queryReady && !loading && !unavailable && groups !== null && flatCount === 0;
-  const showResults = open && queryReady && !loading && !unavailable && flatCount > 0;
-  const showPopup = showHelp || showLoading || showError || showEmpty || showResults;
+    open &&
+    queryReady &&
+    !loading &&
+    !unavailable &&
+    groups !== null &&
+    flatCount === 0;
+  const showResults =
+    open && queryReady && !loading && !unavailable && flatCount > 0;
+  const showPopup =
+    showHelp || showLoading || showError || showEmpty || showResults;
   const popupExpanded = Boolean(showPopup);
 
   const statusText = searchStatusMessage({
@@ -196,13 +220,16 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
     queryLen: debounced.length,
     loading,
     unavailable,
-    resultCount: !queryReady || (groups === null && !unavailable && !loading) ? null : flatCount,
+    resultCount:
+      !queryReady || (groups === null && !unavailable && !loading)
+        ? null
+        : flatCount,
     query: debounced,
   });
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.preventDefault();
         if (open) {
           setOpen(false);
@@ -213,20 +240,22 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
         return;
       }
       if (!open) {
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setOpen(true);
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") setOpen(true);
         return;
       }
-      if (e.key === 'ArrowDown' && flatCount > 0) {
+      if (e.key === "ArrowDown" && flatCount > 0) {
         e.preventDefault();
         setActiveIdx((i) => (clampActiveIndex(i, flatCount) + 1) % flatCount);
         return;
       }
-      if (e.key === 'ArrowUp' && flatCount > 0) {
+      if (e.key === "ArrowUp" && flatCount > 0) {
         e.preventDefault();
-        setActiveIdx((i) => (clampActiveIndex(i, flatCount) - 1 + flatCount) % flatCount);
+        setActiveIdx(
+          (i) => (clampActiveIndex(i, flatCount) - 1 + flatCount) % flatCount,
+        );
         return;
       }
-      if (e.key === 'Enter' && flatCount > 0) {
+      if (e.key === "Enter" && flatCount > 0) {
         e.preventDefault();
         const target = flatHits[safeActiveIdx] ?? flatHits[0];
         if (target) window.location.href = target.href;
@@ -235,7 +264,7 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
     [open, flatCount, flatHits, safeActiveIdx],
   );
 
-  const isFullWidth = placement === 'drawer' || variant === 'full';
+  const isFullWidth = placement === "drawer" || variant === "full";
   const helpLinks = searchHelpLinks(domain);
   const emptyLinks = searchEmptyBrowseLinks(domain);
   const errorLinks = searchErrorBrowseLinks(domain);
@@ -278,14 +307,20 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
           spellCheck={false}
           aria-autocomplete="list"
           aria-expanded={popupExpanded}
-          aria-controls={showPopup ? (showResults ? listboxId : popupId) : undefined}
+          aria-controls={
+            showPopup ? (showResults ? listboxId : popupId) : undefined
+          }
           aria-activedescendant={
             showResults && activeOptionDomId ? activeOptionDomId : undefined
           }
           aria-describedby={statusId}
         />
         {!isFullWidth && (
-          <button type="submit" className="gs-submit" aria-label="Submit search">
+          <button
+            type="submit"
+            className="gs-submit"
+            aria-label="Submit search"
+          >
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
               <path
                 d="M11 11l3 3M7 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"
@@ -299,7 +334,12 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
         )}
       </form>
 
-      <div id={statusId} className="gs-status" aria-live="polite" aria-atomic="true">
+      <div
+        id={statusId}
+        className="gs-status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {statusText}
       </div>
 
@@ -308,13 +348,20 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
           {showHelp && (
             <div className="gs-help" role="region" aria-label="Search tips">
               <p className="gs-help-lead">
-                Search dishes, countries, food families, lineages and ingredients.
+                Search dishes, countries, food families, lineages and
+                ingredients.
               </p>
-              <p className="gs-help-label">{isGeo ? 'Atlas browse' : 'Recipes browse'}</p>
+              <p className="gs-help-label">
+                {isGeo ? "Atlas browse" : "Recipes browse"}
+              </p>
               <ul className="gs-browse-list">
                 {helpLinks.map((link) => (
                   <li key={link.href}>
-                    <a href={link.href} className="gs-browse-link" onClick={() => setOpen(false)}>
+                    <a
+                      href={link.href}
+                      className="gs-browse-link"
+                      onClick={() => setOpen(false)}
+                    >
                       {link.label}
                     </a>
                   </li>
@@ -347,20 +394,28 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
           {showEmpty && (
             <div className="gs-empty" role="status">
               <p>
-                Nothing matches &ldquo;{debounced}&rdquo;. Try{' '}
-                <button type="button" className="gs-suggestion" onClick={() => setQuery('vindaloo')}>
-                  vindaloo
-                </button>
-                ,{' '}
+                Nothing matches &ldquo;{debounced}&rdquo;. Try{" "}
                 <button
                   type="button"
                   className="gs-suggestion"
-                  onClick={() => setQuery('filled dough')}
+                  onClick={() => setQuery("vindaloo")}
+                >
+                  vindaloo
+                </button>
+                ,{" "}
+                <button
+                  type="button"
+                  className="gs-suggestion"
+                  onClick={() => setQuery("filled dough")}
                 >
                   filled dough
                 </button>
-                , or{' '}
-                <button type="button" className="gs-suggestion" onClick={() => setQuery('Japan')}>
+                , or{" "}
+                <button
+                  type="button"
+                  className="gs-suggestion"
+                  onClick={() => setQuery("Japan")}
+                >
                   Japan
                 </button>
                 .
@@ -380,7 +435,12 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
 
           {showResults && groups && (
             <>
-              <div id={listboxId} className="gs-groups" role="listbox" aria-label="Search results">
+              <div
+                id={listboxId}
+                className="gs-groups"
+                role="listbox"
+                aria-label="Search results"
+              >
                 {GROUP_ORDER.map((t) => {
                   const g = groups.find((x) => x.type === t);
                   if (!g || g.results.length === 0) return null;
@@ -409,7 +469,7 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
                             key={optId}
                             id={optId}
                             href={hit.href}
-                            className={`gs-hit${isActive ? ' gs-hit--active' : ''}`}
+                            className={`gs-hit${isActive ? " gs-hit--active" : ""}`}
                             role="option"
                             aria-selected={isActive}
                             onMouseEnter={() => setActiveIdx(flatIdx)}
@@ -417,7 +477,9 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
                           >
                             <span className="gs-hit-name">{hit.name}</span>
                             {hit.shortDescription && (
-                              <span className="gs-hit-desc">{hit.shortDescription}</span>
+                              <span className="gs-hit-desc">
+                                {hit.shortDescription}
+                              </span>
                             )}
                           </a>
                         );
@@ -428,7 +490,8 @@ export function GlobalSearch({ variant = 'compact', placement = 'header' }: Glob
               </div>
               {GROUP_ORDER.map((t) => {
                 const g = groups.find((x) => x.type === t);
-                if (!g || t !== 'dish' || g.total <= g.results.length) return null;
+                if (!g || t !== "dish" || g.total <= g.results.length)
+                  return null;
                 return (
                   <a
                     key={`more-${t}`}

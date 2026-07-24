@@ -1,13 +1,13 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
-import BrowseHeader from '../components/BrowseHeader.astro';
-import { LineageBrowse } from '../components/LineageBrowse.tsx';
-import ErrorBoundary from '../components/ErrorBoundary.tsx';
-import { listLineages } from '../lib/api';
-import { recoveryLinks } from '../lib/browse';
-import { currentDomain } from '../lib/domain';
-import type { LineageListResponse } from '../types/lineage';
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import BrowseHeader from "../components/BrowseHeader.astro";
+import ErrorBoundary from "../components/ErrorBoundary.tsx";
+import { LineageBrowse } from "../components/LineageBrowse.tsx";
+import Layout from "../layouts/Layout.astro";
+import { listLineages } from "../lib/api";
+import { recoveryLinks } from "../lib/browse";
+import { currentDomain } from "../lib/domain";
+import type { LineageListResponse } from "../types/lineage";
 
 let initial: LineageListResponse = {
   lineages: [],
@@ -30,7 +30,9 @@ try {
 
 const domain = currentDomain();
 const recovery = recoveryLinks(domain);
-const sorted = [...initial.lineages].sort((a, b) => a.displayOrder - b.displayOrder);
+const sorted = [...initial.lineages].sort(
+  (a, b) => a.displayOrder - b.displayOrder,
+);
 ---
 
 <Layout

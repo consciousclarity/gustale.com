@@ -1,14 +1,15 @@
 ---
-import '../styles/global.css';
-import Nav from '../components/Nav.astro';
-import { isGeoDomain } from '../lib/domain';
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import { isGeoDomain } from "../lib/domain";
 
 export interface Props {
   title: string;
   description?: string;
 }
 
-const { title, description = 'Gustale — a digital culinary archive.' } = Astro.props;
+const { title, description = "Gustale — a digital culinary archive." } =
+  Astro.props;
 const isGeo = isGeoDomain();
 ---
 

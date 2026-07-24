@@ -18,10 +18,11 @@
  *   - `edit_history.user_id` and `dishes.created_by` are nullable in the
  *     schema; the equality filter naturally excludes null rows.
  */
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { and, desc, eq } from 'drizzle-orm';
-import { db, dishes, editHistory } from '@gustale/db';
+
+import { db, dishes, editHistory } from "@gustale/db";
+import { and, desc, eq } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -35,7 +36,7 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
   // small summary — no description bodies, no origin geometry — so the
   // dashboard can render a list of links without exposing data the
   // caller hasn't already authored.
-  app.get('/api/dashboard/drafts', async (request, reply) => {
+  app.get("/api/dashboard/drafts", async (request, reply) => {
     const user = await app.requireUser(request);
     const params = listQuerySchema.parse(request.query);
 
@@ -52,12 +53,12 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
         createdAt: dishes.createdAt,
       })
       .from(dishes)
-      .where(and(eq(dishes.createdBy, user.id), eq(dishes.status, 'draft')))
+      .where(and(eq(dishes.createdBy, user.id), eq(dishes.status, "draft")))
       .orderBy(desc(dishes.updatedAt))
       .limit(params.limit)
       .offset(params.offset);
 
-    reply.header('Cache-Control', 'private, max-age=10');
+    reply.header("Cache-Control", "private, max-age=10");
     return reply.send({
       drafts: rows.map((r) => ({
         id: r.id,
@@ -67,8 +68,14 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
         status: r.status,
         viewCount: r.viewCount,
         editCount: r.editCount,
-        updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+        updatedAt:
+          r.updatedAt instanceof Date
+            ? r.updatedAt.toISOString()
+            : String(r.updatedAt),
+        createdAt:
+          r.createdAt instanceof Date
+            ? r.createdAt.toISOString()
+            : String(r.createdAt),
       })),
       limit: params.limit,
       offset: params.offset,
@@ -83,7 +90,7 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
   // 'update' (PATCH). 'review', 'archive', 'restore', 'flag' are
   // moderator/admin actions that don't belong on a contributor's
   // "submitted edits" feed.
-  app.get('/api/dashboard/submissions', async (request, reply) => {
+  app.get("/api/dashboard/submissions", async (request, reply) => {
     const user = await app.requireUser(request);
     const params = listQuerySchema.parse(request.query);
 
@@ -100,7 +107,7 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
       .where(
         and(
           eq(editHistory.userId, user.id),
-          eq(editHistory.targetType, 'dish'),
+          eq(editHistory.targetType, "dish"),
           // Restrict to contributor-meaningful actions via a plain SQL
           // IN. Drizzle's `inArray` helper would work here too; this
           // literal is explicit and matches the action taxonomy in
@@ -114,10 +121,10 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
     // Filter on the action in JS so we can use Drizzle's safe WHERE for
     // the user_id / target_type predicates. The action list is a fixed
     // closed set, so this is safe and avoids a raw SQL fragment.
-    const allowedActions = new Set(['create', 'update']);
+    const allowedActions = new Set(["create", "update"]);
     const filtered = rows.filter((r) => allowedActions.has(r.action));
 
-    reply.header('Cache-Control', 'private, max-age=10');
+    reply.header("Cache-Control", "private, max-age=10");
     return reply.send({
       submissions: filtered.map((r) => ({
         id: r.id,
@@ -125,7 +132,10 @@ export function registerDashboardRoutes(app: FastifyInstance): void {
         targetType: r.targetType,
         targetId: r.targetId,
         comment: r.comment,
-        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+        createdAt:
+          r.createdAt instanceof Date
+            ? r.createdAt.toISOString()
+            : String(r.createdAt),
       })),
       limit: params.limit,
       offset: params.offset,

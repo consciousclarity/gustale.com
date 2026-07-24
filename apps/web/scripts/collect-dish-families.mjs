@@ -5,7 +5,7 @@
 
 export const DISH_LIST_PAGE_LIMIT = 100;
 export const DISH_LIST_MAX_PAGES = 101;
-export const LATE_PAGE_FAMILY_SLUG = 'late-page-family';
+export const LATE_PAGE_FAMILY_SLUG = "late-page-family";
 
 export async function collectFamiliesFromPublishedDishes(
   apiBase,
@@ -44,5 +44,5 @@ export async function collectFamiliesFromPublishedDishes(
 
 /** Pure domain resolver — mirrors src/lib/domain.ts resolveGustaleDomain. */
 export function resolveGustaleDomain(raw) {
-  return raw === 'geo' ? 'geo' : 'recipes';
+  return raw === "geo" ? "geo" : "recipes";
 }

@@ -20,13 +20,13 @@
  *     error handler maps to a structured 500 (with traceId). Routes don't
  *     need to know about AWS error shapes.
  */
-import { Readable } from 'node:stream';
-import { Client as MinioClient } from 'minio';
-import { env } from '../env.js';
+import type { Readable } from "node:stream";
+import { Client as MinioClient } from "minio";
+import { env } from "../env.js";
 
 // Derive the return type of putObject without importing UploadedObjectInfo
 // (it's not re-exported from the package root in minio@8).
-type PutObjectResult = Awaited<ReturnType<MinioClient['putObject']>>;
+type PutObjectResult = Awaited<ReturnType<MinioClient["putObject"]>>;
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -44,7 +44,7 @@ export class MediaStorageError extends Error {
 
   constructor(code: string, message: string, cause?: unknown) {
     super(message);
-    this.name = 'MediaStorageError';
+    this.name = "MediaStorageError";
     this.code = code;
     if (cause !== undefined) this.cause = cause;
   }
@@ -67,7 +67,7 @@ export function getClient(): MinioClient {
   if (_client) return _client;
 
   const endpoint = new URL(env.MINIO_ENDPOINT);
-  const useSSL = endpoint.protocol === 'https:';
+  const useSSL = endpoint.protocol === "https:";
   const port = endpoint.port ? Number(endpoint.port) : useSSL ? 443 : 80;
 
   _client = new MinioClient({
@@ -92,7 +92,10 @@ export const PRIVATE_BUCKET = env.MINIO_BUCKET_PRIVATE; // 'gustale-media'
  * Returns true if both buckets exist. Used by health/diagnostic endpoints
  * and by the boot-time check (see `ensureBuckets`).
  */
-export async function bucketsExist(): Promise<{ publicBucket: boolean; privateBucket: boolean }> {
+export async function bucketsExist(): Promise<{
+  publicBucket: boolean;
+  privateBucket: boolean;
+}> {
   const client = getClient();
   try {
     const [pub, priv] = await Promise.all([
@@ -101,7 +104,11 @@ export async function bucketsExist(): Promise<{ publicBucket: boolean; privateBu
     ]);
     return { publicBucket: pub, privateBucket: priv };
   } catch (err) {
-    throw new MediaStorageError('bucket_check_failed', 'Could not check bucket existence', err);
+    throw new MediaStorageError(
+      "bucket_check_failed",
+      "Could not check bucket existence",
+      err,
+    );
   }
 }
 
@@ -114,13 +121,17 @@ export async function ensureBuckets(): Promise<void> {
   try {
     const exists = await bucketsExist();
     if (!exists.publicBucket) {
-      await client.makeBucket(PUBLIC_BUCKET, 'us-east-1');
+      await client.makeBucket(PUBLIC_BUCKET, "us-east-1");
     }
     if (!exists.privateBucket) {
-      await client.makeBucket(PRIVATE_BUCKET, 'us-east-1');
+      await client.makeBucket(PRIVATE_BUCKET, "us-east-1");
     }
   } catch (err) {
-    throw new MediaStorageError('bucket_create_failed', 'Could not ensure buckets', err);
+    throw new MediaStorageError(
+      "bucket_create_failed",
+      "Could not ensure buckets",
+      err,
+    );
   }
 }
 
@@ -148,15 +159,30 @@ export async function uploadStream(
   stream: Readable,
   size: number,
   mimeType: string,
-): Promise<{ etag: string; versionId: string | null; key: string; bucket: string }> {
+): Promise<{
+  etag: string;
+  versionId: string | null;
+  key: string;
+  bucket: string;
+}> {
   const client = getClient();
   try {
-    const info: PutObjectResult = await client.putObject(bucket, key, stream, size, {
-      'Content-Type': mimeType,
-    });
+    const info: PutObjectResult = await client.putObject(
+      bucket,
+      key,
+      stream,
+      size,
+      {
+        "Content-Type": mimeType,
+      },
+    );
     return { etag: info.etag, versionId: info.versionId, key, bucket };
   } catch (err) {
-    throw new MediaStorageError('upload_failed', `Upload to ${bucket}/${key} failed`, err);
+    throw new MediaStorageError(
+      "upload_failed",
+      `Upload to ${bucket}/${key} failed`,
+      err,
+    );
   }
 }
 
@@ -175,7 +201,11 @@ export async function presignGet(
   try {
     return await client.presignedGetObject(bucket, key, expirySeconds);
   } catch (err) {
-    throw new MediaStorageError('presign_failed', `Could not presign GET for ${bucket}/${key}`, err);
+    throw new MediaStorageError(
+      "presign_failed",
+      `Could not presign GET for ${bucket}/${key}`,
+      err,
+    );
   }
 }
 
@@ -195,7 +225,11 @@ export async function presignPut(
   try {
     return await client.presignedPutObject(bucket, key, expirySeconds);
   } catch (err) {
-    throw new MediaStorageError('presign_put_failed', `Could not presign PUT for ${bucket}/${key}`, err);
+    throw new MediaStorageError(
+      "presign_put_failed",
+      `Could not presign PUT for ${bucket}/${key}`,
+      err,
+    );
   }
 }
 
@@ -218,7 +252,8 @@ export async function statObject(
     const stat = await client.statObject(bucket, key);
     return {
       size: stat.size,
-      contentType: stat.metaData?.['content-type'] ?? 'application/octet-stream',
+      contentType:
+        stat.metaData?.["content-type"] ?? "application/octet-stream",
       lastModified: stat.lastModified,
       etag: stat.etag,
     };
@@ -226,10 +261,18 @@ export async function statObject(
     // The minio client throws an Error with `code: 'NoSuchKey'` when the
     // object doesn't exist. Re-wrap as a not_found so routes can 404 cleanly.
     const code = (err as { code?: string }).code;
-    if (code === 'NoSuchKey' || code === 'NotFound') {
-      throw new MediaStorageError('not_found', `Object ${bucket}/${key} does not exist`, err);
+    if (code === "NoSuchKey" || code === "NotFound") {
+      throw new MediaStorageError(
+        "not_found",
+        `Object ${bucket}/${key} does not exist`,
+        err,
+      );
     }
-    throw new MediaStorageError('stat_failed', `Could not stat ${bucket}/${key}`, err);
+    throw new MediaStorageError(
+      "stat_failed",
+      `Could not stat ${bucket}/${key}`,
+      err,
+    );
   }
 }
 
@@ -239,17 +282,24 @@ export async function statObject(
  * Used by the eventual media-management endpoint (delete a media row +
  * remove its attachment + delete the underlying object).
  */
-export async function removeObject(bucket: string, key: string): Promise<boolean> {
+export async function removeObject(
+  bucket: string,
+  key: string,
+): Promise<boolean> {
   const client = getClient();
   try {
     await client.removeObject(bucket, key);
     return true;
   } catch (err) {
     const code = (err as { code?: string }).code;
-    if (code === 'NoSuchKey' || code === 'NotFound') {
+    if (code === "NoSuchKey" || code === "NotFound") {
       return false;
     }
-    throw new MediaStorageError('remove_failed', `Could not delete ${bucket}/${key}`, err);
+    throw new MediaStorageError(
+      "remove_failed",
+      `Could not delete ${bucket}/${key}`,
+      err,
+    );
   }
 }
 
@@ -273,18 +323,18 @@ export async function removeObject(bucket: string, key: string): Promise<boolean
  * pre-upload-API seed. New uploads always get a random suffix.
  */
 const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/jpg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/avif': 'avif',
-  'image/gif': 'gif',
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/avif": "avif",
+  "image/gif": "gif",
 };
 
 export function generateStorageKey(prefix: string, mimeType: string): string {
-  const ext = MIME_TO_EXT[mimeType.toLowerCase()] ?? 'bin';
-  const random = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  const ext = MIME_TO_EXT[mimeType.toLowerCase()] ?? "bin";
+  const random = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
   // Strip trailing slash from prefix if caller passed one.
-  const cleanPrefix = prefix.replace(/\/+$/, '');
+  const cleanPrefix = prefix.replace(/\/+$/, "");
   return `${cleanPrefix}/${random}.${ext}`;
 }

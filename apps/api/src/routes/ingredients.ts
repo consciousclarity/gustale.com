@@ -11,11 +11,12 @@
  *
  * Auth: public — ingredients are encyclopedia entries like dishes.
  */
-import type { FastifyPluginAsync } from 'fastify';
-import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
-import { db, ingredients, dishIngredients, dishes } from '@gustale/db';
-import { httpError } from '../errors.js';
+
+import { db, dishes, dishIngredients, ingredients } from "@gustale/db";
+import { eq, sql } from "drizzle-orm";
+import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import { httpError } from "../errors.js";
 
 const slugParamSchema = z.object({
   slug: z.string().min(1).max(200),
@@ -25,7 +26,7 @@ export const registerIngredientRoutes: FastifyPluginAsync = async (app) => {
   // ── GET /api/ingredients ───────────────────────────────────────────────
   // Flat list — name, slug, dishCount. Paginated so it can power a future
   // /ingredients index page without rewrite.
-  app.get('/api/ingredients', async (request, reply) => {
+  app.get("/api/ingredients", async (request, reply) => {
     const q = z
       .object({
         limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -33,7 +34,11 @@ export const registerIngredientRoutes: FastifyPluginAsync = async (app) => {
       })
       .safeParse(request.query);
     if (!q.success) {
-      throw httpError(400, 'invalid_query', q.error.issues[0]?.message ?? 'invalid query');
+      throw httpError(
+        400,
+        "invalid_query",
+        q.error.issues[0]?.message ?? "invalid query",
+      );
     }
     const { limit, offset } = q.data;
 
@@ -47,9 +52,15 @@ export const registerIngredientRoutes: FastifyPluginAsync = async (app) => {
         dishCount: sql<number>`COUNT(${dishes.id})::int`,
       })
       .from(ingredients)
-      .leftJoin(dishIngredients, eq(dishIngredients.ingredientId, ingredients.id))
-      .leftJoin(dishes, sql`${dishes.id} = ${dishIngredients.dishId} AND ${dishes.status} = 'published'`)
-      .where(eq(ingredients.status, 'published'))
+      .leftJoin(
+        dishIngredients,
+        eq(dishIngredients.ingredientId, ingredients.id),
+      )
+      .leftJoin(
+        dishes,
+        sql`${dishes.id} = ${dishIngredients.dishId} AND ${dishes.status} = 'published'`,
+      )
+      .where(eq(ingredients.status, "published"))
       .groupBy(ingredients.id)
       .orderBy(sql`${ingredients.canonicalName} ASC`)
       .limit(limit)
@@ -60,20 +71,30 @@ export const registerIngredientRoutes: FastifyPluginAsync = async (app) => {
 
   // ── GET /api/ingredients/:slug ──────────────────────────────────────────
   // One ingredient + the dishes that use it. Used by the /ingredients/:slug page.
-  app.get('/api/ingredients/:slug', async (request, reply) => {
+  app.get("/api/ingredients/:slug", async (request, reply) => {
     const params = slugParamSchema.safeParse(request.params);
     if (!params.success) {
-      throw httpError(400, 'invalid_slug', params.error.issues[0]?.message ?? 'invalid slug');
+      throw httpError(
+        400,
+        "invalid_slug",
+        params.error.issues[0]?.message ?? "invalid slug",
+      );
     }
     const { slug } = params.data;
 
     const ing = await db
       .select()
       .from(ingredients)
-      .where(sql`${ingredients.slug} = ${slug} AND ${ingredients.status} = 'published'`)
+      .where(
+        sql`${ingredients.slug} = ${slug} AND ${ingredients.status} = 'published'`,
+      )
       .limit(1);
     if (ing.length === 0) {
-      throw httpError(404, 'not_found', `No published ingredient with slug "${slug}"`);
+      throw httpError(
+        404,
+        "not_found",
+        `No published ingredient with slug "${slug}"`,
+      );
     }
     const ingredient = ing[0]!;
 
@@ -88,7 +109,9 @@ export const registerIngredientRoutes: FastifyPluginAsync = async (app) => {
       })
       .from(dishIngredients)
       .innerJoin(dishes, eq(dishes.id, dishIngredients.dishId))
-      .where(sql`${dishIngredients.ingredientId} = ${ingredient.id} AND ${dishes.status} = 'published'`)
+      .where(
+        sql`${dishIngredients.ingredientId} = ${ingredient.id} AND ${dishes.status} = 'published'`,
+      )
       .orderBy(dishIngredients.position);
 
     return {

@@ -8,16 +8,16 @@
  * Default when unset: `recipes` (matches Nav, post-build.mjs).
  */
 
-export type GustaleDomain = 'geo' | 'recipes';
+export type GustaleDomain = "geo" | "recipes";
 
-export const ATLAS_ORIGIN = 'https://gustale.com';
-export const RECIPES_ORIGIN = 'https://gustale.recipes';
+export const ATLAS_ORIGIN = "https://gustale.com";
+export const RECIPES_ORIGIN = "https://gustale.recipes";
 
 /** Paths that exist only on gustale.recipes (removed from geo post-build). */
 export const RECIPES_ONLY_PATH_PREFIXES = [
-  '/dishes/new',
-  '/ingredients',
-  '/admin',
+  "/dishes/new",
+  "/ingredients",
+  "/admin",
 ] as const;
 
 /**
@@ -28,7 +28,7 @@ export const RECIPES_ONLY_PATH_PREFIXES = [
 export function resolveGustaleDomain(
   raw: string | undefined | null,
 ): GustaleDomain {
-  return raw === 'geo' ? 'geo' : 'recipes';
+  return raw === "geo" ? "geo" : "recipes";
 }
 
 export function currentDomain(): GustaleDomain {
@@ -36,22 +36,22 @@ export function currentDomain(): GustaleDomain {
 }
 
 export function isGeoDomain(): boolean {
-  return currentDomain() === 'geo';
+  return currentDomain() === "geo";
 }
 
 export function isRecipesDomain(): boolean {
-  return currentDomain() === 'recipes';
+  return currentDomain() === "recipes";
 }
 
 /** Absolute URL on the Recipes host. */
 export function recipesUrl(path: string): string {
-  const p = path.startsWith('/') ? path : `/${path}`;
+  const p = path.startsWith("/") ? path : `/${path}`;
   return `${RECIPES_ORIGIN}${p}`;
 }
 
 /** Absolute URL on the Atlas host. */
 export function atlasUrl(path: string): string {
-  const p = path.startsWith('/') ? path : `/${path}`;
+  const p = path.startsWith("/") ? path : `/${path}`;
   return `${ATLAS_ORIGIN}${p}`;
 }
 
@@ -61,7 +61,7 @@ export function atlasUrl(path: string): string {
  * On Recipes builds → same-origin relative path.
  */
 export function authoringHref(path: string): string {
-  const p = path.startsWith('/') ? path : `/${path}`;
+  const p = path.startsWith("/") ? path : `/${path}`;
   if (isGeoDomain()) return recipesUrl(p);
   return p;
 }
@@ -73,10 +73,10 @@ export function dishEditHref(slug: string): string {
 
 /** True if a relative path is recipes-only (must not be used as a local Atlas link). */
 export function isRecipesOnlyPath(path: string): boolean {
-  const p = path.split('?')[0];
-  if (p === '/dishes/new' || p.startsWith('/dishes/new/')) return true;
-  if (p.startsWith('/ingredients')) return true;
-  if (p.startsWith('/admin')) return true;
+  const p = path.split("?")[0];
+  if (p === "/dishes/new" || p.startsWith("/dishes/new/")) return true;
+  if (p.startsWith("/ingredients")) return true;
+  if (p.startsWith("/admin")) return true;
   // /dishes/<slug>/edit
   if (/^\/dishes\/[^/]+\/edit\/?$/.test(p)) return true;
   return false;

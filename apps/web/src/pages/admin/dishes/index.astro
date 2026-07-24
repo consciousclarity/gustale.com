@@ -1,4 +1,5 @@
 ---
+import { AdminDishList } from "../../../components/admin/AdminDishList";
 /**
  * /admin/dishes — Admin dish list (Phase 4 — Admin Dish Editor redo)
  *
@@ -10,9 +11,8 @@
  * Shell: AdminLayout (persistent sidebar + top bar). The list itself is
  * the unchanged <AdminDishList /> React island.
  */
-import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { AdminDishList } from '../../../components/admin/AdminDishList';
-import { listAdminDishes } from '../../../lib/api';
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { listAdminDishes } from "../../../lib/api";
 
 // At static-build time, Astro.request.headers is unavailable (warning
 // from the Astro build pipeline). When SSR is enabled (future hybrid
@@ -21,12 +21,14 @@ import { listAdminDishes } from '../../../lib/api';
 // React island does its own auth check via /api/auth/get-session on
 // the client.
 const cookieHeader =
-  typeof Astro.request?.headers?.get === 'function'
-    ? (Astro.request.headers.get('cookie') ?? '')
-    : '';
-const apiInit = cookieHeader ? { headers: { cookie: cookieHeader } } : undefined;
+  typeof Astro.request?.headers?.get === "function"
+    ? (Astro.request.headers.get("cookie") ?? "")
+    : "";
+const apiInit = cookieHeader
+  ? { headers: { cookie: cookieHeader } }
+  : undefined;
 
-let initialDishes: Awaited<ReturnType<typeof listAdminDishes>>['dishes'] = [];
+let initialDishes: Awaited<ReturnType<typeof listAdminDishes>>["dishes"] = [];
 let initialTotal = 0;
 let loadError: string | null = null;
 try {

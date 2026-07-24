@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * Mock API server for CI builds.
  *
@@ -37,22 +38,22 @@
  *   node scripts/mock-api.mjs [--port 8742]
  */
 
-import http from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath, URL } from 'node:url';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from "node:fs";
+import http from "node:http";
+import { dirname, join } from "node:path";
+import { fileURLToPath, URL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = JSON.parse(
-  readFileSync(join(__dirname, 'mock-api-data.json'), 'utf-8'),
+  readFileSync(join(__dirname, "mock-api-data.json"), "utf-8"),
 );
 
 // Lineages live in a separate JSON file (generated from packages/db seed-data.ts
 // at seed time). Optional so older builds without lineages still work.
-const LINEAGES_DATA_PATH = join(__dirname, 'mock-api-lineages.json');
+const LINEAGES_DATA_PATH = join(__dirname, "mock-api-lineages.json");
 const HAS_LINEAGES = existsSync(LINEAGES_DATA_PATH);
 const LINEAGES_DATA = HAS_LINEAGES
-  ? JSON.parse(readFileSync(LINEAGES_DATA_PATH, 'utf-8'))
+  ? JSON.parse(readFileSync(LINEAGES_DATA_PATH, "utf-8"))
   : { list: null, details: {} };
 
 const LIST = DATA.list ?? [];
@@ -77,10 +78,10 @@ const INGREDIENTS = (() => {
     }
   }
   if (bySlug.size === 0) {
-    bySlug.set('eggplant', {
-      slug: 'eggplant',
-      canonicalName: 'Eggplant',
-      category: 'vegetable',
+    bySlug.set("eggplant", {
+      slug: "eggplant",
+      canonicalName: "Eggplant",
+      category: "vegetable",
       dishCount: 1,
     });
   }
@@ -94,7 +95,7 @@ const INGREDIENTS = (() => {
 // (`X-Gustale-Fixture: pagination`) so normal SSG / homepage catalogs stay
 // on the real captured snapshot. A unique familySlug appears only after the
 // first page — used by validate-build to prove family fallback pagination.
-export const LATE_PAGE_FAMILY_SLUG = 'late-page-family';
+export const LATE_PAGE_FAMILY_SLUG = "late-page-family";
 const DISH_LIST_PAGE_LIMIT = 100;
 
 function withPaginationFixture(baseList) {
@@ -115,11 +116,11 @@ function withPaginationFixture(baseList) {
   }
   list.push({
     ...template,
-    id: 'mock-late-page-family',
-    slug: '__late-page-family-dish',
-    canonicalName: 'Late Page Family Fixture',
+    id: "mock-late-page-family",
+    slug: "__late-page-family-dish",
+    canonicalName: "Late Page Family Fixture",
     familySlug: LATE_PAGE_FAMILY_SLUG,
-    familyName: 'Late Page Family',
+    familyName: "Late Page Family",
   });
   return list;
 }
@@ -145,11 +146,12 @@ const CATEGORIES = (() => {
   if (!bySlug.has(LATE_PAGE_FAMILY_SLUG)) {
     bySlug.set(LATE_PAGE_FAMILY_SLUG, {
       id: `mock-cat-${LATE_PAGE_FAMILY_SLUG}`,
-      name: 'Late Page Family',
+      name: "Late Page Family",
       slug: LATE_PAGE_FAMILY_SLUG,
       parentId: null,
       icon: null,
-      description: 'CI fixture: family discoverable only after the first dishes page.',
+      description:
+        "CI fixture: family discoverable only after the first dishes page.",
     });
   }
   return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -157,14 +159,14 @@ const CATEGORIES = (() => {
 
 let PORT = 8742;
 for (let i = 2; i < process.argv.length; i++) {
-  if (process.argv[i] === '--port' && i + 1 < process.argv.length) {
+  if (process.argv[i] === "--port" && i + 1 < process.argv.length) {
     PORT = parseInt(process.argv[i + 1], 10);
-  } else if (process.argv[i].startsWith('--port=')) {
-    PORT = parseInt(process.argv[i].split('=')[1], 10);
+  } else if (process.argv[i].startsWith("--port=")) {
+    PORT = parseInt(process.argv[i].split("=")[1], 10);
   }
 }
 if (Number.isNaN(PORT) || PORT < 1 || PORT > 65535) PORT = 8742;
-const HOST = '0.0.0.0';
+const HOST = "0.0.0.0";
 
 // ─── HTTP Server ───────────────────────────────────────────────────────────
 
@@ -172,38 +174,38 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
 
   // CORS headers (not strictly needed for Astro SSG, but harmless).
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
     return;
   }
 
   // GET /health
-  if (url.pathname === '/health') {
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ status: 'ok' }));
+  if (url.pathname === "/health") {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ status: "ok" }));
     return;
   }
 
   // GET /api/categories — flat category list (used by /family/[slug] SSG)
-  if (url.pathname === '/api/categories' && req.method === 'GET') {
-    res.setHeader('Content-Type', 'application/json');
+  if (url.pathname === "/api/categories" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ categories: CATEGORIES }));
     return;
   }
 
   // GET /api/ingredients — flat list (powers /ingredients index)
-  if (url.pathname === '/api/ingredients' && req.method === 'GET') {
-    res.setHeader('Content-Type', 'application/json');
-    const rawLimit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+  if (url.pathname === "/api/ingredients" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
+    const rawLimit = parseInt(url.searchParams.get("limit") ?? "50", 10);
     const limit = Number.isFinite(rawLimit)
       ? Math.min(200, Math.max(1, rawLimit))
       : 50;
-    const rawOffset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+    const rawOffset = parseInt(url.searchParams.get("offset") ?? "0", 10);
     const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
     const page = INGREDIENTS.slice(offset, offset + limit);
     res.end(JSON.stringify({ ingredients: page }));
@@ -212,38 +214,48 @@ const server = http.createServer((req, res) => {
 
   // GET /api/ingredients/:slug — detail stub for SSG
   const ingMatch = url.pathname.match(/^\/api\/ingredients\/([^/]+)$/);
-  if (ingMatch && req.method === 'GET') {
+  if (ingMatch && req.method === "GET") {
     const ing = INGREDIENTS.find((i) => i.slug === ingMatch[1]);
     if (!ing) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Not found', message: `No ingredient "${ingMatch[1]}"` }));
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: `No ingredient "${ingMatch[1]}"`,
+        }),
+      );
       return;
     }
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
-      ingredient: {
-        slug: ing.slug,
-        canonicalName: ing.canonicalName,
-        scientificName: null,
-        category: ing.category,
-        shortDescription: null,
-        longDescription: null,
-      },
-      dishes: [],
-    }));
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        ingredient: {
+          slug: ing.slug,
+          canonicalName: ing.canonicalName,
+          scientificName: null,
+          category: ing.category,
+          shortDescription: null,
+          longDescription: null,
+        },
+        dishes: [],
+      }),
+    );
     return;
   }
 
   // GET /api/dishes — list published dishes (optional ?category= / ?family= / ?q=)
   // Pagination mirrors apps/api listQuerySchema: limit max 100, offset >= 0.
-  if (url.pathname === '/api/dishes' && req.method === 'GET') {
-    res.setHeader('Content-Type', 'application/json');
-    const category = (url.searchParams.get('category') ?? '').trim();
-    const family = (url.searchParams.get('family') ?? '').trim();
-    const q = (url.searchParams.get('q') ?? '').toLowerCase().trim();
-    const country = (url.searchParams.get('country') ?? '').toLowerCase().trim();
+  if (url.pathname === "/api/dishes" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
+    const category = (url.searchParams.get("category") ?? "").trim();
+    const family = (url.searchParams.get("family") ?? "").trim();
+    const q = (url.searchParams.get("q") ?? "").toLowerCase().trim();
+    const country = (url.searchParams.get("country") ?? "")
+      .toLowerCase()
+      .trim();
     const filterSlug = category || family;
-    const useFixture = (req.headers['x-gustale-fixture'] ?? '') === 'pagination';
+    const useFixture =
+      (req.headers["x-gustale-fixture"] ?? "") === "pagination";
     let dishes = useFixture ? LIST_PAGINATION_FIXTURE : LIST;
     if (filterSlug) {
       dishes = dishes.filter((d) => d.familySlug === filterSlug);
@@ -259,80 +271,103 @@ const server = http.createServer((req, res) => {
           d.familySlug,
         ]
           .filter(Boolean)
-          .join(' ')
+          .join(" ")
           .toLowerCase();
         return hay.includes(q);
       });
     }
     if (country) {
       dishes = dishes.filter(
-        (d) => (d.originName ?? '').toLowerCase() === country,
+        (d) => (d.originName ?? "").toLowerCase() === country,
       );
     }
     // Match production zod: limit 1..100 (default 20), offset >= 0.
-    const rawLimit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+    const rawLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
     const limit = Number.isFinite(rawLimit)
       ? Math.min(100, Math.max(1, rawLimit))
       : 20;
-    const rawOffset = parseInt(url.searchParams.get('offset') ?? '0', 10);
-    const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.min(10000, rawOffset)) : 0;
+    const rawOffset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+    const offset = Number.isFinite(rawOffset)
+      ? Math.max(0, Math.min(10000, rawOffset))
+      : 0;
     const page = dishes.slice(offset, offset + limit);
     res.end(JSON.stringify({ dishes: page, limit, offset }));
     return;
   }
 
   // GET /api/dishes/map — map data
-  if (url.pathname === '/api/dishes/map' && req.method === 'GET') {
-    res.setHeader('Content-Type', 'application/json');
+  if (url.pathname === "/api/dishes/map" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ dishes: MAP, count: MAP.length }));
     return;
   }
 
   // GET /api/dishes/:slug — dish detail
   const slugMatch = url.pathname.match(/^\/api\/dishes\/([^/]+)$/);
-  if (slugMatch && req.method === 'GET') {
+  if (slugMatch && req.method === "GET") {
     const detail = DETAILS[slugMatch[1]];
     if (detail) {
-      res.setHeader('Content-Type', 'application/json');
+      res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(detail));
       return;
     }
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not found', message: `No dish with slug "${slugMatch[1]}"` }));
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: "Not found",
+        message: `No dish with slug "${slugMatch[1]}"`,
+      }),
+    );
     return;
   }
 
   // ─── Lineages (GET /api/lineages, /api/lineages/:slug) ──────────────
   // Mirrors apps/api/src/routes/lineages.ts. Filter logic is duplicated here
   // because the mock server is intentionally standalone (no DB).
-  if (url.pathname === '/api/lineages' && req.method === 'GET') {
+  if (url.pathname === "/api/lineages" && req.method === "GET") {
     if (!HAS_LINEAGES || !LINEAGES_DATA.list) {
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({
-        lineages: [], totalLineages: 0, totalDishes: 0, totalRelations: 0,
-        uncertainOrParallelCount: 0, regions: [], techniques: [],
-        historicalForces: [], confidenceLevels: [],
-      }));
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          lineages: [],
+          totalLineages: 0,
+          totalDishes: 0,
+          totalRelations: 0,
+          uncertainOrParallelCount: 0,
+          regions: [],
+          techniques: [],
+          historicalForces: [],
+          confidenceLevels: [],
+        }),
+      );
       return;
     }
     // Apply the same filters as the real API: search, origin, technique,
     // historicalForce, confidence.
-    const search = (url.searchParams.get('search') ?? '').toLowerCase().trim();
-    const origin = (url.searchParams.get('origin') ?? '').toLowerCase().trim();
-    const technique = (url.searchParams.get('technique') ?? '').toLowerCase().trim();
-    const historicalForce = (url.searchParams.get('historicalForce') ?? '').toLowerCase().trim();
-    const confidence = (url.searchParams.get('confidence') ?? '').trim();
+    const search = (url.searchParams.get("search") ?? "").toLowerCase().trim();
+    const origin = (url.searchParams.get("origin") ?? "").toLowerCase().trim();
+    const technique = (url.searchParams.get("technique") ?? "")
+      .toLowerCase()
+      .trim();
+    const historicalForce = (url.searchParams.get("historicalForce") ?? "")
+      .toLowerCase()
+      .trim();
+    const confidence = (url.searchParams.get("confidence") ?? "").trim();
 
     let lineages = LINEAGES_DATA.list.lineages.slice();
     if (search) {
       lineages = lineages.filter((l) => {
-        const hay = `${l.name} ${l.shortDescription} ${l.conceptSummary ?? ''} ${(l.techniques ?? []).join(' ')} ${(l.originRegions ?? []).join(' ')} ${(l.relatedRegions ?? []).join(' ')}`.toLowerCase();
+        const hay =
+          `${l.name} ${l.shortDescription} ${l.conceptSummary ?? ""} ${(l.techniques ?? []).join(" ")} ${(l.originRegions ?? []).join(" ")} ${(l.relatedRegions ?? []).join(" ")}`.toLowerCase();
         return hay.includes(search);
       });
     }
     if (origin) {
       lineages = lineages.filter((l) => {
-        const regs = [...(l.originRegions ?? []), ...(l.relatedRegions ?? [])].map((x) => x.toLowerCase());
+        const regs = [
+          ...(l.originRegions ?? []),
+          ...(l.relatedRegions ?? []),
+        ].map((x) => x.toLowerCase());
         return regs.some((r) => r.includes(origin));
       });
     }
@@ -343,7 +378,9 @@ const server = http.createServer((req, res) => {
     }
     if (historicalForce) {
       lineages = lineages.filter((l) =>
-        (l.historicalForces ?? []).some((f) => f.toLowerCase() === historicalForce),
+        (l.historicalForces ?? []).some(
+          (f) => f.toLowerCase() === historicalForce,
+        ),
       );
     }
     if (confidence) {
@@ -357,7 +394,9 @@ const server = http.createServer((req, res) => {
       .flatMap(([, d]) => d.groupedDishes.flatMap((g) => g.dishes));
     const distinctDishes = new Set(allEdges.map((d) => d.id));
     const uncertainCount = allEdges.filter((d) =>
-      ['uncertain', 'parallel_evolution', 'possible'].includes(d.confidenceLevel),
+      ["uncertain", "parallel_evolution", "possible"].includes(
+        d.confidenceLevel,
+      ),
     ).length;
 
     const regions = new Set();
@@ -370,37 +409,43 @@ const server = http.createServer((req, res) => {
       (l.historicalForces ?? []).forEach((x) => forces.add(x));
     });
 
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
-      lineages,
-      totalLineages: lineages.length,
-      totalDishes: distinctDishes.size,
-      totalRelations: allEdges.length,
-      uncertainOrParallelCount: uncertainCount,
-      regions: [...regions].sort(),
-      techniques: [...techniques].sort(),
-      historicalForces: [...forces].sort(),
-      confidenceLevels: [...new Set(lineages.map((l) => l.confidenceLevel))].sort(),
-    }));
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        lineages,
+        totalLineages: lineages.length,
+        totalDishes: distinctDishes.size,
+        totalRelations: allEdges.length,
+        uncertainOrParallelCount: uncertainCount,
+        regions: [...regions].sort(),
+        techniques: [...techniques].sort(),
+        historicalForces: [...forces].sort(),
+        confidenceLevels: [
+          ...new Set(lineages.map((l) => l.confidenceLevel)),
+        ].sort(),
+      }),
+    );
     return;
   }
 
   // GET /api/lineages/:slug
   const lineageMatch = url.pathname.match(/^\/api\/lineages\/([^/]+)$/);
-  if (lineageMatch && req.method === 'GET') {
+  if (lineageMatch && req.method === "GET") {
     if (!HAS_LINEAGES) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'lineages not available in mock' }));
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "lineages not available in mock" }));
       return;
     }
     const detail = LINEAGES_DATA.details[lineageMatch[1]];
     if (detail) {
-      res.setHeader('Content-Type', 'application/json');
+      res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(detail));
       return;
     }
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'lineage not found', slug: lineageMatch[1] }));
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({ error: "lineage not found", slug: lineageMatch[1] }),
+    );
     return;
   }
 
@@ -411,14 +456,17 @@ const server = http.createServer((req, res) => {
   // Returns the canonical response shape the React island expects:
   //   { query, took_ms, groups: [{ type, total, results: [...] }] }
   // Empty groups are skipped; type param narrows to one group if given.
-  if (url.pathname === '/api/search' && req.method === 'GET') {
-    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
-    const limit = Math.max(1, Math.min(20, parseInt(url.searchParams.get('limit') ?? '5', 10) || 5));
-    const typeFilter = url.searchParams.get('type'); // optional: dish|region|lineage|ingredient
+  if (url.pathname === "/api/search" && req.method === "GET") {
+    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const limit = Math.max(
+      1,
+      Math.min(20, parseInt(url.searchParams.get("limit") ?? "5", 10) || 5),
+    );
+    const typeFilter = url.searchParams.get("type"); // optional: dish|region|lineage|ingredient
     const start = Date.now();
     const matchScore = (haystack, needle) => {
       if (!needle) return 0;
-      const h = (haystack ?? '').toLowerCase();
+      const h = (haystack ?? "").toLowerCase();
       if (h.startsWith(needle)) return 1.0;
       const idx = h.indexOf(needle);
       if (idx >= 0) return 0.5 - idx * 0.01; // earlier matches rank higher
@@ -426,9 +474,8 @@ const server = http.createServer((req, res) => {
     };
     const groups = [];
 
-    if (!typeFilter || typeFilter === 'dish') {
-      const hits = LIST
-        .filter((d) => d.status === 'published')
+    if (!typeFilter || typeFilter === "dish") {
+      const hits = LIST.filter((d) => d.status === "published")
         .map((d) => ({
           slug: d.slug,
           name: d.canonicalName,
@@ -441,12 +488,16 @@ const server = http.createServer((req, res) => {
         }))
         .filter((h) => h.score > 0)
         .sort((a, b) => b.score - a.score);
-      groups.push({ type: 'dish', total: hits.length, results: hits.slice(0, limit) });
+      groups.push({
+        type: "dish",
+        total: hits.length,
+        results: hits.slice(0, limit),
+      });
     }
-    if (!typeFilter || typeFilter === 'lineage') {
+    if (!typeFilter || typeFilter === "lineage") {
       const list = HAS_LINEAGES ? (LINEAGES_DATA.list?.lineages ?? []) : [];
       const hits = list
-        .filter((l) => (l.status ?? 'published') === 'published')
+        .filter((l) => (l.status ?? "published") === "published")
         .map((l) => ({
           slug: l.slug,
           name: l.name,
@@ -459,42 +510,58 @@ const server = http.createServer((req, res) => {
         }))
         .filter((h) => h.score > 0)
         .sort((a, b) => b.score - a.score);
-      groups.push({ type: 'lineage', total: hits.length, results: hits.slice(0, limit) });
+      groups.push({
+        type: "lineage",
+        total: hits.length,
+        results: hits.slice(0, limit),
+      });
     }
-    if (!typeFilter || typeFilter === 'ingredient') {
-      const hits = INGREDIENTS
-        .map((ing) => ({
-          slug: ing.slug,
-          name: ing.canonicalName,
-          shortDescription: ing.category,
-          href: `/ingredients/${ing.slug}`,
-          score: matchScore(ing.canonicalName, q),
-        }))
+    if (!typeFilter || typeFilter === "ingredient") {
+      const hits = INGREDIENTS.map((ing) => ({
+        slug: ing.slug,
+        name: ing.canonicalName,
+        shortDescription: ing.category,
+        href: `/ingredients/${ing.slug}`,
+        score: matchScore(ing.canonicalName, q),
+      }))
         .filter((h) => h.score > 0)
         .sort((a, b) => b.score - a.score);
-      groups.push({ type: 'ingredient', total: hits.length, results: hits.slice(0, limit) });
+      groups.push({
+        type: "ingredient",
+        total: hits.length,
+        results: hits.slice(0, limit),
+      });
     }
-    if (!typeFilter || typeFilter === 'region') {
+    if (!typeFilter || typeFilter === "region") {
       // food_regions not in mock; same treatment as ingredients.
-      groups.push({ type: 'region', total: 0, results: [] });
+      groups.push({ type: "region", total: 0, results: [] });
     }
 
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60');
-    res.end(JSON.stringify({
-      query: q,
-      took_ms: Date.now() - start,
-      groups,
-    }));
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.end(
+      JSON.stringify({
+        query: q,
+        took_ms: Date.now() - start,
+        groups,
+      }),
+    );
     return;
   }
 
   // Fallback 404
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Not found', message: `Unknown route: ${url.pathname}` }));
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(
+    JSON.stringify({
+      error: "Not found",
+      message: `Unknown route: ${url.pathname}`,
+    }),
+  );
 });
 
 server.listen(PORT, HOST, () => {
   console.log(`[mock-api] listening on http://${HOST}:${PORT}`);
-  console.log(`[mock-api] ${LIST.length} dishes, ${CATEGORIES.length} categories loaded (${DATA.generatedFrom ?? 'mock-api-data.json'})`);
+  console.log(
+    `[mock-api] ${LIST.length} dishes, ${CATEGORIES.length} categories loaded (${DATA.generatedFrom ?? "mock-api-data.json"})`,
+  );
 });

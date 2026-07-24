@@ -17,11 +17,12 @@
  * parametric token), find-my-way prefers it over a future
  * /api/dishes/:slug/anything — no special ordering needed.
  */
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
-import { db, dishes, media, mediaAttachments } from '@gustale/db';
-import { httpError } from '../errors.js';
+
+import { db, dishes, media, mediaAttachments } from "@gustale/db";
+import { and, eq, sql } from "drizzle-orm";
+import type { FastifyInstance, FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import { httpError } from "../errors.js";
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────
 
@@ -29,11 +30,11 @@ import { httpError } from '../errors.js';
  * Roles for media_attachments. Schema defaults to 'gallery'.
  * 'cover' replaces any existing cover on the same dish.
  */
-const attachmentRoleSchema = z.enum(['cover', 'gallery']);
+const attachmentRoleSchema = z.enum(["cover", "gallery"]);
 
 const attachMediaSchema = z.object({
   mediaId: z.string().uuid(),
-  role: attachmentRoleSchema.default('gallery'),
+  role: attachmentRoleSchema.default("gallery"),
   position: z.number().int().min(0).optional(),
 });
 
@@ -47,30 +48,36 @@ const removeAttachmentParamsSchema = z.object({
 /**
  * Look up dish by slug and return its id, or throw 404.
  */
-async function dishIdBySlug(slug: string): Promise<{ id: string; status: string }> {
+async function dishIdBySlug(
+  slug: string,
+): Promise<{ id: string; status: string }> {
   const rows = await db
     .select({ id: dishes.id, status: dishes.status })
     .from(dishes)
     .where(eq(dishes.slug, slug))
     .limit(1);
   if (rows.length === 0) {
-    throw httpError(404, 'not_found', `Dish "${slug}" not found`);
+    throw httpError(404, "not_found", `Dish "${slug}" not found`);
   }
   return rows[0]!;
 }
 
 // ─── Route registration ──────────────────────────────────────────────────
 
-export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+export const registerDishMediaRoutes: FastifyPluginAsync = async (
+  app: FastifyInstance,
+) => {
   // ─── POST /api/dishes/:slug/media ────────────────────────────────────
   // Attach an existing media row to a dish.
   //
   // If role === 'cover', atomically demote any existing cover on this dish
   // to 'gallery' (so there is at most one cover at any time). Done in a
   // single transaction with the new insert.
-  app.post('/api/dishes/:slug/media', async (request, reply) => {
+  app.post("/api/dishes/:slug/media", async (request, reply) => {
     const user = await app.requireUser(request);
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
     const body = attachMediaSchema.parse(request.body ?? {});
 
     const dish = await dishIdBySlug(slug);
@@ -83,18 +90,24 @@ export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyIn
       .where(eq(media.id, body.mediaId))
       .limit(1);
     if (mediaRows.length === 0) {
-      throw httpError(404, 'media_not_found', `Media ${body.mediaId} not found`);
+      throw httpError(
+        404,
+        "media_not_found",
+        `Media ${body.mediaId} not found`,
+      );
     }
 
     // Compute position: explicit > max-existing + 1 > 0.
     let position = body.position ?? 0;
     if (body.position === undefined) {
       const max = await db
-        .select({ max: sql<number>`COALESCE(MAX(${mediaAttachments.position}), -1)` })
+        .select({
+          max: sql<number>`COALESCE(MAX(${mediaAttachments.position}), -1)`,
+        })
         .from(mediaAttachments)
         .where(
           and(
-            eq(mediaAttachments.targetType, 'dish'),
+            eq(mediaAttachments.targetType, "dish"),
             eq(mediaAttachments.targetId, dish.id),
           ),
         );
@@ -104,15 +117,15 @@ export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyIn
     // Atomic transaction: if this is a cover, demote any existing cover
     // first, then insert the new attachment. If anything fails, rollback.
     const inserted = await db.transaction(async (tx) => {
-      if (body.role === 'cover') {
+      if (body.role === "cover") {
         await tx
           .update(mediaAttachments)
-          .set({ role: 'gallery' })
+          .set({ role: "gallery" })
           .where(
             and(
-              eq(mediaAttachments.targetType, 'dish'),
+              eq(mediaAttachments.targetType, "dish"),
               eq(mediaAttachments.targetId, dish.id),
-              eq(mediaAttachments.role, 'cover'),
+              eq(mediaAttachments.role, "cover"),
             ),
           );
       }
@@ -121,7 +134,7 @@ export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyIn
         .insert(mediaAttachments)
         .values({
           mediaId: body.mediaId,
-          targetType: 'dish',
+          targetType: "dish",
           targetId: dish.id,
           role: body.role,
           position,
@@ -138,7 +151,7 @@ export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyIn
     });
 
     if (!inserted) {
-      throw new Error('Attachment insert returned no rows');
+      throw new Error("Attachment insert returned no rows");
     }
 
     // Audit trail. We don't reuse editHistory here because the action is
@@ -153,14 +166,14 @@ export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyIn
         attachmentId: inserted.id,
         role: body.role,
       },
-      'media attached to dish',
+      "media attached to dish",
     );
 
     return reply.status(201).send({
       attachment: {
         id: inserted.id,
         mediaId: inserted.mediaId,
-        targetType: 'dish',
+        targetType: "dish",
         targetId: dish.id,
         role: inserted.role,
         position: inserted.position,
@@ -172,34 +185,45 @@ export const registerDishMediaRoutes: FastifyPluginAsync = async (app: FastifyIn
   // ─── DELETE /api/dishes/:slug/media/:attachmentId ────────────────────
   // Detach a media row from a dish. The media row itself is NOT deleted —
   // it can be re-attached to another dish or kept as an unattached asset.
-  app.delete('/api/dishes/:slug/media/:attachmentId', async (request, reply) => {
-    const user = await app.requireUser(request);
-    const { slug, attachmentId } = removeAttachmentParamsSchema.parse(request.params);
+  app.delete(
+    "/api/dishes/:slug/media/:attachmentId",
+    async (request, reply) => {
+      const user = await app.requireUser(request);
+      const { slug, attachmentId } = removeAttachmentParamsSchema.parse(
+        request.params,
+      );
 
-    const dish = await dishIdBySlug(slug);
+      const dish = await dishIdBySlug(slug);
 
-    const rows = await db
-      .select({ id: mediaAttachments.id })
-      .from(mediaAttachments)
-      .where(
-        and(
-          eq(mediaAttachments.id, attachmentId),
-          eq(mediaAttachments.targetType, 'dish'),
-          eq(mediaAttachments.targetId, dish.id),
-        ),
-      )
-      .limit(1);
-    if (rows.length === 0) {
-      throw httpError(404, 'attachment_not_found', `Attachment ${attachmentId} not found on ${slug}`);
-    }
+      const rows = await db
+        .select({ id: mediaAttachments.id })
+        .from(mediaAttachments)
+        .where(
+          and(
+            eq(mediaAttachments.id, attachmentId),
+            eq(mediaAttachments.targetType, "dish"),
+            eq(mediaAttachments.targetId, dish.id),
+          ),
+        )
+        .limit(1);
+      if (rows.length === 0) {
+        throw httpError(
+          404,
+          "attachment_not_found",
+          `Attachment ${attachmentId} not found on ${slug}`,
+        );
+      }
 
-    await db.delete(mediaAttachments).where(eq(mediaAttachments.id, attachmentId));
+      await db
+        .delete(mediaAttachments)
+        .where(eq(mediaAttachments.id, attachmentId));
 
-    request.log.info(
-      { userId: user.id, dishSlug: slug, attachmentId },
-      'media attachment removed',
-    );
+      request.log.info(
+        { userId: user.id, dishSlug: slug, attachmentId },
+        "media attachment removed",
+      );
 
-    return reply.send({ removed: true, attachmentId });
-  });
+      return reply.send({ removed: true, attachmentId });
+    },
+  );
 };

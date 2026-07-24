@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { authoringHref } from '../lib/domain';
-import { getClientSession } from '../lib/session';
+import { useEffect, useState } from "react";
+import { authoringHref } from "../lib/domain";
+import { getClientSession } from "../lib/session";
 
 export interface EditDishButtonProps {
   slug: string;

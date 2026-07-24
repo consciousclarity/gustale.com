@@ -1,7 +1,7 @@
-import * as React from 'react';
+import type * as React from "react";
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  as?: 'div' | 'article' | 'section' | 'aside';
+  as?: "div" | "article" | "section" | "aside";
   padded?: boolean;
 }
 
@@ -11,17 +11,17 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
  * once we know what the design system actually needs.
  */
 export function Card({
-  as: Tag = 'div',
+  as: Tag = "div",
   padded = true,
-  className = '',
+  className = "",
   children,
   ...rest
 }: CardProps) {
   return (
     <Tag
       className={
-        'rounded-lg border border-slate-200 bg-white shadow-sm ' +
-        (padded ? 'p-4 ' : '') +
+        "rounded-lg border border-slate-200 bg-white shadow-sm " +
+        (padded ? "p-4 " : "") +
         className
       }
       {...rest}
@@ -54,7 +54,9 @@ export function DishCard({
           {title}
         </h3>
         {description && (
-          <p className="mt-1 line-clamp-3 text-sm text-slate-600">{description}</p>
+          <p className="mt-1 line-clamp-3 text-sm text-slate-600">
+            {description}
+          </p>
         )}
         <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
           {status && (
@@ -62,7 +64,7 @@ export function DishCard({
               {status}
             </span>
           )}
-          {typeof viewCount === 'number' && (
+          {typeof viewCount === "number" && (
             <span>{viewCount.toLocaleString()} views</span>
           )}
         </div>

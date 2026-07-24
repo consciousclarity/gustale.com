@@ -1,11 +1,11 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import * as allSchema from './schema/index.js';
-import * as authSchema from './schema/auth.js';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as authSchema from "./schema/auth.js";
+import * as allSchema from "./schema/index.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  throw new Error('DATABASE_URL is not set');
+  throw new Error("DATABASE_URL is not set");
 }
 
 // Singleton postgres client + drizzle wrapper.
@@ -25,13 +25,16 @@ const client = postgres(connectionString, {
  * We filter the namespace down to actual pgTable instances by checking for the
  * `drizzle:BaseName` symbol that pgTable stamps on every table.
  */
-const DRIZZLE_BASE_NAME = Symbol.for('drizzle:BaseName');
-const isDrizzleTable = (v: unknown): v is { readonly [DRIZZLE_BASE_NAME]: string } =>
-  !!v && typeof v === 'object' && DRIZZLE_BASE_NAME in v;
+const DRIZZLE_BASE_NAME = Symbol.for("drizzle:BaseName");
+const isDrizzleTable = (
+  v: unknown,
+): v is { readonly [DRIZZLE_BASE_NAME]: string } =>
+  !!v && typeof v === "object" && DRIZZLE_BASE_NAME in v;
 
 const schema = Object.fromEntries(
-  [...Object.entries(allSchema), ...Object.entries(authSchema)]
-    .filter(([, v]) => isDrizzleTable(v))
+  [...Object.entries(allSchema), ...Object.entries(authSchema)].filter(
+    ([, v]) => isDrizzleTable(v),
+  ),
 );
 
 export const db = drizzle(client, { schema });
@@ -41,6 +44,6 @@ export async function closeDb(): Promise<void> {
   await client.end();
 }
 
+export * from "./schema/auth.js";
+export * from "./schema/index.js";
 export { schema };
-export * from './schema/index.js';
-export * from './schema/auth.js';

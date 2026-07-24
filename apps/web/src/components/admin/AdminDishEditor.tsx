@@ -33,29 +33,44 @@
  *   - Drag-and-drop photo upload
  *   - Click-photo-to-edit for source modal
  */
-import { useEffect, useRef, useState } from 'react';
-import type { AdminDishDetail } from '../../lib/api';
+import { useEffect, useRef, useState } from "react";
+import type { AdminDishDetail } from "../../lib/api";
 import {
+  type AdminDishSource,
   attachMediaToDish,
+  type CreateSourceInput,
   createAdminDishSource,
   deleteAdminDishSource,
   detachMediaFromDish,
   getMediaSignedUrl,
   listAdminDishSources,
-  type AdminDishSource,
-  type CreateSourceInput,
   updateAdminDishSource,
   uploadMedia,
-} from '../../lib/api';
+} from "../../lib/api";
 
-type Tab = 'identity' | 'origin' | 'photos' | 'sources' | 'taxonomy';
+type Tab = "identity" | "origin" | "photos" | "sources" | "taxonomy";
 
-const TABS: Array<{ id: Tab; label: string; implemented: boolean; hint?: string }> = [
-  { id: 'identity', label: 'Identity', implemented: true },
-  { id: 'origin', label: 'Origin', implemented: false, hint: 'read-only in v2.5' },
-  { id: 'photos', label: 'Photos', implemented: true },
-  { id: 'sources', label: 'Sources', implemented: true },
-  { id: 'taxonomy', label: 'Classification', implemented: false, hint: 'read-only in v2.5' },
+const TABS: Array<{
+  id: Tab;
+  label: string;
+  implemented: boolean;
+  hint?: string;
+}> = [
+  { id: "identity", label: "Identity", implemented: true },
+  {
+    id: "origin",
+    label: "Origin",
+    implemented: false,
+    hint: "read-only in v2.5",
+  },
+  { id: "photos", label: "Photos", implemented: true },
+  { id: "sources", label: "Sources", implemented: true },
+  {
+    id: "taxonomy",
+    label: "Classification",
+    implemented: false,
+    hint: "read-only in v2.5",
+  },
 ];
 
 interface Props {
@@ -86,25 +101,25 @@ interface TabState {
 const initialTabState: TabState = { saving: false, saved: false, error: null };
 
 const inputCls =
-  'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500';
+  "block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
 
 const labelCls =
-  'block font-mono text-xs uppercase tracking-wider text-slate-500 mb-1.5';
+  "block font-mono text-xs uppercase tracking-wider text-slate-500 mb-1.5";
 
 const sectionCardCls =
-  'rounded-lg border border-slate-200 bg-white p-6 shadow-sm';
+  "rounded-lg border border-slate-200 bg-white p-6 shadow-sm";
 
 export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
-  const [tab, setTab] = useState<Tab>('identity');
+  const [tab, setTab] = useState<Tab>("identity");
 
   // Identity tab state
   const [canonicalName, setCanonicalName] = useState(initialDish.canonicalName);
   const [slug, setSlug] = useState(initialDish.slug);
   const [shortDescription, setShortDescription] = useState(
-    initialDish.shortDescription ?? '',
+    initialDish.shortDescription ?? "",
   );
   const [longDescription, setLongDescription] = useState(
-    initialDish.longDescription ?? '',
+    initialDish.longDescription ?? "",
   );
   const [identityState, setIdentityState] = useState<TabState>(initialTabState);
   const [identityErrors, setIdentityErrors] = useState<FieldErrors>({});
@@ -114,7 +129,7 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
     Array<{
       id: string;
       mediaId: string;
-      role: 'cover' | 'gallery';
+      role: "cover" | "gallery";
       position: number;
       signedUrl: string | null;
       altText: string | null;
@@ -142,11 +157,17 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
         // media item, fetch the signed URL for the preview.
         const adminDetail = await fetch(
           `${apiBase}/api/dishes/${encodeURIComponent(initialDish.slug)}`,
-          { credentials: 'include' },
+          { credentials: "include" },
         );
-        if (!adminDetail.ok) throw new Error(`dish fetch ${adminDetail.status}`);
+        if (!adminDetail.ok)
+          throw new Error(`dish fetch ${adminDetail.status}`);
         const data = (await adminDetail.json()) as {
-          media?: Array<{ id: string; mediaId: string; role: 'cover' | 'gallery'; position: number }>;
+          media?: Array<{
+            id: string;
+            mediaId: string;
+            role: "cover" | "gallery";
+            position: number;
+          }>;
         };
         if (cancelled) return;
         const items = data.media ?? [];
@@ -155,9 +176,19 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
           items.map(async (m) => {
             try {
               const urlRes = await getMediaSignedUrl(m.mediaId);
-              return { ...m, signedUrl: urlRes.url, altText: null, mimeType: 'image/jpeg' };
+              return {
+                ...m,
+                signedUrl: urlRes.url,
+                altText: null,
+                mimeType: "image/jpeg",
+              };
             } catch {
-              return { ...m, signedUrl: null, altText: null, mimeType: 'image/jpeg' };
+              return {
+                ...m,
+                signedUrl: null,
+                altText: null,
+                mimeType: "image/jpeg",
+              };
             }
           }),
         );
@@ -183,7 +214,9 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await listAdminDishSources(initialDish.slug, { credentials: 'include' });
+        const res = await listAdminDishSources(initialDish.slug, {
+          credentials: "include",
+        });
         if (!cancelled) {
           setSources(res.sources);
           setSourcesLoading(false);
@@ -207,17 +240,20 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
     setIdentityState({ saving: true, saved: false, error: null });
     setIdentityErrors({});
     try {
-      const res = await fetch(`${apiBase}/api/dishes/${encodeURIComponent(slug)}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          canonicalName,
-          slug,
-          shortDescription: shortDescription || null,
-          longDescription: longDescription || null,
-        }),
-      });
+      const res = await fetch(
+        `${apiBase}/api/dishes/${encodeURIComponent(slug)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            canonicalName,
+            slug,
+            shortDescription: shortDescription || null,
+            longDescription: longDescription || null,
+          }),
+        },
+      );
       if (res.status === 400) {
         const body = (await res.json()) as {
           issues?: Array<{ path: (string | number)[]; message: string }>;
@@ -226,10 +262,10 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
         for (const issue of body.issues ?? []) {
           const field = issue.path[0];
           if (
-            field === 'canonicalName' ||
-            field === 'slug' ||
-            field === 'shortDescription' ||
-            field === 'longDescription'
+            field === "canonicalName" ||
+            field === "slug" ||
+            field === "shortDescription" ||
+            field === "longDescription"
           ) {
             fieldErrors[field as keyof FieldErrors] = issue.message;
           } else {
@@ -245,7 +281,7 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
         setIdentityState({
           saving: false,
           saved: false,
-          error: `Save failed (${res.status}): ${text || 'unknown'}`,
+          error: `Save failed (${res.status}): ${text || "unknown"}`,
         });
         return;
       }
@@ -264,7 +300,10 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
   }
 
   // ─── Photos: drag-drop + click-to-upload + detach + set cover ─────────
-  async function uploadAndAttach(files: FileList | File[], role: 'cover' | 'gallery' = 'gallery') {
+  async function uploadAndAttach(
+    files: FileList | File[],
+    role: "cover" | "gallery" = "gallery",
+  ) {
     const arr = Array.from(files);
     if (arr.length === 0) return;
     setMediaUploading(true);
@@ -291,28 +330,35 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
         ]);
         successCount++;
       } catch (err) {
-        errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+        errors.push(
+          `${file.name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
     setMediaUploading(false);
     setMediaState({
       saving: false,
       saved: errors.length === 0,
-      error: errors.length > 0 ? errors.join('; ') : null,
+      error: errors.length > 0 ? errors.join("; ") : null,
     });
     // Refresh the list to get canonical attachment IDs.
     setTimeout(async () => {
       try {
         const res = await fetch(
           `${apiBase}/api/dishes/${encodeURIComponent(initialDish.slug)}`,
-          { credentials: 'include' },
+          { credentials: "include" },
         );
         const data = (await res.json()) as { media?: typeof media };
         if (data.media) {
           const withUrls = await Promise.all(
             data.media.map(async (m) => {
               const urlRes = await getMediaSignedUrl(m.mediaId);
-              return { ...m, signedUrl: urlRes.url, altText: null, mimeType: 'image/jpeg' };
+              return {
+                ...m,
+                signedUrl: urlRes.url,
+                altText: null,
+                mimeType: "image/jpeg",
+              };
             }),
           );
           setMedia(withUrls);
@@ -326,10 +372,13 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
   async function handleSetCover(mediaId: string) {
     setMediaState({ saving: true, saved: false, error: null });
     try {
-      await attachMediaToDish(initialDish.slug, mediaId, 'cover');
+      await attachMediaToDish(initialDish.slug, mediaId, "cover");
       // Update local state
       setMedia((prev) =>
-        prev.map((m) => ({ ...m, role: m.mediaId === mediaId ? 'cover' : 'gallery' })),
+        prev.map((m) => ({
+          ...m,
+          role: m.mediaId === mediaId ? "cover" : "gallery",
+        })),
       );
       setMediaState({ saving: false, saved: true, error: null });
     } catch (err) {
@@ -342,7 +391,12 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
   }
 
   async function handleDetach(attachmentId: string) {
-    if (!window.confirm('Remove this photo from the dish? (The file is kept in storage.)')) return;
+    if (
+      !window.confirm(
+        "Remove this photo from the dish? (The file is kept in storage.)",
+      )
+    )
+      return;
     setMediaState({ saving: true, saved: false, error: null });
     try {
       await detachMediaFromDish(initialDish.slug, attachmentId);
@@ -382,7 +436,12 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
   }
 
   async function handleDeleteSource(citationId: string) {
-    if (!window.confirm('Remove this source citation? (The source itself is kept.)')) return;
+    if (
+      !window.confirm(
+        "Remove this source citation? (The source itself is kept.)",
+      )
+    )
+      return;
     setSourcesState({ saving: true, saved: false, error: null });
     try {
       await deleteAdminDishSource(initialDish.slug, citationId);
@@ -398,19 +457,26 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
   }
 
   // Save handler used by both Add and Edit forms.
-  async function handleSourceSave(input: CreateSourceInput, citationId: string | null) {
+  async function handleSourceSave(
+    input: CreateSourceInput,
+    citationId: string | null,
+  ) {
     setSourcesState({ saving: true, saved: false, error: null });
     try {
       if (citationId === null) {
         const res = await createAdminDishSource(initialDish.slug, input);
         // Refresh the list so we have the canonical row.
-        const list = await listAdminDishSources(initialDish.slug, { credentials: 'include' });
+        const list = await listAdminDishSources(initialDish.slug, {
+          credentials: "include",
+        });
         setSources(list.sources);
         setAddingSource(false);
         void res; // already refreshed
       } else {
         await updateAdminDishSource(initialDish.slug, citationId, input);
-        const list = await listAdminDishSources(initialDish.slug, { credentials: 'include' });
+        const list = await listAdminDishSources(initialDish.slug, {
+          credentials: "include",
+        });
         setSources(list.sources);
         setEditingSourceId(null);
       }
@@ -427,34 +493,44 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
   // Cmd/Ctrl+S to save the active tab.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (tab === 'identity') {
+        if (tab === "identity") {
           // Find the identity form and submit it.
-          const form = document.getElementById('admin-identity-form') as HTMLFormElement | null;
+          const form = document.getElementById(
+            "admin-identity-form",
+          ) as HTMLFormElement | null;
           form?.requestSubmit();
         }
       }
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [tab]);
 
-  const coverMedia = media.find((m) => m.role === 'cover');
-  const galleryMedia = media.filter((m) => m.role !== 'cover');
+  const coverMedia = media.find((m) => m.role === "cover");
+  const galleryMedia = media.filter((m) => m.role !== "cover");
 
   return (
     <div>
       <header className="mb-6">
-        <h1 className="font-serif text-3xl text-slate-900">{initialDish.canonicalName}</h1>
+        <h1 className="font-serif text-3xl text-slate-900">
+          {initialDish.canonicalName}
+        </h1>
         <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           <span className="font-mono">{initialDish.slug}</span>
           <span aria-hidden="true">·</span>
-          <span>Updated {new Date(initialDish.updatedAt).toLocaleString()}</span>
+          <span>
+            Updated {new Date(initialDish.updatedAt).toLocaleString()}
+          </span>
           <span aria-hidden="true">·</span>
-          <span>{media.length} photo{media.length === 1 ? '' : 's'}</span>
+          <span>
+            {media.length} photo{media.length === 1 ? "" : "s"}
+          </span>
           <span aria-hidden="true">·</span>
-          <span>{sources.length} source{sources.length === 1 ? '' : 's'}</span>
+          <span>
+            {sources.length} source{sources.length === 1 ? "" : "s"}
+          </span>
         </p>
       </header>
 
@@ -469,16 +545,16 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
             id={`edit-tab-${t.id}`}
             onClick={() => setTab(t.id)}
             className={
-              'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors ' +
+              "flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors " +
               (tab === t.id
-                ? 'border-emerald-600 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-900')
+                ? "border-emerald-600 text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-900")
             }
           >
             {t.label}
             {!t.implemented && (
               <span className="rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[0.65rem] uppercase text-slate-500">
-                {t.hint ?? 'v3'}
+                {t.hint ?? "v3"}
               </span>
             )}
           </button>
@@ -486,7 +562,7 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
       </div>
 
       {/* ─── Identity ──────────────────────────────────────────────── */}
-      {tab === 'identity' && (
+      {tab === "identity" && (
         <form
           id="admin-identity-form"
           role="tabpanel"
@@ -494,7 +570,10 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
           onSubmit={handleIdentitySave}
           className="space-y-6"
         >
-          <TabStateBanner state={identityState} savedMessage="Identity saved." />
+          <TabStateBanner
+            state={identityState}
+            savedMessage="Identity saved."
+          />
 
           <Field
             id="edit-canonical-name"
@@ -579,42 +658,62 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
               className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
               disabled={identityState.saving}
             >
-              {identityState.saving ? 'Saving…' : 'Save changes'} <span className="ml-1 text-xs opacity-70">⌘S</span>
+              {identityState.saving ? "Saving…" : "Save changes"}{" "}
+              <span className="ml-1 text-xs opacity-70">⌘S</span>
             </button>
           </div>
         </form>
       )}
 
       {/* ─── Origin (read-only stub) ─────────────────────────────── */}
-      {tab === 'origin' && (
+      {tab === "origin" && (
         <div role="tabpanel" className={sectionCardCls}>
           <p className="mb-4 italic text-slate-500">
             Origin editing lands in v3 (ADM-08). Current data:
           </p>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
-            <dt className="font-mono text-xs uppercase text-slate-500">Origin geo id</dt>
-            <dd className="font-mono text-xs">{initialDish.originGeoId ?? '—'}</dd>
-            <dt className="font-mono text-xs uppercase text-slate-500">Date earliest</dt>
-            <dd>{initialDish.originDateEarliest ?? '—'}</dd>
-            <dt className="font-mono text-xs uppercase text-slate-500">Date latest</dt>
-            <dd>{initialDish.originDateLatest ?? '—'}</dd>
-            <dt className="font-mono text-xs uppercase text-slate-500">Period label</dt>
-            <dd>{initialDish.originPeriodLabel ?? '—'}</dd>
-            <dt className="font-mono text-xs uppercase text-slate-500">Geo entities available</dt>
+            <dt className="font-mono text-xs uppercase text-slate-500">
+              Origin geo id
+            </dt>
+            <dd className="font-mono text-xs">
+              {initialDish.originGeoId ?? "—"}
+            </dd>
+            <dt className="font-mono text-xs uppercase text-slate-500">
+              Date earliest
+            </dt>
+            <dd>{initialDish.originDateEarliest ?? "—"}</dd>
+            <dt className="font-mono text-xs uppercase text-slate-500">
+              Date latest
+            </dt>
+            <dd>{initialDish.originDateLatest ?? "—"}</dd>
+            <dt className="font-mono text-xs uppercase text-slate-500">
+              Period label
+            </dt>
+            <dd>{initialDish.originPeriodLabel ?? "—"}</dd>
+            <dt className="font-mono text-xs uppercase text-slate-500">
+              Geo entities available
+            </dt>
             <dd>{lookups.geoEntities.length}</dd>
           </dl>
         </div>
       )}
 
       {/* ─── Photos ──────────────────────────────────────────────── */}
-      {tab === 'photos' && (
-        <div role="tabpanel" aria-labelledby="edit-tab-photos" className="space-y-6">
+      {tab === "photos" && (
+        <div
+          role="tabpanel"
+          aria-labelledby="edit-tab-photos"
+          className="space-y-6"
+        >
           <TabStateBanner state={mediaState} savedMessage="Photos updated." />
 
           <div className={sectionCardCls}>
-            <h3 className="mb-2 text-sm font-medium text-slate-700">Cover image</h3>
+            <h3 className="mb-2 text-sm font-medium text-slate-700">
+              Cover image
+            </h3>
             <p className="mb-3 text-xs text-slate-500">
-              The cover is the first photo shown on the dish page. Set any photo as cover with the radio below.
+              The cover is the first photo shown on the dish page. Set any photo
+              as cover with the radio below.
             </p>
             {coverMedia ? (
               <PhotoPreview
@@ -625,7 +724,8 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
               />
             ) : (
               <p className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
-                No cover image. Set one from the gallery below, or upload a new one.
+                No cover image. Set one from the gallery below, or upload a new
+                one.
               </p>
             )}
           </div>
@@ -634,25 +734,36 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
             className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center"
             onDragOver={(e) => {
               e.preventDefault();
-              e.currentTarget.classList.add('border-emerald-500', 'bg-emerald-50');
+              e.currentTarget.classList.add(
+                "border-emerald-500",
+                "bg-emerald-50",
+              );
             }}
             onDragLeave={(e) => {
-              e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-50');
+              e.currentTarget.classList.remove(
+                "border-emerald-500",
+                "bg-emerald-50",
+              );
             }}
             onDrop={(e) => {
-              e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-50');
+              e.currentTarget.classList.remove(
+                "border-emerald-500",
+                "bg-emerald-50",
+              );
               handleFileDrop(e);
             }}
           >
             <p className="text-sm text-slate-700">Drag photos here to upload</p>
-            <p className="mt-1 text-xs text-slate-500">JPEG, PNG, WebP, AVIF, GIF. Up to 20 MB each.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              JPEG, PNG, WebP, AVIF, GIF. Up to 20 MB each.
+            </p>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={mediaUploading}
               className="mt-3 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              {mediaUploading ? 'Uploading…' : 'Or choose files'}
+              {mediaUploading ? "Uploading…" : "Or choose files"}
             </button>
             <input
               ref={fileInputRef}
@@ -663,7 +774,7 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
               onChange={(e) => {
                 if (e.target.files && e.target.files.length > 0) {
                   void uploadAndAttach(e.target.files);
-                  e.target.value = ''; // allow re-upload of same file
+                  e.target.value = ""; // allow re-upload of same file
                 }
               }}
             />
@@ -729,9 +840,16 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
       )}
 
       {/* ─── Sources ─────────────────────────────────────────────── */}
-      {tab === 'sources' && (
-        <div role="tabpanel" aria-labelledby="edit-tab-sources" className="space-y-6">
-          <TabStateBanner state={sourcesState} savedMessage="Sources updated." />
+      {tab === "sources" && (
+        <div
+          role="tabpanel"
+          aria-labelledby="edit-tab-sources"
+          className="space-y-6"
+        >
+          <TabStateBanner
+            state={sourcesState}
+            savedMessage="Sources updated."
+          />
 
           <div className={sectionCardCls}>
             <div className="mb-4 flex items-center justify-between">
@@ -753,7 +871,8 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
               <p className="text-sm text-slate-500">Loading…</p>
             ) : sources.length === 0 && !addingSource ? (
               <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-                No sources yet. Add the first one — Wikipedia, a cookbook, a personal interview, anything citable.
+                No sources yet. Add the first one — Wikipedia, a cookbook, a
+                personal interview, anything citable.
               </p>
             ) : (
               <ol className="space-y-3">
@@ -763,7 +882,9 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
                       key={s.citationId}
                       initial={s}
                       saving={sourcesState.saving}
-                      onSave={(input) => void handleSourceSave(input, s.citationId)}
+                      onSave={(input) =>
+                        void handleSourceSave(input, s.citationId)
+                      }
                       onCancel={cancelSourceEdit}
                     />
                   ) : (
@@ -782,17 +903,22 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
                                 {s.source.reliability}
                               </span>
                             )}
-                            <span className="font-medium text-slate-900">{s.source.title}</span>
+                            <span className="font-medium text-slate-900">
+                              {s.source.title}
+                            </span>
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
-                            {s.source.authors && s.source.authors.length > 0 && (
-                              <span>{s.source.authors.join(', ')}</span>
-                            )}
+                            {s.source.authors &&
+                              s.source.authors.length > 0 && (
+                                <span>{s.source.authors.join(", ")}</span>
+                              )}
                             {s.source.year && <span> · {s.source.year}</span>}
-                            {s.source.publisher && <span> · {s.source.publisher}</span>}
+                            {s.source.publisher && (
+                              <span> · {s.source.publisher}</span>
+                            )}
                             {s.source.url && (
                               <>
-                                {' · '}
+                                {" · "}
                                 <a
                                   href={s.source.url}
                                   target="_blank"
@@ -808,7 +934,7 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
                             <p className="mt-2 text-sm text-slate-700">
                               <span className="font-mono text-xs uppercase text-slate-500">
                                 Claim:
-                              </span>{' '}
+                              </span>{" "}
                               {s.claimText}
                             </p>
                           )}
@@ -823,7 +949,9 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleDeleteSource(s.citationId)}
+                            onClick={() =>
+                              void handleDeleteSource(s.citationId)
+                            }
                             className="rounded px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
                           >
                             Delete
@@ -851,7 +979,7 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
       )}
 
       {/* ─── Classification (read-only stub) ────────────────────── */}
-      {tab === 'taxonomy' && (
+      {tab === "taxonomy" && (
         <div role="tabpanel" className={sectionCardCls}>
           <p className="mb-4 italic text-slate-500">
             Classification editing lands in v3 (ADM-08). Current data:
@@ -859,26 +987,34 @@ export function AdminDishEditor({ initialDish, lookups, apiBase }: Props) {
           <h4 className="mb-2 mt-4 font-medium text-slate-900">Categories</h4>
           <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600">
             {initialDish.categories.map((c) => (
-              <li key={c.categoryId}>{c.categoryName ?? c.categorySlug ?? '(unknown)'}</li>
+              <li key={c.categoryId}>
+                {c.categoryName ?? c.categorySlug ?? "(unknown)"}
+              </li>
             ))}
             {initialDish.categories.length === 0 && <li>(none)</li>}
           </ul>
-          <h4 className="mb-2 mt-4 font-medium text-slate-900">Preparation methods</h4>
+          <h4 className="mb-2 mt-4 font-medium text-slate-900">
+            Preparation methods
+          </h4>
           <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600">
             {initialDish.preparations.map((p) => (
-              <li key={p.id}>{p.methodName ?? p.methodSlug ?? '(unknown)'}</li>
+              <li key={p.id}>{p.methodName ?? p.methodSlug ?? "(unknown)"}</li>
             ))}
             {initialDish.preparations.length === 0 && <li>(none)</li>}
           </ul>
-          <h4 className="mb-2 mt-4 font-medium text-slate-900">Related dishes</h4>
+          <h4 className="mb-2 mt-4 font-medium text-slate-900">
+            Related dishes
+          </h4>
           <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600">
             {initialDish.relatedDishes.map((r) => (
               <li key={r.id}>
-                {r.relatedName ?? r.relatedSlug ?? '(unknown)'}{' '}
+                {r.relatedName ?? r.relatedSlug ?? "(unknown)"}{" "}
                 <span className="ml-1 rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[0.65rem] uppercase text-slate-500">
                   {r.relationType}
                 </span>
-                {r.reason && <em className="ml-1 text-slate-500">— {r.reason}</em>}
+                {r.reason && (
+                  <em className="ml-1 text-slate-500">— {r.reason}</em>
+                )}
               </li>
             ))}
             {initialDish.relatedDishes.length === 0 && <li>(none)</li>}
@@ -924,7 +1060,13 @@ function Field({
   );
 }
 
-function TabStateBanner({ state, savedMessage }: { state: TabState; savedMessage: string }) {
+function TabStateBanner({
+  state,
+  savedMessage,
+}: {
+  state: TabState;
+  savedMessage: string;
+}) {
   if (state.saved) {
     return (
       <div
@@ -997,35 +1139,42 @@ function SourceForm({
   onSave: (input: CreateSourceInput) => void;
   onCancel: () => void;
 }) {
-  const [sourceType, setSourceType] = useState<CreateSourceInput['sourceType']>(
-    initial?.source.sourceType ?? 'web',
+  const [sourceType, setSourceType] = useState<CreateSourceInput["sourceType"]>(
+    initial?.source.sourceType ?? "web",
   );
-  const [title, setTitle] = useState(initial?.source.title ?? '');
+  const [title, setTitle] = useState(initial?.source.title ?? "");
   const [authorsText, setAuthorsText] = useState(
-    initial?.source.authors?.join(', ') ?? '',
+    initial?.source.authors?.join(", ") ?? "",
   );
   const [year, setYear] = useState<string>(
-    initial?.source.year != null ? String(initial.source.year) : '',
+    initial?.source.year != null ? String(initial.source.year) : "",
   );
-  const [publisher, setPublisher] = useState(initial?.source.publisher ?? '');
-  const [url, setUrl] = useState(initial?.source.url ?? '');
-  const [isbn, setIsbn] = useState(initial?.source.isbn ?? '');
-  const [doi, setDoi] = useState(initial?.source.doi ?? '');
-  const [citationText, setCitationText] = useState(initial?.source.citationText ?? '');
-  const [reliability, setReliability] = useState<CreateSourceInput['reliability']>(
-    initial?.source.reliability ?? null,
+  const [publisher, setPublisher] = useState(initial?.source.publisher ?? "");
+  const [url, setUrl] = useState(initial?.source.url ?? "");
+  const [isbn, setIsbn] = useState(initial?.source.isbn ?? "");
+  const [doi, setDoi] = useState(initial?.source.doi ?? "");
+  const [citationText, setCitationText] = useState(
+    initial?.source.citationText ?? "",
   );
-  const [claimText, setClaimText] = useState(initial?.claimText ?? '');
-  const [location, setLocation] = useState(initial?.location ?? '');
+  const [reliability, setReliability] = useState<
+    CreateSourceInput["reliability"]
+  >(initial?.source.reliability ?? null);
+  const [claimText, setClaimText] = useState(initial?.claimText ?? "");
+  const [location, setLocation] = useState(initial?.location ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
-    if (title.trim().length < 2) newErrors.title = 'Title is required (min 2 chars).';
-    if (url && !/^https?:\/\//.test(url)) newErrors.url = 'URL must start with http:// or https://';
-    if (year && (!/^-?\d+$/.test(year) || Number(year) < -3000 || Number(year) > 2100)) {
-      newErrors.year = 'Year must be a number between -3000 and 2100.';
+    if (title.trim().length < 2)
+      newErrors.title = "Title is required (min 2 chars).";
+    if (url && !/^https?:\/\//.test(url))
+      newErrors.url = "URL must start with http:// or https://";
+    if (
+      year &&
+      (!/^-?\d+$/.test(year) || Number(year) < -3000 || Number(year) > 2100)
+    ) {
+      newErrors.year = "Year must be a number between -3000 and 2100.";
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -1033,7 +1182,7 @@ function SourceForm({
     }
     setErrors({});
     const authors = authorsText
-      .split(',')
+      .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
     onSave({
@@ -1053,18 +1202,23 @@ function SourceForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-md border border-slate-200 bg-slate-50 p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-md border border-slate-200 bg-slate-50 p-4"
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
-          id={`sf-type-${initial?.citationId ?? 'new'}`}
+          id={`sf-type-${initial?.citationId ?? "new"}`}
           label="Type"
           error={errors.sourceType}
         >
           <select
-            id={`sf-type-${initial?.citationId ?? 'new'}`}
+            id={`sf-type-${initial?.citationId ?? "new"}`}
             className={inputCls}
             value={sourceType}
-            onChange={(e) => setSourceType(e.target.value as CreateSourceInput['sourceType'])}
+            onChange={(e) =>
+              setSourceType(e.target.value as CreateSourceInput["sourceType"])
+            }
           >
             <option value="web">Web</option>
             <option value="book">Book</option>
@@ -1072,23 +1226,25 @@ function SourceForm({
             <option value="video">Video</option>
             <option value="audio">Audio</option>
             <option value="archive">Archive</option>
-            <option value="personal_communication">Personal communication</option>
+            <option value="personal_communication">
+              Personal communication
+            </option>
           </select>
         </Field>
         <Field
-          id={`sf-reliability-${initial?.citationId ?? 'new'}`}
+          id={`sf-reliability-${initial?.citationId ?? "new"}`}
           label="Reliability"
           help="How confident are you in this source?"
         >
           <select
-            id={`sf-reliability-${initial?.citationId ?? 'new'}`}
+            id={`sf-reliability-${initial?.citationId ?? "new"}`}
             className={inputCls}
-            value={reliability ?? ''}
+            value={reliability ?? ""}
             onChange={(e) =>
               setReliability(
-                e.target.value === ''
+                e.target.value === ""
                   ? null
-                  : (e.target.value as CreateSourceInput['reliability']),
+                  : (e.target.value as CreateSourceInput["reliability"]),
               )
             }
           >
@@ -1101,12 +1257,12 @@ function SourceForm({
         </Field>
         <div className="sm:col-span-2">
           <Field
-            id={`sf-title-${initial?.citationId ?? 'new'}`}
+            id={`sf-title-${initial?.citationId ?? "new"}`}
             label="Title *"
             error={errors.title}
           >
             <input
-              id={`sf-title-${initial?.citationId ?? 'new'}`}
+              id={`sf-title-${initial?.citationId ?? "new"}`}
               type="text"
               className={inputCls}
               value={title}
@@ -1118,12 +1274,12 @@ function SourceForm({
         </div>
         <div className="sm:col-span-2">
           <Field
-            id={`sf-authors-${initial?.citationId ?? 'new'}`}
+            id={`sf-authors-${initial?.citationId ?? "new"}`}
             label="Authors"
             help="Comma-separated, e.g. 'Smith, J., Patel, A.'"
           >
             <input
-              id={`sf-authors-${initial?.citationId ?? 'new'}`}
+              id={`sf-authors-${initial?.citationId ?? "new"}`}
               type="text"
               className={inputCls}
               value={authorsText}
@@ -1132,13 +1288,13 @@ function SourceForm({
           </Field>
         </div>
         <Field
-          id={`sf-year-${initial?.citationId ?? 'new'}`}
+          id={`sf-year-${initial?.citationId ?? "new"}`}
           label="Year"
           help="CE year, e.g. 1920 or -500"
           error={errors.year}
         >
           <input
-            id={`sf-year-${initial?.citationId ?? 'new'}`}
+            id={`sf-year-${initial?.citationId ?? "new"}`}
             type="text"
             className={inputCls}
             value={year}
@@ -1147,11 +1303,11 @@ function SourceForm({
           />
         </Field>
         <Field
-          id={`sf-publisher-${initial?.citationId ?? 'new'}`}
+          id={`sf-publisher-${initial?.citationId ?? "new"}`}
           label="Publisher / Outlet"
         >
           <input
-            id={`sf-publisher-${initial?.citationId ?? 'new'}`}
+            id={`sf-publisher-${initial?.citationId ?? "new"}`}
             type="text"
             className={inputCls}
             value={publisher}
@@ -1161,13 +1317,13 @@ function SourceForm({
         </Field>
         <div className="sm:col-span-2">
           <Field
-            id={`sf-url-${initial?.citationId ?? 'new'}`}
+            id={`sf-url-${initial?.citationId ?? "new"}`}
             label="URL"
             help="Must start with http:// or https://"
             error={errors.url}
           >
             <input
-              id={`sf-url-${initial?.citationId ?? 'new'}`}
+              id={`sf-url-${initial?.citationId ?? "new"}`}
               type="url"
               className={inputCls}
               value={url}
@@ -1177,12 +1333,9 @@ function SourceForm({
             />
           </Field>
         </div>
-        <Field
-          id={`sf-isbn-${initial?.citationId ?? 'new'}`}
-          label="ISBN"
-        >
+        <Field id={`sf-isbn-${initial?.citationId ?? "new"}`} label="ISBN">
           <input
-            id={`sf-isbn-${initial?.citationId ?? 'new'}`}
+            id={`sf-isbn-${initial?.citationId ?? "new"}`}
             type="text"
             className={inputCls}
             value={isbn}
@@ -1190,12 +1343,9 @@ function SourceForm({
             maxLength={40}
           />
         </Field>
-        <Field
-          id={`sf-doi-${initial?.citationId ?? 'new'}`}
-          label="DOI"
-        >
+        <Field id={`sf-doi-${initial?.citationId ?? "new"}`} label="DOI">
           <input
-            id={`sf-doi-${initial?.citationId ?? 'new'}`}
+            id={`sf-doi-${initial?.citationId ?? "new"}`}
             type="text"
             className={inputCls}
             value={doi}
@@ -1205,12 +1355,12 @@ function SourceForm({
         </Field>
         <div className="sm:col-span-2">
           <Field
-            id={`sf-claim-${initial?.citationId ?? 'new'}`}
+            id={`sf-claim-${initial?.citationId ?? "new"}`}
             label="Claim"
             help="What specifically does this source support? (e.g. 'First attested in 1920 Athens cookbook')"
           >
             <textarea
-              id={`sf-claim-${initial?.citationId ?? 'new'}`}
+              id={`sf-claim-${initial?.citationId ?? "new"}`}
               className={inputCls}
               rows={2}
               value={claimText}
@@ -1221,12 +1371,12 @@ function SourceForm({
         </div>
         <div className="sm:col-span-2">
           <Field
-            id={`sf-citation-${initial?.citationId ?? 'new'}`}
+            id={`sf-citation-${initial?.citationId ?? "new"}`}
             label="Citation text (optional)"
             help="If you have a pre-formatted citation (e.g. from Zotero), paste it here. Used as-is on the public page."
           >
             <textarea
-              id={`sf-citation-${initial?.citationId ?? 'new'}`}
+              id={`sf-citation-${initial?.citationId ?? "new"}`}
               className={inputCls}
               rows={3}
               value={citationText}
@@ -1250,7 +1400,7 @@ function SourceForm({
           disabled={saving}
           className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : initial ? 'Save changes' : 'Add source'}
+          {saving ? "Saving…" : initial ? "Save changes" : "Add source"}
         </button>
       </div>
     </form>

@@ -1,4 +1,4 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 /**
  * Catches uncaught render errors in React islands so a single broken
@@ -43,7 +43,12 @@ export default class ErrorBoundary extends Component<Props, State> {
     // Log to the browser console with structured context.
     // Astro pages don't have a server logger, so console is the best we
     // can do without dragging in a client-side error reporter.
-    console.error('[ErrorBoundary]', this.props.name, error, info.componentStack);
+    console.error(
+      "[ErrorBoundary]",
+      this.props.name,
+      error,
+      info.componentStack,
+    );
   }
 
   reset = (): void => {
@@ -62,33 +67,33 @@ export default class ErrorBoundary extends Component<Props, State> {
       <div
         role="alert"
         style={{
-          padding: '1rem 1.25rem',
-          margin: '1rem 0',
-          border: '1px solid #fca5a5',
-          borderRadius: '0.5rem',
-          backgroundColor: '#fef2f2',
-          color: '#991b1b',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '0.9rem',
+          padding: "1rem 1.25rem",
+          margin: "1rem 0",
+          border: "1px solid #fca5a5",
+          borderRadius: "0.5rem",
+          backgroundColor: "#fef2f2",
+          color: "#991b1b",
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "0.9rem",
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+        <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
           {this.props.name} failed to load
         </div>
-        <div style={{ marginBottom: '0.75rem', color: '#7f1d1d' }}>
-          {error.message || 'An unexpected error occurred'}
+        <div style={{ marginBottom: "0.75rem", color: "#7f1d1d" }}>
+          {error.message || "An unexpected error occurred"}
         </div>
         <button
           type="button"
           onClick={this.reset}
           style={{
-            padding: '0.4rem 0.8rem',
-            border: '1px solid #991b1b',
-            borderRadius: '0.375rem',
-            backgroundColor: 'white',
-            color: '#991b1b',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
+            padding: "0.4rem 0.8rem",
+            border: "1px solid #991b1b",
+            borderRadius: "0.375rem",
+            backgroundColor: "white",
+            color: "#991b1b",
+            cursor: "pointer",
+            fontSize: "0.85rem",
             fontWeight: 500,
           }}
         >

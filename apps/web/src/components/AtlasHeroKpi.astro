@@ -19,7 +19,7 @@
 //   Cost: ~1 extra SSG fetch + ~600 bytes of static HTML. Reversible: deleting this
 //   component from `index.astro` restores the previous behavior.
 
-import { getMapDishes, listDishes, ApiError } from '../lib/api';
+import { ApiError, getMapDishes, listDishes } from "../lib/api";
 
 interface Counts {
   dishes: number;
@@ -36,9 +36,7 @@ async function fetchCounts(): Promise<Counts> {
     // listDishes(limit=100) returns the full category/origin/family shape per dish;
     // lineage count can be derived from methodSlug distinct values.
     // Mock API also serves this — see apps/web/scripts/mock-api-data.json shape.
-    const [listResp] = await Promise.all([
-      listDishes({ limit: 100 }),
-    ]);
+    const [listResp] = await Promise.all([listDishes({ limit: 100 })]);
     const dishes = listResp.dishes ?? [];
     const countries = new Set(
       dishes.map((d) => d.originName).filter(Boolean) as string[],
@@ -69,7 +67,7 @@ async function fetchCounts(): Promise<Counts> {
         ? `API ${err.status}`
         : err instanceof Error
           ? err.message
-          : 'unknown';
+          : "unknown";
     return {
       dishes: 0,
       countries: 0,
@@ -83,7 +81,8 @@ async function fetchCounts(): Promise<Counts> {
 
 const counts = await fetchCounts();
 
-const fmt = (n: number): string => (n > 0 ? new Intl.NumberFormat('en-US').format(n) : '—');
+const fmt = (n: number): string =>
+  n > 0 ? new Intl.NumberFormat("en-US").format(n) : "—";
 ---
 
 <section

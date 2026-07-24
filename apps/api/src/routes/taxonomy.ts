@@ -5,17 +5,18 @@
  * - GET  /api/tags         list all tags
  * - POST /api/tags         create-or-get a tag by name (any authenticated user)
  */
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db, categories, tags } from '@gustale/db';
+
+import { categories, db, tags } from "@gustale/db";
+import { eq } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 
 function slugify(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 const createTagSchema = z.object({
@@ -23,7 +24,7 @@ const createTagSchema = z.object({
 });
 
 export function registerTaxonomyRoutes(app: FastifyInstance): void {
-  app.get('/api/categories', async () => {
+  app.get("/api/categories", async () => {
     const rows = await db
       .select({
         id: categories.id,
@@ -37,7 +38,7 @@ export function registerTaxonomyRoutes(app: FastifyInstance): void {
     return { categories: rows };
   });
 
-  app.get('/api/tags', async () => {
+  app.get("/api/tags", async () => {
     const rows = await db
       .select({ id: tags.id, name: tags.name, slug: tags.slug })
       .from(tags)
@@ -48,7 +49,7 @@ export function registerTaxonomyRoutes(app: FastifyInstance): void {
   // Create-or-get: any authenticated user can introduce a new tag while
   // classifying a dish. Idempotent on slug so concurrent contributors
   // proposing the same tag don't collide.
-  app.post('/api/tags', async (request, reply) => {
+  app.post("/api/tags", async (request, reply) => {
     await app.requireUser(request);
     const body = createTagSchema.parse(request.body);
     const slug = slugify(body.name);

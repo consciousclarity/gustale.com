@@ -3,32 +3,32 @@
  * Canonical public header — mounted by Layout.astro.
  * SiteHeader.astro is a stale unused alternative and must not be reintroduced.
  */
-import '../styles/global.css';
-import { AuthMenu } from './AuthMenu';
-import { GlobalSearch } from './GlobalSearch';
+import "../styles/global.css";
 import {
   ATLAS_ORIGIN,
-  RECIPES_ORIGIN,
   authoringHref,
   currentDomain,
   isGeoDomain,
-} from '../lib/domain';
-import { isPrimaryNavActive } from '../lib/searchNav';
+  RECIPES_ORIGIN,
+} from "../lib/domain";
+import { isPrimaryNavActive } from "../lib/searchNav";
+import { AuthMenu } from "./AuthMenu";
+import { GlobalSearch } from "./GlobalSearch";
 
 const domain = currentDomain();
 const isGeo = isGeoDomain();
 const pathname = Astro.url.pathname;
 
 const atlasProperty = {
-  id: 'atlas' as const,
-  label: 'Atlas',
-  description: 'Explore the world through food.',
+  id: "atlas" as const,
+  label: "Atlas",
+  description: "Explore the world through food.",
   href: `${ATLAS_ORIGIN}/`,
 };
 const recipesProperty = {
-  id: 'recipes' as const,
-  label: 'Recipes',
-  description: 'Cook and contribute recipes.',
+  id: "recipes" as const,
+  label: "Recipes",
+  description: "Cook and contribute recipes.",
   href: `${RECIPES_ORIGIN}/`,
 };
 
@@ -37,21 +37,21 @@ const currentProperty = isGeo ? atlasProperty : recipesProperty;
 /** Primary nav — only routes that exist in the corresponding post-build dist. */
 const primaryLinks = isGeo
   ? [
-      { href: '/', label: 'Globe' },
-      { href: '/regions', label: 'Countries' },
-      { href: '/families', label: 'Food families' },
-      { href: '/lineages', label: 'Lineages' },
-      { href: '/about', label: 'About' },
+      { href: "/", label: "Globe" },
+      { href: "/regions", label: "Countries" },
+      { href: "/families", label: "Food families" },
+      { href: "/lineages", label: "Lineages" },
+      { href: "/about", label: "About" },
     ]
   : [
-      { href: '/dishes', label: 'Recipes' },
-      { href: '/ingredients', label: 'Ingredients' },
-      { href: '/families', label: 'Food families' },
-      { href: '/lineages', label: 'Lineages' },
-      { href: '/about', label: 'About' },
+      { href: "/dishes", label: "Recipes" },
+      { href: "/ingredients", label: "Ingredients" },
+      { href: "/families", label: "Food families" },
+      { href: "/lineages", label: "Lineages" },
+      { href: "/about", label: "About" },
     ];
 
-const addDishHref = authoringHref('/dishes/new');
+const addDishHref = authoringHref("/dishes/new");
 ---
 
 <header class="gst-header" data-domain={domain}>

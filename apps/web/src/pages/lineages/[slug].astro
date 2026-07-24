@@ -1,8 +1,8 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { ApiError, getLineage } from '../../lib/api';
-import type { LineageDetailResponse, LineageRole } from '../../types/lineage';
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import Layout from "../../layouts/Layout.astro";
+import { ApiError, getLineage } from "../../lib/api";
+import type { LineageDetailResponse, LineageRole } from "../../types/lineage";
 
 export async function getStaticPaths() {
   // SSG: pre-render one page per lineage at build time. The mock-api
@@ -12,7 +12,7 @@ export async function getStaticPaths() {
   if (!apiBase) {
     // No API configured — fall back to a placeholder so build doesn't fail.
     // The runtime SPA fallback recovers via /lineages list.
-    return [{ params: { slug: 'filled-dough' } }];
+    return [{ params: { slug: "filled-dough" } }];
   }
   try {
     const res = await fetch(`${apiBase}/api/lineages`);
@@ -22,8 +22,11 @@ export async function getStaticPaths() {
     };
     return json.lineages.map((l) => ({ params: { slug: l.slug } }));
   } catch (err) {
-    console.warn('[lineages/[slug]] getStaticPaths failed, using placeholder:', err);
-    return [{ params: { slug: 'filled-dough' } }];
+    console.warn(
+      "[lineages/[slug]] getStaticPaths failed, using placeholder:",
+      err,
+    );
+    return [{ params: { slug: "filled-dough" } }];
   }
 }
 
@@ -40,62 +43,68 @@ try {
   } else if (err instanceof Error) {
     serverError = err.message;
   } else {
-    serverError = 'Unknown error';
+    serverError = "Unknown error";
   }
 }
 
 if (!data) {
-  return new Response('Lineage not found', { status: 404 });
+  return new Response("Lineage not found", { status: 404 });
 }
 
 const lin = data.lineage;
 
 // ─── Display labels ─────────────────────────────────────────────────────
 const ROLE_LABELS: Record<string, string> = {
-  ancestor: 'Ancestor',
-  descendant: 'Descendant',
-  cousin: 'Cousin',
-  regional_variant: 'Regional variant',
-  adaptation: 'Adaptation',
-  fusion: 'Fusion',
-  diaspora_adaptation: 'Diaspora adaptation',
-  trade_route_spread: 'Trade-route spread',
-  colonial_spread: 'Colonial spread',
-  technique_relative: 'Technique relative',
-  ingredient_relative: 'Ingredient relative',
-  possible_influence: 'Possible influence',
-  parallel_evolution: 'Parallel evolution',
-  uncertain: 'Uncertain',
+  ancestor: "Ancestor",
+  descendant: "Descendant",
+  cousin: "Cousin",
+  regional_variant: "Regional variant",
+  adaptation: "Adaptation",
+  fusion: "Fusion",
+  diaspora_adaptation: "Diaspora adaptation",
+  trade_route_spread: "Trade-route spread",
+  colonial_spread: "Colonial spread",
+  technique_relative: "Technique relative",
+  ingredient_relative: "Ingredient relative",
+  possible_influence: "Possible influence",
+  parallel_evolution: "Parallel evolution",
+  uncertain: "Uncertain",
 };
 
 const FORCE_LABELS: Record<string, string> = {
-  migration: 'Migration',
-  trade_route: 'Trade route',
-  empire: 'Empire',
-  colonization: 'Colonization',
-  diaspora: 'Diaspora',
-  religious_exchange: 'Religious exchange',
-  port_city_exchange: 'Port city exchange',
-  agricultural_spread: 'Agricultural spread',
-  technological_change: 'Technological change',
-  local_adaptation: 'Local adaptation',
-  parallel_evolution: 'Parallel evolution',
-  cultural_exchange: 'Cultural exchange',
-  nomadic_pastoral: 'Nomadic / pastoral',
-  war_and_displacement: 'War & displacement',
+  migration: "Migration",
+  trade_route: "Trade route",
+  empire: "Empire",
+  colonization: "Colonization",
+  diaspora: "Diaspora",
+  religious_exchange: "Religious exchange",
+  port_city_exchange: "Port city exchange",
+  agricultural_spread: "Agricultural spread",
+  technological_change: "Technological change",
+  local_adaptation: "Local adaptation",
+  parallel_evolution: "Parallel evolution",
+  cultural_exchange: "Cultural exchange",
+  nomadic_pastoral: "Nomadic / pastoral",
+  war_and_displacement: "War & displacement",
 };
 
 const CONFIDENCE_LABELS: Record<string, string> = {
-  documented: 'Documented',
-  likely: 'Likely related',
-  probable: 'Probable',
-  possible: 'Possible influence',
-  uncertain: 'Uncertain',
-  parallel_evolution: 'Parallel evolution',
+  documented: "Documented",
+  likely: "Likely related",
+  probable: "Probable",
+  possible: "Possible influence",
+  uncertain: "Uncertain",
+  parallel_evolution: "Parallel evolution",
 };
 
 function labelFor(map: Record<string, string>, key: string): string {
-  return map[key] ?? key.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+  return (
+    map[key] ??
+    key
+      .split("_")
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(" ")
+  );
 }
 
 function confidenceLabel(level: string): string {
@@ -108,7 +117,7 @@ const totalMapped = data.groupedDishes.reduce(
   0,
 );
 const uncertainDishesCount = data.groupedDishes
-  .filter((g) => g.title === 'Tentative connections')
+  .filter((g) => g.title === "Tentative connections")
   .reduce((sum, g) => sum + g.dishes.length, 0);
 ---
 

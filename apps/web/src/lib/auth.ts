@@ -10,14 +10,13 @@
  * automatically on every XHR/fetch as long as the request is
  * `credentials: 'include'` (which the client uses by default).
  */
-import { createAuthClient } from 'better-auth/react';
+import { createAuthClient } from "better-auth/react";
 
 // Build-time API host — used only during SSR. In the browser we always
 // use the same origin (empty string) so the auth client goes through
 // Caddy's /api proxy and the cookie stays on the page's domain.
-const SSR_API_BASE =
-  import.meta.env.PUBLIC_API_BASE ?? 'http://localhost:4000';
-const API_BASE = import.meta.env.SSR ? SSR_API_BASE : '';
+const SSR_API_BASE = import.meta.env.PUBLIC_API_BASE ?? "http://localhost:4000";
+const API_BASE = import.meta.env.SSR ? SSR_API_BASE : "";
 
 export const authClient = createAuthClient({
   baseURL: API_BASE,
@@ -27,4 +26,6 @@ export const authClient = createAuthClient({
 });
 
 export type AuthSession = Awaited<ReturnType<typeof authClient.getSession>>;
-export type AuthUser = AuthSession extends { data: { user: infer U } } ? U : never;
+export type AuthUser = AuthSession extends { data: { user: infer U } }
+  ? U
+  : never;

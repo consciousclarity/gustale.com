@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { ApiError } from '../lib/api';
-import { getClientSession, type SessionUser } from '../lib/session';
+import { useEffect, useState } from "react";
+import { ApiError } from "../lib/api";
+import { getClientSession, type SessionUser } from "../lib/session";
 
 export interface NewDishFormProps {
   /**
@@ -33,14 +33,14 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  const [canonicalName, setCanonicalName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [shortDescription, setShortDescription] = useState('');
-  const [longDescription, setLongDescription] = useState('');
-  const [originLat, setOriginLat] = useState('');
-  const [originLng, setOriginLng] = useState('');
-  const [originDateEarliest, setOriginDateEarliest] = useState('');
-  const [originDateLatest, setOriginDateLatest] = useState('');
+  const [canonicalName, setCanonicalName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
+  const [longDescription, setLongDescription] = useState("");
+  const [originLat, setOriginLat] = useState("");
+  const [originLng, setOriginLng] = useState("");
+  const [originDateEarliest, setOriginDateEarliest] = useState("");
+  const [originDateLatest, setOriginDateLatest] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,10 +65,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
     if (slug) return; // don't overwrite a user-typed slug
     const next = canonicalName
       .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
       .slice(0, 200);
     setSlug(next);
   }
@@ -83,11 +83,11 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
       const lat = Number(originLat);
       const lng = Number(originLng);
       if (Number.isNaN(lat) || Number.isNaN(lng)) {
-        setError('Latitude and longitude must be numbers.');
+        setError("Latitude and longitude must be numbers.");
         return;
       }
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        setError('Coordinates out of range (lat ±90, lng ±180).');
+        setError("Coordinates out of range (lat ±90, lng ±180).");
         return;
       }
       origin = { lat, lng };
@@ -100,24 +100,24 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
     if (shortDescription) body.shortDescription = shortDescription;
     if (longDescription) body.longDescription = longDescription;
     if (origin) body.origin = origin;
-    if (originDateEarliest) body.originDateEarliest = Number(originDateEarliest);
+    if (originDateEarliest)
+      body.originDateEarliest = Number(originDateEarliest);
     if (originDateLatest) body.originDateLatest = Number(originDateLatest);
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.PUBLIC_API_BASE ?? ''}/api/dishes`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const res = await fetch(
+        `${import.meta.env.PUBLIC_API_BASE ?? ""}/api/dishes`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new ApiError(
-          res.status,
-          data,
-          `Create failed (${res.status})`,
-        );
+        throw new ApiError(res.status, data, `Create failed (${res.status})`);
       }
       const json = (await res.json()) as { dish: { slug: string } };
       // Redirect to the new dish's edit page so the user can keep adding
@@ -126,7 +126,7 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         const body = err.body as { error?: string; message?: string } | null;
-        if (body?.error === 'slug_conflict') {
+        if (body?.error === "slug_conflict") {
           setError(`Slug "${slug}" is already taken. Pick a different one.`);
         } else {
           setError(body?.message ?? err.message);
@@ -134,7 +134,7 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
       } else if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Could not create dish. Please try again.');
+        setError("Could not create dish. Please try again.");
       }
       setSubmitting(false);
     }
@@ -185,7 +185,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
 
         <div className="mt-5 space-y-4">
           <div>
-            <label htmlFor="canonicalName" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="canonicalName"
+              className="block text-sm font-medium text-slate-700"
+            >
               Dish name <span className="text-rose-500">*</span>
             </label>
             <input
@@ -204,7 +207,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
           </div>
 
           <div>
-            <label htmlFor="slug" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="slug"
+              className="block text-sm font-medium text-slate-700"
+            >
               URL slug <span className="text-rose-500">*</span>
             </label>
             <input
@@ -226,7 +232,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
           </div>
 
           <div>
-            <label htmlFor="shortDescription" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="shortDescription"
+              className="block text-sm font-medium text-slate-700"
+            >
               Short description
             </label>
             <input
@@ -242,7 +251,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
           </div>
 
           <div>
-            <label htmlFor="longDescription" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="longDescription"
+              className="block text-sm font-medium text-slate-700"
+            >
               Long description
             </label>
             <textarea
@@ -261,11 +273,16 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
 
       <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Origin</h2>
-        <p className="mt-1 text-sm text-slate-500">Optional. Where the dish originated.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Optional. Where the dish originated.
+        </p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="originLat" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="originLat"
+              className="block text-sm font-medium text-slate-700"
+            >
               Latitude
             </label>
             <input
@@ -282,7 +299,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
             />
           </div>
           <div>
-            <label htmlFor="originLng" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="originLng"
+              className="block text-sm font-medium text-slate-700"
+            >
               Longitude
             </label>
             <input
@@ -299,7 +319,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
             />
           </div>
           <div>
-            <label htmlFor="originDateEarliest" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="originDateEarliest"
+              className="block text-sm font-medium text-slate-700"
+            >
               First attested (year)
             </label>
             <input
@@ -315,7 +338,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
             />
           </div>
           <div>
-            <label htmlFor="originDateLatest" className="block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="originDateLatest"
+              className="block text-sm font-medium text-slate-700"
+            >
               Last attested (year)
             </label>
             <input
@@ -334,7 +360,10 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-6">
-        <a href="/dishes" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+        <a
+          href="/dishes"
+          className="text-sm font-medium text-slate-600 hover:text-slate-900"
+        >
           Cancel
         </a>
         <button
@@ -342,7 +371,7 @@ export function NewDishForm(_props: NewDishFormProps = {}) {
           disabled={submitting}
           className="rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
         >
-          {submitting ? 'Creating…' : 'Create draft'}
+          {submitting ? "Creating…" : "Create draft"}
         </button>
       </div>
 

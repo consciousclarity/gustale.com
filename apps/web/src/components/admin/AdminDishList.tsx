@@ -8,8 +8,8 @@
  * Styling: Tailwind utility classes consistent with the existing
  * Gustale React components (SignInForm, NewDishForm). No new CSS.
  */
-import { useState } from 'react';
-import type { AdminDishSummary } from '../../lib/api';
+import { useState } from "react";
+import type { AdminDishSummary } from "../../lib/api";
 
 interface Props {
   initialDishes: AdminDishSummary[];
@@ -18,21 +18,21 @@ interface Props {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  published: 'Published',
-  archived: 'Archived',
+  draft: "Draft",
+  published: "Published",
+  archived: "Archived",
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  draft: 'bg-amber-100 text-amber-900 border-amber-200',
-  published: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-  archived: 'bg-slate-100 text-slate-600 border-slate-200',
+  draft: "bg-amber-100 text-amber-900 border-amber-200",
+  published: "bg-emerald-100 text-emerald-900 border-emerald-200",
+  archived: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 function formatRelative(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   const sec = Math.floor(ms / 1000);
-  if (sec < 60) return 'just now';
+  if (sec < 60) return "just now";
   const min = Math.floor(sec / 60);
   if (min < 60) return `${min}m ago`;
   const hr = Math.floor(min / 60);
@@ -47,8 +47,8 @@ function formatRelative(iso: string): string {
 export function AdminDishList({ initialDishes, initialTotal, apiBase }: Props) {
   const [dishes, setDishes] = useState<AdminDishSummary[]>(initialDishes);
   const [total, setTotal] = useState(initialTotal);
-  const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,14 +57,20 @@ export function AdminDishList({ initialDishes, initialTotal, apiBase }: Props) {
     setError(null);
     try {
       const search = new URLSearchParams();
-      search.set('limit', '200');
-      if (params.q) search.set('q', params.q);
-      if (params.status) search.set('status', params.status);
-      const res = await fetch(`${apiBase}/api/admin/dishes?${search.toString()}`, {
-        credentials: 'include',
-      });
+      search.set("limit", "200");
+      if (params.q) search.set("q", params.q);
+      if (params.status) search.set("status", params.status);
+      const res = await fetch(
+        `${apiBase}/api/admin/dishes?${search.toString()}`,
+        {
+          credentials: "include",
+        },
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { dishes: AdminDishSummary[]; total: number };
+      const data = (await res.json()) as {
+        dishes: AdminDishSummary[];
+        total: number;
+      };
       setDishes(data.dishes);
       setTotal(data.total);
     } catch (e) {
@@ -109,10 +115,10 @@ export function AdminDishList({ initialDishes, initialTotal, apiBase }: Props) {
           className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
           disabled={loading}
         >
-          {loading ? 'Searching…' : 'Search'}
+          {loading ? "Searching…" : "Search"}
         </button>
         <div className="text-sm text-slate-500" aria-live="polite">
-          {loading ? '…' : `${total} ${total === 1 ? 'dish' : 'dishes'}`}
+          {loading ? "…" : `${total} ${total === 1 ? "dish" : "dishes"}`}
         </div>
       </form>
 
@@ -130,8 +136,12 @@ export function AdminDishList({ initialDishes, initialTotal, apiBase }: Props) {
             className="flex items-start gap-4 p-4 transition-colors hover:bg-slate-50"
           >
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-slate-900">{d.canonicalName}</div>
-              <div className="mt-0.5 font-mono text-xs text-slate-500">{d.slug}</div>
+              <div className="font-medium text-slate-900">
+                {d.canonicalName}
+              </div>
+              <div className="mt-0.5 font-mono text-xs text-slate-500">
+                {d.slug}
+              </div>
               {d.shortDescription && (
                 <div className="mt-1 line-clamp-2 text-sm text-slate-600">
                   {d.shortDescription}
@@ -149,7 +159,9 @@ export function AdminDishList({ initialDishes, initialTotal, apiBase }: Props) {
               <span className="text-xs text-slate-500">
                 {d.viewCount.toLocaleString()} views
               </span>
-              <span className="text-xs text-slate-400">{formatRelative(d.updatedAt)}</span>
+              <span className="text-xs text-slate-400">
+                {formatRelative(d.updatedAt)}
+              </span>
             </div>
           </a>
         ))}

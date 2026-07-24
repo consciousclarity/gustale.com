@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   browseStatusMessage,
   buildCountryDirectory,
+  type CountryEntry,
   countryAlphaIndex,
   dishDetailHref,
   filterCountryDirectory,
+  type LikeableDish,
   mapBrowseHref,
   recoveryLinks,
-  type CountryEntry,
-  type LikeableDish,
-} from '../lib/browse';
-import { currentDomain } from '../lib/domain';
+} from "../lib/browse";
+import { currentDomain } from "../lib/domain";
 
 export interface CountryDirectoryProps {
   dishes: LikeableDish[];
@@ -20,8 +20,8 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
   const domain = currentDomain();
   const all = useMemo(() => buildCountryDirectory(dishes), [dishes]);
   const [q, setQ] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('q') ?? '';
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
   });
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
@@ -36,38 +36,41 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
 
   useEffect(() => {
     const sp = new URLSearchParams();
-    if (q.trim()) sp.set('q', q.trim());
-    if (activeLetter) sp.set('letter', activeLetter);
+    if (q.trim()) sp.set("q", q.trim());
+    if (activeLetter) sp.set("letter", activeLetter);
     const qs = sp.toString();
-    const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     const cur = `${window.location.pathname}${window.location.search}`;
-    if (next !== cur) window.history.replaceState({}, '', next);
+    if (next !== cur) window.history.replaceState({}, "", next);
   }, [q, activeLetter]);
 
   useEffect(() => {
     const onPop = () => {
       const sp = new URLSearchParams(window.location.search);
-      setQ(sp.get('q') ?? '');
-      setActiveLetter(sp.get('letter'));
+      setQ(sp.get("q") ?? "");
+      setActiveLetter(sp.get("letter"));
     };
     // seed letter from URL once
     const sp = new URLSearchParams(window.location.search);
-    if (sp.get('letter')) setActiveLetter(sp.get('letter'));
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    if (sp.get("letter")) setActiveLetter(sp.get("letter"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   const status = browseStatusMessage({
     loading: false,
     failed: false,
     count: visible.length,
-    query: q || activeLetter || '',
-    noun: 'countries',
+    query: q || activeLetter || "",
+    noun: "countries",
   });
 
   return (
     <div className="browse-shell">
-      <div className="browse-toolbar browse-toolbar--island" data-browse-toolbar>
+      <div
+        className="browse-toolbar browse-toolbar--island"
+        data-browse-toolbar
+      >
         <div className="browse-toolbar-row">
           <div className="browse-search">
             <label className="browse-search-sr" htmlFor="country-browse-search">
@@ -95,7 +98,7 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
               type="button"
               className="browse-clear"
               onClick={() => {
-                setQ('');
+                setQ("");
                 setActiveLetter(null);
               }}
             >
@@ -110,7 +113,7 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
           <button
             key={letter}
             type="button"
-            className={`browse-alpha__btn${activeLetter === letter ? ' is-on' : ''}`}
+            className={`browse-alpha__btn${activeLetter === letter ? " is-on" : ""}`}
             onClick={() =>
               setActiveLetter((cur) => (cur === letter ? null : letter))
             }
@@ -129,12 +132,12 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
 
       {visible.length === 0 && (
         <div className="browse-banner" role="status">
-          <p>No countries match{q ? ` “${q}”` : ''}.</p>
+          <p>No countries match{q ? ` “${q}”` : ""}.</p>
           <button
             type="button"
             className="btn-outline"
             onClick={() => {
-              setQ('');
+              setQ("");
               setActiveLetter(null);
             }}
           >
@@ -152,12 +155,15 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
 
       <ul className="browse-dir">
         {visible.map((c: CountryEntry) => (
-          <li key={c.name} id={`country-${c.letter}-${c.name.replace(/\s+/g, '-')}`}>
+          <li
+            key={c.name}
+            id={`country-${c.letter}-${c.name.replace(/\s+/g, "-")}`}
+          >
             <article className="browse-dir-card browse-dir-card--static">
               <div className="browse-dir-card__top">
                 <h2>{c.name}</h2>
                 <span className="browse-dir-card__count">
-                  {c.count} {c.count === 1 ? 'dish' : 'dishes'}
+                  {c.count} {c.count === 1 ? "dish" : "dishes"}
                 </span>
               </div>
               {c.dishNames.length > 0 && (

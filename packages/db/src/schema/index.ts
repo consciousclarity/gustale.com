@@ -1,10 +1,23 @@
-import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, timestamp, boolean, integer, numeric, jsonb, customType, index, unique, primaryKey } from 'drizzle-orm/pg-core';
-import { geometry } from './custom-types.js';
-import * as authSchema from './auth.js';
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  customType,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
+import * as authSchema from "./auth.js";
+import { geometry } from "./custom-types.js";
 
 // Re-export auth schema so callers can use `schema.user`, `schema.session`, etc.
-export * from './auth.js';
+export * from "./auth.js";
 export { authSchema };
 
 /**
@@ -26,103 +39,137 @@ export { authSchema };
 // responsibility of better-auth + the application layer.
 // =====================================================================
 
-export const userRole = ['user', 'admin', 'system'] as const;
-export type WikiUserRole = typeof userRole[number];
+export const userRole = ["user", "admin", "system"] as const;
+export type WikiUserRole = (typeof userRole)[number];
 
-export const users = pgTable('users', {
+export const users = pgTable("users", {
   // `text` (not uuid) so that FK columns referencing users.id can hold
   // better-auth's opaque user IDs (e.g. 'LRcxv8AuHTcEsN5I4Jo4YWUsENxFIDZx').
   // Seed uses a UUID string which is losslessly cast on insert.
-  id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull().default(false),
-  passwordHash: text('password_hash'),
-  displayName: text('display_name').notNull(),
-  bio: text('bio'),
-  location: text('location'),
-  role: text('role').$type<WikiUserRole>().notNull().default('user'),
-  language: text('language').notNull().default('en'),
-  timezone: text('timezone'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
-  isSuspended: boolean('is_suspended').notNull().default(false),
-  preferences: jsonb('preferences').notNull().default(sql`'{}'::jsonb`),
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  passwordHash: text("password_hash"),
+  displayName: text("display_name").notNull(),
+  bio: text("bio"),
+  location: text("location"),
+  role: text("role").$type<WikiUserRole>().notNull().default("user"),
+  language: text("language").notNull().default("en"),
+  timezone: text("timezone"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  isSuspended: boolean("is_suspended").notNull().default(false),
+  preferences: jsonb("preferences").notNull().default(sql`'{}'::jsonb`),
 });
 
-export const sessions = pgTable('sessions', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull(),
-  tokenHash: text('token_hash').notNull().unique(),
-  userAgent: text('user_agent'),
-  ipAddress: text('ip_address'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  userIdIdx: index('sessions_user_id_idx').on(t.userId),
-  expiresAtIdx: index('sessions_expires_at_idx').on(t.expiresAt),
-}));
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    userId: text("user_id").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    userAgent: text("user_agent"),
+    ipAddress: text("ip_address"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userIdIdx: index("sessions_user_id_idx").on(t.userId),
+    expiresAtIdx: index("sessions_expires_at_idx").on(t.expiresAt),
+  }),
+);
 
 // =====================================================================
 // GEOGRAPHY
 // =====================================================================
 
-export const entityType = ['planet', 'continent', 'country', 'region', 'city'] as const;
-export type EntityType = typeof entityType[number];
+export const entityType = [
+  "planet",
+  "continent",
+  "country",
+  "region",
+  "city",
+] as const;
+export type EntityType = (typeof entityType)[number];
 
-export const geoEntities = pgTable('geo_entities', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  isoCode: text('iso_code'),
-  name: text('name').notNull(),
-  localName: text('local_name'),
-  entityType: text('entity_type').$type<EntityType>().notNull(),
-  parentId: uuid('parent_id').references((): any => geoEntities.id),
-  centroid: geometry('centroid', { srid: 4326 }),
-  population: integer('population'),
-  areaKm2: text('area_km2'),
-  wikidataId: text('wikidata_id'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  parentIdx: index('geo_entities_parent_id_idx').on(t.parentId),
-  entityTypeIdx: index('geo_entities_entity_type_idx').on(t.entityType),
-}));
+export const geoEntities = pgTable(
+  "geo_entities",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    isoCode: text("iso_code"),
+    name: text("name").notNull(),
+    localName: text("local_name"),
+    entityType: text("entity_type").$type<EntityType>().notNull(),
+    parentId: uuid("parent_id").references((): any => geoEntities.id),
+    centroid: geometry("centroid", { srid: 4326 }),
+    population: integer("population"),
+    areaKm2: text("area_km2"),
+    wikidataId: text("wikidata_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    parentIdx: index("geo_entities_parent_id_idx").on(t.parentId),
+    entityTypeIdx: index("geo_entities_entity_type_idx").on(t.entityType),
+  }),
+);
 
 // =====================================================================
 // TAXONOMY
 // =====================================================================
 
-export const categorySource = ['foodon', 'wikidata', 'custom'] as const;
-export type CategorySource = typeof categorySource[number];
+export const categorySource = ["foodon", "wikidata", "custom"] as const;
+export type CategorySource = (typeof categorySource)[number];
 
-export const categories = pgTable('categories', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  parentId: uuid('parent_id').references((): any => categories.id),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  description: text('description'),
-  source: text('source').$type<CategorySource>().notNull().default('custom'),
-  sourceId: text('source_id'),
-  icon: text('icon'),
-  displayOrder: integer('display_order').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const categories = pgTable("categories", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  parentId: uuid("parent_id").references((): any => categories.id),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  source: text("source").$type<CategorySource>().notNull().default("custom"),
+  sourceId: text("source_id"),
+  icon: text("icon"),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
-export const categoryTranslations = pgTable('category_translations', {
-  categoryId: uuid('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
-  language: text('language').notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.categoryId, t.language] }),
-}));
+export const categoryTranslations = pgTable(
+  "category_translations",
+  {
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.categoryId, t.language] }),
+  }),
+);
 
-export const tags = pgTable('tags', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  name: text('name').notNull().unique(),
-  slug: text('slug').notNull().unique(),
-  description: text('description'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const tags = pgTable("tags", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  name: text("name").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // =====================================================================
@@ -130,172 +177,253 @@ export const tags = pgTable('tags', {
 // =====================================================================
 
 export const ingredientCategory = [
-  'grain', 'vegetable', 'fruit', 'meat', 'fish', 'dairy',
-  'spice', 'herb', 'oil', 'sweetener', 'beverage', 'other'
+  "grain",
+  "vegetable",
+  "fruit",
+  "meat",
+  "fish",
+  "dairy",
+  "spice",
+  "herb",
+  "oil",
+  "sweetener",
+  "beverage",
+  "other",
 ] as const;
-export type IngredientCategory = typeof ingredientCategory[number];
+export type IngredientCategory = (typeof ingredientCategory)[number];
 
-export const ingredients = pgTable('ingredients', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  canonicalName: text('canonical_name').notNull(),
-  slug: text('slug').notNull().unique(),
-  scientificName: text('scientific_name'),
-  category: text('category').$type<IngredientCategory>(),
-  shortDescription: text('short_description'),
-  longDescription: text('long_description'),
-  domesticationDateEarliest: integer('domestication_date_earliest'),
-  domesticationDateLatest: integer('domestication_date_latest'),
-  originGeoId: uuid('origin_geo_id').references(() => geoEntities.id),
-  imageId: uuid('image_id'),
-  status: text('status').notNull().default('draft'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+export const ingredients = pgTable("ingredients", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  canonicalName: text("canonical_name").notNull(),
+  slug: text("slug").notNull().unique(),
+  scientificName: text("scientific_name"),
+  category: text("category").$type<IngredientCategory>(),
+  shortDescription: text("short_description"),
+  longDescription: text("long_description"),
+  domesticationDateEarliest: integer("domestication_date_earliest"),
+  domesticationDateLatest: integer("domestication_date_latest"),
+  originGeoId: uuid("origin_geo_id").references(() => geoEntities.id),
+  imageId: uuid("image_id"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
   // stored without an explicit cast. Seed UUIDs are valid text strings so the
   // migration is lossless.
-  createdBy: text('created_by'),
-  lastEditedBy: text('last_edited_by'),
+  createdBy: text("created_by"),
+  lastEditedBy: text("last_edited_by"),
 });
 
-export const ingredientVariants = pgTable('ingredient_variants', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  ingredientId: uuid('ingredient_id').notNull().references(() => ingredients.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  description: text('description'),
-  primaryGeoId: uuid('primary_geo_id').references(() => geoEntities.id),
-  characteristics: jsonb('characteristics'),
-  imageId: uuid('image_id'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const ingredientVariants = pgTable("ingredient_variants", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  ingredientId: uuid("ingredient_id")
+    .notNull()
+    .references(() => ingredients.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  primaryGeoId: uuid("primary_geo_id").references(() => geoEntities.id),
+  characteristics: jsonb("characteristics"),
+  imageId: uuid("image_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
-export const ingredientTranslations = pgTable('ingredient_translations', {
-  ingredientId: uuid('ingredient_id').notNull().references(() => ingredients.id, { onDelete: 'cascade' }),
-  language: text('language').notNull(),
-  name: text('name').notNull(),
-  shortDescription: text('short_description'),
-  longDescription: text('long_description'),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.ingredientId, t.language] }),
-}));
+export const ingredientTranslations = pgTable(
+  "ingredient_translations",
+  {
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    name: text("name").notNull(),
+    shortDescription: text("short_description"),
+    longDescription: text("long_description"),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.ingredientId, t.language] }),
+  }),
+);
 
 // =====================================================================
 // PREPARATION
 // =====================================================================
 
-export const preparationMethods = pgTable('preparation_methods', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  category: text('category'),
-  description: text('description'),
-  equipment: text('equipment').array(),
-  temperatureMinC: text('temperature_min_c'),
-  temperatureMaxC: text('temperature_max_c'),
-  energyFootprint: text('energy_footprint'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const preparationMethods = pgTable("preparation_methods", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  category: text("category"),
+  description: text("description"),
+  equipment: text("equipment").array(),
+  temperatureMinC: text("temperature_min_c"),
+  temperatureMaxC: text("temperature_max_c"),
+  energyFootprint: text("energy_footprint"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
-export const preparationMethodTranslations = pgTable('preparation_method_translations', {
-  methodId: uuid('method_id').notNull().references(() => preparationMethods.id, { onDelete: 'cascade' }),
-  language: text('language').notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.methodId, t.language] }),
-}));
+export const preparationMethodTranslations = pgTable(
+  "preparation_method_translations",
+  {
+    methodId: uuid("method_id")
+      .notNull()
+      .references(() => preparationMethods.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.methodId, t.language] }),
+  }),
+);
 
 // =====================================================================
 // DISHES
 // =====================================================================
 
-export const dishStatus = ['draft', 'published', 'archived'] as const;
-export type DishStatus = typeof dishStatus[number];
+export const dishStatus = ["draft", "published", "archived"] as const;
+export type DishStatus = (typeof dishStatus)[number];
 
-export const dishes = pgTable('dishes', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  canonicalName: text('canonical_name').notNull(),
-  slug: text('slug').notNull().unique(),
-  shortDescription: text('short_description'),
-  longDescription: text('long_description'),
-  originGeoId: uuid('origin_geo_id').references(() => geoEntities.id),
-  originLocation: geometry('origin_location', { srid: 4326 }),
-  originDateEarliest: integer('origin_date_earliest'),
-  originDateLatest: integer('origin_date_latest'),
-  status: text('status').$type<DishStatus>().notNull().default('draft'),
-  viewCount: integer('view_count').notNull().default(0),
-  editCount: integer('edit_count').notNull().default(0),
-  contributorCount: integer('contributor_count').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+export const dishes = pgTable("dishes", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  canonicalName: text("canonical_name").notNull(),
+  slug: text("slug").notNull().unique(),
+  shortDescription: text("short_description"),
+  longDescription: text("long_description"),
+  originGeoId: uuid("origin_geo_id").references(() => geoEntities.id),
+  originLocation: geometry("origin_location", { srid: 4326 }),
+  originDateEarliest: integer("origin_date_earliest"),
+  originDateLatest: integer("origin_date_latest"),
+  status: text("status").$type<DishStatus>().notNull().default("draft"),
+  viewCount: integer("view_count").notNull().default(0),
+  editCount: integer("edit_count").notNull().default(0),
+  contributorCount: integer("contributor_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
   // stored without an explicit cast. Seed UUIDs are valid text strings so the
   // migration is lossless.
-  createdBy: text('created_by'),
-  lastEditedBy: text('last_edited_by'),
+  createdBy: text("created_by"),
+  lastEditedBy: text("last_edited_by"),
 });
 
-export const dishTranslations = pgTable('dish_translations', {
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  language: text('language').notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.dishId, t.language] }),
-}));
+export const dishTranslations = pgTable(
+  "dish_translations",
+  {
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.dishId, t.language] }),
+  }),
+);
 
-export const dishVariants = pgTable('dish_variants', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  parentDishId: uuid('parent_dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  slug: text('slug').notNull(),
-  description: text('description'),
-  regionGeoId: uuid('region_geo_id').references(() => geoEntities.id),
-  regionLocation: geometry('region_location', { srid: 4326 }),
-  creatorName: text('creator_name'),
-  creatorDate: integer('creator_date'),
-  status: text('status').$type<DishStatus>().notNull().default('draft'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  uniqueSlugPerParent: unique('dish_variants_parent_slug_unique').on(t.parentDishId, t.slug),
-}));
+export const dishVariants = pgTable(
+  "dish_variants",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    parentDishId: uuid("parent_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    regionGeoId: uuid("region_geo_id").references(() => geoEntities.id),
+    regionLocation: geometry("region_location", { srid: 4326 }),
+    creatorName: text("creator_name"),
+    creatorDate: integer("creator_date"),
+    status: text("status").$type<DishStatus>().notNull().default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniqueSlugPerParent: unique("dish_variants_parent_slug_unique").on(
+      t.parentDishId,
+      t.slug,
+    ),
+  }),
+);
 
-export const dishIngredients = pgTable('dish_ingredients', {
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  ingredientId: uuid('ingredient_id').notNull().references(() => ingredients.id),
-  variantId: uuid('variant_id').references(() => ingredientVariants.id),
-  position: integer('position').notNull().default(0),
-  quantity: text('quantity'),
-  unit: text('unit'),
-  isOptional: boolean('is_optional').notNull().default(false),
-  preparationNote: text('preparation_note'),
+export const dishIngredients = pgTable("dish_ingredients", {
+  dishId: uuid("dish_id")
+    .notNull()
+    .references(() => dishes.id, { onDelete: "cascade" }),
+  ingredientId: uuid("ingredient_id")
+    .notNull()
+    .references(() => ingredients.id),
+  variantId: uuid("variant_id").references(() => ingredientVariants.id),
+  position: integer("position").notNull().default(0),
+  quantity: text("quantity"),
+  unit: text("unit"),
+  isOptional: boolean("is_optional").notNull().default(false),
+  preparationNote: text("preparation_note"),
 });
 
-export const dishPreparations = pgTable('dish_preparations', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  methodId: uuid('method_id').notNull().references(() => preparationMethods.id),
-  steps: text('steps'),
-  durationMinutes: integer('duration_minutes'),
-  difficulty: integer('difficulty'),
-  sequenceOrder: integer('sequence_order').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const dishPreparations = pgTable("dish_preparations", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  dishId: uuid("dish_id")
+    .notNull()
+    .references(() => dishes.id, { onDelete: "cascade" }),
+  methodId: uuid("method_id")
+    .notNull()
+    .references(() => preparationMethods.id),
+  steps: text("steps"),
+  durationMinutes: integer("duration_minutes"),
+  difficulty: integer("difficulty"),
+  sequenceOrder: integer("sequence_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
-export const dishCategories = pgTable('dish_categories', {
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  categoryId: uuid('category_id').notNull().references(() => categories.id),
-  isPrimary: boolean('is_primary').notNull().default(false),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.dishId, t.categoryId] }),
-}));
+export const dishCategories = pgTable(
+  "dish_categories",
+  {
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id),
+    isPrimary: boolean("is_primary").notNull().default(false),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.dishId, t.categoryId] }),
+  }),
+);
 
-export const dishTags = pgTable('dish_tags', {
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  tagId: uuid('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.dishId, t.tagId] }),
-}));
+export const dishTags = pgTable(
+  "dish_tags",
+  {
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.dishId, t.tagId] }),
+  }),
+);
 
 // =====================================================================
 // DISH RELATIONS — the food-genealogy network.
@@ -322,38 +450,52 @@ export const dishTags = pgTable('dish_tags', {
 // It lets the UI sort relations within a type and lets curators push
 // canonical anchors to the top.
 export const dishRelationType = [
-  'family',
-  'regional-cousin',
-  'diaspora',
-  'shared-ingredient',
-  'shared-method',
-  'similar-serving',
-  'ancestor',
-  'descendant',
+  "family",
+  "regional-cousin",
+  "diaspora",
+  "shared-ingredient",
+  "shared-method",
+  "similar-serving",
+  "ancestor",
+  "descendant",
 ] as const;
-export type DishRelationType = typeof dishRelationType[number];
+export type DishRelationType = (typeof dishRelationType)[number];
 
-export const dishRelations = pgTable('dish_relations', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  fromDishId: uuid('from_dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  toDishId: uuid('to_dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  relationType: text('relation_type').$type<DishRelationType>().notNull(),
-  // Free-text reason shown to the user ("both share a fermented-cabbage base"
-  // / "traded along the Silk Road" / "regional variation of the same dish").
-  // Optional — some relations are obvious from the relation_type alone.
-  reason: text('reason'),
-  // 1-5 editor-graded strength. Higher = stronger / more canonical relation.
-  strength: integer('strength').notNull().default(3),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  // Prevent exact duplicates (same direction + type). Reverse-direction
-  // relations (A→B as family, B→A as family) are deliberately allowed —
-  // they're symmetric by nature and the UI de-duplicates.
-  fromTypeUnique: unique('dish_relations_from_to_type_unique').on(t.fromDishId, t.toDishId, t.relationType),
-  fromIdx: index('dish_relations_from_idx').on(t.fromDishId),
-  toIdx: index('dish_relations_to_idx').on(t.toDishId),
-  typeIdx: index('dish_relations_type_idx').on(t.relationType),
-}));
+export const dishRelations = pgTable(
+  "dish_relations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    fromDishId: uuid("from_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    toDishId: uuid("to_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    relationType: text("relation_type").$type<DishRelationType>().notNull(),
+    // Free-text reason shown to the user ("both share a fermented-cabbage base"
+    // / "traded along the Silk Road" / "regional variation of the same dish").
+    // Optional — some relations are obvious from the relation_type alone.
+    reason: text("reason"),
+    // 1-5 editor-graded strength. Higher = stronger / more canonical relation.
+    strength: integer("strength").notNull().default(3),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    // Prevent exact duplicates (same direction + type). Reverse-direction
+    // relations (A→B as family, B→A as family) are deliberately allowed —
+    // they're symmetric by nature and the UI de-duplicates.
+    fromTypeUnique: unique("dish_relations_from_to_type_unique").on(
+      t.fromDishId,
+      t.toDishId,
+      t.relationType,
+    ),
+    fromIdx: index("dish_relations_from_idx").on(t.fromDishId),
+    toIdx: index("dish_relations_to_idx").on(t.toDishId),
+    typeIdx: index("dish_relations_type_idx").on(t.relationType),
+  }),
+);
 
 // =====================================================================
 // LINEAGES — dish ancestry, migration, transformation, and influence
@@ -377,64 +519,85 @@ export const dishRelations = pgTable('dish_relations', {
 // related" or "possible influence" rather than "descendant of".
 
 export const confidenceLevel = [
-  'documented',
-  'likely',
-  'probable',
-  'possible',
-  'uncertain',
-  'parallel_evolution',
+  "documented",
+  "likely",
+  "probable",
+  "possible",
+  "uncertain",
+  "parallel_evolution",
 ] as const;
-export type ConfidenceLevel = typeof confidenceLevel[number];
+export type ConfidenceLevel = (typeof confidenceLevel)[number];
 
 export const historicalForce = [
-  'migration',
-  'trade_route',
-  'empire',
-  'colonization',
-  'diaspora',
-  'religious_exchange',
-  'port_city_exchange',
-  'agricultural_spread',
-  'technological_change',
-  'local_adaptation',
-  'parallel_evolution',
-  'cultural_exchange',
-  'nomadic_pastoral',
-  'war_and_displacement',
+  "migration",
+  "trade_route",
+  "empire",
+  "colonization",
+  "diaspora",
+  "religious_exchange",
+  "port_city_exchange",
+  "agricultural_spread",
+  "technological_change",
+  "local_adaptation",
+  "parallel_evolution",
+  "cultural_exchange",
+  "nomadic_pastoral",
+  "war_and_displacement",
 ] as const;
-export type HistoricalForce = typeof historicalForce[number];
+export type HistoricalForce = (typeof historicalForce)[number];
 
-export const lineages = pgTable('lineages', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  slug: text('slug').notNull().unique(),
-  name: text('name').notNull(),
-  shortDescription: text('short_description').notNull(),
-  longDescription: text('long_description'),
-  conceptSummary: text('concept_summary'),
-  originSummary: text('origin_summary'),
-  // jsonb arrays so the taxonomy can evolve without schema migrations
-  originRegions: jsonb('origin_regions').notNull().default(sql`'[]'::jsonb`),
-  relatedRegions: jsonb('related_regions').notNull().default(sql`'[]'::jsonb`),
-  historicalForces: jsonb('historical_forces').notNull().default(sql`'[]'::jsonb`),
-  primaryTechnique: text('primary_technique'),
-  techniques: jsonb('techniques').notNull().default(sql`'[]'::jsonb`),
-  baseIngredients: jsonb('base_ingredients').notNull().default(sql`'[]'::jsonb`),
-  courseGroups: jsonb('course_groups').notNull().default(sql`'[]'::jsonb`),
-  relatedFamilies: jsonb('related_families').notNull().default(sql`'[]'::jsonb`),
-  representativeDishes: jsonb('representative_dishes').notNull().default(sql`'[]'::jsonb`),
-  confidenceLevel: text('confidence_level').$type<ConfidenceLevel>().notNull().default('likely'),
-  uncertaintyNote: text('uncertainty_note'),
-  culturalPracticeNote: text('cultural_practice_note'),
-  // for future map work: lat/lng centroid of the origin region(s)
-  routeHints: jsonb('route_hints').notNull().default(sql`'[]'::jsonb`),
-  sourceNotes: text('source_notes'),
-  displayOrder: integer('display_order').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  slugIdx: index('lineages_slug_idx').on(t.slug),
-  displayIdx: index('lineages_display_order_idx').on(t.displayOrder),
-}));
+export const lineages = pgTable(
+  "lineages",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    shortDescription: text("short_description").notNull(),
+    longDescription: text("long_description"),
+    conceptSummary: text("concept_summary"),
+    originSummary: text("origin_summary"),
+    // jsonb arrays so the taxonomy can evolve without schema migrations
+    originRegions: jsonb("origin_regions").notNull().default(sql`'[]'::jsonb`),
+    relatedRegions: jsonb("related_regions")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    historicalForces: jsonb("historical_forces")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    primaryTechnique: text("primary_technique"),
+    techniques: jsonb("techniques").notNull().default(sql`'[]'::jsonb`),
+    baseIngredients: jsonb("base_ingredients")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    courseGroups: jsonb("course_groups").notNull().default(sql`'[]'::jsonb`),
+    relatedFamilies: jsonb("related_families")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    representativeDishes: jsonb("representative_dishes")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    confidenceLevel: text("confidence_level")
+      .$type<ConfidenceLevel>()
+      .notNull()
+      .default("likely"),
+    uncertaintyNote: text("uncertainty_note"),
+    culturalPracticeNote: text("cultural_practice_note"),
+    // for future map work: lat/lng centroid of the origin region(s)
+    routeHints: jsonb("route_hints").notNull().default(sql`'[]'::jsonb`),
+    sourceNotes: text("source_notes"),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    slugIdx: index("lineages_slug_idx").on(t.slug),
+    displayIdx: index("lineages_display_order_idx").on(t.displayOrder),
+  }),
+);
 
 // ─── Dish ↔ Lineage relationship ─────────────────────────────────────────
 //
@@ -450,203 +613,279 @@ export const lineages = pgTable('lineages', {
 // most informative one and explain in `explanation`.
 
 export const dishLineageRole = [
-  'ancestor',
-  'descendant',
-  'cousin',
-  'regional_variant',
-  'adaptation',
-  'fusion',
-  'diaspora_adaptation',
-  'trade_route_spread',
-  'colonial_spread',
-  'technique_relative',
-  'ingredient_relative',
-  'possible_influence',
-  'parallel_evolution',
-  'uncertain',
+  "ancestor",
+  "descendant",
+  "cousin",
+  "regional_variant",
+  "adaptation",
+  "fusion",
+  "diaspora_adaptation",
+  "trade_route_spread",
+  "colonial_spread",
+  "technique_relative",
+  "ingredient_relative",
+  "possible_influence",
+  "parallel_evolution",
+  "uncertain",
 ] as const;
-export type DishLineageRole = typeof dishLineageRole[number];
+export type DishLineageRole = (typeof dishLineageRole)[number];
 
 export const changedElement = [
-  'ingredient',
-  'spice_profile',
-  'cooking_method',
-  'shape',
-  'filling',
-  'dough',
-  'grain',
-  'preservation_method',
-  'serving_context',
-  'religious_rule',
-  'local_availability',
-  'cooking_fat',
-  'wrapper',
-  'fermentation_time',
+  "ingredient",
+  "spice_profile",
+  "cooking_method",
+  "shape",
+  "filling",
+  "dough",
+  "grain",
+  "preservation_method",
+  "serving_context",
+  "religious_rule",
+  "local_availability",
+  "cooking_fat",
+  "wrapper",
+  "fermentation_time",
 ] as const;
-export type ChangedElement = typeof changedElement[number];
+export type ChangedElement = (typeof changedElement)[number];
 
-export const dishLineages = pgTable('dish_lineages', {
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  lineageId: uuid('lineage_id').notNull().references(() => lineages.id, { onDelete: 'cascade' }),
-  role: text('role').$type<DishLineageRole>().notNull(),
-  explanation: text('explanation'),
-  // array of what changed between an ancestor/relative and this dish
-  changedElements: jsonb('changed_elements').notNull().default(sql`'[]'::jsonb`),
-  confidenceLevel: text('confidence_level').$type<ConfidenceLevel>().notNull().default('likely'),
-  // 1-10 editorial sort weight: anchors first (10), then strong members (5-7),
-  // then tentative ones (1-3). Lets the UI push canonical dishes to the top.
-  sortOrder: integer('sort_order').notNull().default(5),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.dishId, t.lineageId] }),
-  lineageIdx: index('dish_lineages_lineage_idx').on(t.lineageId),
-  roleIdx: index('dish_lineages_role_idx').on(t.role),
-}));
+export const dishLineages = pgTable(
+  "dish_lineages",
+  {
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    lineageId: uuid("lineage_id")
+      .notNull()
+      .references(() => lineages.id, { onDelete: "cascade" }),
+    role: text("role").$type<DishLineageRole>().notNull(),
+    explanation: text("explanation"),
+    // array of what changed between an ancestor/relative and this dish
+    changedElements: jsonb("changed_elements")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    confidenceLevel: text("confidence_level")
+      .$type<ConfidenceLevel>()
+      .notNull()
+      .default("likely"),
+    // 1-10 editorial sort weight: anchors first (10), then strong members (5-7),
+    // then tentative ones (1-3). Lets the UI push canonical dishes to the top.
+    sortOrder: integer("sort_order").notNull().default(5),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.dishId, t.lineageId] }),
+    lineageIdx: index("dish_lineages_lineage_idx").on(t.lineageId),
+    roleIdx: index("dish_lineages_role_idx").on(t.role),
+  }),
+);
 
 // =====================================================================
 // SOURCES & CITATIONS
 // =====================================================================
 
-export const sourceType = ['book', 'article', 'web', 'video', 'audio', 'archive', 'personal_communication'] as const;
-export type SourceType = typeof sourceType[number];
+export const sourceType = [
+  "book",
+  "article",
+  "web",
+  "video",
+  "audio",
+  "archive",
+  "personal_communication",
+] as const;
+export type SourceType = (typeof sourceType)[number];
 
-export const sourceReliability = ['primary', 'secondary', 'tertiary', 'speculative'] as const;
-export type SourceReliability = typeof sourceReliability[number];
+export const sourceReliability = [
+  "primary",
+  "secondary",
+  "tertiary",
+  "speculative",
+] as const;
+export type SourceReliability = (typeof sourceReliability)[number];
 
-export const sources = pgTable('sources', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  sourceType: text('source_type').$type<SourceType>().notNull(),
-  title: text('title').notNull(),
-  authors: text('authors').array(),
-  year: integer('year'),
-  publisher: text('publisher'),
-  isbn: text('isbn'),
-  doi: text('doi'),
-  url: text('url'),
-  archiveName: text('archive_name'),
-  archiveCatalogId: text('archive_catalog_id'),
-  citationText: text('citation_text'),
-  language: text('language').notNull().default('en'),
-  reliability: text('reliability').$type<SourceReliability>(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const sources = pgTable("sources", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  sourceType: text("source_type").$type<SourceType>().notNull(),
+  title: text("title").notNull(),
+  authors: text("authors").array(),
+  year: integer("year"),
+  publisher: text("publisher"),
+  isbn: text("isbn"),
+  doi: text("doi"),
+  url: text("url"),
+  archiveName: text("archive_name"),
+  archiveCatalogId: text("archive_catalog_id"),
+  citationText: text("citation_text"),
+  language: text("language").notNull().default("en"),
+  reliability: text("reliability").$type<SourceReliability>(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   // `text` for the same reason as dishes.created_by — see comment there.
-  createdBy: text('created_by'),
+  createdBy: text("created_by"),
 });
 
-export const citations = pgTable('citations', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  sourceId: uuid('source_id').notNull().references(() => sources.id),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  claimText: text('claim_text'),
-  location: text('location'),
-  addedBy: text('added_by'),
-  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+export const citations = pgTable("citations", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  sourceId: uuid("source_id")
+    .notNull()
+    .references(() => sources.id),
+  targetType: text("target_type").notNull(),
+  targetId: uuid("target_id").notNull(),
+  claimText: text("claim_text"),
+  location: text("location"),
+  addedBy: text("added_by"),
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // =====================================================================
 // EDIT HISTORY
 // =====================================================================
 
-export const editAction = ['create', 'update', 'archive', 'restore', 'flag', 'review'] as const;
-export type EditAction = typeof editAction[number];
+export const editAction = [
+  "create",
+  "update",
+  "archive",
+  "restore",
+  "flag",
+  "review",
+] as const;
+export type EditAction = (typeof editAction)[number];
 
-export const editHistory = pgTable('edit_history', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id'),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  action: text('action').$type<EditAction>().notNull(),
-  diff: jsonb('diff'),
-  comment: text('comment'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  targetIdx: index('edit_history_target_idx').on(t.targetType, t.targetId),
-  userIdx: index('edit_history_user_idx').on(t.userId),
-  createdIdx: index('edit_history_created_at_idx').on(t.createdAt),
-}));
+export const editHistory = pgTable(
+  "edit_history",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    userId: text("user_id"),
+    targetType: text("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    action: text("action").$type<EditAction>().notNull(),
+    diff: jsonb("diff"),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    targetIdx: index("edit_history_target_idx").on(t.targetType, t.targetId),
+    userIdx: index("edit_history_user_idx").on(t.userId),
+    createdIdx: index("edit_history_created_at_idx").on(t.createdAt),
+  }),
+);
 
 // =====================================================================
 // COMMUNITY
 // =====================================================================
 
-export const watchList = pgTable('watch_list', {
-  userId: text('user_id').notNull(),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  notifyOnEdit: boolean('notify_on_edit').notNull().default(true),
-  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.userId, t.targetType, t.targetId] }),
-}));
+export const watchList = pgTable(
+  "watch_list",
+  {
+    userId: text("user_id").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    notifyOnEdit: boolean("notify_on_edit").notNull().default(true),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.targetType, t.targetId] }),
+  }),
+);
 
-export const comments = pgTable('comments', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull(),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  parentCommentId: uuid('parent_comment_id'),
-  body: text('body').notNull(),
-  isHidden: boolean('is_hidden').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  targetIdx: index('comments_target_idx').on(t.targetType, t.targetId),
-}));
+export const comments = pgTable(
+  "comments",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    userId: text("user_id").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    parentCommentId: uuid("parent_comment_id"),
+    body: text("body").notNull(),
+    isHidden: boolean("is_hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    targetIdx: index("comments_target_idx").on(t.targetType, t.targetId),
+  }),
+);
 
-export const contentPermissions = pgTable('content_permissions', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull(),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  canEdit: boolean('can_edit').notNull().default(false),
-  canDelete: boolean('can_delete').notNull().default(false),
-  canModerate: boolean('can_moderate').notNull().default(false),
-  grantedBy: text('granted_by'),
-  grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+export const contentPermissions = pgTable("content_permissions", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  userId: text("user_id").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: uuid("target_id").notNull(),
+  canEdit: boolean("can_edit").notNull().default(false),
+  canDelete: boolean("can_delete").notNull().default(false),
+  canModerate: boolean("can_moderate").notNull().default(false),
+  grantedBy: text("granted_by"),
+  grantedAt: timestamp("granted_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
-export const expertCredentials = pgTable('expert_credentials', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  userId: text('user_id').notNull(),
-  field: text('field').notNull(),
-  description: text('description').notNull(),
-  evidenceUrl: text('evidence_url'),
-  verifiedBy: text('verified_by'),
-  verifiedAt: timestamp('verified_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+export const expertCredentials = pgTable("expert_credentials", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  userId: text("user_id").notNull(),
+  field: text("field").notNull(),
+  description: text("description").notNull(),
+  evidenceUrl: text("evidence_url"),
+  verifiedBy: text("verified_by"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // =====================================================================
 // MEDIA
 // =====================================================================
 
-export const media = pgTable('media', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  storageKey: text('storage_key').notNull(),
-  mimeType: text('mime_type').notNull(),
-  byteSize: integer('byte_size').notNull(),
-  width: integer('width'),
-  height: integer('height'),
-  durationSeconds: integer('duration_seconds'),
-  altText: text('alt_text'),
-  credit: text('credit'),
-  license: text('license'),
-  uploadedBy: text('uploaded_by'),
-  uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+export const media = pgTable("media", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  storageKey: text("storage_key").notNull(),
+  mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  durationSeconds: integer("duration_seconds"),
+  altText: text("alt_text"),
+  credit: text("credit"),
+  license: text("license"),
+  uploadedBy: text("uploaded_by"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
-export const mediaAttachments = pgTable('media_attachments', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  mediaId: uuid('media_id').notNull().references(() => media.id, { onDelete: 'cascade' }),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  role: text('role').notNull().default('gallery'),
-  position: integer('position').notNull().default(0),
-  attachedAt: timestamp('attached_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  targetIdx: index('media_attachments_target_idx').on(t.targetType, t.targetId),
-}));
+export const mediaAttachments = pgTable(
+  "media_attachments",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    mediaId: uuid("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "cascade" }),
+    targetType: text("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    role: text("role").notNull().default("gallery"),
+    position: integer("position").notNull().default(0),
+    attachedAt: timestamp("attached_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    targetIdx: index("media_attachments_target_idx").on(
+      t.targetType,
+      t.targetId,
+    ),
+  }),
+);
 
 // =====================================================================
 // FOOD GEOGRAPHY (Phase 2A)
@@ -672,125 +911,200 @@ export const mediaAttachments = pgTable('media_attachments', {
 // service/admin logic in Phase 2D.
 
 export const foodRegionType = [
-  'culinary',
-  'cultural',
-  'geographic',
-  'historical',
-  'diaspora',
-  'trade_route',
-  'ingredient_zone',
+  "culinary",
+  "cultural",
+  "geographic",
+  "historical",
+  "diaspora",
+  "trade_route",
+  "ingredient_zone",
 ] as const;
-export type FoodRegionType = typeof foodRegionType[number];
+export type FoodRegionType = (typeof foodRegionType)[number];
 
-export const foodRegionStatus = ['draft', 'reviewed', 'published', 'deprecated'] as const;
-export type FoodRegionStatus = typeof foodRegionStatus[number];
+export const foodRegionStatus = [
+  "draft",
+  "reviewed",
+  "published",
+  "deprecated",
+] as const;
+export type FoodRegionStatus = (typeof foodRegionStatus)[number];
 
-export const foodRegions = pgTable('food_regions', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  slug: text('slug').notNull().unique(),
-  name: text('name').notNull(),
-  type: text('type').$type<FoodRegionType>().notNull(),
-  status: text('status').$type<FoodRegionStatus>().notNull().default('draft'),
-  description: text('description'),
-  countryCodes: text('country_codes').array(),
-  geojsonPath: text('geojson_path').notNull(),
-  bbox: jsonb('bbox'),
-  centroidLatitude: numeric('centroid_latitude'),
-  centroidLongitude: numeric('centroid_longitude'),
-  parentRegionId: uuid('parent_region_id').references((): any => foodRegions.id, { onDelete: 'set null' }),
-  confidence: integer('confidence'),
-  sourceNotes: text('source_notes'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  typeIdx: index('food_regions_type_idx').on(t.type),
-  statusIdx: index('food_regions_status_idx').on(t.status),
-}));
+export const foodRegions = pgTable(
+  "food_regions",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    type: text("type").$type<FoodRegionType>().notNull(),
+    status: text("status").$type<FoodRegionStatus>().notNull().default("draft"),
+    description: text("description"),
+    countryCodes: text("country_codes").array(),
+    geojsonPath: text("geojson_path").notNull(),
+    bbox: jsonb("bbox"),
+    centroidLatitude: numeric("centroid_latitude"),
+    centroidLongitude: numeric("centroid_longitude"),
+    parentRegionId: uuid("parent_region_id").references(
+      (): any => foodRegions.id,
+      { onDelete: "set null" },
+    ),
+    confidence: integer("confidence"),
+    sourceNotes: text("source_notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    typeIdx: index("food_regions_type_idx").on(t.type),
+    statusIdx: index("food_regions_status_idx").on(t.status),
+  }),
+);
 
 export const dishRegionRelationshipType = [
-  'origin',
-  'core_region',
-  'variation_region',
-  'popularity_region',
-  'diaspora_region',
-  'disputed_origin',
-  'ingredient_origin',
-  'historical_spread',
+  "origin",
+  "core_region",
+  "variation_region",
+  "popularity_region",
+  "diaspora_region",
+  "disputed_origin",
+  "ingredient_origin",
+  "historical_spread",
 ] as const;
-export type DishRegionRelationshipType = typeof dishRegionRelationshipType[number];
+export type DishRegionRelationshipType =
+  (typeof dishRegionRelationshipType)[number];
 
-export const dishRegions = pgTable('dish_regions', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  regionId: uuid('region_id').notNull().references(() => foodRegions.id, { onDelete: 'cascade' }),
-  relationshipType: text('relationship_type').$type<DishRegionRelationshipType>().notNull(),
-  confidence: integer('confidence'),
-  isPrimary: boolean('is_primary').notNull().default(false),
-  notes: text('notes'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  compositeUnique: unique('dish_regions_dish_region_type_unique').on(t.dishId, t.regionId, t.relationshipType),
-  dishIdx: index('dish_regions_dish_id_idx').on(t.dishId),
-  regionIdx: index('dish_regions_region_id_idx').on(t.regionId),
-  typeIdx: index('dish_regions_relationship_type_idx').on(t.relationshipType),
-}));
+export const dishRegions = pgTable(
+  "dish_regions",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    regionId: uuid("region_id")
+      .notNull()
+      .references(() => foodRegions.id, { onDelete: "cascade" }),
+    relationshipType: text("relationship_type")
+      .$type<DishRegionRelationshipType>()
+      .notNull(),
+    confidence: integer("confidence"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    compositeUnique: unique("dish_regions_dish_region_type_unique").on(
+      t.dishId,
+      t.regionId,
+      t.relationshipType,
+    ),
+    dishIdx: index("dish_regions_dish_id_idx").on(t.dishId),
+    regionIdx: index("dish_regions_region_id_idx").on(t.regionId),
+    typeIdx: index("dish_regions_relationship_type_idx").on(t.relationshipType),
+  }),
+);
 
 export const dishLocationType = [
-  'origin_point',
-  'representative_point',
-  'popularity_point',
-  'variation_point',
-  'diaspora_point',
-  'market_point',
+  "origin_point",
+  "representative_point",
+  "popularity_point",
+  "variation_point",
+  "diaspora_point",
+  "market_point",
 ] as const;
-export type DishLocationType = typeof dishLocationType[number];
+export type DishLocationType = (typeof dishLocationType)[number];
 
-export const dishLocations = pgTable('dish_locations', {
-  id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  locationType: text('location_type').$type<DishLocationType>().notNull(),
-  latitude: numeric('latitude').notNull(),
-  longitude: numeric('longitude').notNull(),
-  label: text('label'),
-  countryCode: text('country_code'),
-  adminRegion: text('admin_region'),
-  confidence: integer('confidence'),
-  isPrimary: boolean('is_primary').notNull().default(false),
-  notes: text('notes'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  dishIdx: index('dish_locations_dish_id_idx').on(t.dishId),
-  typeIdx: index('dish_locations_location_type_idx').on(t.locationType),
-  countryIdx: index('dish_locations_country_code_idx').on(t.countryCode),
-}));
+export const dishLocations = pgTable(
+  "dish_locations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    locationType: text("location_type").$type<DishLocationType>().notNull(),
+    latitude: numeric("latitude").notNull(),
+    longitude: numeric("longitude").notNull(),
+    label: text("label"),
+    countryCode: text("country_code"),
+    adminRegion: text("admin_region"),
+    confidence: integer("confidence"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    dishIdx: index("dish_locations_dish_id_idx").on(t.dishId),
+    typeIdx: index("dish_locations_location_type_idx").on(t.locationType),
+    countryIdx: index("dish_locations_country_code_idx").on(t.countryCode),
+  }),
+);
 
 // -- Source junction tables -------------------------------------------------
 // Each links a record to the canonical `sources` table via composite primary
 // keys. Cascade on delete matches the rest of the project (e.g.
 // ingredientTranslations, mediaAttachments).
 
-export const foodRegionSources = pgTable('food_region_sources', {
-  regionId: uuid('region_id').notNull().references(() => foodRegions.id, { onDelete: 'cascade' }),
-  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.regionId, t.sourceId] }),
-}));
+export const foodRegionSources = pgTable(
+  "food_region_sources",
+  {
+    regionId: uuid("region_id")
+      .notNull()
+      .references(() => foodRegions.id, { onDelete: "cascade" }),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.regionId, t.sourceId] }),
+  }),
+);
 
-export const dishRegionSources = pgTable('dish_region_sources', {
-  dishId: uuid('dish_id').notNull().references(() => dishes.id, { onDelete: 'cascade' }),
-  regionId: uuid('region_id').notNull().references(() => foodRegions.id, { onDelete: 'cascade' }),
-  relationshipType: text('relationship_type').$type<DishRegionRelationshipType>().notNull(),
-  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.dishId, t.regionId, t.relationshipType, t.sourceId] }),
-  sourceIdx: index('dish_region_sources_source_id_idx').on(t.sourceId),
-}));
+export const dishRegionSources = pgTable(
+  "dish_region_sources",
+  {
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    regionId: uuid("region_id")
+      .notNull()
+      .references(() => foodRegions.id, { onDelete: "cascade" }),
+    relationshipType: text("relationship_type")
+      .$type<DishRegionRelationshipType>()
+      .notNull(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({
+      columns: [t.dishId, t.regionId, t.relationshipType, t.sourceId],
+    }),
+    sourceIdx: index("dish_region_sources_source_id_idx").on(t.sourceId),
+  }),
+);
 
-export const dishLocationSources = pgTable('dish_location_sources', {
-  locationId: uuid('location_id').notNull().references(() => dishLocations.id, { onDelete: 'cascade' }),
-  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.locationId, t.sourceId] }),
-}));
+export const dishLocationSources = pgTable(
+  "dish_location_sources",
+  {
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => dishLocations.id, { onDelete: "cascade" }),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.locationId, t.sourceId] }),
+  }),
+);

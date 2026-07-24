@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { authClient } from '../lib/auth';
-import type { SessionUser } from '../lib/session';
+import { useEffect, useState } from "react";
+import { authClient } from "../lib/auth";
+import type { SessionUser } from "../lib/session";
 
 interface Props {
   /** True if SSR detected a session cookie on the same origin (dev only). */
   initialAuthed?: boolean;
-  variant?: 'desktop' | 'mobile';
+  variant?: "desktop" | "mobile";
 }
 
 /**
@@ -14,9 +14,12 @@ interface Props {
  * in production (the session cookie lives on api.gustale.com and can't be
  * read by SSR here on gustale.com), then upgrades after hydration.
  */
-export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) {
+export function AuthMenu({
+  initialAuthed = false,
+  variant = "desktop",
+}: Props) {
   const [user, setUser] = useState<SessionUser | null>(
-    initialAuthed ? { id: '', email: '', name: '', role: 'visitor' } : null,
+    initialAuthed ? { id: "", email: "", name: "", role: "visitor" } : null,
   );
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,7 +38,7 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
             id: u.id,
             email: u.email,
             name: u.name,
-            role: (u.role ?? 'visitor') as SessionUser['role'],
+            role: (u.role ?? "visitor") as SessionUser["role"],
           });
         }
       } catch {
@@ -53,10 +56,10 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
     e.preventDefault();
     try {
       await authClient.signOut();
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Sign-out failed', err);
+      console.error("Sign-out failed", err);
     }
   }
 
@@ -70,7 +73,7 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
     const label = user.name || user.email;
     const initials = getInitials(label);
 
-    if (variant === 'mobile') {
+    if (variant === "mobile") {
       return (
         <div className="auth-mobile">
           <a href="/account" className="auth-avatar-sm">
@@ -109,16 +112,10 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
               )}
             </div>
             <div className="auth-dropdown-divider" />
-            <a
-              href="/account"
-              className="auth-dropdown-item"
-            >
+            <a href="/account" className="auth-dropdown-item">
               Account
             </a>
-            <a
-              href="/dashboard"
-              className="auth-dropdown-item"
-            >
+            <a href="/dashboard" className="auth-dropdown-item">
               Dashboard
             </a>
             <button
@@ -137,8 +134,8 @@ export function AuthMenu({ initialAuthed = false, variant = 'desktop' }: Props) 
   return <UnauthedMenu variant={variant} />;
 }
 
-function UnauthedMenu({ variant }: { variant: 'desktop' | 'mobile' }) {
-  if (variant === 'mobile') {
+function UnauthedMenu({ variant }: { variant: "desktop" | "mobile" }) {
+  if (variant === "mobile") {
     return (
       <div className="auth-mobile">
         <span className="auth-signed-out">Not signed in</span>
@@ -151,10 +148,7 @@ function UnauthedMenu({ variant }: { variant: 'desktop' | 'mobile' }) {
 
   return (
     <div className="auth-links">
-      <a
-        href="/login"
-        className="btn btn-outline"
-      >
+      <a href="/login" className="btn btn-outline">
         Sign in
       </a>
     </div>
@@ -166,7 +160,7 @@ function getInitials(value: string): string {
     .split(/[\s@._-]+/)
     .map((part) => part.trim())
     .filter(Boolean);
-  const first = parts[0]?.[0] ?? 'G';
-  const second = parts[1]?.[0] ?? '';
+  const first = parts[0]?.[0] ?? "G";
+  const second = parts[1]?.[0] ?? "";
   return `${first}${second}`.toUpperCase();
 }

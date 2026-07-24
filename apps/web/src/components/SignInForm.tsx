@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { authClient } from '../lib/auth';
+import { useState } from "react";
+import { authClient } from "../lib/auth";
 
 /**
  * Email + password sign-in form.
@@ -10,26 +10,26 @@ import { authClient } from '../lib/auth';
  * On failure: surface the error message in the red banner below the form.
  */
 export function SignInForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function friendlyError(err: unknown): string {
     if (!(err instanceof Error)) {
-      return 'Sign-in failed. Please check your email and password.';
+      return "Sign-in failed. Please check your email and password.";
     }
     const msg = err.message;
     // Better-auth nests the actual API error message inside the Error object's
     // `.message` field, prefixed by "[plugin/auth]". Show the most useful slice.
-    if (msg.includes('Invalid email or password')) {
-      return 'Wrong email or password. Try again or reset your password.';
+    if (msg.includes("Invalid email or password")) {
+      return "Wrong email or password. Try again or reset your password.";
     }
-    if (msg.includes('Email not verified')) {
-      return 'Check your inbox to verify your email before signing in.';
+    if (msg.includes("Email not verified")) {
+      return "Check your inbox to verify your email before signing in.";
     }
-    if (msg.includes('Too many requests')) {
-      return 'Too many sign-in attempts. Wait a minute and try again.';
+    if (msg.includes("Too many requests")) {
+      return "Too many sign-in attempts. Wait a minute and try again.";
     }
     if (msg.length < 200) return msg;
     // Otherwise return the raw message (truncated) so the user can see what
@@ -45,7 +45,7 @@ export function SignInForm() {
       await authClient.signIn.email({ email, password });
       // Full reload so the server-rendered header picks up the authed state
       // after hydration re-fetches the session.
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (err: unknown) {
       setError(friendlyError(err));
     } finally {
@@ -56,7 +56,10 @@ export function SignInForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-slate-700"
+        >
           Email
         </label>
         <input
@@ -72,7 +75,10 @@ export function SignInForm() {
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-slate-700"
+        >
           Password
         </label>
         <input
@@ -100,7 +106,7 @@ export function SignInForm() {
         disabled={submitting}
         className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
       >
-        {submitting ? 'Signing in…' : 'Sign in'}
+        {submitting ? "Signing in…" : "Sign in"}
       </button>
     </form>
   );

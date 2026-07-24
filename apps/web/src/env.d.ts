@@ -3,7 +3,7 @@
 interface ImportMetaEnv {
   readonly PUBLIC_API_BASE?: string;
   /** Build-time domain: `geo` (gustale.com Atlas) or `recipes` (gustale.recipes). */
-  readonly PUBLIC_DOMAIN?: 'geo' | 'recipes' | string;
+  readonly PUBLIC_DOMAIN?: "geo" | "recipes" | string;
 }
 
 interface ImportMeta {
@@ -19,7 +19,7 @@ declare namespace App {
       id: string;
       email: string;
       name?: string;
-      role?: 'visitor' | 'contributor' | 'moderator' | 'admin';
+      role?: "visitor" | "contributor" | "moderator" | "admin";
     } | null;
   }
 }

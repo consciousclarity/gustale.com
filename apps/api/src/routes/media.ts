@@ -20,19 +20,19 @@
  * signed-URL endpoint is the single read path — easier to reason about
  * access control.
  */
-import { Readable } from 'node:stream';
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db, media } from '@gustale/db';
-import { httpError } from '../errors.js';
+import { Readable } from "node:stream";
+import { db, media } from "@gustale/db";
+import { eq } from "drizzle-orm";
+import type { FastifyInstance, FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import { httpError } from "../errors.js";
 import {
-  PRIVATE_BUCKET,
   generateStorageKey,
+  PRIVATE_BUCKET,
   presignGet,
   removeObject,
   uploadStream,
-} from '../lib/minio.js';
+} from "../lib/minio.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
@@ -45,11 +45,11 @@ import {
  * if the format isn't browser-native.
  */
 const ALLOWED_MIME = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/avif',
-  'image/gif',
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/gif",
 ]);
 
 /**
@@ -99,11 +99,11 @@ const uploadFieldsSchema = z.object({
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function detectMimeFromFilename(filename: string): string | null {
   const lower = filename.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-  if (lower.endsWith('.png')) return 'image/png';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  if (lower.endsWith('.avif')) return 'image/avif';
-  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".avif")) return "image/avif";
+  if (lower.endsWith(".gif")) return "image/gif";
   return null;
 }
 
@@ -122,7 +122,9 @@ function bufferToStream(buffer: Buffer): Readable {
 
 // ─── Route registration ──────────────────────────────────────────────────
 
-export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+export const registerMediaRoutes: FastifyPluginAsync = async (
+  app: FastifyInstance,
+) => {
   // ─── POST /api/media/upload ──────────────────────────────────────────
   // Authenticated upload. Any contributor+ can upload (we may tighten to
   // moderator+ later if abuse becomes a problem). The bytes go to the
@@ -130,7 +132,7 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
   //
   // Static path — must register BEFORE the parametric /:id/signed-url
   // route below (P27).
-  app.post('/api/media/upload', async (request, reply) => {
+  app.post("/api/media/upload", async (request, reply) => {
     const user = await app.requireUser(request);
 
     // 1. Validate metadata fields up front. The multipart parser runs
@@ -141,24 +143,29 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
       // request.parts() yields MultipartFile and MultipartValue in order.
       // We accept only one file (the first) and accumulate string fields.
       for await (const part of request.parts()) {
-        if (part.type === 'file') {
+        if (part.type === "file") {
           // First file wins. Additional file parts are rejected to keep
           // the API surface simple (one image per upload).
           if (file === null) file = part;
           // Drain the rest of the stream so multipart doesn't hang.
           await part.toBuffer();
         } else {
-          fields[part.fieldname] = String(part.value ?? '');
+          fields[part.fieldname] = String(part.value ?? "");
         }
       }
     } catch (err) {
-      throw httpError(400, 'malformed_multipart', 'Could not parse multipart body', {
-        detail: err instanceof Error ? err.message : String(err),
-      });
+      throw httpError(
+        400,
+        "malformed_multipart",
+        "Could not parse multipart body",
+        {
+          detail: err instanceof Error ? err.message : String(err),
+        },
+      );
     }
 
     if (file === null) {
-      throw httpError(400, 'missing_file', 'Upload must include a `file` part');
+      throw httpError(400, "missing_file", "Upload must include a `file` part");
     }
 
     // 2. Validate mime. We use the declared mimetype — the bucket policy +
@@ -169,9 +176,9 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
     if (!ALLOWED_MIME.has(mimeType)) {
       throw httpError(
         415,
-        'unsupported_media_type',
-        `Unsupported mime type: ${mimeType}. Allowed: ${Array.from(ALLOWED_MIME).join(', ')}`,
-        { fields: ['file'] },
+        "unsupported_media_type",
+        `Unsupported mime type: ${mimeType}. Allowed: ${Array.from(ALLOWED_MIME).join(", ")}`,
+        { fields: ["file"] },
       );
     }
 
@@ -183,18 +190,18 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
     if (buffer.byteLength > MAX_BYTES) {
       throw httpError(
         413,
-        'payload_too_large',
+        "payload_too_large",
         `File exceeds ${MAX_BYTES} bytes (got ${buffer.byteLength})`,
       );
     }
     if (buffer.byteLength === 0) {
-      throw httpError(400, 'empty_file', 'Uploaded file is empty');
+      throw httpError(400, "empty_file", "Uploaded file is empty");
     }
 
     // 5. Build a collision-resistant storage key. Prefix `unattached/` for
     //    uploads that haven't been bound to a dish yet — makes them easy
-      //    to find and clean up if they end up orphaned.
-    const key = generateStorageKey('unattached', mimeType);
+    //    to find and clean up if they end up orphaned.
+    const key = generateStorageKey("unattached", mimeType);
 
     // 6. Stream to MinIO. The buffer is small enough that Readable.from
     //    is the simplest path; if we ever raise MAX_BYTES, switch to a
@@ -232,7 +239,7 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
         });
       const row = inserted[0];
       if (!row) {
-        throw new Error('Media insert returned no rows');
+        throw new Error("Media insert returned no rows");
       }
       return reply.status(201).send({
         media: {
@@ -252,9 +259,12 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
       // the orphaned object so we don't leak storage. Best-effort — if
       // removeObject also fails, log loudly and the next sweep can pick
       // up unattached/ keys older than 1 hour.
-      request.log.error({ err, key }, 'media insert failed; cleaning up orphan');
+      request.log.error(
+        { err, key },
+        "media insert failed; cleaning up orphan",
+      );
       void removeObject(PRIVATE_BUCKET, key).catch((cleanupErr) => {
-        request.log.error({ err: cleanupErr, key }, 'orphan cleanup failed');
+        request.log.error({ err: cleanupErr, key }, "orphan cleanup failed");
       });
       throw err;
     }
@@ -267,7 +277,7 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
   // private/restricted media, gate on requireUser + a permissions check.
   //
   // Parametric path — registered AFTER the static sibling above (P27).
-  app.get('/api/media/:id/signed-url', async (request) => {
+  app.get("/api/media/:id/signed-url", async (request) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
 
     const rows = await db
@@ -280,11 +290,15 @@ export const registerMediaRoutes: FastifyPluginAsync = async (app: FastifyInstan
       .where(eq(media.id, id))
       .limit(1);
     if (rows.length === 0) {
-      throw httpError(404, 'not_found', 'Media not found');
+      throw httpError(404, "not_found", "Media not found");
     }
     const row = rows[0]!;
 
-    const url = await presignGet(PRIVATE_BUCKET, row.storageKey, SIGNED_URL_TTL_SECONDS);
+    const url = await presignGet(
+      PRIVATE_BUCKET,
+      row.storageKey,
+      SIGNED_URL_TTL_SECONDS,
+    );
 
     return {
       url,

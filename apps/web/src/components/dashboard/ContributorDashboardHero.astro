@@ -15,7 +15,7 @@ export interface Props {
   /** Better-auth email — used as a fallback identifier. */
   userEmail?: string | null;
   /** Role string from better-auth additional fields. */
-  userRole?: 'visitor' | 'contributor' | 'moderator' | 'admin' | null;
+  userRole?: "visitor" | "contributor" | "moderator" | "admin" | null;
 }
 
 const { userName, userEmail, userRole } = Astro.props;

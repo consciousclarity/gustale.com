@@ -1,7 +1,7 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getIngredient, type IngredientDetailResponse } from '../../lib/api';
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import Layout from "../../layouts/Layout.astro";
+import { getIngredient, type IngredientDetailResponse } from "../../lib/api";
 
 // Build-time: enumerate every published ingredient so Astro can pre-render
 // each /ingredients/:slug page as static HTML. We rely on CI having run
@@ -10,7 +10,7 @@ export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
     // No API at build time — render one placeholder so the build doesn't fail.
-    return [{ params: { slug: 'eggplant' }, props: { name: 'Eggplant' } }];
+    return [{ params: { slug: "eggplant" }, props: { name: "Eggplant" } }];
   }
 
   try {
@@ -25,8 +25,8 @@ export async function getStaticPaths() {
     }));
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('[getStaticPaths] ingredient list fetch failed:', err);
-    return [{ params: { slug: 'eggplant' }, props: { name: 'Eggplant' } }];
+    console.error("[getStaticPaths] ingredient list fetch failed:", err);
+    return [{ params: { slug: "eggplant" }, props: { name: "Eggplant" } }];
   }
 }
 
