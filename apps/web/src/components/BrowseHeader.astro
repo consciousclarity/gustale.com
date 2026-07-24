@@ -1,0 +1,240 @@
+---
+/**
+ * Shared browse header for list pages.
+ *
+ * Renders the editorial hero (eyebrow / h1 / sub) plus a sticky toolbar
+ * with the search control and optional filters disclosure. The toolbar
+ * sticks 68px below the site header (which is itself sticky) and never
+ * overflows its container.
+ *
+ * Props are intentionally minimal — list pages own their own data and
+ * pass the visible fields in.
+ */
+
+interface Props {
+  /** Short eyebrow (e.g. "Browse the atlas"). */
+  eyebrow: string;
+  /** Page title. */
+  title: string;
+  /** One-sentence explanation below the title. */
+  subtitle: string;
+  /**
+   * Visible result count. Pass a string with a non-breaking separator if
+   * the count is locale-sensitive ("60 dishes"). Pass empty string when
+   * the count is loading/unknown to avoid layout shift.
+   */
+  countLabel: string;
+  /** Optional search input id (paired with a real <input>). */
+  searchId?: string;
+  /** Optional filters disclosure id (paired with a real button + panel). */
+  filtersId?: string;
+  /** Number of active filters, drives the badge on the Filters button. */
+  activeFilterCount?: number;
+  /** Filters disclosure label (e.g. "Filters"). */
+  filtersLabel?: string;
+}
+
+const {
+  eyebrow,
+  title,
+  subtitle,
+  countLabel,
+  searchId = 'browse-search',
+  filtersId = 'browse-filters',
+  activeFilterCount = 0,
+  filtersLabel = 'Filters',
+} = Astro.props;
+---
+
+<header class="browse-hero wrap">
+  <p class="browse-eyebrow">{eyebrow}</p>
+  <h1 class="browse-h1">{title}</h1>
+  <p class="browse-sub">{subtitle}</p>
+</header>
+
+<div class="browse-toolbar" data-browse-toolbar>
+  <div class="wrap">
+    <div class="browse-toolbar-row">
+      <label class="browse-search" for={searchId}>
+        <span class="browse-search-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="browse-search-sr">Search</span>
+      </label>
+
+      <p
+        class="browse-count"
+        aria-live="polite"
+        aria-atomic="true"
+        data-browse-count
+      >
+        {countLabel}
+      </p>
+
+      {filtersId && (
+        <button
+          type="button"
+          class="browse-filters-btn"
+          id={`${filtersId}-trigger`}
+          aria-controls={filtersId}
+          aria-expanded="false"
+          data-browse-filters-trigger
+        >
+          <span class="browse-filters-btn-label">{filtersLabel}</span>
+          {activeFilterCount > 0 && (
+            <span class="browse-filters-btn-badge" data-browse-filters-badge>
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      )}
+    </div>
+  </div>
+</div>
+
+<style>
+  .browse-hero {
+    padding: 40px 0 24px;
+  }
+  .browse-eyebrow {
+    margin: 0 0 12px;
+    color: var(--sub);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+  }
+  .browse-h1 {
+    margin: 0 0 12px;
+    font-family: var(--display);
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+  }
+  .browse-sub {
+    margin: 0;
+    max-width: 56ch;
+    font-size: clamp(1rem, 1.4vw, 1.125rem);
+    line-height: 1.55;
+    color: var(--sub);
+  }
+
+  .browse-toolbar {
+    position: sticky;
+    top: 68px; /* sits below the 68px site header */
+    z-index: 30;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .browse-toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    min-height: 56px;
+  }
+  .browse-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--sub);
+    transition: border-color 0.15s;
+  }
+  .browse-search:focus-within {
+    border-color: var(--accent);
+  }
+  .browse-search-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--sub);
+  }
+  .browse-search-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .browse-count {
+    flex: 0 0 auto;
+    margin: 0;
+    color: var(--sub);
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+  .browse-filters-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+    color: inherit;
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .browse-filters-btn:hover {
+    border-color: var(--accent);
+  }
+  .browse-filters-btn[aria-expanded='true'] {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  }
+  .browse-filters-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .browse-filters-btn-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  @media (max-width: 640px) {
+    .browse-toolbar-row {
+      gap: 8px;
+    }
+    .browse-count {
+      display: none;
+    }
+    .browse-filters-btn-label {
+      display: none;
+    }
+    .browse-filters-btn {
+      padding: 0 12px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .browse-toolbar {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+</style>
