@@ -264,6 +264,74 @@ export function hasMorePages(lastPageSize: number, pageSize: number): boolean {
   return lastPageSize >= pageSize && pageSize > 0;
 }
 
+/**
+ * Keep only the first `page` pages of accumulated dishes (for Back history).
+ * Page is 1-based. Does not fetch — pure trim of already-loaded cards.
+ */
+export function sliceDishesToPage<T>(
+  dishes: readonly T[],
+  page: number,
+  pageSize: number,
+): T[] {
+  if (!Number.isFinite(page) || page < 1 || pageSize <= 0) return [];
+  return dishes.slice(0, Math.floor(page) * pageSize);
+}
+
+/**
+ * How many full/partial pages `dishCount` currently represents, given pageSize.
+ * Empty list → 0 loaded pages (caller treats as needing page 1 fetch).
+ */
+export function loadedPageFromCount(dishCount: number, pageSize: number): number {
+  if (!Number.isFinite(dishCount) || dishCount <= 0 || pageSize <= 0) return 0;
+  return Math.ceil(dishCount / pageSize);
+}
+
+export type HistoryRestorePlan =
+  | { action: 'noop' }
+  | { action: 'trim'; page: number }
+  | { action: 'extend'; fromPage: number; toPage: number };
+
+/**
+ * Decide how to reconcile URL `targetPage` with already-loaded pages.
+ * Load more must update `loadedPage` before bumping URL page so this returns noop.
+ */
+export function planHistoryRestore(
+  targetPage: number,
+  loadedPage: number,
+): HistoryRestorePlan {
+  const target = Number.isFinite(targetPage) && targetPage >= 1 ? Math.floor(targetPage) : 1;
+  const loaded = Number.isFinite(loadedPage) && loadedPage >= 0 ? Math.floor(loadedPage) : 0;
+  if (target === loaded) return { action: 'noop' };
+  if (target < loaded) return { action: 'trim', page: target };
+  return { action: 'extend', fromPage: loaded, toPage: target };
+}
+
+/** Filter fingerprint excluding page — used to detect filter resets. */
+export function browseFiltersKey(state: BrowseQueryState): string {
+  return [
+    state.q,
+    state.family ?? '',
+    state.country ?? '',
+    state.cuisine ?? '',
+    state.type ?? '',
+    state.ingredient ?? '',
+    state.technique ?? '',
+    state.sort ?? '',
+  ].join('\0');
+}
+
+/**
+ * Exact case-insensitive country match (production list semantics for U0-C).
+ * Substring matches like "United" → "United States" are intentionally rejected.
+ */
+export function countryMatchesExact(
+  originName: string | null | undefined,
+  country: string | null | undefined,
+): boolean {
+  if (country == null || country.trim() === '') return true;
+  return (originName ?? '').toLowerCase() === country.trim().toLowerCase();
+}
+
 // ─── Filter chips ───────────────────────────────────────────────────────
 
 export interface FilterChip {

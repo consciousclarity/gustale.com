@@ -145,6 +145,42 @@ export function hasMorePages(lastPageSize, pageSize) {
   return lastPageSize >= pageSize && pageSize > 0;
 }
 
+export function sliceDishesToPage(dishes, page, pageSize) {
+  if (!Number.isFinite(page) || page < 1 || pageSize <= 0) return [];
+  return dishes.slice(0, Math.floor(page) * pageSize);
+}
+
+export function loadedPageFromCount(dishCount, pageSize) {
+  if (!Number.isFinite(dishCount) || dishCount <= 0 || pageSize <= 0) return 0;
+  return Math.ceil(dishCount / pageSize);
+}
+
+export function planHistoryRestore(targetPage, loadedPage) {
+  const target = Number.isFinite(targetPage) && targetPage >= 1 ? Math.floor(targetPage) : 1;
+  const loaded = Number.isFinite(loadedPage) && loadedPage >= 0 ? Math.floor(loadedPage) : 0;
+  if (target === loaded) return { action: 'noop' };
+  if (target < loaded) return { action: 'trim', page: target };
+  return { action: 'extend', fromPage: loaded, toPage: target };
+}
+
+export function browseFiltersKey(state) {
+  return [
+    state.q,
+    state.family ?? '',
+    state.country ?? '',
+    state.cuisine ?? '',
+    state.type ?? '',
+    state.ingredient ?? '',
+    state.technique ?? '',
+    state.sort ?? '',
+  ].join('\0');
+}
+
+export function countryMatchesExact(originName, country) {
+  if (country == null || String(country).trim() === '') return true;
+  return (originName ?? '').toLowerCase() === String(country).trim().toLowerCase();
+}
+
 export function filterChipsFor(state) {
   const labels = {
     q: 'Search', family: 'Family', country: 'Country', cuisine: 'Cuisine',

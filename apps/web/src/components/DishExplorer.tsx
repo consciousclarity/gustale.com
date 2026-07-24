@@ -4,6 +4,7 @@ import { listDishes } from '../lib/api';
 import {
   BROWSE_PAGE_SIZE,
   appendDishes,
+  browseFiltersKey,
   browseHasActiveFilters,
   browseStatusMessage,
   buildBrowseQuery,
@@ -14,8 +15,10 @@ import {
   pageOffset,
   parseBrowseState,
   parseStructuredTokens,
+  planHistoryRestore,
   recoveryLinks,
   removeBrowseChip,
+  sliceDishesToPage,
   type BrowseQueryState,
 } from '../lib/browse';
 import { currentDomain } from '../lib/domain';
@@ -25,10 +28,14 @@ export interface DishExplorerProps {
   initial: DishListResponse;
 }
 
+type PendingOp =
+  | { kind: 'replace'; state: BrowseQueryState }
+  | { kind: 'extend'; state: BrowseQueryState; toPage: number }
+  | { kind: 'loadMore'; state: BrowseQueryState; nextPage: number };
+
 function stateFromLocation(): BrowseQueryState {
   if (typeof window === 'undefined') return clearBrowseFilters();
   const parsed = parseBrowseState(new URLSearchParams(window.location.search));
-  // Support legacy structured tokens baked into ?q=
   if (parsed.q && /:\S/.test(parsed.q)) {
     const tokens = parseStructuredTokens(parsed.q);
     return mergeBrowseState({ ...parsed, q: tokens.q ?? '' }, tokens);
@@ -66,13 +73,38 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     hasMorePages(initial.dishes.length, BROWSE_PAGE_SIZE),
   );
   const [inputValue, setInputValue] = useState(state.q);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNextFetch = useRef(true);
+  const skipFilterFetch = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
+  const genRef = useRef(0);
+  const dishesRef = useRef<DishSummary[]>(initial.dishes);
+  const loadedPageRef = useRef(1);
+  const filtersKeyRef = useRef(browseFiltersKey(state));
+  const pendingOpRef = useRef<PendingOp | null>(null);
+  /** When true, the next state.page change came from Load more — skip restore. */
+  const loadMoreBumpRef = useRef(false);
 
   const chips = filterChipsFor(state);
   const hasFilters = browseHasActiveFilters(state);
   const recovery = recoveryLinks(domain);
+
+  function commitDishes(next: DishSummary[]) {
+    dishesRef.current = next;
+    setDishes(next);
+  }
+
+  function beginGeneration(): { ac: AbortController; gen: number } {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    genRef.current += 1;
+    return { ac, gen: genRef.current };
+  }
+
+  function isCurrent(gen: number, ac: AbortController): boolean {
+    return genRef.current === gen && !ac.signal.aborted && abortRef.current === ac;
+  }
 
   // Sync URL when state changes (shareable + Back/Forward).
   useEffect(() => {
@@ -85,12 +117,17 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   }, [state]);
 
   useEffect(() => {
-    const onPop = () => setState(stateFromLocation());
+    const onPop = () => {
+      const next = stateFromLocation();
+      setInputValue(next.q);
+      loadMoreBumpRef.current = false;
+      setState(next);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // Debounce free-text into state.q
+  // Debounce free-text into state.q (resets page to 1).
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -109,92 +146,185 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     };
   }, [inputValue]);
 
-  // Fetch when filters/page change. Keep cards during requests.
+  // Filter changes → full replace at page 1. Does NOT depend on state.page alone.
   useEffect(() => {
-    if (skipNextFetch.current) {
-      skipNextFetch.current = false;
-      // If URL asks for page > 1 on first paint, load remaining pages.
+    const key = browseFiltersKey(state);
+    if (skipFilterFetch.current) {
+      skipFilterFetch.current = false;
+      filtersKeyRef.current = key;
+      // Shared ?page=N on first paint: reconstruct pages 1…N.
       if (state.page > 1) {
-        void loadThroughPage(state);
+        void extendToPage(state, state.page);
+      } else {
+        loadedPageRef.current = 1;
       }
       return;
     }
-    void replaceResults(state);
+    if (key === filtersKeyRef.current) return;
+    filtersKeyRef.current = key;
+    loadMoreBumpRef.current = false;
+    void replaceResults({ ...state, page: 1 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.q, state.family, state.country, state.cuisine, state.type, state.ingredient, state.technique]);
+  }, [
+    state.q,
+    state.family,
+    state.country,
+    state.cuisine,
+    state.type,
+    state.ingredient,
+    state.technique,
+  ]);
+
+  // History restoration for page changes (Back/Forward / shared URL).
+  // Load more bumps loadedPageRef before setState so plan → noop.
+  useEffect(() => {
+    if (loadMoreBumpRef.current) {
+      loadMoreBumpRef.current = false;
+      return;
+    }
+    // Filter effect owns filter transitions.
+    if (browseFiltersKey(state) !== filtersKeyRef.current) return;
+
+    const plan = planHistoryRestore(state.page, loadedPageRef.current);
+    if (plan.action === 'noop') return;
+    if (plan.action === 'trim') {
+      commitDishes(sliceDishesToPage(dishesRef.current, plan.page, BROWSE_PAGE_SIZE));
+      loadedPageRef.current = plan.page;
+      setHasMore(true);
+      setFailed(false);
+      return;
+    }
+    void extendToPage(state, plan.toPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.page]);
 
   async function replaceResults(next: BrowseQueryState) {
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
+    pendingOpRef.current = { kind: 'replace', state: next };
+    const { ac, gen } = beginGeneration();
     setLoading(true);
     setFailed(false);
     try {
       const res = await listDishes(toListParams({ ...next, page: 1 }, 0));
-      if (ac.signal.aborted) return;
-      setDishes(res.dishes);
+      if (!isCurrent(gen, ac)) return;
+      commitDishes(res.dishes);
+      loadedPageRef.current = 1;
       setHasMore(hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE));
-      setState((s) => (s.page === 1 ? s : { ...s, page: 1 }));
+      setState((s) => {
+        const merged = { ...s, ...next, page: 1 };
+        filtersKeyRef.current = browseFiltersKey(merged);
+        return s.page === 1
+          && browseFiltersKey(s) === browseFiltersKey(merged)
+          ? s
+          : merged;
+      });
+      pendingOpRef.current = null;
     } catch {
-      if (ac.signal.aborted) return;
+      if (!isCurrent(gen, ac)) return;
       setFailed(true);
-      // Keep existing SSR/client cards visible — never surface raw API text.
+      // Keep existing cards.
     } finally {
-      // Always clear loading for this request generation.
       if (abortRef.current === ac) setLoading(false);
     }
   }
 
-  async function loadThroughPage(next: BrowseQueryState) {
+  async function extendToPage(next: BrowseQueryState, toPage: number) {
+    pendingOpRef.current = { kind: 'extend', state: next, toPage };
+    const { ac, gen } = beginGeneration();
     setLoadingMore(true);
     setFailed(false);
     try {
-      let merged = dishes.slice();
-      let page = 1;
-      let more = hasMorePages(merged.length, BROWSE_PAGE_SIZE);
-      while (page < next.page && more) {
+      let merged = dishesRef.current.slice();
+      let page = loadedPageRef.current;
+
+      if (page < 1 && merged.length > 0) {
+        page = 1;
+        loadedPageRef.current = 1;
+      }
+
+      if (page < 1) {
+        const res = await listDishes(toListParams(next, 0));
+        if (!isCurrent(gen, ac)) return;
+        merged = res.dishes.slice();
+        page = 1;
+        loadedPageRef.current = 1;
+        commitDishes(merged);
+        setHasMore(hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE));
+      }
+
+      while (page < toPage) {
         const offset = pageOffset(page + 1, BROWSE_PAGE_SIZE);
         const res = await listDishes(toListParams(next, offset));
+        if (!isCurrent(gen, ac)) return;
+        if (res.dishes.length === 0) {
+          setHasMore(false);
+          break;
+        }
         merged = appendDishes(merged, res.dishes);
-        more = hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
+        const more = hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
         page += 1;
+        loadedPageRef.current = page;
+        commitDishes(merged);
+        setHasMore(more);
+        if (!more) break;
       }
-      setDishes(merged);
-      setHasMore(more);
+      pendingOpRef.current = null;
     } catch {
+      if (!isCurrent(gen, ac)) return;
       setFailed(true);
+      // Retain currently useful cards; Retry continues extend/loadMore.
     } finally {
-      setLoadingMore(false);
+      if (abortRef.current === ac) setLoadingMore(false);
     }
   }
 
   async function loadMore() {
     if (loadingMore || loading || !hasMore) return;
+    const nextPage = loadedPageRef.current + 1;
+    pendingOpRef.current = { kind: 'loadMore', state, nextPage };
+    const { ac, gen } = beginGeneration();
     setLoadingMore(true);
     setFailed(false);
-    const nextPage = state.page + 1;
     const offset = pageOffset(nextPage, BROWSE_PAGE_SIZE);
     try {
       const res = await listDishes(toListParams(state, offset));
-      setDishes((prev) => appendDishes(prev, res.dishes));
-      setHasMore(hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE));
+      if (!isCurrent(gen, ac)) return;
+      const merged = appendDishes(dishesRef.current, res.dishes);
+      commitDishes(merged);
+      const more = hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
+      setHasMore(more);
+      // Update loaded page BEFORE state.page so history effect noops.
+      loadedPageRef.current = nextPage;
+      loadMoreBumpRef.current = true;
       setState((s) => ({ ...s, page: nextPage }));
+      pendingOpRef.current = null;
     } catch {
+      if (!isCurrent(gen, ac)) return;
       setFailed(true);
     } finally {
-      setLoadingMore(false);
+      if (abortRef.current === ac) setLoadingMore(false);
     }
   }
 
   function clearAll() {
     setInputValue('');
-    setState(clearBrowseFilters());
-    skipNextFetch.current = false;
-    void replaceResults(clearBrowseFilters());
+    const cleared = clearBrowseFilters();
+    filtersKeyRef.current = browseFiltersKey(cleared);
+    loadMoreBumpRef.current = false;
+    setState(cleared);
+    void replaceResults(cleared);
   }
 
   async function retry() {
-    await replaceResults(state);
+    const pending = pendingOpRef.current;
+    if (pending?.kind === 'loadMore') {
+      await loadMore();
+      return;
+    }
+    if (pending?.kind === 'extend') {
+      await extendToPage(pending.state, pending.toPage);
+      return;
+    }
+    await replaceResults(pending?.kind === 'replace' ? pending.state : state);
   }
 
   const status = browseStatusMessage({

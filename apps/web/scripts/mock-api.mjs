@@ -266,7 +266,7 @@ const server = http.createServer((req, res) => {
     }
     if (country) {
       dishes = dishes.filter(
-        (d) => (d.originName ?? '').toLowerCase().includes(country),
+        (d) => (d.originName ?? '').toLowerCase() === country,
       );
     }
     // Match production zod: limit 1..100 (default 20), offset >= 0.

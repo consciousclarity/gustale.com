@@ -26,7 +26,6 @@ export function FamilyDirectory({
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('q') ?? '';
   });
-  const [failed] = useState(false);
 
   const visible: FamilyEntry[] = useMemo(
     () => filterFamilyDirectory(all, q),
@@ -50,9 +49,10 @@ export function FamilyDirectory({
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // SSR-data-only: no client refetch. Build/SSG recovery lives on the page.
   const status = browseStatusMessage({
     loading: false,
-    failed,
+    failed: false,
     count: visible.length,
     query: q,
     noun: 'families',
