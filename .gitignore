@@ -79,6 +79,10 @@ docker-compose.override.yml
 packages/db/dist/
 packages/db/dist.bak/
 packages/db/.drizzle-tmp/
+# Dual-domain web build output (recipes variant) — local/CI only.
+dist-recipes/
+# Graphify analysis output — never commit generated graphs.
+graphify-out/
 
 # Test artefacts
 apps/api/test/.tmp/
