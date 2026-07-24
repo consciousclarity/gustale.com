@@ -6,6 +6,32 @@
 
 ## Last updated
 
+### AL - 2026-07-24
+
+**State-only sync (no main or feature branch touched).** U0 + U0-C milestone reached today — U0 PRs #33 (Greptile dish-media cleanup), #34 (U0 trust: domain routing + family SSG + Atlas→Recipes CTAs), #35 (custom HTTP 404 from nginx), and #36 (U0 navigation + search) all **merged into `origin/main`** between 2026-07-23 11:31Z and 15:19Z. **U0-C browse/list usability** sits at PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, open, **draft**), independently verified **PASS** on 2026-07-24 with these totals:
+
+| Check | Result |
+|---|---|
+| `node --test test-search-nav.mjs` | **12 / 12 pass** |
+| `node --test test-browse.mjs` | **17 / 17 pass** |
+| `pnpm -r exec tsc --noEmit` | clean (5 pre-existing errors in untouched `api.ts:39`, `auth.ts:20`, `middleware.ts:32,55,55`) |
+| `pnpm exec astro check` | 1 pre-existing `AtlasHeroKpi.astro:78:7` only (bit-identical SHA `cd12d37…7f` to origin/main) |
+| `build:recipes` (repository mock on `:8742`) | **50 passed, 0 failed** |
+| `build:geo` (repository mock on `:8742`) | **53 passed, 0 failed** |
+| `/family/late-page-family/` late-page-family validators | preserved and pass in both dists |
+| Browser: pagination 24→48→60 (all 60 slugs unique) | ✅ |
+| Browser: Back/Forward/Refresh restore correct page | ✅ |
+| Browser: popstate does not grow history (loadMorePushCount: 2, backDoesNotGrow: true) | ✅ |
+| Browser: search resets page to 1 (`?q=sushi` from `?page=3`) | ✅ |
+| Browser: later-page failure retains 48 cards, Retry → 60 | ✅ |
+| Browser: mock country matching is exact case-insensitive | ✅ |
+| Browser: mobile 320×720 zero overflow on /dishes /families /lineages | ✅ |
+| Docker image builds (geo + recipes) | ✅ both green, containers serve correctly |
+
+**PR #37 remains in draft state and is unmerged.** Do not mark U1 done in `.hermes/TASKS.md` or `.hermes/COMPETITIVE_ROADMAP.md` until PR #37 actually merges. **Next action:** mark PR #37 ready → human review → merge → production smoke (live `gustale.recipes/dishes` 24→60 via Load more, Back/Forward, mobile 320px, no AuthMenu 404 noise regressions). Do NOT auto-merge. Do NOT deploy without human approval. Browser evidence at `/home/alex/workspace/u0c-verify-evidence/u0c-final-v2-verify.json`.
+
+---
+
 2026-07-23 by Hermes Agent (Telegram) — **✓ Resolved at 2026-07-23T10:14Z (UTC).** The `### 2026-07-23 — API auth divergence (CORRECTED)` entry below documents the root cause (Phase 7 missed updating `/root/.env` on the VPS; CI's `deploy_container` reads that file via `--env-file`). The fix that was actually applied:
 
 ```bash

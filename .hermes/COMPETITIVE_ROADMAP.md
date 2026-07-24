@@ -50,7 +50,7 @@ reads as *Gustale — atlas of how food moved*, not a generic food site.
 # P0 — Credibility & first impression
 
 ## P0-1 · Homepage never shows zeros before hydration
-**Status:** `todo` · **Owner:** unassigned
+**Status:** `done` · **Owner:** Cursor Cloud Agent · **PR:** #31 (merged 2026-07-23 via origin/main `fc1f9e0`) — AtlasHeroKpi.astro ships SSR real counts (`60 dishes / 32 origins / 18 families / 14 lineages`) above the fold.
 
 **Problem.** Live homepage SSR still emits “0 dishes / 0 families / 0 origins”
 before the island hydrates. Competitors never look empty. It undercuts the
@@ -70,7 +70,7 @@ with JS disabled; hydrated UI matches.
 ---
 
 ## P0-2 · Dish cover / media reliability
-**Status:** `in_progress` · **Owner:** Cursor Cloud Agent · **PR:** https://github.com/consciousclarity/gustale.com/pull/29 (Phase A: full-bleed cover + never-empty fallback + spacing scale)
+**Status:** `done` · **Owner:** Cursor Cloud Agent · **PR:** #29 (media-first Phase A) + #33 (Greptile P1 cover/gallery duplicate fix + P2 duplicate CSS cleanup) — both merged 2026-07-23.
 
 **Problem.** Dish pages still show “Loading cover…” / empty hero states;
 gallery depends on signed URLs. Empty heroes make encyclopedia pages feel
@@ -90,8 +90,7 @@ network idle; every published dish has a non-empty hero treatment.
 ---
 
 ## P0-3 · Global search that actually finds things
-**Status:** `todo` · **Owner:** unassigned  
-**Related:** TASKS Phase 9b (fuzzy search)
+**Status:** `done` · **Owner:** Cursor Cloud Agent · **PR:** #32 (merged 2026-07-23 via origin/main `b07ac4b` + follow-up `db8c30c` lowering pg_trgm threshold to 0.15 and dropping invalid `lineages.status` filter). Header `GlobalSearch` island ships with grouped results (dish/region/lineage/ingredient), keyboard nav, empty-state suggestions, fuzzy tolerance.
 
 **Problem.** Discovery today is browse-heavy (families / regions / lineages).
 Explore and World on a Plate both lead with search + story. Nav search must
@@ -123,6 +122,36 @@ for verify + password reset.
 
 **Done means.** New signup receives verify email; unverified users cannot
 publish; smoke on staging/prod.
+
+---
+
+## P0-5 · U0-C browse/list usability (verified, pending merge)
+**Status:** `verified · pending merge` · **Owner:** Hermes (Telegram) · **PR:** #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, open in draft, awaiting human review/merge). Independently verified PASS on 2026-07-24.
+
+**Scope (practical list-page portion of U1-2 + U1-3).** `/dishes` (Recipes-only) gains SSR-first list with paginated Load more beyond the first 24, URL/filter state with Back/Forward + refresh restoration, Clear all, friendly empty/failure/Retry, human search placeholder (no more developer-style `origin:Italy` syntax). `/families` becomes a family directory (one card per family) instead of a chip wall. `/regions` keeps the `/regions` route but public language becomes "Countries" with a find field + alphabetical jump. `/lineages` keeps cards + confidence + detail links; advanced filters move into one disclosure with removable chips and Clear all. Shared sticky browse toolbar 68px below the site header, mobile-first search, ~44px filter control, aria-live status, Escape/focus restoration, reduced-motion safe, useful with JS disabled via SSR islands. Recipes build loses `/map`; Geo build loses `/dishes/new`, `/ingredients/`, edit pages — domain contract preserved.
+
+**Verification totals (recorded in `TASKS.md` Done list 2026-07-24):**
+- `node --test test-search-nav.mjs` — 12/12 pass
+- `node --test test-browse.mjs` — 17/17 pass (history restore, append/dedupe, exact country, filter→page 1, late-page family fixture)
+- `pnpm -r exec tsc --noEmit` — clean (5 pre-existing errors in untouched `api.ts:39`, `auth.ts:20`, `middleware.ts:32,55,55`)
+- `pnpm exec astro check` — 1 pre-existing `AtlasHeroKpi.astro` error only (bit-identical SHA `cd12d37…7f` to origin/main; same `Type 'false' is not assignable to type 'true'` since 2026-07-22)
+- `build:recipes` (repository mock on `:8742`) — **50 passed, 0 failed** validators
+- `build:geo` (repository mock on `:8742`) — **53 passed, 0 failed** validators
+- `/family/dumpling/` and `/family/late-page-family/` present in both dists (late-page-family validators preserved and pass)
+- Browser evidence at `/home/alex/workspace/u0c-verify-evidence/`:
+  - API unique total = 60
+  - Pagination sequence: 24 → 48 → 60 (all 60 slugs unique, Load more absent at 60)
+  - Back: 60 → 48 → 24, Forward: 24 → 48 → 60
+  - Refresh `?page=3` restores 60
+  - popstate does not create extra history entries (loadMorePushCount: 2, backDoesNotGrow: true)
+  - Search "sushi" from `?page=3` resets URL to `?q=sushi` (no `page=`)
+  - Later-page failure retains 48 cards with friendly Retry → 60
+  - Mock country matching is exact case-insensitive (`country=united states` → 1, `country=United` → 0)
+  - Mobile 320×720: zero horizontal overflow on /dishes /families /lineages, controls visible
+
+**Done means (for the U0-C entry to close).** PR #37 merged, CI deploy green, production smoke confirms the same behaviors live (i.e. the new `/dishes`, `/families`, `/regions` Countries UI, `/lineages` disclosure, sticky toolbar are serving from `gustale.com` + `gustale.recipes`). Move this entry to status `done` and promote the related U1 items (U1-2 browse simplification, U1-3 empty/error states, U1-4 mobile find) to status `in_progress` or `done` per what the merged PR covers.
+
+**Next action.** Mark PR #37 ready for review → review → merge → production smoke (live `/dishes` 24→60 via Load more, Back/Forward, mobile 320px, no AuthMenu 404 noise regressions). Do NOT auto-merge. Do NOT deploy without human approval.
 
 ---
 
@@ -370,8 +399,7 @@ a dish, a story, a lineage.
 ---
 
 ## P2-7 · MapLibre CSS only on map routes
-**Status:** `todo` · **Owner:** unassigned  
-**Related:** SHARED_STATE Hermes pending task
+**Status:** `done` · **Owner:** Cursor Cloud Agent · **PR:** #30 (merged 2026-07-23 via origin/main `bd2bcca`). MapLibre CSS import moved from `apps/web/src/styles/global.css` to per-route side-effect imports in `apps/web/src/pages/map.astro` + `apps/web/src/pages/dishes/[slug].astro`. ~70 KB saved on every non-map, non-dish page load.
 
 **Scope.** Remove MapLibre CSS from global; import only on `/map` and dish
 map islands as needed.
@@ -427,10 +455,11 @@ Cursor session notes on naming lock-in.
 
 ```
 Wave A — Trust (1–2 PRs)
-  P0-1 Homepage counts
-  P0-2 Cover reliability
-  P2-7 MapLibre CSS scope
+  P0-1 Homepage counts               [done — PR #31]
+  P0-2 Cover reliability             [done — PR #29 + PR #33]
+  P2-7 MapLibre CSS scope            [done — PR #30]
   P0-4 Email verification (ops + small code)
+  P0-5 U0-C browse/list usability    [verified, pending merge — PR #37 @ 2ea9df9]
 
 Wave B — Stand-out core (the competitive bet)
   P1-1 Dish Journey UI + seed 10–15 flagships
@@ -449,7 +478,7 @@ Wave D — Density + contribution loop
   P2-5 Image upload UI
   P2-1 Companions
   P2-6 OG + JSON-LD
-  P0-3 Global search (can start earlier if parallelized)
+  P0-3 Global search (can start earlier if parallelized)   [done — PR #32]
 
 Wave E — Moat
   P3-1 Nearby

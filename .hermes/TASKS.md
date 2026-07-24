@@ -7,16 +7,16 @@
 
 ## In progress
 
-- (none)
+- **U0/U0-C browse usability** — `feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, PR #37 (open, draft, awaiting human review/merge). Independently verified PASS on 2026-07-24. Do not mark done until PR #37 merges.
 
 ## Codex — usability-first (.com)
 
 Source: `.hermes/CODEX_BRIEF_USABILITY.md` (2026-07-23).
 Owner target: Codex. Domain: **gustale.com** only for product UX; recipes stay on **gustale.recipes**.
 
-- [ ] Greptile PR #29 P1 cover/gallery duplicate + P2 duplicate CSS
-- [ ] U0 trust (never-zero home, covers, search, /family/:slug, domain switcher)
-- [ ] U1 browse usability (home + lists + mobile find + empty states)
+- [x] Greptile PR #29 P1 cover/gallery duplicate + P2 duplicate CSS — done in PR #33
+- [x] U0 trust (never-zero home, covers, search, /family/:slug, domain switcher) — done in PRs #34 + #36
+- [ ] U1 browse usability (home + lists + mobile find + empty states) — see in-progress PR #37
 - [ ] U2 Journey + confidence flagships
 - [ ] U3 Atlas→Recipes CTAs / never-blank prep
 
@@ -28,9 +28,9 @@ Gustale = open atlas of how food moved — not a recipe homepage, not a
 travel blog. Mirror IDs below; update both files when claiming work.
 
 ### Wave A — Trust (pick first)
-- [ ] **P0-1** Homepage never shows zeros before hydration
-- [x] **P0-2** Dish cover / media reliability — PR #29 (media-first Phase A; merge pending)
-- [ ] **P2-7** MapLibre CSS only on map routes
+- [x] **P0-1** Homepage never shows zeros before hydration — done in PR #31
+- [x] **P0-2** Dish cover / media reliability — PR #29 (media-first Phase A; merged via PR #33 with Greptile P1/P2 cleanups)
+- [x] **P2-7** MapLibre CSS only on map routes — done in PR #30
 - [ ] **P0-4** Re-enable email verification (Resend + `hello@gustale.com`)
 
 ### Wave B — Stand-out core
@@ -50,7 +50,7 @@ travel blog. Mirror IDs below; update both files when claiming work.
 - [ ] **P2-5** Image upload UI
 - [ ] **P2-1** “Also on the table” companions
 - [ ] **P2-6** OG cards + honest JSON-LD
-- [ ] **P0-3** Global grouped search (dish/region/lineage/ingredient)
+- [x] **P0-3** Global grouped search (dish/region/lineage/ingredient) — done in PR #32
 
 ### Wave E — Moat
 - [ ] **P3-1** Nearby / geolocation discovery
@@ -61,7 +61,9 @@ travel blog. Mirror IDs below; update both files when claiming work.
 
 ## Done (recent — last 10)
 
-- 2026-07-22: **Competitive roadmap written** (`.hermes/COMPETITIVE_ROADMAP.md`) from review of Explore food-origins blog, The World on a Plate, and Khoury et al. 2016 crop-origins paper. Waves A–E mirrored into TASKS. — Cursor Cloud Agent
+- 2026-07-24 by Hermes Agent (Telegram) — **U0/U0-C browse usability verified and pending merge.** PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`) independently verified PASS on 2026-07-24: 12/12 search-nav tests, 17/17 browse tests, tsc clean, only pre-existing `AtlasHeroKpi.astro` baseline error, build:recipes 50/50, build:geo 53/53. Browser evidence: pagination 24→48→60 with all 60 slugs unique, Load more disappears at 60, Back/Forward/Refresh restore correct page, popstate does not grow history, search resets page to 1, later-page failure retains 48 cards with friendly Retry → 60, mock country matching exact case-insensitive, mobile 320×720 zero overflow. PR is open in draft; awaiting human review → mark ready → merge → production smoke. Do not mark U1 done until PR #37 merges.
+
+- 2026-07-23 by Hermes Agent (Telegram) — **Wave A of `COMPETITIVE_ROADMAP.md` shipped to `origin/main` via five squash-merges: PR #30 (P2-7 MapLibre CSS scope), PR #31 (P0-1 homepage SSR real counts), PR #32 (P0-3 global grouped search), PR #33 (Greptile PR #29 cleanup: cover/gallery duplicate + duplicate CSS), PR #36 (U0 navigation + search).** PR #35 (custom HTTP 404 from nginx) also landed the same day. PR #34 (U0 trust: domain routing, family SSG, Atlas→Recipes CTAs) closed U0. The full PR list (#30, #31, #32, #33, #34, #35, #36) brought Wave A to completion. U0-C browse/list usability is the next deliverable as PR #37 (draft, awaiting review/merge).
 
 
 - 2026-07-22: **Verified the "15 dishes missing methodSlug/lineage" cleanup is already resolved** (no code change needed; stale note cleared in SHARED_STATE.md). All 60 published dishes have a `methodSlug` across seed source (`DISH_LINEAGES` 60/60), SSG mock (`mock-api-data.json` 0/60 null), and live API (0/60 null); live `/lineages` has no "Other" bucket. Named dishes in the old note (Kimbap, Croffle, Som tam, Butter chicken, Tandoori chicken, Tteokbokki) aren't in the dataset at all. Also flagged 13 harmless orphan `DISH_LINEAGES` keys for optional cleanup. **DB password rotation** was requested in the same turn but is NOT executable from the Cursor Cloud Agent sandbox (no VPS SSH key / no DB creds injected) — a ready-to-run runbook is recorded in SHARED_STATE.md "Pending User Asks" for Hermes / a VPS-root operator. — Cursor Cloud Agent
