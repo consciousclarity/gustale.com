@@ -80,8 +80,27 @@ jobs:
 
       - name: Apply committed schema
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
-            -f packages/db/drizzle/0000_cloudy_satana.sql
+          # Apply the full committed migration chain (not just 0000).
+          # Nightly previously applied only 0000_cloudy_satana.sql, so columns that
+          # 0001_text_user_id_fks.sql converts uuid→text stayed uuid and POSTs that
+          # write better-auth user ids returned 500 instead of 201.
+          #
+          # Journal-drift caveat: packages/db/drizzle/meta/_journal.json may omit or
+          # reorder tags relative to the filesystem (e.g. 0003_*, 0005_food_geography_*,
+          # 0007_pg_trgm.sql, and a duplicate 0005_* prefix). Nightly intentionally
+          # applies every packages/db/drizzle/*.sql in lexicographic sort order so the
+          # runtime schema matches what is checked in — do not switch this step to
+          # "journal-only" without reconciling those drifted files first.
+          set -euo pipefail
+          mapfile -t files < <(printf '%s\n' packages/db/drizzle/*.sql | LC_ALL=C sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No packages/db/drizzle/*.sql migrations found" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "Applying $f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
+          done
 
       - name: Apply seed
         run: |
