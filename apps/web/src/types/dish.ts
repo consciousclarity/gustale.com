@@ -6,7 +6,7 @@
 // variants + ingredients + categories + preparations + sources + media).
 // See the route handler for canonical names.
 
-export type DishStatus = 'draft' | 'published' | 'archived';
+export type DishStatus = "draft" | "published" | "archived";
 
 // ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
 

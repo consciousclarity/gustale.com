@@ -1,4 +1,11 @@
 ---
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import ContributionGuidelines from "../../components/dashboard/ContributionGuidelines.astro";
+import ContributorCard from "../../components/dashboard/ContributorCard.astro";
+import ContributorDashboardHero from "../../components/dashboard/ContributorDashboardHero.astro";
+import ContributorDashboardUserBadge from "../../components/dashboard/ContributorDashboardUserBadge.tsx";
+import ContributorDraftsList from "../../components/dashboard/ContributorDraftsList.tsx";
+import ContributorSubmissionsList from "../../components/dashboard/ContributorSubmissionsList.tsx";
 /**
  * /dashboard — Contributor dashboard shell (Phase 1, slice 1).
  *
@@ -30,17 +37,10 @@
  *   - No proposed-change table.
  *   - No edits to admin pages, AdminLayout, or admin.css.
  */
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import ContributorDashboardHero from '../../components/dashboard/ContributorDashboardHero.astro';
-import ContributorDashboardUserBadge from '../../components/dashboard/ContributorDashboardUserBadge.tsx';
-import ContributorCard from '../../components/dashboard/ContributorCard.astro';
-import ContributorDraftsList from '../../components/dashboard/ContributorDraftsList.tsx';
-import ContributorSubmissionsList from '../../components/dashboard/ContributorSubmissionsList.tsx';
-import ContributionGuidelines from '../../components/dashboard/ContributionGuidelines.astro';
-import { authoringHref } from '../../lib/domain';
+import Layout from "../../layouts/Layout.astro";
+import { authoringHref } from "../../lib/domain";
 
-const addDishHref = authoringHref('/dishes/new');
+const addDishHref = authoringHref("/dishes/new");
 
 // Read the resolved user from middleware (populated on real SSR
 // requests; null at static-build time per fail-open semantics).
@@ -48,7 +48,7 @@ type DashboardUser = {
   id: string;
   email?: string;
   name?: string;
-  role?: 'visitor' | 'contributor' | 'moderator' | 'admin';
+  role?: "visitor" | "contributor" | "moderator" | "admin";
 };
 
 const user = (Astro.locals?.user ?? null) as DashboardUser | null;
@@ -56,10 +56,10 @@ const user = (Astro.locals?.user ?? null) as DashboardUser | null;
 const userName = user?.name ?? null;
 const userEmail = user?.email ?? null;
 const userRole = (user?.role ?? null) as
-  | 'visitor'
-  | 'contributor'
-  | 'moderator'
-  | 'admin'
+  | "visitor"
+  | "contributor"
+  | "moderator"
+  | "admin"
   | null;
 ---
 

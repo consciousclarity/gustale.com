@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { DishCard } from '@gustale/ui';
-import { listDishes } from '../lib/api';
+import { DishCard } from "@gustale/ui";
+import { useEffect, useId, useRef, useState } from "react";
+import { listDishes } from "../lib/api";
 import {
-  BROWSE_PAGE_SIZE,
   appendDishes,
+  BROWSE_PAGE_SIZE,
+  type BrowseQueryState,
   browseFiltersKey,
   browseHasActiveFilters,
   browseStatusMessage,
@@ -19,33 +20,32 @@ import {
   recoveryLinks,
   removeBrowseChip,
   sliceDishesToPage,
-  type BrowseQueryState,
-} from '../lib/browse';
-import { currentDomain } from '../lib/domain';
-import type { DishListResponse, DishSummary } from '../types/dish';
+} from "../lib/browse";
+import { currentDomain } from "../lib/domain";
+import type { DishListResponse, DishSummary } from "../types/dish";
 
 export interface DishExplorerProps {
   initial: DishListResponse;
 }
 
 type PendingOp =
-  | { kind: 'replace'; state: BrowseQueryState }
-  | { kind: 'extend'; state: BrowseQueryState; toPage: number }
-  | { kind: 'loadMore'; state: BrowseQueryState; nextPage: number };
+  | { kind: "replace"; state: BrowseQueryState }
+  | { kind: "extend"; state: BrowseQueryState; toPage: number }
+  | { kind: "loadMore"; state: BrowseQueryState; nextPage: number };
 
 function stateFromLocation(): BrowseQueryState {
-  if (typeof window === 'undefined') return clearBrowseFilters();
+  if (typeof window === "undefined") return clearBrowseFilters();
   const parsed = parseBrowseState(new URLSearchParams(window.location.search));
   if (parsed.q && /:\S/.test(parsed.q)) {
     const tokens = parseStructuredTokens(parsed.q);
-    return mergeBrowseState({ ...parsed, q: tokens.q ?? '' }, tokens);
+    return mergeBrowseState({ ...parsed, q: tokens.q ?? "" }, tokens);
   }
   return parsed;
 }
 
 function toListParams(state: BrowseQueryState, offset: number) {
   return {
-    status: 'published' as const,
+    status: "published" as const,
     search: state.q || undefined,
     country: state.country ?? undefined,
     cuisine: state.cuisine ?? undefined,
@@ -60,11 +60,13 @@ function toListParams(state: BrowseQueryState, offset: number) {
 
 export function DishExplorer({ initial }: DishExplorerProps) {
   const domain = currentDomain();
-  const reactId = useId().replace(/:/g, '');
+  const reactId = useId().replace(/:/g, "");
   const searchId = `dish-browse-search-${reactId}`;
   const statusId = `dish-browse-status-${reactId}`;
 
-  const [state, setState] = useState<BrowseQueryState>(() => stateFromLocation());
+  const [state, setState] = useState<BrowseQueryState>(() =>
+    stateFromLocation(),
+  );
   const [dishes, setDishes] = useState<DishSummary[]>(initial.dishes);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -103,7 +105,9 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   }
 
   function isCurrent(gen: number, ac: AbortController): boolean {
-    return genRef.current === gen && !ac.signal.aborted && abortRef.current === ac;
+    return (
+      genRef.current === gen && !ac.signal.aborted && abortRef.current === ac
+    );
   }
 
   // Sync URL when state changes (shareable + Back/Forward).
@@ -112,7 +116,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     const next = `${window.location.pathname}${qs}`;
     const cur = `${window.location.pathname}${window.location.search}`;
     if (next !== cur) {
-      window.history.pushState({ browse: state }, '', next);
+      window.history.pushState({ browse: state }, "", next);
     }
   }, [state]);
 
@@ -123,8 +127,8 @@ export function DishExplorer({ initial }: DishExplorerProps) {
       loadMoreBumpRef.current = false;
       setState(next);
     };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   // Debounce free-text into state.q (resets page to 1).
@@ -132,7 +136,9 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const trimmed = inputValue.trim();
-      const tokens = /:\S/.test(trimmed) ? parseStructuredTokens(trimmed) : null;
+      const tokens = /:\S/.test(trimmed)
+        ? parseStructuredTokens(trimmed)
+        : null;
       setState((prev) => {
         if (tokens) {
           return mergeBrowseState(prev, { ...tokens, page: 1 });
@@ -186,9 +192,11 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     if (browseFiltersKey(state) !== filtersKeyRef.current) return;
 
     const plan = planHistoryRestore(state.page, loadedPageRef.current);
-    if (plan.action === 'noop') return;
-    if (plan.action === 'trim') {
-      commitDishes(sliceDishesToPage(dishesRef.current, plan.page, BROWSE_PAGE_SIZE));
+    if (plan.action === "noop") return;
+    if (plan.action === "trim") {
+      commitDishes(
+        sliceDishesToPage(dishesRef.current, plan.page, BROWSE_PAGE_SIZE),
+      );
       loadedPageRef.current = plan.page;
       setHasMore(true);
       setFailed(false);
@@ -199,7 +207,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   }, [state.page]);
 
   async function replaceResults(next: BrowseQueryState) {
-    pendingOpRef.current = { kind: 'replace', state: next };
+    pendingOpRef.current = { kind: "replace", state: next };
     const { ac, gen } = beginGeneration();
     setLoading(true);
     setFailed(false);
@@ -212,8 +220,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
       setState((s) => {
         const merged = { ...s, ...next, page: 1 };
         filtersKeyRef.current = browseFiltersKey(merged);
-        return s.page === 1
-          && browseFiltersKey(s) === browseFiltersKey(merged)
+        return s.page === 1 && browseFiltersKey(s) === browseFiltersKey(merged)
           ? s
           : merged;
       });
@@ -228,7 +235,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   }
 
   async function extendToPage(next: BrowseQueryState, toPage: number) {
-    pendingOpRef.current = { kind: 'extend', state: next, toPage };
+    pendingOpRef.current = { kind: "extend", state: next, toPage };
     const { ac, gen } = beginGeneration();
     setLoadingMore(true);
     setFailed(false);
@@ -280,7 +287,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   async function loadMore() {
     if (loadingMore || loading || !hasMore) return;
     const nextPage = loadedPageRef.current + 1;
-    pendingOpRef.current = { kind: 'loadMore', state, nextPage };
+    pendingOpRef.current = { kind: "loadMore", state, nextPage };
     const { ac, gen } = beginGeneration();
     setLoadingMore(true);
     setFailed(false);
@@ -306,7 +313,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   }
 
   function clearAll() {
-    setInputValue('');
+    setInputValue("");
     const cleared = clearBrowseFilters();
     filtersKeyRef.current = browseFiltersKey(cleared);
     loadMoreBumpRef.current = false;
@@ -316,23 +323,23 @@ export function DishExplorer({ initial }: DishExplorerProps) {
 
   async function retry() {
     const pending = pendingOpRef.current;
-    if (pending?.kind === 'loadMore') {
+    if (pending?.kind === "loadMore") {
       await loadMore();
       return;
     }
-    if (pending?.kind === 'extend') {
+    if (pending?.kind === "extend") {
       await extendToPage(pending.state, pending.toPage);
       return;
     }
-    await replaceResults(pending?.kind === 'replace' ? pending.state : state);
+    await replaceResults(pending?.kind === "replace" ? pending.state : state);
   }
 
   const status = browseStatusMessage({
     loading: loading || loadingMore,
     failed,
     count: dishes.length,
-    query: state.q || chips.map((c) => c.value).join(', '),
-    noun: 'dishes',
+    query: state.q || chips.map((c) => c.value).join(", "),
+    noun: "dishes",
   });
 
   return (
@@ -354,7 +361,12 @@ export function DishExplorer({ initial }: DishExplorerProps) {
             aria-describedby={statusId}
           />
         </div>
-        <p className="browse-count" id={statusId} aria-live="polite" aria-atomic="true">
+        <p
+          className="browse-count"
+          id={statusId}
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {status}
         </p>
         {hasFilters && (
@@ -373,7 +385,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
                 className="browse-chip"
                 onClick={() => {
                   const next = removeBrowseChip(state, chip.stateKey);
-                  if (chip.stateKey === 'q') setInputValue('');
+                  if (chip.stateKey === "q") setInputValue("");
                   setState(next);
                 }}
               >
@@ -387,9 +399,16 @@ export function DishExplorer({ initial }: DishExplorerProps) {
 
       {failed && (
         <div className="browse-banner browse-banner--error" role="alert">
-          <p>Browse data is temporarily unavailable. Existing results stay visible.</p>
+          <p>
+            Browse data is temporarily unavailable. Existing results stay
+            visible.
+          </p>
           <div className="browse-banner-actions">
-            <button type="button" className="btn-outline" onClick={() => void retry()}>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => void retry()}
+            >
               Retry
             </button>
             {recovery.altBrowse && (
@@ -412,15 +431,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
         <div className="browse-banner" role="status">
           <p>
             No dishes match
-            {state.q ? (
-              <>
-                {' '}
-                “{state.q}”
-              </>
-            ) : (
-              ' these filters'
-            )}
-            .
+            {state.q ? <> “{state.q}”</> : " these filters"}.
           </p>
           <button type="button" className="btn-outline" onClick={clearAll}>
             Clear search
@@ -448,9 +459,9 @@ export function DishExplorer({ initial }: DishExplorerProps) {
                 title={d.canonicalName}
                 slug={d.slug}
                 description={
-                  [d.originName, d.familyName].filter(Boolean).join(' · ')
-                  || d.shortDescription
-                  || undefined
+                  [d.originName, d.familyName].filter(Boolean).join(" · ") ||
+                  d.shortDescription ||
+                  undefined
                 }
                 href={`/dishes/${d.slug}`}
                 status={d.status}
@@ -469,7 +480,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
             onClick={() => void loadMore()}
             disabled={loadingMore}
           >
-            {loadingMore ? 'Loading…' : 'Load more dishes'}
+            {loadingMore ? "Loading…" : "Load more dishes"}
           </button>
         </div>
       )}

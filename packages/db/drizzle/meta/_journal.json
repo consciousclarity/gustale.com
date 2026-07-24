@@ -1,48 +1,48 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1781515264955,
-      "tag": "0000_cloudy_satana",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1781700400000,
-      "tag": "0001_text_user_id_fks",
-      "breakpoints": false
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1781700500000,
-      "tag": "0002_drop_user_fks",
-      "breakpoints": false
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1781800000000,
-      "tag": "0004_dish_relations",
-      "breakpoints": false
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1782500000000,
-      "tag": "0005_user_role_index",
-      "breakpoints": false
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1782600000000,
-      "tag": "0006_lineages",
-      "breakpoints": false
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1781515264955,
+			"tag": "0000_cloudy_satana",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1781700400000,
+			"tag": "0001_text_user_id_fks",
+			"breakpoints": false
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1781700500000,
+			"tag": "0002_drop_user_fks",
+			"breakpoints": false
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1781800000000,
+			"tag": "0004_dish_relations",
+			"breakpoints": false
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1782500000000,
+			"tag": "0005_user_role_index",
+			"breakpoints": false
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1782600000000,
+			"tag": "0006_lineages",
+			"breakpoints": false
+		}
+	]
 }

@@ -1,11 +1,11 @@
 ---
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
 /**
  * /ingredients — Recipes-domain encyclopedia index.
  * Geo builds drop this tree in post-build.mjs.
  */
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { listIngredients, type IngredientListItem } from '../../lib/api';
+import Layout from "../../layouts/Layout.astro";
+import { type IngredientListItem, listIngredients } from "../../lib/api";
 
 let ingredients: IngredientListItem[] = [];
 let fetchError: string | null = null;

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { authClient } from '../lib/auth';
+import { useState } from "react";
+import { authClient } from "../lib/auth";
 
 /**
  * Email + password + display-name registration form.
@@ -14,9 +14,9 @@ import { authClient } from '../lib/auth';
  * the verification email. The page tells them what to do.
  */
 export function RegisterForm() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -36,7 +36,7 @@ export function RegisterForm() {
       const message =
         err instanceof Error
           ? err.message
-          : 'Could not create account. Please try again.';
+          : "Could not create account. Please try again.";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -62,7 +62,10 @@ export function RegisterForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="name"
+          className="block text-sm font-medium text-slate-700"
+        >
           Display name
         </label>
         <input
@@ -78,7 +81,10 @@ export function RegisterForm() {
       </div>
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-slate-700"
+        >
           Email
         </label>
         <input
@@ -94,7 +100,10 @@ export function RegisterForm() {
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-slate-700"
+        >
           Password
         </label>
         <input
@@ -122,7 +131,7 @@ export function RegisterForm() {
         disabled={submitting}
         className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
       >
-        {submitting ? 'Creating account…' : 'Create account'}
+        {submitting ? "Creating account…" : "Create account"}
       </button>
     </form>
   );

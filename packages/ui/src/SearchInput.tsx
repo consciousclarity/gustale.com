@@ -1,7 +1,7 @@
-import * as React from 'react';
+import * as React from "react";
 
 export interface SearchInputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> {
   value: string;
   onValueChange: (next: string) => void;
   label?: string;
@@ -16,8 +16,8 @@ export function SearchInput({
   value,
   onValueChange,
   label,
-  placeholder = 'Search…',
-  className = '',
+  placeholder = "Search…",
+  className = "",
   ...rest
 }: SearchInputProps) {
   const inputId = React.useId();
@@ -27,20 +27,24 @@ export function SearchInput({
       type="search"
       value={value}
       placeholder={placeholder}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.currentTarget.value)}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+        onValueChange(e.currentTarget.value)
+      }
       className={
-        'w-full rounded-md border px-3 py-2 text-sm bg-white ' +
-        'placeholder:text-[var(--sub)] focus:outline-none focus:ring-2 ' +
+        "w-full rounded-md border px-3 py-2 text-sm bg-white " +
+        "placeholder:text-[var(--sub)] focus:outline-none focus:ring-2 " +
         className
       }
-      style={{
-        borderColor: 'var(--line)',
-        color: 'var(--ink)',
-        backgroundColor: 'var(--card)',
-        fontFamily: 'var(--body)',
-        '--tw-ring-color': 'var(--accent)',
-        '--tw-ring-opacity': '1',
-      } as React.CSSProperties}
+      style={
+        {
+          borderColor: "var(--line)",
+          color: "var(--ink)",
+          backgroundColor: "var(--card)",
+          fontFamily: "var(--body)",
+          "--tw-ring-color": "var(--accent)",
+          "--tw-ring-opacity": "1",
+        } as React.CSSProperties
+      }
       {...rest}
     />
   );
@@ -49,7 +53,12 @@ export function SearchInput({
 
   return (
     <label htmlFor={inputId} className="block">
-      <span className="mb-1 block text-sm font-medium" style={{ color: 'var(--ink)', fontFamily: 'var(--body)' }}>{label}</span>
+      <span
+        className="mb-1 block text-sm font-medium"
+        style={{ color: "var(--ink)", fontFamily: "var(--body)" }}
+      >
+        {label}
+      </span>
       {input}
     </label>
   );

@@ -1,16 +1,16 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import { DishDetail } from '../../components/DishDetail';
-import { DishMap } from '../../components/DishMap';
-import { EditDishButton } from '../../components/EditDishButton';
-import { RelatedDishes } from '../../components/RelatedDishes';
-import { getDishDetail } from '../../lib/api';
-import type { DishDetailResponse } from '../../types/dish';
+import { DishDetail } from "../../components/DishDetail";
+import { DishMap } from "../../components/DishMap";
+import { EditDishButton } from "../../components/EditDishButton";
+import { RelatedDishes } from "../../components/RelatedDishes";
+import Layout from "../../layouts/Layout.astro";
+import { getDishDetail } from "../../lib/api";
+import type { DishDetailResponse } from "../../types/dish";
 
 // MapLibre control + popup CSS — required by <DishMap> mounted below.
 // Not loaded globally (see global.css); this per-route import is paired
 // with the matching one in pages/map.astro for <WorldMap>. P2-7.
-import 'maplibre-gl/dist/maplibre-gl.css';
+import "maplibre-gl/dist/maplibre-gl.css";
 
 // Generate static paths for every published dish at build time.
 // This gives us SSG (HTML pre-rendered, not just SSR-on-request) so crawlers
@@ -27,7 +27,7 @@ export async function getStaticPaths() {
   if (!apiBase) {
     // No API configured at build time — fall back to a placeholder set so
     // the build doesn't fail. The runtime SPA fallback will still recover.
-    return [{ params: { slug: 'moussaka-greek' } }];
+    return [{ params: { slug: "moussaka-greek" } }];
   }
 
   try {
@@ -51,8 +51,8 @@ export async function getStaticPaths() {
   } catch (err) {
     // Log but don't crash the build. CI will surface the error in logs.
     // eslint-disable-next-line no-console
-    console.error('[getStaticPaths] dish list fetch failed:', err);
-    return [{ params: { slug: 'moussaka-greek' } }];
+    console.error("[getStaticPaths] dish list fetch failed:", err);
+    return [{ params: { slug: "moussaka-greek" } }];
   }
 }
 
@@ -67,7 +67,12 @@ try {
 } catch (err) {
   // ApiError with status 404 → render our own not-found state.
   // Anything else → show a soft error so the build still succeeds.
-  if (err && typeof err === 'object' && 'status' in err && (err as any).status === 404) {
+  if (
+    err &&
+    typeof err === "object" &&
+    "status" in err &&
+    (err as any).status === 404
+  ) {
     notFound = true;
   } else {
     fetchError = err instanceof Error ? err.message : String(err);
@@ -86,11 +91,11 @@ if (notFound) {
 
 const seoTitle = data?.dish
   ? `${data.dish.name} — Gustale`
-  : 'Dish not found — Gustale';
+  : "Dish not found — Gustale";
 const seoDescription =
   data?.dish?.description ??
   data?.dish?.shortDescription ??
-  'A digital culinary archive.';
+  "A digital culinary archive.";
 ---
 
 <Layout title={seoTitle} description={seoDescription}>

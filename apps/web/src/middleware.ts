@@ -29,7 +29,7 @@
  *     fine. When a session cookie IS present (e.g. an SSR deploy, or
  *     local dev), the full role gate below still applies.
  */
-import { defineMiddleware } from 'astro:middleware';
+import { defineMiddleware } from "astro:middleware";
 
 const ROLE_RANK = {
   visitor: 0,
@@ -46,28 +46,29 @@ interface SessionUser {
   role?: UserRole;
 }
 
-const ADMIN_THRESHOLD: UserRole = 'admin';
+const ADMIN_THRESHOLD: UserRole = "admin";
 
 // Contributor dashboard threshold — admins pass through naturally
 // (higher rank) so we don't need a separate admin branch.
-const DASHBOARD_THRESHOLD: UserRole = 'contributor';
+const DASHBOARD_THRESHOLD: UserRole = "contributor";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
 
   // Fast path: not a gated route, no work to do.
-  if (!pathname.startsWith('/admin') && !pathname.startsWith('/dashboard')) {
+  if (!pathname.startsWith("/admin") && !pathname.startsWith("/dashboard")) {
     return next();
   }
 
   // Resolve the session once per gated request and reuse the result
   // for both /admin and /dashboard branches below. This keeps the
   // fail-open semantics identical for both sections.
-  const apiBase = context.locals?.runtime?.env?.PUBLIC_API_BASE
-    ?? import.meta.env.PUBLIC_API_BASE
-    ?? 'https://api.gustale.recipes';
+  const apiBase =
+    context.locals?.runtime?.env?.PUBLIC_API_BASE ??
+    import.meta.env.PUBLIC_API_BASE ??
+    "https://api.gustale.recipes";
 
-  const cookieHeader = context.request.headers.get('cookie') ?? '';
+  const cookieHeader = context.request.headers.get("cookie") ?? "";
 
   let user: SessionUser | null = null;
   if (cookieHeader) {
@@ -76,7 +77,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         headers: {
           cookie: cookieHeader,
           // better-auth expects this content-type even for empty body.
-          'content-type': 'application/json',
+          "content-type": "application/json",
         },
       });
       if (res.ok) {
@@ -93,7 +94,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   // ─── /admin branch (unchanged behavior) ─────────────────────────
-  if (pathname.startsWith('/admin')) {
+  if (pathname.startsWith("/admin")) {
     // No session cookie → no session context to validate. This is the
     // build-time (static prerender) path, and also any anonymous request.
     // Fail open: render the admin shell and let the edge (Caddy) + the
@@ -113,12 +114,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     // Authenticated but not admin → 403. No redirect, since sending a
     // logged-in user back to /login is a worse UX than a clear "forbidden".
-    const userRank = ROLE_RANK[user.role ?? 'visitor'];
+    const userRank = ROLE_RANK[user.role ?? "visitor"];
     const requiredRank = ROLE_RANK[ADMIN_THRESHOLD];
     if (userRank < requiredRank) {
-      return new Response('Forbidden — admin role required', {
+      return new Response("Forbidden — admin role required", {
         status: 403,
-        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        headers: { "content-type": "text/plain; charset=utf-8" },
       });
     }
 
@@ -150,14 +151,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // is the wrong UX. Default new-user role in apps/api/src/auth.ts is
   // `contributor`, so this gate admits every registered user without
   // admitting anonymous visitors.
-  const userRank = ROLE_RANK[user.role ?? 'visitor'];
+  const userRank = ROLE_RANK[user.role ?? "visitor"];
   const dashRank = ROLE_RANK[DASHBOARD_THRESHOLD];
   if (userRank < dashRank) {
     return new Response(
-      'Forbidden — contributor access required. Please create an account or sign in.',
+      "Forbidden — contributor access required. Please create an account or sign in.",
       {
         status: 403,
-        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        headers: { "content-type": "text/plain; charset=utf-8" },
       },
     );
   }

@@ -13,19 +13,20 @@
  * Authentication: `request.user` is populated by plugins/auth-context.ts.
  * Authorization: `app.requireRole(request, 'moderator')` for publish + delete.
  */
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
+
 import {
   db,
-  dishes,
   dishCategories,
+  dishes,
   dishTags,
   dishVariants,
-  editHistory,
   type EditAction,
-} from '@gustale/db';
-import { httpError } from '../errors.js';
+  editHistory,
+} from "@gustale/db";
+import { and, eq, sql } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { httpError } from "../errors.js";
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────
 
@@ -35,7 +36,11 @@ const createDishSchema = z.object({
   // canonicalName is the only required field for a stub draft.
   // Editors can fill in the rest via PATCH.
   canonicalName: z.string().min(2).max(200),
-  slug: z.string().regex(SLUG_RE, 'Slug must be lowercase letters, digits, and hyphens').min(2).max(200),
+  slug: z
+    .string()
+    .regex(SLUG_RE, "Slug must be lowercase letters, digits, and hyphens")
+    .min(2)
+    .max(200),
   shortDescription: z.string().max(500).optional(),
   longDescription: z.string().max(20000).optional(),
   // Optional origin. We accept lat/lng; the API converts to PostGIS geometry.
@@ -63,7 +68,7 @@ const patchDishSchema = z
     canonicalName: z.string().min(2).max(200).optional(),
     shortDescription: z.string().max(500).nullable().optional(),
     longDescription: z.string().max(20000).nullable().optional(),
-    status: z.enum(['draft', 'published', 'archived']).optional(),
+    status: z.enum(["draft", "published", "archived"]).optional(),
     origin: z
       .object({
         lat: z.number().min(-90).max(90),
@@ -71,18 +76,31 @@ const patchDishSchema = z
       })
       .nullable()
       .optional(),
-    originDateEarliest: z.number().int().min(-3000).max(2100).nullable().optional(),
-    originDateLatest: z.number().int().min(-3000).max(2100).nullable().optional(),
+    originDateEarliest: z
+      .number()
+      .int()
+      .min(-3000)
+      .max(2100)
+      .nullable()
+      .optional(),
+    originDateLatest: z
+      .number()
+      .int()
+      .min(-3000)
+      .max(2100)
+      .nullable()
+      .optional(),
     categories: z.array(categoryAssignmentSchema).max(20).optional(),
     tagIds: z.array(z.string().uuid()).max(50).optional(),
     comment: z.string().max(1000).optional(), // edit summary recorded in edit_history
   })
-  .refine((obj) => Object.keys(obj).filter((k) => k !== 'comment').length > 0, {
-    message: 'At least one field must be provided',
+  .refine((obj) => Object.keys(obj).filter((k) => k !== "comment").length > 0, {
+    message: "At least one field must be provided",
   })
   .refine(
-    (obj) => !obj.categories || obj.categories.filter((c) => c.isPrimary).length <= 1,
-    { message: 'At most one category can be marked primary' },
+    (obj) =>
+      !obj.categories || obj.categories.filter((c) => c.isPrimary).length <= 1,
+    { message: "At most one category can be marked primary" },
   );
 
 // dish_variants sub-resource — name/slug/description plus optional
@@ -90,7 +108,11 @@ const patchDishSchema = z
 // conversion as the parent dish's origin.
 const variantSchema = z.object({
   name: z.string().min(2).max(200),
-  slug: z.string().regex(SLUG_RE, 'Slug must be lowercase letters, digits, and hyphens').min(2).max(200),
+  slug: z
+    .string()
+    .regex(SLUG_RE, "Slug must be lowercase letters, digits, and hyphens")
+    .min(2)
+    .max(200),
   description: z.string().max(20000).nullable().optional(),
   creatorName: z.string().max(200).nullable().optional(),
   creatorDate: z.number().int().min(-3000).max(2100).nullable().optional(),
@@ -117,9 +139,12 @@ function diffDish(
   after: Record<string, unknown>,
 ): Record<string, { from: unknown; to: unknown }> {
   const out: Record<string, { from: unknown; to: unknown }> = {};
-  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  const keys = Array.from(
+    new Set([...Object.keys(before), ...Object.keys(after)]),
+  );
   for (const k of keys) {
-    if (k === 'updatedAt' || k === 'lastEditedBy' || k === 'editCount') continue;
+    if (k === "updatedAt" || k === "lastEditedBy" || k === "editCount")
+      continue;
     const a = before[k];
     const b = after[k];
     if (JSON.stringify(a) !== JSON.stringify(b)) {
@@ -145,10 +170,10 @@ function pointLiteral(lat: number, lng: number): string {
  * UI), so they reuse the parent dish's status to decide who can write.
  */
 function assertDishEditable(
-  user: { role: 'visitor' | 'contributor' | 'moderator' | 'admin' },
+  user: { role: "visitor" | "contributor" | "moderator" | "admin" },
   dishRow: { status: string },
 ): void {
-  if (dishRow.status === 'published') {
+  if (dishRow.status === "published") {
     const rank: Record<typeof user.role, number> = {
       visitor: 0,
       contributor: 1,
@@ -156,10 +181,18 @@ function assertDishEditable(
       admin: 3,
     };
     if (rank[user.role] < rank.moderator) {
-      throw httpError(403, 'forbidden', 'Only moderators can edit published dishes. Create a draft edit instead.');
+      throw httpError(
+        403,
+        "forbidden",
+        "Only moderators can edit published dishes. Create a draft edit instead.",
+      );
     }
-  } else if (dishRow.status === 'archived') {
-    throw httpError(409, 'archived', 'Archived dishes are immutable. Un-archive first.');
+  } else if (dishRow.status === "archived") {
+    throw httpError(
+      409,
+      "archived",
+      "Archived dishes are immutable. Un-archive first.",
+    );
   }
 }
 
@@ -169,7 +202,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
   // ─── POST /api/dishes ──────────────────────────────────────────────────
   // Create a draft dish. Any authenticated user can do this; new dishes
   // always start as `draft` and require a moderator to publish.
-  app.post('/api/dishes', async (request, reply) => {
+  app.post("/api/dishes", async (request, reply) => {
     const user = await app.requireUser(request);
     const body = createDishSchema.parse(request.body);
 
@@ -181,12 +214,19 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, body.slug))
       .limit(1);
     if (existing.length > 0) {
-      throw httpError(409, 'slug_conflict', `A dish with slug "${body.slug}" already exists`, { fields: ['slug'] });
+      throw httpError(
+        409,
+        "slug_conflict",
+        `A dish with slug "${body.slug}" already exists`,
+        { fields: ["slug"] },
+      );
     }
 
     // Insert with optional origin. We use a single insert statement with
     // SQL helpers for the PostGIS column. Returning() gives us the new id.
-    const pointWkt = body.origin ? pointLiteral(body.origin.lat, body.origin.lng) : null;
+    const pointWkt = body.origin
+      ? pointLiteral(body.origin.lat, body.origin.lng)
+      : null;
     const inserted = await db.execute(sql`
       INSERT INTO dishes (
         canonical_name, slug, short_description, long_description,
@@ -206,24 +246,26 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       )
       RETURNING id, slug, status, created_at
     `);
-    const row = (inserted as unknown as Array<{
-      id: string;
-      slug: string;
-      status: string;
-      created_at: string;
-    }>)[0];
+    const row = (
+      inserted as unknown as Array<{
+        id: string;
+        slug: string;
+        status: string;
+        created_at: string;
+      }>
+    )[0];
     if (!row) {
-      throw new Error('Insert returned no rows');
+      throw new Error("Insert returned no rows");
     }
 
     // Audit trail.
     await db.insert(editHistory).values({
       userId: user.id,
-      targetType: 'dish',
+      targetType: "dish",
       targetId: row.id,
-      action: 'create' satisfies EditAction,
+      action: "create" satisfies EditAction,
       diff: { after: body },
-      comment: 'Initial draft',
+      comment: "Initial draft",
     });
 
     return reply.status(201).send({
@@ -240,9 +282,11 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
   // Update an existing dish. Any authenticated user can update drafts;
   // only moderator+ can update published dishes (community edits require
   // review). The diff is recorded in edit_history for transparency.
-  app.patch('/api/dishes/:slug', async (request, reply) => {
+  app.patch("/api/dishes/:slug", async (request, reply) => {
     const user = await app.requireUser(request);
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
     const patch = patchDishSchema.parse(request.body);
 
     // Fetch current row for diff + role check.
@@ -252,7 +296,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (current.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
     const before = current[0]!;
 
@@ -265,11 +309,16 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       lastEditedBy: user.id,
       updatedAt: new Date(),
     };
-    if (patch.canonicalName !== undefined) updateValues.canonicalName = patch.canonicalName;
-    if (patch.shortDescription !== undefined) updateValues.shortDescription = patch.shortDescription;
-    if (patch.longDescription !== undefined) updateValues.longDescription = patch.longDescription;
-    if (patch.originDateEarliest !== undefined) updateValues.originDateEarliest = patch.originDateEarliest;
-    if (patch.originDateLatest !== undefined) updateValues.originDateLatest = patch.originDateLatest;
+    if (patch.canonicalName !== undefined)
+      updateValues.canonicalName = patch.canonicalName;
+    if (patch.shortDescription !== undefined)
+      updateValues.shortDescription = patch.shortDescription;
+    if (patch.longDescription !== undefined)
+      updateValues.longDescription = patch.longDescription;
+    if (patch.originDateEarliest !== undefined)
+      updateValues.originDateEarliest = patch.originDateEarliest;
+    if (patch.originDateLatest !== undefined)
+      updateValues.originDateLatest = patch.originDateLatest;
     if (patch.origin !== undefined) {
       updateValues.originLocation =
         patch.origin === null
@@ -289,7 +338,7 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
 
     const after = result[0];
     if (!after) {
-      throw new Error('Update affected zero rows (race?)');
+      throw new Error("Update affected zero rows (race?)");
     }
 
     const diff = diffDish(
@@ -302,10 +351,15 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     // edit_history entry for one coherent audit record per PATCH call.
     if (patch.categories !== undefined) {
       const beforeCats = await db
-        .select({ categoryId: dishCategories.categoryId, isPrimary: dishCategories.isPrimary })
+        .select({
+          categoryId: dishCategories.categoryId,
+          isPrimary: dishCategories.isPrimary,
+        })
         .from(dishCategories)
         .where(eq(dishCategories.dishId, before.id));
-      await db.delete(dishCategories).where(eq(dishCategories.dishId, before.id));
+      await db
+        .delete(dishCategories)
+        .where(eq(dishCategories.dishId, before.id));
       if (patch.categories.length > 0) {
         await db.insert(dishCategories).values(
           patch.categories.map((c) => ({
@@ -325,9 +379,9 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
         .where(eq(dishTags.dishId, before.id));
       await db.delete(dishTags).where(eq(dishTags.dishId, before.id));
       if (patch.tagIds.length > 0) {
-        await db.insert(dishTags).values(
-          patch.tagIds.map((tagId) => ({ dishId: before.id, tagId })),
-        );
+        await db
+          .insert(dishTags)
+          .values(patch.tagIds.map((tagId) => ({ dishId: before.id, tagId })));
       }
       diff.tags = { from: beforeTags.map((t) => t.tagId), to: patch.tagIds };
     }
@@ -335,9 +389,9 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     if (Object.keys(diff).length > 0) {
       await db.insert(editHistory).values({
         userId: user.id,
-        targetType: 'dish',
+        targetType: "dish",
         targetId: before.id,
-        action: 'update' satisfies EditAction,
+        action: "update" satisfies EditAction,
         diff,
         comment: patch.comment ?? null,
       });
@@ -357,10 +411,14 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
 
   // ─── POST /api/dishes/:slug/publish ───────────────────────────────────
   // Moderator+ only. Transitions a draft to `published`.
-  app.post('/api/dishes/:slug/publish', async (request, reply) => {
-    const user = await app.requireRole(request, 'moderator');
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
-    const body = z.object({ comment: z.string().max(1000).optional() }).parse(request.body ?? {});
+  app.post("/api/dishes/:slug/publish", async (request, reply) => {
+    const user = await app.requireRole(request, "moderator");
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
+    const body = z
+      .object({ comment: z.string().max(1000).optional() })
+      .parse(request.body ?? {});
 
     const before = await db
       .select()
@@ -368,27 +426,27 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (before.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
     const row = before[0]!;
 
-    if (row.status === 'published') {
+    if (row.status === "published") {
       return reply.status(409).send({
-        error: 'already_published',
-        message: 'Dish is already published',
+        error: "already_published",
+        message: "Dish is already published",
       });
     }
-    if (row.status === 'archived') {
+    if (row.status === "archived") {
       return reply.status(409).send({
-        error: 'archived',
-        message: 'Cannot publish an archived dish. Restore first.',
+        error: "archived",
+        message: "Cannot publish an archived dish. Restore first.",
       });
     }
 
     await db
       .update(dishes)
       .set({
-        status: 'published',
+        status: "published",
         lastEditedBy: user.id,
         updatedAt: new Date(),
       })
@@ -396,23 +454,25 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
 
     await db.insert(editHistory).values({
       userId: user.id,
-      targetType: 'dish',
+      targetType: "dish",
       targetId: row.id,
-      action: 'review' satisfies EditAction, // 'review' = moderator approval
-      diff: { status: { from: 'draft', to: 'published' } },
-      comment: body.comment ?? 'Published',
+      action: "review" satisfies EditAction, // 'review' = moderator approval
+      diff: { status: { from: "draft", to: "published" } },
+      comment: body.comment ?? "Published",
     });
 
     return reply.send({
-      dish: { id: row.id, slug: row.slug, status: 'published' },
+      dish: { id: row.id, slug: row.slug, status: "published" },
     });
   });
 
   // ─── DELETE /api/dishes/:slug ─────────────────────────────────────────
   // Admin only. Soft delete → archive.
-  app.delete('/api/dishes/:slug', async (request, reply) => {
-    const user = await app.requireRole(request, 'admin');
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+  app.delete("/api/dishes/:slug", async (request, reply) => {
+    const user = await app.requireRole(request, "admin");
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
 
     const existing = await db
       .select({ id: dishes.id, status: dishes.status })
@@ -420,14 +480,14 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (existing.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
     const row = existing[0]!;
 
     await db
       .update(dishes)
       .set({
-        status: 'archived',
+        status: "archived",
         lastEditedBy: user.id,
         updatedAt: new Date(),
       })
@@ -435,26 +495,32 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
 
     await db.insert(editHistory).values({
       userId: user.id,
-      targetType: 'dish',
+      targetType: "dish",
       targetId: row.id,
-      action: 'archive' satisfies EditAction,
-      diff: { status: { from: row.status, to: 'archived' } },
-      comment: 'Archived by admin',
+      action: "archive" satisfies EditAction,
+      diff: { status: { from: row.status, to: "archived" } },
+      comment: "Archived by admin",
     });
 
-    return reply.send({ dish: { id: row.id, slug, status: 'archived' } });
+    return reply.send({ dish: { id: row.id, slug, status: "archived" } });
   });
 
   // ─── POST /api/dishes/:slug/variants ──────────────────────────────────
   // Add a regional/preparation variant to a dish.
-  app.post('/api/dishes/:slug/variants', async (request, reply) => {
+  app.post("/api/dishes/:slug/variants", async (request, reply) => {
     const user = await app.requireUser(request);
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
     const body = variantSchema.parse(request.body);
 
-    const parent = await db.select().from(dishes).where(eq(dishes.slug, slug)).limit(1);
+    const parent = await db
+      .select()
+      .from(dishes)
+      .where(eq(dishes.slug, slug))
+      .limit(1);
     if (parent.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
     const dishRow = parent[0]!;
     assertDishEditable(user, dishRow);
@@ -462,13 +528,25 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     const dupe = await db
       .select({ id: dishVariants.id })
       .from(dishVariants)
-      .where(and(eq(dishVariants.parentDishId, dishRow.id), eq(dishVariants.slug, body.slug)))
+      .where(
+        and(
+          eq(dishVariants.parentDishId, dishRow.id),
+          eq(dishVariants.slug, body.slug),
+        ),
+      )
       .limit(1);
     if (dupe.length > 0) {
-      throw httpError(409, 'slug_conflict', `A variant with slug "${body.slug}" already exists for this dish`, { fields: ['slug'] });
+      throw httpError(
+        409,
+        "slug_conflict",
+        `A variant with slug "${body.slug}" already exists for this dish`,
+        { fields: ["slug"] },
+      );
     }
 
-    const regionWkt = body.region ? pointLiteral(body.region.lat, body.region.lng) : null;
+    const regionWkt = body.region
+      ? pointLiteral(body.region.lat, body.region.lng)
+      : null;
     const inserted = await db.execute(sql`
       INSERT INTO dish_variants (
         parent_dish_id, name, slug, description,
@@ -482,14 +560,14 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     `);
     const row = (inserted as unknown as Array<Record<string, unknown>>)[0];
     if (!row) {
-      throw new Error('Insert returned no rows');
+      throw new Error("Insert returned no rows");
     }
 
     await db.insert(editHistory).values({
       userId: user.id,
-      targetType: 'dish_variant',
+      targetType: "dish_variant",
       targetId: row.id as string,
-      action: 'create' satisfies EditAction,
+      action: "create" satisfies EditAction,
       diff: { after: body },
       comment: `Added variant to ${dishRow.canonicalName}`,
     });
@@ -498,16 +576,23 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
   });
 
   // ─── PATCH /api/dishes/:slug/variants/:variantId ──────────────────────
-  app.patch('/api/dishes/:slug/variants/:variantId', async (request, reply) => {
+  app.patch("/api/dishes/:slug/variants/:variantId", async (request, reply) => {
     const user = await app.requireUser(request);
     const { slug, variantId } = z
-      .object({ slug: z.string().min(1).max(200), variantId: z.string().uuid() })
+      .object({
+        slug: z.string().min(1).max(200),
+        variantId: z.string().uuid(),
+      })
       .parse(request.params);
     const body = variantPatchSchema.parse(request.body);
 
-    const parent = await db.select().from(dishes).where(eq(dishes.slug, slug)).limit(1);
+    const parent = await db
+      .select()
+      .from(dishes)
+      .where(eq(dishes.slug, slug))
+      .limit(1);
     if (parent.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
     const dishRow = parent[0]!;
     assertDishEditable(user, dishRow);
@@ -515,18 +600,26 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     const existing = await db
       .select({ id: dishVariants.id })
       .from(dishVariants)
-      .where(and(eq(dishVariants.id, variantId), eq(dishVariants.parentDishId, dishRow.id)))
+      .where(
+        and(
+          eq(dishVariants.id, variantId),
+          eq(dishVariants.parentDishId, dishRow.id),
+        ),
+      )
       .limit(1);
     if (existing.length === 0) {
-      throw httpError(404, 'not_found', 'Variant not found on this dish');
+      throw httpError(404, "not_found", "Variant not found on this dish");
     }
 
     const updateValues: Record<string, unknown> = { updatedAt: new Date() };
     if (body.name !== undefined) updateValues.name = body.name;
     if (body.slug !== undefined) updateValues.slug = body.slug;
-    if (body.description !== undefined) updateValues.description = body.description;
-    if (body.creatorName !== undefined) updateValues.creatorName = body.creatorName;
-    if (body.creatorDate !== undefined) updateValues.creatorDate = body.creatorDate;
+    if (body.description !== undefined)
+      updateValues.description = body.description;
+    if (body.creatorName !== undefined)
+      updateValues.creatorName = body.creatorName;
+    if (body.creatorDate !== undefined)
+      updateValues.creatorDate = body.creatorDate;
     if (body.region !== undefined) {
       updateValues.regionLocation =
         body.region === null
@@ -543,9 +636,9 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
 
     await db.insert(editHistory).values({
       userId: user.id,
-      targetType: 'dish_variant',
+      targetType: "dish_variant",
       targetId: variantId,
-      action: 'update' satisfies EditAction,
+      action: "update" satisfies EditAction,
       diff: { ...body },
       comment: `Edited variant of ${dishRow.canonicalName}`,
     });
@@ -554,39 +647,54 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
   });
 
   // ─── DELETE /api/dishes/:slug/variants/:variantId ─────────────────────
-  app.delete('/api/dishes/:slug/variants/:variantId', async (request, reply) => {
-    const user = await app.requireUser(request);
-    const { slug, variantId } = z
-      .object({ slug: z.string().min(1).max(200), variantId: z.string().uuid() })
-      .parse(request.params);
+  app.delete(
+    "/api/dishes/:slug/variants/:variantId",
+    async (request, reply) => {
+      const user = await app.requireUser(request);
+      const { slug, variantId } = z
+        .object({
+          slug: z.string().min(1).max(200),
+          variantId: z.string().uuid(),
+        })
+        .parse(request.params);
 
-    const parent = await db.select().from(dishes).where(eq(dishes.slug, slug)).limit(1);
-    if (parent.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
-    }
-    const dishRow = parent[0]!;
-    assertDishEditable(user, dishRow);
+      const parent = await db
+        .select()
+        .from(dishes)
+        .where(eq(dishes.slug, slug))
+        .limit(1);
+      if (parent.length === 0) {
+        throw httpError(404, "not_found", "Dish not found");
+      }
+      const dishRow = parent[0]!;
+      assertDishEditable(user, dishRow);
 
-    const existing = await db
-      .select({ id: dishVariants.id })
-      .from(dishVariants)
-      .where(and(eq(dishVariants.id, variantId), eq(dishVariants.parentDishId, dishRow.id)))
-      .limit(1);
-    if (existing.length === 0) {
-      throw httpError(404, 'not_found', 'Variant not found on this dish');
-    }
+      const existing = await db
+        .select({ id: dishVariants.id })
+        .from(dishVariants)
+        .where(
+          and(
+            eq(dishVariants.id, variantId),
+            eq(dishVariants.parentDishId, dishRow.id),
+          ),
+        )
+        .limit(1);
+      if (existing.length === 0) {
+        throw httpError(404, "not_found", "Variant not found on this dish");
+      }
 
-    await db.delete(dishVariants).where(eq(dishVariants.id, variantId));
+      await db.delete(dishVariants).where(eq(dishVariants.id, variantId));
 
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: 'dish_variant',
-      targetId: variantId,
-      action: 'archive' satisfies EditAction,
-      diff: { deleted: true },
-      comment: `Removed variant from ${dishRow.canonicalName}`,
-    });
+      await db.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish_variant",
+        targetId: variantId,
+        action: "archive" satisfies EditAction,
+        diff: { deleted: true },
+        comment: `Removed variant from ${dishRow.canonicalName}`,
+      });
 
-    return reply.status(204).send();
-  });
+      return reply.status(204).send();
+    },
+  );
 }

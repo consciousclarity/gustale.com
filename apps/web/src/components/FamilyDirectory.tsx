@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   browseStatusMessage,
   buildFamilyDirectory,
+  type FamilyEntry,
   familyDetailHref,
   filterFamilyDirectory,
+  type LikeableDish,
   mapBrowseHref,
   recoveryLinks,
-  type FamilyEntry,
-  type LikeableDish,
-} from '../lib/browse';
-import { currentDomain } from '../lib/domain';
+} from "../lib/browse";
+import { currentDomain } from "../lib/domain";
 
 export interface FamilyDirectoryProps {
   dishes: LikeableDish[];
@@ -18,13 +18,13 @@ export interface FamilyDirectoryProps {
 
 export function FamilyDirectory({
   dishes,
-  countriesHref = '/regions',
+  countriesHref = "/regions",
 }: FamilyDirectoryProps) {
   const domain = currentDomain();
   const all = useMemo(() => buildFamilyDirectory(dishes), [dishes]);
   const [q, setQ] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('q') ?? '';
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
   });
 
   const visible: FamilyEntry[] = useMemo(
@@ -35,18 +35,18 @@ export function FamilyDirectory({
   const mapHref = mapBrowseHref(domain);
 
   useEffect(() => {
-    const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+    const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
     const next = `${window.location.pathname}${qs}`;
     const cur = `${window.location.pathname}${window.location.search}`;
-    if (next !== cur) window.history.replaceState({}, '', next);
+    if (next !== cur) window.history.replaceState({}, "", next);
   }, [q]);
 
   useEffect(() => {
     const onPop = () => {
-      setQ(new URLSearchParams(window.location.search).get('q') ?? '');
+      setQ(new URLSearchParams(window.location.search).get("q") ?? "");
     };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   // SSR-data-only: no client refetch. Build/SSG recovery lives on the page.
@@ -55,12 +55,15 @@ export function FamilyDirectory({
     failed: false,
     count: visible.length,
     query: q,
-    noun: 'families',
+    noun: "families",
   });
 
   return (
     <div className="browse-shell">
-      <div className="browse-toolbar browse-toolbar--island" data-browse-toolbar>
+      <div
+        className="browse-toolbar browse-toolbar--island"
+        data-browse-toolbar
+      >
         <div className="browse-toolbar-row">
           <div className="browse-search">
             <label className="browse-search-sr" htmlFor="family-browse-search">
@@ -81,7 +84,11 @@ export function FamilyDirectory({
             {status}
           </p>
           {q && (
-            <button type="button" className="browse-clear" onClick={() => setQ('')}>
+            <button
+              type="button"
+              className="browse-clear"
+              onClick={() => setQ("")}
+            >
               Clear
             </button>
           )}
@@ -96,8 +103,12 @@ export function FamilyDirectory({
 
       {visible.length === 0 && (
         <div className="browse-banner" role="status">
-          <p>No families match{q ? ` “${q}”` : ''}.</p>
-          <button type="button" className="btn-outline" onClick={() => setQ('')}>
+          <p>No families match{q ? ` “${q}”` : ""}.</p>
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => setQ("")}
+          >
             Clear search
           </button>
           <ul className="browse-recovery">
@@ -117,18 +128,18 @@ export function FamilyDirectory({
               <div className="browse-dir-card__top">
                 <h2>{f.name}</h2>
                 <span className="browse-dir-card__count">
-                  {f.count} {f.count === 1 ? 'dish' : 'dishes'}
+                  {f.count} {f.count === 1 ? "dish" : "dishes"}
                 </span>
               </div>
               {f.dishNames.length > 0 && (
                 <p className="browse-dir-card__meta">
-                  {f.dishNames.slice(0, 4).join(' · ')}
-                  {f.dishNames.length > 4 ? '…' : ''}
+                  {f.dishNames.slice(0, 4).join(" · ")}
+                  {f.dishNames.length > 4 ? "…" : ""}
                 </p>
               )}
               {f.sampleOrigins.length > 0 && (
                 <p className="browse-dir-card__sub">
-                  {f.sampleOrigins.join(', ')}
+                  {f.sampleOrigins.join(", ")}
                 </p>
               )}
               <span className="browse-dir-card__go">

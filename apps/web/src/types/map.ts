@@ -7,9 +7,15 @@
 export interface FoodRegionProperties {
   region_id: string;
   name: string;
-  type: 'cultural' | 'geographic' | 'culinary' | 'historical' | 'diaspora' | 'trade_route';
+  type:
+    | "cultural"
+    | "geographic"
+    | "culinary"
+    | "historical"
+    | "diaspora"
+    | "trade_route";
   country_codes: string;
-  confidence: 'high' | 'medium' | 'low' | 'disputed' | 'conceptual';
+  confidence: "high" | "medium" | "low" | "disputed" | "conceptual";
   source: string;
   notes?: string;
 }
@@ -17,7 +23,10 @@ export interface FoodRegionProperties {
 /**
  * A GeoJSON Feature specifically for food regions.
  */
-export type FoodRegionFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, FoodRegionProperties>;
+export type FoodRegionFeature = GeoJSON.Feature<
+  GeoJSON.Polygon | GeoJSON.MultiPolygon,
+  FoodRegionProperties
+>;
 
 /**
  * The data structure for a single dish point on the map,

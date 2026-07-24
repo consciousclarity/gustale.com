@@ -1,7 +1,7 @@
 ---
-import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
-import { EditDishForm } from '../../../components/EditDishForm';
+import Breadcrumbs from "../../../components/Breadcrumbs.astro";
+import { EditDishForm } from "../../../components/EditDishForm";
+import Layout from "../../../layouts/Layout.astro";
 
 // Mirror the same getStaticPaths as /dishes/[slug] so we pre-build an
 // /edit page for every existing dish. We also fetch the dish name so the
@@ -9,7 +9,9 @@ import { EditDishForm } from '../../../components/EditDishForm';
 export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
-    return [{ params: { slug: 'moussaka-greek' }, props: { dishName: 'Moussaka' } }];
+    return [
+      { params: { slug: "moussaka-greek" }, props: { dishName: "Moussaka" } },
+    ];
   }
   try {
     const allSlugs: { slug: string; name: string }[] = [];
@@ -35,7 +37,9 @@ export async function getStaticPaths() {
       props: { dishName: name },
     }));
   } catch {
-    return [{ params: { slug: 'moussaka-greek' }, props: { dishName: 'Moussaka' } }];
+    return [
+      { params: { slug: "moussaka-greek" }, props: { dishName: "Moussaka" } },
+    ];
   }
 }
 

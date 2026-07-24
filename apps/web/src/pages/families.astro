@@ -1,22 +1,19 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
-import BrowseHeader from '../components/BrowseHeader.astro';
-import { FamilyDirectory } from '../components/FamilyDirectory.tsx';
-import ErrorBoundary from '../components/ErrorBoundary.tsx';
-import { listDishes } from '../lib/api';
-import {
-  buildFamilyDirectory,
-  recoveryLinks,
-} from '../lib/browse';
-import { currentDomain } from '../lib/domain';
-import type { DishListResponse } from '../types/dish';
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import BrowseHeader from "../components/BrowseHeader.astro";
+import ErrorBoundary from "../components/ErrorBoundary.tsx";
+import { FamilyDirectory } from "../components/FamilyDirectory.tsx";
+import Layout from "../layouts/Layout.astro";
+import { listDishes } from "../lib/api";
+import { buildFamilyDirectory, recoveryLinks } from "../lib/browse";
+import { currentDomain } from "../lib/domain";
+import type { DishListResponse } from "../types/dish";
 
 let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
 let buildFailed = false;
 
 try {
-  initial = await listDishes({ status: 'published', limit: 100 });
+  initial = await listDishes({ status: "published", limit: 100 });
 } catch (err: unknown) {
   buildFailed = true;
   void err;

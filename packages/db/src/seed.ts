@@ -9,16 +9,25 @@
  * Usage:  pnpm --filter @gustale/db run seed
  *   or:   DATABASE_URL=... tsx packages/db/src/seed.ts
  */
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import postgres from 'postgres';
-import { eq, sql } from 'drizzle-orm';
-import * as schema from './schema/index.js';
-import { DISHES, CUISINE_CATEGORIES, DISH_TYPE_CATEGORIES, DISH_RELATIONS, LINEAGE_METHODS, DISH_LINEAGES, LINEAGES } from './seed-data.js';
+
+import { eq, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import postgres from "postgres";
+import * as schema from "./schema/index.js";
+import {
+  CUISINE_CATEGORIES,
+  DISH_LINEAGES,
+  DISH_RELATIONS,
+  DISH_TYPE_CATEGORIES,
+  DISHES,
+  LINEAGE_METHODS,
+  LINEAGES,
+} from "./seed-data.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
-  console.error('DATABASE_URL is not set');
+  console.error("DATABASE_URL is not set");
   process.exit(1);
 }
 
@@ -26,9 +35,11 @@ const client = postgres(url, { max: 1 });
 
 // Drizzle's `drizzle({ schema })` chokes on non-table exports (enums,
 // type-only exports). Filter down to actual pgTable objects.
-const DRIZZLE_BASE_NAME = Symbol.for('drizzle:BaseName');
-const isDrizzleTable = (v: unknown): v is { readonly [DRIZZLE_BASE_NAME]: string } =>
-  !!v && typeof v === 'object' && DRIZZLE_BASE_NAME in v;
+const DRIZZLE_BASE_NAME = Symbol.for("drizzle:BaseName");
+const isDrizzleTable = (
+  v: unknown,
+): v is { readonly [DRIZZLE_BASE_NAME]: string } =>
+  !!v && typeof v === "object" && DRIZZLE_BASE_NAME in v;
 const schemaTablesOnly = Object.fromEntries(
   Object.entries(schema).filter(([, v]) => isDrizzleTable(v)),
 );
@@ -37,52 +48,63 @@ const db = drizzle(client, { schema: schemaTablesOnly });
 
 async function main(): Promise<void> {
   // 1. Migrate first (safe to re-run)
-  console.log('Running migrations...');
-  await migrate(db, { migrationsFolder: './drizzle' });
-  console.log('Migrations complete');
+  console.log("Running migrations...");
+  await migrate(db, { migrationsFolder: "./drizzle" });
+  console.log("Migrations complete");
 
   // 2. Seed user (the "creator" and "last editor")
-  const userId = '00000000-0000-0000-0000-000000000001';
+  const userId = "00000000-0000-0000-0000-000000000001";
   await db
     .insert(schema.users)
     .values({
       id: userId,
-      email: 'alex@example.com',
-      displayName: 'Alejandro Aguilar',
-      role: 'admin',
+      email: "alex@example.com",
+      displayName: "Alejandro Aguilar",
+      role: "admin",
     })
     .onConflictDoNothing();
 
   // 3. Categories
-  const moussakaCat = 'moussaka';
-  const greekCat = 'greek-cuisine';
+  const moussakaCat = "moussaka";
+  const greekCat = "greek-cuisine";
   await db
     .insert(schema.categories)
     .values([
-      { slug: moussakaCat, name: 'Moussaka', description: 'Layered eggplant and meat dishes' },
-      { slug: greekCat, name: 'Greek cuisine', description: 'Cuisine of Greece' },
+      {
+        slug: moussakaCat,
+        name: "Moussaka",
+        description: "Layered eggplant and meat dishes",
+      },
+      {
+        slug: greekCat,
+        name: "Greek cuisine",
+        description: "Cuisine of Greece",
+      },
     ])
     .onConflictDoNothing();
 
   // 4. Preparation methods — the 16 lineage methods. These MUST stay 1:1
   //    with the LINEAGE_LABELS map in apps/web/src/pages/lineages.astro;
   //    the /lineages page groups dishes by their first preparation method.
-  await db.insert(schema.preparationMethods).values(LINEAGE_METHODS).onConflictDoNothing();
+  await db
+    .insert(schema.preparationMethods)
+    .values(LINEAGE_METHODS)
+    .onConflictDoNothing();
 
   // 5. Geo entity: Greece
-  const greeceId = '00000000-0000-0000-0000-000000000010';
+  const greeceId = "00000000-0000-0000-0000-000000000010";
   await db
     .insert(schema.geoEntities)
     .values({
       id: greeceId,
-      name: 'Greece',
-      isoCode: 'GR',
-      entityType: 'country',
+      name: "Greece",
+      isoCode: "GR",
+      entityType: "country",
     })
     .onConflictDoNothing();
 
   // 6. Dish: Moussaka (the canonical Greek one)
-  const moussakaSlug = 'moussaka-greek';
+  const moussakaSlug = "moussaka-greek";
   const existing = await db
     .select({ id: schema.dishes.id })
     .from(schema.dishes)
@@ -92,19 +114,21 @@ async function main(): Promise<void> {
   let dishId: string;
   if (existing.length > 0) {
     dishId = existing[0]!.id;
-    console.log(`Dish "${moussakaSlug}" already exists (${dishId}), skipping inserts`);
+    console.log(
+      `Dish "${moussakaSlug}" already exists (${dishId}), skipping inserts`,
+    );
   } else {
     // Insert the dish with origin location as a PostGIS geometry literal
     const inserted = await db
       .insert(schema.dishes)
       .values({
         slug: moussakaSlug,
-        canonicalName: 'Moussaka',
+        canonicalName: "Moussaka",
         shortDescription:
-          'A layered casserole of eggplant, minced meat, and béchamel sauce, baked until golden. The national dish of Greece.',
+          "A layered casserole of eggplant, minced meat, and béchamel sauce, baked until golden. The national dish of Greece.",
         longDescription:
-          'Greek moussaka combines fried or roasted eggplant layers with a spiced meat sauce (lamb or beef) and a thick, cheese-topped béchamel. The dish is baked until the top turns golden brown. Regional variants exist across the Balkans, Levant, and Egypt.',
-        status: 'published',
+          "Greek moussaka combines fried or roasted eggplant layers with a spiced meat sauce (lamb or beef) and a thick, cheese-topped béchamel. The dish is baked until the top turns golden brown. Regional variants exist across the Balkans, Levant, and Egypt.",
+        status: "published",
         originGeoId: greeceId,
         originDateEarliest: 1920,
         originDateLatest: 1950,
@@ -124,9 +148,10 @@ async function main(): Promise<void> {
     // 7. Translations
     await db.insert(schema.dishTranslations).values({
       dishId,
-      language: 'en',
-      name: 'Moussaka',
-      description: 'The Greek national casserole of eggplant, meat, and béchamel.',
+      language: "en",
+      name: "Moussaka",
+      description:
+        "The Greek national casserole of eggplant, meat, and béchamel.",
     });
 
     // 8. Categories link
@@ -136,27 +161,36 @@ async function main(): Promise<void> {
       .where(sql`${schema.categories.slug} IN (${moussakaCat}, ${greekCat})`);
     if (cats.length > 0) {
       await db.insert(schema.dishCategories).values(
-        cats.map((c) => ({ dishId, categoryId: c.id, isPrimary: c.slug === moussakaCat })),
+        cats.map((c) => ({
+          dishId,
+          categoryId: c.id,
+          isPrimary: c.slug === moussakaCat,
+        })),
       );
     }
 
     // 9. Variants
     await db.insert(schema.dishVariants).values({
       parentDishId: dishId,
-      name: 'Turkish Moussaka (Musakka)',
-      slug: 'musakka-turkish',
+      name: "Turkish Moussaka (Musakka)",
+      slug: "musakka-turkish",
       description:
-        'A Turkish variant, often lighter, sometimes without béchamel, using green peppers and tomatoes.',
-      status: 'published',
+        "A Turkish variant, often lighter, sometimes without béchamel, using green peppers and tomatoes.",
+      status: "published",
     });
 
     // 10. Ingredients
-    const ingredientSlugs = ['eggplant', 'lamb-mince', 'tomato', 'bechamel-sauce'];
+    const ingredientSlugs = [
+      "eggplant",
+      "lamb-mince",
+      "tomato",
+      "bechamel-sauce",
+    ];
     const ingredientNames: Record<string, string> = {
-      eggplant: 'Eggplant',
-      'lamb-mince': 'Lamb, minced',
-      tomato: 'Tomato',
-      'bechamel-sauce': 'Béchamel sauce',
+      eggplant: "Eggplant",
+      "lamb-mince": "Lamb, minced",
+      tomato: "Tomato",
+      "bechamel-sauce": "Béchamel sauce",
     };
     const ingredients = await Promise.all(
       ingredientSlugs.map(async (slug) => {
@@ -171,7 +205,7 @@ async function main(): Promise<void> {
           .values({
             slug,
             canonicalName: ingredientNames[slug]!,
-            status: 'published',
+            status: "published",
             createdBy: userId,
           })
           .returning({ id: schema.ingredients.id });
@@ -180,10 +214,34 @@ async function main(): Promise<void> {
     );
 
     await db.insert(schema.dishIngredients).values([
-      { dishId, ingredientId: ingredients[0]!, position: 0, quantity: '4', unit: 'medium' },
-      { dishId, ingredientId: ingredients[1]!, position: 1, quantity: '500', unit: 'g' },
-      { dishId, ingredientId: ingredients[2]!, position: 2, quantity: '400', unit: 'g' },
-      { dishId, ingredientId: ingredients[3]!, position: 3, quantity: '500', unit: 'ml' },
+      {
+        dishId,
+        ingredientId: ingredients[0]!,
+        position: 0,
+        quantity: "4",
+        unit: "medium",
+      },
+      {
+        dishId,
+        ingredientId: ingredients[1]!,
+        position: 1,
+        quantity: "500",
+        unit: "g",
+      },
+      {
+        dishId,
+        ingredientId: ingredients[2]!,
+        position: 2,
+        quantity: "400",
+        unit: "g",
+      },
+      {
+        dishId,
+        ingredientId: ingredients[3]!,
+        position: 3,
+        quantity: "500",
+        unit: "ml",
+      },
     ]);
 
     // 11. Preparations — Moussaka's lineage is "fried & topped" (fried eggplant
@@ -192,7 +250,7 @@ async function main(): Promise<void> {
       await db
         .select({ id: schema.preparationMethods.id })
         .from(schema.preparationMethods)
-        .where(eq(schema.preparationMethods.slug, 'fried-and-topped'))
+        .where(eq(schema.preparationMethods.slug, "fried-and-topped"))
         .limit(1)
     )[0];
     if (friedTopped) {
@@ -202,24 +260,26 @@ async function main(): Promise<void> {
         sequenceOrder: 0,
         durationMinutes: 90,
         difficulty: 3,
-        steps: 'Brown the minced lamb with onion, garlic, cinnamon, and allspice; simmer until thick. Fry the eggplant slices. Layer eggplant and meat sauce in a baking dish, top with béchamel and kefalotyri, and bake at 180°C until golden.',
+        steps:
+          "Brown the minced lamb with onion, garlic, cinnamon, and allspice; simmer until thick. Fry the eggplant slices. Layer eggplant and meat sauce in a baking dish, top with béchamel and kefalotyri, and bake at 180°C until golden.",
       });
     }
 
     // 12. Media (one cover image)
-    const mediaId = '00000000-0000-0000-0000-000000000100';
+    const mediaId = "00000000-0000-0000-0000-000000000100";
     await db
       .insert(schema.media)
       .values({
         id: mediaId,
-        storageKey: 'dishes/moussaka-greek/cover.jpg',
-        mimeType: 'image/jpeg',
+        storageKey: "dishes/moussaka-greek/cover.jpg",
+        mimeType: "image/jpeg",
         byteSize: 245678,
         width: 1600,
         height: 1067,
-        altText: 'A Greek moussaka fresh from the oven, golden béchamel on top.',
-        credit: 'Photo by test seed',
-        license: 'CC-BY-SA-4.0',
+        altText:
+          "A Greek moussaka fresh from the oven, golden béchamel on top.",
+        credit: "Photo by test seed",
+        license: "CC-BY-SA-4.0",
         uploadedBy: userId,
       })
       .onConflictDoNothing();
@@ -227,28 +287,29 @@ async function main(): Promise<void> {
       .insert(schema.mediaAttachments)
       .values({
         mediaId,
-        targetType: 'dish',
+        targetType: "dish",
         targetId: dishId,
-        role: 'cover',
+        role: "cover",
         position: 0,
       })
       .onConflictDoNothing();
 
     // 13. Source + citation (Wikipedia: Moussaka)
-    const sourceId = '00000000-0000-0000-0000-000000000200';
+    const sourceId = "00000000-0000-0000-0000-000000000200";
     await db
       .insert(schema.sources)
       .values({
         id: sourceId,
-        sourceType: 'web',
-        title: 'Moussaka',
-        authors: ['Wikipedia contributors'],
+        sourceType: "web",
+        title: "Moussaka",
+        authors: ["Wikipedia contributors"],
         year: 2024,
-        publisher: 'Wikipedia, The Free Encyclopedia',
-        url: 'https://en.wikipedia.org/wiki/Moussaka',
-        citationText: 'Wikipedia. (2024). Moussaka. Retrieved from https://en.wikipedia.org/wiki/Moussaka',
-        language: 'en',
-        reliability: 'secondary',
+        publisher: "Wikipedia, The Free Encyclopedia",
+        url: "https://en.wikipedia.org/wiki/Moussaka",
+        citationText:
+          "Wikipedia. (2024). Moussaka. Retrieved from https://en.wikipedia.org/wiki/Moussaka",
+        language: "en",
+        reliability: "secondary",
         createdBy: userId,
       })
       .onConflictDoNothing();
@@ -256,10 +317,11 @@ async function main(): Promise<void> {
       .insert(schema.citations)
       .values({
         sourceId,
-        targetType: 'dish',
+        targetType: "dish",
         targetId: dishId,
-        claimText: 'Moussaka is a dish popular in Greece, the Balkans, and the Levant.',
-        location: 'History section',
+        claimText:
+          "Moussaka is a dish popular in Greece, the Balkans, and the Levant.",
+        location: "History section",
         addedBy: userId,
       })
       .onConflictDoNothing();
@@ -275,7 +337,9 @@ async function main(): Promise<void> {
   await seedDishRelations(db);
 
   console.log(`\nSeed complete. Test dish: ${moussakaSlug}`);
-  console.log(`\nTry: curl http://localhost:4000/api/dishes/${moussakaSlug} | jq .`);
+  console.log(
+    `\nTry: curl http://localhost:4000/api/dishes/${moussakaSlug} | jq .`,
+  );
   await client.end();
 }
 
@@ -293,31 +357,46 @@ async function seedEncyclopedia(
   //    Note: the existing Moussaka seed already inserts "greek-cuisine" and
   //    "moussaka", so we filter those out to avoid noisy conflict logs.
   const existingCatSlugs = new Set(
-    (await db.select({ slug: schema.categories.slug }).from(schema.categories)).map(
-      (r) => r.slug,
-    ),
+    (
+      await db.select({ slug: schema.categories.slug }).from(schema.categories)
+    ).map((r) => r.slug),
   );
-  const newCuisines = CUISINE_CATEGORIES.filter((c) => !existingCatSlugs.has(c.slug));
-  const newDishTypes = DISH_TYPE_CATEGORIES.filter((c) => !existingCatSlugs.has(c.slug));
+  const newCuisines = CUISINE_CATEGORIES.filter(
+    (c) => !existingCatSlugs.has(c.slug),
+  );
+  const newDishTypes = DISH_TYPE_CATEGORIES.filter(
+    (c) => !existingCatSlugs.has(c.slug),
+  );
   if (newCuisines.length + newDishTypes.length > 0) {
     await db
       .insert(schema.categories)
       .values([...newCuisines, ...newDishTypes])
       .onConflictDoNothing();
-    console.log(`  + ${newCuisines.length} cuisine + ${newDishTypes.length} dish-type categories`);
+    console.log(
+      `  + ${newCuisines.length} cuisine + ${newDishTypes.length} dish-type categories`,
+    );
   }
 
   // 2. Geo entities — one per country. Idempotent via onConflictDoNothing.
   const newCountries = Array.from(
-    new Map(DISHES.map((d) => [d.isoCode, { name: d.countryName, isoCode: d.isoCode }])).values(),
+    new Map(
+      DISHES.map((d) => [
+        d.isoCode,
+        { name: d.countryName, isoCode: d.isoCode },
+      ]),
+    ).values(),
   );
   // Only insert countries we haven't seen — query first to avoid noise.
   const existingCountries = new Set(
-    (await db.select({ isoCode: schema.geoEntities.isoCode }).from(schema.geoEntities)).map(
-      (r) => r.isoCode,
-    ),
+    (
+      await db
+        .select({ isoCode: schema.geoEntities.isoCode })
+        .from(schema.geoEntities)
+    ).map((r) => r.isoCode),
   );
-  const toInsert = newCountries.filter((c) => !existingCountries.has(c.isoCode));
+  const toInsert = newCountries.filter(
+    (c) => !existingCountries.has(c.isoCode),
+  );
   if (toInsert.length > 0) {
     await db
       .insert(schema.geoEntities)
@@ -325,7 +404,7 @@ async function seedEncyclopedia(
         toInsert.map((c) => ({
           name: c.name,
           isoCode: c.isoCode,
-          entityType: 'country' as const,
+          entityType: "country" as const,
         })),
       )
       .onConflictDoNothing();
@@ -346,7 +425,9 @@ async function seedEncyclopedia(
 
   // 5. Existing dish slugs — skip them on re-run.
   const existingDishSlugs = new Set(
-    (await db.select({ slug: schema.dishes.slug }).from(schema.dishes)).map((r) => r.slug),
+    (await db.select({ slug: schema.dishes.slug }).from(schema.dishes)).map(
+      (r) => r.slug,
+    ),
   );
 
   // 6. Iterate over curated DISHES, inserting each one with its full citation trail.
@@ -360,7 +441,9 @@ async function seedEncyclopedia(
 
     const countryId = geoIdByIso.get(d.isoCode);
     if (!countryId) {
-      console.warn(`  ! skipping ${d.slug}: missing geo entity for ${d.isoCode}`);
+      console.warn(
+        `  ! skipping ${d.slug}: missing geo entity for ${d.isoCode}`,
+      );
       continue;
     }
 
@@ -372,7 +455,7 @@ async function seedEncyclopedia(
         canonicalName: d.canonicalName,
         shortDescription: d.shortDescription,
         longDescription: d.longDescription ?? null,
-        status: 'published',
+        status: "published",
         originGeoId: countryId,
         originDateEarliest: d.originDateEarliest ?? null,
         originDateLatest: d.originDateLatest ?? null,
@@ -391,13 +474,17 @@ async function seedEncyclopedia(
     // English translation
     await db.insert(schema.dishTranslations).values({
       dishId,
-      language: 'en',
+      language: "en",
       name: d.canonicalName,
       description: d.shortDescription,
     });
 
     // Category links: 1 cuisine + N dish-types. Use the primary flag on cuisine.
-    const categoryLinks: Array<{ dishId: string; categoryId: string; isPrimary: boolean }> = [];
+    const categoryLinks: Array<{
+      dishId: string;
+      categoryId: string;
+      isPrimary: boolean;
+    }> = [];
 
     const cuisineId = catIdBySlug.get(d.cuisineSlug);
     if (cuisineId) {
@@ -412,7 +499,10 @@ async function seedEncyclopedia(
     }
 
     if (categoryLinks.length > 0) {
-      await db.insert(schema.dishCategories).values(categoryLinks).onConflictDoNothing();
+      await db
+        .insert(schema.dishCategories)
+        .values(categoryLinks)
+        .onConflictDoNothing();
     }
 
     // Wikipedia source + citation — the encyclopedia DNA: every claim has a trail.
@@ -421,35 +511,37 @@ async function seedEncyclopedia(
     const sourceRows = await db
       .insert(schema.sources)
       .values({
-        sourceType: 'web',
+        sourceType: "web",
         title: d.canonicalName,
-        authors: ['Wikipedia contributors'],
+        authors: ["Wikipedia contributors"],
         year,
-        publisher: 'Wikipedia, The Free Encyclopedia',
+        publisher: "Wikipedia, The Free Encyclopedia",
         url,
         citationText: `Wikipedia. (${year}). ${d.canonicalName}. Retrieved from ${url}`,
-        language: 'en',
-        reliability: 'secondary',
+        language: "en",
+        reliability: "secondary",
         createdBy: userId,
       })
       .onConflictDoNothing()
       .returning({ id: schema.sources.id });
 
-    const sourceId = sourceRows[0]?.id ?? (
-      await db
-        .select({ id: schema.sources.id })
-        .from(schema.sources)
-        .where(eq(schema.sources.url, url))
-        .limit(1)
-    )[0]?.id;
+    const sourceId =
+      sourceRows[0]?.id ??
+      (
+        await db
+          .select({ id: schema.sources.id })
+          .from(schema.sources)
+          .where(eq(schema.sources.url, url))
+          .limit(1)
+      )[0]?.id;
 
     if (sourceId) {
       await db.insert(schema.citations).values({
         sourceId,
-        targetType: 'dish',
+        targetType: "dish",
         targetId: dishId,
         claimText: d.shortDescription,
-        location: 'Lead paragraph',
+        location: "Lead paragraph",
         addedBy: userId,
       });
     }
@@ -457,7 +549,9 @@ async function seedEncyclopedia(
     inserted++;
   }
 
-  console.log(`  + ${inserted} new dishes inserted, ${skipped} already existed`);
+  console.log(
+    `  + ${inserted} new dishes inserted, ${skipped} already existed`,
+  );
   console.log(`  Total in encyclopedia: ${DISHES.length} dishes`);
 }
 
@@ -485,7 +579,13 @@ async function seedDishRelations(
   const idBySlug = new Map(allDishes.map((d) => [d.slug, d.id]));
 
   // Collect every directed edge: original + reverse.
-  type Edge = { fromDishId: string; toDishId: string; relationType: schema.DishRelationType; reason: string | null; strength: number };
+  type Edge = {
+    fromDishId: string;
+    toDishId: string;
+    relationType: schema.DishRelationType;
+    reason: string | null;
+    strength: number;
+  };
   const edges: Edge[] = [];
   let missing = 0;
   for (const r of DISH_RELATIONS) {
@@ -512,7 +612,9 @@ async function seedDishRelations(
   }
 
   if (missing > 0) {
-    console.warn(`  ! ${missing} relation entries reference unknown dish slugs (skipped)`);
+    console.warn(
+      `  ! ${missing} relation entries reference unknown dish slugs (skipped)`,
+    );
   }
 
   // Insert in chunks of 100 to avoid huge single-statement payloads.
@@ -528,7 +630,9 @@ async function seedDishRelations(
     inserted += res.length;
   }
 
-  console.log(`  + ${inserted} dish-relation edges inserted (${DISH_RELATIONS.length} curated pairs × 2)`);
+  console.log(
+    `  + ${inserted} dish-relation edges inserted (${DISH_RELATIONS.length} curated pairs × 2)`,
+  );
 }
 
 /**
@@ -543,15 +647,20 @@ async function seedDishLineages(db: ReturnType<typeof drizzle>): Promise<void> {
   const methodIdBySlug = new Map(
     (
       await db
-        .select({ id: schema.preparationMethods.id, slug: schema.preparationMethods.slug })
+        .select({
+          id: schema.preparationMethods.id,
+          slug: schema.preparationMethods.slug,
+        })
         .from(schema.preparationMethods)
     ).map((m) => [m.slug, m.id]),
   );
 
   const dishIdBySlug = new Map(
-    (await db.select({ id: schema.dishes.id, slug: schema.dishes.slug }).from(schema.dishes)).map(
-      (d) => [d.slug, d.id],
-    ),
+    (
+      await db
+        .select({ id: schema.dishes.id, slug: schema.dishes.slug })
+        .from(schema.dishes)
+    ).map((d) => [d.slug, d.id]),
   );
 
   const dishesWithPrep = new Set(
@@ -569,10 +678,14 @@ async function seedDishLineages(db: ReturnType<typeof drizzle>): Promise<void> {
     if (!dishId || dishesWithPrep.has(dishId)) continue;
     const methodId = methodIdBySlug.get(lineage);
     if (!methodId) {
-      console.warn(`  ! ${dishSlug}: lineage method "${lineage}" missing from preparation_methods`);
+      console.warn(
+        `  ! ${dishSlug}: lineage method "${lineage}" missing from preparation_methods`,
+      );
       continue;
     }
-    await db.insert(schema.dishPreparations).values({ dishId, methodId, sequenceOrder: 0 });
+    await db
+      .insert(schema.dishPreparations)
+      .values({ dishId, methodId, sequenceOrder: 0 });
     prepInserted++;
   }
 
@@ -594,18 +707,14 @@ async function seedDishLineages(db: ReturnType<typeof drizzle>): Promise<void> {
  * Idempotent: re-running skips lineages that already exist and skips
  * dish-lineage edges whose (dish_id, lineage_id) PK already exists.
  */
-async function seedLineages(
-  dishIdBySlug: Map<string, string>,
-): Promise<void> {
-  console.log('Seeding lineages…');
+async function seedLineages(dishIdBySlug: Map<string, string>): Promise<void> {
+  console.log("Seeding lineages…");
 
   // 1. Existing lineage slugs (so we can skip them on re-seed).
   const existing = new Set(
-    (
-      await db
-        .select({ slug: schema.lineages.slug })
-        .from(schema.lineages)
-    ).map((r) => r.slug),
+    (await db.select({ slug: schema.lineages.slug }).from(schema.lineages)).map(
+      (r) => r.slug,
+    ),
   );
 
   // 2. Build a slug → id map for lineages so dish-lineage edges can FK correctly.
@@ -705,6 +814,6 @@ async function seedLineages(
 }
 
 main().catch((err) => {
-  console.error('Seed failed:', err);
+  console.error("Seed failed:", err);
   process.exit(1);
 });

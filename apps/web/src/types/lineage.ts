@@ -4,28 +4,28 @@
 // Distinct from Family (form) and Cuisine (region).
 
 export type LineageConfidence =
-  | 'documented'
-  | 'likely'
-  | 'probable'
-  | 'possible'
-  | 'uncertain'
-  | 'parallel_evolution';
+  | "documented"
+  | "likely"
+  | "probable"
+  | "possible"
+  | "uncertain"
+  | "parallel_evolution";
 
 export type LineageRole =
-  | 'ancestor'
-  | 'descendant'
-  | 'cousin'
-  | 'regional_variant'
-  | 'adaptation'
-  | 'fusion'
-  | 'diaspora_adaptation'
-  | 'trade_route_spread'
-  | 'colonial_spread'
-  | 'technique_relative'
-  | 'ingredient_relative'
-  | 'possible_influence'
-  | 'parallel_evolution'
-  | 'uncertain';
+  | "ancestor"
+  | "descendant"
+  | "cousin"
+  | "regional_variant"
+  | "adaptation"
+  | "fusion"
+  | "diaspora_adaptation"
+  | "trade_route_spread"
+  | "colonial_spread"
+  | "technique_relative"
+  | "ingredient_relative"
+  | "possible_influence"
+  | "parallel_evolution"
+  | "uncertain";
 
 export interface LineageSummary {
   id: string;

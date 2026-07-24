@@ -24,18 +24,11 @@ export interface Props {
   cta?: string;
 }
 
-const {
-  eyebrow,
-  title,
-  body,
-  status = 'Coming soon',
-  href,
-  cta,
-} = Astro.props;
+const { eyebrow, title, body, status = "Coming soon", href, cta } = Astro.props;
 
 // Open in same tab unless the link is to /dishes/new which we keep
 // inside the app. Anchor links (#…) stay here too.
-const isAnchor = href?.startsWith('#');
+const isAnchor = href?.startsWith("#");
 ---
 
 {isAnchor ? (

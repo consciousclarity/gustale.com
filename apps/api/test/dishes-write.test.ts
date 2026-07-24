@@ -17,43 +17,62 @@
  *   - POST /api/dishes/:slug/publish requires moderator role (403 for contributor)
  *   - POST /api/dishes/:slug/publish moderator can transition draft → published
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { buildServer } from '../src/server.js';
-import * as authModule from '../src/auth.js';
+
+import type { FastifyInstance } from "fastify";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import * as authModule from "../src/auth.js";
+import { buildServer } from "../src/server.js";
 
 // Mock better-auth's getSession to return a controllable user.
-const mockGetSession = vi.spyOn(authModule.auth.api, 'getSession');
+const mockGetSession = vi.spyOn(authModule.auth.api, "getSession");
 
 const CONTRIBUTOR = {
-  id: 'test-contributor-id',
-  email: '[email protected]',
-  name: 'Test Contributor',
+  id: "test-contributor-id",
+  email: "[email protected]",
+  name: "Test Contributor",
   emailVerified: true,
-  role: 'contributor' as const,
-  displayName: 'Tester',
+  role: "contributor" as const,
+  displayName: "Tester",
 };
 
 const MODERATOR = {
-  id: 'test-moderator-id',
-  email: '[email protected]',
-  name: 'Test Moderator',
+  id: "test-moderator-id",
+  email: "[email protected]",
+  name: "Test Moderator",
   emailVerified: true,
-  role: 'moderator' as const,
-  displayName: 'Mod',
+  role: "moderator" as const,
+  displayName: "Mod",
 };
 
 function asContributor(): void {
   mockGetSession.mockResolvedValue({
     user: CONTRIBUTOR,
-    session: { id: 's', userId: CONTRIBUTOR.id, expiresAt: new Date(), token: 't', ipAddress: null, userAgent: null, createdAt: new Date(), updatedAt: new Date() },
+    session: {
+      id: "s",
+      userId: CONTRIBUTOR.id,
+      expiresAt: new Date(),
+      token: "t",
+      ipAddress: null,
+      userAgent: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
   } as never);
 }
 
 function asModerator(): void {
   mockGetSession.mockResolvedValue({
     user: MODERATOR,
-    session: { id: 's', userId: MODERATOR.id, expiresAt: new Date(), token: 't', ipAddress: null, userAgent: null, createdAt: new Date(), updatedAt: new Date() },
+    session: {
+      id: "s",
+      userId: MODERATOR.id,
+      expiresAt: new Date(),
+      token: "t",
+      ipAddress: null,
+      userAgent: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
   } as never);
 }
 
@@ -72,49 +91,49 @@ afterAll(async () => {
   mockGetSession.mockRestore();
 });
 
-describe('POST /api/dishes — auth gating', () => {
-  it('returns 401 when no session cookie', async () => {
+describe("POST /api/dishes — auth gating", () => {
+  it("returns 401 when no session cookie", async () => {
     asAnonymous();
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes',
-      payload: { canonicalName: 'Test Dish', slug: 'test-dish-anon' },
+      method: "POST",
+      url: "/api/dishes",
+      payload: { canonicalName: "Test Dish", slug: "test-dish-anon" },
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json().error).toBe('unauthenticated');
+    expect(res.json().error).toBe("unauthenticated");
   });
 });
 
-describe('POST /api/dishes — input validation', () => {
-  it('returns 400 on missing canonicalName', async () => {
+describe("POST /api/dishes — input validation", () => {
+  it("returns 400 on missing canonicalName", async () => {
     asContributor();
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes',
-      payload: { slug: 'test-bad-input-1' }, // canonicalName missing
+      method: "POST",
+      url: "/api/dishes",
+      payload: { slug: "test-bad-input-1" }, // canonicalName missing
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('validation_error');
+    expect(res.json().error).toBe("validation_error");
   });
 
-  it('returns 400 on invalid slug (uppercase letters)', async () => {
+  it("returns 400 on invalid slug (uppercase letters)", async () => {
     asContributor();
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes',
-      payload: { canonicalName: 'Test', slug: 'Bad-Slug' },
+      method: "POST",
+      url: "/api/dishes",
+      payload: { canonicalName: "Test", slug: "Bad-Slug" },
     });
     expect(res.statusCode).toBe(400);
   });
 
-  it('returns 400 on out-of-range lat/lng', async () => {
+  it("returns 400 on out-of-range lat/lng", async () => {
     asContributor();
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes',
+      method: "POST",
+      url: "/api/dishes",
       payload: {
-        canonicalName: 'Test',
-        slug: 'test-bad-coords',
+        canonicalName: "Test",
+        slug: "test-bad-coords",
         origin: { lat: 200, lng: 0 }, // lat > 90
       },
     });
@@ -122,12 +141,12 @@ describe('POST /api/dishes — input validation', () => {
   });
 });
 
-describe('POST /api/dishes/:slug/publish — RBAC', () => {
-  it('returns 403 when contributor tries to publish', async () => {
+describe("POST /api/dishes/:slug/publish — RBAC", () => {
+  it("returns 403 when contributor tries to publish", async () => {
     asContributor();
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes/moussaka-greek/publish',
+      method: "POST",
+      url: "/api/dishes/moussaka-greek/publish",
       payload: {},
     });
     // moussaka-greek is already published, so we get 409 instead of 403.
@@ -137,38 +156,38 @@ describe('POST /api/dishes/:slug/publish — RBAC', () => {
     expect([403, 409]).toContain(res.statusCode);
   });
 
-  it('moderator can attempt to publish (gets 409 because already published)', async () => {
+  it("moderator can attempt to publish (gets 409 because already published)", async () => {
     asModerator();
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes/moussaka-greek/publish',
+      method: "POST",
+      url: "/api/dishes/moussaka-greek/publish",
       payload: {},
     });
     // Already published → 409, not 403 (RBAC passed, state check failed)
     expect(res.statusCode).toBe(409);
-    expect(res.json().error).toBe('already_published');
+    expect(res.json().error).toBe("already_published");
   });
 });
 
-describe('PATCH /api/dishes/:slug — basic flow', () => {
-  it('returns 404 on unknown slug', async () => {
+describe("PATCH /api/dishes/:slug — basic flow", () => {
+  it("returns 404 on unknown slug", async () => {
     asContributor();
     const res = await app.inject({
-      method: 'PATCH',
-      url: '/api/dishes/this-slug-definitely-does-not-exist',
+      method: "PATCH",
+      url: "/api/dishes/this-slug-definitely-does-not-exist",
       // Use a valid-length name so we get past Zod validation and reach
       // the slug lookup (which then 404s).
-      payload: { canonicalName: 'Some Name' },
+      payload: { canonicalName: "Some Name" },
     });
     expect(res.statusCode).toBe(404);
   });
 
-  it('returns 400 when no fields provided', async () => {
+  it("returns 400 when no fields provided", async () => {
     asContributor();
     const res = await app.inject({
-      method: 'PATCH',
-      url: '/api/dishes/moussaka-greek',
-      payload: { comment: 'no fields' },
+      method: "PATCH",
+      url: "/api/dishes/moussaka-greek",
+      payload: { comment: "no fields" },
     });
     expect(res.statusCode).toBe(400);
   });

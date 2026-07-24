@@ -14,35 +14,36 @@
  * (PR #5 relations endpoint). Adding admin endpoints here keeps the public
  * read API and the relations endpoint completely untouched.
  */
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+
 import {
+  categories,
+  citations,
   db,
+  dishCategories,
   dishes,
   dishIngredients,
   dishPreparations,
-  dishCategories,
   dishRelations,
-  categories,
-  preparationMethods,
+  type EditAction,
+  editHistory,
   geoEntities,
   ingredients,
-  tags,
   media,
   mediaAttachments,
+  preparationMethods,
   sources,
-  citations,
-  editHistory,
-  type EditAction,
-} from '@gustale/db';
-import { httpError } from '../errors.js';
+  tags,
+} from "@gustale/db";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { httpError } from "../errors.js";
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────
 
 const listAdminDishesQuerySchema = z.object({
   q: z.string().max(200).optional(),
-  status: z.enum(['draft', 'published', 'archived']).optional(),
+  status: z.enum(["draft", "published", "archived"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(50),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
 });
@@ -57,8 +58,8 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // ─── GET /api/admin/lookups ──────────────────────────────────────────
   // Single round-trip that returns all the lookup data the editor needs
   // to populate <select> / multi-select inputs. Read-only, cacheable.
-  app.get('/api/admin/lookups', async (request, reply) => {
-    await app.requireRole(request, 'admin');
+  app.get("/api/admin/lookups", async (request, reply) => {
+    await app.requireRole(request, "admin");
 
     const [cats, methods, geos, ings] = await Promise.all([
       db
@@ -66,7 +67,7 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
           id: categories.id,
           name: categories.name,
           slug: categories.slug,
-          kind: sql<string>`(SELECT 'cuisine'::text)`.as('kind_cuisine'),
+          kind: sql<string>`(SELECT 'cuisine'::text)`.as("kind_cuisine"),
           // The actual `kind` column is missing on the live DB; we fall back
           // to a slug prefix heuristic so the UI can still group.
         })
@@ -107,14 +108,17 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
     // works if the heuristic is wrong.
     const augmentedCats = cats.map((c) => ({
       ...c,
-      kind: c.slug.startsWith('family-')
-        ? ('family' as const)
-        : c.slug.includes('cuisine') || /-(chinese|italian|japanese|korean|thai|indian|french|mexican|greek|spanish|indonesian|malaysian|vietnamese|lebanese|turkish|persian|american|british|german|portuguese|brazilian|russian|polish|hungarian|swedish|norwegian|dutch|ethiopian|senegalese|maroccan|egyptian|kenyan|peruvian|argentinian|chilean|venezuelan|cuban|jamaican|cajun|creole)$/i.test(c.slug)
-          ? ('cuisine' as const)
-          : ('dish-type' as const),
+      kind: c.slug.startsWith("family-")
+        ? ("family" as const)
+        : c.slug.includes("cuisine") ||
+            /-(chinese|italian|japanese|korean|thai|indian|french|mexican|greek|spanish|indonesian|malaysian|vietnamese|lebanese|turkish|persian|american|british|german|portuguese|brazilian|russian|polish|hungarian|swedish|norwegian|dutch|ethiopian|senegalese|maroccan|egyptian|kenyan|peruvian|argentinian|chilean|venezuelan|cuban|jamaican|cajun|creole)$/i.test(
+              c.slug,
+            )
+          ? ("cuisine" as const)
+          : ("dish-type" as const),
     }));
 
-    reply.header('Cache-Control', 'private, max-age=60');
+    reply.header("Cache-Control", "private, max-age=60");
     return reply.send({
       categories: augmentedCats,
       preparationMethods: methods,
@@ -131,8 +135,8 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // current corpus size. The dashboard degrades gracefully if this
   // endpoint is absent (older deploy) by deriving partial counts from
   // /api/admin/dishes + /api/admin/lookups instead.
-  app.get('/api/admin/stats', async (request, reply) => {
-    await app.requireRole(request, 'admin');
+  app.get("/api/admin/stats", async (request, reply) => {
+    await app.requireRole(request, "admin");
 
     const [
       dishCounts,
@@ -166,14 +170,16 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
         .select({ n: sql<number>`cast(count(*) as int)` })
         .from(categories)
         .where(sql`${categories.slug} like 'family-%'`),
-      db.select({ n: sql<number>`cast(count(*) as int)` }).from(preparationMethods),
+      db
+        .select({ n: sql<number>`cast(count(*) as int)` })
+        .from(preparationMethods),
       db.select({ n: sql<number>`cast(count(*) as int)` }).from(geoEntities),
       db.select({ n: sql<number>`cast(count(*) as int)` }).from(ingredients),
       db.select({ n: sql<number>`cast(count(*) as int)` }).from(tags),
       db.select({ n: sql<number>`cast(count(*) as int)` }).from(media),
     ]);
 
-    reply.header('Cache-Control', 'private, max-age=30');
+    reply.header("Cache-Control", "private, max-age=30");
     return reply.send({
       dishes: {
         total: dishCounts[0]?.total ?? 0,
@@ -202,8 +208,8 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // ─── GET /api/admin/dishes ───────────────────────────────────────────
   // Paginated dish list with optional search + status filter. Used by
   // the admin dish index page. Returns total count for pagination UI.
-  app.get('/api/admin/dishes', async (request, reply) => {
-    await app.requireRole(request, 'admin');
+  app.get("/api/admin/dishes", async (request, reply) => {
+    await app.requireRole(request, "admin");
     const params = listAdminDishesQuerySchema.parse(request.query);
 
     const whereParts = [] as ReturnType<typeof eq>[];
@@ -220,7 +226,12 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       if (match) whereParts.push(match);
     }
 
-    const whereExpr = whereParts.length === 0 ? undefined : whereParts.length === 1 ? whereParts[0] : and(...whereParts);
+    const whereExpr =
+      whereParts.length === 0
+        ? undefined
+        : whereParts.length === 1
+          ? whereParts[0]
+          : and(...whereParts);
 
     const [rows, totalRows] = await Promise.all([
       db
@@ -250,7 +261,10 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
     return reply.send({
       dishes: rows.map((r) => ({
         ...r,
-        updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+        updatedAt:
+          r.updatedAt instanceof Date
+            ? r.updatedAt.toISOString()
+            : String(r.updatedAt),
       })),
       total: totalRows[0]?.n ?? 0,
     });
@@ -259,8 +273,8 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // ─── GET /api/admin/dishes/:slug ──────────────────────────────────────
   // Full dish detail for the editor SSR. Includes joined ingredients,
   // preparation methods, categories, and related dishes.
-  app.get('/api/admin/dishes/:slug', async (request, reply) => {
-    await app.requireRole(request, 'admin');
+  app.get("/api/admin/dishes/:slug", async (request, reply) => {
+    await app.requireRole(request, "admin");
     const { slug } = slugParamSchema.parse(request.params);
 
     const dishRows = await db
@@ -269,7 +283,7 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (dishRows.length === 0) {
-      throw httpError(404, 'not_found', `Dish "${slug}" not found`);
+      throw httpError(404, "not_found", `Dish "${slug}" not found`);
     }
     const dish = dishRows[0]!;
 
@@ -299,7 +313,10 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
           sequenceOrder: dishPreparations.sequenceOrder,
         })
         .from(dishPreparations)
-        .leftJoin(preparationMethods, eq(preparationMethods.id, dishPreparations.methodId))
+        .leftJoin(
+          preparationMethods,
+          eq(preparationMethods.id, dishPreparations.methodId),
+        )
         .where(eq(dishPreparations.dishId, dish.id))
         .orderBy(asc(dishPreparations.sequenceOrder)),
       // dish_categories is also a junction table (no id). One row per
@@ -343,7 +360,10 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       originPeriodLabel: null, // column not in schema; reserved for future
       viewCount: dish.viewCount,
       editCount: dish.editCount,
-      updatedAt: dish.updatedAt instanceof Date ? dish.updatedAt.toISOString() : String(dish.updatedAt),
+      updatedAt:
+        dish.updatedAt instanceof Date
+          ? dish.updatedAt.toISOString()
+          : String(dish.updatedAt),
       ingredients: ingredientRows,
       preparations: prepRows,
       categories: catRows,
@@ -354,9 +374,11 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // ─── GET /api/admin/dishes/:slug/sources ────────────────────────────────
   // List all citations (with their source records) for a dish. Used by
   // the admin Sources tab. Order: most recent first.
-  app.get('/api/admin/dishes/:slug/sources', async (request, reply) => {
-    await app.requireRole(request, 'admin');
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+  app.get("/api/admin/dishes/:slug/sources", async (request, reply) => {
+    await app.requireRole(request, "admin");
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
 
     const dishRows = await db
       .select({ id: dishes.id })
@@ -364,7 +386,7 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (dishRows.length === 0) {
-      throw httpError(404, 'not_found', `Dish "${slug}" not found`);
+      throw httpError(404, "not_found", `Dish "${slug}" not found`);
     }
     const dishId = dishRows[0]!.id;
 
@@ -397,7 +419,10 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
         citationId: r.id,
         claimText: r.claimText,
         location: r.location,
-        addedAt: r.addedAt instanceof Date ? r.addedAt.toISOString() : String(r.addedAt),
+        addedAt:
+          r.addedAt instanceof Date
+            ? r.addedAt.toISOString()
+            : String(r.addedAt),
         source: {
           id: r.sourceId,
           sourceType: r.sourceType,
@@ -424,9 +449,11 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // citations can point to the same source (e.g. one source supports
   // multiple claims on different dishes, or two claims on the same
   // dish). If the source already exists (by url+title), we reuse it.
-  app.post('/api/admin/dishes/:slug/sources', async (request, reply) => {
-    const user = await app.requireRole(request, 'admin');
-    const { slug } = z.object({ slug: z.string().min(1).max(200) }).parse(request.params);
+  app.post("/api/admin/dishes/:slug/sources", async (request, reply) => {
+    const user = await app.requireRole(request, "admin");
+    const { slug } = z
+      .object({ slug: z.string().min(1).max(200) })
+      .parse(request.params);
 
     const dishRows = await db
       .select({ id: dishes.id })
@@ -434,7 +461,7 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (dishRows.length === 0) {
-      throw httpError(404, 'not_found', `Dish "${slug}" not found`);
+      throw httpError(404, "not_found", `Dish "${slug}" not found`);
     }
     const dishId = dishRows[0]!.id;
 
@@ -442,7 +469,13 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       .object({
         // Source fields
         sourceType: z.enum([
-          'book', 'article', 'web', 'video', 'audio', 'archive', 'personal_communication',
+          "book",
+          "article",
+          "web",
+          "video",
+          "audio",
+          "archive",
+          "personal_communication",
         ]),
         title: z.string().min(2).max(500),
         authors: z.array(z.string().min(1).max(200)).optional(),
@@ -454,8 +487,11 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
         archiveName: z.string().max(200).nullable().optional(),
         archiveCatalogId: z.string().max(200).nullable().optional(),
         citationText: z.string().max(5000).nullable().optional(),
-        language: z.string().length(2).default('en'),
-        reliability: z.enum(['primary', 'secondary', 'tertiary', 'speculative']).nullable().optional(),
+        language: z.string().length(2).default("en"),
+        reliability: z
+          .enum(["primary", "secondary", "tertiary", "speculative"])
+          .nullable()
+          .optional(),
         // Citation fields
         claimText: z.string().max(2000).nullable().optional(),
         location: z.string().max(500).nullable().optional(),
@@ -524,7 +560,7 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       .insert(citations)
       .values({
         sourceId,
-        targetType: 'dish',
+        targetType: "dish",
         targetId: dishId,
         claimText: body.claimText ?? null,
         location: body.location ?? null,
@@ -540,10 +576,12 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
     // Audit trail
     await db.insert(editHistory).values({
       userId: user.id,
-      targetType: 'dish',
+      targetType: "dish",
       targetId: dishId,
-      action: 'update' satisfies EditAction,
-      diff: { sourcesAdded: { title: body.title, claimText: body.claimText ?? null } },
+      action: "update" satisfies EditAction,
+      diff: {
+        sourcesAdded: { title: body.title, claimText: body.claimText ?? null },
+      },
       comment: `Added source: ${body.title}`,
     });
 
@@ -564,138 +602,169 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
   // ─── PATCH /api/admin/dishes/:slug/sources/:citationId ─────────────────
   // Update the citation's claimText/location AND/OR the source metadata.
   // Body is the same shape as POST but all fields optional.
-  app.patch('/api/admin/dishes/:slug/sources/:citationId', async (request, reply) => {
-    const user = await app.requireRole(request, 'admin');
-    const { slug, citationId } = z
-      .object({
-        slug: z.string().min(1).max(200),
-        citationId: z.string().uuid(),
-      })
-      .parse(request.params);
+  app.patch(
+    "/api/admin/dishes/:slug/sources/:citationId",
+    async (request, reply) => {
+      const user = await app.requireRole(request, "admin");
+      const { slug, citationId } = z
+        .object({
+          slug: z.string().min(1).max(200),
+          citationId: z.string().uuid(),
+        })
+        .parse(request.params);
 
-    const dishRows = await db
-      .select({ id: dishes.id })
-      .from(dishes)
-      .where(eq(dishes.slug, slug))
-      .limit(1);
-    if (dishRows.length === 0) {
-      throw httpError(404, 'not_found', `Dish "${slug}" not found`);
-    }
-    const dishId = dishRows[0]!.id;
+      const dishRows = await db
+        .select({ id: dishes.id })
+        .from(dishes)
+        .where(eq(dishes.slug, slug))
+        .limit(1);
+      if (dishRows.length === 0) {
+        throw httpError(404, "not_found", `Dish "${slug}" not found`);
+      }
+      const dishId = dishRows[0]!.id;
 
-    const body = z
-      .object({
-        claimText: z.string().max(2000).nullable().optional(),
-        location: z.string().max(500).nullable().optional(),
-        // Source metadata updates
-        title: z.string().min(2).max(500).optional(),
-        authors: z.array(z.string().min(1).max(200)).nullable().optional(),
-        year: z.number().int().min(-3000).max(2100).nullable().optional(),
-        publisher: z.string().max(200).nullable().optional(),
-        url: z.string().url().max(2000).nullable().optional(),
-        isbn: z.string().max(40).nullable().optional(),
-        doi: z.string().max(200).nullable().optional(),
-        citationText: z.string().max(5000).nullable().optional(),
-        reliability: z.enum(['primary', 'secondary', 'tertiary', 'speculative']).nullable().optional(),
-      })
-      .parse(request.body);
+      const body = z
+        .object({
+          claimText: z.string().max(2000).nullable().optional(),
+          location: z.string().max(500).nullable().optional(),
+          // Source metadata updates
+          title: z.string().min(2).max(500).optional(),
+          authors: z.array(z.string().min(1).max(200)).nullable().optional(),
+          year: z.number().int().min(-3000).max(2100).nullable().optional(),
+          publisher: z.string().max(200).nullable().optional(),
+          url: z.string().url().max(2000).nullable().optional(),
+          isbn: z.string().max(40).nullable().optional(),
+          doi: z.string().max(200).nullable().optional(),
+          citationText: z.string().max(5000).nullable().optional(),
+          reliability: z
+            .enum(["primary", "secondary", "tertiary", "speculative"])
+            .nullable()
+            .optional(),
+        })
+        .parse(request.body);
 
-    // Verify citation belongs to this dish.
-    const existing = await db
-      .select({
-        id: citations.id,
-        sourceId: citations.sourceId,
-      })
-      .from(citations)
-      .where(and(eq(citations.id, citationId), eq(citations.targetId, dishId)))
-      .limit(1);
-    if (existing.length === 0) {
-      throw httpError(404, 'citation_not_found', `Citation ${citationId} not found on ${slug}`);
-    }
-    const sourceId = existing[0]!.sourceId;
+      // Verify citation belongs to this dish.
+      const existing = await db
+        .select({
+          id: citations.id,
+          sourceId: citations.sourceId,
+        })
+        .from(citations)
+        .where(
+          and(eq(citations.id, citationId), eq(citations.targetId, dishId)),
+        )
+        .limit(1);
+      if (existing.length === 0) {
+        throw httpError(
+          404,
+          "citation_not_found",
+          `Citation ${citationId} not found on ${slug}`,
+        );
+      }
+      const sourceId = existing[0]!.sourceId;
 
-    // Update citation if requested.
-    const citationUpdates: Record<string, unknown> = {};
-    if (body.claimText !== undefined) citationUpdates.claimText = body.claimText;
-    if (body.location !== undefined) citationUpdates.location = body.location;
-    if (Object.keys(citationUpdates).length > 0) {
-      await db.update(citations).set(citationUpdates).where(eq(citations.id, citationId));
-    }
+      // Update citation if requested.
+      const citationUpdates: Record<string, unknown> = {};
+      if (body.claimText !== undefined)
+        citationUpdates.claimText = body.claimText;
+      if (body.location !== undefined) citationUpdates.location = body.location;
+      if (Object.keys(citationUpdates).length > 0) {
+        await db
+          .update(citations)
+          .set(citationUpdates)
+          .where(eq(citations.id, citationId));
+      }
 
-    // Update source if any source field provided.
-    const sourceUpdates: Record<string, unknown> = {};
-    if (body.title !== undefined) sourceUpdates.title = body.title;
-    if (body.authors !== undefined) sourceUpdates.authors = body.authors;
-    if (body.year !== undefined) sourceUpdates.year = body.year;
-    if (body.publisher !== undefined) sourceUpdates.publisher = body.publisher;
-    if (body.url !== undefined) sourceUpdates.url = body.url;
-    if (body.isbn !== undefined) sourceUpdates.isbn = body.isbn;
-    if (body.doi !== undefined) sourceUpdates.doi = body.doi;
-    if (body.citationText !== undefined) sourceUpdates.citationText = body.citationText;
-    if (body.reliability !== undefined) sourceUpdates.reliability = body.reliability;
-    if (Object.keys(sourceUpdates).length > 0) {
-      await db.update(sources).set(sourceUpdates).where(eq(sources.id, sourceId));
-    }
+      // Update source if any source field provided.
+      const sourceUpdates: Record<string, unknown> = {};
+      if (body.title !== undefined) sourceUpdates.title = body.title;
+      if (body.authors !== undefined) sourceUpdates.authors = body.authors;
+      if (body.year !== undefined) sourceUpdates.year = body.year;
+      if (body.publisher !== undefined)
+        sourceUpdates.publisher = body.publisher;
+      if (body.url !== undefined) sourceUpdates.url = body.url;
+      if (body.isbn !== undefined) sourceUpdates.isbn = body.isbn;
+      if (body.doi !== undefined) sourceUpdates.doi = body.doi;
+      if (body.citationText !== undefined)
+        sourceUpdates.citationText = body.citationText;
+      if (body.reliability !== undefined)
+        sourceUpdates.reliability = body.reliability;
+      if (Object.keys(sourceUpdates).length > 0) {
+        await db
+          .update(sources)
+          .set(sourceUpdates)
+          .where(eq(sources.id, sourceId));
+      }
 
-    // Audit trail
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: 'dish',
-      targetId: dishId,
-      action: 'update' satisfies EditAction,
-      diff: {
-        citationUpdated: { citationId, ...citationUpdates },
-        sourceUpdated: sourceUpdates,
-      },
-      comment: `Updated source ${citationId}`,
-    });
+      // Audit trail
+      await db.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish",
+        targetId: dishId,
+        action: "update" satisfies EditAction,
+        diff: {
+          citationUpdated: { citationId, ...citationUpdates },
+          sourceUpdated: sourceUpdates,
+        },
+        comment: `Updated source ${citationId}`,
+      });
 
-    return reply.send({ citationId, updated: true });
-  });
+      return reply.send({ citationId, updated: true });
+    },
+  );
 
   // ─── DELETE /api/admin/dishes/:slug/sources/:citationId ────────────────
   // Remove the citation link between this dish and its source. The source
   // row itself is preserved — it may be referenced by other dishes.
-  app.delete('/api/admin/dishes/:slug/sources/:citationId', async (request, reply) => {
-    const user = await app.requireRole(request, 'admin');
-    const { slug, citationId } = z
-      .object({
-        slug: z.string().min(1).max(200),
-        citationId: z.string().uuid(),
-      })
-      .parse(request.params);
+  app.delete(
+    "/api/admin/dishes/:slug/sources/:citationId",
+    async (request, reply) => {
+      const user = await app.requireRole(request, "admin");
+      const { slug, citationId } = z
+        .object({
+          slug: z.string().min(1).max(200),
+          citationId: z.string().uuid(),
+        })
+        .parse(request.params);
 
-    const dishRows = await db
-      .select({ id: dishes.id })
-      .from(dishes)
-      .where(eq(dishes.slug, slug))
-      .limit(1);
-    if (dishRows.length === 0) {
-      throw httpError(404, 'not_found', `Dish "${slug}" not found`);
-    }
-    const dishId = dishRows[0]!.id;
+      const dishRows = await db
+        .select({ id: dishes.id })
+        .from(dishes)
+        .where(eq(dishes.slug, slug))
+        .limit(1);
+      if (dishRows.length === 0) {
+        throw httpError(404, "not_found", `Dish "${slug}" not found`);
+      }
+      const dishId = dishRows[0]!.id;
 
-    const existing = await db
-      .select({ id: citations.id })
-      .from(citations)
-      .where(and(eq(citations.id, citationId), eq(citations.targetId, dishId)))
-      .limit(1);
-    if (existing.length === 0) {
-      throw httpError(404, 'citation_not_found', `Citation ${citationId} not found on ${slug}`);
-    }
+      const existing = await db
+        .select({ id: citations.id })
+        .from(citations)
+        .where(
+          and(eq(citations.id, citationId), eq(citations.targetId, dishId)),
+        )
+        .limit(1);
+      if (existing.length === 0) {
+        throw httpError(
+          404,
+          "citation_not_found",
+          `Citation ${citationId} not found on ${slug}`,
+        );
+      }
 
-    await db.delete(citations).where(eq(citations.id, citationId));
+      await db.delete(citations).where(eq(citations.id, citationId));
 
-    // Audit trail
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: 'dish',
-      targetId: dishId,
-      action: 'update' satisfies EditAction,
-      diff: { citationRemoved: { citationId } },
-      comment: `Removed source citation ${citationId}`,
-    });
+      // Audit trail
+      await db.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish",
+        targetId: dishId,
+        action: "update" satisfies EditAction,
+        diff: { citationRemoved: { citationId } },
+        comment: `Removed source citation ${citationId}`,
+      });
 
-    return reply.send({ removed: true, citationId });
-  });
+      return reply.send({ removed: true, citationId });
+    },
+  );
 }

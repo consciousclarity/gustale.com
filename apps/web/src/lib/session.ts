@@ -16,13 +16,13 @@
  * For prod: SSR shows the unauthenticated header; hydration immediately
  * upgrades it. This is a one-frame flash, acceptable for v1.
  */
-import { authClient } from './auth';
+import { authClient } from "./auth";
 
 export interface SessionUser {
   id: string;
   email: string;
   name: string;
-  role: 'visitor' | 'contributor' | 'moderator' | 'admin';
+  role: "visitor" | "contributor" | "moderator" | "admin";
 }
 
 export async function getSessionFromCookies(
@@ -33,14 +33,14 @@ export async function getSessionFromCookies(
   // Parse the cookie header manually so we don't need a runtime cookie
   // parser dependency. Cookie header format: "name1=value1; name2=value2".
   const cookies: Record<string, string> = {};
-  for (const pair of cookieHeader.split(';')) {
-    const [name, ...rest] = pair.trim().split('=');
+  for (const pair of cookieHeader.split(";")) {
+    const [name, ...rest] = pair.trim().split("=");
     if (name && rest.length > 0) {
-      cookies[name] = decodeURIComponent(rest.join('='));
+      cookies[name] = decodeURIComponent(rest.join("="));
     }
   }
 
-  const sessionToken = cookies['gustale.session_token'];
+  const sessionToken = cookies["gustale.session_token"];
   if (!sessionToken) return null;
 
   // For now we return null when we can't reach the API from SSR (prod case).
@@ -67,7 +67,7 @@ export async function getClientSession(): Promise<SessionUser | null> {
       id: u.id,
       email: u.email,
       name: u.name,
-      role: (u.role ?? 'visitor') as SessionUser['role'],
+      role: (u.role ?? "visitor") as SessionUser["role"],
     };
   } catch {
     return null;

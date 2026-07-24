@@ -1,4 +1,4 @@
-import { customType } from 'drizzle-orm/pg-core';
+import { customType } from "drizzle-orm/pg-core";
 
 /**
  * PostGIS geometry/geography type for Drizzle ORM.
@@ -7,13 +7,13 @@ import { customType } from 'drizzle-orm/pg-core';
  */
 export const geometry = <TName extends string = string>(
   name: TName,
-  options: { srid?: number; type?: 'geometry' | 'geography' } = {}
+  options: { srid?: number; type?: "geometry" | "geography" } = {},
 ) =>
   customType<{ data: string; driverData: string }>({
     dataType() {
-      const type = options.type ?? 'geometry';
-      const srid = options.srid ? `,${options.srid}` : '';
-      return `${type}(Geometry,${srid.replace(',', '')})`;
+      const type = options.type ?? "geometry";
+      const srid = options.srid ? `,${options.srid}` : "";
+      return `${type}(Geometry,${srid.replace(",", "")})`;
     },
     toDriver(value: string): string {
       return value;

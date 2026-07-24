@@ -1,9 +1,9 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import { ApiError, listDishes } from '../../lib/api';
-import { collectFamiliesFromPublishedDishes } from '../../lib/collectDishFamilies';
-import { atlasUrl, isRecipesDomain } from '../../lib/domain';
-import type { DishListResponse } from '../../types/dish';
+import Layout from "../../layouts/Layout.astro";
+import { ApiError, listDishes } from "../../lib/api";
+import { collectFamiliesFromPublishedDishes } from "../../lib/collectDishFamilies";
+import { atlasUrl, isRecipesDomain } from "../../lib/domain";
+import type { DishListResponse } from "../../types/dish";
 
 // ---------------------------------------------------------------------------
 // Food-family page.
@@ -23,7 +23,9 @@ export async function getStaticPaths() {
   // the paged dishes list so a missing categories route cannot wipe /family/*.
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
-    console.warn('[family/getStaticPaths] PUBLIC_API_BASE unset — no family pages');
+    console.warn(
+      "[family/getStaticPaths] PUBLIC_API_BASE unset — no family pages",
+    );
     return [];
   }
   const base = apiBase;
@@ -34,7 +36,11 @@ export async function getStaticPaths() {
     const res = await fetch(`${base}/api/categories`);
     if (!res.ok) return [];
     const json = (await res.json()) as {
-      categories?: Array<{ slug: string; name: string; description?: string | null }>;
+      categories?: Array<{
+        slug: string;
+        name: string;
+        description?: string | null;
+      }>;
     };
     return (json.categories ?? [])
       .filter((c) => c.slug && c.name)
@@ -54,11 +60,15 @@ export async function getStaticPaths() {
   try {
     let cats = await fromCategories();
     if (cats.length === 0) {
-      console.warn('[family/getStaticPaths] /api/categories empty — falling back to dish familySlug');
+      console.warn(
+        "[family/getStaticPaths] /api/categories empty — falling back to dish familySlug",
+      );
       cats = await fromDishFamilies();
     }
     if (cats.length === 0) {
-      console.warn('[family/getStaticPaths] no categories resolved — emitting zero family pages');
+      console.warn(
+        "[family/getStaticPaths] no categories resolved — emitting zero family pages",
+      );
       return [];
     }
     return cats.map((c) => ({
@@ -66,7 +76,7 @@ export async function getStaticPaths() {
       props: { name: c.name, description: c.description },
     }));
   } catch (err) {
-    console.error('[family/getStaticPaths] failed:', err);
+    console.error("[family/getStaticPaths] failed:", err);
     return [];
   }
 }
@@ -81,14 +91,18 @@ let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
 let serverError: string | null = null;
 
 try {
-  initial = await listDishes({ status: 'published', limit: 100, category: slug });
+  initial = await listDishes({
+    status: "published",
+    limit: 100,
+    category: slug,
+  });
 } catch (err: unknown) {
   if (err instanceof ApiError) {
     serverError = `API ${err.status} — check that gustale-api is reachable from the build.`;
   } else if (err instanceof Error) {
     serverError = err.message;
   } else {
-    serverError = 'Unknown error';
+    serverError = "Unknown error";
   }
 }
 
@@ -97,12 +111,14 @@ try {
 const byRegion = new Map<string, typeof initial.dishes>();
 for (const d of initial.dishes) {
   // Origin name is the country/region string — see DishSummary.originName.
-  const region = d.originName ?? 'Unknown origin';
+  const region = d.originName ?? "Unknown origin";
   const bucket = byRegion.get(region) ?? [];
   bucket.push(d);
   byRegion.set(region, bucket);
 }
-const sortedRegions = [...byRegion.entries()].sort((a, b) => b[1].length - a[1].length);
+const sortedRegions = [...byRegion.entries()].sort(
+  (a, b) => b[1].length - a[1].length,
+);
 
 const totalDishes = initial.dishes.length;
 const totalRegions = byRegion.size;
@@ -110,22 +126,36 @@ const totalRegions = byRegion.size;
 // Editorial descriptions for well-known families. Unrecognized slugs
 // fall back to the description from the categories API.
 const KNOWN_BLURBS: Record<string, string> = {
-  dumpling: 'A pocket of dough and a filling — the same idea born on trade routes, carried by migration, and reinvented in every kitchen that received it. From Central Asia outward: the dumpling is everywhere.',
-  'noodle-soup': 'Stretched, cut, or rolled dough dropped into broth — a form that follows the Silk Road east and south through every coast it touched. Climate and ingredient swap everything; the logic stays the same.',
-  bread: 'Fire and grain: the oldest covenant in food. The same flat or leavened disc of dough appears at every latitude where people settled and built ovens.',
-  pancake: 'The griddle predates the oven. A poured batter, a hot flat surface — this technique crossed deserts and oceans independently, arriving at injera, dosa, blini, and crepe without knowing the others existed.',
-  stew: 'Slow time and a sealed vessel: patience in cooking has no single origin. The stew is wherever people wait for flavors to merge — clay pot, tagine, cast iron, banana leaf.',
-  curry: 'Spice, fat, and aromatics ground together as a base — a technique as much as a dish. Trade in pepper, turmeric, and chili wrote the migration routes; the curry shows where those routes led.',
-  pasta: 'Dried grain shaped into strands or sheets — a technology of preservation and trade. Its travel west from China or east from Persia is debated; its spread across the Mediterranean is history.',
-  kebab: 'Meat on heat, over fire — one of the first cooking techniques. The skewer traces nomadic routes across the steppe and down through the Levant, each stop reshaping the cut and the spice.',
-  salad: 'Small plates assembled from what\'s available: preserved, fermented, or raw. The logic of preservation and contrast appears wherever kitchens needed to stretch ingredients across seasons.',
-  dessert: 'Sugar, fat, and starch shaped into celebration. Sweet preparations followed trade in cane, honey, and fruit — gifted between courts, carried by merchants, adapted by every cuisine that received them.',
-  'rice-dish': 'Rice as the centre of the plate — fried, steamed, layered, or risotto-style. The grain travels everywhere and the technique adapts to the kitchen.',
-  'fried-rice': 'Leftover cooked grain meets high heat — a technique born of frugality that became a craft. The wok, the griddle, the clay pot: the method travels with the grain.',
-  'omelettes-and-scrambles': 'The egg as a medium: technique separates every culture\'s answer. Same raw material, wholly different results from tamagoyaki to shakshuka to tortilla.',
-  casserole: 'Layered and baked dishes that turn patience and a hot oven into a single communal plate — lasagna, moussaka, pastitsada, the whole family of slow-bake comfort food.',
-  appetizer: 'Small opening courses and snacks — the meze, the antipasto, the fritter, the small plate that frames the meal.',
-  'main-course': 'Substantial primary plates that anchor the meal.',
+  dumpling:
+    "A pocket of dough and a filling — the same idea born on trade routes, carried by migration, and reinvented in every kitchen that received it. From Central Asia outward: the dumpling is everywhere.",
+  "noodle-soup":
+    "Stretched, cut, or rolled dough dropped into broth — a form that follows the Silk Road east and south through every coast it touched. Climate and ingredient swap everything; the logic stays the same.",
+  bread:
+    "Fire and grain: the oldest covenant in food. The same flat or leavened disc of dough appears at every latitude where people settled and built ovens.",
+  pancake:
+    "The griddle predates the oven. A poured batter, a hot flat surface — this technique crossed deserts and oceans independently, arriving at injera, dosa, blini, and crepe without knowing the others existed.",
+  stew: "Slow time and a sealed vessel: patience in cooking has no single origin. The stew is wherever people wait for flavors to merge — clay pot, tagine, cast iron, banana leaf.",
+  curry:
+    "Spice, fat, and aromatics ground together as a base — a technique as much as a dish. Trade in pepper, turmeric, and chili wrote the migration routes; the curry shows where those routes led.",
+  pasta:
+    "Dried grain shaped into strands or sheets — a technology of preservation and trade. Its travel west from China or east from Persia is debated; its spread across the Mediterranean is history.",
+  kebab:
+    "Meat on heat, over fire — one of the first cooking techniques. The skewer traces nomadic routes across the steppe and down through the Levant, each stop reshaping the cut and the spice.",
+  salad:
+    "Small plates assembled from what's available: preserved, fermented, or raw. The logic of preservation and contrast appears wherever kitchens needed to stretch ingredients across seasons.",
+  dessert:
+    "Sugar, fat, and starch shaped into celebration. Sweet preparations followed trade in cane, honey, and fruit — gifted between courts, carried by merchants, adapted by every cuisine that received them.",
+  "rice-dish":
+    "Rice as the centre of the plate — fried, steamed, layered, or risotto-style. The grain travels everywhere and the technique adapts to the kitchen.",
+  "fried-rice":
+    "Leftover cooked grain meets high heat — a technique born of frugality that became a craft. The wok, the griddle, the clay pot: the method travels with the grain.",
+  "omelettes-and-scrambles":
+    "The egg as a medium: technique separates every culture's answer. Same raw material, wholly different results from tamagoyaki to shakshuka to tortilla.",
+  casserole:
+    "Layered and baked dishes that turn patience and a hot oven into a single communal plate — lasagna, moussaka, pastitsada, the whole family of slow-bake comfort food.",
+  appetizer:
+    "Small opening courses and snacks — the meze, the antipasto, the fritter, the small plate that frames the meal.",
+  "main-course": "Substantial primary plates that anchor the meal.",
 };
 const blurb = KNOWN_BLURBS[slug] ?? familyDescription ?? null;
 ---

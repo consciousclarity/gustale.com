@@ -22,21 +22,20 @@ import type {
   DishDetailResponse,
   DishListResponse,
   TagListItem,
-} from '../types/dish';
+} from "../types/dish";
 import type {
   LineageDetailResponse,
   LineageListResponse,
-} from '../types/lineage';
+} from "../types/lineage";
 
 // Build-time API host — used only during SSR. In the browser we always
 // use a relative /api path so same-origin proxying handles the routing.
-const SSR_API_BASE =
-  import.meta.env.PUBLIC_API_BASE ?? 'http://localhost:4000';
+const SSR_API_BASE = import.meta.env.PUBLIC_API_BASE ?? "http://localhost:4000";
 
 // Client-side: empty string makes fetch() hit the same origin.
 // On the server: PUBLIC_API_BASE (absolute URL) because there's no
 // "current origin" to be relative to during SSR / SSG.
-const API_BASE = import.meta.env.SSR ? SSR_API_BASE : '';
+const API_BASE = import.meta.env.SSR ? SSR_API_BASE : "";
 
 export class ApiError extends Error {
   constructor(
@@ -45,7 +44,7 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
@@ -79,7 +78,11 @@ function backoffDelay(attempt: number): number {
   return Math.max(0, Math.round(base + jitter));
 }
 
-function shouldRetry(status: number | undefined, err: unknown, attempt: number): boolean {
+function shouldRetry(
+  status: number | undefined,
+  err: unknown,
+  attempt: number,
+): boolean {
   if (attempt >= MAX_RETRIES) return false;
   // Network error → retry
   if (err instanceof TypeError) return true;
@@ -107,8 +110,11 @@ async function fetchWithRetry(
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(`${API_BASE}${path}`, {
-        headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
-        cache: 'no-store',
+        headers: {
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+        },
+        cache: "no-store",
         ...init,
       });
 
@@ -120,14 +126,14 @@ async function fetchWithRetry(
       }
 
       // Honor Retry-After header if present (in seconds)
-      const retryAfter = res.headers.get('Retry-After');
+      const retryAfter = res.headers.get("Retry-After");
       const waitMs = retryAfter
         ? Math.max(0, parseInt(retryAfter, 10) * 1000)
         : backoffDelay(attempt);
 
       // eslint-disable-next-line no-console
       console.warn(
-        `[api] ${init.method ?? 'GET'} ${path} → ${res.status}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
+        `[api] ${init.method ?? "GET"} ${path} → ${res.status}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
       );
       await delay(waitMs);
       // Drain the body so the connection can be reused
@@ -140,7 +146,7 @@ async function fetchWithRetry(
       const waitMs = backoffDelay(attempt);
       // eslint-disable-next-line no-console
       console.warn(
-        `[api] ${init.method ?? 'GET'} ${path} → network error, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
+        `[api] ${init.method ?? "GET"} ${path} → network error, retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
       );
       await delay(waitMs);
     }
@@ -151,12 +157,12 @@ async function fetchWithRetry(
     // Re-issue a final request so we can surface the response status to the caller
     return fetch(`${API_BASE}${path}`, init);
   }
-  throw lastError ?? new Error('fetchWithRetry: exhausted retries');
+  throw lastError ?? new Error("fetchWithRetry: exhausted retries");
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetchWithRetry(path, {
-    method: 'GET',
+    method: "GET",
     ...(init ?? {}),
   });
 
@@ -179,36 +185,36 @@ export interface ListDishesParams {
   limit?: number;
   offset?: number;
   search?: string;
-  status?: 'published' | 'draft' | 'archived';
-  country?: string;    // origin country
-  cuisine?: string;   // cuisine category (Korean cuisine, Italian cuisine…)
-  type?: string;       // dish-type category (Noodle soup, Stew, Pasta…)
+  status?: "published" | "draft" | "archived";
+  country?: string; // origin country
+  cuisine?: string; // cuisine category (Korean cuisine, Italian cuisine…)
+  type?: string; // dish-type category (Noodle soup, Stew, Pasta…)
   ingredient?: string;
   technique?: string;
-  region?: string;     // legacy alias for country
-  category?: string;    // legacy alias for cuisine
-  period?: string;     // historical era e.g. 1920-1950
-  family?: string;      // kind='family' category slug (Dumplings, Noodle soups…)
+  region?: string; // legacy alias for country
+  category?: string; // legacy alias for cuisine
+  period?: string; // historical era e.g. 1920-1950
+  family?: string; // kind='family' category slug (Dumplings, Noodle soups…)
 }
 
 export function listDishes(
   params: ListDishesParams = {},
 ): Promise<DishListResponse> {
   const qs = new URLSearchParams();
-  if (params.limit != null) qs.set('limit', String(params.limit));
-  if (params.offset != null) qs.set('offset', String(params.offset));
-  if (params.search) qs.set('q', params.search);
-  if (params.status) qs.set('status', params.status);
-  if (params.country) qs.set('country', params.country);
-  if (params.cuisine) qs.set('cuisine', params.cuisine);
-  if (params.type) qs.set('type', params.type);
-  if (params.ingredient) qs.set('ingredient', params.ingredient);
-  if (params.technique) qs.set('technique', params.technique);
-  if (params.region) qs.set('region', params.region);
-  if (params.category) qs.set('category', params.category);
-  if (params.period) qs.set('period', params.period);
-  if (params.family) qs.set('family', params.family);
-  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  if (params.offset != null) qs.set("offset", String(params.offset));
+  if (params.search) qs.set("q", params.search);
+  if (params.status) qs.set("status", params.status);
+  if (params.country) qs.set("country", params.country);
+  if (params.cuisine) qs.set("cuisine", params.cuisine);
+  if (params.type) qs.set("type", params.type);
+  if (params.ingredient) qs.set("ingredient", params.ingredient);
+  if (params.technique) qs.set("technique", params.technique);
+  if (params.region) qs.set("region", params.region);
+  if (params.category) qs.set("category", params.category);
+  if (params.period) qs.set("period", params.period);
+  if (params.family) qs.set("family", params.family);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }
 
@@ -223,8 +229,8 @@ export function getDishDetail(
   params: GetDishDetailParams = {},
 ): Promise<DishDetailResponse> {
   const qs = new URLSearchParams();
-  if (params.language) qs.set('language', params.language);
-  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  if (params.language) qs.set("language", params.language);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<DishDetailResponse>(
     `/api/dishes/${encodeURIComponent(slug)}${suffix}`,
   );
@@ -233,7 +239,7 @@ export function getDishDetail(
 // ─── Health (GET /api/health) ─────────────────────────────────────────────
 
 export function getHealth(): Promise<{ status: string }> {
-  return request<{ status: string }>('/api/health');
+  return request<{ status: string }>("/api/health");
 }
 
 // ─── Map view (GET /api/dishes/map) ───────────────────────────────────────
@@ -273,8 +279,8 @@ export function getMapDishes(
   params: MapDishesParams = {},
 ): Promise<MapDishesResponse> {
   const qs = new URLSearchParams();
-  if (params.limit != null) qs.set('limit', String(params.limit));
-  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<MapDishesResponse>(`/api/dishes/map${suffix}`);
 }
 
@@ -317,11 +323,11 @@ export function getDishRelations(slug: string): Promise<DishRelationsResponse> {
 // pagination needed.
 
 export function getCategories(): Promise<{ categories: CategoryListItem[] }> {
-  return request<{ categories: CategoryListItem[] }>('/api/categories');
+  return request<{ categories: CategoryListItem[] }>("/api/categories");
 }
 
 export function getTags(): Promise<{ tags: TagListItem[] }> {
-  return request<{ tags: TagListItem[] }>('/api/tags');
+  return request<{ tags: TagListItem[] }>("/api/tags");
 }
 
 // ─── Ingredient detail (GET /api/ingredients/:slug) ───────────────────────
@@ -342,9 +348,9 @@ export function listIngredients(
   params: { limit?: number; offset?: number } = {},
 ): Promise<IngredientListResponse> {
   const qs = new URLSearchParams();
-  if (params.limit != null) qs.set('limit', String(params.limit));
-  if (params.offset != null) qs.set('offset', String(params.offset));
-  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  if (params.offset != null) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<IngredientListResponse>(`/api/ingredients${suffix}`);
 }
 
@@ -417,8 +423,10 @@ export interface AdminLookupsResponse {
   ingredients: Array<{ id: string; canonicalName: string }>;
 }
 
-export function getAdminLookups(init?: RequestInit): Promise<AdminLookupsResponse> {
-  return request<AdminLookupsResponse>('/api/admin/lookups', init);
+export function getAdminLookups(
+  init?: RequestInit,
+): Promise<AdminLookupsResponse> {
+  return request<AdminLookupsResponse>("/api/admin/lookups", init);
 }
 
 // ─── Admin dashboard stats (GET /api/admin/stats) ─────────────────────────
@@ -445,7 +453,7 @@ export interface AdminStatsResponse {
 }
 
 export function getAdminStats(init?: RequestInit): Promise<AdminStatsResponse> {
-  return request<AdminStatsResponse>('/api/admin/stats', init);
+  return request<AdminStatsResponse>("/api/admin/stats", init);
 }
 
 // ─── Contributor dashboard (Slice 2 — read-only) ─────────────────────
@@ -458,7 +466,7 @@ export interface DashboardDraft {
   slug: string;
   canonicalName: string;
   shortDescription: string | null;
-  status: 'draft' | 'published' | 'archived';
+  status: "draft" | "published" | "archived";
   viewCount: number;
   editCount: number;
   updatedAt: string;
@@ -476,11 +484,11 @@ export function getDashboardDrafts(
   init?: RequestInit,
 ): Promise<DashboardDraftsResponse> {
   const search = new URLSearchParams();
-  if (params.limit != null) search.set('limit', String(params.limit));
-  if (params.offset != null) search.set('offset', String(params.offset));
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.offset != null) search.set("offset", String(params.offset));
   const qs = search.toString();
   return request<DashboardDraftsResponse>(
-    `/api/dashboard/drafts${qs ? `?${qs}` : ''}`,
+    `/api/dashboard/drafts${qs ? `?${qs}` : ""}`,
     init,
   );
 }
@@ -505,11 +513,11 @@ export function getDashboardSubmissions(
   init?: RequestInit,
 ): Promise<DashboardSubmissionsResponse> {
   const search = new URLSearchParams();
-  if (params.limit != null) search.set('limit', String(params.limit));
-  if (params.offset != null) search.set('offset', String(params.offset));
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.offset != null) search.set("offset", String(params.offset));
   const qs = search.toString();
   return request<DashboardSubmissionsResponse>(
-    `/api/dashboard/submissions${qs ? `?${qs}` : ''}`,
+    `/api/dashboard/submissions${qs ? `?${qs}` : ""}`,
     init,
   );
 }
@@ -519,7 +527,7 @@ export interface AdminDishSummary {
   slug: string;
   canonicalName: string;
   shortDescription: string | null;
-  status: 'draft' | 'published' | 'archived';
+  status: "draft" | "published" | "archived";
   viewCount: number;
   updatedAt: string;
   originGeoId: string | null;
@@ -536,13 +544,13 @@ export function listAdminDishes(
   init?: RequestInit,
 ): Promise<AdminDishListResponse> {
   const search = new URLSearchParams();
-  if (params.q) search.set('q', params.q);
-  if (params.status) search.set('status', params.status);
-  if (params.limit) search.set('limit', String(params.limit));
-  if (params.offset) search.set('offset', String(params.offset));
+  if (params.q) search.set("q", params.q);
+  if (params.status) search.set("status", params.status);
+  if (params.limit) search.set("limit", String(params.limit));
+  if (params.offset) search.set("offset", String(params.offset));
   const qs = search.toString();
   return request<AdminDishListResponse>(
-    `/api/admin/dishes${qs ? `?${qs}` : ''}`,
+    `/api/admin/dishes${qs ? `?${qs}` : ""}`,
     init,
   );
 }
@@ -553,7 +561,7 @@ export interface AdminDishDetail {
   canonicalName: string;
   shortDescription: string | null;
   longDescription: string | null;
-  status: 'draft' | 'published' | 'archived';
+  status: "draft" | "published" | "archived";
   originGeoId: string | null;
   originDateEarliest: number | null;
   originDateLatest: number | null;
@@ -593,7 +601,10 @@ export interface AdminDishDetail {
   }>;
 }
 
-export function getAdminDish(slug: string, init?: RequestInit): Promise<AdminDishDetail> {
+export function getAdminDish(
+  slug: string,
+  init?: RequestInit,
+): Promise<AdminDishDetail> {
   return request<AdminDishDetail>(
     `/api/admin/dishes/${encodeURIComponent(slug)}`,
     init,
@@ -613,7 +624,7 @@ export function getAdminDish(slug: string, init?: RequestInit): Promise<AdminDis
 export interface AdminDishMediaItem {
   id: string;
   mediaId: string;
-  role: 'cover' | 'gallery';
+  role: "cover" | "gallery";
   position: number;
   attachedAt: string;
   media: {
@@ -663,22 +674,22 @@ export async function listAdminDishMedia(
 export async function uploadMedia(
   file: File,
   meta?: { altText?: string; credit?: string; license?: string },
-): Promise<AdminDishMediaItem['media']> {
+): Promise<AdminDishMediaItem["media"]> {
   const fd = new FormData();
-  fd.append('file', file);
-  if (meta?.altText) fd.append('altText', meta.altText);
-  if (meta?.credit) fd.append('credit', meta.credit);
-  if (meta?.license) fd.append('license', meta.license);
+  fd.append("file", file);
+  if (meta?.altText) fd.append("altText", meta.altText);
+  if (meta?.credit) fd.append("credit", meta.credit);
+  if (meta?.license) fd.append("license", meta.license);
   const res = await fetch(`${API_BASE}/api/media/upload`, {
-    method: 'POST',
-    credentials: 'include',
+    method: "POST",
+    credentials: "include",
     body: fd,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Upload failed (${res.status}): ${text || 'unknown'}`);
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}): ${text || "unknown"}`);
   }
-  const data = (await res.json()) as { media: AdminDishMediaItem['media'] };
+  const data = (await res.json()) as { media: AdminDishMediaItem["media"] };
   return data.media;
 }
 
@@ -689,14 +700,17 @@ export async function uploadMedia(
 export async function attachMediaToDish(
   slug: string,
   mediaId: string,
-  role: 'cover' | 'gallery' = 'gallery',
+  role: "cover" | "gallery" = "gallery",
 ): Promise<AdminDishMediaItem> {
-  return request<AdminDishMediaItem>(`/api/dishes/${encodeURIComponent(slug)}/media`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ mediaId, role }),
-    credentials: 'include',
-  });
+  return request<AdminDishMediaItem>(
+    `/api/dishes/${encodeURIComponent(slug)}/media`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mediaId, role }),
+      credentials: "include",
+    },
+  );
 }
 
 /**
@@ -709,7 +723,7 @@ export async function detachMediaFromDish(
 ): Promise<{ removed: boolean; attachmentId: string }> {
   return request<{ removed: boolean; attachmentId: string }>(
     `/api/dishes/${encodeURIComponent(slug)}/media/${encodeURIComponent(attachmentId)}`,
-    { method: 'DELETE', credentials: 'include' },
+    { method: "DELETE", credentials: "include" },
   );
 }
 
@@ -727,7 +741,14 @@ export interface AdminDishSource {
   addedAt: string;
   source: {
     id: string;
-    sourceType: 'book' | 'article' | 'web' | 'video' | 'audio' | 'archive' | 'personal_communication';
+    sourceType:
+      | "book"
+      | "article"
+      | "web"
+      | "video"
+      | "audio"
+      | "archive"
+      | "personal_communication";
     title: string;
     authors: string[] | null;
     year: number | null;
@@ -737,7 +758,7 @@ export interface AdminDishSource {
     doi: string | null;
     citationText: string | null;
     language: string;
-    reliability: 'primary' | 'secondary' | 'tertiary' | 'speculative' | null;
+    reliability: "primary" | "secondary" | "tertiary" | "speculative" | null;
   };
 }
 
@@ -746,7 +767,7 @@ export interface AdminDishSourcesResponse {
 }
 
 export interface CreateSourceInput {
-  sourceType: AdminDishSource['source']['sourceType'];
+  sourceType: AdminDishSource["source"]["sourceType"];
   title: string;
   authors?: string[];
   year?: number | null;
@@ -758,7 +779,7 @@ export interface CreateSourceInput {
   archiveCatalogId?: string | null;
   citationText?: string | null;
   language?: string;
-  reliability?: 'primary' | 'secondary' | 'tertiary' | 'speculative' | null;
+  reliability?: "primary" | "secondary" | "tertiary" | "speculative" | null;
   claimText?: string | null;
   location?: string | null;
 }
@@ -776,16 +797,29 @@ export async function listAdminDishSources(
 export async function createAdminDishSource(
   slug: string,
   input: CreateSourceInput,
-): Promise<{ citation: { id: string; sourceId: string; claimText: string | null; location: string | null; addedAt: string } }> {
-  return request<{ citation: { id: string; sourceId: string; claimText: string | null; location: string | null; addedAt: string } }>(
-    `/api/admin/dishes/${encodeURIComponent(slug)}/sources`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-      credentials: 'include',
-    },
-  );
+): Promise<{
+  citation: {
+    id: string;
+    sourceId: string;
+    claimText: string | null;
+    location: string | null;
+    addedAt: string;
+  };
+}> {
+  return request<{
+    citation: {
+      id: string;
+      sourceId: string;
+      claimText: string | null;
+      location: string | null;
+      addedAt: string;
+    };
+  }>(`/api/admin/dishes/${encodeURIComponent(slug)}/sources`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+    credentials: "include",
+  });
 }
 
 export async function updateAdminDishSource(
@@ -796,10 +830,10 @@ export async function updateAdminDishSource(
   return request<{ citationId: string; updated: boolean }>(
     `/api/admin/dishes/${encodeURIComponent(slug)}/sources/${encodeURIComponent(citationId)}`,
     {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
-      credentials: 'include',
+      credentials: "include",
     },
   );
 }
@@ -810,7 +844,7 @@ export async function deleteAdminDishSource(
 ): Promise<{ removed: boolean; citationId: string }> {
   return request<{ removed: boolean; citationId: string }>(
     `/api/admin/dishes/${encodeURIComponent(slug)}/sources/${encodeURIComponent(citationId)}`,
-    { method: 'DELETE', credentials: 'include' },
+    { method: "DELETE", credentials: "include" },
   );
 }
 
@@ -828,12 +862,12 @@ export function listLineages(
   params: ListLineagesParams = {},
 ): Promise<LineageListResponse> {
   const qs = new URLSearchParams();
-  if (params.search) qs.set('search', params.search);
-  if (params.origin) qs.set('origin', params.origin);
-  if (params.technique) qs.set('technique', params.technique);
-  if (params.historicalForce) qs.set('historicalForce', params.historicalForce);
-  if (params.confidence) qs.set('confidence', params.confidence);
-  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  if (params.search) qs.set("search", params.search);
+  if (params.origin) qs.set("origin", params.origin);
+  if (params.technique) qs.set("technique", params.technique);
+  if (params.historicalForce) qs.set("historicalForce", params.historicalForce);
+  if (params.confidence) qs.set("confidence", params.confidence);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<LineageListResponse>(`/api/lineages${suffix}`);
 }
 
@@ -857,7 +891,7 @@ export interface SearchHit {
   score: number;
 }
 
-export type SearchGroupType = 'dish' | 'region' | 'lineage' | 'ingredient';
+export type SearchGroupType = "dish" | "region" | "lineage" | "ingredient";
 
 export interface SearchGroup {
   type: SearchGroupType;
@@ -881,8 +915,8 @@ export function globalSearch(
   params: GlobalSearchParams,
 ): Promise<SearchResponse> {
   const qs = new URLSearchParams();
-  qs.set('q', params.q);
-  if (params.type) qs.set('type', params.type);
-  if (params.limit != null) qs.set('limit', String(params.limit));
+  qs.set("q", params.q);
+  if (params.type) qs.set("type", params.type);
+  if (params.limit != null) qs.set("limit", String(params.limit));
   return request<SearchResponse>(`/api/search?${qs.toString()}`);
 }

@@ -5,19 +5,19 @@
 
 import {
   ATLAS_ORIGIN,
-  RECIPES_ORIGIN,
-  isRecipesOnlyPath,
   type GustaleDomain,
-} from './domain';
+  isRecipesOnlyPath,
+  RECIPES_ORIGIN,
+} from "./domain";
 
-export type SearchPlacement = 'header' | 'drawer';
+export type SearchPlacement = "header" | "drawer";
 
 export type BrowseLink = { href: string; label: string };
 
 /** True for the dishes *index* (`/dishes`), not `/dishes/<slug>`. */
 export function isDishesIndexPath(path: string): boolean {
-  const bare = (path.split('?')[0] ?? path).replace(/\/+$/, '') || '/';
-  return bare === '/dishes';
+  const bare = (path.split("?")[0] ?? path).replace(/\/+$/, "") || "/";
+  return bare === "/dishes";
 }
 
 /**
@@ -32,21 +32,21 @@ export function resolveSearchHitHref(
 ): string {
   try {
     let pathOnly: string;
-    let qs = '';
-    if (href.startsWith('http://') || href.startsWith('https://')) {
+    let qs = "";
+    if (href.startsWith("http://") || href.startsWith("https://")) {
       const u = new URL(href);
       pathOnly = u.pathname;
       qs = u.search;
     } else {
-      const qIdx = href.indexOf('?');
+      const qIdx = href.indexOf("?");
       pathOnly = qIdx >= 0 ? href.slice(0, qIdx) : href;
-      qs = qIdx >= 0 ? href.slice(qIdx) : '';
+      qs = qIdx >= 0 ? href.slice(qIdx) : "";
     }
 
-    if (domain !== 'geo') return href;
+    if (domain !== "geo") return href;
 
     if (isRecipesOnlyPath(pathOnly) || isDishesIndexPath(pathOnly)) {
-      const p = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
+      const p = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
       return `${RECIPES_ORIGIN}${p}${qs}`;
     }
     return href;
@@ -58,7 +58,7 @@ export function resolveSearchHitHref(
 /** “See all dish matches” — never local `/dishes` on Atlas (list index removed). */
 export function seeAllDishesHref(query: string, domain: GustaleDomain): string {
   const qs = `?q=${encodeURIComponent(query)}`;
-  if (domain === 'geo') return `${RECIPES_ORIGIN}/dishes${qs}`;
+  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes${qs}`;
   return `/dishes${qs}`;
 }
 
@@ -68,8 +68,8 @@ export function searchOptionId(
   groupType: string,
   slug: string,
 ): string {
-  const safeType = groupType.replace(/[^a-z0-9_-]/gi, '');
-  const safeSlug = slug.replace(/[^a-z0-9_-]/gi, '-') || 'item';
+  const safeType = groupType.replace(/[^a-z0-9_-]/gi, "");
+  const safeSlug = slug.replace(/[^a-z0-9_-]/gi, "-") || "item";
   return `gs-opt-${placement}-${safeType}-${safeSlug}`;
 }
 
@@ -84,21 +84,21 @@ export function clampActiveIndex(activeIdx: number, count: number): number {
 
 /** Initial/help browse links when query length < 2. */
 export function searchHelpLinks(domain: GustaleDomain): BrowseLink[] {
-  if (domain === 'geo') {
+  if (domain === "geo") {
     return [
-      { href: '/', label: 'Globe' },
-      { href: '/regions', label: 'Countries' },
-      { href: '/families', label: 'Food families' },
-      { href: '/lineages', label: 'Lineages' },
-      { href: `${RECIPES_ORIGIN}/dishes`, label: 'Browse recipes' },
+      { href: "/", label: "Globe" },
+      { href: "/regions", label: "Countries" },
+      { href: "/families", label: "Food families" },
+      { href: "/lineages", label: "Lineages" },
+      { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     ];
   }
   return [
-    { href: '/dishes', label: 'Recipes' },
-    { href: '/ingredients', label: 'Ingredients' },
-    { href: '/families', label: 'Food families' },
-    { href: '/lineages', label: 'Lineages' },
-    { href: `${ATLAS_ORIGIN}/`, label: 'Browse Atlas' },
+    { href: "/dishes", label: "Recipes" },
+    { href: "/ingredients", label: "Ingredients" },
+    { href: "/families", label: "Food families" },
+    { href: "/lineages", label: "Lineages" },
+    { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
   ];
 }
 
@@ -113,20 +113,20 @@ export function searchEmptyBrowseLinks(domain: GustaleDomain): BrowseLink[] {
  * Recipes may use local /dishes and /ingredients.
  */
 export function searchErrorBrowseLinks(domain: GustaleDomain): BrowseLink[] {
-  if (domain === 'geo') {
+  if (domain === "geo") {
     return [
-      { href: '/regions', label: 'Countries' },
-      { href: '/families', label: 'Food families' },
-      { href: '/lineages', label: 'Lineages' },
-      { href: `${RECIPES_ORIGIN}/dishes`, label: 'Browse recipes' },
+      { href: "/regions", label: "Countries" },
+      { href: "/families", label: "Food families" },
+      { href: "/lineages", label: "Lineages" },
+      { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     ];
   }
   return [
-    { href: '/dishes', label: 'Recipes' },
-    { href: '/ingredients', label: 'Ingredients' },
-    { href: '/families', label: 'Food families' },
-    { href: '/lineages', label: 'Lineages' },
-    { href: `${ATLAS_ORIGIN}/`, label: 'Browse Atlas' },
+    { href: "/dishes", label: "Recipes" },
+    { href: "/ingredients", label: "Ingredients" },
+    { href: "/families", label: "Food families" },
+    { href: "/lineages", label: "Lineages" },
+    { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
   ];
 }
 
@@ -140,19 +140,19 @@ export function searchStatusMessage(opts: {
   query: string;
 }): string {
   const { open, queryLen, loading, unavailable, resultCount, query } = opts;
-  if (!open) return '';
+  if (!open) return "";
   if (queryLen < 2) {
-    return 'Type at least two characters to search. Browse links are available below.';
+    return "Type at least two characters to search. Browse links are available below.";
   }
-  if (loading) return 'Searching…';
-  if (unavailable) return 'Search is temporarily unavailable.';
+  if (loading) return "Searching…";
+  if (unavailable) return "Search is temporarily unavailable.";
   if (resultCount === 0) {
     return `No results for “${query}”.`;
   }
   if (resultCount != null && resultCount > 0) {
-    return `${resultCount} result${resultCount === 1 ? '' : 's'} available.`;
+    return `${resultCount} result${resultCount === 1 ? "" : "s"} available.`;
   }
-  return '';
+  return "";
 }
 
 /**
@@ -164,67 +164,68 @@ export function isPrimaryNavActive(
   pathname: string,
   domain: GustaleDomain,
 ): boolean {
-  const p = pathname.endsWith('/') && pathname.length > 1
-    ? pathname.slice(0, -1)
-    : pathname;
+  const p =
+    pathname.endsWith("/") && pathname.length > 1
+      ? pathname.slice(0, -1)
+      : pathname;
 
-  if (domain === 'geo') {
-    if (href === '/') return p === '/' || p === '';
-    if (href === '/regions') return p === '/regions' || p.startsWith('/regions/');
-    if (href === '/families') {
+  if (domain === "geo") {
+    if (href === "/") return p === "/" || p === "";
+    if (href === "/regions")
+      return p === "/regions" || p.startsWith("/regions/");
+    if (href === "/families") {
       return (
-        p === '/families'
-        || p.startsWith('/families/')
-        || p === '/family'
-        || p.startsWith('/family/')
+        p === "/families" ||
+        p.startsWith("/families/") ||
+        p === "/family" ||
+        p.startsWith("/family/")
       );
     }
-    if (href === '/lineages') {
-      return p === '/lineages' || p.startsWith('/lineages/');
+    if (href === "/lineages") {
+      return p === "/lineages" || p.startsWith("/lineages/");
     }
-    if (href === '/about') return p === '/about' || p.startsWith('/about/');
+    if (href === "/about") return p === "/about" || p.startsWith("/about/");
     return p === href || p.startsWith(`${href}/`);
   }
 
   // Recipes
-  if (href === '/dishes') {
-    return p === '/dishes' || p.startsWith('/dishes/');
+  if (href === "/dishes") {
+    return p === "/dishes" || p.startsWith("/dishes/");
   }
-  if (href === '/ingredients') {
-    return p === '/ingredients' || p.startsWith('/ingredients/');
+  if (href === "/ingredients") {
+    return p === "/ingredients" || p.startsWith("/ingredients/");
   }
-  if (href === '/families') {
+  if (href === "/families") {
     return (
-      p === '/families'
-      || p.startsWith('/families/')
-      || p === '/family'
-      || p.startsWith('/family/')
+      p === "/families" ||
+      p.startsWith("/families/") ||
+      p === "/family" ||
+      p.startsWith("/family/")
     );
   }
-  if (href === '/lineages') {
-    return p === '/lineages' || p.startsWith('/lineages/');
+  if (href === "/lineages") {
+    return p === "/lineages" || p.startsWith("/lineages/");
   }
-  if (href === '/about') return p === '/about' || p.startsWith('/about/');
+  if (href === "/about") return p === "/about" || p.startsWith("/about/");
   return p === href || p.startsWith(`${href}/`);
 }
 
 /** Add-a-dish CTA href for a given domain. */
 export function addDishHref(domain: GustaleDomain): string {
-  if (domain === 'geo') return `${RECIPES_ORIGIN}/dishes/new`;
-  return '/dishes/new';
+  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes/new`;
+  return "/dishes/new";
 }
 
 /** Whether “/” should focus header search (ignore editable / form fields). */
-export function shouldHandleSlashShortcut(
-  target: EventTarget | null,
-): boolean {
+export function shouldHandleSlashShortcut(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return true;
   const el = target as HTMLElement;
   const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return false;
   if (el.isContentEditable) return false;
-  if (el.closest('[contenteditable="true"], [contenteditable=""]')) return false;
+  if (el.closest('[contenteditable="true"], [contenteditable=""]'))
+    return false;
   // Don't steal “/” from focused buttons that might be part of another widget.
-  if (tag === 'BUTTON' || el.closest('button')) return false;
+  if (tag === "BUTTON" || el.closest("button")) return false;
   return true;
 }

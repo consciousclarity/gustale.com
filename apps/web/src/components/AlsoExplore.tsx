@@ -1,4 +1,4 @@
-import type { DishCategory, DishPreparation } from '../types/dish';
+import type { DishCategory, DishPreparation } from "../types/dish";
 
 // ---------------------------------------------------------------------------
 // "You may also explore" — a small static module that links out to the
@@ -20,10 +20,14 @@ interface ExploreLink {
   href: string;
   label: string;
   meta: string;
-  tone: 'cuisine' | 'method' | 'region';
+  tone: "cuisine" | "method" | "region";
 }
 
-export function AlsoExplore({ categories, preparations, originName }: AlsoExploreProps) {
+export function AlsoExplore({
+  categories,
+  preparations,
+  originName,
+}: AlsoExploreProps) {
   const links: ExploreLink[] = [];
 
   // Top 2 categories by relevance — primary category first, then most
@@ -35,8 +39,8 @@ export function AlsoExplore({ categories, preparations, originName }: AlsoExplor
     links.push({
       href: `/dishes?category=${encodeURIComponent(c.slug)}`,
       label: c.name,
-      meta: 'Same category',
-      tone: 'cuisine',
+      meta: "Same category",
+      tone: "cuisine",
     });
   }
 
@@ -46,8 +50,8 @@ export function AlsoExplore({ categories, preparations, originName }: AlsoExplor
     links.push({
       href: `/dishes?technique=${encodeURIComponent(method.methodSlug)}`,
       label: method.methodName,
-      meta: 'Same cooking method',
-      tone: 'method',
+      meta: "Same cooking method",
+      tone: "method",
     });
   }
 
@@ -56,8 +60,8 @@ export function AlsoExplore({ categories, preparations, originName }: AlsoExplor
     links.push({
       href: `/dishes?region=${encodeURIComponent(originName)}`,
       label: originName,
-      meta: 'Same region',
-      tone: 'region',
+      meta: "Same region",
+      tone: "region",
     });
   }
 

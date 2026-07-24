@@ -8,11 +8,7 @@
  * in one place.
  */
 
-import {
-  ATLAS_ORIGIN,
-  RECIPES_ORIGIN,
-  type GustaleDomain,
-} from './domain';
+import { ATLAS_ORIGIN, type GustaleDomain, RECIPES_ORIGIN } from "./domain";
 
 // ─── Shared link type ───────────────────────────────────────────────────
 
@@ -38,7 +34,7 @@ export interface BrowseQueryState {
 }
 
 export const DEFAULT_BROWSE_STATE: BrowseQueryState = {
-  q: '',
+  q: "",
   family: null,
   country: null,
   cuisine: null,
@@ -52,15 +48,15 @@ export const DEFAULT_BROWSE_STATE: BrowseQueryState = {
 export const BROWSE_PAGE_SIZE = 24;
 
 export const BROWSE_URL_KEYS = [
-  'q',
-  'family',
-  'country',
-  'cuisine',
-  'type',
-  'ingredient',
-  'technique',
-  'sort',
-  'page',
+  "q",
+  "family",
+  "country",
+  "cuisine",
+  "type",
+  "ingredient",
+  "technique",
+  "sort",
+  "page",
 ] as const;
 
 export function parseBrowseState(
@@ -74,19 +70,21 @@ export function parseBrowseState(
     return v;
   };
 
-  const pageRaw = parseInt(get('page') ?? '1', 10);
+  const pageRaw = parseInt(get("page") ?? "1", 10);
   const page =
-    Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.min(1000, Math.floor(pageRaw)) : 1;
+    Number.isFinite(pageRaw) && pageRaw >= 1
+      ? Math.min(1000, Math.floor(pageRaw))
+      : 1;
 
   return {
-    q: (get('q') ?? '').trim(),
-    family: emptyToNull(get('family')),
-    country: emptyToNull(get('country')),
-    cuisine: emptyToNull(get('cuisine')),
-    type: emptyToNull(get('type')),
-    ingredient: emptyToNull(get('ingredient')),
-    technique: emptyToNull(get('technique')),
-    sort: emptyToNull(get('sort')),
+    q: (get("q") ?? "").trim(),
+    family: emptyToNull(get("family")),
+    country: emptyToNull(get("country")),
+    cuisine: emptyToNull(get("cuisine")),
+    type: emptyToNull(get("type")),
+    ingredient: emptyToNull(get("ingredient")),
+    technique: emptyToNull(get("technique")),
+    sort: emptyToNull(get("sort")),
     page,
   };
 }
@@ -94,58 +92,60 @@ export function parseBrowseState(
 function emptyToNull(v: string | null | undefined): string | null {
   if (v == null) return null;
   const t = v.trim();
-  return t === '' ? null : t;
+  return t === "" ? null : t;
 }
 
 export function serializeBrowseState(state: BrowseQueryState): URLSearchParams {
   const sp = new URLSearchParams();
-  if (state.q) sp.set('q', state.q);
-  if (state.family) sp.set('family', state.family);
-  if (state.country) sp.set('country', state.country);
-  if (state.cuisine) sp.set('cuisine', state.cuisine);
-  if (state.type) sp.set('type', state.type);
-  if (state.ingredient) sp.set('ingredient', state.ingredient);
-  if (state.technique) sp.set('technique', state.technique);
-  if (state.sort) sp.set('sort', state.sort);
-  if (state.page && state.page > 1) sp.set('page', String(state.page));
+  if (state.q) sp.set("q", state.q);
+  if (state.family) sp.set("family", state.family);
+  if (state.country) sp.set("country", state.country);
+  if (state.cuisine) sp.set("cuisine", state.cuisine);
+  if (state.type) sp.set("type", state.type);
+  if (state.ingredient) sp.set("ingredient", state.ingredient);
+  if (state.technique) sp.set("technique", state.technique);
+  if (state.sort) sp.set("sort", state.sort);
+  if (state.page && state.page > 1) sp.set("page", String(state.page));
   return sp;
 }
 
 export function buildBrowseQuery(state: BrowseQueryState): string {
   const s = serializeBrowseState(state).toString();
-  return s ? `?${s}` : '';
+  return s ? `?${s}` : "";
 }
 
 /**
  * Legacy structured-syntax parser for deep-links (`country:Italy`).
  * UI is plain free-text; this keeps old URLs working.
  */
-export function parseStructuredTokens(input: string): Partial<BrowseQueryState> {
+export function parseStructuredTokens(
+  input: string,
+): Partial<BrowseQueryState> {
   const tokens = input.match(/(\S+):(\S+)/g) ?? [];
   if (tokens.length === 0) return {};
   const result: Partial<BrowseQueryState> = {};
   let free = input;
   for (const tok of tokens) {
-    const colon = tok.indexOf(':');
+    const colon = tok.indexOf(":");
     if (colon < 0) continue;
     const key = tok.slice(0, colon).toLowerCase();
     const val = tok.slice(colon + 1);
-    free = free.replace(tok, '');
-    if (key === 'origin' || key === 'country' || key === 'region') {
+    free = free.replace(tok, "");
+    if (key === "origin" || key === "country" || key === "region") {
       result.country = val;
-    } else if (key === 'cuisine' || key === 'category') {
+    } else if (key === "cuisine" || key === "category") {
       result.cuisine = val;
-    } else if (key === 'type' || key === 'dish-type') {
+    } else if (key === "type" || key === "dish-type") {
       result.type = val;
-    } else if (key === 'ingredient') {
+    } else if (key === "ingredient") {
       result.ingredient = val;
-    } else if (key === 'technique') {
+    } else if (key === "technique") {
       result.technique = val;
-    } else if (key === 'family') {
+    } else if (key === "family") {
       result.family = val;
     }
   }
-  const q = free.replace(/\s+/g, ' ').trim();
+  const q = free.replace(/\s+/g, " ").trim();
   if (q) result.q = q;
   return result;
 }
@@ -172,48 +172,57 @@ export interface LikeableDish {
   ingredients?: Array<{ slug?: string | null }> | null;
 }
 
-export function matchesBrowseQuery(dish: LikeableDish, state: BrowseQueryState): boolean {
-  if (state.family && (dish.familySlug ?? '').toLowerCase() !== state.family.toLowerCase()) {
-    return false;
-  }
+export function matchesBrowseQuery(
+  dish: LikeableDish,
+  state: BrowseQueryState,
+): boolean {
   if (
-    state.country
-    && (dish.originName ?? '').toLowerCase() !== state.country.toLowerCase()
+    state.family &&
+    (dish.familySlug ?? "").toLowerCase() !== state.family.toLowerCase()
   ) {
     return false;
   }
   if (
-    state.cuisine
-    && (dish.cuisineName ?? '').toLowerCase() !== state.cuisine.toLowerCase()
+    state.country &&
+    (dish.originName ?? "").toLowerCase() !== state.country.toLowerCase()
   ) {
     return false;
   }
-  if (state.type && (dish.typeSlug ?? '').toLowerCase() !== state.type.toLowerCase()) {
+  if (
+    state.cuisine &&
+    (dish.cuisineName ?? "").toLowerCase() !== state.cuisine.toLowerCase()
+  ) {
     return false;
   }
   if (
-    state.technique
-    && (dish.techniqueSlug ?? '').toLowerCase() !== state.technique.toLowerCase()
+    state.type &&
+    (dish.typeSlug ?? "").toLowerCase() !== state.type.toLowerCase()
+  ) {
+    return false;
+  }
+  if (
+    state.technique &&
+    (dish.techniqueSlug ?? "").toLowerCase() !== state.technique.toLowerCase()
   ) {
     return false;
   }
   if (state.ingredient) {
     const slug = state.ingredient.toLowerCase();
     const matches = (dish.ingredients ?? []).some(
-      (i) => (i.slug ?? '').toLowerCase() === slug,
+      (i) => (i.slug ?? "").toLowerCase() === slug,
     );
     if (!matches) return false;
   }
   if (state.q) {
     const needle = state.q.toLowerCase();
     const haystack = [
-      dish.canonicalName ?? '',
-      dish.shortDescription ?? '',
-      dish.familyName ?? '',
-      dish.originName ?? '',
-      dish.cuisineName ?? '',
+      dish.canonicalName ?? "",
+      dish.shortDescription ?? "",
+      dish.familyName ?? "",
+      dish.originName ?? "",
+      dish.cuisineName ?? "",
     ]
-      .join(' ')
+      .join(" ")
       .toLowerCase();
     if (!haystack.includes(needle)) return false;
   }
@@ -225,13 +234,13 @@ export function applyBrowseFilter<T extends LikeableDish>(
   state: BrowseQueryState,
 ): T[] {
   if (
-    !state.q
-    && !state.family
-    && !state.country
-    && !state.cuisine
-    && !state.type
-    && !state.ingredient
-    && !state.technique
+    !state.q &&
+    !state.family &&
+    !state.country &&
+    !state.cuisine &&
+    !state.type &&
+    !state.ingredient &&
+    !state.technique
   ) {
     return dishes.slice();
   }
@@ -281,15 +290,18 @@ export function sliceDishesToPage<T>(
  * How many full/partial pages `dishCount` currently represents, given pageSize.
  * Empty list → 0 loaded pages (caller treats as needing page 1 fetch).
  */
-export function loadedPageFromCount(dishCount: number, pageSize: number): number {
+export function loadedPageFromCount(
+  dishCount: number,
+  pageSize: number,
+): number {
   if (!Number.isFinite(dishCount) || dishCount <= 0 || pageSize <= 0) return 0;
   return Math.ceil(dishCount / pageSize);
 }
 
 export type HistoryRestorePlan =
-  | { action: 'noop' }
-  | { action: 'trim'; page: number }
-  | { action: 'extend'; fromPage: number; toPage: number };
+  | { action: "noop" }
+  | { action: "trim"; page: number }
+  | { action: "extend"; fromPage: number; toPage: number };
 
 /**
  * Decide how to reconcile URL `targetPage` with already-loaded pages.
@@ -299,25 +311,27 @@ export function planHistoryRestore(
   targetPage: number,
   loadedPage: number,
 ): HistoryRestorePlan {
-  const target = Number.isFinite(targetPage) && targetPage >= 1 ? Math.floor(targetPage) : 1;
-  const loaded = Number.isFinite(loadedPage) && loadedPage >= 0 ? Math.floor(loadedPage) : 0;
-  if (target === loaded) return { action: 'noop' };
-  if (target < loaded) return { action: 'trim', page: target };
-  return { action: 'extend', fromPage: loaded, toPage: target };
+  const target =
+    Number.isFinite(targetPage) && targetPage >= 1 ? Math.floor(targetPage) : 1;
+  const loaded =
+    Number.isFinite(loadedPage) && loadedPage >= 0 ? Math.floor(loadedPage) : 0;
+  if (target === loaded) return { action: "noop" };
+  if (target < loaded) return { action: "trim", page: target };
+  return { action: "extend", fromPage: loaded, toPage: target };
 }
 
 /** Filter fingerprint excluding page — used to detect filter resets. */
 export function browseFiltersKey(state: BrowseQueryState): string {
   return [
     state.q,
-    state.family ?? '',
-    state.country ?? '',
-    state.cuisine ?? '',
-    state.type ?? '',
-    state.ingredient ?? '',
-    state.technique ?? '',
-    state.sort ?? '',
-  ].join('\0');
+    state.family ?? "",
+    state.country ?? "",
+    state.cuisine ?? "",
+    state.type ?? "",
+    state.ingredient ?? "",
+    state.technique ?? "",
+    state.sort ?? "",
+  ].join("\0");
 }
 
 /**
@@ -328,8 +342,8 @@ export function countryMatchesExact(
   originName: string | null | undefined,
   country: string | null | undefined,
 ): boolean {
-  if (country == null || country.trim() === '') return true;
-  return (originName ?? '').toLowerCase() === country.trim().toLowerCase();
+  if (country == null || country.trim() === "") return true;
+  return (originName ?? "").toLowerCase() === country.trim().toLowerCase();
 }
 
 // ─── Filter chips ───────────────────────────────────────────────────────
@@ -342,23 +356,23 @@ export interface FilterChip {
 }
 
 const FRIENDLY_LABELS: Record<keyof BrowseQueryState, string> = {
-  q: 'Search',
-  family: 'Family',
-  country: 'Country',
-  cuisine: 'Cuisine',
-  type: 'Type',
-  ingredient: 'Ingredient',
-  technique: 'Technique',
-  sort: 'Sort',
-  page: 'Page',
+  q: "Search",
+  family: "Family",
+  country: "Country",
+  cuisine: "Cuisine",
+  type: "Type",
+  ingredient: "Ingredient",
+  technique: "Technique",
+  sort: "Sort",
+  page: "Page",
 };
 
 export function filterChipsFor(state: BrowseQueryState): FilterChip[] {
   const chips: FilterChip[] = [];
   for (const key of BROWSE_URL_KEYS) {
-    if (key === 'page' || key === 'sort') continue;
+    if (key === "page" || key === "sort") continue;
     const v = state[key];
-    if (typeof v === 'string' && v.trim() !== '') {
+    if (typeof v === "string" && v.trim() !== "") {
       chips.push({
         key: `${key}:${v}`,
         label: `${FRIENDLY_LABELS[key] ?? key}: ${v}`,
@@ -374,9 +388,9 @@ export function removeBrowseChip(
   state: BrowseQueryState,
   stateKey: keyof BrowseQueryState,
 ): BrowseQueryState {
-  if (stateKey === 'page') return { ...state, page: 1 };
-  if (stateKey === 'sort') return { ...state, sort: null, page: 1 };
-  if (stateKey === 'q') return { ...state, q: '', page: 1 };
+  if (stateKey === "page") return { ...state, page: 1 };
+  if (stateKey === "sort") return { ...state, sort: null, page: 1 };
+  if (stateKey === "q") return { ...state, q: "", page: 1 };
   return { ...state, [stateKey]: null, page: 1 };
 }
 
@@ -399,37 +413,40 @@ export interface FamilyEntry {
 }
 
 const FAMILY_LABELS: Record<string, string> = {
-  'noodle-soup': 'Noodle soups',
-  soup: 'Soups',
-  stew: 'Stews & braises',
-  curry: 'Curries',
-  pasta: 'Pasta',
-  bread: 'Breads',
-  dumpling: 'Dumplings',
-  'rice-dish': 'Rice dishes',
-  'fried-rice': 'Fried rice',
-  kebab: 'Grilled & skewered',
-  salad: 'Salads',
-  pancake: 'Flatbreads & griddled',
-  casserole: 'Casseroles & baked',
-  sandwich: 'Sandwiches',
-  appetizer: 'Appetizers',
-  'main-course': 'Main courses',
-  side: 'Side dishes',
-  dessert: 'Desserts',
-  sauce: 'Sauces & condiments',
-  moussaka: 'Moussaka',
-  'stir-fry': 'Stir-fries',
-  'street-snack': 'Street snacks',
-  fermented: 'Fermented',
-  'egg-dishes': 'Egg dishes',
-  other: 'Other',
+  "noodle-soup": "Noodle soups",
+  soup: "Soups",
+  stew: "Stews & braises",
+  curry: "Curries",
+  pasta: "Pasta",
+  bread: "Breads",
+  dumpling: "Dumplings",
+  "rice-dish": "Rice dishes",
+  "fried-rice": "Fried rice",
+  kebab: "Grilled & skewered",
+  salad: "Salads",
+  pancake: "Flatbreads & griddled",
+  casserole: "Casseroles & baked",
+  sandwich: "Sandwiches",
+  appetizer: "Appetizers",
+  "main-course": "Main courses",
+  side: "Side dishes",
+  dessert: "Desserts",
+  sauce: "Sauces & condiments",
+  moussaka: "Moussaka",
+  "stir-fry": "Stir-fries",
+  "street-snack": "Street snacks",
+  fermented: "Fermented",
+  "egg-dishes": "Egg dishes",
+  other: "Other",
 };
 
 export function familyLabel(slug: string): string {
   return (
-    FAMILY_LABELS[slug]
-    ?? slug.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
+    FAMILY_LABELS[slug] ??
+    slug
+      .split("-")
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(" ")
   );
 }
 
@@ -438,7 +455,7 @@ export function buildFamilyDirectory(
 ): FamilyEntry[] {
   const groups = new Map<string, LikeableDish[]>();
   for (const d of dishes) {
-    const key = d.familySlug ?? 'other';
+    const key = d.familySlug ?? "other";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(d);
   }
@@ -490,7 +507,7 @@ export function buildCountryDirectory(
 ): CountryEntry[] {
   const groups = new Map<string, LikeableDish[]>();
   for (const d of dishes) {
-    const key = d.originName?.trim() || 'Other';
+    const key = d.originName?.trim() || "Other";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(d);
   }
@@ -535,7 +552,7 @@ export interface LineageFilterState {
 }
 
 export const DEFAULT_LINEAGE_FILTERS: LineageFilterState = {
-  q: '',
+  q: "",
   region: null,
   technique: null,
   force: null,
@@ -553,27 +570,29 @@ export function parseLineageFilters(
     return v;
   };
   return {
-    q: (get('q') ?? get('search') ?? '').trim(),
-    region: emptyToNull(get('region') ?? get('origin')),
-    technique: emptyToNull(get('technique')),
-    force: emptyToNull(get('force') ?? get('historicalForce')),
-    confidence: emptyToNull(get('confidence')),
+    q: (get("q") ?? get("search") ?? "").trim(),
+    region: emptyToNull(get("region") ?? get("origin")),
+    technique: emptyToNull(get("technique")),
+    force: emptyToNull(get("force") ?? get("historicalForce")),
+    confidence: emptyToNull(get("confidence")),
   };
 }
 
-export function serializeLineageFilters(state: LineageFilterState): URLSearchParams {
+export function serializeLineageFilters(
+  state: LineageFilterState,
+): URLSearchParams {
   const sp = new URLSearchParams();
-  if (state.q) sp.set('q', state.q);
-  if (state.region) sp.set('region', state.region);
-  if (state.technique) sp.set('technique', state.technique);
-  if (state.force) sp.set('force', state.force);
-  if (state.confidence) sp.set('confidence', state.confidence);
+  if (state.q) sp.set("q", state.q);
+  if (state.region) sp.set("region", state.region);
+  if (state.technique) sp.set("technique", state.technique);
+  if (state.force) sp.set("force", state.force);
+  if (state.confidence) sp.set("confidence", state.confidence);
   return sp;
 }
 
 export function buildLineageQuery(state: LineageFilterState): string {
   const s = serializeLineageFilters(state).toString();
-  return s ? `?${s}` : '';
+  return s ? `?${s}` : "";
 }
 
 export function lineageFilterChips(state: LineageFilterState): Array<{
@@ -589,13 +608,18 @@ export function lineageFilterChips(state: LineageFilterState): Array<{
     value: string;
   }> = [];
   if (state.q) {
-    chips.push({ key: `q:${state.q}`, label: `Search: ${state.q}`, stateKey: 'q', value: state.q });
+    chips.push({
+      key: `q:${state.q}`,
+      label: `Search: ${state.q}`,
+      stateKey: "q",
+      value: state.q,
+    });
   }
   if (state.region) {
     chips.push({
       key: `region:${state.region}`,
       label: `Region: ${state.region}`,
-      stateKey: 'region',
+      stateKey: "region",
       value: state.region,
     });
   }
@@ -603,7 +627,7 @@ export function lineageFilterChips(state: LineageFilterState): Array<{
     chips.push({
       key: `technique:${state.technique}`,
       label: `Technique: ${state.technique}`,
-      stateKey: 'technique',
+      stateKey: "technique",
       value: state.technique,
     });
   }
@@ -611,7 +635,7 @@ export function lineageFilterChips(state: LineageFilterState): Array<{
     chips.push({
       key: `force:${state.force}`,
       label: `Force: ${state.force}`,
-      stateKey: 'force',
+      stateKey: "force",
       value: state.force,
     });
   }
@@ -619,7 +643,7 @@ export function lineageFilterChips(state: LineageFilterState): Array<{
     chips.push({
       key: `confidence:${state.confidence}`,
       label: `Confidence: ${state.confidence}`,
-      stateKey: 'confidence',
+      stateKey: "confidence",
       value: state.confidence,
     });
   }
@@ -630,7 +654,7 @@ export function removeLineageChip(
   state: LineageFilterState,
   stateKey: keyof LineageFilterState,
 ): LineageFilterState {
-  if (stateKey === 'q') return { ...state, q: '' };
+  if (stateKey === "q") return { ...state, q: "" };
   return { ...state, [stateKey]: null };
 }
 
@@ -655,9 +679,12 @@ export function matchesLineageFilters(
   lin: LikeableLineage,
   state: LineageFilterState,
 ): boolean {
-  const kebab = (s: string) => s.toLowerCase().replace(/_/g, '-');
+  const kebab = (s: string) => s.toLowerCase().replace(/_/g, "-");
   if (state.region) {
-    const regions = [...(lin.originRegions ?? []), ...(lin.relatedRegions ?? [])].map(kebab);
+    const regions = [
+      ...(lin.originRegions ?? []),
+      ...(lin.relatedRegions ?? []),
+    ].map(kebab);
     if (!regions.includes(kebab(state.region))) return false;
   }
   if (state.technique) {
@@ -668,21 +695,21 @@ export function matchesLineageFilters(
     const forces = (lin.historicalForces ?? []).map(kebab);
     if (!forces.includes(kebab(state.force))) return false;
   }
-  if (state.confidence && (lin.confidenceLevel ?? '') !== state.confidence) {
+  if (state.confidence && (lin.confidenceLevel ?? "") !== state.confidence) {
     return false;
   }
   if (state.q) {
     const needle = state.q.toLowerCase();
     const hay = [
       lin.name,
-      lin.shortDescription ?? '',
-      lin.conceptSummary ?? '',
+      lin.shortDescription ?? "",
+      lin.conceptSummary ?? "",
       ...(lin.techniques ?? []),
       ...(lin.originRegions ?? []),
       ...(lin.relatedRegions ?? []),
       ...(lin.representativeDishes ?? []),
     ]
-      .join(' ')
+      .join(" ")
       .toLowerCase();
     if (!hay.includes(needle)) return false;
   }
@@ -704,43 +731,46 @@ export interface RecoveryLinks {
 }
 
 export function recoveryLinks(domain: GustaleDomain): RecoveryLinks {
-  if (domain === 'geo') {
+  if (domain === "geo") {
     return {
       primary: [
-        { href: '/', label: 'Globe' },
-        { href: '/regions', label: 'Countries' },
-        { href: '/families', label: 'Food families' },
-        { href: '/lineages', label: 'Lineages' },
+        { href: "/", label: "Globe" },
+        { href: "/regions", label: "Countries" },
+        { href: "/families", label: "Food families" },
+        { href: "/lineages", label: "Lineages" },
       ],
-      altBrowse: { href: `${RECIPES_ORIGIN}/dishes`, label: 'Browse recipes' },
+      altBrowse: { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     };
   }
   return {
     primary: [
-      { href: '/dishes', label: 'Recipes' },
-      { href: '/ingredients', label: 'Ingredients' },
-      { href: '/families', label: 'Food families' },
-      { href: '/lineages', label: 'Lineages' },
+      { href: "/dishes", label: "Recipes" },
+      { href: "/ingredients", label: "Ingredients" },
+      { href: "/families", label: "Food families" },
+      { href: "/lineages", label: "Lineages" },
     ],
-    altBrowse: { href: `${ATLAS_ORIGIN}/`, label: 'Gustale Atlas' },
+    altBrowse: { href: `${ATLAS_ORIGIN}/`, label: "Gustale Atlas" },
   };
 }
 
 /** Map CTA — local on Atlas, absolute on Recipes (map stripped post-build). */
 export function mapBrowseHref(domain: GustaleDomain): string {
-  if (domain === 'geo') return '/map';
+  if (domain === "geo") return "/map";
   return `${ATLAS_ORIGIN}/map`;
 }
 
 export function safeQueryEncode(value: string, maxLen = 200): string {
-  const trimmed = (value ?? '').trim().slice(0, maxLen);
+  const trimmed = (value ?? "").trim().slice(0, maxLen);
   return encodeURIComponent(trimmed);
 }
 
-export function absoluteDishesIndexHref(domain: GustaleDomain, query = ''): string {
+export function absoluteDishesIndexHref(
+  domain: GustaleDomain,
+  query = "",
+): string {
   const q = query.trim();
-  const suffix = q ? `?q=${safeQueryEncode(q)}` : '';
-  if (domain === 'geo') return `${RECIPES_ORIGIN}/dishes${suffix}`;
+  const suffix = q ? `?q=${safeQueryEncode(q)}` : "";
+  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes${suffix}`;
   return `/dishes${suffix}`;
 }
 
@@ -759,8 +789,8 @@ export function browseStatusMessage(opts: {
   query: string;
   noun: string;
 }): string {
-  if (opts.loading) return 'Updating results…';
-  if (opts.failed) return 'Browse data is temporarily unavailable.';
+  if (opts.loading) return "Updating results…";
+  if (opts.failed) return "Browse data is temporarily unavailable.";
   if (opts.count === 0) {
     return opts.query
       ? `No ${opts.noun} match “${opts.query}”.`

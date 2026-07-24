@@ -8,9 +8,10 @@
  *
  * Only loaded during tests; production code paths are unchanged.
  */
-import { config } from 'dotenv';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { config } from "dotenv";
 
 const here = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(here, '..', '.env') });
+config({ path: resolve(here, "..", ".env") });

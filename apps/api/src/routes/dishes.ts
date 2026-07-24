@@ -1,55 +1,55 @@
-import { httpError } from '../errors.js';
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import {
-  eq,
+  categories,
+  citations,
+  db,
+  dishCategories,
+  dishes,
+  dishIngredients,
+  dishPreparations,
+  dishRelations,
+  dishTags,
+  dishTranslations,
+  dishVariants,
+  geoEntities,
+  ingredients,
+  media,
+  mediaAttachments,
+  preparationMethods,
+  preparationMethodTranslations,
+  sources,
+  tags,
+  users,
+} from "@gustale/db";
+import {
   and,
   asc,
   desc,
+  eq,
   ilike,
-  or,
-  sql,
-  SQL,
   inArray,
-} from 'drizzle-orm';
-import {
-  db,
-  dishes,
-  dishVariants,
-  dishTranslations,
-  ingredients,
-  geoEntities,
-  dishIngredients,
-  dishCategories,
-  categories,
-  dishTags,
-  dishRelations,
-  tags,
-  dishPreparations,
-  preparationMethods,
-  preparationMethodTranslations,
-  citations,
-  sources,
-  media,
-  mediaAttachments,
-  users,
-} from '@gustale/db';
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { httpError } from "../errors.js";
 
 const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
-  language: z.string().length(2).default('en'),
+  language: z.string().length(2).default("en"),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
-  status: z.enum(['draft', 'published', 'archived']).default('published'),
-  country: z.string().max(100).optional(),    // origin country name
-  cuisine: z.string().max(100).optional(),     // cuisine category (Korean cuisine, Italian cuisine…)
-  type: z.string().max(100).optional(),         // dish-type category (Noodle soup, Stew, Pasta…)
+  status: z.enum(["draft", "published", "archived"]).default("published"),
+  country: z.string().max(100).optional(), // origin country name
+  cuisine: z.string().max(100).optional(), // cuisine category (Korean cuisine, Italian cuisine…)
+  type: z.string().max(100).optional(), // dish-type category (Noodle soup, Stew, Pasta…)
   ingredient: z.string().max(100).optional(),
   technique: z.string().max(100).optional(),
-  region: z.string().max(100).optional(),     // legacy alias for country
-  category: z.string().max(100).optional(),    // legacy alias for cuisine
-  period: z.string().max(100).optional(),       // historical era e.g. 1920-1950
-  family: z.string().max(100).optional(),       // kind='family' category slug (Dumplings, Noodle soups…)
+  region: z.string().max(100).optional(), // legacy alias for country
+  category: z.string().max(100).optional(), // legacy alias for cuisine
+  period: z.string().max(100).optional(), // historical era e.g. 1920-1950
+  family: z.string().max(100).optional(), // kind='family' category slug (Dumplings, Noodle soups…)
 });
 
 const slugParamSchema = z.object({
@@ -73,7 +73,10 @@ async function extractLatLng(
           FROM ${sql.raw(tableName)}
          WHERE id = ${rowId}::uuid`,
   );
-  const rows = result as unknown as Array<{ lat: number | null; lng: number | null }>;
+  const rows = result as unknown as Array<{
+    lat: number | null;
+    lng: number | null;
+  }>;
   const row = rows[0];
   if (row?.lat == null || row?.lng == null) return null;
   return { lat: row.lat, lng: row.lng };
@@ -90,13 +93,13 @@ function bumpViewCount(dishId: string): void {
     .catch((err) => {
       // Use a synthetic logger entry; we don't have the request logger here.
       // eslint-disable-next-line no-console
-      console.error('view_count increment failed', err);
+      console.error("view_count increment failed", err);
     });
 }
 
 export function registerDishRoutes(app: FastifyInstance): void {
   // List dishes
-  app.get('/api/dishes', async (request, reply) => {
+  app.get("/api/dishes", async (request, reply) => {
     const params = listQuerySchema.parse(request.query);
 
     const whereClauses: SQL[] = [eq(dishes.status, params.status)];
@@ -106,114 +109,130 @@ export function registerDishRoutes(app: FastifyInstance): void {
         or(
           ilike(dishes.canonicalName, `%${params.q}%`),
           ilike(dishes.shortDescription, `%${params.q}%`),
-          ilike(dishes.slug, `%${params.q}%`)
-        )!
+          ilike(dishes.slug, `%${params.q}%`),
+        )!,
       );
     }
 
     if (params.country) {
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.country + '%'})`
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${"%" + params.country + "%"})`,
       );
     }
 
     if (params.cuisine) {
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = dishes.id AND c2.name ILIKE ${'%' + params.cuisine + '%'})`
+        sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = dishes.id AND c2.name ILIKE ${"%" + params.cuisine + "%"})`,
       );
     }
 
     if (params.type) {
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = dishes.id AND c3.name ILIKE ${'%' + params.type + '%'})`
+        sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = dishes.id AND c3.name ILIKE ${"%" + params.type + "%"})`,
       );
     }
 
     if (params.ingredient) {
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = dishes.id AND i.canonical_name ILIKE ${'%' + params.ingredient + '%'})`
+        sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = dishes.id AND i.canonical_name ILIKE ${"%" + params.ingredient + "%"})`,
       );
     }
 
     if (params.technique) {
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = dishes.id AND pm2.slug = ${params.technique})`
+        sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = dishes.id AND pm2.slug = ${params.technique})`,
       );
     }
 
     if (params.period) {
       // Accept "1920", "1920-1950", "1920_1950" → match origin_date_earliest <= latest_year AND origin_date_latest >= earliest_year
-      const parts = params.period.replace(/_/g, '-').split('-').filter(Boolean);
+      const parts = params.period.replace(/_/g, "-").split("-").filter(Boolean);
       const earliest = parts[0] ? parseInt(parts[0]) : null;
       const latest = parts[1] ? parseInt(parts[1]) : earliest;
       if (earliest !== null) {
-        whereClauses.push(
-          sql`dishes.origin_date_latest >= ${earliest}`
-        );
+        whereClauses.push(sql`dishes.origin_date_latest >= ${earliest}`);
       }
       if (latest !== null) {
-        whereClauses.push(
-          sql`dishes.origin_date_earliest <= ${latest}`
-        );
+        whereClauses.push(sql`dishes.origin_date_earliest <= ${latest}`);
       }
     }
 
     if (params.region) {
       // Legacy alias for country — same ILIKE on geo_entities.name
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${'%' + params.region + '%'})`
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = dishes.origin_geo_id AND g.name ILIKE ${"%" + params.region + "%"})`,
       );
     }
 
     if (params.category) {
       // Match by category slug (cuisine or dish-type) via the join table.
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.slug = ${params.category})`
+        sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = dishes.id AND c.slug = ${params.category})`,
       );
     }
 
     if (params.family) {
       // Match by kind='family' category slug (Dumplings, Noodle soups…)
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = dishes.id AND c4.slug = ${params.family} AND c4.kind = 'family')`
+        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = dishes.id AND c4.slug = ${params.family} AND c4.kind = 'family')`,
       );
     }
 
     // Build dynamic WHERE conditions as raw SQL fragments.
-    const whereFragments: (SQL | undefined)[] = [sql`d.status = ${params.status}`];
+    const whereFragments: (SQL | undefined)[] = [
+      sql`d.status = ${params.status}`,
+    ];
     if (params.q) {
-      whereFragments.push(sql`d.canonical_name ILIKE ${'%' + params.q + '%'}`);
+      whereFragments.push(sql`d.canonical_name ILIKE ${"%" + params.q + "%"}`);
     }
     if (params.country) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${'%' + params.country + '%'})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${"%" + params.country + "%"})`,
+      );
     }
     if (params.cuisine) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = d.id AND c2.name ILIKE ${'%' + params.cuisine + '%'})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc2 JOIN categories c2 ON c2.id = dc2.category_id WHERE dc2.dish_id = d.id AND c2.name ILIKE ${"%" + params.cuisine + "%"})`,
+      );
     }
     if (params.type) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = d.id AND c3.name ILIKE ${'%' + params.type + '%'})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc3 JOIN categories c3 ON c3.id = dc3.category_id WHERE dc3.dish_id = d.id AND c3.name ILIKE ${"%" + params.type + "%"})`,
+      );
     }
     if (params.ingredient) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = d.id AND i.canonical_name ILIKE ${'%' + params.ingredient + '%'})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM dish_ingredients di JOIN ingredients i ON i.id = di.ingredient_id WHERE di.dish_id = d.id AND i.canonical_name ILIKE ${"%" + params.ingredient + "%"})`,
+      );
     }
     if (params.technique) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = d.id AND pm2.slug = ${params.technique})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM dish_preparations dp2 JOIN preparation_methods pm2 ON pm2.id = dp2.method_id WHERE dp2.dish_id = d.id AND pm2.slug = ${params.technique})`,
+      );
     }
     if (params.region) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${'%' + params.region + '%'})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM geo_entities g WHERE g.id = d.origin_geo_id AND g.name ILIKE ${"%" + params.region + "%"})`,
+      );
     }
     if (params.category) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = d.id AND c.slug = ${params.category})`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc JOIN categories c ON c.id = dc.category_id WHERE dc.dish_id = d.id AND c.slug = ${params.category})`,
+      );
     }
     if (params.family) {
-      whereFragments.push(sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = d.id AND c4.slug = ${params.family} AND c4.kind = 'family')`);
+      whereFragments.push(
+        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = d.id AND c4.slug = ${params.family} AND c4.kind = 'family')`,
+      );
     }
     if (params.period) {
-      const parts = params.period.replace(/_/g, '-').split('-').filter(Boolean);
+      const parts = params.period.replace(/_/g, "-").split("-").filter(Boolean);
       const earliest = parts[0] ? parseInt(parts[0]) : null;
       const latest = parts[1] ? parseInt(parts[1]) : earliest;
-      if (earliest !== null) whereFragments.push(sql`d.origin_date_latest >= ${earliest}`);
-      if (latest !== null) whereFragments.push(sql`d.origin_date_earliest <= ${latest}`);
+      if (earliest !== null)
+        whereFragments.push(sql`d.origin_date_latest >= ${earliest}`);
+      if (latest !== null)
+        whereFragments.push(sql`d.origin_date_earliest <= ${latest}`);
     }
     const whereClause = whereFragments.filter((f): f is SQL => f !== undefined);
 
@@ -281,9 +300,12 @@ export function registerDishRoutes(app: FastifyInstance): void {
       shortDescription: row.short_description,
       originGeoId: row.origin_geo_id,
       originName: row.origin_name,
-      status: row.status as 'draft' | 'published' | 'archived',
+      status: row.status as "draft" | "published" | "archived",
       viewCount: row.view_count,
-      updatedAt: typeof row.updated_at === 'string' ? row.updated_at : (row.updated_at as Date).toISOString(),
+      updatedAt:
+        typeof row.updated_at === "string"
+          ? row.updated_at
+          : (row.updated_at as Date).toISOString(),
       familySlug: row.family_slug,
       familyName: row.family_name,
       methodSlug: row.method_slug,
@@ -298,10 +320,10 @@ export function registerDishRoutes(app: FastifyInstance): void {
   // should prefer static over dynamic, but registering the static path
   // first makes the routing unambiguous and survives Fastify version
   // changes.
-  app.get('/api/dishes/map', async (request, reply) => {
+  app.get("/api/dishes/map", async (request, reply) => {
     const params = z
       .object({
-        language: z.string().length(2).default('en'),
+        language: z.string().length(2).default("en"),
         limit: z.coerce.number().int().min(1).max(10000).default(2000),
       })
       .parse(request.query);
@@ -346,7 +368,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         lat: r.lat,
         lng: r.lng,
         region: {
-          name: r.region_name ?? '',
+          name: r.region_name ?? "",
           localName: r.region_local_name,
           isoCode: r.region_iso_code,
           entityType: r.region_entity_type,
@@ -358,10 +380,10 @@ export function registerDishRoutes(app: FastifyInstance): void {
 
   // Get one dish by slug (with variants, ingredients, translations,
   // preparations, sources, media, origin geometry, editors)
-  app.get('/api/dishes/:slug', async (request, reply) => {
+  app.get("/api/dishes/:slug", async (request, reply) => {
     const { slug } = slugParamSchema.parse(request.params);
     const query = request.query as { language?: string };
-    const language = query.language ?? 'en';
+    const language = query.language ?? "en";
 
     const dish = await db
       .select()
@@ -370,15 +392,15 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .limit(1);
 
     if (dish.length === 0) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
 
     const dishRow = dish[0]!;
 
     // A1: drafts (and archived) are not visible to anonymous reads.
     // Authenticated moderators+ would query a different route; out of scope here.
-    if (dishRow.status !== 'published') {
-      throw httpError(404, 'not_found', 'Dish not found');
+    if (dishRow.status !== "published") {
+      throw httpError(404, "not_found", "Dish not found");
     }
 
     // Fire-and-forget: bump view count after the read.
@@ -392,7 +414,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
 
     const translation =
       translations.find((t) => t.language === language) ??
-      translations.find((t) => t.language === 'en') ??
+      translations.find((t) => t.language === "en") ??
       null;
 
     // Variants
@@ -531,8 +553,8 @@ export function registerDishRoutes(app: FastifyInstance): void {
 
     // Cover image: prefer role='cover', else first gallery item
     const coverImage =
-      dishMedia.find((m) => m.role === 'cover') ??
-      dishMedia.find((m) => m.role === 'gallery') ??
+      dishMedia.find((m) => m.role === "cover") ??
+      dishMedia.find((m) => m.role === "gallery") ??
       null;
 
     // Origin geo: entity + lat/lng from PostGIS
@@ -552,7 +574,11 @@ export function registerDishRoutes(app: FastifyInstance): void {
         .where(eq(geoEntities.id, dishRow.originGeoId))
         .limit(1);
       if (geo[0]) {
-        const latLng = await extractLatLng('dishes', 'origin_location', dishRow.id);
+        const latLng = await extractLatLng(
+          "dishes",
+          "origin_location",
+          dishRow.id,
+        );
         origin = {
           id: geo[0].id,
           name: geo[0].name,
@@ -565,14 +591,18 @@ export function registerDishRoutes(app: FastifyInstance): void {
       }
     } else if (dishRow.originLocation) {
       // Geometry might exist even without an entity FK (e.g. hand-pinned dish)
-      const latLng = await extractLatLng('dishes', 'origin_location', dishRow.id);
+      const latLng = await extractLatLng(
+        "dishes",
+        "origin_location",
+        dishRow.id,
+      );
       if (latLng) {
         origin = {
-          id: '',
-          name: '',
+          id: "",
+          name: "",
           localName: null,
           isoCode: null,
-          entityType: 'point',
+          entityType: "point",
           lat: latLng.lat,
           lng: latLng.lng,
         };
@@ -602,8 +632,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         .where(inArray(users.id, editorIds));
       editors = editorRows;
     }
-    const createdBy =
-      editors.find((u) => u.id === dishRow.createdBy) ?? null;
+    const createdBy = editors.find((u) => u.id === dishRow.createdBy) ?? null;
     const lastEditedBy =
       editors.find((u) => u.id === dishRow.lastEditedBy) ?? null;
 
@@ -624,8 +653,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         id: p.id,
         methodId: p.methodId,
         methodSlug: p.methodSlug,
-        methodName:
-          methodTranslationById.get(p.methodId)?.name ?? p.methodName,
+        methodName: methodTranslationById.get(p.methodId)?.name ?? p.methodName,
         steps: p.steps,
         durationMinutes: p.durationMinutes,
         difficulty: p.difficulty,
@@ -639,14 +667,16 @@ export function registerDishRoutes(app: FastifyInstance): void {
   });
 
   // Search by origin (geo proximity) — for the globe
-  app.get('/api/dishes-by-region', async (request, reply) => {
+  app.get("/api/dishes-by-region", async (request, reply) => {
     const schema = z.object({
-      bbox: z.string().regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/),
-      language: z.string().length(2).default('en'),
+      bbox: z
+        .string()
+        .regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/),
+      language: z.string().length(2).default("en"),
       limit: z.coerce.number().int().min(1).max(500).default(100),
     });
     const params = schema.parse(request.query);
-    const [minLng, minLat, maxLng, maxLat] = params.bbox.split(',').map(Number);
+    const [minLng, minLat, maxLng, maxLat] = params.bbox.split(",").map(Number);
 
     const result = await db.execute(sql`
       SELECT
@@ -674,7 +704,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
   //
   // Anonymous-readable. Only published dishes appear on the other end of
   // the edge (drafts/archived are filtered out so we don't leak WIP).
-  app.get('/api/dishes/:slug/relations', async (request, reply) => {
+  app.get("/api/dishes/:slug/relations", async (request, reply) => {
     const { slug } = slugParamSchema.parse(request.params);
 
     // 1) Resolve the source dish → id.
@@ -684,7 +714,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .where(eq(dishes.slug, slug))
       .limit(1);
     if (src.length === 0 || !src[0]) {
-      throw httpError(404, 'not_found', 'Dish not found');
+      throw httpError(404, "not_found", "Dish not found");
     }
     const sourceId = src[0].id;
 
@@ -725,7 +755,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .where(
         and(
           eq(dishRelations.fromDishId, sourceId),
-          eq(dishes.status, 'published'),
+          eq(dishes.status, "published"),
         ),
       )
       .orderBy(desc(dishRelations.strength), asc(dishes.canonicalName));

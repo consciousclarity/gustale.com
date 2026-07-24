@@ -17,13 +17,14 @@
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "lint": "pnpm -r run lint",
+    "lint": "biome check .",
     "test": "pnpm -r run test",
     "db:generate": "pnpm --filter @gustale/db run generate",
     "db:migrate": "pnpm --filter @gustale/db run migrate",
     "db:seed": "pnpm --filter @gustale/db run seed"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.5",
     "@types/node": "^22.9.0",
     "typescript": "^5.6.3"
   },

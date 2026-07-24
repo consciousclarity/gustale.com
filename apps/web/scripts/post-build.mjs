@@ -39,11 +39,18 @@
  *     removed, so requests to e.g. /dishes/new/ on the geo domain get
  *     a clean 404 from nginx rather than a 403 from autoindex.
  */
-import { readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import {
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { join } from "node:path";
 
-const DIST = new URL('../dist/', import.meta.url).pathname;
-const DOMAIN = process.env.PUBLIC_DOMAIN ?? 'recipes';
+const DIST = new URL("../dist/", import.meta.url).pathname;
+const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 
 // Floor: we have 31 seeded dishes. Anything <20 is almost certainly
 // a partial build (stale cache, flaky incremental, etc.). Bump this
@@ -54,11 +61,11 @@ const MIN_EXPECTED_DISHES = 20;
 // `astro build`, only moussaka-greek ships in the dist. Setting
 // ALLOW_PARTIAL=1 lets you run the post-build anyway for manual
 // experimentation. CI MUST NOT set this.
-const ALLOW_PARTIAL = process.env.ALLOW_PARTIAL === '1';
+const ALLOW_PARTIAL = process.env.ALLOW_PARTIAL === "1";
 
 // Routes that exist on ONE domain only. Each is a path relative to /.
-const GEO_ONLY = ['map/'];
-const RECIPES_ONLY = [];  // All shared pages are now on both domains
+const GEO_ONLY = ["map/"];
+const RECIPES_ONLY = []; // All shared pages are now on both domains
 
 async function exists(path) {
   try {
@@ -90,15 +97,15 @@ async function rmIfExists(path) {
  */
 async function pruneEmptyParents(dir, stop) {
   let current = dir;
-  while (current && current !== stop && current !== '/' && current !== '.') {
+  while (current && current !== stop && current !== "/" && current !== ".") {
     if (!(await exists(current))) {
-      current = join(current, '..');
+      current = join(current, "..");
       continue;
     }
     const entries = await readdir(current);
     if (entries.length > 0) break;
     await rm(current, { recursive: true, force: true });
-    current = join(current, '..');
+    current = join(current, "..");
   }
 }
 
@@ -107,28 +114,28 @@ async function pruneEmptyParents(dir, stop) {
 // count of <slug> directories under dist/dishes/ against the floor.
 // If the build is partial, the floor catches it BEFORE we delete the
 // few surviving pages and end up with a near-empty dist.
-const dishDirs = await listDirs(join(DIST, 'dishes'));
+const dishDirs = await listDirs(join(DIST, "dishes"));
 if (dishDirs.length < MIN_EXPECTED_DISHES) {
   if (ALLOW_PARTIAL) {
     console.warn(
       `[post-build] WARNING: dist/dishes/ has only ${dishDirs.length} ` +
-      `directories (expected ≥${MIN_EXPECTED_DISHES}). ALLOW_PARTIAL=1 ` +
-      `is set, so proceeding with pruning anyway. Do not deploy this dist.`
+        `directories (expected ≥${MIN_EXPECTED_DISHES}). ALLOW_PARTIAL=1 ` +
+        `is set, so proceeding with pruning anyway. Do not deploy this dist.`,
     );
   } else {
     console.error(
       `[post-build] REFUSING to prune — dist/dishes/ has ${dishDirs.length} ` +
-      `directories (expected ≥${MIN_EXPECTED_DISHES}). This looks like a ` +
-      `partial or stale build. Re-run a clean astro build (e.g. ` +
-      `"rm -rf dist .astro && astro build") before post-processing, ` +
-      `or set ALLOW_PARTIAL=1 if you really mean to ship a partial dist.`
+        `directories (expected ≥${MIN_EXPECTED_DISHES}). This looks like a ` +
+        `partial or stale build. Re-run a clean astro build (e.g. ` +
+        `"rm -rf dist .astro && astro build") before post-processing, ` +
+        `or set ALLOW_PARTIAL=1 if you really mean to ship a partial dist.`,
     );
     process.exit(1);
   }
 } else {
   console.log(
     `[post-build] dist looks complete: ${dishDirs.length} dishes found. ` +
-    `Proceeding with ${DOMAIN} domain filter.`
+      `Proceeding with ${DOMAIN} domain filter.`,
   );
 }
 
@@ -136,7 +143,7 @@ if (dishDirs.length < MIN_EXPECTED_DISHES) {
 let removed = 0;
 
 // Always-on: drop pages only relevant to the OTHER domain.
-const drop = DOMAIN === 'recipes' ? GEO_ONLY : RECIPES_ONLY;
+const drop = DOMAIN === "recipes" ? GEO_ONLY : RECIPES_ONLY;
 for (const target of drop) {
   const full = join(DIST, target);
   if (await rmIfExists(full)) {
@@ -147,29 +154,26 @@ for (const target of drop) {
 
 // Domain-specific: walk the dishes tree to keep <slug>/index.html
 // (single dish view, on both domains) but drop <slug>/edit/ and new/.
-if (DOMAIN === 'geo') {
+if (DOMAIN === "geo") {
   // Drop /dishes/<slug>/edit/ for every slug + /dishes/new/ entirely.
   for (const slug of dishDirs) {
-    const editDir = join(DIST, 'dishes', slug, 'edit');
+    const editDir = join(DIST, "dishes", slug, "edit");
     if (await rmIfExists(editDir)) {
       console.log(`[post-build] removed dishes/${slug}/edit/`);
       removed++;
-      await pruneEmptyParents(
-        join(DIST, 'dishes', slug),
-        join(DIST, 'dishes'),
-      );
+      await pruneEmptyParents(join(DIST, "dishes", slug), join(DIST, "dishes"));
     }
   }
-  const newDir = join(DIST, 'dishes', 'new');
+  const newDir = join(DIST, "dishes", "new");
   if (await rmIfExists(newDir)) {
     console.log(`[post-build] removed dishes/new/`);
     removed++;
   }
 
   // Drop /ingredients/<slug>/ entirely (geo domain has no ingredient pages).
-  const ingDir = join(DIST, 'ingredients');
+  const ingDir = join(DIST, "ingredients");
   if (await rmIfExists(ingDir)) {
-    console.log('[post-build] removed ingredients/');
+    console.log("[post-build] removed ingredients/");
     removed++;
   }
 
@@ -187,8 +191,8 @@ if (DOMAIN === 'geo') {
   // continues to serve the list page from the directory index.
   let flattened = 0;
   for (const slug of dishDirs) {
-    const slugDir = join(DIST, 'dishes', slug);
-    const indexFile = join(slugDir, 'index.html');
+    const slugDir = join(DIST, "dishes", slug);
+    const indexFile = join(slugDir, "index.html");
     if (await exists(indexFile)) {
       // Read content, delete the directory, write the flat file.
       const content = await readFile(indexFile);
@@ -197,7 +201,7 @@ if (DOMAIN === 'geo') {
       const tempPath = join(DIST, `.dishes-${slug}.html.tmp`);
       await writeFile(tempPath, content);
       await rm(slugDir, { recursive: true, force: true });
-      const flatPath = join(DIST, 'dishes', `${slug}.html`);
+      const flatPath = join(DIST, "dishes", `${slug}.html`);
       await rename(tempPath, flatPath);
       flattened++;
     } else {
@@ -221,7 +225,9 @@ if (DOMAIN === 'geo') {
   // 404.html fallback.
 
   if (flattened > 0) {
-    console.log(`[post-build] flattened ${flattened} dish pages to flat /dishes/<slug>.html`);
+    console.log(
+      `[post-build] flattened ${flattened} dish pages to flat /dishes/<slug>.html`,
+    );
     removed += flattened;
   }
 }

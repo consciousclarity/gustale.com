@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { authClient } from '../lib/auth';
+import { useEffect, useState } from "react";
+import { authClient } from "../lib/auth";
 
 interface SessionData {
   user: {
@@ -32,11 +32,13 @@ export function AccountPanel() {
         if (session.data?.user) {
           setData(session.data as unknown as SessionData);
         } else {
-          setError('not_signed_in');
+          setError("not_signed_in");
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load session.');
+          setError(
+            err instanceof Error ? err.message : "Could not load session.",
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -51,10 +53,10 @@ export function AccountPanel() {
     e.preventDefault();
     try {
       await authClient.signOut();
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Sign-out failed', err);
+      console.error("Sign-out failed", err);
     }
   }
 
@@ -62,13 +64,19 @@ export function AccountPanel() {
     return <p className="text-slate-500">Loading…</p>;
   }
 
-  if (error === 'not_signed_in' || !data) {
+  if (error === "not_signed_in" || !data) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-900">
         <p className="font-medium">You're not signed in.</p>
         <p className="mt-2 text-sm">
-          <a href="/login" className="font-semibold underline">Sign in</a> or{' '}
-          <a href="/register" className="font-semibold underline">create an account</a> to contribute to the encyclopedia.
+          <a href="/login" className="font-semibold underline">
+            Sign in
+          </a>{" "}
+          or{" "}
+          <a href="/register" className="font-semibold underline">
+            create an account
+          </a>{" "}
+          to contribute to the encyclopedia.
         </p>
       </div>
     );
@@ -120,9 +128,9 @@ export function AccountPanel() {
             </dt>
             <dd className="mt-1 text-sm text-slate-900">
               {new Date(u.createdAt).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
+                year: "numeric",
+                month: "long",
+                day: "numeric",
               })}
             </dd>
           </div>

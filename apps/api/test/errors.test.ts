@@ -12,10 +12,11 @@
  * - httpError() helper produces the right shape
  * - Internal errors don't leak stack in production
  */
-import { describe, it, expect, beforeAll } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { buildServer } from '../src/server.js';
-import { httpError } from '../src/errors.js';
+
+import type { FastifyInstance } from "fastify";
+import { beforeAll, describe, expect, it } from "vitest";
+import { httpError } from "../src/errors.js";
+import { buildServer } from "../src/server.js";
 
 let app: FastifyInstance;
 
@@ -24,31 +25,31 @@ beforeAll(async () => {
 
   // Test-only routes for error mapping. Registered in beforeAll because
   // Fastify 5 locks down route registration after the first inject() call.
-  app.get('/__test__/pg/23505', async () => {
-    const err = new Error('duplicate key') as Error & { code: string };
-    err.code = '23505';
+  app.get("/__test__/pg/23505", async () => {
+    const err = new Error("duplicate key") as Error & { code: string };
+    err.code = "23505";
     throw err;
   });
-  app.get('/__test__/pg/23503', async () => {
-    const err = new Error('fk violation') as Error & { code: string };
-    err.code = '23503';
+  app.get("/__test__/pg/23503", async () => {
+    const err = new Error("fk violation") as Error & { code: string };
+    err.code = "23503";
     throw err;
   });
-  app.get('/__test__/pg/23502', async () => {
-    const err = new Error('not null') as Error & {
+  app.get("/__test__/pg/23502", async () => {
+    const err = new Error("not null") as Error & {
       code: string;
       column: string;
     };
-    err.code = '23502';
-    err.column = 'canonical_name';
+    err.code = "23502";
+    err.column = "canonical_name";
     throw err;
   });
-  app.get('/__test__/throw', async () => {
-    throw new Error('internal super-secret message');
+  app.get("/__test__/throw", async () => {
+    throw new Error("internal super-secret message");
   });
 });
 
-describe('error handler — response shape', () => {
+describe("error handler — response shape", () => {
   // Note: we don't assert 404 shape here — `app.inject` against
   // /api/dishes/* needs a live DB to reach the 404 path. CI uses a
   // fresh DB so the route may short-circuit to a 500 with no dish
@@ -57,8 +58,8 @@ describe('error handler — response shape', () => {
   // branch, and the 500 internal_error branch all produce the
   // {error, message, code, traceId} shape.
 
-  it('409 duplicate_value response has the expected shape', async () => {
-    const res = await app.inject({ method: 'GET', url: '/__test__/pg/23505' });
+  it("409 duplicate_value response has the expected shape", async () => {
+    const res = await app.inject({ method: "GET", url: "/__test__/pg/23505" });
     expect(res.statusCode).toBe(409);
     const body = res.json();
     expect(body).toMatchObject({
@@ -74,18 +75,18 @@ describe('error handler — response shape', () => {
   });
 });
 
-describe('error handler — Zod validation', () => {
-  it('returns 400 validation_error with details + fields on Zod failure', async () => {
+describe("error handler — Zod validation", () => {
+  it("returns 400 validation_error with details + fields on Zod failure", async () => {
     // Add a temporary route that throws a ZodError to exercise that branch.
     // Using app.inject with a synthetic request via a temporary plugin would
     // complicate teardown — instead, use the existing POST /api/dishes which
     // is auth-gated; even if we hit auth first, that's also a structured error.
     // The actual Zod branch is exercised indirectly by the route tests.
     const res = await app.inject({
-      method: 'POST',
-      url: '/api/dishes',
-      headers: { 'content-type': 'application/json' },
-      payload: { canonicalName: 'X' }, // too short, missing slug
+      method: "POST",
+      url: "/api/dishes",
+      headers: { "content-type": "application/json" },
+      payload: { canonicalName: "X" }, // too short, missing slug
     });
     // Unauth → 401, OR validation → 400. Either way the shape must be consistent.
     const body = res.json();
@@ -99,74 +100,74 @@ describe('error handler — Zod validation', () => {
   });
 });
 
-describe('httpError() helper', () => {
-  it('produces an Error with statusCode, code, and message', () => {
-    const err = httpError(404, 'not_found', 'Dish "x" not found');
+describe("httpError() helper", () => {
+  it("produces an Error with statusCode, code, and message", () => {
+    const err = httpError(404, "not_found", 'Dish "x" not found');
     expect(err).toBeInstanceOf(Error);
     expect(err.statusCode).toBe(404);
-    expect(err.code).toBe('not_found');
+    expect(err.code).toBe("not_found");
     expect(err.message).toBe('Dish "x" not found');
   });
 
-  it('attaches details when provided', () => {
-    const err = httpError(409, 'conflict', 'oops', { fields: ['slug'] });
+  it("attaches details when provided", () => {
+    const err = httpError(409, "conflict", "oops", { fields: ["slug"] });
     expect((err as Error & { details?: unknown }).details).toEqual({
-      fields: ['slug'],
+      fields: ["slug"],
     });
   });
 });
 
-describe('error handler — Postgres error mapping', () => {
+describe("error handler — Postgres error mapping", () => {
   // Test routes are registered in beforeAll below because Fastify locks
   // down route registration after the first inject() / ready() call.
 
-  it('synthesises a 23505 unique_violation response', async () => {
-    const res = await app.inject({ method: 'GET', url: '/__test__/pg/23505' });
+  it("synthesises a 23505 unique_violation response", async () => {
+    const res = await app.inject({ method: "GET", url: "/__test__/pg/23505" });
     expect(res.statusCode).toBe(409);
     const body = res.json();
     expect(body).toMatchObject({
-      error: 'duplicate_value',
+      error: "duplicate_value",
       code: 409,
       traceId: expect.any(String),
     });
   });
 
-  it('synthesises a 23503 foreign_key_violation response', async () => {
-    const res = await app.inject({ method: 'GET', url: '/__test__/pg/23503' });
+  it("synthesises a 23503 foreign_key_violation response", async () => {
+    const res = await app.inject({ method: "GET", url: "/__test__/pg/23503" });
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body).toMatchObject({
-      error: 'invalid_reference',
+      error: "invalid_reference",
       code: 400,
       traceId: expect.any(String),
     });
   });
 
-  it('synthesises a 23502 not_null_violation response with column field', async () => {
-    const res = await app.inject({ method: 'GET', url: '/__test__/pg/23502' });
+  it("synthesises a 23502 not_null_violation response with column field", async () => {
+    const res = await app.inject({ method: "GET", url: "/__test__/pg/23502" });
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body).toMatchObject({
-      error: 'missing_required_field',
+      error: "missing_required_field",
       code: 400,
-      fields: ['canonical_name'],
+      fields: ["canonical_name"],
     });
   });
 });
 
-describe('error handler — production safety', () => {
-  it('does not leak stack traces in production for unknown errors', async () => {
-    const res = await app.inject({ method: 'GET', url: '/__test__/throw' });
+describe("error handler — production safety", () => {
+  it("does not leak stack traces in production for unknown errors", async () => {
+    const res = await app.inject({ method: "GET", url: "/__test__/throw" });
     expect(res.statusCode).toBe(500);
     const body = res.json();
-    expect(body.error).toBe('internal_error');
+    expect(body.error).toBe("internal_error");
     // In production (NODE_ENV === 'production'), the message should not
     // contain the original error text. In other modes, it might.
-    if (process.env.NODE_ENV === 'production') {
-      expect(body.message).toBe('Internal server error');
-      expect(body.message).not.toContain('super-secret');
+    if (process.env.NODE_ENV === "production") {
+      expect(body.message).toBe("Internal server error");
+      expect(body.message).not.toContain("super-secret");
     } else {
-      expect(body.message).toContain('super-secret');
+      expect(body.message).toContain("super-secret");
     }
   });
 });

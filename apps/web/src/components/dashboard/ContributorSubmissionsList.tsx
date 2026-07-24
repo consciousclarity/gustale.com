@@ -13,12 +13,12 @@
  * submissions endpoint returned, show targetId, and rely on the
  * already-existing edit-history `comment` for human context.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   ApiError,
   type DashboardSubmission,
   type DashboardSubmissionsResponse,
-} from '../../lib/api';
+} from "../../lib/api";
 
 interface Props {
   emptyTitle?: string;
@@ -29,23 +29,26 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }
 
 function actionLabel(action: string): string {
   switch (action) {
-    case 'create': return 'Created draft';
-    case 'update': return 'Updated';
-    default: return action;
+    case "create":
+      return "Created draft";
+    case "update":
+      return "Updated";
+    default:
+      return action;
   }
 }
 
 export function ContributorSubmissionsList({
-  emptyTitle = 'No submissions yet',
-  emptyBody = 'When you edit a dish, your activity will be recorded here.',
+  emptyTitle = "No submissions yet",
+  emptyBody = "When you edit a dish, your activity will be recorded here.",
 }: Props) {
   const [data, setData] = useState<DashboardSubmission[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +58,7 @@ export function ContributorSubmissionsList({
     let cancelled = false;
     (async () => {
       try {
-        const res = await import('../../lib/api').then((m) =>
+        const res = await import("../../lib/api").then((m) =>
           m.getDashboardSubmissions({ limit: 50 }),
         );
         if (cancelled) return;
@@ -63,9 +66,11 @@ export function ContributorSubmissionsList({
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 401) {
-          setError('unauthorized');
+          setError("unauthorized");
         } else {
-          setError(err instanceof Error ? err.message : 'Could not load submissions.');
+          setError(
+            err instanceof Error ? err.message : "Could not load submissions.",
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -79,7 +84,7 @@ export function ContributorSubmissionsList({
   if (loading) {
     return <p className="cd-list__hint">Loading submissions…</p>;
   }
-  if (error === 'unauthorized') {
+  if (error === "unauthorized") {
     return (
       <p className="cd-list__hint">
         <a className="cd-signin" href="/login?redirect=/dashboard">

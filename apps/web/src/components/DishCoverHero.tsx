@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { getMediaSignedUrl } from '../lib/api';
-import { selectDishHeroMedia } from '../lib/dishMedia';
-import type { DishMediaAttachment, DishOrigin } from '../types/dish';
+import { useEffect, useState } from "react";
+import { getMediaSignedUrl } from "../lib/api";
+import { selectDishHeroMedia } from "../lib/dishMedia";
+import type { DishMediaAttachment, DishOrigin } from "../types/dish";
 
 export interface DishCoverHeroProps {
   dishName: string;
@@ -23,8 +23,10 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
 
   const [url, setUrl] = useState<string | null>(null);
   const [imageReady, setImageReady] = useState(false);
-  const placeLabel = origin?.name ?? 'Origin unrecorded';
-  const placeCode = (origin?.isoCode ?? origin?.name ?? '—').toString().toUpperCase();
+  const placeLabel = origin?.name ?? "Origin unrecorded";
+  const placeCode = (origin?.isoCode ?? origin?.name ?? "—")
+    .toString()
+    .toUpperCase();
 
   useEffect(() => {
     if (!cover) {
@@ -70,7 +72,7 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
           <img
             src={url}
             alt={cover?.altText ?? `${dishName} — cover`}
-            className={`dish-cover-hero__img${imageReady ? ' is-ready' : ''}`}
+            className={`dish-cover-hero__img${imageReady ? " is-ready" : ""}`}
             decoding="async"
             fetchPriority="high"
             onLoad={() => setImageReady(true)}
@@ -87,13 +89,17 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
       <figcaption className="dish-cover-hero__cap">
         <span>
           {cover
-            ? cover.altText || cover.credit || 'Cover photograph'
-            : 'Cover pending — place mark shown until a photo is attached'}
+            ? cover.altText || cover.credit || "Cover photograph"
+            : "Cover pending — place mark shown until a photo is attached"}
         </span>
         <span className="dish-cover-hero__cap-meta">
           {cover?.credit && <em>{cover.credit}</em>}
-          {cover?.license && <span className="dish-cover-hero__license">{cover.license}</span>}
-          {!cover && <span className="dish-cover-hero__license">{placeCode}</span>}
+          {cover?.license && (
+            <span className="dish-cover-hero__license">{cover.license}</span>
+          )}
+          {!cover && (
+            <span className="dish-cover-hero__license">{placeCode}</span>
+          )}
         </span>
       </figcaption>
     </figure>

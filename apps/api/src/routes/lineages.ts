@@ -30,18 +30,19 @@
  *     confidenceLevels: string[],
  *   }
  */
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { eq, sql, ilike, or, and, inArray, SQL } from 'drizzle-orm';
+
 import {
-  db,
-  lineages,
-  dishLineages,
-  dishes,
-  geoEntities,
-  dishCategories,
   categories,
-} from '@gustale/db';
+  db,
+  dishCategories,
+  dishes,
+  dishLineages,
+  geoEntities,
+  lineages,
+} from "@gustale/db";
+import { and, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 
 const listQuerySchema = z.object({
   search: z.string().max(200).optional(),
@@ -49,7 +50,14 @@ const listQuerySchema = z.object({
   technique: z.string().max(100).optional(),
   historicalForce: z.string().max(50).optional(),
   confidence: z
-    .enum(['documented', 'likely', 'probable', 'possible', 'uncertain', 'parallel_evolution'])
+    .enum([
+      "documented",
+      "likely",
+      "probable",
+      "possible",
+      "uncertain",
+      "parallel_evolution",
+    ])
     .optional(),
 });
 
@@ -90,7 +98,7 @@ function rowToSummary(
 
 export function registerLineageRoutes(app: FastifyInstance): void {
   // ─── List ──────────────────────────────────────────────────────────────
-  app.get('/api/lineages', async (request) => {
+  app.get("/api/lineages", async (request) => {
     const q = listQuerySchema.parse(request.query);
 
     // We compute per-lineage counts in a single query (LEFT JOIN + GROUP BY)
@@ -102,12 +110,14 @@ export function registerLineageRoutes(app: FastifyInstance): void {
         // MUST carry an explicit .as() alias, or drizzle throws at query-build
         // time ("...doesn't have an alias declared"). This is what 500'd
         // /api/lineages in prod after PR #15.
-        dishCount: sql<number>`COUNT(DISTINCT ${dishLineages.dishId})::int`.as('dishCount'),
-        relationCount: sql<number>`COUNT(*)::int`.as('relationCount'),
+        dishCount: sql<number>`COUNT(DISTINCT ${dishLineages.dishId})::int`.as(
+          "dishCount",
+        ),
+        relationCount: sql<number>`COUNT(*)::int`.as("relationCount"),
       })
       .from(dishLineages)
       .groupBy(dishLineages.lineageId)
-      .as('counts');
+      .as("counts");
 
     const filters: SQL[] = [];
     if (q.search) {
@@ -176,9 +186,9 @@ export function registerLineageRoutes(app: FastifyInstance): void {
       .from(dishLineages)
       .where(
         inArray(dishLineages.confidenceLevel, [
-          'uncertain',
-          'parallel_evolution',
-          'possible',
+          "uncertain",
+          "parallel_evolution",
+          "possible",
         ]),
       );
 
@@ -211,7 +221,7 @@ export function registerLineageRoutes(app: FastifyInstance): void {
 
   // ─── Detail ────────────────────────────────────────────────────────────
   app.get<{ Params: { slug: string } }>(
-    '/api/lineages/:slug',
+    "/api/lineages/:slug",
     async (request, reply) => {
       const { slug } = request.params;
 
@@ -221,7 +231,7 @@ export function registerLineageRoutes(app: FastifyInstance): void {
         .where(eq(lineages.slug, slug))
         .limit(1);
       if (lineageRows.length === 0) {
-        return reply.status(404).send({ error: 'lineage not found', slug });
+        return reply.status(404).send({ error: "lineage not found", slug });
       }
       const lineage = lineageRows[0]!;
 
@@ -243,10 +253,7 @@ export function registerLineageRoutes(app: FastifyInstance): void {
         .innerJoin(dishes, eq(dishes.id, dishLineages.dishId))
         .leftJoin(geoEntities, eq(geoEntities.id, dishes.originGeoId))
         .where(eq(dishLineages.lineageId, lineage.id))
-        .orderBy(
-          sql`${dishLineages.sortOrder} DESC`,
-          dishes.canonicalName,
-        );
+        .orderBy(sql`${dishLineages.sortOrder} DESC`, dishes.canonicalName);
 
       // Group edges by role so the UI can render "Early forms" /
       // "Regional adaptations" / "Cousins & parallel" sections.
@@ -256,34 +263,34 @@ export function registerLineageRoutes(app: FastifyInstance): void {
         note: string;
       }> = [
         {
-          title: 'Anchor forms',
-          roles: ['ancestor', 'descendant'],
-          note: 'The clearest historical anchors in this lineage.',
+          title: "Anchor forms",
+          roles: ["ancestor", "descendant"],
+          note: "The clearest historical anchors in this lineage.",
         },
         {
-          title: 'Regional adaptations',
-          roles: ['regional_variant', 'adaptation'],
-          note: 'Local variants of the core idea — same family, different kitchen.',
+          title: "Regional adaptations",
+          roles: ["regional_variant", "adaptation"],
+          note: "Local variants of the core idea — same family, different kitchen.",
         },
         {
-          title: 'Cousins & parallel forms',
-          roles: ['cousin', 'technique_relative', 'ingredient_relative'],
+          title: "Cousins & parallel forms",
+          roles: ["cousin", "technique_relative", "ingredient_relative"],
           note: 'Same logic, possibly separate origin. The "similar shape, unclear historical link" cluster.',
         },
         {
-          title: 'Diaspora & migration',
-          roles: ['diaspora_adaptation', 'migration', 'diaspora'],
-          note: 'Forms shaped by displacement, refugee communities, and migration.',
+          title: "Diaspora & migration",
+          roles: ["diaspora_adaptation", "migration", "diaspora"],
+          note: "Forms shaped by displacement, refugee communities, and migration.",
         },
         {
-          title: 'Trade routes & colonial spread',
-          roles: ['trade_route_spread', 'colonial_spread', 'fusion'],
-          note: 'Forms shaped by trade and colonial contact.',
+          title: "Trade routes & colonial spread",
+          roles: ["trade_route_spread", "colonial_spread", "fusion"],
+          note: "Forms shaped by trade and colonial contact.",
         },
         {
-          title: 'Tentative connections',
-          roles: ['possible_influence', 'parallel_evolution', 'uncertain'],
-          note: 'Plausible but unproven — kept here so we don\'t flatten uncertainty.',
+          title: "Tentative connections",
+          roles: ["possible_influence", "parallel_evolution", "uncertain"],
+          note: "Plausible but unproven — kept here so we don't flatten uncertainty.",
         },
       ];
 
@@ -309,11 +316,7 @@ export function registerLineageRoutes(app: FastifyInstance): void {
       const distinctDishCount = new Set(edges.map((e) => e.dish.id)).size;
 
       return {
-        lineage: rowToSummary(
-          lineage,
-          distinctDishCount,
-          edges.length,
-        ),
+        lineage: rowToSummary(lineage, distinctDishCount, edges.length),
         longDescription: lineage.longDescription,
         groupedDishes: grouped,
       };

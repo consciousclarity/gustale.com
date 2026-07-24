@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { getMediaSignedUrl, ApiError } from '../lib/api';
-import type { DishMediaAttachment } from '../types/dish';
+import { useEffect, useState } from "react";
+import { ApiError, getMediaSignedUrl } from "../lib/api";
+import type { DishMediaAttachment } from "../types/dish";
 
 export interface DishGalleryProps {
   /** All media attached to the dish. Hero media is omitted via excludeMediaId. */
@@ -16,7 +16,10 @@ export interface DishGalleryProps {
  * Secondary gallery. Hero lives in DishCoverHero — exclude that mediaId here.
  * Empty / loading cells use a quiet placeholder — never "Loading cover…".
  */
-export function DishGallery({ media, excludeMediaId = null }: DishGalleryProps) {
+export function DishGallery({
+  media,
+  excludeMediaId = null,
+}: DishGalleryProps) {
   const gallery = [...media]
     .filter((m) => m.mediaId !== excludeMediaId)
     .sort((a, b) => a.position - b.position);
@@ -41,14 +44,14 @@ export function DishGallery({ media, excludeMediaId = null }: DishGalleryProps) 
       if (cancelled) return;
       const next: Record<string, string> = {};
       for (const r of galleryResults) {
-        if (r.status === 'fulfilled') next[r.value.id] = r.value.url;
+        if (r.status === "fulfilled") next[r.value.id] = r.value.url;
         else errors.push(`gallery: ${errorMessage(r.reason)}`);
       }
       setGalleryUrls(next);
       if (errors.length > 0) {
         setLoadError(
           errors.length === gallery.length
-            ? 'Could not load gallery images. Check your connection and try again.'
+            ? "Could not load gallery images. Check your connection and try again."
             : `Some images failed to load (${errors.length}/${gallery.length}).`,
         );
       } else {
@@ -87,12 +90,12 @@ export function DishGallery({ media, excludeMediaId = null }: DishGalleryProps) 
                   type="button"
                   className="dish-gallery__thumb"
                   onClick={() => setLightbox(m)}
-                  aria-label={`Open larger view${m.altText ? `: ${m.altText}` : ''}`}
+                  aria-label={`Open larger view${m.altText ? `: ${m.altText}` : ""}`}
                 >
                   {url ? (
                     <img
                       src={url}
-                      alt={m.altText ?? 'Gallery image'}
+                      alt={m.altText ?? "Gallery image"}
                       loading="lazy"
                       decoding="async"
                     />
@@ -106,41 +109,42 @@ export function DishGallery({ media, excludeMediaId = null }: DishGalleryProps) 
         </ul>
 
         <p className="dish-gallery__note">
-          {gallery.length} more image{gallery.length === 1 ? '' : 's'}
+          {gallery.length} more image{gallery.length === 1 ? "" : "s"}
         </p>
       </section>
 
-      {lightbox && (() => {
-        const url = galleryUrls[lightbox.mediaId];
-        return (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Full-size view of ${lightbox.altText ?? 'image'}`}
-            className="dish-gallery__lightbox"
-            onClick={() => setLightbox(null)}
-          >
-            <button
-              type="button"
-              className="dish-gallery__lightbox-close"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightbox(null);
-              }}
-              aria-label="Close image"
+      {lightbox &&
+        (() => {
+          const url = galleryUrls[lightbox.mediaId];
+          return (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Full-size view of ${lightbox.altText ?? "image"}`}
+              className="dish-gallery__lightbox"
+              onClick={() => setLightbox(null)}
             >
-              Close
-            </button>
-            {url && (
-              <img
-                src={url}
-                alt={lightbox.altText ?? 'Full-size image'}
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-          </div>
-        );
-      })()}
+              <button
+                type="button"
+                className="dish-gallery__lightbox-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox(null);
+                }}
+                aria-label="Close image"
+              >
+                Close
+              </button>
+              {url && (
+                <img
+                  src={url}
+                  alt={lightbox.altText ?? "Full-size image"}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+            </div>
+          );
+        })()}
     </>
   );
 }
@@ -148,5 +152,5 @@ export function DishGallery({ media, excludeMediaId = null }: DishGalleryProps) 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return `${err.status} ${err.message}`;
   if (err instanceof Error) return err.message;
-  return 'unknown';
+  return "unknown";
 }

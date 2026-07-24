@@ -12,7 +12,7 @@
  *    URL-safe format because we are minting a *new* slug.
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 /** Read-side `:slug` path param — length-bounded only. */
 export const slugParamSchema = z.object({
@@ -25,7 +25,7 @@ export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Create-side slug body field — enforces {@link SLUG_RE}. */
 export const slugBodyField = z
   .string()
-  .regex(SLUG_RE, 'Slug must be lowercase letters, digits, and hyphens')
+  .regex(SLUG_RE, "Slug must be lowercase letters, digits, and hyphens")
   .min(2)
   .max(200);
 

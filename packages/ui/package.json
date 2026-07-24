@@ -9,7 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "lint": "echo 'lint ui'",
+    "lint": "biome check .",
     "typecheck": "tsc --noEmit",
     "build": "echo 'no build step for ui yet'"
   },

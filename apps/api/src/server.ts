@@ -1,48 +1,52 @@
-import Fastify, { type FastifyInstance } from 'fastify';
-import cors from '@fastify/cors';
-import helmet from '@fastify/helmet';
+import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import Fastify, { type FastifyInstance } from "fastify";
 // Side-effect import: registers the FastifyRequest augmentation (request.parts(),
 // request.file()) declared in @fastify/multipart's types/index.d.ts. Without
 // this import, TS sees the augmentation as orphaned and the route files get
 // "Property 'parts' does not exist on FastifyRequest".
-import '@fastify/multipart';
-import multipart from '@fastify/multipart';
-import sensible from '@fastify/sensible';
-import { env } from './env.js';
-import { registerHealthRoutes } from './routes/health.js';
-import { registerDishRoutes } from './routes/dishes.js';
-import { registerAdminDishRoutes } from './routes/admin-dishes.js';
-import { registerDishWriteRoutes } from './routes/dishes-write.js';
-import { registerTaxonomyRoutes } from './routes/taxonomy.js';
-import { registerLineageRoutes } from './routes/lineages.js';
-import { registerIngredientRoutes } from './routes/ingredients.js';
-import { registerMediaRoutes } from './routes/media.js';
-import { registerDishMediaRoutes } from './routes/dishes-media.js';
-import { registerDashboardRoutes } from './routes/dashboard.js';
-import { registerSearchRoutes } from './routes/search.js';
-import { registerErrorHandler } from './errors.js';
-import betterAuthPlugin from './plugins/auth.js';
-import authContextPlugin from './plugins/auth-context.js';
-import { ensureBuckets } from './lib/minio.js';
-import { closeDb } from '@gustale/db';
+import "@fastify/multipart";
+import multipart from "@fastify/multipart";
+import sensible from "@fastify/sensible";
+import { closeDb } from "@gustale/db";
+import { env } from "./env.js";
+import { registerErrorHandler } from "./errors.js";
+import { ensureBuckets } from "./lib/minio.js";
+import betterAuthPlugin from "./plugins/auth.js";
+import authContextPlugin from "./plugins/auth-context.js";
+import { registerAdminDishRoutes } from "./routes/admin-dishes.js";
+import { registerDashboardRoutes } from "./routes/dashboard.js";
+import { registerDishRoutes } from "./routes/dishes.js";
+import { registerDishMediaRoutes } from "./routes/dishes-media.js";
+import { registerDishWriteRoutes } from "./routes/dishes-write.js";
+import { registerHealthRoutes } from "./routes/health.js";
+import { registerIngredientRoutes } from "./routes/ingredients.js";
+import { registerLineageRoutes } from "./routes/lineages.js";
+import { registerMediaRoutes } from "./routes/media.js";
+import { registerSearchRoutes } from "./routes/search.js";
+import { registerTaxonomyRoutes } from "./routes/taxonomy.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
-      transport: env.NODE_ENV === 'development'
-        ? { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss.l', ignore: 'pid,hostname' } }
-        : undefined,
+      transport:
+        env.NODE_ENV === "development"
+          ? {
+              target: "pino-pretty",
+              options: { translateTime: "HH:MM:ss.l", ignore: "pid,hostname" },
+            }
+          : undefined,
     },
     trustProxy: true,
-    requestIdHeader: 'x-request-id',
-    requestIdLogLabel: 'reqId',
+    requestIdHeader: "x-request-id",
+    requestIdLogLabel: "reqId",
   });
 
   // Plugins
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cors, {
-    origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
+    origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(","),
     credentials: true,
   });
   await app.register(sensible);
@@ -54,7 +58,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     attachFieldsToBody: false,
     limits: {
       fileSize: 20 * 1024 * 1024, // 20 MB — must match MAX_BYTES in routes/media.ts
-      files: 1,                   // single file per upload
+      files: 1, // single file per upload
     },
   });
 
@@ -73,7 +77,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   // mode: routes will return 500 on media ops until the operator fixes
   // MinIO).
   await ensureBuckets().catch((err) => {
-    app.log.warn({ err }, 'ensureBuckets failed at boot; media routes will return 500 until MinIO is reachable');
+    app.log.warn(
+      { err },
+      "ensureBuckets failed at boot; media routes will return 500 until MinIO is reachable",
+    );
   });
 
   // Routes — register static-before-parametric (P27).
@@ -94,17 +101,17 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {
-    app.log.info({ signal }, 'shutting down');
+    app.log.info({ signal }, "shutting down");
     try {
       await app.close();
       await closeDb();
     } catch (err) {
-      app.log.error({ err }, 'error during shutdown');
+      app.log.error({ err }, "error during shutdown");
     }
     process.exit(0);
   };
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
 
   return app;
 }
@@ -119,7 +126,7 @@ if (isMain) {
     })
     .catch((err) => {
       // eslint-disable-next-line no-console
-      console.error('Failed to start server:', err);
+      console.error("Failed to start server:", err);
       process.exit(1);
     });
 }

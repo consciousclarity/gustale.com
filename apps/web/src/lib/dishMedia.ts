@@ -1,4 +1,4 @@
-import type { DishMediaAttachment } from '../types/dish';
+import type { DishMediaAttachment } from "../types/dish";
 
 /**
  * Media item shown in the full-bleed dish hero.
@@ -8,7 +8,7 @@ import type { DishMediaAttachment } from '../types/dish';
 export function selectDishHeroMedia(
   media: DishMediaAttachment[],
 ): DishMediaAttachment | null {
-  const explicitCover = media.find((m) => m.role === 'cover');
+  const explicitCover = media.find((m) => m.role === "cover");
   if (explicitCover) return explicitCover;
   if (media.length === 0) return null;
   return [...media].sort((a, b) => a.position - b.position)[0] ?? null;

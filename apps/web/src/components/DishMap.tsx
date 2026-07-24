@@ -1,6 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
-import type { DishOrigin } from '../types/dish';
-
 // IMPORTANT: maplibre-gl is dynamically imported inside the effect, not
 // statically imported at the top. Static imports execute at module-eval
 // time, which means even a `client:only` island would try to evaluate
@@ -9,11 +6,13 @@ import type { DishOrigin } from '../types/dish';
 // dependency until the user actually sees the map. Mirrors the same
 // pattern as <WorldMap>.
 import type {
-  Map as MlMap,
   MapMouseEvent,
+  Map as MlMap,
   Popup as PopupType,
-} from 'maplibre-gl';
-import type { StyleSpecification } from 'maplibre-gl';
+  StyleSpecification,
+} from "maplibre-gl";
+import { useEffect, useRef, useState } from "react";
+import type { DishOrigin } from "../types/dish";
 
 export interface DishMapProps {
   origin: DishOrigin;
@@ -59,24 +58,24 @@ export function DishMap({ origin, dishName }: DishMapProps) {
   // broken map.
   const lat = origin.lat;
   const lng = origin.lng;
-  const hasCoords = typeof lat === 'number' && typeof lng === 'number';
+  const hasCoords = typeof lat === "number" && typeof lng === "number";
 
   // Cheap, synchronous WebGL capability probe. Runs before any heavy
   // import. If this returns false we never even fetch the ~1MB
   // maplibre-gl bundle — we just show a static panel. This is the most
   // common reason map UIs appear as blank grey boxes in the wild.
   const detectWebGL = (): boolean => {
-    if (typeof document === 'undefined') return false;
+    if (typeof document === "undefined") return false;
     try {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       // getContext's TypeScript types return `RenderingContext | null`
       // which is a union including 2D. Cast through `unknown` to the
       // WebGL-specific interface so we can use getParameter below.
-      const gl = (canvas.getContext('webgl2') ??
-        canvas.getContext('webgl') ??
-        canvas.getContext('experimental-webgl')) as unknown as
-        | WebGLRenderingContext
-        | null;
+      const gl = (canvas.getContext("webgl2") ??
+        canvas.getContext("webgl") ??
+        canvas.getContext(
+          "experimental-webgl",
+        )) as unknown as WebGLRenderingContext | null;
       if (!gl) return false;
       // Some browsers report a context but actually have a software-only
       // driver that crashes when used. Quick sanity check: query a basic
@@ -100,9 +99,11 @@ export function DishMap({ origin, dishName }: DishMapProps) {
     // can't use the map anyway.
     if (!detectWebGL()) {
       // eslint-disable-next-line no-console
-      console.warn('[DishMap] WebGL not available — falling back to static panel');
+      console.warn(
+        "[DishMap] WebGL not available — falling back to static panel",
+      );
       setMapError(
-        'Your browser does not support WebGL, which is required for the interactive map. The origin details are shown below.',
+        "Your browser does not support WebGL, which is required for the interactive map. The origin details are shown below.",
       );
       setMapReady(true);
       return;
@@ -111,204 +112,205 @@ export function DishMap({ origin, dishName }: DishMapProps) {
     // Dynamic import: keeps maplibre-gl out of the SSR/initial-hydration
     // critical path. The component itself becomes a thin React island
     // that, after mount, fetches the MapLibre bundle as a separate chunk.
-    void import('maplibre-gl').then((mod) => {
-      if (cancelled) return;
-      const maplibregl = mod.default ?? mod;
-
-      // Same basemap as <WorldMap>. Carto's positron-glight raster —
-      // free, no API key, OSM-derived. Keeping the look consistent
-      // across the two maps on the site.
-      const style: StyleSpecification = {
-        version: 8,
-        glyphs:
-          'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-        sources: {
-          'carto-positron': {
-            type: 'raster',
-            tiles: [
-              'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-            ],
-            tileSize: 256,
-            attribution:
-              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-          },
-        },
-        layers: [
-          {
-            id: 'carto-positron-layer',
-            type: 'raster',
-            source: 'carto-positron',
-          },
-        ],
-      };
-
-      try {
-        // MapLibre uses [lng, lat] (GeoJSON order). Our API stores
-        // lat and lng separately, so swap them at the call site.
-        map = new maplibregl.Map({
-          container: containerRef.current!,
-          style,
-          center: [lng!, lat!],
-          zoom: initialZoom(origin.entityType),
-          minZoom: 0.5,
-          maxZoom: 18,
-          attributionControl: { compact: true },
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[DishMap] MapLibre init failed:', err);
-        setMapError(
-          'The interactive map could not be initialised in this browser. The origin details are shown below.',
-        );
-        setMapReady(true);
-        return;
-      }
-
-      const mapInstance = map;
-
-      // Surface MapLibre runtime errors so they don't get swallowed.
-      mapInstance.on('error', (e: { error?: Error }) => {
-        // eslint-disable-next-line no-console
-        console.warn('[DishMap] MapLibre error:', e?.error?.message ?? e);
-      });
-
-      // Scale control — bottom-left, matching the standalone /map.
-      mapInstance.addControl(
-        new maplibregl.ScaleControl({ unit: 'metric' }),
-        'bottom-left',
-      );
-
-      mapRef.current = mapInstance;
-
-      // The popup is created once and re-used via setLngLat + addTo.
-      // MapLibre's Popup is the canonical way to render rich HTML
-      // overlays anchored to a coordinate. We attach it on first
-      // load so the user immediately sees the dish name on the map.
-      popupRef.current = new maplibregl.Popup({
-        closeButton: false,
-        closeOnClick: false,
-        offset: 14,
-        maxWidth: '240px',
-      });
-
-      mapInstance.on('load', () => {
+    void import("maplibre-gl")
+      .then((mod) => {
         if (cancelled) return;
+        const maplibregl = mod.default ?? mod;
 
-        // Single-feature GeoJSON source — the dish's origin point.
-        const featureCollection: GeoJSON.FeatureCollection = {
-          type: 'FeatureCollection',
-          features: [
+        // Same basemap as <WorldMap>. Carto's positron-glight raster —
+        // free, no API key, OSM-derived. Keeping the look consistent
+        // across the two maps on the site.
+        const style: StyleSpecification = {
+          version: 8,
+          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+          sources: {
+            "carto-positron": {
+              type: "raster",
+              tiles: [
+                "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+                "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+                "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+              ],
+              tileSize: 256,
+              attribution:
+                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+            },
+          },
+          layers: [
             {
-              type: 'Feature',
-              geometry: { type: 'Point', coordinates: [lng!, lat!] },
-              properties: {
-                dishName,
-                originName: origin.name,
-                isoCode: origin.isoCode ?? '',
-              },
+              id: "carto-positron-layer",
+              type: "raster",
+              source: "carto-positron",
             },
           ],
         };
 
-        mapInstance.addSource('origin', {
-          type: 'geojson',
-          data: featureCollection,
-        });
-
-        // Halo: a soft outer ring that scales up on hover.
-        mapInstance.addLayer({
-          id: 'origin-halo',
-          type: 'circle',
-          source: 'origin',
-          paint: {
-            'circle-radius': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false],
-              14,
-              10,
-            ],
-            'circle-color': '#10b981',
-            'circle-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false],
-              0.35,
-              0.18,
-            ],
-            'circle-radius-transition': { duration: 150 },
-            'circle-opacity-transition': { duration: 150 },
-          },
-        });
-
-        // Solid dot.
-        mapInstance.addLayer({
-          id: 'origin-dot',
-          type: 'circle',
-          source: 'origin',
-          paint: {
-            'circle-radius': [
-              'case',
-              ['boolean', ['feature-state', 'hover'], false],
-              7,
-              5,
-            ],
-            'circle-color': '#059669',
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 1.5,
-            'circle-radius-transition': { duration: 150 },
-          },
-        });
-
-        // Show the popup immediately on load (no click required) so the
-        // user can see what the dot means without trial-and-error.
-        // Hover keeps it open; moving the cursor away doesn't close it
-        // because closeOnClick is false and we never call remove().
-        const popup = popupRef.current;
-        if (popup) {
-          popup
-            .setLngLat([lng!, lat!])
-            .setHTML(buildPopupHTML(origin, dishName))
-            .addTo(mapInstance);
+        try {
+          // MapLibre uses [lng, lat] (GeoJSON order). Our API stores
+          // lat and lng separately, so swap them at the call site.
+          map = new maplibregl.Map({
+            container: containerRef.current!,
+            style,
+            center: [lng!, lat!],
+            zoom: initialZoom(origin.entityType),
+            minZoom: 0.5,
+            maxZoom: 18,
+            attributionControl: { compact: true },
+          });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn("[DishMap] MapLibre init failed:", err);
+          setMapError(
+            "The interactive map could not be initialised in this browser. The origin details are shown below.",
+          );
+          setMapReady(true);
+          return;
         }
 
-        // Hover state tracking — same pattern as <WorldMap>.
-        let hovered = false;
-        const setHover = (next: boolean): void => {
-          if (hovered === next) return;
-          hovered = next;
-          mapInstance.setFeatureState(
-            { source: 'origin', id: 0 },
-            { hover: next },
-          );
-          mapInstance.getCanvas().style.cursor = next ? 'pointer' : '';
-        };
+        const mapInstance = map;
 
-        const onMove = (e: MapMouseEvent): void => {
-          // MapLibre's queryRenderedFeatures hits the canvas at the
-          // pointer position. With a tiny single-marker map the dot
-          // is a small target — keep the cursor change on the larger
-          // halo layer to make it feel responsive.
-          const features = mapInstance.queryRenderedFeatures(e.point, {
-            layers: ['origin-dot', 'origin-halo'],
+        // Surface MapLibre runtime errors so they don't get swallowed.
+        mapInstance.on("error", (e: { error?: Error }) => {
+          // eslint-disable-next-line no-console
+          console.warn("[DishMap] MapLibre error:", e?.error?.message ?? e);
+        });
+
+        // Scale control — bottom-left, matching the standalone /map.
+        mapInstance.addControl(
+          new maplibregl.ScaleControl({ unit: "metric" }),
+          "bottom-left",
+        );
+
+        mapRef.current = mapInstance;
+
+        // The popup is created once and re-used via setLngLat + addTo.
+        // MapLibre's Popup is the canonical way to render rich HTML
+        // overlays anchored to a coordinate. We attach it on first
+        // load so the user immediately sees the dish name on the map.
+        popupRef.current = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 14,
+          maxWidth: "240px",
+        });
+
+        mapInstance.on("load", () => {
+          if (cancelled) return;
+
+          // Single-feature GeoJSON source — the dish's origin point.
+          const featureCollection: GeoJSON.FeatureCollection = {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [lng!, lat!] },
+                properties: {
+                  dishName,
+                  originName: origin.name,
+                  isoCode: origin.isoCode ?? "",
+                },
+              },
+            ],
+          };
+
+          mapInstance.addSource("origin", {
+            type: "geojson",
+            data: featureCollection,
           });
-          setHover(features.length > 0);
-        };
-        mapInstance.on('mousemove', onMove);
-        mapInstance.on('mouseleave', 'origin-dot', () => setHover(false));
-        mapInstance.on('mouseleave', 'origin-halo', () => setHover(false));
-      });
 
-      setMapReady(true);
-    }).catch((err: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn('[DishMap] failed to load maplibre-gl', err);
-      if (cancelled) return;
-      setMapError(
-        'The interactive map could not be loaded. The origin details are shown below.',
-      );
-      setMapReady(true);
-    });
+          // Halo: a soft outer ring that scales up on hover.
+          mapInstance.addLayer({
+            id: "origin-halo",
+            type: "circle",
+            source: "origin",
+            paint: {
+              "circle-radius": [
+                "case",
+                ["boolean", ["feature-state", "hover"], false],
+                14,
+                10,
+              ],
+              "circle-color": "#10b981",
+              "circle-opacity": [
+                "case",
+                ["boolean", ["feature-state", "hover"], false],
+                0.35,
+                0.18,
+              ],
+              "circle-radius-transition": { duration: 150 },
+              "circle-opacity-transition": { duration: 150 },
+            },
+          });
+
+          // Solid dot.
+          mapInstance.addLayer({
+            id: "origin-dot",
+            type: "circle",
+            source: "origin",
+            paint: {
+              "circle-radius": [
+                "case",
+                ["boolean", ["feature-state", "hover"], false],
+                7,
+                5,
+              ],
+              "circle-color": "#059669",
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 1.5,
+              "circle-radius-transition": { duration: 150 },
+            },
+          });
+
+          // Show the popup immediately on load (no click required) so the
+          // user can see what the dot means without trial-and-error.
+          // Hover keeps it open; moving the cursor away doesn't close it
+          // because closeOnClick is false and we never call remove().
+          const popup = popupRef.current;
+          if (popup) {
+            popup
+              .setLngLat([lng!, lat!])
+              .setHTML(buildPopupHTML(origin, dishName))
+              .addTo(mapInstance);
+          }
+
+          // Hover state tracking — same pattern as <WorldMap>.
+          let hovered = false;
+          const setHover = (next: boolean): void => {
+            if (hovered === next) return;
+            hovered = next;
+            mapInstance.setFeatureState(
+              { source: "origin", id: 0 },
+              { hover: next },
+            );
+            mapInstance.getCanvas().style.cursor = next ? "pointer" : "";
+          };
+
+          const onMove = (e: MapMouseEvent): void => {
+            // MapLibre's queryRenderedFeatures hits the canvas at the
+            // pointer position. With a tiny single-marker map the dot
+            // is a small target — keep the cursor change on the larger
+            // halo layer to make it feel responsive.
+            const features = mapInstance.queryRenderedFeatures(e.point, {
+              layers: ["origin-dot", "origin-halo"],
+            });
+            setHover(features.length > 0);
+          };
+          mapInstance.on("mousemove", onMove);
+          mapInstance.on("mouseleave", "origin-dot", () => setHover(false));
+          mapInstance.on("mouseleave", "origin-halo", () => setHover(false));
+        });
+
+        setMapReady(true);
+      })
+      .catch((err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn("[DishMap] failed to load maplibre-gl", err);
+        if (cancelled) return;
+        setMapError(
+          "The interactive map could not be loaded. The origin details are shown below.",
+        );
+        setMapReady(true);
+      });
 
     return () => {
       cancelled = true;
@@ -330,7 +332,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
     return (
       <div
         role="figure"
-        aria-label={`${dishName} — origin: ${origin.name || 'unknown'}`}
+        aria-label={`${dishName} — origin: ${origin.name || "unknown"}`}
         className="flex h-48 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500"
       >
         {origin.name ? (
@@ -356,11 +358,11 @@ export function DishMap({ origin, dishName }: DishMapProps) {
       role="figure"
       aria-label={`${dishName} — origin: ${origin.name || `${lat}, ${lng}`}`}
       className="overflow-hidden rounded-lg border border-slate-200"
-      style={{ height: '280px' }}
+      style={{ height: "280px" }}
     >
       <div
         ref={containerRef}
-        className={mapError ? 'hidden' : 'h-full w-full'}
+        className={mapError ? "hidden" : "h-full w-full"}
         aria-label="Interactive map showing this dish's geographic origin"
       />
 
@@ -389,14 +391,12 @@ export function DishMap({ origin, dishName }: DishMapProps) {
             <span className="text-slate-500">
               Origin: {origin.name}
               {origin.isoCode && (
-                <span className="ml-1 text-slate-400">
-                  ({origin.isoCode})
-                </span>
+                <span className="ml-1 text-slate-400">({origin.isoCode})</span>
               )}
             </span>
             <br />
             <span className="text-xs text-slate-400">
-              {formatCoord(lat!, 'lat')}, {formatCoord(lng!, 'lng')}
+              {formatCoord(lat!, "lat")}, {formatCoord(lng!, "lng")}
             </span>
           </p>
         </div>
@@ -423,18 +423,18 @@ export function DishMap({ origin, dishName }: DishMapProps) {
  */
 function initialZoom(entityType: string): number {
   switch (entityType) {
-    case 'country':
+    case "country":
       return 4;
-    case 'region':
-    case 'state':
-    case 'province':
+    case "region":
+    case "state":
+    case "province":
       return 6;
-    case 'city':
-    case 'town':
-    case 'village':
+    case "city":
+    case "town":
+    case "village":
       return 9;
-    case 'point':
-    case 'landmark':
+    case "point":
+    case "landmark":
       return 11;
     default:
       return 5;
@@ -449,18 +449,16 @@ function initialZoom(entityType: string): number {
 function buildPopupHTML(origin: DishOrigin, dishName: string): string {
   const safe = (s: string): string =>
     s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   const rows: string[] = [
     `<strong style="display:block;margin-bottom:2px;color:#0f172a;">${safe(dishName)}</strong>`,
   ];
   if (origin.name) {
-    rows.push(
-      `<span style="color:#475569;">${safe(origin.name)}</span>`,
-    );
+    rows.push(`<span style="color:#475569;">${safe(origin.name)}</span>`);
   }
   if (origin.isoCode) {
     rows.push(
@@ -472,7 +470,7 @@ function buildPopupHTML(origin: DishOrigin, dishName: string): string {
   // hasn't returned or failed.
   // We deliberately do NOT trigger a fetch here — this is a render
   // helper that runs synchronously inside MapLibre's setHTML.
-  return rows.join('');
+  return rows.join("");
 }
 
 /**
@@ -480,9 +478,9 @@ function buildPopupHTML(origin: DishOrigin, dishName: string): string {
  * is enough precision to identify a city (~11m); 6 places starts to
  * look noisy.
  */
-function formatCoord(value: number, axis: 'lat' | 'lng'): string {
+function formatCoord(value: number, axis: "lat" | "lng"): string {
   const abs = Math.abs(value);
   const hemi =
-    axis === 'lat' ? (value >= 0 ? 'N' : 'S') : value >= 0 ? 'E' : 'W';
+    axis === "lat" ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W";
   return `${abs.toFixed(4)}° ${hemi}`;
 }

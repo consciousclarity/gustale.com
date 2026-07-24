@@ -1,13 +1,13 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import BrowseHeader from '../../components/BrowseHeader.astro';
-import { DishExplorer } from '../../components/DishExplorer.tsx';
-import ErrorBoundary from '../../components/ErrorBoundary.tsx';
-import { listDishes } from '../../lib/api';
-import { recoveryLinks } from '../../lib/browse';
-import { currentDomain } from '../../lib/domain';
-import type { DishListResponse } from '../../types/dish';
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import BrowseHeader from "../../components/BrowseHeader.astro";
+import { DishExplorer } from "../../components/DishExplorer.tsx";
+import ErrorBoundary from "../../components/ErrorBoundary.tsx";
+import Layout from "../../layouts/Layout.astro";
+import { listDishes } from "../../lib/api";
+import { recoveryLinks } from "../../lib/browse";
+import { currentDomain } from "../../lib/domain";
+import type { DishListResponse } from "../../types/dish";
 
 let initial: DishListResponse = {
   dishes: [],
@@ -17,7 +17,7 @@ let initial: DishListResponse = {
 let buildFailed = false;
 
 try {
-  initial = await listDishes({ status: 'published', limit: 24 });
+  initial = await listDishes({ status: "published", limit: 24 });
 } catch (err: unknown) {
   buildFailed = true;
   // Keep page useful — no raw API internals in the UI.
@@ -28,8 +28,8 @@ const domain = currentDomain();
 const recovery = recoveryLinks(domain);
 const countLabel =
   initial.dishes.length > 0
-    ? `${initial.dishes.length}${initial.dishes.length >= 24 ? '+' : ''} dishes`
-    : 'Recipes';
+    ? `${initial.dishes.length}${initial.dishes.length >= 24 ? "+" : ""} dishes`
+    : "Recipes";
 ---
 
 <Layout title="Recipes — Gustale" description="Browse Gustale recipes and culinary encyclopedia entries.">

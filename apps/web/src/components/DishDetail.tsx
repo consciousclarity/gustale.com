@@ -1,3 +1,5 @@
+import { selectDishHeroMedia } from "../lib/dishMedia";
+import { authoringHref } from "../lib/domain";
 import type {
   DishCategory,
   DishCitation,
@@ -8,12 +10,10 @@ import type {
   DishPreparation,
   DishTag,
   DishVariant,
-} from '../types/dish';
-import { authoringHref } from '../lib/domain';
-import { selectDishHeroMedia } from '../lib/dishMedia';
-import { DishCoverHero } from './DishCoverHero';
-import { DishGallery } from './DishGallery';
-import { AlsoExplore } from './AlsoExplore';
+} from "../types/dish";
+import { AlsoExplore } from "./AlsoExplore";
+import { DishCoverHero } from "./DishCoverHero";
+import { DishGallery } from "./DishGallery";
 
 export interface DishDetailProps {
   dish: DishDetailCore;
@@ -42,7 +42,8 @@ export function DishDetail({
   sources,
   media,
 }: DishDetailProps) {
-  const primaryCategory = categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
+  const primaryCategory =
+    categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
   const heroMedia = selectDishHeroMedia(media);
 
   return (
@@ -56,53 +57,63 @@ export function DishDetail({
           {primaryCategory && (
             <>
               <span className="sep">›</span>
-              <a href={`/dishes?category=${encodeURIComponent(primaryCategory.slug)}`}>
+              <a
+                href={`/dishes?category=${encodeURIComponent(primaryCategory.slug)}`}
+              >
                 {primaryCategory.name}
               </a>
             </>
           )}
           <span className="sep">›</span>
-          <span style={{ color: 'var(--ink)' }}>{dish.name}</span>
+          <span style={{ color: "var(--ink)" }}>{dish.name}</span>
         </div>
 
         {/* ─── Title block (text only — cover is full-bleed above) ──────── */}
         <header className="rec-hero rec-hero--text">
           <div className="rec-eyebrow">
-            {origin?.name ?? 'Origin unrecorded'}
+            {origin?.name ?? "Origin unrecorded"}
             {dish.originDateEarliest && (
               <span className="coord">
                 first attested {dish.originDateEarliest}
-                {dish.originDateLatest && dish.originDateLatest !== dish.originDateEarliest
+                {dish.originDateLatest &&
+                dish.originDateLatest !== dish.originDateEarliest
                   ? `–${dish.originDateLatest}`
-                  : ''}
+                  : ""}
               </span>
             )}
           </div>
 
           <h1 className="rec-title">{dish.name}</h1>
 
-          {dish.description && (
-            <p className="rec-intro">{dish.description}</p>
-          )}
+          {dish.description && <p className="rec-intro">{dish.description}</p>}
 
           <div className="rec-byline">
             <span className="av" />
             <span>
-              By{' '}
-              <b>{dish.createdBy ? dish.createdBy.displayName : 'an unknown editor'}</b>
+              By{" "}
+              <b>
+                {dish.createdBy
+                  ? dish.createdBy.displayName
+                  : "an unknown editor"}
+              </b>
             </span>
-            {dish.lastEditedBy && dish.lastEditedBy.id !== dish.createdBy?.id && (
-              <span>
-                · last edited by <b>{dish.lastEditedBy.displayName}</b>
-              </span>
-            )}
-            <span className="star">{dish.viewCount.toLocaleString()} views</span>
+            {dish.lastEditedBy &&
+              dish.lastEditedBy.id !== dish.createdBy?.id && (
+                <span>
+                  · last edited by <b>{dish.lastEditedBy.displayName}</b>
+                </span>
+              )}
+            <span className="star">
+              {dish.viewCount.toLocaleString()} views
+            </span>
           </div>
 
           <div className="rec-meta">
             <div className="cell">
               <div className="k">Origin</div>
-              <div className="v" style={{ fontSize: 19 }}>{origin?.name ?? '—'}</div>
+              <div className="v" style={{ fontSize: 19 }}>
+                {origin?.name ?? "—"}
+              </div>
             </div>
             <div className="cell">
               <div className="k">Variants</div>
@@ -110,7 +121,9 @@ export function DishDetail({
             </div>
             <div className="cell">
               <div className="k">Category</div>
-              <div className="v" style={{ fontSize: 19 }}>{primaryCategory?.name ?? '—'}</div>
+              <div className="v" style={{ fontSize: 19 }}>
+                {primaryCategory?.name ?? "—"}
+              </div>
             </div>
             <div className="cell">
               <div className="k">Contributors</div>
@@ -121,7 +134,9 @@ export function DishDetail({
           {tags.length > 0 && (
             <div className="rec-tags">
               {tags.map((t) => (
-                <span key={t.tagId} className="tag-chip">{t.name}</span>
+                <span key={t.tagId} className="tag-chip">
+                  {t.name}
+                </span>
               ))}
             </div>
           )}
@@ -134,8 +149,8 @@ export function DishDetail({
               <div className="tag">The same dish, localized</div>
               <h2 id="variants-heading">Regional variants</h2>
               <p>
-                {variants.length} variant{variants.length === 1 ? '' : 's'} of {dish.name} told
-                differently across regions and traditions.
+                {variants.length} variant{variants.length === 1 ? "" : "s"} of{" "}
+                {dish.name} told differently across regions and traditions.
               </p>
             </div>
             <div className="world-list">
@@ -143,7 +158,9 @@ export function DishDetail({
                 <a key={v.id} href={`/dishes/${v.slug}`} className="world-item">
                   <span className="pin" />
                   <span className="wnm">{v.name}</span>
-                  <span className="wrg">{v.creatorName ?? v.description ?? ''}</span>
+                  <span className="wrg">
+                    {v.creatorName ?? v.description ?? ""}
+                  </span>
                 </a>
               ))}
             </div>
@@ -154,18 +171,29 @@ export function DishDetail({
         <div className="rec-body">
           {ingredients.length > 0 && (
             <aside className="ing-col" aria-labelledby="ingredients-heading">
-              <h2 id="ingredients-heading" className="col-h">Ingredients</h2>
-              <div className="col-sub">{ingredients.length} ITEM{ingredients.length === 1 ? '' : 'S'}</div>
+              <h2 id="ingredients-heading" className="col-h">
+                Ingredients
+              </h2>
+              <div className="col-sub">
+                {ingredients.length} ITEM{ingredients.length === 1 ? "" : "S"}
+              </div>
               <div className="ing-list">
                 {ingredients.map((ing) => (
                   <div className="ing" key={ing.ingredientId}>
                     <span className="qty">
-                      {ing.quantity ?? ''}{ing.quantity && ing.unit ? ` ${ing.unit}` : ing.unit ?? ''}
+                      {ing.quantity ?? ""}
+                      {ing.quantity && ing.unit
+                        ? ` ${ing.unit}`
+                        : (ing.unit ?? "")}
                     </span>
                     <span className="nm">
-                      <a href={authoringHref(`/ingredients/${ing.slug}`)}>{ing.name}</a>
+                      <a href={authoringHref(`/ingredients/${ing.slug}`)}>
+                        {ing.name}
+                      </a>
                       {ing.isOptional && <small> optional</small>}
-                      {ing.preparationNote && <small>{ing.preparationNote}</small>}
+                      {ing.preparationNote && (
+                        <small>{ing.preparationNote}</small>
+                      )}
                     </span>
                   </div>
                 ))}
@@ -175,25 +203,39 @@ export function DishDetail({
 
           {preparations.length > 0 && (
             <section aria-labelledby="preparation-heading">
-              <h2 id="preparation-heading" className="col-h">Preparation</h2>
+              <h2 id="preparation-heading" className="col-h">
+                Preparation
+              </h2>
               <div className="col-sub">
-                {preparations.length} METHOD{preparations.length === 1 ? '' : 'S'}
+                {preparations.length} METHOD
+                {preparations.length === 1 ? "" : "S"}
               </div>
               <div className="method-list">
                 {preparations.map((prep, idx) => (
                   <div className="step" key={prep.id}>
-                    <div className="marker disp">{String(idx + 1).padStart(2, '0')}</div>
+                    <div className="marker disp">
+                      {String(idx + 1).padStart(2, "0")}
+                    </div>
                     <div>
-                      <div className="stxt" style={{ fontWeight: 600, marginBottom: 6 }}>
+                      <div
+                        className="stxt"
+                        style={{ fontWeight: 600, marginBottom: 6 }}
+                      >
                         {prep.methodName}
                       </div>
                       <p className="stxt">
-                        {prep.steps ?? 'No detailed steps recorded yet.'}
+                        {prep.steps ?? "No detailed steps recorded yet."}
                       </p>
                       {(prep.durationMinutes != null || prep.difficulty) && (
                         <span className="stime">
-                          {prep.durationMinutes != null && <>⏱ <b>{prep.durationMinutes}</b> min</>}
-                          {prep.durationMinutes != null && prep.difficulty && ' · '}
+                          {prep.durationMinutes != null && (
+                            <>
+                              ⏱ <b>{prep.durationMinutes}</b> min
+                            </>
+                          )}
+                          {prep.durationMinutes != null &&
+                            prep.difficulty &&
+                            " · "}
                           {prep.difficulty}
                         </span>
                       )}
@@ -230,13 +272,17 @@ export function DishDetail({
                 <li key={cite.id} className="source-card">
                   {cite.claimText && (
                     <p>
-                      <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Claim:</span>{' '}
+                      <span style={{ fontWeight: 600, color: "var(--ink)" }}>
+                        Claim:
+                      </span>{" "}
                       {cite.claimText}
                     </p>
                   )}
                   <p>
                     {cite.citationText ? (
-                      <span dangerouslySetInnerHTML={{ __html: cite.citationText }} />
+                      <span
+                        dangerouslySetInnerHTML={{ __html: cite.citationText }}
+                      />
                     ) : (
                       <>
                         {cite.title ?? cite.sourceType}
@@ -247,11 +293,18 @@ export function DishDetail({
                     )}
                   </p>
                   {cite.url && (
-                    <a href={cite.url} target="_blank" rel="noopener noreferrer" className="source-url">
+                    <a
+                      href={cite.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="source-url"
+                    >
                       {cite.url}
                     </a>
                   )}
-                  {cite.reliability && <span className="reliability-pill">{cite.reliability}</span>}
+                  {cite.reliability && (
+                    <span className="reliability-pill">{cite.reliability}</span>
+                  )}
                 </li>
               ))}
             </ol>
@@ -260,7 +313,10 @@ export function DishDetail({
 
         {/* ─── Full description ──────────────────────────────────────────── */}
         {dish.longDescription && (
-          <section className="section" aria-labelledby="long-description-heading">
+          <section
+            className="section"
+            aria-labelledby="long-description-heading"
+          >
             <div className="sec-rule">
               <h2 id="long-description-heading">About this dish</h2>
             </div>
@@ -273,26 +329,36 @@ export function DishDetail({
         )}
 
         {/* ─── Secondary gallery (hero media excluded by mediaId) ──────── */}
-        <DishGallery media={media} excludeMediaId={heroMedia?.mediaId ?? null} />
+        <DishGallery
+          media={media}
+          excludeMediaId={heroMedia?.mediaId ?? null}
+        />
 
         {/* ─── Editor / provenance ──────────────────────────────────────── */}
         <footer className="dish-foot">
           <div>
-            Created by{' '}
-            {dish.createdBy ? <strong>{dish.createdBy.displayName}</strong> : 'an unknown editor'}
-            {dish.lastEditedBy && dish.lastEditedBy.id !== dish.createdBy?.id && (
-              <>
-                {' · last edited by '}
-                <strong>{dish.lastEditedBy.displayName}</strong>
-              </>
+            Created by{" "}
+            {dish.createdBy ? (
+              <strong>{dish.createdBy.displayName}</strong>
+            ) : (
+              "an unknown editor"
             )}
+            {dish.lastEditedBy &&
+              dish.lastEditedBy.id !== dish.createdBy?.id && (
+                <>
+                  {" · last edited by "}
+                  <strong>{dish.lastEditedBy.displayName}</strong>
+                </>
+              )}
           </div>
           <div>
-            {dish.viewCount.toLocaleString()} view{dish.viewCount === 1 ? '' : 's'}
-            {' · '}
-            {dish.editCount} edit{dish.editCount === 1 ? '' : 's'}
-            {' · '}
-            {dish.contributorCount} contributor{dish.contributorCount === 1 ? '' : 's'}
+            {dish.viewCount.toLocaleString()} view
+            {dish.viewCount === 1 ? "" : "s"}
+            {" · "}
+            {dish.editCount} edit{dish.editCount === 1 ? "" : "s"}
+            {" · "}
+            {dish.contributorCount} contributor
+            {dish.contributorCount === 1 ? "" : "s"}
           </div>
           <div className="muted">
             Last updated {new Date(dish.updatedAt).toISOString().slice(0, 10)}

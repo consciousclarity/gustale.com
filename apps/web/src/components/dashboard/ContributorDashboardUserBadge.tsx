@@ -7,8 +7,8 @@
  * falls back to a sign-in CTA. No new auth infrastructure: the session
  * cookie is read by better-auth's `getSession()` under the hood.
  */
-import { useEffect, useState } from 'react';
-import { getClientSession, type SessionUser } from '../../lib/session';
+import { useEffect, useState } from "react";
+import { getClientSession, type SessionUser } from "../../lib/session";
 
 interface Props {
   /** Optional className passed from the parent for layout adjustments. */
@@ -16,9 +16,9 @@ interface Props {
 }
 
 function pickDisplayLabel(u: SessionUser): string {
-  const name = (u.name ?? '').trim();
+  const name = (u.name ?? "").trim();
   if (name.length > 0) return name;
-  return u.email || 'Signed in';
+  return u.email || "Signed in";
 }
 
 export function ContributorDashboardUserBadge({ className }: Props) {
@@ -46,7 +46,7 @@ export function ContributorDashboardUserBadge({ className }: Props) {
 
   if (!user) {
     return (
-      <p className={className ?? 'cd-user cd-user--anon'}>
+      <p className={className ?? "cd-user cd-user--anon"}>
         <a className="cd-signin" href="/login?redirect=/dashboard">
           Sign in to view your dashboard →
         </a>
@@ -55,10 +55,10 @@ export function ContributorDashboardUserBadge({ className }: Props) {
   }
 
   const label = pickDisplayLabel(user);
-  const role = user.role && user.role !== 'visitor' ? user.role : null;
+  const role = user.role && user.role !== "visitor" ? user.role : null;
 
   return (
-    <p className={className ?? 'cd-user'}>
+    <p className={className ?? "cd-user"}>
       Signed in as <span className="cd-user__name">{label}</span>
       {role ? <span className="cd-user__role"> · {role}</span> : null}
     </p>

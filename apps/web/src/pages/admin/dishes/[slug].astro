@@ -1,4 +1,5 @@
 ---
+import { AdminDishEditor } from "../../../components/admin/AdminDishEditor";
 /**
  * /admin/dishes/[slug] — Admin dish editor (Phase 4 — Admin Dish Editor redo)
  *
@@ -21,9 +22,8 @@
  * vhost (Plan 5) and by the admin React island itself (which 401s
  * on /api/admin/* without a session).
  */
-import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { AdminDishEditor } from '../../../components/admin/AdminDishEditor';
-import { getAdminDish, getAdminLookups } from '../../../lib/api';
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { getAdminDish, getAdminLookups } from "../../../lib/api";
 
 export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
@@ -31,14 +31,14 @@ export async function getStaticPaths() {
     // No API configured at build time. Fall back to a placeholder slug
     // so the build doesn't fail; the runtime SPA fallback in the React
     // island will handle the real slug.
-    return [{ params: { slug: 'moussaka-greek' } }];
+    return [{ params: { slug: "moussaka-greek" } }];
   }
   try {
     // Fetch slugs for every status (draft, published, archived) since
     // the admin editor needs to reach drafts too. /api/dishes defaults
     // to status=published, so we have to query explicitly.
     const allSlugs = new Set<string>();
-    for (const status of ['draft', 'published', 'archived'] as const) {
+    for (const status of ["draft", "published", "archived"] as const) {
       const res = await fetch(
         `${apiBase}/api/dishes?limit=100&offset=0&status=${status}`,
       );
@@ -47,35 +47,43 @@ export async function getStaticPaths() {
       for (const d of json.dishes) allSlugs.add(d.slug);
     }
     if (allSlugs.size === 0) {
-      return [{ params: { slug: 'moussaka-greek' } }];
+      return [{ params: { slug: "moussaka-greek" } }];
     }
     return Array.from(allSlugs).map((slug) => ({ params: { slug } }));
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('[getStaticPaths] admin dish list fetch failed:', err);
-    return [{ params: { slug: 'moussaka-greek' } }];
+    console.error("[getStaticPaths] admin dish list fetch failed:", err);
+    return [{ params: { slug: "moussaka-greek" } }];
   }
 }
 
 const { slug } = Astro.params;
 
-if (!slug || typeof slug !== 'string') {
-  return new Response('Not found', { status: 404 });
+if (!slug || typeof slug !== "string") {
+  return new Response("Not found", { status: 404 });
 }
 
 const cookieHeader =
-  typeof Astro.request?.headers?.get === 'function'
-    ? (Astro.request.headers.get('cookie') ?? '')
-    : '';
-const apiInit = cookieHeader ? { headers: { cookie: cookieHeader } } : undefined;
+  typeof Astro.request?.headers?.get === "function"
+    ? (Astro.request.headers.get("cookie") ?? "")
+    : "";
+const apiInit = cookieHeader
+  ? { headers: { cookie: cookieHeader } }
+  : undefined;
 
 const [initialDishResult, lookupsResult] = await Promise.all([
   getAdminDish(slug, apiInit)
     .then((d) => ({ ok: true as const, data: d }))
-    .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+    .catch((err) => ({
+      ok: false as const,
+      error: err instanceof Error ? err.message : String(err),
+    })),
   getAdminLookups(apiInit)
     .then((l) => ({ ok: true as const, data: l }))
-    .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+    .catch((err) => ({
+      ok: false as const,
+      error: err instanceof Error ? err.message : String(err),
+    })),
 ]);
 
 const loadError = !initialDishResult.ok
@@ -85,14 +93,18 @@ const loadError = !initialDishResult.ok
     : null;
 
 if (loadError) {
-  return new Response(`Failed to load dish editor: ${loadError}`, { status: 502 });
+  return new Response(`Failed to load dish editor: ${loadError}`, {
+    status: 502,
+  });
 }
 
 const initialDish = initialDishResult.ok ? initialDishResult.data : null;
 const lookups = lookupsResult.ok ? lookupsResult.data : null;
 
 if (!initialDish || !lookups) {
-  return new Response('Failed to load dish editor: missing data', { status: 502 });
+  return new Response("Failed to load dish editor: missing data", {
+    status: 502,
+  });
 }
 ---
 

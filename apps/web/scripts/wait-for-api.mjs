@@ -15,7 +15,7 @@
  * on /health first means flaky-network runs fail fast (~1s) instead
  * of wasting 3+ minutes of retries and still producing garbage.
  */
-const url = new URL('/health', process.argv[2]).toString();
+const url = new URL("/health", process.argv[2]).toString();
 const deadline = Date.now() + 60_000;
 
 const tryOnce = async () => {
