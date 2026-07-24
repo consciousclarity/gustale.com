@@ -1,10 +1,10 @@
 /**
  * Gustale — seed script
  *
- * Seeds a complete test dish (Moussaka) with all relations so the API
- * and frontend have something to render, PLUS a curated encyclopedia of
- * ~30 iconic world dishes sourced from Wikipedia. Idempotent: re-running
- * with the same slug will skip the dish insert but refresh view_count.
+ * Seeds a canonical Moussaka record with supporting detail, PLUS a curated
+ * encyclopedia of 120 iconic world dishes sourced from Wikipedia.
+ * Idempotent: re-running with the same slug skips the dish insert while
+ * preserving the existing published record.
  *
  * Usage:  pnpm --filter @gustale/db run seed
  *   or:   DATABASE_URL=... tsx packages/db/src/seed.ts
@@ -344,7 +344,7 @@ async function main(): Promise<void> {
 }
 
 /**
- * Seed the curated encyclopedia of ~30 dishes with proper origin geometry,
+ * Seed the curated encyclopedia of 120 dishes with proper origin geometry,
  * cuisine categories, dish-type categories, and per-dish Wikipedia citations.
  *
  * Idempotent: existing slugs are skipped (just like the Moussaka block).
