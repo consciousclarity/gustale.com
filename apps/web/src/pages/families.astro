@@ -4,7 +4,7 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import BrowseHeader from '../components/BrowseHeader.astro';
 import { FamilyDirectory } from '../components/FamilyDirectory.tsx';
 import ErrorBoundary from '../components/ErrorBoundary.tsx';
-import { ApiError, listDishes } from '../lib/api';
+import { listDishes } from '../lib/api';
 import {
   buildFamilyDirectory,
   familyDetailHref,
@@ -22,7 +22,6 @@ try {
 } catch (err: unknown) {
   buildFailed = true;
   void err;
-  void ApiError;
 }
 
 const domain = currentDomain();
