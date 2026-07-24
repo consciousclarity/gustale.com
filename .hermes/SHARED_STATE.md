@@ -6,7 +6,10 @@
 
 ## Last updated
 
-2026-06-24 by Claude (Cowork) — CI web build blocker fixed: mock API server inside Dockerfile replaces the unreachable production API during Astro SSG.
+2026-07-24 by Hermes (Macmini / WhatsApp) — SHARED_STATE sync after survey:
+60 dishes live on prod API (verified via curl), main HEAD 994b95b (was 2da83d1),
+5 new PRs landed since the 2026-06-24 entry (#34-#38). No code/deploy
+changes — this commit is data-only.
 
 ## Current status
 
@@ -15,7 +18,7 @@ Per-dish maps live, standalone /map live. One library, one basemap, one
 fallback shape.
 
 Two map surfaces:
-1. `/map` — standalone **globe** (MapLibre GL) showing all 31 dishes,
+1. `/map` — standalone **globe** (MapLibre GL) showing all 60 dishes,
    toggle to flat Mercator in the corner. CARTO Voyager basemap.
 2. `/dishes/<slug>/` — per-dish **mini-map** (MapLibre GL) showing one
    dish's origin, same CARTO Voyager basemap + same WebGL pre-flight +
@@ -39,10 +42,10 @@ verification pending on a real device after the PR merges and deploys.
 
 | Component | Status | Image SHA |
 |---|---|---|
-| `apps/api` (Fastify + better-auth) | Live, healthy | `2da83d1` |
-| `apps/web` (Astro + React islands) | Live, healthy | `2da83d1` |
-| gustale-api container | Running on VPS :4000 | `2da83d1…` |
-| gustale-web container | Running on VPS :4001 | `2da83d1…` |
+| `apps/api` (Fastify + better-auth) | Live, healthy | (rolling; latest main = 994b95b) |
+| `apps/web` (Astro + React islands) | Live, healthy | (rolling; latest main = 994b95b) |
+| gustale-api container | Running on VPS :4000 | (latest = 994b95b…; was 2da83d1 pre-#34) |
+| gustale-web container | Running on VPS :4001 | (latest = 994b95b…; was 2da83d1 pre-#34) |
 | shared-postgres container | Running | n/a |
 | minio container | Running | n/a |
 | MinIO bucket `gustale-public` | Ready, anonymous download | n/a |
@@ -51,7 +54,8 @@ verification pending on a real device after the PR merges and deploys.
 ## Live features (verified)
 
 - `/` — landing page
-- `/dishes` — list of 31 dishes (client-side search)
+- `/dishes` — list of dishes (client-side search); confirmed 60 dishes live
+  via https://api.gustale.com/api/dishes?limit=100 as of 2026-07-24
 - `/dishes/new` — create new dish (any authed user; creates as draft
   for moderator review)
 - `/dishes/<slug>` — full detail page, pre-rendered as static HTML

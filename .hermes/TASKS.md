@@ -11,6 +11,13 @@
 
 ## Done (recent — last 10)
 
+- 2026-07-24: **Survey complete.** Hermes (Macmini / WhatsApp) came
+  online as a second Hermes alongside Geekbot (Telegram / Geekom).
+  Verified prod API live with 60 dishes, main HEAD 994b95b, 5 new
+  PRs merged (#34-#38) since the last SHARED_STATE update. Synced
+  factual numbers in SHARED_STATE (data-only commit). Branch
+  `feat/content-pass-2026-07-24` ready for content work. No code,
+  no deploys. — Hermes (Macmini / WhatsApp)
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
 - 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
