@@ -49,7 +49,7 @@ gustale.com/
 - `apps/api/src/auth.ts` — better-auth configuration. Email verification is **currently OFF** (TODO comment). Re-enable when Resend is configured.
 - `apps/api/src/plugins/auth.ts` — Fastify ↔ better-auth adapter. The body-parsing fix is documented in the comment.
 - `apps/api/src/routes/dishes.ts` — dish read endpoints (list, by-slug, map). Write endpoints NOT yet built.
-- `packages/db/src/seed.ts` + `packages/db/src/seed-data.ts` — 31 dishes pre-seeded. Adding new dishes = append to `seed-data.ts`, run `pnpm --filter @gustale/db run seed` (idempotent).
+- `packages/db/src/seed.ts` + `packages/db/src/seed-data.ts` — 120 dishes seeded. Adding new dishes = append to `seed-data.ts`, run `pnpm --filter @gustale/db run seed` (idempotent).
 - `apps/web/src/components/DishExplorer.tsx` — the dish list React island.
 - `apps/web/src/components/WorldMap.tsx` — the map React island.
 - `apps/web/src/components/AuthMenu.tsx` — header auth state. Reads session cookie via better-auth client after hydration.
@@ -91,7 +91,7 @@ gustale.com/
 ### Adding a new dish (today, before write API exists)
 1. Append to `packages/db/src/seed-data.ts`
 2. `pnpm install && pnpm --filter @gustale/db run seed`
-3. Push to main → CI deploys API → push empty commit → web rebuilds with new data
+3. Push to main → CI deploys API; after deployment, refresh the web SSG snapshot from the live API before rebuilding the web images.
 
 ### Debugging prod
 ```bash

@@ -32,7 +32,7 @@
  *     anything and exits non-zero, so the CI fails loudly instead of
  *     shipping a partial dist that breaks the live site.
  *   - The "completeness" check is: dist/dishes/ must contain ≥20 entries
- *     (we currently have 31 seeded dishes). 20 is a conservative floor
+ *     (we currently have 60 seeded dishes). 20 is a conservative floor
  *     that catches catastrophic partial builds (we saw 1 dish survive
  *     a flaky run) without false-positives on future schema changes.
  *   - Empty parent directories left behind after pruning are also
@@ -56,8 +56,6 @@ const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 // a partial build (stale cache, flaky incremental, etc.). Bump this
 // if seed-data.ts grows.
 const MIN_EXPECTED_DISHES = 20;
-
-// Escape hatch for local dev: if the API isn't reachable during
 // `astro build`, only moussaka-greek ships in the dist. Setting
 // ALLOW_PARTIAL=1 lets you run the post-build anyway for manual
 // experimentation. CI MUST NOT set this.
