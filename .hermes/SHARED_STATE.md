@@ -97,6 +97,7 @@ verification pending on a real device after the PR merges and deploys.
   code, traceId}` matching the Pino request id. Front-end has
   `ErrorBoundary` wrapping data-driven islands + `fetchWithRetry` on
   the API client.
+- `/tmp/gustale-images-batch/` — 60 AI-generated PNGs, ~97 MB, ready for upload via `scripts/upload-dish-images.py` (branch `feat/content-copy-2026-07-24`)
 
 ## Open bugs / known issues
 
