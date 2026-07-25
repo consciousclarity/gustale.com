@@ -21,6 +21,7 @@ import {
   DISH_RELATIONS,
   DISH_TYPE_CATEGORIES,
   DISHES,
+  JOURNEY_BEATS,
   LINEAGE_METHODS,
   LINEAGES,
 } from "./seed-data.js";
@@ -335,6 +336,9 @@ async function main(): Promise<void> {
 
   // ─── Dish relations (the food-genealogy network) ──────────────────────
   await seedDishRelations(db);
+
+  // ─── Dish journey beats (P1-1 flagship timelines) ─────────────────────
+  await seedJourneyBeats(db, userId);
 
   console.log(`\nSeed complete. Test dish: ${moussakaSlug}`);
   console.log(
@@ -811,6 +815,101 @@ async function seedLineages(dishIdBySlug: Map<string, string>): Promise<void> {
   console.log(
     `  + ${lineageInserted} lineages inserted, ${edgesInserted} dish-lineage edges inserted, ${edgesSkipped} edges skipped`,
   );
+}
+
+/**
+ * Seed P1-1 dish journey beats for flagship dishes.
+ * Idempotent: dishes that already have any journey beat are skipped.
+ * Warns (and counts as skipped) when a JOURNEY_BEATS key is not in DISHES /
+ * the seeded dish set — silent skip would look like success.
+ */
+async function seedJourneyBeats(
+  db: ReturnType<typeof drizzle>,
+  userId: string,
+): Promise<void> {
+  console.log("Seeding dish journey beats…");
+
+  const dishIdBySlug = new Map(
+    (
+      await db
+        .select({ id: schema.dishes.id, slug: schema.dishes.slug })
+        .from(schema.dishes)
+    ).map((d) => [d.slug, d.id]),
+  );
+
+  const dishesWithBeats = new Set(
+    (
+      await db
+        .selectDistinct({ dishId: schema.dishJourneyBeats.dishId })
+        .from(schema.dishJourneyBeats)
+    ).map((r) => r.dishId),
+  );
+
+  let dishesSeeded = 0;
+  let beatsInserted = 0;
+  let dishesSkipped = 0;
+  let slugMissing = 0;
+
+  for (const [dishSlug, beats] of Object.entries(JOURNEY_BEATS)) {
+    const dishId = dishIdBySlug.get(dishSlug);
+    if (!dishId) {
+      console.warn(
+        `  ! journey "${dishSlug}": dish slug not found in DB — skipping`,
+      );
+      slugMissing++;
+      continue;
+    }
+    if (dishesWithBeats.has(dishId)) {
+      console.log(`  = journey "${dishSlug}" already seeded`);
+      dishesSkipped++;
+      continue;
+    }
+
+    for (const beat of beats) {
+      let sourceId: string | null = null;
+      if (beat.source) {
+        const inserted = await db
+          .insert(schema.sources)
+          .values({
+            sourceType: "web",
+            title: beat.source.title,
+            authors: ["Wikipedia contributors"],
+            year: beat.source.year ?? 2024,
+            publisher: "Wikipedia, The Free Encyclopedia",
+            url: beat.source.url,
+            citationText: beat.source.citationText,
+            language: "en",
+            reliability: "secondary",
+            createdBy: userId,
+          })
+          .returning({ id: schema.sources.id });
+        sourceId = inserted[0]?.id ?? null;
+      }
+
+      await db.insert(schema.dishJourneyBeats).values({
+        dishId,
+        sequence: beat.sequence,
+        placeName: beat.placeName,
+        lat: beat.lat,
+        lng: beat.lng,
+        yearApprox: beat.yearApprox,
+        label: beat.label,
+        confidence: beat.confidence,
+        sourceId,
+      });
+      beatsInserted++;
+    }
+    dishesSeeded++;
+  }
+
+  console.log(
+    `  + ${dishesSeeded} dishes seeded (${beatsInserted} beats); ${dishesSkipped} already present; ${slugMissing} unknown slugs`,
+  );
+  if (slugMissing > 0) {
+    console.warn(
+      `  ! ${slugMissing} JOURNEY_BEATS slug(s) missing — fix seed-data before shipping`,
+    );
+  }
 }
 
 main().catch((err) => {
