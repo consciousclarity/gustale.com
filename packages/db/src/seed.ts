@@ -16,6 +16,10 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as schema from "./schema/index.js";
 import {
+  reportSeedValidation,
+  validateSeedData,
+} from "./seed-data/validate.js";
+import {
   CUISINE_CATEGORIES,
   DISH_LINEAGES,
   DISH_RELATIONS,
@@ -30,6 +34,17 @@ const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL is not set");
   process.exit(1);
+}
+
+// Fail loud on seed-data bugs before any DB write. Reference orphans
+// (DISH_RELATIONS / DISH_LINEAGES / JOURNEY_BEATS) downgrade to warnings
+// when SEED_ALLOW_ORPHANS=1 — see packages/db/src/seed-data/validate.ts.
+{
+  const validation = validateSeedData();
+  const code = reportSeedValidation(validation);
+  if (code !== 0) {
+    process.exit(code);
+  }
 }
 
 const client = postgres(url, { max: 1 });
