@@ -12,10 +12,10 @@
 ## Backlog (P0 — Windows handoff)
 
 ### P0 — Hermes: prod catalog 60→120
-**Owner:** Hermes · Local Windows already seeded 120 on \main\ (seed #43). Prod API still ~60. Run prod \pnpm db:seed\, confirm count, rebuild web SSG/mock so homepage shows 120. Update SHARED_STATE dish counts.
+**Owner:** Hermes · Local Windows already seeded 120 on `main` (seed #43). Prod API still ~60. Run prod `pnpm db:seed`, confirm count, rebuild web SSG/mock so homepage shows 120. Update SHARED_STATE dish counts.
 
 ### P0 — Cursor: PR Windows local fixes
-**Owner:** Cursor · \pathToFileURL\ isMain fix, \listAllDishes\ + homepage KPI paging, Astro \/api\ proxy, \infra/local\ compose. Claude Code reviews → merge → Hermes deploys.
+**Owner:** Cursor · `pathToFileURL` isMain fix, `listAllDishes` + homepage KPI paging, Astro `/api` proxy, `infra/local` compose. Claude Code reviews → merge → Hermes deploys.
 
 ### P0 — Claude Code: read updated CLAUDE.md roster
 **Owner:** Claude Code · Confirm three-role model (Cursor / Claude Code / Hermes). One orchestrator at a time. Do not assign deploy/SSH work to Cursor.

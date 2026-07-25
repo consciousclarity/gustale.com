@@ -2,27 +2,27 @@
 
 > **Read this first.** Source of truth across **Cursor** (implementer on Windows),
 > **Claude Code** (orchestrator), and **Hermes** (ops on Geekom → Hostinger).
-> Sync via \private/state\. Full role brief: \CLAUDE.md\ on \main\.
+> Sync via `private/state`. Full role brief: `CLAUDE.md` on `main`.
 
 ## Agent roster (2026-07-25)
 
 | Role | Agent | Machine | Owns |
 |------|-------|---------|------|
-| Implementer | Cursor | Windows — canonical repo \D:\gustale\ | Code, local run, PRs |
+| Implementer | Cursor | Windows — canonical repo `D:\gustale` | Code, local run, PRs |
 | Orchestrator | Claude Code (XOR Codex — not both) | Active session | Priorities, review, TASKS, handoffs |
 | Ops / deploy | Hermes | Geekom (always-on) | CI/Hostinger deploy, prod seed, SSH, live smoke |
 
-Cursor does **not** hold Hostinger SSH. Hermes owns prod \pnpm db:seed\ and deploy verification.
-On any new machine: work from **\origin/main\**, never an old feature-branch folder.
+Cursor does **not** hold Hostinger SSH. Hermes owns prod `pnpm db:seed` and deploy verification.
+On any new machine: work from **`origin/main`**, never an old feature-branch folder.
 
 ## Last updated
 
 ### Cursor - 2026-07-25 (Windows setup)
 
-- Windows PC is the new implementer machine; repo at \D:\gustale\ on \main\ (includes #43 60→120 seed in tree).
-- Local Postgres seeded to **120** published dishes; **production API still returns ~60** — Hermes: run prod \db:seed\ + web rebuild/SSG refresh.
-- Uncommitted Windows WIP (for PR): \isMain\/\pathToFileURL\ API boot fix, \listAllDishes\ paging past API limit 100, Astro \/api\→\:4000\ proxy, \infra/local/docker-compose.yml\.
-- Updated \CLAUDE.md\ agent roster (ship via PR with WIP or docs-only).
+- Windows PC is the new implementer machine; repo at `D:\gustale` on `main` (includes #43 60→120 seed in tree).
+- Local Postgres seeded to **120** published dishes; **production API still returns ~60** — Hermes: run prod `db:seed` + web rebuild/SSG refresh.
+- Uncommitted Windows WIP (for PR): `isMain`/`pathToFileURL` API boot fix, `listAllDishes` paging past API limit 100, Astro `/api`→`:4000` proxy, `infra/local/docker-compose.yml`.
+- Updated `CLAUDE.md` agent roster (ship via PR with WIP or docs-only).
 
 ### CC - 2026-07-24  (Claude Code, terminal)
 
