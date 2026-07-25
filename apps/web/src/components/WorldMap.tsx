@@ -1,12 +1,13 @@
 // Type-only import for the bits we use in render and effect closures.
 // This is erased at build time — no runtime cost.
 import type {
+  GeoJSONSource,
   MapMouseEvent,
   Map as MlMap,
-  NavigationControl as NavigationControlType,
+  PointLike,
   StyleSpecification,
 } from "maplibre-gl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 // IMPORTANT: maplibre-gl is dynamically imported inside the effect, not
 // statically imported at the top. Static imports execute at module-eval
 // time, which means even a `client:only` island would try to evaluate
@@ -23,17 +24,9 @@ export interface WorldMapProps {
 /**
  * Interactive globe + 2D-map of published dishes, powered by MapLibre GL.
  *
- * Why MapLibre over Leaflet for this page:
- * - Native globe projection (`projection: 'globe'`) — what we want for an
- *   encyclopedia "atlas" feel.
- * - WebGL rendering — smooth zoom/pan even with thousands of markers.
- * - Scroll-wheel zoom, drag-pan, double-click zoom all work out of the box
- *   (the prior react-simple-maps implementation had a controlled-state bug
- *   that broke zoom on this page).
- *
- * Toggle: top-right corner lets users switch between globe and a flat
- * Mercator projection. Globe is the default — it shows the world as it
- * actually is (no Greenland-sized Africa distortion).
+ * Coincident dishes (many national dishes share a country centroid) are a
+ * permanent, expected state — never jittered. Stacked points show a count
+ * affordance; click opens a disambiguation list of real links.
  *
  * IMPORTANT: This component must be mounted with `client:only="react"`,
  * NOT `client:load`. MapLibre imports `mapbox-gl`'s WebGL helpers at
@@ -41,48 +34,61 @@ export interface WorldMapProps {
  */
 type View = "globe" | "flat";
 
+type TooltipState = {
+  x: number;
+  y: number;
+  dishes: MapDish[];
+};
+
+type StackPopupState = {
+  x: number;
+  y: number;
+  dishes: MapDish[];
+};
+
+/** Layers queried for hit-testing (single map-level handlers, not per-layer). */
+const HIT_LAYERS = [
+  "dishes-dot",
+  "dishes-halo",
+  "dishes-clusters",
+  "dishes-coincident-count",
+] as const;
+
+/**
+ * Keep clusters intact through city-scale zooms. Tuned against the
+ * 121-dish distribution: 22 multi-dish centroids (Jakarta 8, Tokyo 7,
+ * Beirut 7, Istanbul 3…). With clusterMaxZoom 5 those stacks dissolved
+ * into unclickable piles by zoom 6; at 11 they stay one cluster until
+ * very close, then the disambiguation popup (or coincident-only cluster
+ * leaves) handles the remaining stacks.
+ */
+const CLUSTER_MAX_ZOOM = 11;
+
 export function WorldMap({ dishes }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
+  const popupListRef = useRef<HTMLUListElement | null>(null);
+  const stackPopupRef = useRef<HTMLDivElement | null>(null);
+  const popupId = useId();
   const [view, setView] = useState<View>("globe");
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const [tooltipDish, setTooltipDish] = useState<MapDish | null>(null);
-  // True until the dynamic import of maplibre-gl resolves. Surfaces a
-  // loading hint instead of an empty container.
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [stackPopup, setStackPopup] = useState<StackPopupState | null>(null);
   const [mapReady, setMapReady] = useState<boolean>(false);
-  // Set when the user can't see the map at all (WebGL disabled, headless
-  // browser, etc). Triggers a text-list fallback so the page is still useful.
   const [mapError, setMapError] = useState<string | null>(null);
 
-  // Effective dishes: starts as the prop (set at build time if the API was
-  // reachable), but if empty we fetch live on hydration. This makes the
-  // /map page resilient to build-time API flakes — the user always sees
-  // a real globe with whatever data the API has right now.
   const [effectiveDishes, setEffectiveDishes] = useState<MapDish[]>(dishes);
   const [isLoading, setIsLoading] = useState<boolean>(dishes.length === 0);
 
-  // Cheap, synchronous WebGL capability probe. Runs before any heavy
-  // import. If this returns false we never even fetch the 1MB maplibre-gl
-  // bundle — we just show a list-based fallback. This is the most common
-  // reason the map appears as a blank grey box in the wild.
   const detectWebGL = (): boolean => {
     if (typeof document === "undefined") return false;
     try {
       const canvas = document.createElement("canvas");
-      // getContext's TypeScript types return `RenderingContext | null`
-      // which is a union including 2D. Cast through `unknown` to the
-      // WebGL-specific interface so we can use getParameter below.
       const gl = (canvas.getContext("webgl2") ??
         canvas.getContext("webgl") ??
         canvas.getContext(
           "experimental-webgl",
         )) as unknown as WebGLRenderingContext | null;
       if (!gl) return false;
-      // Some browsers report a context but actually have a software-only
-      // driver that crashes when used. Quick sanity check: query a basic
-      // parameter. If it throws, the context is unusable.
       gl.getParameter(gl.VERSION);
       return true;
     } catch {
@@ -91,7 +97,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
   };
 
   useEffect(() => {
-    if (dishes.length > 0) return; // build-time fetch already populated us
+    if (dishes.length > 0) return;
     let cancelled = false;
     setIsLoading(true);
     getMapDishes({ limit: 2000 })
@@ -100,7 +106,6 @@ export function WorldMap({ dishes }: WorldMapProps) {
         setEffectiveDishes(response.dishes);
       })
       .catch((err: unknown) => {
-        // Surface in console for debugging; UI keeps the empty state.
         // eslint-disable-next-line no-console
         console.warn("[WorldMap] live fetch failed:", err);
       })
@@ -112,19 +117,45 @@ export function WorldMap({ dishes }: WorldMapProps) {
     };
   }, [dishes.length]);
 
-  // Initialise the map once on mount. Re-initialising on view-toggle would
-  // re-create the WebGL context (expensive) — instead we mutate the
-  // `projection` property in-place, which MapLibre 4+ supports.
+  // Close disambiguation popup on Escape / outside click.
+  useEffect(() => {
+    if (!stackPopup) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setStackPopup(null);
+      }
+    };
+    const onPointer = (e: MouseEvent): void => {
+      const root = stackPopupRef.current;
+      if (root && e.target instanceof Node && !root.contains(e.target)) {
+        setStackPopup(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    // Defer outside-click so the opening click does not immediately close.
+    const t = window.setTimeout(() => {
+      document.addEventListener("mousedown", onPointer);
+    }, 0);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [stackPopup]);
+
+  // Focus the first dish link when the stack popup opens (keyboard path).
+  useEffect(() => {
+    if (!stackPopup) return;
+    const first = popupListRef.current?.querySelector<HTMLAnchorElement>("a");
+    first?.focus();
+  }, [stackPopup]);
+
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
     let map: MlMap | null = null;
 
-    // Pre-flight WebGL check. If the browser can't get a WebGL context
-    // (Linux without GPU drivers, headless browser, hardware acceleration
-    // disabled) we never even fetch maplibre-gl — we just set an error
-    // and let the fallback UI render. This avoids the "blank grey box"
-    // experience and saves a 1MB bundle download.
     if (!detectWebGL()) {
       if (cancelled) return;
       // eslint-disable-next-line no-console
@@ -134,23 +165,18 @@ export function WorldMap({ dishes }: WorldMapProps) {
       setMapError(
         "Your browser does not support WebGL, which is required for the interactive globe. Below is a list of dishes by region.",
       );
-      setMapReady(true); // hide the loading overlay
+      setMapReady(true);
       return;
     }
 
-    // Dynamic import: keeps maplibre-gl out of the SSR/initial-hydration
-    // critical path. The component itself becomes a thin React island
-    // that, after mount, fetches the 1MB MapLibre bundle as a separate
-    // chunk. If WebGL is unavailable, MapLibre's constructor throws and
-    // we surface a friendly fallback instead of leaving an empty canvas.
     void import("maplibre-gl")
       .then((mod) => {
         if (cancelled) return;
         const maplibregl = mod.default ?? mod;
-        const NavigationControl = mod.NavigationControl;
+        const NavigationControl =
+          mod.NavigationControl ?? maplibregl.NavigationControl;
+        const ScaleControl = mod.ScaleControl ?? maplibregl.ScaleControl;
 
-        // Carto's positron-glight basemap. Free, no API key, OSM-derived.
-        // Self-hosted alternative: OpenFreeMap (https://openfreemap.org).
         const style: StyleSpecification = {
           version: 8,
           glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
@@ -177,23 +203,18 @@ export function WorldMap({ dishes }: WorldMapProps) {
         };
 
         try {
+          const el = containerRef.current;
+          if (!el) return;
           map = new maplibregl.Map({
-            container: containerRef.current!,
+            container: el,
             style,
-            // For globe projection, center [0,0] with zoom 0 shows the whole
-            // sphere. For flat projection, the same center/zoom shows the
-            // Atlantic-centered world.
             center: [0, 20],
             zoom: 1.4,
             minZoom: 0.5,
-            maxZoom: 12,
+            maxZoom: 14,
             attributionControl: { compact: true },
           });
         } catch (err) {
-          // WebGL not available (sandbox, hardware disabled, ancient GPU)
-          // — or a malformed style spec, or a third-party script blocked.
-          // Either way, the user gets nothing useful. Surface a friendly
-          // message and the list-based fallback rather than a blank box.
           // eslint-disable-next-line no-console
           console.warn("[WorldMap] MapLibre init failed:", err);
           setMapError(
@@ -205,33 +226,9 @@ export function WorldMap({ dishes }: WorldMapProps) {
 
         const mapInstance = map;
 
-        // Surface MapLibre runtime errors (WebGL context lost, tile fetch
-        // failure, etc.) so they don't get swallowed. Camofox/sandboxes
-        // without WebGL will hit this — fine, just a console warning.
         mapInstance.on("error", (e: { error?: Error }) => {
           // eslint-disable-next-line no-console
           console.warn("[WorldMap] MapLibre error:", e?.error?.message ?? e);
-        });
-
-        // Globe projection. We use setProjection() after construction because
-        // MapLibre 5.x's `MapOptions` typings don't include the `projection`
-        // field even though the runtime supports it. setProjection() is
-        // documented as the recommended entry point.
-        mapInstance.setProjection({ type: "globe" });
-
-        // Atmospheric glow + dark space background for the globe projection.
-        // MapLibre 5.x unified the old `setFog` API into `setSky`, which
-        // accepts `fog-color`/`horizon-fog-blend`/etc. inside a SkySpecification.
-        mapInstance.on("style.load", () => {
-          mapInstance.setSky({
-            "sky-color": "#1992ff",
-            "sky-horizon-blend": 0.7,
-            "horizon-fog-blend": 0.7,
-            "fog-color": "#e8e8e8",
-            "fog-ground-blend": 0.5,
-            "space-color": "#000000",
-            "star-intensity": 0.6,
-          } as Parameters<MlMap["setSky"]>[0]);
         });
 
         mapInstance.addControl(
@@ -239,41 +236,73 @@ export function WorldMap({ dishes }: WorldMapProps) {
           "top-right",
         );
         mapInstance.addControl(
-          new maplibregl.ScaleControl({ unit: "metric" }),
+          new ScaleControl({ unit: "metric" }),
           "bottom-left",
         );
 
-        mapRef.current = mapInstance;
-        setMapReady(true);
+        try {
+          mapInstance.setProjection({ type: "globe" });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn("[WorldMap] globe projection unavailable:", err);
+          setView("flat");
+        }
 
-        // Add dish markers as a GeoJSON source + circle layer. Clustered by
-        // zoom — when two dishes share a coordinate (e.g. multiple Greek
-        // dishes), they merge into a single dot with a count badge.
+        mapInstance.on("style.load", () => {
+          try {
+            mapInstance.setSky({
+              "sky-color": "#1992ff",
+              "sky-horizon-blend": 0.7,
+              "horizon-fog-blend": 0.7,
+              "fog-color": "#e8e8e8",
+              "fog-ground-blend": 0.5,
+              "space-color": "#000000",
+              "star-intensity": 0.6,
+            } as Parameters<MlMap["setSky"]>[0]);
+          } catch {
+            // Sky is optional; ignore if the style rejects it.
+          }
+        });
+
+        mapRef.current = mapInstance;
+
+        const coincidentByCoord = countCoincident(effectiveDishes);
         const featureCollection: GeoJSON.FeatureCollection = {
           type: "FeatureCollection",
-          features: effectiveDishes.map((d) => ({
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [d.lng, d.lat] },
-            properties: {
-              slug: d.slug,
-              canonicalName: d.canonicalName,
-              shortDescription: d.shortDescription ?? "",
-              regionName: d.region.name ?? "",
-              regionIso: d.region.isoCode ?? "",
-            },
-          })),
+          features: effectiveDishes.map((d) => {
+            const key = coordKey(d.lat, d.lng);
+            return {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [d.lng, d.lat] },
+              properties: {
+                slug: d.slug,
+                canonicalName: d.canonicalName,
+                shortDescription: d.shortDescription ?? "",
+                regionName: d.region.name ?? "",
+                regionIso: d.region.isoCode ?? "",
+                coincidentCount: coincidentByCoord.get(key) ?? 1,
+              },
+            };
+          }),
         };
 
-        mapInstance.on("load", () => {
+        const mountLayers = (): void => {
+          if (cancelled) return;
+          if (mapInstance.getSource("dishes")) {
+            mapInstance.resize();
+            setMapReady(true);
+            return;
+          }
+
           mapInstance.addSource("dishes", {
             type: "geojson",
             data: featureCollection,
             cluster: true,
             clusterRadius: 28,
-            clusterMaxZoom: 5,
+            clusterMaxZoom: CLUSTER_MAX_ZOOM,
+            generateId: true,
           });
 
-          // Halo: a soft outer ring that scales up on hover.
           mapInstance.addLayer({
             id: "dishes-halo",
             type: "circle",
@@ -283,8 +312,28 @@ export function WorldMap({ dishes }: WorldMapProps) {
               "circle-radius": [
                 "case",
                 ["boolean", ["feature-state", "hover"], false],
-                12,
-                8,
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "coincidentCount"],
+                  1,
+                  12,
+                  4,
+                  16,
+                  8,
+                  20,
+                ],
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "coincidentCount"],
+                  1,
+                  8,
+                  4,
+                  11,
+                  8,
+                  14,
+                ],
               ],
               "circle-color": "#10b981",
               "circle-opacity": [
@@ -298,7 +347,6 @@ export function WorldMap({ dishes }: WorldMapProps) {
             },
           });
 
-          // Solid dot.
           mapInstance.addLayer({
             id: "dishes-dot",
             type: "circle",
@@ -308,8 +356,28 @@ export function WorldMap({ dishes }: WorldMapProps) {
               "circle-radius": [
                 "case",
                 ["boolean", ["feature-state", "hover"], false],
-                6,
-                4,
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "coincidentCount"],
+                  1,
+                  6,
+                  4,
+                  8,
+                  8,
+                  10,
+                ],
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["get", "coincidentCount"],
+                  1,
+                  4,
+                  4,
+                  6,
+                  8,
+                  8,
+                ],
               ],
               "circle-color": "#059669",
               "circle-stroke-color": "#ffffff",
@@ -318,7 +386,25 @@ export function WorldMap({ dishes }: WorldMapProps) {
             },
           });
 
-          // Cluster bubbles: bigger circles with the count inside.
+          mapInstance.addLayer({
+            id: "dishes-coincident-count",
+            type: "symbol",
+            source: "dishes",
+            filter: [
+              "all",
+              ["!", ["has", "point_count"]],
+              [">", ["get", "coincidentCount"], 1],
+            ],
+            layout: {
+              "text-field": ["to-string", ["get", "coincidentCount"]],
+              "text-size": 10,
+              "text-font": ["Open Sans Regular"],
+              "text-allow-overlap": true,
+              "text-ignore-placement": true,
+            },
+            paint: { "text-color": "#ffffff" },
+          });
+
           mapInstance.addLayer({
             id: "dishes-clusters",
             type: "circle",
@@ -328,11 +414,11 @@ export function WorldMap({ dishes }: WorldMapProps) {
               "circle-radius": [
                 "step",
                 ["get", "point_count"],
-                14, // 2-9 dishes
+                14,
                 10,
-                18, // 10-49
+                18,
                 50,
-                22, // 50+
+                22,
               ],
               "circle-color": "#059669",
               "circle-opacity": 0.85,
@@ -353,8 +439,6 @@ export function WorldMap({ dishes }: WorldMapProps) {
             paint: { "text-color": "#ffffff" },
           });
 
-          // Hover state tracking. MapLibre's feature-state API is the
-          // recommended way — better than re-rendering React on every hover.
           let hoveredId: number | string | null = null;
           const setHover = (id: number | string | null): void => {
             if (hoveredId != null) {
@@ -372,92 +456,181 @@ export function WorldMap({ dishes }: WorldMapProps) {
             }
           };
 
-          const onMove = (
-            e: MapMouseEvent & { features?: maplibregl.GeoJSONFeature[] },
-          ): void => {
-            const features = e.features ?? [];
-            if (features.length === 0) {
-              setHover(null);
-              setTooltipDish(null);
-              setTooltipPos(null);
-              mapInstance.getCanvas().style.cursor = "";
-              return;
-            }
-            const f = features[0]!;
-            setHover(f.id as number | string);
-            mapInstance.getCanvas().style.cursor = "pointer";
-
-            // Tooltip dish: use the first dish at the point. For clusters we
-            // skip — the cluster is the meaningful affordance.
-            if (f.properties?.point_count) {
-              setTooltipDish(null);
-              setTooltipPos(null);
-            } else {
-              // Find the dish by slug (set as a property by featureCollection
-              // construction).
-              const slug = f.properties?.slug as string;
-              const dish = effectiveDishes.find((d) => d.slug === slug) ?? null;
-              setTooltipDish(dish);
-              setTooltipPos({ x: e.point.x, y: e.point.y });
-            }
-          };
-
-          const onLeave = (): void => {
+          const clearPointerUi = (): void => {
             setHover(null);
-            setTooltipDish(null);
-            setTooltipPos(null);
+            setTooltip(null);
             mapInstance.getCanvas().style.cursor = "";
           };
 
-          const onClick = (
-            e: MapMouseEvent & { features?: maplibregl.GeoJSONFeature[] },
-          ): void => {
-            const features = e.features ?? [];
+          const hitFeatures = (
+            point: PointLike,
+          ): Array<{
+            id?: string | number;
+            properties?: Record<string, unknown> | null;
+            geometry: GeoJSON.Geometry;
+          }> => {
+            const existing = HIT_LAYERS.filter((id) =>
+              mapInstance.getLayer(id),
+            );
+            if (existing.length === 0) return [];
+            return mapInstance.queryRenderedFeatures(point, {
+              layers: [...existing],
+            });
+          };
+
+          /**
+           * Resolve dishes under the pointer. MapLibre often returns only the
+           * topmost circle when several share a pixel, so expand any hit to
+           * the full coincident stack via shared lat/lng.
+           */
+          const dishesFromFeatures = (
+            features: Array<{
+              properties?: Record<string, unknown> | null;
+            }>,
+          ): MapDish[] => {
+            const bySlug = new Map<string, MapDish>();
+            for (const f of features) {
+              if (f.properties?.point_count) continue;
+              const slug = f.properties?.slug as string | undefined;
+              if (!slug || bySlug.has(slug)) continue;
+              const dish = effectiveDishes.find((d) => d.slug === slug);
+              if (dish) bySlug.set(slug, dish);
+            }
+            const hit = [...bySlug.values()];
+            if (hit.length === 0) return hit;
+            const sample = hit[0];
+            if (!sample) return hit;
+            const key = coordKey(sample.lat, sample.lng);
+            const stack = effectiveDishes.filter(
+              (d) => coordKey(d.lat, d.lng) === key,
+            );
+            return stack.length > 1 ? stack : hit;
+          };
+
+          const onMove = (e: MapMouseEvent): void => {
+            const features = hitFeatures(e.point);
+            if (features.length === 0) {
+              clearPointerUi();
+              return;
+            }
+
+            const cluster = features.find((f) => f.properties?.point_count);
+            if (cluster) {
+              setHover(cluster.id as number | string);
+              mapInstance.getCanvas().style.cursor = "pointer";
+              setTooltip(null);
+              return;
+            }
+
+            const hitDishes = dishesFromFeatures(features);
+            if (hitDishes.length === 0) {
+              clearPointerUi();
+              return;
+            }
+
+            const firstFeature = features.find((f) => f.properties?.slug);
+            if (firstFeature?.id != null) {
+              setHover(firstFeature.id as number | string);
+            }
+            mapInstance.getCanvas().style.cursor = "pointer";
+            setTooltip({
+              x: e.point.x,
+              y: e.point.y,
+              dishes: hitDishes,
+            });
+          };
+
+          const onClick = (e: MapMouseEvent): void => {
+            const features = hitFeatures(e.point);
             if (features.length === 0) return;
-            const f = features[0]!;
-            if (f.properties?.cluster) {
-              // Zoom into the cluster on click.
-              const clusterId = f.properties.cluster_id as number;
-              const source = mapInstance.getSource(
-                "dishes",
-              ) as maplibregl.GeoJSONSource;
+
+            const cluster = features.find((f) => f.properties?.cluster);
+            if (cluster?.properties?.cluster) {
+              const clusterId = cluster.properties.cluster_id as number;
+              const source = mapInstance.getSource("dishes") as GeoJSONSource;
+              // Pure coincident stacks never spatially separate — open the
+              // disambiguation list once leaves all share one coordinate.
               source
-                .getClusterExpansionZoom(clusterId)
-                .then((zoom) => {
-                  mapInstance.easeTo({
-                    center: (f.geometry as GeoJSON.Point).coordinates as [
-                      number,
-                      number,
-                    ],
-                    zoom,
-                    duration: 600,
-                  });
+                .getClusterLeaves(clusterId, 50, 0)
+                .then((leaves) => {
+                  const leafDishes: MapDish[] = [];
+                  for (const leaf of leaves) {
+                    const slug = leaf.properties?.slug as string | undefined;
+                    if (!slug) continue;
+                    const dish = effectiveDishes.find((d) => d.slug === slug);
+                    if (dish) leafDishes.push(dish);
+                  }
+                  if (leafDishes.length > 1) {
+                    const sample = leafDishes[0];
+                    if (sample) {
+                      const key0 = coordKey(sample.lat, sample.lng);
+                      const allSame = leafDishes.every(
+                        (d) => coordKey(d.lat, d.lng) === key0,
+                      );
+                      if (allSame && leafDishes.length === leaves.length) {
+                        setTooltip(null);
+                        setStackPopup({
+                          x: e.point.x,
+                          y: e.point.y,
+                          dishes: leafDishes,
+                        });
+                        return;
+                      }
+                    }
+                  }
+                  return source
+                    .getClusterExpansionZoom(clusterId)
+                    .then((zoom) => {
+                      mapInstance.easeTo({
+                        center: (cluster.geometry as GeoJSON.Point)
+                          .coordinates as [number, number],
+                        zoom,
+                        duration: 600,
+                      });
+                    });
                 })
                 .catch(() => undefined);
               return;
             }
-            const slug = f.properties?.slug as string | undefined;
-            if (slug) {
-              window.location.href = `/dishes/${slug}/`;
+
+            const hitDishes = dishesFromFeatures(features);
+            if (hitDishes.length === 0) return;
+            if (hitDishes.length === 1) {
+              const only = hitDishes[0];
+              if (only) window.location.href = `/dishes/${only.slug}/`;
+              return;
             }
+
+            setTooltip(null);
+            setStackPopup({
+              x: e.point.x,
+              y: e.point.y,
+              dishes: hitDishes,
+            });
           };
 
-          // Wire hover/click on both the dot and halo layers so the larger
-          // hit target wins.
-          for (const layerId of [
-            "dishes-dot",
-            "dishes-halo",
-            "dishes-clusters",
-          ]) {
-            mapInstance.on("mousemove", layerId, onMove);
-            mapInstance.on("mouseleave", layerId, onLeave);
-            mapInstance.on("click", layerId, onClick);
-          }
-        });
+          mapInstance.on("mousemove", onMove);
+          mapInstance.on("mouseout", clearPointerUi);
+          mapInstance.on("click", onClick);
+          mapInstance.on("movestart", () => {
+            setStackPopup(null);
+            setTooltip(null);
+          });
+
+          mapInstance.resize();
+          setMapReady(true);
+        };
+
+        if (mapInstance.loaded()) {
+          mountLayers();
+        } else {
+          mapInstance.once("load", mountLayers);
+        }
       })
       .catch((err: unknown) => {
         // eslint-disable-next-line no-console
         console.warn("[WorldMap] failed to load maplibre-gl", err);
+        setMapReady(true);
       });
 
     return () => {
@@ -468,9 +641,6 @@ export function WorldMap({ dishes }: WorldMapProps) {
     };
   }, [effectiveDishes]);
 
-  // Toggle projection when the user clicks the toggle button. Mutating
-  // the `projection` property is supported by MapLibre 4+ and avoids
-  // re-creating the WebGL context (which is expensive).
   const toggleView = useCallback((): void => {
     const map = mapRef.current;
     if (!map) return;
@@ -484,33 +654,30 @@ export function WorldMap({ dishes }: WorldMapProps) {
     }
   }, [view]);
 
+  const stackHeading =
+    stackPopup &&
+    `${stackPopup.dishes.length} dish${stackPopup.dishes.length === 1 ? "" : "es"} at this location`;
+
   return (
     <>
-      <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-        {/* Toggle button — hidden when the map can't render (no point offering
-          a projection toggle if there's no map). */}
+      <div className="wm-frame">
         {!mapError && (
-          <div className="absolute right-3 top-3 z-10">
-            <button
-              type="button"
-              onClick={toggleView}
-              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-emerald-300 hover:text-emerald-700"
-            >
-              {view === "globe" ? "🌐 Globe" : "🗺  Flat map"}
+          <div className="wm-view-toggle">
+            <button type="button" onClick={toggleView}>
+              {view === "globe" ? "Globe" : "Flat map"}
             </button>
           </div>
         )}
 
         <div
           ref={containerRef}
-          className={mapError ? "hidden" : "h-[560px] w-full"}
+          className={mapError ? "wm-canvas is-hidden" : "wm-canvas"}
+          role="img"
           aria-label="Interactive globe showing published dishes by origin"
         />
 
-        {/* WebGL / init-failure fallback: a region-grouped, clickable list
-          of dishes. Replaces the blank canvas with something useful. */}
         {mapError && effectiveDishes.length > 0 && (
-          <div className="max-h-[560px] overflow-y-auto p-6">
+          <div className="wm-fallback">
             <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               {mapError}
             </p>
@@ -518,22 +685,24 @@ export function WorldMap({ dishes }: WorldMapProps) {
               {Object.entries(
                 effectiveDishes.reduce<Record<string, MapDish[]>>((acc, d) => {
                   const key = d.region?.name ?? "Unknown region";
-                  (acc[key] ??= []).push(d);
+                  const bucket = acc[key] ?? [];
+                  bucket.push(d);
+                  acc[key] = bucket;
                   return acc;
                 }, {}),
               )
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([region, dishes]) => (
+                .map(([region, regionDishes]) => (
                   <li key={region}>
                     <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
                       {region}
                       <span className="ml-2 text-xs font-normal text-slate-400">
-                        {dishes.length}{" "}
-                        {dishes.length === 1 ? "dish" : "dishes"}
+                        {regionDishes.length}{" "}
+                        {regionDishes.length === 1 ? "dish" : "dishes"}
                       </span>
                     </h3>
                     <ul className="grid gap-1 sm:grid-cols-2">
-                      {dishes
+                      {regionDishes
                         .slice()
                         .sort((a, b) => b.viewCount - a.viewCount)
                         .map((d) => (
@@ -553,61 +722,81 @@ export function WorldMap({ dishes }: WorldMapProps) {
           </div>
         )}
 
-        {/* MapLibre loading overlay — shown until the dynamic import of
-          maplibre-gl resolves AND the WebGL canvas is initialised. The
-          overlay disappears the moment the first tile paint fires. */}
         {!mapReady && !isLoading && effectiveDishes.length > 0 && !mapError && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-50/70">
-            <p className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
-              Loading globe…
-            </p>
+          <div className="wm-status">
+            <p>Loading globe…</p>
           </div>
         )}
 
-        {/* Loading overlay — visible only while we're fetching live data
-          on hydration (build-time data was empty). Disappears the moment
-          the fetch resolves. */}
         {isLoading && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-50/70">
-            <p className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
-              Loading map…
-            </p>
+          <div className="wm-status">
+            <p>Loading map…</p>
           </div>
         )}
 
-        {/* Empty-state fallback — only shown when the fetch resolved but
-          the API genuinely returned zero dishes. */}
         {!isLoading && effectiveDishes.length === 0 && !mapError && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center">
-            <p className="text-slate-500">
+          <div className="wm-status">
+            <p>
               No dishes with origin coordinates yet. Add a dish to see it on the
               map.
             </p>
           </div>
         )}
 
-        {/* Tooltip overlay (HTML, not WebGL canvas, for nicer typography) */}
-        {tooltipDish && tooltipPos && (
+        {tooltip && tooltip.dishes.length > 0 && !stackPopup && (
           <div
-            className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg"
+            className="wm-tooltip"
             style={{
-              left: tooltipPos.x,
-              top: tooltipPos.y - 12,
+              position: "absolute",
+              zIndex: 20,
+              pointerEvents: "none",
+              left: tooltip.x,
+              top: tooltip.y - 12,
+              transform: "translate(-50%, -100%)",
             }}
           >
-            <div className="font-semibold text-slate-900">
-              {tooltipDish.canonicalName}
-            </div>
-            {tooltipDish.region?.name && (
-              <div className="text-xs text-slate-500">
-                {tooltipDish.region.name}
-              </div>
-            )}
-            {tooltipDish.shortDescription && (
-              <div className="mt-1 max-w-xs text-xs text-slate-600">
-                {tooltipDish.shortDescription}
-              </div>
-            )}
+            <TooltipBody dishes={tooltip.dishes} />
+          </div>
+        )}
+
+        {stackPopup && (
+          <div
+            ref={stackPopupRef}
+            id={popupId}
+            role="dialog"
+            aria-modal="true"
+            aria-label={stackHeading ?? "Dishes at this location"}
+            className="wm-stack-popup"
+            style={{
+              position: "absolute",
+              zIndex: 30,
+              ...clampPopupStyle(stackPopup.x, stackPopup.y),
+            }}
+          >
+            <p className="wm-stack-popup__heading">{stackHeading}</p>
+            <ul ref={popupListRef} className="wm-stack-popup__list">
+              {stackPopup.dishes
+                .slice()
+                .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName))
+                .map((d) => (
+                  <li key={d.slug}>
+                    <a
+                      href={`/dishes/${d.slug}/`}
+                      className="wm-stack-popup__link"
+                    >
+                      <span className="wm-stack-popup__name">
+                        {d.canonicalName}
+                      </span>
+                      {d.region?.name && (
+                        <span className="wm-stack-popup__region">
+                          {d.region.name}
+                        </span>
+                      )}
+                    </a>
+                  </li>
+                ))}
+            </ul>
+            <p className="wm-stack-popup__hint">Esc to close</p>
           </div>
         )}
 
@@ -629,4 +818,72 @@ export function WorldMap({ dishes }: WorldMapProps) {
       </p>
     </>
   );
+}
+
+function TooltipBody({ dishes }: { dishes: MapDish[] }) {
+  if (dishes.length === 1) {
+    const d = dishes[0];
+    if (!d) return null;
+    return (
+      <>
+        <div className="wm-tooltip__name">{d.canonicalName}</div>
+        {d.region?.name && (
+          <div className="wm-tooltip__region">{d.region.name}</div>
+        )}
+        {d.shortDescription && (
+          <div className="wm-tooltip__desc">
+            {truncateOnWord(d.shortDescription, 90)}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  const region = dishes[0]?.region?.name ?? "This location";
+  const names = dishes.slice(0, 3).map((d) => d.canonicalName);
+  const more = dishes.length > 3 ? "…" : "";
+  return (
+    <div className="wm-tooltip__name">
+      {region} — {dishes.length} dishes: {names.join(", ")}
+      {more}
+    </div>
+  );
+}
+
+function coordKey(lat: number, lng: number): string {
+  // Match exact shared centroids as stored (API returns ~4 decimal places).
+  return `${lng.toFixed(4)},${lat.toFixed(4)}`;
+}
+
+function countCoincident(dishes: MapDish[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const d of dishes) {
+    const k = coordKey(d.lat, d.lng);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function truncateOnWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const i = cut.lastIndexOf(" ");
+  const base = (i > Math.floor(max * 0.45) ? cut.slice(0, i) : cut).replace(
+    /\s+$/,
+    "",
+  );
+  return `${base}…`;
+}
+
+/** Keep the stack popup inside the map frame on narrow viewports. */
+function clampPopupStyle(
+  x: number,
+  y: number,
+): { left: string; top: string; transform: string; maxWidth: string } {
+  return {
+    left: `clamp(8px, ${x}px, calc(100% - 8px))`,
+    top: `clamp(8px, ${y}px, calc(100% - 8px))`,
+    transform: "translate(-50%, calc(-100% - 12px))",
+    maxWidth: "min(300px, calc(100% - 16px))",
+  };
 }
