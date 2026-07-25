@@ -420,20 +420,35 @@ export const dishVariants = pgTable(
   }),
 );
 
-export const dishIngredients = pgTable("dish_ingredients", {
-  dishId: uuid("dish_id")
-    .notNull()
-    .references(() => dishes.id, { onDelete: "cascade" }),
-  ingredientId: uuid("ingredient_id")
-    .notNull()
-    .references(() => ingredients.id),
-  variantId: uuid("variant_id").references(() => ingredientVariants.id),
-  position: integer("position").notNull().default(0),
-  quantity: text("quantity"),
-  unit: text("unit"),
-  isOptional: boolean("is_optional").notNull().default(false),
-  preparationNote: text("preparation_note"),
-});
+export const dishIngredients = pgTable(
+  "dish_ingredients",
+  {
+    // Surrogate PK for Directus (ADR-002 Amendment 2). Natural key retains
+    // variant_id so a dish may list the same ingredient in multiple variant forms.
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id),
+    variantId: uuid("variant_id").references(() => ingredientVariants.id),
+    position: integer("position").notNull().default(0),
+    quantity: text("quantity"),
+    unit: text("unit"),
+    isOptional: boolean("is_optional").notNull().default(false),
+    preparationNote: text("preparation_note"),
+  },
+  (t) => ({
+    // DB constraint is UNIQUE NULLS NOT DISTINCT (see 0011). Drizzle's unique()
+    // does not express NULLS NOT DISTINCT; migration is authoritative.
+    naturalKey: unique("dish_ingredients_natural_key").on(
+      t.dishId,
+      t.ingredientId,
+      t.variantId,
+    ),
+  }),
+);
 
 export const dishPreparations = pgTable("dish_preparations", {
   id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),

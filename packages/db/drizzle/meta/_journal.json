@@ -64,6 +64,13 @@
 			"when": 1782900000000,
 			"tag": "0010_surrogate_pks",
 			"breakpoints": false
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1783000000000,
+			"tag": "0011_dish_ingredients_pk",
+			"breakpoints": false
 		}
 	]
 }
