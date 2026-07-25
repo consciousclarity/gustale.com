@@ -196,3 +196,61 @@ Therefore: **do not abandon on kill criteria.** Choose **PROCEED WITH CAVEATS** 
 ## One-line recommendation
 
 **PROCEED WITH CAVEATS** — PostGIS map editing and typed dish↔dish relations work; plan Phase 2 for Zod-bypass constraints, composite-PK tables Directus ignores, and `directus_*` living in `public`.
+
+---
+
+## Follow-up — Phase 2b surrogate PKs (2026-07-25)
+
+**Trigger:** [ADR-002 Amendment 1](./ADR-002-directus-admin.md#amendment-1--composite-primary-keys-block-eleven-tables)  
+**Migration:** `packages/db/drizzle/0010_surrogate_pks.sql`  
+**Scope:** All eleven composite-PK tables listed in Amendment 1.
+
+### Pre-migration row counts (`gustale`, seeded)
+
+| Table | Rows |
+|---|---:|
+| `dish_categories` | 353 |
+| `dish_translations` | 120 |
+| `dish_lineages` | 34 |
+| `dish_tags` | 0 |
+| `category_translations` | 0 |
+| `ingredient_translations` | 0 |
+| `preparation_method_translations` | 0 |
+| `food_region_sources` | 0 |
+| `dish_region_sources` | 0 |
+| `dish_location_sources` | 0 |
+| `watch_list` | 0 |
+
+None exceeded 50k. Natural-key checksums for all eleven tables were **identical** before and after `0010`.
+
+### Constraint-name surprise
+
+Drizzle named the old composite PKs `<table>_<cols>_pk` (e.g. `dish_categories_dish_id_category_id_pk`), **not** `<table>_pkey`. Migration drops those verified names. New PK is `<table>_pkey`; natural key is `<table>_natural_key` (except the three empty translation tables already converted in `0009`, which keep `*_language_unique`).
+
+### Directus re-check
+
+After applying `0010` (and, on the spike DB, the historically missing `0005_food_geography_phase_2a.sql` so the three `*_sources` tables exist), Directus startup **no longer ignores** any of the eleven. Remaining ignored collection: `dish_ingredients` (still has **no** primary key at all — out of Amendment 1 scope).
+
+API write verification (then UI screenshots):
+
+1. **`dish_categories`** — created a category assignment for `moussaka-greek` → `main-course`
+2. **`dish_lineages`** — attached lineage `curry-spiced-stew` with role `member`
+3. **`dish_location_sources`** — cited location `Athens — spike citation target` to an existing `sources` row
+
+### Screenshots
+
+![Q3b — dish_categories editable](adr-002-spike-assets/q3b-dish-categories-edit.png)
+
+*Editing a `dish_categories` row: surrogate `ID` present; Dish ID + Category ID + Is Primary editable.*
+
+![Q3b — dish_lineages editable](adr-002-spike-assets/q3b-dish-lineages-edit.png)
+
+*Editing a `dish_lineages` row created in this re-check (`spike phase 2b visibility test`).*
+
+![Q3b — dish_location_sources editable](adr-002-spike-assets/q3b-dish-location-sources-edit.png)
+
+*Editing a `dish_location_sources` citation: Location ID + Source ID + surrogate `ID`.*
+
+### Note on journal drift
+
+`0005_food_geography_phase_2a.sql` exists on disk but is **not** in `drizzle/meta/_journal.json`, so some DBs (including the original spike) lacked `food_region_*` / `dish_*_sources` until applied manually. `0010` skips those three tables when missing so migrator runs do not abort mid-file.
