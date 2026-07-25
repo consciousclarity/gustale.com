@@ -390,3 +390,73 @@ Phase 3 is blocked on this. Deploying Directus before it would produce an admin
 tool that cannot edit families, lineages, or citations — which is worse than no
 admin tool, because it looks like it works.
 
+---
+
+# Amendment 2 — `dish_ingredients` has no primary key
+
+**Date:** 2026-07-25
+**Author:** Claude (orchestrator)
+**Trigger:** Cursor's Phase 2b report — *"Still ignored: dish_ingredients (no PK
+at all — outside Amendment 1)"*
+
+## The finding
+
+Amendment 1 identified eleven tables with **composite** primary keys.
+`dish_ingredients` is a twelfth problem of a different kind: it has **no primary
+key whatsoever** — neither surrogate nor composite.
+
+Amendment 1's audit missed it because the check tested for composite-PK-without-
+surrogate. A table with no PK at all satisfies neither branch and fell through.
+Same class of scoping error as the original spike. Cursor caught it unprompted,
+again.
+
+## Why it matters more than the other eleven
+
+**As a Directus problem:** `dish_ingredients` is the dish ↔ ingredient junction.
+Roadmap P1-2 (ingredient origins) is one of three differentiators identified in
+the competitive research, and `/ingredients/<slug>` links are currently dead
+because the data does not exist. If the admin tool cannot edit this junction,
+the tool cannot be used to fix the gap it was partly adopted to address.
+
+**As a schema defect, independent of Directus:**
+
+- Duplicate `(dish_id, ingredient_id)` rows are insertable with nothing to stop them
+- No way to address a single row for UPDATE or DELETE — every mutation is a
+  predicate over non-unique columns
+- Logical replication and CDC tooling require a replica identity, which a
+  PK-less table lacks
+
+This would be worth fixing even if Directus were never adopted.
+
+## Cost
+
+**Zero rows today** — the ingredients corpus is empty (`INGREDIENTS` is absent
+from seed data entirely). Adding the key now is free. It stops being free the
+moment P1-2 seeds it, which is imminent.
+
+## Fix
+
+Separate migration, `0011_dish_ingredients_pk.sql`, not folded into `0010` —
+`0010`'s SHA-256 has already been published to Hermes for the production apply
+sequence and must not change.
+
+```sql
+ALTER TABLE dish_ingredients
+  ADD COLUMN id uuid NOT NULL DEFAULT uuid_generate_v4();
+ALTER TABLE dish_ingredients ADD PRIMARY KEY (id);
+ALTER TABLE dish_ingredients
+  ADD CONSTRAINT dish_ingredients_natural_key UNIQUE (dish_id, ingredient_id);
+```
+
+Confirm the natural key is genuinely `(dish_id, ingredient_id)` before adding the
+UNIQUE constraint — the table carries a `variant_id` column, and if a dish may
+reference the same ingredient in two variant forms, the natural key is the
+three-column tuple. Check the seeder's intent rather than assuming.
+
+## Amended count
+
+**Twelve** tables required schema changes before Directus could edit the graph,
+not eleven, and not the four the spike reported. The "no migration required"
+framing in the ADR body is wrong by an order of magnitude and should be treated
+as superseded by these two amendments.
+
