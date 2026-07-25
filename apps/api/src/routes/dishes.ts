@@ -5,6 +5,8 @@ import {
   dishCategories,
   dishes,
   dishIngredients,
+  dishJourneyBeats,
+  dishLineages,
   dishPreparations,
   dishRelations,
   dishTags,
@@ -12,6 +14,7 @@ import {
   dishVariants,
   geoEntities,
   ingredients,
+  lineages,
   media,
   mediaAttachments,
   preparationMethods,
@@ -799,6 +802,83 @@ export function registerDishRoutes(app: FastifyInstance): void {
       sourceSlug: slug,
       totalRelations: rows.length,
       relationsByType: grouped,
+    };
+  });
+
+  // GET /api/dishes/:slug/journey — ordered journey beats + optional sources.
+  // Empty beats → 200 { beats: [] } (UI hides the section). Unknown slug → 404.
+  app.get("/api/dishes/:slug/journey", async (request) => {
+    const { slug } = slugParamSchema.parse(request.params);
+
+    const src = await db
+      .select({ id: dishes.id, status: dishes.status })
+      .from(dishes)
+      .where(eq(dishes.slug, slug))
+      .limit(1);
+    if (src.length === 0 || !src[0] || src[0].status !== "published") {
+      throw httpError(404, "not_found", "Dish not found");
+    }
+    const dishId = src[0].id;
+
+    const beatRows = await db
+      .select({
+        id: dishJourneyBeats.id,
+        sequence: dishJourneyBeats.sequence,
+        placeName: dishJourneyBeats.placeName,
+        lat: dishJourneyBeats.lat,
+        lng: dishJourneyBeats.lng,
+        yearApprox: dishJourneyBeats.yearApprox,
+        label: dishJourneyBeats.label,
+        confidence: dishJourneyBeats.confidence,
+        sourceId: sources.id,
+        sourceTitle: sources.title,
+        sourceUrl: sources.url,
+        sourceCitationText: sources.citationText,
+        sourceYear: sources.year,
+        sourceReliability: sources.reliability,
+      })
+      .from(dishJourneyBeats)
+      .leftJoin(sources, eq(dishJourneyBeats.sourceId, sources.id))
+      .where(eq(dishJourneyBeats.dishId, dishId))
+      .orderBy(asc(dishJourneyBeats.sequence));
+
+    const lineageRows = await db
+      .select({
+        slug: lineages.slug,
+        name: lineages.name,
+        sortOrder: dishLineages.sortOrder,
+      })
+      .from(dishLineages)
+      .innerJoin(lineages, eq(dishLineages.lineageId, lineages.id))
+      .where(eq(dishLineages.dishId, dishId))
+      .orderBy(desc(dishLineages.sortOrder), asc(lineages.name));
+
+    return {
+      slug,
+      beats: beatRows.map((b) => ({
+        id: b.id,
+        sequence: b.sequence,
+        placeName: b.placeName,
+        lat: b.lat,
+        lng: b.lng,
+        yearApprox: b.yearApprox,
+        label: b.label,
+        confidence: b.confidence,
+        source: b.sourceId
+          ? {
+              id: b.sourceId,
+              title: b.sourceTitle,
+              url: b.sourceUrl,
+              citationText: b.sourceCitationText,
+              year: b.sourceYear,
+              reliability: b.sourceReliability,
+            }
+          : null,
+      })),
+      lineages: lineageRows.map((l) => ({
+        slug: l.slug,
+        name: l.name,
+      })),
     };
   });
 }
