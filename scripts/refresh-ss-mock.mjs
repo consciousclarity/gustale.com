@@ -87,18 +87,19 @@ async function main() {
   }
   console.log(`+ map: ${allSlugs.length} unique slugs`);
 
-  // 2. Paginated list (cap=100). 2 calls.
+  // 2. Paginated list (cap=100) until a short/empty page.
   const list = [];
-  for (const offset of [0, 100]) {
+  const pageSize = 100;
+  for (let offset = 0; ; offset += pageSize) {
     const page = await getJson(
-      `/api/dishes?status=published&limit=100&offset=${offset}`,
+      `/api/dishes?status=published&limit=${pageSize}&offset=${offset}`,
     );
     const items = page.dishes || [];
     list.push(...items);
     console.log(
       `+ list offset=${offset}: ${items.length} (running ${list.length})`,
     );
-    if (items.length === 0) break;
+    if (items.length < pageSize) break;
   }
   if (list.length !== allSlugs.length) {
     process.stderr.write(
@@ -131,7 +132,7 @@ async function main() {
     map: mapResp.dishes,
     details,
   };
-  writeFileSync(MOCK_DATA_PATH, `${JSON.stringify(mockData)}\n`);
+  writeFileSync(MOCK_DATA_PATH, `${JSON.stringify(mockData, null, 2)}\n`);
   console.log(
     `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details)`,
   );
@@ -157,7 +158,10 @@ async function main() {
     list: lineagesList,
     details: lineageDetails,
   };
-  writeFileSync(MOCK_LINEAGES_PATH, `${JSON.stringify(mockLineages)}\n`);
+  writeFileSync(
+    MOCK_LINEAGES_PATH,
+    `${JSON.stringify(mockLineages, null, 2)}\n`,
+  );
   console.log(
     `+ wrote ${MOCK_LINEAGES_PATH} (${lineageSlugs.length} lineages, ${Object.keys(lineageDetails).length} details)`,
   );
