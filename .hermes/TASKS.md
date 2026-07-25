@@ -7,96 +7,9 @@
 
 ## In progress
 
-(none)
-
-## Backlog (P0 — Windows handoff)
-
-### P0 — Hermes: prod catalog 60→120 ✅ DONE
-**Owner:** Hermes · **Status:** done 2026-07-25 (Round 1).
-Local Windows already seeded 120 on `main` (seed #43). Prod API at 120
-dishes; web SSG refreshed and serving `<b>120</b> dishes` on both
-domains. SHARED_STATE.md dish count is current.
-
-### P0 — Cursor: PR Windows local fixes
-**Owner:** Cursor · `pathToFileURL` isMain fix, `listAllDishes` + homepage KPI paging, Astro `/api` proxy, `infra/local` compose. Claude Code reviews → merge → Hermes deploys.
-
-### P0 — Claude Code: read updated CLAUDE.md roster
-**Owner:** Claude Code · Confirm three-role model (Cursor / Claude Code / Hermes). One orchestrator at a time. Do not assign deploy/SSH work to Cursor.
-
-## Codex — usability-first (.com)
-
-Source: `.hermes/CODEX_BRIEF_USABILITY.md` (2026-07-23).
-Owner target: Codex. Domain: **gustale.com** only for product UX; recipes stay on **gustale.recipes**.
-
-- [x] Greptile PR #29 P1 cover/gallery duplicate + P2 duplicate CSS — done in PR #33
-- [x] U0 trust (never-zero home, covers, search, /family/:slug, domain switcher) — done in PRs #34 + #36
-- [ ] U1 browse usability (home + lists + mobile find + empty states) — see in-progress PR #37
-- [ ] U2 Journey + confidence flagships
-- [ ] U3 Atlas→Recipes CTAs / never-blank prep
-
-## Competitive roadmap (source of truth)
-
-Full detailed backlog with problem / scope / done-means lives in
-**`.hermes/COMPETITIVE_ROADMAP.md`** (added 2026-07-22). Positioning:
-Gustale = open atlas of how food moved — not a recipe homepage, not a
-travel blog. Mirror IDs below; update both files when claiming work.
-
-### Wave A — Trust (pick first)
-- [x] **P0-1** Homepage never shows zeros before hydration — done in PR #31
-- [x] **P0-2** Dish cover / media reliability — PR #29 (media-first Phase A; merged via PR #33 with Greptile P1/P2 cleanups)
-- [x] **P2-7** MapLibre CSS only on map routes — done in PR #30
-- [ ] **P0-4** Re-enable email verification (Resend + `hello@gustale.com`)
-
-### Wave B — Stand-out core
-- [ ] **P1-1** Dish Journey UI (timeline + map path) + seed 10–15 flagships
-- [ ] **P1-5** Surface scholarly confidence on homepage + About
-- [ ] **P1-4** `/stories` layer (launch ≥5) + homepage rail
-- [ ] **P1-6** Atlas → Recipes bridge / never-blank prep section
-
-### Wave C — Science + geography moat
-- [ ] **P1-2** Ingredient origins (`food_geography` seed) + `/ingredients`
-- [ ] **P1-3** Region guides for top 12 regions
-- [ ] **P2-2** Country ↔ crop-origin connectivity visualization
-
-### Wave D — Density + contribution
-- [ ] **P2-3** Seed enrichment pass (≥90 dishes, 0 skipped relations, fix orphans)
-- [ ] **P2-4** Moderation queue UI
-- [ ] **P2-5** Image upload UI
-- [ ] **P2-1** “Also on the table” companions
-- [ ] **P2-6** OG cards + honest JSON-LD
-- [x] **P0-3** Global grouped search (dish/region/lineage/ingredient) — done in PR #32
-
-### Wave E — Moat
-- [ ] **P3-1** Nearby / geolocation discovery
-- [ ] **P3-2** Public read API + attribution
-- [ ] **P3-3** i18n
-- [ ] **P3-4** Brand/handle lock-in (human)
-- [x] **P3-5** Real linting (Biome) in CI — DONE via PR #40 (2026-07-24; non-breaking, error rules parked at warn, ratchet pending)
+(none right now — check Backlog)
 
 ## Done (recent — last 10)
-
-- 2026-07-25 by Hermes Agent (Telegram) — **Ops run: Automated GFS Backups & Verified Restore.** (1) Task 1: Deployed `backup.py` script on VPS backups dir with 7d/4w/3m Grandfather-Father-Son retention, automated checksum verification, and logging. Scheduled daily via systemd timer/service `gustale-backup.timer` at `01:00:00 UTC` with random jitter and persistence. (2) Task 2: Created `gustale_restore_test` DB and performed full verified restore. RTO clocked at **1.415 seconds**! Verified matching counts for all 43 tables side-by-side, verified PostGIS geometries (Seville, Goa, Athens, Beijing) survived byte-for-byte, and checked full dish relationships (categories, lineages, relations) matching 100%. Test DB dropped. (3) Task 3: Provided SPOF offsite storage options (R2/B2 vs local pull-based SSH script) and disaster recovery audit. (4) Task 4: Confirmed whole-database dumps protect future Directus migrations. Recorded all in `SHARED_STATE.md`.
-
-- 2026-07-25 by Hermes Agent (Telegram) — **Ops run: Task 1 /journey fix + Task 2 reseed + Task 3 PR #52 deploy + Task 4 standing migration risk.** (1) Task 1: Applied migration `0008_dish_journey_beats.sql` manually to the prod DB, backed up before DDL to `/home/deploy/gustale.com/backups/gustale_pre_0008_20260725T091840Z.dump` (420 KB), resynced the drizzle migrations sequence to max ID 5 and inserted the `0008` tracking row with `id = 6`. Verified `/api/dishes/vindaloo/journey` returns 200 with empty beats array. (2) Task 2: Reset `gustale-checkout` to `1d02403`, reseeded production DB to 121 dishes + 36 journey beats, seeder skip-relation count is 11, verified count 121 / beats length 3. (3) Task 3: Discovered PR #52 CI run was cancelled on GitHub preventing deploy, pushed empty commit `10f554b` to re-trigger, polled run `30152807522` which completed with success, verified all 3 containers running the new image, static bundle changed to `.Dxdl_QZ2.js` containing coincident-count. (4) Task 4: Raised the named risk "Post-Deploy Migration Gap" in SHARED_STATE.md and documented the workaround runbook.
-
-- 2026-07-25 by Hermes Agent (Telegram) — **Round 2: P0-4 email verification (code half) + Task 2 prod smoke + Task 3 ingredient audit.** (1) P0-4 code: `apps/api/src/auth.ts` flipped two booleans (`requireEmailVerification` + `sendOnSignUp`) to `!!env.RESEND_API_KEY` (gated, dev-unchanged) + added `sendVerificationEmail` callback that mirrors the existing magicLink Resend fallback. Branch `fix/p0-4-email-verification` @ `ee096aa` (rooted on `a32501f`), `tsc --noEmit` + biome clean. Env ops (DNS verify + API key + container recreate + smoke) are user-side, blocked on Resend domain verification at the registrar. (2) Task 2 prod smoke after PR #46/#48 merged: API returns 120 dishes ✓, web renders `<b>120</b> dishes` on both domains ✓ (regex needs `<b[^>]*>120</b>\s*dishes` not bare `<b>120</b>`), 5/5 spot-checked new dish pages return 200, full 60/60 sweep of PR #43 new pages all 200. (3) Task 3 ingredient audit (quantification only): 4 distinct `/ingredients/<slug>` links exist across all 120 dish pages (all from the moussaka seed fixture); 119/120 dishes have zero ingredient links. DB: `ingredients`=5 rows, `dish_ingredients`=4 rows. food_geography tables: only `food_regions` + `food_region_sources` exist in the schema (both empty); the 4 other tables named in the handoff don't exist — surface as a finding, not a bug. P1-2 (ingredient origins) jumps the queue.
-
-- 2026-07-24 by Claude Code (terminal) — **CI hardening + prod deploys.** Merged to `origin/main` (now `8f52282`) and deployed: **#38** (remove invalid pnpm cache from Docker jobs), **#37** (U0-C browse/list usability), **#41** (gitignore `dist-recipes/` + `graphify-out/`), **#40** (real Biome lint gate, non-breaking). Prod verified healthy (gustale.com 200, gustale.recipes 200, api health 200). **#39** (nightly full migration chain) left DRAFT/blocked — Nightly dispatch fails at "Apply committed schema" (spurious generated `0006_worthless_riptide.sql` from journal drift; fix = glob committed files via `git ls-files`). SiteHeader keep-vs-redesign → **KEEP Nav.astro** (WIP superseded by #34/#36).
-
-- 2026-07-24 by Hermes Agent (Telegram) — **U0/U0-C browse usability verified and pending merge.** PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`) independently verified PASS on 2026-07-24: 12/12 search-nav tests, 17/17 browse tests, tsc clean, only pre-existing `AtlasHeroKpi.astro` baseline error, build:recipes 50/50, build:geo 53/53. Browser evidence: pagination 24→48→60 with all 60 slugs unique, Load more disappears at 60, Back/Forward/Refresh restore correct page, popstate does not grow history, search resets page to 1, later-page failure retains 48 cards with friendly Retry → 60, mock country matching exact case-insensitive, mobile 320×720 zero overflow. PR is open in draft; awaiting human review → mark ready → merge → production smoke. Do not mark U1 done until PR #37 merges.
-
-- 2026-07-23 by Hermes Agent (Telegram) — **Wave A of `COMPETITIVE_ROADMAP.md` shipped to `origin/main` via five squash-merges: PR #30 (P2-7 MapLibre CSS scope), PR #31 (P0-1 homepage SSR real counts), PR #32 (P0-3 global grouped search), PR #33 (Greptile PR #29 cleanup: cover/gallery duplicate + duplicate CSS), PR #36 (U0 navigation + search).** PR #35 (custom HTTP 404 from nginx) also landed the same day. PR #34 (U0 trust: domain routing, family SSG, Atlas→Recipes CTAs) closed U0. The full PR list (#30, #31, #32, #33, #34, #35, #36) brought Wave A to completion. U0-C browse/list usability is the next deliverable as PR #37 (draft, awaiting review/merge).
-
-
-- 2026-07-22: **Verified the "15 dishes missing methodSlug/lineage" cleanup is already resolved** (no code change needed; stale note cleared in SHARED_STATE.md). All 60 published dishes have a `methodSlug` across seed source (`DISH_LINEAGES` 60/60), SSG mock (`mock-api-data.json` 0/60 null), and live API (0/60 null); live `/lineages` has no "Other" bucket. Named dishes in the old note (Kimbap, Croffle, Som tam, Butter chicken, Tandoori chicken, Tteokbokki) aren't in the dataset at all. Also flagged 13 harmless orphan `DISH_LINEAGES` keys for optional cleanup. **DB password rotation** was requested in the same turn but is NOT executable from the Cursor Cloud Agent sandbox (no VPS SSH key / no DB creds injected) — a ready-to-run runbook is recorded in SHARED_STATE.md "Pending User Asks" for Hermes / a VPS-root operator. — Cursor Cloud Agent
-
-- 2026-07-22: **Editorial site header + dish cover hero** (PR #28, `cursor/gallery-and-nav-editorial-6cb3`). Landed config-driven SiteHeader/NavSearch/MobileNav on current main (avoids /families taxonomy regression from old PR #8). DishDetail hero now fetches cover signed URL on hydration; gallery restyled to editorial tokens. — Cursor Cloud Agent
-
-- 2026-06-26: **/lineages real-lineage data fix** (PR #9, `feat/lineages-data-fix`, base `feat/nav-editorial` — stacked). Root cause: `seedEncyclopedia()` never wrote `dish_preparations`, so 59/60 published dishes had `methodSlug=null` → all "Other preparations". Also found: (1) the static `/lineages` is built from `mock-api.mjs`, not the DB — its dish list lacked `methodSlug`/`originName`, so the page was "other" regardless of DB; mock was stale (31 vs 60 dishes); (2) the live `/api/dishes` **list endpoint returns HTTP 500** (map endpoint fine) — runtime issue in the deployed API image, **needs VPS investigation + redeploy** (no VPS SSH on my end). Fix: `seed-data.ts` adds `LINEAGE_METHODS` (16, 1:1 with page `LINEAGE_LABELS`) + `DISH_LINEAGES`; `seed.ts` seeds methods + idempotent per-dish prep pass; `mock-api.mjs` → 60 dishes emitting `methodSlug`+`originName`; `lineages.astro` fixes stew/curry double-label + adds 4 stories. **Live geekom DB updated directly** (idempotent SQL): 16 methods, 60 dish_preparations, 0 published without a prep. typecheck + astro check clean; web build emits 16 distinct lineages, no "other", featured = Stews & braises (11). **VPS owner: please debug the `/api/dishes` 500 + redeploy the API.** — Claude Code
-
-- 2026-06-26: **Editorial site header pushed + PR opened.** Rebased onto `main`, 8 files (+1215/-357), two new React islands (`MobileNav.tsx` full-bleed mobile takeover, `NavSearch.tsx` full-bleed search overlay) + new typed `lib/navigation.ts` config. `astro check` 0/0. Families `originName` fix rides along as identical patch on the taxonomy branch — Git dedups on merge. `gh` CLI auth not configured this session, so the PR body was drafted as `pr-nav-editorial-body.md` at workspace root for Alex to paste into the GitHub PR description textarea. — Mavis
-
-- 2026-06-25: **Homepage sophistication pass** (PR #6, `feat/site-sophistication-pass`). SSR-first split: `index.astro` server-renders an editorial hero ("Every dish has a place."), a rotating `HeroFeaturedCard` island, "Most connected" + "Families & lineages" rails, and a schema-stats band; the atlas/index/gallery/feed explorer is now the `HomeWorkspace` island (seeded from a `#explore=` URL hash). New `GET /api/dishes/featured` API endpoint (top dishes by `dish_relations` count; tested). Nav Contribute CTA + columned footer. Verified: astro check clean, build:recipes+geo green, API suite 48 pass/3 skip. **Follow-up:** run `pnpm --filter @gustale/db run seed` against the dev DB — it has 0 relations + only 31 dishes, so the most-connected rail/hero card render empty until seeded. — Claude Code
 
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
@@ -148,10 +61,8 @@ travel blog. Mirror IDs below; update both files when claiming work.
 
 ## Backlog
 
-### P1 — Configure real linting in `apps/api`, `apps/web`, `packages/db` — ✅ RESOLVED by PR #40 (2026-07-24)
-**Owner:** Cursor Cloud · **Resolved:** 2026-07-24 (was Deadline 2026-09-30)
-
-**Resolution.** Biome (`@biomejs/biome@2.5.5` + root `biome.jsonc`) is now the real gate — root `lint` → `biome check .`, CI `Lint` job runs it (not the `echo 'lint ui'` stub), no `continue-on-error`. Non-breaking rollout: ~136 files auto-fixed; remaining error-level rules parked at **warn** with a ratchet TODO, so warnings alone do NOT fail CI today while the debt is worked down (see the "Biome ratchet" item in Backlog (longer-term)). Original problem statement kept below for history.
+### P1 — Configure real linting in `apps/api`, `apps/web`, `packages/db`
+**Owner:** unassigned · **Estimate:** ~1 day · **Deadline:** 2026-09-30
 
 **Problem.** The `lint` job in `.github/workflows/ci.yml` is
 misleading safety theater. `pnpm -r run lint` resolves to a single
@@ -223,6 +134,17 @@ the front-end is missing. Build:
   just enforce it in the form)
 - Show the edit_history timeline (create + every update since)
 
+### P2 — Fix DishGallery hydration
+**Owner:** unassigned · **Estimate:** 30 min
+`DishDetail` is rendered without a `client:` directive in
+`pages/dishes/[slug].astro`, so the embedded `DishGallery`'s
+`useState`/`useEffect` never runs. The seed image for
+`moussaka-greek/cover.jpg` is on record but won't render until
+this is fixed. Two clean fixes:
+- Add `client:load` to `<DishDetail>` in `[slug].astro` (simplest)
+- Hoist gallery into a top-level `client:load` island like we did
+  for `<DishMap>` (more surgical — only the gallery hydrates, not
+  the whole detail view)
 
 ### P2 — Image upload UI
 **Owner:** unassigned · **Estimate:** half-day
@@ -232,44 +154,12 @@ credit line. Wire to `POST /api/media/upload`. Once uploaded,
 attach to the dish via `POST /api/dishes/:slug/media`. Currently
 the API exists but there's no UI to call it.
 
-### P1-2 — Ingredient origins (jump the queue per Round-2 audit)
-**Owner:** unassigned · **Estimate:** ~1 day
-**Why this jumps:** Round-2 audit (2026-07-25, Hermes) found that across
-all 120 dish pages, only 4 distinct ingredient slugs are linked (all
-from the moussaka seed fixture: `bechamel`, `eggplant`, `lamb-mince`,
-`tomato`). 119 of 120 dish pages have zero `/ingredients/<slug>` links.
-DB state: `ingredients` table = 5 rows, `dish_ingredients` = 4 rows, all on
-moussaka-greek. On `gustale.recipes` the 4 linked slugs are 200; on
-`gustale.com` they're 404 (post-build pruner strips `/ingredients/`).
-Recommended seed pass: add `dish_ingredients` join rows for all 120
-dishes in `seed.ts` (mirrors what was done for cuisines + lineages
-in PR #43), plus a small `INGREDIENTS` table to `seed-data.ts`
-(maybe 20-30 common ingredients), then re-run the seeder. The 404
-on `gustale.com` is intentional (geo domain doesn't need ingredient
-pages) and not a bug.
-
-### P2 — Re-enable email verification [round-2 partial: code done, env ops pending]
-**Owner:** Hermes (code done) + user (env ops) · **Estimate:** 30 min code / variable env ops
-**Round-2 status (2026-07-25):** code is committed + pushed on
-`fix/p0-4-email-verification` @ `ee096aa` (rooted on `a32501f`,
-+ahead of `origin/main`). 1 file changed: `apps/api/src/auth.ts`
-— `requireEmailVerification: !!env.RESEND_API_KEY`,
-`sendOnSignUp: !!env.RESEND_API_KEY`, new `sendVerificationEmail`
-callback that mirrors the existing `magicLink` Resend fallback.
-Verified `tsc --noEmit` + biome clean. PR body at
-`/home/alex/workspace/wt-p0-4-email-verification/PR_BODY_p0-4-email-verification.md`.
-**Remaining (user-side):** (1) wait for Resend domain verify
-(SPF/DKIM/DMARC for `gustale.com` at the registrar — happening
-now); (2) generate API key in Resend dashboard; (3) mirror to BOTH
-`/root/.env` AND `/home/deploy/gustale.com/.env` (Phase-7 lesson
-about drift); (4) recreate gustale-api container (`docker restart`
-does NOT re-read `--env-file`); (5) smoke test by registering a
-throwaway account and confirming the verify email arrives. All
-gated on `!!env.RESEND_API_KEY` so dev without a key is identical
-to today — safe to merge the PR independently of the env ops.
-**Original handoff task:** sign up at resend.com (3k/month free tier),
-DNS records, env key, two booleans, container recreate, smoke
-test.
+### P2 — Re-enable email verification
+**Owner:** unassigned · **Estimate:** 30 min
+Sign up at resend.com (free tier: 3k emails/month), set
+`RESEND_API_KEY` in `/root/.env`, flip
+`requireEmailVerification: true` and `sendOnSignUp: true` in
+`apps/api/src/auth.ts`. Done.
 
 ### P2 — Set Telegram deploy-failure secrets
 **Owner:** user · **Estimate:** 5 min
@@ -321,55 +211,8 @@ Map-based discovery + unified search. Plan summary:
 - **9c (3h)** — "Cuisines near me" + taste-based similarity via
   shared categories and shared origin regions.
 
-### P3 — Seed-data enrichment pass (dishes, methodSlug, ingredients, relations)
-**Owner:** unassigned · **Estimate:** ~1 day
-Surfaced 2026-06-25 (PR #6, homepage). All `packages/db/src/seed-data.ts`
-content quality. The homepage code is correct and degrades gracefully;
-these are data gaps that keep several surfaces sparse. Merged from two
-earlier items after a read-only audit of `DISH_RELATIONS` vs `DISHES`.
-
-Audit results (60 dishes, 110 relation entries = 220 directed edges; 31
-entries reference a dish slug not in `DISHES`, so 31 edges silently drop
-on seed):
-
-**(a) ~25 referenced dishes are missing from `DISHES`** — NOT typos (an
-edit-distance check produced only false positives; these are real,
-distinct dishes the relation graph names but the dish set never added).
-Recovering these edges means *adding the dishes*, then re-seeding. The 27
-distinct dangling slugs:
-`samosa ×3, soba ×2, sambal ×2, menemen, fries, idli, cotoletta,
-tonkatsu, döner, bacon-and-cabbage, fish-cake, focaccia, pita, curry,
-lechon, kofta, porridge, patacones, vada, humita, bulgur, lamb-and-rice,
-ikan-bakar, poke, baba-ganoush` — plus the two moussaka variants below.
-
-**(b) 2 moussaka-variant slugs** — `musakka-turkish`, `moussaka-levant`
-are referenced but don't exist; almost certainly intended as regional
-variants of the existing `moussaka-greek`. The only true data
-*inconsistency* (vs missing content). Quick optional sub-task: remap
-these two to `moussaka-greek` (or add them as dishes) to cut "31 skipped"
-toward zero without a full content pass.
-
-**(c) Dishes missing `methodSlug`** — across the 60 dishes only **2
-distinct `methodSlug` values** exist, so `/families` and the homepage
-"Families & lineages" rail collapse most dishes into "Other".
-`FAMILY_LABELS` in `families.astro` already anticipates ~16 families.
-Populate `methodSlug` per dish using the existing family slugs.
-
-**(d) Sparse ingredients** — only 4 published ingredients; enrich
-alongside the dishes for a fuller `/ingredients` + homepage schema stat.
-
-**Do it as one pass:** add the missing dishes (a) with proper
-`methodSlug` (c) and ingredients (d); fix the moussaka slugs (b); re-run
-`pnpm --filter @gustale/db run seed` (idempotent) and confirm "0 relation
-entries skipped". Re-running the read-only audit: a ~30-line tsx script
-over `DISHES`/`DISH_RELATIONS` (see PR #6 session) regenerates the
-dangling list on demand.
-
 ## Backlog (longer-term)
 
-- **P1 — Drizzle journal reconcile (blocks #39).** `packages/db/drizzle/meta/_journal.json` is out of sync with on-disk `*.sql` (orphans: `0003_add_filter_indexes`, dual `0005_*`, `0007_pg_trgm`). The drift makes `drizzle-kit generate` emit spurious migrations at runtime (e.g. `0006_worthless_riptide.sql` re-creating `dish_lineages`) — which is what breaks nightly #39. Align the journal with the committed SQL. Until then, nightly must apply the **committed** filesystem-sorted set (NOT journal-only — see §5 non-goal).
-- **P1 — Biome ratchet (from #40).** Promote rules parked at `warn` in `biome.jsonc` back to `error` in small PRs, in order: a11y cluster → suspicious → `useExhaustiveDependencies`. Track counts; no big-bang. Parked: a11y (`noStaticElementInteractions`, `noSvgWithoutTitle`, `useAriaPropsSupportedByRole`, `useButtonType`, `useGenericFontNames`, `useKeyWithClickEvents`, `useSemanticElements`, `useValidAnchor`); correctness (`noUnknownTypeSelector`, `useExhaustiveDependencies`); security (`noDangerouslySetInnerHtml`); suspicious (`noArrayIndexKey`, `noAssignInExpressions`, `noShadowRestrictedNames`, `useIterableCallbackReturn`).
-- **P3 — Nav config extract (optional).** Only if wanted: extract a typed nav config module used *inside* the shipped `Nav.astro` — no UX change, complementary refactor, NOT a SiteHeader restore. (Product decision 2026-07-24: keep U0-B Nav.astro; SiteHeader superseded.)
 - **i18n** — frontend and content. README has this as Phase 7g.
 - **Public read API for third parties** — rate limits + API keys.
 - **Mobile-first redesign** — current layout is desktop-first; map

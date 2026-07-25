@@ -1,591 +1,236 @@
 # Gustale — Shared State
 
-> **Read this first.** Source of truth across **Cursor** (implementer on Windows),
-> **Claude Code** (orchestrator), and **Hermes** (ops on Geekom → Hostinger).
-> Sync via `private/state`. Full role brief: `CLAUDE.md` on `main`.
-
-## Agent roster (2026-07-25)
-
-| Role | Agent | Machine | Owns |
-|------|-------|---------|------|
-| Implementer | Cursor | Windows — canonical repo `D:\gustale` | Code, local run, PRs |
-| Orchestrator | Claude Code (XOR Codex — not both) | Active session | Priorities, review, TASKS, handoffs |
-| Ops / deploy | Hermes | Geekom (always-on) | CI/Hostinger deploy, prod seed, SSH, live smoke |
-
-Cursor does **not** hold Hostinger SSH. Hermes owns prod `pnpm db:seed` and deploy verification.
-On any new machine: work from **`origin/main`**, never an old feature-branch folder.
+> **Read this first.** This file is the source of truth for project state,
+> decisions, and blockers across all AI assistants working on this repo.
+> Both Hermes Agent (Telegram) and Claude Code (terminal) write to it.
 
 ## Last updated
 
-### Hermes (Geekom / Telegram) — 2026-07-25 (Ops run: Automated GFS Backups & Verified Restore)
+2026-06-24 by Claude (Cowork) — CI web build blocker fixed: mock API server inside Dockerfile replaces the unreachable production API during Astro SSG.
 
-**Task 1 (Automated Backups): DEPLOYED.** Configured a Python backup script (`/home/deploy/gustale.com/backups/backup.py`) with Grandfather-Father-Son retention (7 daily, 4 weekly, 3 monthly) and SHA256 checksum generation, scheduled daily at `01:00:00 UTC` (`09:00:00 WITA`) via **systemd service & timer** (`gustale-backup.timer` + `gustale-backup.service`). Logs standard output to journald and file `/home/deploy/gustale.com/backups/backup.log`. Single dump size is **430 KB**; total host footprint of up to 14 retained files is **~6.02 MB**.
+## Current status
 
-**Task 2 (Proven Restore): VERIFIED.** Created test DB `gustale_restore_test` and restored the custom-format backup. RTO verified at **1.415 seconds**! Verified 100% of counts side-by-side for all 43 tables (including `dishes` 122 total and 121 published). Confirmed PostGIS coordinates (`POINT` geometry) survived byte-for-byte on four sample dishes (gazpacho, peking-duck, vindaloo, moussaka-greek). Verified dish relation graphs (moussaka-greek) matched perfectly (4 categories, 1 lineage, 2 outgoing, 2 incoming relation edges). Dropped test database cleanly.
+✅ **CI web builds fixed. Mock API server added to Dockerfile. Async `wait-for-api` step removed.**
+Per-dish maps live, standalone /map live. One library, one basemap, one
+fallback shape.
 
-**Task 3 (SPOF Assessment): REPORTED.** Analyzed single-point-of-failure (VPS 62.72.7.218 co-location). Documented offsite backup options (Cloudflare R2 free 10GB tier vs Geekom pull-based SSH script) and current disaster recovery capabilities under `## Backup and recovery`.
+Two map surfaces:
+1. `/map` — standalone **globe** (MapLibre GL) showing all 31 dishes,
+   toggle to flat Mercator in the corner. CARTO Voyager basemap.
+2. `/dishes/<slug>/` — per-dish **mini-map** (MapLibre GL) showing one
+   dish's origin, same CARTO Voyager basemap + same WebGL pre-flight +
+   static fallback pattern. Leaflet/react-leaflet fully removed.
 
-**Task 4 (Directus Coverage): CONFIRMED.** Verified backups utilize standard whole-database dumps (`pg_dump` on `gustale` with no table allowlist), ensuring all future `directus_*` tables are automatically included.
+Both islands share: dynamic import of `maplibre-gl` inside `useEffect`
+(not at module top), `detectWebGL()` pre-flight, CARTO Voyager raster
+style spec, dark-stroked emerald marker style.
 
-### Hermes (Geekom / Telegram) — 2026-07-25 (Ops run: Task 1 /journey fix + Task 2 reseed + Task 3 PR #52 deploy + Task 4 standing migration risk)
+Verified locally on branch `feat/maplibre-per-dish`:
+- `pnpm --filter apps-web exec tsc --noEmit` clean
+- both recipes + geo builds complete (75 pages each)
+- no Leaflet refs in emitted HTML
+- new `DishMap.<hash>.js` chunk is 6.2KB (island shell; maplibre-gl
+  fetches on hydration)
 
-**Task 1 (/journey 500): RESOLVED.** Confirmed `public.dish_journey_beats` table was missing. Backed up DB to `/home/deploy/gustale.com/backups/gustale_pre_0008_20260725T091840Z.dump` (420 KB). Applied migration `packages/db/drizzle/0008_dish_journey_beats.sql` via pipe-safe v5 heredoc. Resynced sequence `drizzle.__drizzle_migrations_id_seq` to max ID 5, then inserted the drizzle tracking row with `id = 6` (hash `f0b939149c43e9b2bb8080b7826d82739e954185fb02392330dda53fcb95542b`, `created_at` timestamp). Verified `/api/dishes/vindaloo/journey` now returns 200 with `beats: []` and `/api/dishes/gazpacho/journey` returns 200 with `beats: []`.
+Same Camofox caveat as before: test browser has no WebGL, so visual
+verification pending on a real device after the PR merges and deploys.
 
-**Task 2 (reseed): DONE.** Reset `gustale-checkout` on VPS to `origin/main` (`1d02403`) to pull `musakka-turkish` (PR #51) and the 36 journey beats. Executed seeder in a throwaway `node:22-slim` container mounting `/home/deploy/gustale-checkout` with `DATABASE_URL` piped from the `gustale-api` container env. Seeder completed with exit 0: added `musakka-turkish` (+1 dish), 12 flagship timelines (+36 beats), skipped 11 relations referencing unknown dish slugs (the current skipped-relation count for SHARED_STATE). Verified live counts: `/api/dishes/map?limit=2000` count is `121` ✓; `/api/dishes/vindaloo/journey` beats length is `3` ✓; `/api/dishes/gazpacho/journey` beats is `[]` ✓.
+## What's deployed on main
 
-**Task 3 (PR #52 deployment): DONE.** Investigated why PR #52 coincident-count fix wasn't live. Discovered that the push CI run `30151682679` for PR #52 (`1d02403`) was automatically cancelled on GitHub due to a newer run triggered shortly after, preventing `Deploy to Hostinger` from running. Web containers remained on the old image `4ed17c3` (pre-#52). Pushed an empty commit `10f554b` to `main` on the host to trigger a fresh CI run. Polled run `30152807522` which completed with `success`. Verified live: all 3 prod containers (api, web-recipes, web-geo) are running our new image SHA `10f554b`. Confirmed static web bundle changed from `.u5ncRzkw.js` to `.Dxdl_QZ2.js` and successfully contains the coincident-count logic (`dishes-coincident-count` and `coincidentCount`).
-
-**Task 4 (named risk): RAISED.** Documented the "Post-Deploy Migration Gap" standing risk and workaround under `## Pending User Asks` (the named risk prevents next agents from being tripped up by hand-applied DDL delays).
-
-- **⚠️ Named Risk: Post-Deploy Migration Gap** (Standing Risk & Workaround). CI deployments (`Deploy to Hostinger` workflow) build and deploy the `gustale-api` and web containers automatically, but do **not** run Drizzle database migrations. All schema migrations must be applied manually to the VPS Postgres DB. If missed, endpoints querying new tables or columns will crash with HTTP 500 errors (as observed with `/journey` after PR #49).
-  - *Current Workaround / Runbook:* After merging a PR containing migrations, connect to the VPS via SSH and apply the sql file using the pipe-safe v5 heredoc structure. Then insert the drizzle tracking row in `drizzle.__drizzle_migrations` and resync the sequence `drizzle.__drizzle_migrations_id_seq` to `max(id)`.
-  - *Mitigation:* A CI migration step requires a reviewed PR; do not attempt to automate this on the host without a code-level PR.
-
-### Hermes (Geekom / Telegram) — 2026-07-25 (round 2: P0-4 email verification + ingredient audit + Task 2 smoke)
-
-**Task 2 (prod smoke 120): PASS.** API `/api/dishes/map?limit=2000` returns `count:120` ✓. `gustale.recipes/dishes` and `gustale.com/` both render `<b>120</b> dishes` in the rendered HTML (regex needs to be loose: `<b[^>]*>120</b>\s*dishes` because the `<b>` carries a `data-astro-cid-…` attribute, not bare text). All 60 PR #43 new dish pages return 200 on both domains (spot-checked 5: `moussaka-levant`, `baba-ganoush`, `tacos-al-pastor`, `peking-duck`, `injera`; full 60/60 sweep verified). Listing pages on `gustale.recipes/dishes` show 25 unique slugs in the first page (paginated 24 per page) — total pool is 120, all serving correctly. The `<b>120</b> dishes` band on `gustale.com/` is the only place my initial regex was too strict and caused a false negative; it's there.
-
-**Task 3 (broken ingredient links audit): DONE — quantification only, no fix.**
-
-- **Across all 120 dish pages on `gustale.com`, only 4 distinct ingredient slugs are linked: `bechamel`, `eggplant`, `lamb-mince`, `tomato`.** 119 of 120 dish pages have ZERO `/ingredients/<slug>` links. Only `moussaka-greek` (the seed fixture dish) has ingredient links (4 of them).
-- **HTTP status on `gustale.recipes` (encyclopedia domain):** all 4 → 200 ✓
-- **HTTP status on `gustale.com` (geo domain):** all 4 → **404** (the `post-build.mjs` pruner drops `/ingredients/` from the geo build)
-- **DB state:** `ingredients` table = **5 rows**; `dish_ingredients` join table = **4 rows** (all on moussaka-greek). The new 60 dishes from PR #43 have no ingredient entries seeded.
-- **food_geography tables:** only **`food_regions`** + **`food_region_sources`** exist in the public schema (both empty: 0 rows). The 4 other tables named in the handoff (`food_cuisines`, `food_origin_evidence`, `food_origin_links`, `food_cultural_contexts`, `dish_food_origins`) **do not exist** — migration 0005 either wasn't applied or only created the 2 source tables. **The handoff's "the 6 tables from migration 0005" is wrong; there are only 2.** Surfaced as a finding, not a bug to fix now.
-- **Recommended follow-up:** P1-2 (ingredient origins) jumps the queue ahead of the rest of Wave B. The 119 zero-link dishes need a seed pass (just like the original 60 dishes needed cuisine + lineage mappings to fully populate `families` and `/lineages` filters). No emergency stub-404 fix is needed — `gustale.com` users already don't see `/ingredients/` (post-build pruner strips it); `gustale.recipes` users see 0 links per dish because they aren't seeded, not because the pages are 404.
-
-**Task 1 (P0-4 email verification): CODE CHANGES DONE, ENV OPS PENDING.** Branch `fix/p0-4-email-verification` @ `ee096aa` (rooted on `a32501f`). 1 file changed: `apps/api/src/auth.ts` — `requireEmailVerification: !!env.RESEND_API_KEY`, `sendOnSignUp: !!env.RESEND_API_KEY`, new `sendVerificationEmail` callback that mirrors the existing `magicLink` Resend fallback (console-log when no key, real Resend send when the key is set; same `from: "Gustale <no-reply@gustale.com>"` sender). All edits gated on `!!env.RESEND_API_KEY` so dev without a key is byte-identical to today. **Verified:** `pnpm --filter @gustale/api exec tsc --noEmit` exit 0; `pnpm exec biome check apps/api/src/auth.ts` 0 findings. PR body at `/home/alex/workspace/wt-p0-4-email-verification/PR_BODY_p0-4-email-verification.md`. URL: https://github.com/consciousclarity/gustale.com/pull/new/fix/p0-4-email-verification. **Action needed from you (or orchestrator): (1) open the PR in the browser and merge it; (2) sign up is on hold while you wait for the DNS to propagate on `gustale.com` at the registrar; (3) once you have the Resend API key, mirror it to BOTH `/root/.env` AND `/home/deploy/gustale.com/.env` (Phase-7 lesson: drift cost a day of debugging); (4) recreate `gustale-api` container so it picks up the new env (`docker restart` does NOT re-read `--env-file`); (5) smoke test by registering a throwaway account and confirming the verify email arrives. Full recipe in the PR body.**
-
-**MCP `create_pull_request` returns `Not Found` on `consciousclarity/*`** (P179 — same as last round); PR must be opened via the web UI. **`mcp__github__merge_pull_request` likely also blocked** — merge is a write-MCP op; the user/orchestrator clicks the button.
-
-**`origin/main` is at `a32501f`** (the post-#48-merge SHA, after the orchestrator's Biome-format refresh). The 4:43Z CI deploy on `e2000c17` brought all three prod containers to image `e2000c174001a8eab63f25fbc6ad41bc006fbd6d` (Up 3 hours, healthy). My new branch `fix/p0-4-email-verification` is **rooted on `a32501f`** (not `e2000c17`) — there may be a small merge conflict at PR time on `auth.ts` if Cursor has been editing it on a parallel branch, but my change is well-isolated (3-line `!!` flip + new Resend callback block). All three prod containers are healthy.
-
-**Open PRs at handoff end:** #42 (Hermes-Macmini SHARED_STATE sync), #44 (duplicate of #43, mark closed as superseded), #46 (SSG mock refresh — **MERGED 2026-07-25T05:13Z** as part of #48; that's why the web is serving 120 now), #48 (Biome-format refresh, MERGED same time), **NEW** `fix/p0-4-email-verification` (this round's code half of P0-4 — awaiting DNS + API key + your merge).
-
-### Hermes (Geekom / Telegram) — 2026-07-25 (prod 60→120 seed + SSG mock refresh + nightly green)
-
-**Task 1 (prod seed 60→120): DONE.** `pnpm --filter @gustale/db run seed` ran on prod `shared-postgres` (idempotent). The seed was executed from a throwaway `node:22-slim` container with the checkout mounted; `DATABASE_URL` sourced pipe-safely from the running `gustale-api` container's env (Phase-7-corrected v5 form). Result: **+ 60 new dishes inserted, 60 already existed; total 120.** Plus 4 net new cuisine categories, 4 net new country geo entities, 60 new `dish_preparations` rows, 14 lineages (existing, idempotent skip), 34 new dish-lineage edges, 188 new dish-relation edges. 12 relation entries skipped (still-referenced slugs not in the dish set; out-of-scope cleanup). Verification: `curl https://api.gustale.recipes/api/dishes/map?limit=2000` returns 120 dishes with `count:120`.
-
-**Task 1 (SSG mock refresh): DONE, awaiting merge.** The committed `apps/web/scripts/mock-api-data.json` (60→120) and `mock-api-lineages.json` (re-captured) are on branch `data/refresh-ss-mock-2026-07-25` (head `644b94f`), with the new `scripts/refresh-ss-mock.mjs` one-shot refresh utility (idempotent, paginated, retries on 429/5xx, validates counts). **PR not created — GitHub MCP `create_pull_request` returns `Not Found` on `consciousclarity/*` (P179).** PR body file at `/home/alex/workspace/wt-refresh-ss-mock-2026-07-25/PR_BODY_data-refresh-ss-mock.md`. URL: https://github.com/consciousclarity/gustale.com/pull/new/data/refresh-ss-mock-2026-07-25. **Action needed from orchestrator / user: open the PR and merge it.** CI auto-deploys on merge; until then, the live web containers serve the old 60-dish SSG even though the API now returns 120 (P117). Local end-to-end build verified: `pnpm run build:recipes` + `build:geo` against the refreshed mock both pass all 27/27 validator checks; `dist/dishes/index.html` renders `<b>120</b> dishes` in the AtlasHeroKpi band; 11/11 sampled new-dish detail pages exist as flat `.html` files (~29 KB each).
-
-**Task 2 (nightly): GREEN.** Most recent Nightly run on `main`: `id=30109368900` (workflow file `nightly.yml`, branch `main`, `completed/success`, 2026-07-24T16:31Z → 2026-07-24T16:34Z, 271 s total). Both jobs green: `Full integration` (success, 86 s) and `Build production image` (success, 102 s). PR #39's "apply committed `packages/db/drizzle/*.sql` sorted" step is in effect; the previous 14:38Z nightly (`id=30101835743`, branch=main, conclusion=failure) is the last RED nightly on main. **The "Nightly is RED on main until #39 is reworked + merged" line in CC's 2026-07-24 entry above is now stale — superseded by this confirmation.** No follow-up needed; journal-drift fix is live.
-
-**`origin/main` is at `3f2ef0b`** (the post-#43-merge SHA; the latest merged commit is `feat(data): add 60 dishes (60→120) + 5 cuisines for food-network regions (#43)`). All three prod containers (gustale-api, gustale-web-recipes, gustale-web-geo) are running image `3f2ef0be01e524e0a3475df86a4390f6f49c9403` (Up 3 hours, healthy), which contains the 120-dish API code AND the live DB is seeded to 120 — but the web SSG (still 60) is what users see until the SSG-refresh PR is merged. The web rebuild is one merge away.
-
-**Open PRs at handoff end:** #42 (`docs(.hermes): sync SHARED_STATE + register presence` from 2026-07-24, still unmerged) and #44 (`feat(data): add 60 dishes…` from 2026-07-25 00:31Z, still unmerged, `mergeable_state: clean`). #44 is the duplicate open of what is already on main as #43 — it should be closed as superseded.
-
-### Cursor - 2026-07-25 (Windows setup)
-
-- Windows PC is the new implementer machine; repo at `D:\gustale` on `main` (includes #43 60→120 seed in tree).
-- Local Postgres seeded to **120** published dishes; **production API now returns 120** (seeded by Hermes 2026-07-25, see Hermes entry above). Web SSG refresh in branch `data/refresh-ss-mock-2026-07-25`, awaiting PR merge.
-- Uncommitted Windows WIP (for PR): `isMain`/`pathToFileURL` API boot fix, `listAllDishes` paging past API limit 100, Astro `/api`→`:4000` proxy, `infra/local/docker-compose.yml`.
-- Updated `CLAUDE.md` agent roster (ship via PR with WIP or docs-only).
-
-### CC - 2026-07-24  (Claude Code, terminal)
-
-**CI hardening merged + deployed to prod; nightly fix blocked; SiteHeader decided.** `origin/main` is now `8f52282`. Landed and **deployed to prod** today (all via green CI incl. Deploy to Hostinger; prod verified healthy — gustale.com 200, gustale.recipes 200, `api.gustale.recipes/health` 200):
-
-- **#38** `fix(ci): remove invalid pnpm cache from Docker jobs` — the `build`/`build-web` Docker jobs set `cache: pnpm` on setup-node but never run a host-side `pnpm install`, so post-job cache cleanup failed (`Path Validation Error`). Removed from those two jobs only; lint/test keep it.
-- **#37** `feat(web): U0-C browse/list usability` — merged (it had been draft; the #38 run finally got it to prod).
-- **#41** `chore: gitignore build outs` — adds `dist-recipes/` + `graphify-out/` to `.gitignore`. Nothing else.
-- **#40** `chore(ci): wire real Biome lint gate (non-breaking)` — `@biomejs/biome@2.5.5` + `biome.jsonc`; root `lint` → `biome check .`; CI `Lint` job now runs real Biome (not the `echo 'lint ui'` stub); **no `continue-on-error`**. ~136 files auto-fixed; remaining error-level rules parked at **warn** with a ratchet TODO — warnings alone do NOT fail CI yet.
-
-**#39 `fix/nightly-full-migration-chain` — BLOCKED, left DRAFT. Do NOT merge yet.** PR CI is green, but that's misleading: the Nightly workflow only runs on schedule/`workflow_dispatch`, and a manual dispatch on the branch still **fails at "Apply committed schema"** (`ERROR: relation "dish_lineages" already exists`, psql exit 3). Root cause: nightly's `Regenerate schema` step (`drizzle-kit generate`, `continue-on-error`) emits a spurious runtime `0006_worthless_riptide.sql` (a symptom of the journal drift) that re-creates `dish_lineages`; #39's new "apply all `packages/db/drizzle/*.sql` sorted" step then globs that generated file and re-applies it. **main's committed migrations are fine** (no duplicate on disk). Fix (rework → Cursor): source the apply list from `git ls-files 'packages/db/drizzle/*.sql'` (committed only) or move the generate step after the apply — still filesystem-sorted, NOT journal-only. Handoff drafted at `_handoffs/cursor-handoff-4-nightly-rework.md`. **Nightly is RED on main until #39 is reworked + merged (known issue).**
-
-**Product decision (2026-07-24): KEEP U0-B `Nav.astro`.** The Jun SiteHeader / AccountMenu / SearchTrigger WIP (PR #28 / `feat/nav-editorial` lineage) is confirmed **SUPERSEDED** by #34/#36. Do NOT reintroduce SiteHeader without a new explicit product decision. Optional future: extract a typed nav config *inside* Nav (no UX change) — tracked in TASKS backlog.
-
----
-
-### AL - 2026-07-24
-
-**State-only sync (no main or feature branch touched).** U0 + U0-C milestone reached today — U0 PRs #33 (Greptile dish-media cleanup), #34 (U0 trust: domain routing + family SSG + Atlas→Recipes CTAs), #35 (custom HTTP 404 from nginx), and #36 (U0 navigation + search) all **merged into `origin/main`** between 2026-07-23 11:31Z and 15:19Z. **U0-C browse/list usability** sits at PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, open, **draft**), independently verified **PASS** on 2026-07-24 with these totals:
-
-| Check | Result |
-|---|---|
-| `node --test test-search-nav.mjs` | **12 / 12 pass** |
-| `node --test test-browse.mjs` | **17 / 17 pass** |
-| `pnpm -r exec tsc --noEmit` | clean (5 pre-existing errors in untouched `api.ts:39`, `auth.ts:20`, `middleware.ts:32,55,55`) |
-| `pnpm exec astro check` | 1 pre-existing `AtlasHeroKpi.astro:78:7` only (bit-identical SHA `cd12d37…7f` to origin/main) |
-| `build:recipes` (repository mock on `:8742`) | **50 passed, 0 failed** |
-| `build:geo` (repository mock on `:8742`) | **53 passed, 0 failed** |
-| `/family/late-page-family/` late-page-family validators | preserved and pass in both dists |
-| Browser: pagination 24→48→60 (all 60 slugs unique) | ✅ |
-| Browser: Back/Forward/Refresh restore correct page | ✅ |
-| Browser: popstate does not grow history (loadMorePushCount: 2, backDoesNotGrow: true) | ✅ |
-| Browser: search resets page to 1 (`?q=sushi` from `?page=3`) | ✅ |
-| Browser: later-page failure retains 48 cards, Retry → 60 | ✅ |
-| Browser: mock country matching is exact case-insensitive | ✅ |
-| Browser: mobile 320×720 zero overflow on /dishes /families /lineages | ✅ |
-| Docker image builds (geo + recipes) | ✅ both green, containers serve correctly |
-
-**PR #37 remains in draft state and is unmerged.** Do not mark U1 done in `.hermes/TASKS.md` or `.hermes/COMPETITIVE_ROADMAP.md` until PR #37 actually merges. **Next action:** mark PR #37 ready → human review → merge → production smoke (live `gustale.recipes/dishes` 24→60 via Load more, Back/Forward, mobile 320px, no AuthMenu 404 noise regressions). Do NOT auto-merge. Do NOT deploy without human approval. Browser evidence at `/home/alex/workspace/u0c-verify-evidence/u0c-final-v2-verify.json`.
-
----
-
-2026-07-23 by Hermes Agent (Telegram) — **✓ Resolved at 2026-07-23T10:14Z (UTC).** The `### 2026-07-23 — API auth divergence (CORRECTED)` entry below documents the root cause (Phase 7 missed updating `/root/.env` on the VPS; CI's `deploy_container` reads that file via `--env-file`). The fix that was actually applied:
-
-```bash
-# 1. Update /root/.env DATABASE_URL line to match /home/deploy/gustale.com/.env
-NEW_URL=$(grep -E '^DATABASE_URL=' /home/deploy/gustale.com/.env)
-sudo cp -a /root/.env /root/.env.pre-fix-$(date -u +%Y%m%dT%H%M%SZ)
-sudo sed -i "s|^DATABASE_URL=.*\$|$NEW_URL|" /root/.env
-# (the sed here ran locally on the VPS as root; the URL value was not displayed)
-
-# 2. Recreate the gustale-api container (docker restart alone does NOT
-#    re-read --env-file; the env is set at docker run time):
-sudo docker stop gustale-api
-sudo docker rm gustale-api
-sudo docker run -d --name gustale-api --restart unless-stopped \
-  -p 4000:4000 --network host --env-file /root/.env \
-  ghcr.io/consciousclarity/gustale.com/gustale-api:b07ac4b030767ddfcbc66b3219d83c91b51703b5
-```
-
-Post-fix verification (all 200):
-- `/health=200`, `/api/dishes?limit=5=200`, `/api/dishes/map?limit=5=200`, `/api/lineages=200`, `/api/search?q=vindaloo=200`
-- `/api/search?q=vindaloo` body: `dish=1 (Vindaloo), lineage=0, ingredient=0, region=0` — A3's pg_trgm path live end-to-end
-- `/api/dishes/map?limit=2000` returns 60 dishes — the homepage globe's data source is full
-- `gustale.recipes/` server-rendered HTML contains `<b>60</b> dishes, <b>32</b> origins, <b>18</b> families, <b>14</b> lineages` — A2's `AtlasHeroKpi` band live
-
-The earlier 4-attempt fix-script sequence (`/tmp/fix_root_env*.sh`) had three lessons: (1) running `sudo` from a script piped over SSH to a TTY-less hermes shell fails; (2) `docker restart` does not re-read `--env-file`; (3) `[[ ! -f $BACKUP_PATH ]]` from a non-root shell on `/root/` is permission-bound (the parent dir must be +x for `test -f` to stat the file). All three were workarounds; the four-line fix above is the clean form. The intermediate backup `/root/.env.pre-fix-20260723T023545Z` is preserved (mode 0600, root:root) for audit.
-
-2026-07-23 by Cursor Cloud Agent — **Codex handoff for gustale.com usability-first overhaul** written to `.hermes/CODEX_BRIEF_USABILITY.md`. Locks domain contract: `.com` = atlas/geo/discovery; `.recipes` = cook/contribute/recipes. Waves U0–U3 prioritize trust → browse → journey → recipes bridge. Includes pasteable Codex prompt, Greptile PR #29 debt, and API `/root/.env` blocker note. (This line is reconstructed by Hermes from `54b1a05`'s commit message; see the commit directly if the brief itself was renamed.)
-
-2026-07-23 by Hermes Agent (Telegram) — **Correction to the API auth divergence entry below.** The first version of this entry misidentified the fix as "update the GitHub Actions `DATABASE_URL` secret and trigger a rebuild." That was wrong: the `DATABASE_URL` in `.github/workflows/ci.yml` line 24 is a hardcoded literal used only by the `lint` and `test` jobs against the ephemeral CI Postgres service container — it does NOT control the prod deploy. The actual root cause is that **Phase 7's 2026-07-22 password rotation did not update `/root/.env` on the VPS**, which is the file the `ci.yml` `deploy_container` step reads via `--env-file /root/.env` to start `gustale-api`. The container is therefore started with the pre-Phase-7 password `6203879c…` (64 chars), which does not match the post-Phase-7 SCRAM-SHA-256 hash for the `gustale` role. **Correct fix:** update `/root/.env` on the VPS so its `DATABASE_URL` line matches `/home/deploy/gustale.com/.env`, then `docker restart gustale-api`. No CI changes, no DB ops, no image rebuild needed. See the new sub-section `### 2026-07-23 — API auth divergence (corrected)` below the original (wrong) entry for the full corrected diagnostic. **The original entry is left in place for the audit trail** — it is wrong, do not follow it; the new entry supersedes it.
-
-2026-07-23 by Hermes Agent (Telegram) — **Wave A of `COMPETITIVE_ROADMAP.md` shipped to `origin/main` via three squash-merges: PR #30 (P2-7 MapLibre CSS scope), PR #31 (P0-1 homepage SSR real counts), PR #32 (P0-3 global grouped search).** A3 needed a follow-up commit `db8c30c` on the same branch lowering the similarity threshold from 0.3 → 0.15 and removing the `WHERE status='published'` filter from the `lineages` query (the table has no `status` column). `pg_trgm` extension installed on the prod `gustale` DB at 2026-07-22T18:33:06Z; migration file `packages/db/drizzle/0007_pg_trgm.sql` is in the repo. The API incident above currently masks A3's `/api/search` from being reachable on prod — once `/root/.env` is corrected and `gustale-api` is restarted, the search endpoint will be live.
-
-2026-07-22 by Cursor Cloud Agent — **Media-first Phase A PR #29** (`cursor/media-first-phase-a-51fa`): full-bleed dish cover hero + typographic never-empty fallback, spacing scale tokens, gallery without duplicate cover, origin map moved below hero. Implements competitive roadmap P0-2 / Wave A design air.
-
-2026-07-22 by Cursor Cloud Agent — **Competitive roadmap published** at `.hermes/COMPETITIVE_ROADMAP.md` (Waves A–E). Built from review of Explore.co.uk food-origins, theworldonaplate.co.uk, and Khoury et al. 2016 (crop primary regions). Positioning locked: Gustale = open atlas of how food moved. Top bets: (P0) homepage never-zero + covers; (P1) Dish Journey UI, ingredient origins via empty `food_geography`, region guides, `/stories`, confidence surfacing, Atlas→Recipes bridge. TASKS.md mirrors wave checklists. Explicit non-goals: meal planner, trip CTAs, faking Khoury’s 68.7% stat.
-
-2026-07-22 by Hermes Agent (Telegram) — **Phase 7 DB password rotation EXECUTED on VPS `62.72.7.218`.** New gustale role password generated, `ALTER ROLE gustale` applied via pipe-safe `docker exec` heredoc, `.env` + `.db-password` updated on disk, `gustale-api` container recreated with the same GHCR image SHA `606cdd2…`. Phase 5.5 smoke fully green (health 200, 60 dishes, 60 map points, both domains 200). See `### 2026-07-22 — Phase 7` below for full audit. Pre-state preserved as `.env.pre-phase7.20260722T172341Z` and `.db-password.pre-phase7.20260722T172341Z` in `/home/deploy/gustale.com/backups/`.
-
-2026-07-22 by Cursor Cloud Agent — (1) **methodSlug/lineage data-cleanup task VERIFIED RESOLVED** (stale note cleared — see "Pending Data-Cleanup Tasks" below): all 60 published dishes carry a `methodSlug` in the seed source of truth (`DISH_LINEAGES` covers 60/60 `DISHES`), in the SSG mock (`mock-api-data.json`: 0/60 null), and on the live API (`/api/dishes?status=published&limit=100`: 0/60 null); live `/lineages` has no "Other" bucket. (2) **DB password rotation cannot be executed from the Cursor Cloud Agent env** — no VPS SSH key and no DB/superuser creds are present in the cloud sandbox. (Note: rotation was subsequently executed by Hermes on the same day from the Telegram-side session — see the entry above and `### 2026-07-22 — Phase 7`.)
-
-2026-07-22 by Cursor Cloud Agent — PR #28 opened: editorial site header + dish cover hero (rebases PR #8 nav onto main; no /families taxonomy regression). DishDetail hero loads cover via signed URL on hydration.
-
-2026-06-29 by Hermes Agent (Telegram) — PR #19 production migration applied (Phase 2A `food_geography` schema deployed to `gustale` database on the VPS); PR #23 limit-fix verified; Phase 7 password rotation deferred to a separate authorized operation (now done — see 2026-07-22 entry).
-
-2026-06-28 by Claude Code — **PR #15 (entity Lineages domain) landed + deployed; `/api/lineages` 500 fixed; migration `0006` applied + 14 lineages seeded to prod. Main green at `ae1fc29`.**
-
----
-
-## ✅ Completed this session
-
-### 2026-07-25 — PR #49 Journey Fix & Reseed & PR #52 Deploy Retrigger
-
-- **Task 1: Resolved /journey 500 error** by manually applying migration `0008_dish_journey_beats.sql` to the production DB on the VPS. Backed up before DDL to `/home/deploy/gustale.com/backups/gustale_pre_0008_20260725T091840Z.dump`. Resynced the sequence `drizzle.__drizzle_migrations_id_seq` to max `id` (5), then inserted the migration tracking row for `0008_dish_journey_beats.sql` with auto-incremented `id = 6`. Verified that `/api/dishes/vindaloo/journey` now returns 200 with an empty beats array.
-- **Task 2: Reseeded production** to 121 dishes + 36 journey beats (added `musakka-turkish` from PR #51 and journey beats for 12 flagship dishes × 3 beats). Used a throwaway `node:22-slim` container with the checkout mounted, and `DATABASE_URL` piped from the `gustale-api` container env. All 121 dishes and 36 beats are verified live and returned by the API. Skipped-relation count reported by the seeder is `11` (for unknown dish slugs in relations).
-- **Task 3: Investigated PR #52 deployment failure & redeployed.** Discovered that the push CI run `30151682679` for PR #52 (`1d02403`) was cancelled on GitHub before reaching the `Deploy to Hostinger` job (canceled by a newer run due to concurrency/consecutive pushes). As a result, the live production web containers remained on the old image `4ed17c3` (pre-#52). Triggered a fresh CI deployment on `main` by pushing an empty commit (`10f554b`) from the local repo. Polled run `30152807522`, which completed with a `success` conclusion, and verified that all 3 VPS containers are now running the new image SHA `10f554b` (Up and healthy). Confirmed that the new static bundle hash has changed to `WorldMap.Dxdl_QZ2.js` and successfully contains the `dishes-coincident-count` and `coincidentCount` code.
-
-### 2026-07-23 — API auth divergence (incident + recipe)
-
-**Symptom (verbatim from `sudo docker logs --tail=80 gustale-api`, request `req-k`):**
-
-```
-{"level":50,"time":1784764674999,"reqId":"req-k",
- "err":{"type":"DrizzleQueryError",
-        "message":"Failed query: ... \nparams: published,5,0: password authentication failed for user \"gustale\"",
- "caused by":"PostgresError: password authentication failed for user \"gustale\""},
- "msg":"request error"}
-```
-
-**Live status:** `https://api.gustale.recipes/health` → 200 (no DB touch). `https://api.gustale.recipes/api/dishes?limit=5` → 500 with body `{"error":"internal_error","message":"Internal server error","code":500,"traceId":"req-…"}`. Same for `/api/dishes/map`, `/api/lineages`, `/api/search` (the new A3 endpoint) — every route that hits Postgres.
-
-**Diagnostic ladder (verified 2026-07-23 against the live VPS):**
-
-| Source | Password first 8 | Length |
+| Component | Status | Image SHA |
 |---|---|---|
-| `/home/deploy/gustale.com/.db-password` | `584095ba` | 32 |
-| `/home/deploy/gustale.com/.env` `DATABASE_URL` | `584095ba` | 32 |
-| `pg_authid.rolpassword` for `gustale` | (SCRAM-SHA-256, 133 bytes) | matches `.db-password` ✓ |
-| **`gustale-api` container env `DATABASE_URL`** | **`6203879c`** | **64** ❌ |
-
-The container was started `Up 9 minutes` at time of inspection (created `2026-07-22T23:48:24Z`), which means **a deploy happened today** and the new image carries the stale CI secret value. `docker inspect gustale-api --format '{{json .Mounts}}'` returns `[]` — no bind mounts — so the password is baked into the image at build time via CI's `DATABASE_URL` secret.
-
-**Auth probe using `.db-password` directly (THE source of truth) — works fine:**
-
-```
-sudo docker exec -i shared-postgres bash -lc 'cat > /tmp/pw.txt;
-  export PGPASSWORD=$(cat /tmp/pw.txt);
-  psql -h 127.0.0.1 -U gustale -d gustale -t -A -F"|" \
-    -c "SELECT current_user, count(*) FROM dishes WHERE status='"'"'published'"'"';"'
-```
-
-Returns `gustale|60`. The DB-side credential is correct. **Only the API container's baked-in secret is wrong.**
-
-**Root cause:** GitHub Actions secret `DATABASE_URL` was not updated when Phase 7 (2026-07-22) rotated the `gustale` role password. Today's deploy(s) baked the old (pre-rotation) secret into the image. The Phase 7 audit log above shows the rotation was authorized and the password was applied to Postgres + `.env` + `.db-password` + the running API container (recreated 2026-07-22T17:25 UTC at `606cdd2…`), but the CI secret on the GitHub side was not touched. Each rebuild since then carries the stale value.
-
-**Why this wasn't caught at Phase 7 smoke time:** Phase 7 explicitly recreated the gustale-api container using the **same GHCR image SHA** (`606cdd2…`) — `docker run` against an image that was already built with the new password. The credentials in `.env` matched what was baked in. After Phase 7, no further deploys happened for ~24 h; today's deploys triggered by the merged Wave A PRs were the first to bake CI secrets into a fresh build, exposing the divergence.
-
-**Fix (manual, 4 steps, ~5 min):**
-
-1. Open https://github.com/consciousclarity/gustale.com/settings/secrets/actions
-2. Find the `DATABASE_URL` secret (or whatever name the CI uses — likely `DATABASE_URL` since that matches the env var the API reads at runtime)
-3. Set its value to:
-   ```
-   postgres://gustale:***@127.0.0.1:5432/gustale
-   ```
-   (Full password is the one in `/home/deploy/gustale.com/.db-password` on the VPS — file owned by `hermes:hermes`, mode `0600`. Read with `sudo awk -F= '/^GUSTALE_DB_PASSWORD=/{print $2}' /home/deploy/gustale.com/.db-password` — never echo the value into chat.)
-4. Trigger a rebuild. Two options:
-   - **(a)** Push an empty commit to `main`: `git commit --allow-empty -m "chore: rebuild gustale-api with current CI secrets (incident 2026-07-23)" && git push`. CI's deploy job will pick up the new secret and produce a new image SHA. `gustale-api` container will be recreated automatically.
-   - **(b)** Use the GitHub Actions UI → click "Run workflow" on the deploy workflow if it supports `workflow_dispatch`.
-
-**Post-fix verification:**
-
-```
-curl -sS -o /dev/null -w "%{http_code}\n" https://api.gustale.recipes/health
-# expect: 200
-curl -sS -o /dev/null -w "%{http_code}\n" 'https://api.gustale.recipes/api/dishes?limit=5'
-# expect: 200
-curl -sS 'https://api.gustale.recipes/api/search?q=vindaloo' | jq '.groups[].total'
-# expect: dishes ≈ 1 (Vindaloo), others 0 — this validates A3's pg_trgm path end-to-end
-```
-
-If `/health` is 200 but `/api/dishes` is still 500 after the rebuild, the new image was built with the *old* secret cache. Wait 60 s for CI to clear or trigger another rebuild.
-
-**Preventive measures (deferred until after the fix):**
-
-- **Add a CI step that decodes the baked-in `DATABASE_URL` from the built image** and asserts it matches a known-good fingerprint (e.g., the first 8 chars of `.db-password`). Fails the deploy job if divergence is detected. Implementation: a new step in `.github/workflows/ci.yml` that runs `sudo docker run --rm <new-image> bash -c "echo \${DATABASE_URL:0:30}"` and compares against a hardcoded prefix. The fingerprint changes when the DB password rotates, so this needs to be a workflow-level env var sourced from another secret.
-- **Tighten `pg_hba.conf` to require SCRAM on loopback** for the `gustale` user only (keep `trust` for `postgres` superuser and replication). With this, the loopback probe used during Phase 7 would have been a real auth test, not a bypass. Risk: the gustale-api container would fail to start if its baked-in secret is wrong — which is actually what we want (fail-fast at container start, not at first DB query). Recipe: add `host gustale gustale 127.0.0.1/32 scram-sha-256` *before* the existing `host all all 127.0.0.1/32 trust` line so the more-specific rule wins.
-- **Document the secret-rotation runbook**: any future `ALTER ROLE gustale WITH PASSWORD` must be followed by (a) `.env` + `.db-password` update on the VPS, (b) CI `DATABASE_URL` secret update via the GitHub UI, (c) `gustale-api` container recreation, (d) full Phase 5.5 smoke. The Phase 7 entry above documented (a), (c), (d) but missed (b). A new `rotation-runbook.md` (TBD) should be added to `.hermes/` once the present incident is closed.
-
-**Open follow-up for whoever fixes this:** once `/api/dishes?limit=5` returns 200 again, run the A3 smoke from PR #32's PR body:
-
-```
-curl 'https://api.gustale.recipes/api/search?q=vindaloo' | jq '.groups[] | {type, total}'
-curl 'https://api.gustale.recipes/api/search?q=vitna'     | jq '.groups[] | {type, total}'
-curl 'https://api.gustale.recipes/api/search?q=dumpling'   | jq '.groups[] | {type, total}'
-```
-
-If `vindaloo` and `vitna` both return `total=1` for `dish`, A3 is live. If `dumpling` returns `total=3` for `dish` and `total=0` for `lineage`, the threshold/lineage-fix from commit `db8c30c` is also live.
-
-**Operational note (also a known limitation since Phase 7):**
-
-The `gustale-api` container connects via `network_mode: host` so `127.0.0.1:5432` inside the container is the host's `shared-postgres` Postgres. `pg_hba.conf` currently has:
-
-```
-local   all             all                                     trust
-host    all             all             127.0.0.1/32            trust
-host    all             all             ::1/128                 trust
-…
-host all all all scram-sha-256
-```
-
-This means **the gustale-api connection currently bypasses SCRAM auth entirely** because it hits `127.0.0.1/32 trust`. Today's incident was discovered precisely *because* the bypass wasn't working (the API image had been rebuilt and may have been started from a different host-level state where `trust` wasn't yet applied, or the trust line had been removed earlier for the negative-test step of Phase 7 and not restored — needs verification, see below). The fact that we got a SCRAM-shaped error means either (a) `pg_hba.conf` was temporarily tightened, or (b) the API container is no longer on `127.0.0.1` but on a docker-bridge network. Check:
-
-```
-sudo docker exec gustale-api bash -c 'echo host=$(getent hosts shared-postgres | awk "{print \$1}")'
-sudo docker exec shared-postgres bash -c 'grep -vE "^($|#)" /var/lib/postgresql/data/pg_hba.conf'
-```
-
-If the API container resolves `shared-postgres` to a non-loopback IP, the `host all all 127.0.0.1/32 trust` rule does **not** apply and SCRAM is enforced — which is exactly the divergence we're seeing. This may be the actual reason Phase 7's negative test against the OLD password worked: the gustale-api path was hitting a different IP than the loopback probe. **This is worth pinning down in a follow-up.**
-
-### 2026-07-23 — API auth divergence (CORRECTED) — DO NOT FOLLOW THE ENTRY ABOVE
-
-**The entry above this one (`### 2026-07-23 — API auth divergence (incident + recipe)`) is WRONG. Do not follow it. The fix path it prescribes (update the GitHub Actions `DATABASE_URL` secret, trigger a rebuild) is a no-op against prod — the CI "secret" is a hardcoded literal in `ci.yml` line 24 used only by the `lint` and `test` jobs against the ephemeral CI Postgres service container, not by the prod deploy step. The real root cause was found on second pass and is documented below.**
-
-**Verification chain (re-confirmed 2026-07-23 against the live VPS after the user's "ci deploy is done" signal did not restore service):**
-
-```
-$ sudo docker ps --format '{{.Names}} {{.Image}}' | grep gustale-api
-gustale-api   ghcr.io/consciousclarity/gustale.com/gustale-api:b07ac4b030767ddfcbc66b3219d83c91b51703b5
-
-$ sudo docker inspect gustale-api --format '{{.Created}}'
-2026-07-23T00:37:02.243411488Z     ← fresh container (post-deploy, today)
-
-$ sudo docker exec gustale-api bash -c 'P=${DATABASE_URL}; PASS=${P#*://}; PASS=${PASS#*:}; PASS=${PASS%@*}; echo substr=${PASS:0:8} len=${#PASS}'
-substr=6203879c len=64             ← SAME stale password as before deploy
-
-$ sudo cat /root/.env | grep DATABASE_URL
-DATABASE_URL=postgres://gustale:***@127.0.0.1:5432/gustale
-                                  ← also starts with 6203879c (the pre-Phase-7 value)
-
-$ grep DATABASE_URL /home/deploy/gustale.com/.env
-DATABASE_URL=postgresql://gustale:***@127.0.0.1:5432/gustale
-                                  ← starts with 584095ba (the Phase 7 value, 32 chars)
-
-$ awk -F= '/^GUSTALE_DB_PASSWORD=/{print substr($2,1,8)}' /home/deploy/gustale.com/.db-password
-584095ba                         ← matches .env above (Phase 7 value)
-
-$ sudo docker exec shared-postgres psql ... -c "SELECT substr(rolpassword, 1, 18) FROM pg_authid WHERE rolname='gustale';"
-SCRAM-SHA-256$4096                ← SCRAM hash format, length 133 bytes (matches .db-password via the auth probe)
-```
-
-**Conclusion of the re-investigation:** Three of the four credential stores agree (`/home/deploy/gustale.com/.env`, `/home/deploy/gustale.com/.db-password`, Postgres `pg_authid` SCRAM hash for `gustale` — all correspond to the post-Phase-7 password starting `584095ba…`). The fourth — **`/root/.env` on the VPS** — is the outlier, still holding the pre-Phase-7 value starting `6203879c…`. The `gustale-api` container's env comes from `--env-file /root/.env` per `ci.yml` line 403 (`deploy_container "gustale-api" "$API_IMAGE" "4000" "4000" "--network host --env-file /root/.env"`), so every prod deploy starts the API with the wrong password. The image is fine; the deployment script is fine; the database is fine. The file `/root/.env` was missed by Phase 7.
-
-**Actual fix (manual, 4 commands, ~5 s):**
-
-```bash
-NEW_URL=$(grep -E '^DATABASE_URL=' /home/deploy/gustale.com/.env)
-sudo cp /root/.env /root/.env.pre-fix-$(date -u +%Y%m%dT%H%M%SZ)
-sudo sed -i "s|^DATABASE_URL=.*$|$NEW_URL|" /root/.env
-sudo docker restart gustale-api
-```
-
-That's it. The pre-fix backup is at `/root/.env.pre-fix-YYYYMMDDTHHMMSSZ` (mode 0600, owned by root). After restart (~5 s), `/api/dishes?limit=5` should return 200 and `/api/search?q=vindaloo` should return `{groups: [..., {type: "dish", total: 1, results: [{name: "Vindaloo", ...}]}, ...]}`.
-
-**Verification after fix:**
-
-```bash
-sleep 5
-curl -sS -o /dev/null -w "/health=%{http_code}\n" https://api.gustale.recipes/health
-curl -sS -o /dev/null -w "/api/dishes=%{http_code}\n" 'https://api.gustale.recipes/api/dishes?limit=5'
-curl -sS 'https://api.gustale.recipes/api/search?q=vindaloo' | jq '.groups[].total'
-# expect: /health=200, /api/dishes=200, vindaloo group total=1
-```
-
-**Why the original entry was wrong — the meta-failure mode:**
-
-The first diagnosis assumed the password was baked into the API image because that's how most containerized apps work. It was the natural default assumption. The actual architecture (`gustale-api` running with `--env-file /root/.env` from the host) is unusual and the diagnosis missed it. Two contributing factors:
-
-1. **No first-principles check of the deploy step.** I should have read `ci.yml` lines 380-410 (the `deploy_container` function) before concluding where the env comes from. That would have shown `--env-file /root/.env` and saved the round-trip.
-2. **Phase 7's audit log did not mention `/root/.env`.** The audit entry under `### 2026-07-22 — Phase 7` (below) lists the files that were updated: `.env`, `.db-password`, `gustale-api` container recreated. `/root/.env` is not mentioned because the rotation script was authored without the deploy-step in scope — the author (also Hermes) was thinking of the API container as the target, and the container recreates with whatever env was set when the script ran. The new password was generated, the API container was stopped and recreated, the smoke was green at 17:25 UTC. The author of the rotation did not separately read `/root/.env` to check whether it was being used as the env source.
-
-**Lessons (for any future rotation):**
-
-- The deploy step is `ci.yml` `deploy_container` (lines 380-410) using `--env-file /root/.env`. Any rotation of secrets read by `gustale-api` MUST update `/root/.env`, NOT (only) the Phase 7 / canonical-location files.
-- The "source of truth" claim in this file's own "Conventions" section (`/root/.env` is the source of truth) is correct and was right there to read before diagnosing. The original entry quoted the symptom correctly but skipped the file-location claim.
-- Add a defensive check in the rotation script: after updating the canonical files, `diff -q /home/deploy/gustale.com/.env /root/.env` and warn on mismatch. Would have caught this in Phase 7.
-
-### 2026-07-22 — Phase 7: DB password rotation (executed)
-
-Compromise rationale (recap): production `gustale` `DATABASE_URL` was exposed
-in chat transcript earlier in the 2026-06-29 reconnaissance session, before
-the migration work began. Password value treated as compromised. Rotation
-was **not** part of the PR #19 migration closeout and was performed as a
-separate authorized operation on 2026-07-22 by Hermes Agent (Telegram).
-
-Operation performed:
-
-1. **New password generated** on VPS via `python3 -c "import secrets; print(secrets.token_hex(16))"` (32 hex chars). Stored at `/tmp/new-gustale-pw.txt` (mode 0600, removed after step 3 below).
-2. **`ALTER ROLE gustale WITH PASSWORD '***'`** via superuser (`postgres`) connection through pipe-safe `docker exec -i shared-postgres bash -lc '...' < <(heredoc)` pattern (P131/P137/P146). Hash in `pg_authid.rolpassword` is now `SCRAM-SHA-256$4096:Alhturyy0DR2aVPkuEeeUQ==$…`.
-3. **Auth probe** as `gustale@gustale` via `127.0.0.1:5432` (the path the API uses through `network_mode: host`): 60 published dishes, 14 lineages, 33 dish-lineage edges, 182 `dish_categories`, 146 `categories` — all match the Phase 2A baseline. **NB:** the loopback probe was initially misleading because `pg_hba.conf` had `host all all 127.0.0.1/32 trust`; see "Operational finding" below.
-4. **Negative test** (OLD password) failed as expected once SCRAM was enforced (see Operational finding).
-5. **Files updated on VPS** at `/home/deploy/gustale.com/` (owned by `hermes` user, mode 0600):
-   - `.env` (633 B → 633 B): `DATABASE_URL=postgresql://gustale:NEW@127.0.0.1:5432/gustale` segment replaced via awk pattern-match on the OLD password, validated diff is exactly 1 line, residual-old-pw count = 0; atomic-rename via `mv` from temp file.
-   - `.db-password` (53 B → 53 B): preserved original `KEY=VALUE` shape (`GUSTALE_DB_PASSWORD=NEW`); post-write len matched original.
-   - Pre-state preserved at `/home/deploy/gustale.com/backups/.env.pre-phase7.20260722T172341Z` (633 B) and `.db-password.pre-phase7.20260722T172341Z` (53 B) before any write.
-6. **`gustale-api` container recreated** to pick up the new `.env` (`docker restart` does NOT re-read `.env`; the runbook is explicit about this). Sequence: `docker stop gustale-api` → `docker rm gustale-api` → `docker run -d --name gustale-api --network host --env-file .env --restart unless-stopped ghcr.io/consciousclarity/gustale.com/gustale-api:606cdd235bf9135deb60239d291f7d84f43f5d39` — **same image SHA as `gustale-web-geo`/`gustale-web-recipes` and `origin/main`**; matches the standard for the live deploy. The lifecycle guard rejected `docker compose up -d --force-recreate` (false positive on a daemon-mode command), so the runbook's `docker compose` step was implemented with the equivalent `docker run` invocation. Container came up healthy at t+6 s.
-7. **Scratch file `/tmp/new-gustale-pw.txt` removed** after step 5. The new password's raw text now lives only in `.env` and `.db-password` (the canonical locations per the project-secrets-external convention).
-
-**Phase 5.5 smoke** (all 200, all baselines matched):
-
-| URL | Status | Detail |
-|---|---|---|
-| `https://api.gustale.recipes/health` | 200 | `{"status":"ok","timestamp":"2026-07-22T17:25:30.351Z"}` |
-| `https://api.gustale.recipes/api/dishes?limit=100` | 200 | 60 dishes (matches published baseline) |
-| `https://api.gustale.recipes/api/dishes/map?limit=2000` | 200 | 60 points (matches published baseline; endpoint returns `{dishes: [...], count: N}` shape, not bare array) |
-| `https://gustale.recipes/` | 200 | 17.7 KB |
-| `https://gustale.com/` | 200 | 17.5 KB |
-
-Local `127.0.0.1:4000/health` (API container's host-network listener) → 200, 0.003 s.
-
-**Operational finding** — important context for future rotation work:
-
-The `gustale` role password was being **bypassed entirely** for the loopback connections the API actually uses. `pg_hba.conf` had:
-
-```
-local   all             all                                     trust
-host    all             all             127.0.0.1/32            trust
-host    all             all             ::1/128                 trust
-```
-
-Combined with `gustale-api` being launched via `network_mode: host` (which makes `127.0.0.1:5432` mean the host's Postgres, which is the container's loopback), **no SCRAM auth was ever happening on the connection the API uses**. The original "compromised password" rationale still applies (any future non-loopback replica or external connector would have used SCRAM with the old pw), but the immediate operational urgency of the rotation was less than originally framed. **Recommendation for future rotation work:** do NOT rely on loopback auth probes; transiently patch `pg_hba.conf` to `127.0.0.1 scram-sha-256` (with backup at `/tmp/pg_hba.conf.bak` inside the container), probe, then restore. That recipe is what made the negative test in step 4 definitive. **No persistent pg_hba change was made.** pg_hba was patched transiently for the verification probe only, then restored to its pre-rotation state verbatim.
-
-**Local-tooling finding** — fixed inline so the rotation could proceed:
-
-`~/.ssh/gustale-cd/id_ed25519` had mode `0775` on `alex@geekom` (world-readable group bits). SSH silently refused to use it (`Permissions 0775 ... are too open. This private key will be ignored.`). Fixed to `0600` before any SSH probe to `62.72.7.218`. The public key (`id_ed25519.pub`) was set to `0644` for git/source visibility.
-
-**Rotation timestamp (audit):** `2026-07-22T17:23:40Z` (UTC, captured at step 5 before the file writes).
-
-### 2026-06-29 — PR #19: food_geography Phase 2A migration deployed
-
-Phase 2A `food_geography` schema deployed to `gustale` database on the VPS via PR #19.
-
-- **Migration file** (Phase 1, staged on VPS): `/home/deploy/gustale.com/migrations/0005_food_geography_phase_2a.sql` (197 lines, 8265 bytes, sha256 `5157d40ed9c50703858b183dab645e2f835a48b66856a267842a3e51812588d2`).
-- **Backup** (Phase 3, custom-format `pg_dump`): `/home/deploy/gustale.com/backups/gustale_pre_phase2a_20260629T103158Z.dump` (372,675 bytes, sha256 `a3d80744162f6c07ecea5305dbd918f177729e32d5c474ff9f0381b7daeabfac`, 1023 TOC entries verified via `pg_restore --list`; Postgres 16.4 Debian, format=CUSTOM, compression=gzip).
-- **Preflight** (Phase 2, pipe-safe): connection test `gustale|gustale`; target-table existence returned 0 rows; baseline `dishes (total) = 61`, `dishes (published) = 60` (saved to `/tmp/migration-audit/baseline-dishes.txt` on VPS).
-- **Apply** (Phase 4): exit 0; 26 DDL statements (6 CREATE TABLE + 9 CREATE INDEX + 11 ALTER TABLE); no errors, no warnings.
-- **Verification** (Phase 5): all six target tables exist (`to_regclass() = t`); row counts all 0; 11 FK constraints (10 CASCADE + 1 SET NULL on `food_regions.parent_region_id` self-reference for hierarchical regions); 17 indexes (4 PK indexes + 2 unique-constraint indexes + 11 declared non-PK / non-unique indexes); `dishes (total) = 61`, `dishes (published) = 60` — exact match to pre-apply baseline, no regression; homepage HTTP 200 with 60 dishes rendered post-hydration (hero meta `60 dishes / 18 families / 32 origins`, breadcrumb `60 dishes`, Index view `60 of 60 dishes`, filter footer `Showing 60 dishes`); `/api/dishes?limit=100` HTTP 200 with 60 dishes; `/api/dishes/map?limit=2000` HTTP 200 with 60 dishes.
-- The migration is purely additive (CREATE TABLE/INDEX/ALTER TABLE only; no INSERT/UPDATE/DELETE).
-- All DB operations used the v5 pipe-safe canonical form (URL pipe from `docker exec gustale-api printenv DATABASE_URL` → `docker exec -i shared-postgres bash -lc 'IFS= read -r DATABASE_URL; export DATABASE_URL; …'`). No `docker inspect ... {{range .Config.Env}}`, no `-e DATABASE_URL=`, no URL stored in any host shell variable, file, or env, no URL printed/echoed/length-measured.
-- **v5 runbook artifact**: `/tmp/runbook-pipesafe-v5.md` (609 lines, 26746 bytes, sha256 `24a99afbd93b60940cf8695cc439046714d5ad7904873f572a1fa771090cd088`) is the source-of-truth for any re-execution. Migration staging scripts under `/tmp/migration-audit/` on the VPS (ephemeral, in `/tmp`).
-- Phase 6 (rollback) NOT executed; Phase 7 (password rotation) — see `### 2026-07-22 — Phase 7` in "Completed this session" above; completed in the follow-up session on 2026-07-22. No `.env` edits, no container restarts, no `pnpm db:migrate`, no `drizzle-kit generate`, no rollback in this round.
-
-### 2026-06-28 — PR #23: homepage dishes request within API limit
-
-`apps/web/src/components/design/GustaleHomeIsland.tsx` line 635 changed from `listDishes({ limit: 200 })` to `listDishes({ limit: 100 })` to respect the API's `limit` Zod cap (`apps/api/src/routes/dishes.ts:41`, `z.coerce.number().int().min(1).max(100).default(20)`). PR #22 had shipped `limit: 200` per its reconcile work; that conflicted with the API contract and resulted in `/api/dishes?limit=200` returning HTTP 400 (VPS Fastify log: `ZodError too_big maximum: 100 path: ["limit"]` at `file:///app/dist/routes/dishes.js:58:40`). Fix: align web to the API contract. Result: 60 dishes rendered post-hydration, all filters visible, no console errors.
-
-**PR #21 status**: remains open (head `cdb1553`, base `9f099fd`, `mergeable: false` — branch/base divergence with `origin/main`) and is functionally superseded by PRs #22 + #23; closing PR #21 requires a separate authorization since it cannot be merged cleanly without conflict resolution.
-
-### 2026-06-28 — PR #15: entity Lineages domain (NEW — distinct from method-lineages)
-
-Shipped a **third** taxonomy axis: first-class **lineage entities** (`lineages` + `dish_lineages` tables, migration `0006_lineages`), `/lineages` index + `/lineages/[slug]` detail, and the `/api/lineages` route. 14 entities: filled-dough, stuffed-pasta, stuffed-leaves, flatbread, rice-pilaf, noodle-soup, skewered-grilled-meat, curry-spiced-stew, fermented-bean, fried-dough-pastry, preserved-fish, chili-condiment, wrapped-leaf, fermented-batter. **This is NOT the method-lineage axis** (`dish_preparations`/`methodSlug`, documented below) — both coexist.
-
-- **Merged:** PR #15 squash `b7ec20d`; `/api/lineages` 500 fix [PR #17] `ae1fc29`. **Main green at `ae1fc29`.**
-- **Prod DB:** migration `0006_lineages` applied manually; 14 lineages + 33 dish-lineage edges seeded (targeted seed, no other tables touched). `/api/lineages` → 200, `totalLineages: 14`.
-- **`/api/lineages` 500 bug (fixed):** the `counts` subquery in `apps/api/src/routes/lineages.ts` selected raw `sql\`\`` `dishCount`/`relationCount` without `.as()` → drizzle threw. CI missed it (web build uses the JS mock-api; vitest doesn't hit the query).
-- **⚠️ mock-api-data.json SHAPE HAZARD:** the blob MUST stay `{ generatedFrom, list, map, details }` (~228 KB). A raw `/api/dishes` dump `{ dishes, limit, offset }` (~32 KB) makes `mock-api.mjs` serve 0 dishes → CI red. `alex` (geekom) pushed that wrong shape to main **3×** (`502dcf2`, `3b6b32f`, `f0f5da2`) via an automated *"refresh SSG mock data from live API"* — each was reverted/restored. **Do not run that refresh against main.**
-- **Migration deploy note:** CI deploy does NOT run migrations, and the documented `/srv/gustale` path is **stale** (deploy dir is `/home/deploy/gustale.com`, image-only). Apply via `docker exec -u postgres shared-postgres psql` + insert the drizzle `__drizzle_migrations` tracking row (resync the `__drizzle_migrations_id_seq` sequence first — it was behind `max(id)`).
-
-### Mock API architecture (the SSG stale-data solution)
-
-The root problem: Astro SSG builds fetch from the **live deployed API** at build time.
-GitHub Actions runner IPs are blocked by the VPS firewall, so CI cannot reach `api.gustale.recipes`.
-
-**Solution**: `apps/web/scripts/mock-api.mjs` + `apps/web/scripts/mock-api-data.json`.
-- During CI Docker build, `mock-api.mjs` serves `mock-api-data.json` on port 8742 as a local HTTP server
-- `PUBLIC_API_BASE=http://127.0.0.1:8742` overrides the production API URL for the build only
-- CI is fully self-contained; no upstream API dependency
-- After any DB/seed changes: regenerate `mock-api-data.json`, commit, push → CI rebuilds
-
-**Files**:
-- `apps/web/scripts/mock-api.mjs` — HTTP server (GET /health, /api/dishes, /api/dishes/map, /api/dishes/:slug)
-- `apps/web/scripts/mock-api-data.json` — committed snapshot: `{ list: 60, map: 60, details: 60 }`
-
-### /families — verified fixed (18 families)
-
-- 18 real family filter options: appetizer, bread, curry, dessert, dumpling, kebab, main-course, moussaka, noodle-soup, pancake, pasta, rice-dish, salad, sandwich, sauce, soup, stew, stir-fry
-- Plus "all" → 19 total filter chips
-- Uses `familySlug` from primary `kind='dish-type'` category (dish-type taxonomy)
-
-### /lineages — verified fixed (14 lineages)
-
-- 14 real lineage filter options: boiled-and-cured, bread, curry, dessert, dumpling, fried-and-topped, fried-rice, kebab, noodle-soup, pasta, poached-in-sauce, salad, steamed-and-custard, stew
-- Plus "all" → 15 total legend chips
-- Uses `methodSlug` from `dish_preparations → preparation_methods` (cooking method taxonomy)
-- **Bug fixed**: `legendMarkup` template literal in `lineages.astro` emitted literal `${slug}` instead of interpolated values. Fixed by switching to explicit string concatenation.
-
-### API — two critical bugs (previously fixed)
-
-1. **`row.updated_at.toISOString()` TypeError** (`d6eb1db`, CI #131)
-2. **`column dp.sequence does not exist`** (`3c49ac3`, CI #133)
-
----
-
-
-## Backup and recovery
-
-### Automated Backups (Grandfather-Father-Son Retention)
-A fully automated, local GFS database backup system has been successfully deployed and activated on the Hostinger VPS as a **systemd service and timer**:
-- **Service Name:** `gustale-backup.service` (runs the python backup script `/home/deploy/gustale.com/backups/backup.py` as user `hermes`)
-- **Timer Name:** `gustale-backup.timer` (runs daily at `01:00:00 UTC` / `09:00:00 WITA`, with a 15-minute randomized start delay to smooth CPU/disk loads, and persistence enabled)
-- **Log Location:** `/home/deploy/gustale.com/backups/backup.log` on the VPS host. Run logs are natively captured in journald (view with `journalctl -u gustale-backup.service`).
-- **Pruning / Retention Policy:** 
-  - **7 Daily:** Keeps the latest backup for each of the last 7 calendar days.
-  - **4 Weekly:** Keeps the latest backup for each of the last 4 ISO calendar weeks.
-  - **3 Monthly:** Keeps the latest backup for each of the last 3 calendar months.
-  - *Pruning is handled safely by a Python-based retention parser, avoiding Bash script bugs.*
-- **Storage Metrics:**
-  - **Single Dump File Size:** **430 KB** (`430,043 bytes`, Custom-format `.dump` compression).
-  - **Checksum:** Each dump is accompanied by an audit-ready `.sha256` checksum file.
-  - **Disk Footprint:** Retaining 7d + 4w + 3m results in up to 14 files, representing a total host footprint of only **~6.02 MB** (extremely lightweight, easily scales as database grows).
-  - **Directus Coverage:** Backups use a **whole-database dump** (no table allowlist). When Directus is deployed, all `directus_*` metadata tables (roles, revision logs, settings) will be backed up automatically.
-
-### Tested Restore & Recovery (RTO Verified)
-A manual database restoration was performed and fully validated on **2026-07-25**:
-- **Disaster Recovery Target Database:** `gustale_restore_test` on the same production Postgres instance.
-- **RTO (Recovery Time Objective):** **1.415 seconds** (measured via system time execution of `pg_restore` on the custom `.dump` file).
-- **Verification Integrity Metrics:**
-  - **Dishes Table count:** **122** total dishes matched exactly (Live 122 ↔ Restore 122) ✅
-  - **Published count:** `SELECT count(*) FROM dishes WHERE status='published'` returned exactly **121** on both databases ✅
-  - **Table Schema & Row counts:** Verified all 43 tables in `public` and `drizzle` schemas (including `dish_journey_beats`, `media_attachments`, etc.) side-by-side. 100% byte-identical row counts (e.g. 190 dish relations, 36 journey beats, 358 dish categories) ✅
-  - **PostGIS Geometries Survived:** Picked 4 distinct geographical dishes and compared `ST_AsText(origin_location)`:
-    - *gazpacho:* `POINT(-5.9845 37.3891)` (Live ↔ Restore matches!) ✅
-    - *peking-duck:* `POINT(116.4074 39.9042)` (Live ↔ Restore matches!) ✅
-    - *vindaloo:* `POINT(74.124 15.2993)` (Live ↔ Restore matches!) ✅
-    - *moussaka-greek:* `POINT(23.7275 37.9838)` (Live ↔ Restore matches!) ✅
-  - **Dish Relation Graph Intact:** Checked relation mappings for `moussaka-greek` (Athens, Greece):
-    - *Categories:* 4 (Live ↔ Restore matches!) ✅
-    - *Lineages:* 1 (Live ↔ Restore matches!) ✅
-    - *Relations From:* 2 (Live ↔ Restore matches!) ✅
-    - *Relations To:* 2 (Live ↔ Restore matches!) ✅
-- **Post-Test Disposition:** `gustale_restore_test` was cleanly dropped from the instance after passing 100% of the integrity gates.
-
-### Disaster Recovery Story & Single Point of Failure (SPOF)
-- **Current SPOF Status:** Backups and live data are entirely co-located on the same VPS (`62.72.7.218`). No offsite copies are active today. In the event of host-level termination or SSD failure, both production and backups would be lost.
-- **Backups Location:** `/home/deploy/gustale.com/backups/` (VPS)
-- **Offsite Options & Estimations (For Future Approval):**
-  1. *Option A: Rclone / AWS S3 CLI to S3-compatible cloud storage (Backblaze B2 or Cloudflare R2).*
-     - **Mechanism:** Add an `rclone sync` step to the backup script.
-     - **Cost:** **$0.00 / month** (within Cloudflare R2's free 10GB tier, with zero egress fees).
-  2. *Option B: pull-based offsite backups (Geekom or MacMini).*
-     - **Mechanism:** Cron job on the local Geekom workstation runs daily `rsync` over SSH to fetch dumps from `/home/deploy/gustale.com/backups/`.
-     - **Cost:** **$0.00 / month** (fully self-hosted, sovereign, zero reliance on external cloud services).
-- **Recovery Story Today:**
-  - *If database is lost (but VPS lives):* We can restore the latest `.dump` file in **1.4 seconds** with zero data loss (RPO is max 24 hours, RTO is < 1.5 seconds).
-  - *If VPS is lost entirely:*
-    1. Re-spin a fresh VPS, configure system packages, Docker, and Caddy.
-    2. Clone `consciousclarity/gustale.com` from GitHub.
-    3. Run `pnpm run seed` to recover the core encyclopedia to 121 dishes + 36 journey beats (since it is committed to git).
-    4. *Losses:* All user accounts, user sessions, moderation history / edit logs, and any uploaded binary images/media inside MinIO will be **permanently lost** because they are not backed up offsite.
-
-## Current CI status
-
-| Commit | Message | CI |
-|--------|---------|-----|
-| `01cd64c` | fix(lineages): interpolate legend chip data-lineage attributes | Passed (#140) |
-| `b3b58f9` | fix(ci): drop firewall-blocked API health-check gate | Passed (#139) |
-| `284d566` | fix(ci): mock API serves real 60-dish data | Passed (#138) |
-
-Main branch SHA: `ae1fc29` (2026-06-28 — PR #15 lineages + #17 api fix; CI green, deployed)
-
----
-
-## Two-Taxonomy Confusion — Critical Reference
-
-**NEVER confuse these two taxonomies**:
-
-| Page | Taxonomy | Source | Examples |
-|------|----------|--------|----------|
-| `/families` | `familySlug` / `familyName` | `dish_categories` WHERE `kind='dish-type'` | Soup, Pasta, Noodle soup, Stew |
-| `/lineages` | `methodSlug` / `methodName` | `dish_preparations → preparation_methods` | Stew, Fried & topped, Fried rice |
-
----
-
-## Pending Data-Cleanup Tasks
-
-- [x] ~~15 dishes still have `methodSlug=null` in mock data~~ — **RESOLVED / stale note (verified 2026-07-22 by Cursor Cloud Agent).** Fixed earlier by PR #9. Re-verified 3 ways: seed `DISH_LINEAGES` covers 60/60 `DISHES` (0 missing); `mock-api-data.json` has 0/60 dishes with null `methodSlug`; live `/api/dishes?status=published&limit=100` has 0/60 null. Live `/lineages` shows no "Other" bucket. NB: the dishes named in the old note (Kimbap, Croffle, Som tam, Butter chicken, Tandoori chicken, Tteokbokki) are **not in the current 60-dish dataset** at all — they were never added, so there was nothing to seed.
-- Minor (optional, non-blocking): `DISH_LINEAGES` in `packages/db/src/seed-data.ts` has **13 orphan keys** pointing at dish slugs not in `DISHES` (`moussaka-levant, baba-ganoush, tacos-al-pastor, tamales-mexican, dim-sum, pho-bo, ramen-tonkotsu, tonkatsu, okonomiyaki, croque-monsieur, omelette, khachapuri, bigos`). Harmless (the seeder skips slugs it can't find), but they're dead entries — clean up if/when those dishes are added or drop them.
-
----
-
-## SHARED_STATE sync protocol
-
-After any non-trivial change:
-1. Commit to `main` → CI deploys automatically
-2. Update `.hermes/SHARED_STATE.md` on `private/state` branch
-3. `git add -f .hermes/ && git commit -m "claude: <summary>" && git push origin private/state`
-
----
-
-## Pending User Asks
-
-- **Sophisticated menu**: `AuthMenu.tsx` deployed; `GustaleMenu.tsx` is design reference not implemented
-- **Breadcrumbs everywhere**: `Breadcrumbs.astro` exists, used on some pages; full audit needed
-- **Structured dish filters on home island**: Implemented (8 filter keys)
-
----
-
-## 2026-06-28 — Graphify + Layout handoff
-
-Graphify was run for `/Users/ghostx/DEV/gustale/repo_clone`.
-Output path:
-`/Users/ghostx/DEV/gustale/repo_clone/graphify-out/`
-Generated files:
-- `graph.html`
-- `GRAPH_REPORT.md`
-- `graph.json`
-`repo_clone/CLAUDE.md` was updated with the Graphify output path.
-
-Trace completed:
-- `../layouts/Layout.astro` bridges 7 communities because it is the shared HTML shell.
-- All 19 Graphify edges to `Layout.astro` are real extracted import dependencies, not artifacts.
-- `Layout.astro` is healthy and should not be refactored.
-- Do not split `Layout.astro`.
-- Do not split `SiteHeader.astro`.
-- Do not fix Graphify warnings yet.
-
-Pending Hermes task:
-**MapLibre CSS scope — RESOLVED 2026-07-23 by Hermes via PR #30** (`pr/maplibre-css-scope`, commit `144e302`, merged to `origin/main` today). The required change (remove MapLibre CDN import from `apps/web/src/styles/global.css`; add `import 'maplibre-gl/dist/maplibre-gl.css';` to `apps/web/src/pages/map.astro` + `apps/web/src/pages/dishes/[slug].astro`) was implemented exactly as specified. Validation: `pnpm --filter web exec astro build` (21 pages, exit 0), `tsc --noEmit` (exit 0), CSS asset (`_astro/maplibre-gl.*.css`, 69.9 KB) is now linked only from `/map/index.html` and `dishes/<slug>/index.html` — confirmed by `grep -oE 'maplibre-gl.*\.css' dist/...` per page. ~70 KB saved on every non-map, non-dish page load. See PR #30's PR body for the full diff.
+| `apps/api` (Fastify + better-auth) | Live, healthy | `2da83d1` |
+| `apps/web` (Astro + React islands) | Live, healthy | `2da83d1` |
+| gustale-api container | Running on VPS :4000 | `2da83d1…` |
+| gustale-web container | Running on VPS :4001 | `2da83d1…` |
+| shared-postgres container | Running | n/a |
+| minio container | Running | n/a |
+| MinIO bucket `gustale-public` | Ready, anonymous download | n/a |
+| MinIO bucket `gustale-media` | Ready, private | n/a |
+
+## Live features (verified)
+
+- `/` — landing page
+- `/dishes` — list of 31 dishes (client-side search)
+- `/dishes/new` — create new dish (any authed user; creates as draft
+  for moderator review)
+- `/dishes/<slug>` — full detail page, pre-rendered as static HTML
+  per dish (SSG via getStaticPaths). Sections: Origin (interactive
+  MapLibre mini-map, same style as standalone /map), hero, regional
+  variants, ingredients with quantities, preparation methods with
+  steps + duration + difficulty, sources/citations with Wikipedia
+  links + reliability, image gallery with lightbox (signed-URL fetches
+  from MinIO), editor provenance, auth-gated Edit button.
+- `/dishes/<slug>/edit` — edit form (auth-gated; moderator+ can
+  publish drafts directly from this page)
+- `/dishes/nonexistent-slug` — real HTTP 404
+- `/404` (and any unknown URL) — dedicated 404 page
+- `/map` — **NEW**: standalone globe view powered by MapLibre GL.
+  WebGL globe projection by default, flat Mercator toggle in the
+  top-right corner. CARTO Voyager basemap (free, no API key).
+  Cluster bubbles when multiple dishes share coordinates. Click a
+  dot to navigate to the dish page. 285 KB gzipped, loaded only on
+  this page.
+- `/login`, `/register`, `/account` — auth UI
+- AuthMenu in header — "Sign in" ↔ user name + "Sign out"
+- `https://api.gustale.com/api/dishes` — list with `q=` search
+- `https://api.gustale.com/api/dishes/:slug` — rich detail (dish +
+  origin + variants + ingredients + categories + preparations +
+  sources + media + coverImage + availableLanguages)
+- `https://api.gustale.com/api/dishes/map` — flat lat/lng (consumed
+  by /map; also kept for future Phase 9 search/nearby work)
+- `https://api.gustale.com/api/dishes-by-region?bbox=...` — bbox query
+  via PostGIS `ST_MakeEnvelope` (kept for future nearby-dishes feature)
+- `https://api.gustale.com/api/dishes` — `POST` (auth, draft creation)
+  + `PATCH /api/dishes/:slug` (auth, with edit_history diff)
+  + `POST /api/dishes/:slug/publish` (moderator+) + `DELETE`
+  (admin). Tests in `apps/api/test/dishes-write.test.ts`.
+- `https://api.gustale.com/api/auth/{sign-in,sign-up,sign-out,get-session}`
+- `https://api.gustale.com/api/media/upload` (auth-gated, multipart,
+  JPEG/PNG/WebP/AVIF/GIF, 20MB cap, streams to MinIO + writes `media`
+  row + attaches to dish via `media_attachments`)
+- `https://api.gustale.com/api/media/:id/signed-url` (auth-gated,
+  15-min presigned GET URL)
+- `https://api.gustale.com/api/dishes/:slug/media` (POST attach,
+  DELETE detach)
+- **Structured error responses** — 404/401/etc return `{error, message,
+  code, traceId}` matching the Pino request id. Front-end has
+  `ErrorBoundary` wrapping data-driven islands + `fetchWithRetry` on
+  the API client.
+
+## Open bugs / known issues
+
+- **Resend not configured** → `requireEmailVerification: false` for v1
+  (TODO comment in `apps/api/src/auth.ts`). Re-enable when email provider
+  is wired.
+- **SSR cookie reading doesn't work cross-subdomain** →
+  `lib/session.ts: getSessionFromCookies()` returns null because the
+  session cookie lives on `api.gustale.com`. Browser handles this fine
+  via XHR; only an issue for future SSR personalization.
+- ~~**DishGallery island doesn't hydrate**~~ — **Fixed** (2026-06-23,
+  commit `2da83d1`). Added `client:load` to `<DishDetail>` in
+  `pages/dishes/[slug].astro`. Gallery now hydrates and fetches
+  signed URLs. Visual verification on a real device still pending
+  (needs MinIO reachable + WebGL for the map on the same page).
+- **Telegram deploy-failure alert secrets missing** — `TELEGRAM_BOT_TOKEN`
+  and `TELEGRAM_CHAT_ID` GitHub repo secrets still unset, so the
+  deploy-failure alert in `8a` no-ops.
+- **/map visual verification gap** — the Camofox test browser used by
+  Claude Code lacks WebGL, so we can't visually confirm the MapLibre
+  globe renders. Code deploys cleanly, JS chunk loads, props
+  serialize correctly, and MapLibre GL works in every modern browser
+  with WebGL (Chrome, Safari, Firefox, Edge). User to verify on a
+  real device.
+
+## Next build (priority order)
+
+1. **Moderation queue UI** (`/moderation`) — list pending drafts,
+   approve/reject with required reviewer notes, show diff preview.
+   The backend already supports this (`POST .../publish` is
+   moderator-gated); only the UI is missing. ~half-day.
+2. **Fix DishGallery hydration** — small bug, blocks gallery from
+   actually showing the seed image. Either add `client:load` to
+   `<DishDetail>` or split the gallery into its own island.
+3. **Image upload UI** in the edit wizard — drag-drop a JPEG/PNG,
+   alt text field, license field. Wire to `POST /api/media/upload`.
+   Currently the API exists but there's no UI to call it.
+4. **Re-enable Resend** for email verification (small task, just config
+   + flip flag).
+5. **Set Telegram deploy-failure secrets** — user to add to GitHub
+   repo secrets UI.
+6. **Edit history UI** — render `edit_history` rows on the dish detail
+   page (the data is already there).
+7. **Internal link audit** — detail pages link to `/ingredients/<slug>`
+   but no ingredient pages exist yet. Either stub 404s or build
+   ingredient pages next.
+8. **Phase 9 — Discoverability** (map-based "near me", unified search
+   across dish/cuisine/region with pg_trgm fuzzy match, "what's similar
+   to X"). Plan doc on request; the bbox endpoint at
+   `/api/dishes-by-region` is already in place to support "near me".
+
+## Conventions (for both agents to follow)
+
+- **Branch:** `main` is the deploy branch. Feature branches get pushed
+  as PRs.
+- **Commits:** conventional commits (`feat:`, `fix:`, `chore:`,
+  `refactor:`).
+- **Seeds:** `packages/db/src/seed.ts` is the runner;
+  `packages/db/src/seed-data.ts` is the typed dataset. Both idempotent.
+- **Env on VPS:** `/root/.env` is the source of truth. Don't edit
+  container env directly — it gets clobbered on next deploy.
+- **After API or seed changes:** push an empty commit to trigger web
+  rebuild for SSR freshness.
+- **getStaticPaths fetch limit:** API caps `limit` at 100, so any
+  future static-generated page that lists dishes must paginate (the
+  detail page already does this in `pages/dishes/[slug].astro`).
+- **SSR safety for MapLibre**: ALWAYS mount map components with
+  `client:only="react"`, never `client:load`. Both MapLibre and the
+  legacy react-leaflet touch `window` at import time (MapLibre
+  imports `mapbox-gl`'s WebGL helpers). The `noscript` fallback in
+  the dish page handles no-JS users gracefully.
+- **CSS @import order**: `@import url(...)` MUST come before other
+  rules (including `@import "tailwindcss"`). Tailwind's @property
+  rules will trigger a Vite warning otherwise.
+
+## Recent decisions log
+
+- 2026-06-18: **Migrated per-dish DishMap from react-leaflet to
+  MapLibre GL.** Single map library across the site (`/map` and
+  `/dishes/<slug>` both use `maplibre-gl@5.24.0`). Same CARTO Voyager
+  raster basemap, same emerald halo+dot marker style, same
+  WebGL-detect → static-fallback pattern. Leaflet/react-leaflet/
+  @types/leaflet removed; @types/react-simple-maps/@types/d3-geo/
+  @types/topojson-client cleaned up while at it. Discovered during
+  the migration: `tsc --noEmit` had been silently hiding a
+  `Cannot find namespace 'GeoJSON'` error in `WorldMap.tsx` for
+  weeks (P57 — dangling transitive type). Fixed by adding
+  `@types/geojson` as a direct devDep of `apps-web`.
+- 2026-06-18: Reactivated `/map` with **MapLibre GL JS** globe
+  projection (the prior react-simple-maps had a zoom bug and no
+  globe support). CARTO Voyager basemap (free, no API key).
+  Per-dish DishMap (Leaflet) is UNCHANGED — it's lighter and the
+  right choice for a small encyclopedia detail card.
+- 2026-06-18: MapLibre 5.x removed `setFog()` and `projection` from
+  the d.ts typings even though the runtime supports them. Use
+  `setProjection({ type: 'globe' })` after construction; use
+  `setSky({ ... })` (unified fog+sky API) inside `style.load`.
+- 2026-06-18: Edit wizard front-end shipped. Discovery: the backend
+  Write API (POST/PATCH/publish/DELETE) was already live at
+  `apps/api/src/routes/dishes-write.ts` — only the UI was missing.
+  End-to-end smoke test confirmed: signup → create draft → PATCH
+  with diff → contributor 403 on publish.
+- 2026-06-18: Dropped the standalone `/map` page. Per-dish `<DishMap>`
+  island (react-leaflet + OpenStreetMap tiles) on every dish page is
+  the right shape — smaller, more relevant, no zoom bug. Net bundle
+  delta: -200KB (react-simple-maps + world-atlas + d3-* + topojson-client
+  → +react-leaflet + leaflet, but we only load Leaflet JS on dish pages).
+- 2026-06-18: `<DishMap>` uses `client:only="react"` directive because
+  Leaflet touches `window`. Renders nothing during SSR (expected).
+  `<noscript>` fallback provides graceful degradation.
+- 2026-06-17: Wikipedia-model for v1 (read-everyone, write-credentialed).
+- 2026-06-17: Hybrid seed (curated + citations), not live Wikidata fetch.
+- 2026-06-17: better-auth cookies are `__Secure-gustale.session_token`.
+- 2026-06-17: Fastify JSON parser bug fixed — use `request.body`, not raw.
+- 2026-06-17: Dish detail page = SSG (not SSR-on-request). Pulls dish
+  list from `https://api.gustale.com/api/dishes` at build time via
+  `getStaticPaths`. Falls back to a single placeholder path if the API
+  is unreachable.
+- 2026-06-17: nginx `try_files` chain ends at `/404.html` (was
+  `/index.html`). Real HTTP 404 status for unknown routes.
+- 2026-06-17: Phase 8a — centralized error handler with traceId matching
+  Pino request id; structured `{error, message, code, traceId}` shape;
+  `ErrorBoundary` on data-driven islands; `fetchWithRetry` on API
+  client (3 retries, exp backoff + jitter, honors Retry-After,
+  skips 4xx). Telegram alert on deploy failure (no-ops without secrets).
+- 2026-06-17: Phase 7d — MinIO upload pipeline shipped end-to-end.
+  Real upload → attach → signed-URL fetch → image render. Routes:
+  `POST /api/media/upload`, `GET /api/media/:id/signed-url`,
+  `POST /api/dishes/:slug/media`, `DELETE /api/dishes/:slug/media/:id`.
+  Mime allow-list (JPEG/PNG/WebP/AVIF/GIF), 20MB cap, transactional
+  DB insert with orphan cleanup. Signed URLs fetched client-side on
+  hydration (15-min expiry, not baked into static HTML).
+
+## Active blockers
+
+(none)
+                                                                                                                  
