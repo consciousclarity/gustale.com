@@ -41,10 +41,15 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    // TODO: re-enable once Resend is configured (apps/api/src/env.ts has
-    // RESEND_API_KEY as optional). Until then, requiring email verification
-    // would block ALL sign-ins because the verification email never goes out.
-    requireEmailVerification: false,
+    // P0-4 (2026-07-25): email verification re-enabled.
+    // Resend magic-link path is already wired (see magicLink plugin below) and
+    // shares the RESEND_API_KEY env. The /root/.env + /home/deploy/gustale.com/.env
+    // pair must stay in sync (see SHARED_STATE 2026-07-23 "API auth divergence").
+    // sendOnSignUp + sendVerificationEmail are only active if RESEND_API_KEY is set;
+    // if missing, the verification email goes to console (matches the magicLink
+    // dev fallback below) and requireEmailVerification is effectively a no-op
+    // because no email is sent — so dev still works without a configured key.
+    requireEmailVerification: !!env.RESEND_API_KEY,
     minPasswordLength: 12,
     maxPasswordLength: 128,
     autoSignIn: true,
@@ -53,11 +58,27 @@ export const auth = betterAuth({
   },
 
   emailVerification: {
-    // Disabled in v1 — see requireEmailVerification above. When Resend is set
-    // up, flip both this back on AND configure sendVerificationEmail to use
-    // Resend instead of logging.
-    sendOnSignUp: false,
+    // P0-4 (2026-07-25): re-enabled.
+    sendOnSignUp: !!env.RESEND_API_KEY,
     autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      // Mirror the magicLink fallback: log to console in dev (no API key),
+      // send via Resend in prod. Same env, same sender, same package.
+      if (!env.RESEND_API_KEY) {
+        console.log(`[EMAIL VERIFY] ${user.email} -> ${url}`);
+        return;
+      }
+      const { Resend } = await import("resend");
+      const resend = new Resend(env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: "Gustale <no-reply@gustale.com>",
+        to: user.email,
+        subject: "Confirm your Gustale account",
+        html: `<p>Welcome to Gustale — confirm your email to publish dishes and contribute.</p>
+                 <p><a href="${url}">${url}</a></p>
+                 <p>The link expires in 1 hour. If you didn't sign up, ignore this email.</p>`,
+      });
+    },
   },
 
   socialProviders: {
