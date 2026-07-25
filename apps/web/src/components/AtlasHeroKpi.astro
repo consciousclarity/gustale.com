@@ -19,7 +19,7 @@
 //   Cost: ~1 extra SSG fetch + ~600 bytes of static HTML. Reversible: deleting this
 //   component from `index.astro` restores the previous behavior.
 
-import { ApiError, getMapDishes, listAllDishes } from "../lib/api";
+import { ApiError, listAllDishes } from "../lib/api";
 
 interface Counts {
   dishes: number;
@@ -35,7 +35,9 @@ async function fetchCounts(): Promise<Counts> {
   try {
     // Page through /api/dishes — the API caps limit at 100, and the catalog
     // is already past that (120 published as of the 60→120 seed).
-    const [listResp] = await Promise.all([listAllDishes({ status: "published" })]);
+    const [listResp] = await Promise.all([
+      listAllDishes({ status: "published" }),
+    ]);
     const dishes = listResp.dishes ?? [];
     const countries = new Set(
       dishes.map((d) => d.originName).filter(Boolean) as string[],
