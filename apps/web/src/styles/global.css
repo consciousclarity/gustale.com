@@ -1321,6 +1321,11 @@ h4 {
     #d9c8a8 14px 28px
   );
 }
+/* Stack popup sits above the marker; allow it to escape the clip. */
+.atl-mapbox:has(.atl-stack-popup) {
+  overflow: visible;
+  z-index: 2;
+}
 .atl-pin {
   position: absolute;
   width: 14px;
@@ -5101,6 +5106,13 @@ body.nav-panel-open {
   color: var(--ink);
   box-shadow: 0 12px 32px rgba(33, 28, 22, 0.16);
 }
+.wm-stack-popup__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 .wm-stack-popup__heading {
   margin: 0 0 8px;
   font-family: var(--mono);
@@ -5108,6 +5120,29 @@ body.nav-panel-open {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--sub);
+}
+.wm-stack-popup__header .wm-stack-popup__heading {
+  margin: 0;
+}
+.wm-stack-popup__close {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sub);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.wm-stack-popup__close:hover,
+.wm-stack-popup__close:focus-visible {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  outline: none;
 }
 .wm-stack-popup__list {
   list-style: none;
