@@ -1,6 +1,6 @@
 # Gustale — Disaster Recovery Runbook (Post-ADR-002)
 
-This document is the authoritative, step-by-step recovery guide for Gustale. It outlines the exact sequence required to rebuild the entire system, decrypt backups, and restore both database and media assets in the event of a catastrophic VPS or host loss.
+This document is the authoritative, step-by-step recovery guide for Gustale. It outlines the exact sequence required to rebuild the entire system, decrypt backups, and restore both database and media assets directly from your **Google Drive** offsite backups in the event of a catastrophic VPS or host loss.
 
 ---
 
@@ -9,8 +9,8 @@ This document is the authoritative, step-by-step recovery guide for Gustale. It 
 | Metric | Target Value | Verification Date | Note |
 |---|---|---|---|
 | **RPO** (Recovery Point Objective) | **24 hours** | 2026-07-25 | Maximum worst-case data loss window, governed by the daily backup schedule. |
-| **RTO** (Recovery Time Objective) — Database Only | **1.415 seconds** | 2026-07-25 | Measured restore time of custom `.dump` schema + data archive into a fresh DB. |
-| **RTO** (Recovery Time Objective) — System Rebuild | **~45 minutes** | 2026-07-25 | Projected end-to-end time: VPS provisioning, DNS update, git clone, decryption, S3 sync, and smoke tests. |
+| **RTO** (Recovery Time Objective) — Database Only | **1.54 seconds** | 2026-07-25 | Measured restore time including GPG decryption and `pg_restore` into a fresh DB. |
+| **RTO** (Recovery Time Objective) — System Rebuild | **~45 minutes** | 2026-07-25 | Projected end-to-end time: VPS provisioning, DNS update, git clone, decryption, GDrive sync, and smoke tests. |
 
 ---
 
@@ -39,29 +39,26 @@ Any transactional DB writes (user registrations, session cookies, review logs, e
    chown -R hermes:hermes /home/deploy/gustale.com
    ```
 2. **Recreate Secrets (.env & backup-key):**
-   * Recreate `/root/.env` and `/home/deploy/gustale.com/.env` containing identical variables (`DATABASE_URL`, better-auth secrets, Resend key, and Cloudflare R2 S3 credentials).
+   * Recreate `/root/.env` and `/home/deploy/gustale.com/.env` containing identical variables (`DATABASE_URL`, better-auth secrets, and Resend key).
    * **Crucial:** Retrieve the symmetric backup encryption key from your secure offsite credential vault and write it to `/home/deploy/gustale.com/.backup-key` (mode 0600) and `/root/.backup-key` (mode 0600).
    * *A backup you cannot decrypt is not a backup. Never lose the encryption key.*
 
 ### Phase 3 — Download & Decrypt Database Backup
-1. **Configure Temporary R2 Environment Variables:**
-   Configure your active shell session to connect to your Cloudflare R2 bucket:
-   ```bash
-   export RCLONE_CONFIG_R2_TYPE=s3
-   export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
-   export RCLONE_CONFIG_R2_ACCESS_KEY_ID=<Your_R2_Access_Key_ID>
-   export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=<Your_R2_Secret_Access_Key>
-   export RCLONE_CONFIG_R2_ENDPOINT=<Your_R2_S3_Endpoint_URL>
-   export RCLONE_CONFIG_R2_ACL=private
-   ```
+1. **Authorize Google Drive on the New VPS:**
+   If the VPS is lost, you will need to re-authorize Rclone to access your Google Drive. 
+   * Run `rclone authorize "drive"` on your personal computer to get a fresh JSON token.
+   * On the VPS, run the setup script:
+     ```bash
+     /home/deploy/gustale.com/backups/setup_gdrive.py '<your_pasted_json_token_blob>'
+     ```
 2. **Download the Latest DB Backup:**
-   List and find the latest `.dump.gpg` encrypted archive, then pull it down:
+   List and find the latest `.dump.gpg` encrypted archive on your Google Drive, then pull it down:
    ```bash
-   # List remote backups
-   rclone lsf r2:<Your_R2_Bucket_Name>/db/
+   # List remote backups in Google Drive
+   rclone lsf gdrive:gustale_backups/db/
    
    # Download the latest GPG-encrypted dump
-   rclone copyto r2:<Your_R2_Bucket_Name>/db/gustale_backup_<latest_timestamp>.dump.gpg /tmp/latest_backup.dump.gpg
+   rclone copyto gdrive:gustale_backups/db/gustale_backup_<latest_timestamp>.dump.gpg /tmp/latest_backup.dump.gpg
    ```
 3. **Decrypt the Backup File:**
    Decrypt the archive using GnuPG with the secure passphrase:
@@ -89,7 +86,7 @@ Any transactional DB writes (user registrations, session cookies, review logs, e
 
 ### Phase 5 — Restore MinIO Object Storage
 1. **Sync Backups back to Local MinIO:**
-   Pull all media buckets (`gustale-public` and `gustale-media`) from Cloudflare R2 to your local container volume:
+   Pull all media buckets (`gustale-public` and `gustale-media`) from your Google Drive back to your local container volume:
    ```bash
    # Configure local MinIO client env
    export RCLONE_CONFIG_MINIO_TYPE=s3
@@ -100,8 +97,8 @@ Any transactional DB writes (user registrations, session cookies, review logs, e
    export RCLONE_CONFIG_MINIO_ENDPOINT=http://127.0.0.1:9000
    export RCLONE_CONFIG_MINIO_ACL=private
    
-   # Sync offsite mirror back to local container S3 API
-   rclone sync r2:<Your_R2_Bucket_Name>/media/ minio: --quiet
+   # Sync Google Drive offsite mirror back to local container S3 API
+   rclone sync gdrive:gustale_backups/media/ minio: --quiet
    ```
 
 ### Phase 6 — Launch Application & Verify
