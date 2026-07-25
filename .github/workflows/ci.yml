@@ -116,18 +116,30 @@ jobs:
 
       - name: Apply schema to ephemeral DB
         run: |
+          # Apply the full *committed* migration chain (not a hardcoded prefix).
+          # Source from `git ls-files`, NOT a filesystem glob and NOT the
+          # drizzle journal — same pattern as nightly (PR #39). The journal is
+          # drifted (orphans / dual 0005 / missing 0007); journal-only apply
+          # would skip tables CI tests need (e.g. dish_journey_beats).
+          set -euo pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
-            -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" \
-            -f packages/db/drizzle/0000_cloudy_satana.sql \
-            -f packages/db/drizzle/0001_text_user_id_fks.sql \
-            -f packages/db/drizzle/0002_drop_user_fks.sql \
-            -f packages/db/drizzle/0003_add_filter_indexes.sql
+            -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+          mapfile -t files < <(git ls-files 'packages/db/drizzle/*.sql' | LC_ALL=C sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No committed packages/db/drizzle/*.sql migrations found" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "Applying $f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
+          done
 
       - name: Apply seed
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
-            -f packages/db/seed-moussaka.sql
+            -f packages/db/seed-moussaka.sql \
+            -f packages/db/seed-journey.sql
 
       - name: Run vitest
         working-directory: apps/api

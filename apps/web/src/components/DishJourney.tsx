@@ -284,10 +284,7 @@ function JourneyPathMap({
   if (points.length === 0) return null;
 
   return (
-    <figure
-      className="dj__map"
-      aria-label={`Journey map for ${dishName}`}
-    >
+    <figure className="dj__map" aria-label={`Journey map for ${dishName}`}>
       <div
         ref={containerRef}
         className={mapError ? "hidden" : "dj__map-canvas"}
