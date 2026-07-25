@@ -218,6 +218,36 @@ export function listDishes(
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }
 
+/** API max for GET /api/dishes `limit` (zod .max(100)). */
+const DISH_LIST_PAGE_LIMIT = 100;
+const DISH_LIST_MAX_PAGES = 101;
+
+/**
+ * Page through GET /api/dishes until a short page is returned.
+ * Needed once the catalog grows past the API's per-request cap of 100.
+ */
+export async function listAllDishes(
+  params: Omit<ListDishesParams, "limit" | "offset"> = {},
+): Promise<DishListResponse> {
+  const dishes: DishListResponse["dishes"] = [];
+  let offset = 0;
+
+  for (let page = 0; page < DISH_LIST_MAX_PAGES; page++) {
+    const res = await listDishes({
+      ...params,
+      limit: DISH_LIST_PAGE_LIMIT,
+      offset,
+    });
+    const batch = res.dishes ?? [];
+    dishes.push(...batch);
+    if (batch.length < DISH_LIST_PAGE_LIMIT) break;
+    offset += batch.length;
+    if (offset >= 10000) break;
+  }
+
+  return { dishes, limit: DISH_LIST_PAGE_LIMIT, offset: 0 };
+}
+
 // ─── Dish detail (GET /api/dishes/:slug) ─────────────────────────────────
 
 export interface GetDishDetailParams {

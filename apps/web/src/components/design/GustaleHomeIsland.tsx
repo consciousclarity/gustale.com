@@ -16,7 +16,7 @@ import type {
 } from "maplibre-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapDish } from "../../lib/api";
-import { getMapDishes, listDishes } from "../../lib/api";
+import { getMapDishes, listAllDishes } from "../../lib/api";
 import { authoringHref } from "../../lib/domain";
 import type { DishSummary } from "../../types/dish";
 import type { FoodRegionFeature } from "../../types/map";
@@ -674,7 +674,7 @@ export default function GustaleHomeIsland() {
     setLoading(true);
     setError(null);
     Promise.allSettled([
-      listDishes({ limit: 100 }),
+      listAllDishes({ status: "published" }),
       getMapDishes({ limit: 2000 }),
     ])
       .then(([listRes, mapRes]) => {
