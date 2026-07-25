@@ -289,3 +289,104 @@ purpose-built beat editor. It is also *dramatically* better than editing a
   still open, and it will bite again.
 - Related roadmap items: P2-4 (superseded), P2-5 (reduced), P3-2 (snapshot is a
   head start), P1-2 (ingredients become editable, unblocking content work).
+
+---
+
+# Amendment 1 — composite primary keys block eleven tables
+
+**Date:** 2026-07-25
+**Author:** Claude (orchestrator)
+**Trigger:** [ADR-002 spike findings](./ADR-002-spike-findings.md), Q3, plus
+follow-up schema audit
+**Status of the decision:** unchanged — Directus is still the right call. The
+*prerequisite work* changes.
+
+The body above is left intact as the pre-spike decision record. This section
+corrects it.
+
+## What the body got wrong
+
+The body claims Directus "introspects an existing SQL schema… **No migration, no
+schema rewrite.**" That is true of Directus in general and **false for Gustale's
+schema specifically.**
+
+Directus requires a single-column primary key to expose a table as a collection.
+Tables with composite primary keys are warned about and silently ignored. Eleven
+of Gustale's tables have composite PKs with no surrogate `id`:
+
+| Table | Consequence if unfixed |
+|---|---|
+| `dish_categories` | **cannot assign a dish to a family or cuisine** |
+| `dish_lineages` | **cannot attach a dish to a lineage** |
+| `dish_tags` | cannot tag dishes |
+| `dish_translations` | cannot author local dish names |
+| `category_translations` | — |
+| `ingredient_translations` | — |
+| `preparation_method_translations` | — |
+| `food_region_sources` | **cannot cite a geographic claim** |
+| `dish_region_sources` | **cannot cite a dish's region claim** |
+| `dish_location_sources` | **cannot cite a dish's coordinates** |
+| `watch_list` | user-facing feature, not authoring |
+
+`dish_categories` and `dish_lineages` carry two of the three taxonomies the atlas
+is built on. The three `*_sources` junctions are how geographic claims acquire
+citations — the mechanism behind the confidence differentiator identified in the
+competitive research.
+
+## Why the spike did not catch this
+
+Q1 tested PostGIS on `dishes.origin_location`; Q2 tested the self-referential M2M
+on `dish_relations`. Both of those tables carry a surrogate `id` and therefore
+work. `dish_ingredients` and `dish_preparations` also carry surrogate ids and
+also work.
+
+**The schema is split roughly in half, and the spike questions sampled only the
+half that works.** That is a flaw in how the spike was scoped — my error, not
+Cursor's, which flagged the wider pattern unprompted on reporting back.
+
+## Corrected prerequisite
+
+Add a surrogate primary key to each of the eleven tables:
+
+```sql
+ALTER TABLE <t> ADD COLUMN id uuid NOT NULL DEFAULT uuid_generate_v4();
+ALTER TABLE <t> DROP CONSTRAINT <t>_pkey;
+ALTER TABLE <t> ADD PRIMARY KEY (id);
+ALTER TABLE <t> ADD CONSTRAINT <t>_natural_key UNIQUE (<original composite cols>);
+```
+
+Semantics are preserved: the composite key survives as a UNIQUE constraint, so
+existing queries, upserts and `onConflict` clauses continue to work. Drizzle
+schema must be updated to match, since Drizzle remains authoritative for schema.
+
+**This is cheapest now.** Several of these tables are empty or small today; the
+cost of a surrogate-key migration rises with row count and with inbound foreign
+keys.
+
+## Revised impact on the decision
+
+| | Body claims | Actual |
+|---|---|---|
+| Schema change required | none | migration across 11 tables |
+| Time to usable | days | days **plus** the migration |
+| Risk | container + validation bypass | + a PK migration on live data |
+
+The decision itself does not change. Option B (custom admin) still costs months;
+this migration costs days. But ADR-002 can no longer be characterised as
+zero-schema-change, and that characterisation should not be relied on in
+planning.
+
+## Amended action items
+
+Insert before Phase 3 (deploy Directus):
+
+- [ ] **Phase 2b — surrogate primary keys.** Migration adding `id` to all eleven
+      tables, demoting composite keys to UNIQUE. Report row counts per table
+      before migrating. Verify the seeder's `onConflict` clauses still resolve
+      against the UNIQUE constraints. Re-run the Directus spike afterwards and
+      confirm all eleven appear as collections.
+
+Phase 3 is blocked on this. Deploying Directus before it would produce an admin
+tool that cannot edit families, lineages, or citations — which is worse than no
+admin tool, because it looks like it works.
+
