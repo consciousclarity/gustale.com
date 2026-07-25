@@ -1,0 +1,22 @@
+# Normalize text to LF so Windows checkouts match CI (Biome / TypeScript).
+# Do not mass-renormalize existing files in the same PR as schema work —
+# that buries intentional diffs under thousands of line-ending changes.
+* text=auto eol=lf
+
+# Binary assets — never treat as text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+
+# Explicit for spike / docs screenshots
+docs/adr-002-spike-assets/** binary
