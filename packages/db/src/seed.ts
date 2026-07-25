@@ -170,17 +170,10 @@ async function main(): Promise<void> {
       );
     }
 
-    // 9. Variants
-    await db.insert(schema.dishVariants).values({
-      parentDishId: dishId,
-      name: "Turkish Moussaka (Musakka)",
-      slug: "musakka-turkish",
-      description:
-        "A Turkish variant, often lighter, sometimes without béchamel, using green peppers and tomatoes.",
-      status: "published",
-    });
-
-    // 10. Ingredients
+    // 9. Ingredients
+    // (dish_variants retired — Turkish Musakka is a full dish linked via
+    // dish_relations role/type regional-cousin; see seed-data DISHES +
+    // DISH_RELATIONS.)
     const ingredientSlugs = [
       "eggplant",
       "lamb-mince",

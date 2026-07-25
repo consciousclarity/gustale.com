@@ -333,6 +333,10 @@ export const dishTranslations = pgTable(
   }),
 );
 
+// DEPRECATED — do not insert new rows. Regional variants are full `dishes`
+// rows linked by `dish_relations` with relationType "regional-cousin"
+// (see DISH_RELATIONS in seed-data.ts). Table retained until a dedicated
+// drop migration; API read/write for legacy clients still exists.
 export const dishVariants = pgTable(
   "dish_variants",
   {
