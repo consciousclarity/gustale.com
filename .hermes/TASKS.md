@@ -9,6 +9,17 @@
 
 - **U0/U0-C browse usability** — `feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, PR #37 (open, draft, awaiting human review/merge). Independently verified PASS on 2026-07-24. Do not mark done until PR #37 merges.
 
+## Backlog (P0 — Windows handoff)
+
+### P0 — Hermes: prod catalog 60→120
+**Owner:** Hermes · Local Windows already seeded 120 on \main\ (seed #43). Prod API still ~60. Run prod \pnpm db:seed\, confirm count, rebuild web SSG/mock so homepage shows 120. Update SHARED_STATE dish counts.
+
+### P0 — Cursor: PR Windows local fixes
+**Owner:** Cursor · \pathToFileURL\ isMain fix, \listAllDishes\ + homepage KPI paging, Astro \/api\ proxy, \infra/local\ compose. Claude Code reviews → merge → Hermes deploys.
+
+### P0 — Claude Code: read updated CLAUDE.md roster
+**Owner:** Claude Code · Confirm three-role model (Cursor / Claude Code / Hermes). One orchestrator at a time. Do not assign deploy/SSH work to Cursor.
+
 ## Codex — usability-first (.com)
 
 Source: `.hermes/CODEX_BRIEF_USABILITY.md` (2026-07-23).
@@ -128,31 +139,10 @@ travel blog. Mirror IDs below; update both files when claiming work.
 
 ## Backlog
 
-<<<<<<< Updated upstream
 ### P1 — Configure real linting in `apps/api`, `apps/web`, `packages/db` — ✅ RESOLVED by PR #40 (2026-07-24)
 **Owner:** Cursor Cloud · **Resolved:** 2026-07-24 (was Deadline 2026-09-30)
 
 **Resolution.** Biome (`@biomejs/biome@2.5.5` + root `biome.jsonc`) is now the real gate — root `lint` → `biome check .`, CI `Lint` job runs it (not the `echo 'lint ui'` stub), no `continue-on-error`. Non-breaking rollout: ~136 files auto-fixed; remaining error-level rules parked at **warn** with a ratchet TODO, so warnings alone do NOT fail CI today while the debt is worked down (see the "Biome ratchet" item in Backlog (longer-term)). Original problem statement kept below for history.
-=======
-### P0 — Hermes: prod seed 60→120 + web rebuild
-**Owner:** Hermes · **Estimate:** ~30 min
-
-Local Windows (`D:\gustale`) is on `main` @ `3f2ef0b` with **120** dishes seeded.
-`https://api.gustale.com/api/dishes` still returns **~60**. After confirming
-deployed images include `#43`, run prod `pnpm db:seed` (idempotent), then
-retrigger web SSG so mock/homepage counts match. Update SHARED_STATE dish counts.
-
-### P0 — Cursor: PR local Windows fixes
-**Owner:** Cursor · **Estimate:** small
-
-Uncommitted on Windows: `pathToFileURL` `isMain` fix (API won't listen on Win
-without it), `listAllDishes` + homepage/KPI paging past API `limit` 100,
-Astro Vite `/api` → `:4000` proxy, `infra/local/docker-compose.yml`. Open PR
-against `main` for Claude Code review → Hermes deploy.
-
-### P1 — Configure real linting in `apps/api`, `apps/web`, `packages/db`
-**Owner:** unassigned · **Estimate:** ~1 day · **Deadline:** 2026-09-30
->>>>>>> Stashed changes
 
 **Problem.** The `lint` job in `.github/workflows/ci.yml` is
 misleading safety theater. `pnpm -r run lint` resolves to a single
