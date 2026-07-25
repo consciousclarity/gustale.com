@@ -43,6 +43,13 @@
 			"when": 1782600000000,
 			"tag": "0006_lineages",
 			"breakpoints": false
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1782700000000,
+			"tag": "0008_dish_journey_beats",
+			"breakpoints": false
 		}
 	]
 }

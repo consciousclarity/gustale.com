@@ -266,6 +266,41 @@ export function getDishDetail(
   );
 }
 
+// ─── Dish journey (GET /api/dishes/:slug/journey) ────────────────────────
+
+export interface DishJourneyBeatSource {
+  id: string;
+  title: string | null;
+  url: string | null;
+  citationText: string | null;
+  year: number | null;
+  reliability: string | null;
+}
+
+export interface DishJourneyBeat {
+  id: string;
+  sequence: number;
+  placeName: string;
+  lat: number | null;
+  lng: number | null;
+  yearApprox: number | null;
+  label: string;
+  confidence: "documented" | "likely" | "possible" | "parallel";
+  source: DishJourneyBeatSource | null;
+}
+
+export interface DishJourneyResponse {
+  slug: string;
+  beats: DishJourneyBeat[];
+  lineages: Array<{ slug: string; name: string }>;
+}
+
+export function getDishJourney(slug: string): Promise<DishJourneyResponse> {
+  return request<DishJourneyResponse>(
+    `/api/dishes/${encodeURIComponent(slug)}/journey`,
+  );
+}
+
 // ─── Health (GET /api/health) ─────────────────────────────────────────────
 
 export function getHealth(): Promise<{ status: string }> {

@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
-  customType,
+  check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -738,6 +739,55 @@ export const citations = pgTable("citations", {
   addedBy: text("added_by"),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// =====================================================================
+// DISH JOURNEY BEATS — per-dish origin → adaptation timeline (P1-1)
+// =====================================================================
+//
+// A short ordered path of places/moments for the dish detail Journey UI.
+// Confidence is narrower than lineage `confidence_level`: documented /
+// likely / possible / parallel. Hide the section when a dish has no rows.
+
+export const journeyConfidence = [
+  "documented",
+  "likely",
+  "possible",
+  "parallel",
+] as const;
+export type JourneyConfidence = (typeof journeyConfidence)[number];
+
+export const dishJourneyBeats = pgTable(
+  "dish_journey_beats",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    sequence: integer("sequence").notNull(),
+    placeName: text("place_name").notNull(),
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
+    yearApprox: integer("year_approx"),
+    label: text("label").notNull(),
+    confidence: text("confidence").$type<JourneyConfidence>().notNull(),
+    sourceId: uuid("source_id").references(() => sources.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    dishSeqIdx: index("dish_journey_beats_dish_seq_idx").on(
+      t.dishId,
+      t.sequence,
+    ),
+    confidenceCheck: check(
+      "dish_journey_beats_confidence_check",
+      sql`${t.confidence} IN ('documented', 'likely', 'possible', 'parallel')`,
+    ),
+  }),
+);
 
 // =====================================================================
 // EDIT HISTORY

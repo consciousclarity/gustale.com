@@ -14,6 +14,11 @@ import type {
 import { AlsoExplore } from "./AlsoExplore";
 import { DishCoverHero } from "./DishCoverHero";
 import { DishGallery } from "./DishGallery";
+import {
+  DishJourney,
+  type JourneyBeat,
+  type JourneyLineageLink,
+} from "./DishJourney";
 
 export interface DishDetailProps {
   dish: DishDetailCore;
@@ -25,6 +30,9 @@ export interface DishDetailProps {
   preparations: DishPreparation[];
   sources: DishCitation[];
   media: DishMediaAttachment[];
+  /** P1-1 journey beats; omit or [] hides the Journey section. */
+  journeyBeats?: JourneyBeat[];
+  journeyLineages?: JourneyLineageLink[];
 }
 
 /**
@@ -41,6 +49,8 @@ export function DishDetail({
   preparations,
   sources,
   media,
+  journeyBeats = [],
+  journeyLineages = [],
 }: DishDetailProps) {
   const primaryCategory =
     categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
@@ -166,6 +176,13 @@ export function DishDetail({
             </div>
           </section>
         )}
+
+        {/* ─── Journey (P1-1) — after hero/variants, before preparation ─ */}
+        <DishJourney
+          dishName={dish.name}
+          beats={journeyBeats}
+          lineages={journeyLineages}
+        />
 
         {/* ─── Body: ingredients + preparation ──────────────────────────── */}
         <div className="rec-body">

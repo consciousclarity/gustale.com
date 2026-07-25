@@ -4827,3 +4827,174 @@ body.nav-panel-open {
     backdrop-filter: none !important;
   }
 }
+
+/* ─── Dish Journey (P1-1) ─────────────────────────────────────────────── */
+.dj {
+  margin: var(--space-7) 0 var(--space-6);
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  max-width: 100%;
+  overflow-x: clip;
+}
+.dj__eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin: 0 0 6px;
+}
+.dj__intro h2 {
+  margin: 0 0 8px;
+  font-size: clamp(1.4rem, 2.5vw, 1.85rem);
+}
+.dj__lede {
+  margin: 0 0 var(--space-5);
+  color: var(--sub);
+  max-width: 42rem;
+  line-height: 1.55;
+}
+.dj__timeline {
+  list-style: none;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(200px, 1fr);
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+}
+.dj__beat {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.dj__beat-num {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(110, 127, 78, 0.18);
+  color: #4a5635;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+.dj__beat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.dj__place {
+  font-weight: 600;
+  color: var(--ink);
+}
+.dj__year {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--sub);
+}
+.dj__label {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.dj__cite {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--sub);
+  line-height: 1.4;
+}
+.dj__cite a {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dj__map {
+  position: relative;
+  height: 260px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  margin-bottom: var(--space-4);
+  background: rgba(33, 28, 22, 0.03);
+}
+.dj__map-canvas {
+  width: 100%;
+  height: 100%;
+}
+.dj__map-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--sub);
+  font-size: 0.9rem;
+}
+.dj__marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #4a5635;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(33, 28, 22, 0.25);
+}
+.dj__lineage {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--sub);
+}
+.dj__lineage a {
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Confidence chips: documented = solid, likely = medium, possible = outline,
+   parallel = italic (reuse .ld-conf palette). */
+.dj .ld-conf--documented {
+  background: #4a5635;
+  color: #f7f4ef;
+}
+.dj .ld-conf--likely {
+  background: rgba(110, 127, 78, 0.18);
+  color: #4a5635;
+}
+.dj .ld-conf--possible {
+  background: transparent;
+  color: var(--accent-dark);
+  border: 1px solid rgba(184, 85, 47, 0.45);
+}
+.dj .ld-conf--parallel_evolution {
+  background: rgba(33, 28, 22, 0.06);
+  color: var(--sub);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .dj__timeline {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    overflow-x: visible;
+    scroll-snap-type: none;
+  }
+}
