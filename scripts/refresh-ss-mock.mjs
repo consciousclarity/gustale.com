@@ -25,7 +25,7 @@
  * file) keeps working without changes.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,8 +55,10 @@ async function getJson(path) {
       headers: { "User-Agent": "gustale-mock-refresh/1.0" },
     });
     if (res.status === 429 || res.status >= 500) {
-      const backoff = POLL_MS * Math.pow(2, attempt);
-      process.stderr.write(`! ${res.status} ${url} (retry ${attempt}/4 in ${backoff}ms)\n`);
+      const backoff = POLL_MS * 2 ** attempt;
+      process.stderr.write(
+        `! ${res.status} ${url} (retry ${attempt}/4 in ${backoff}ms)\n`,
+      );
       await sleep(backoff);
       continue;
     }
@@ -93,7 +95,9 @@ async function main() {
     );
     const items = page.dishes || [];
     list.push(...items);
-    console.log(`+ list offset=${offset}: ${items.length} (running ${list.length})`);
+    console.log(
+      `+ list offset=${offset}: ${items.length} (running ${list.length})`,
+    );
     if (items.length === 0) break;
   }
   if (list.length !== allSlugs.length) {
@@ -116,19 +120,21 @@ async function main() {
     if (i % 20 === 0) console.log(`  details ${i}/${allSlugs.length}`);
     if (i < allSlugs.length) await sleep(POLL_MS);
   }
-  console.log(`+ details: ${Object.keys(details).length} (expected ${allSlugs.length})`);
+  console.log(
+    `+ details: ${Object.keys(details).length} (expected ${allSlugs.length})`,
+  );
 
   // 4. Compose mock-api-data.json
   const mockData = {
-    generatedFrom: `${API_BASE} (live, ${allSlugs.length} published dishes, captured ${
-      new Date().toISOString()
-    })`,
+    generatedFrom: `${API_BASE} (live, ${allSlugs.length} published dishes, captured ${new Date().toISOString()})`,
     list,
     map: mapResp.dishes,
     details,
   };
-  writeFileSync(MOCK_DATA_PATH, JSON.stringify(mockData) + "\n");
-  console.log(`+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details)`);
+  writeFileSync(MOCK_DATA_PATH, `${JSON.stringify(mockData)}\n`);
+  console.log(
+    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details)`,
+  );
 
   // 5. Lineages.
   const lineagesList = await getJson("/api/lineages");
@@ -139,7 +145,9 @@ async function main() {
   for (const slug of lineageSlugs) {
     j += 1;
     try {
-      lineageDetails[slug] = await getJson(`/api/lineages/${encodeURIComponent(slug)}`);
+      lineageDetails[slug] = await getJson(
+        `/api/lineages/${encodeURIComponent(slug)}`,
+      );
     } catch (err) {
       process.stderr.write(`! lineage ${slug}: ${err.message}\n`);
     }
@@ -149,7 +157,7 @@ async function main() {
     list: lineagesList,
     details: lineageDetails,
   };
-  writeFileSync(MOCK_LINEAGES_PATH, JSON.stringify(mockLineages) + "\n");
+  writeFileSync(MOCK_LINEAGES_PATH, `${JSON.stringify(mockLineages)}\n`);
   console.log(
     `+ wrote ${MOCK_LINEAGES_PATH} (${lineageSlugs.length} lineages, ${Object.keys(lineageDetails).length} details)`,
   );
