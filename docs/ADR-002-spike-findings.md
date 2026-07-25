@@ -254,3 +254,13 @@ API write verification (then UI screenshots):
 ### Note on journal drift
 
 `0005_food_geography_phase_2a.sql` exists on disk but is **not** in `drizzle/meta/_journal.json`, so some DBs (including the original spike) lacked `food_region_*` / `dish_*_sources` until applied manually. `0010` skips those three tables when missing so migrator runs do not abort mid-file.
+
+---
+
+## Follow-up — Phase 2b `dish_ingredients` PK (0011)
+
+**Migration:** `packages/db/drizzle/0011_dish_ingredients_pk.sql` (separate from 0010; SHA published independently).
+
+**Natural key:** `UNIQUE NULLS NOT DISTINCT (dish_id, ingredient_id, variant_id)` — see migration header. Seeder never sets `variant_id`, but the column exists so a dish may pin multiple variants of one ingredient; two-column UNIQUE would block that. `NULLS NOT DISTINCT` closes the duplicate-NULL hole.
+
+**Directus:** after apply + restart, startup no longer warns on `dish_ingredients`. Collection is visible and returns rows with surrogate `id`. **12 / 12** Amendment tables editable.
