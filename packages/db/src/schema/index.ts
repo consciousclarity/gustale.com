@@ -123,6 +123,15 @@ export const geoEntities = pgTable(
   (t) => ({
     parentIdx: index("geo_entities_parent_id_idx").on(t.parentId),
     entityTypeIdx: index("geo_entities_entity_type_idx").on(t.entityType),
+    // DB invariant (0009): null ok; otherwise WGS84 lon/lat in range.
+    centroidBoundsCheck: check(
+      "geo_entities_centroid_bounds_check",
+      sql`${t.centroid} IS NULL OR (
+        ST_X(${t.centroid}::geometry) >= -180 AND ST_X(${t.centroid}::geometry) <= 180
+        AND ST_Y(${t.centroid}::geometry) >= -90 AND ST_Y(${t.centroid}::geometry) <= 90
+        AND ST_SRID(${t.centroid}::geometry) = 4326
+      )`,
+    ),
   }),
 );
 
@@ -151,6 +160,9 @@ export const categories = pgTable("categories", {
 export const categoryTranslations = pgTable(
   "category_translations",
   {
+    // Surrogate PK so Directus (and other admin tools) can manage this
+    // collection. (category_id, language) remains unique.
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
@@ -159,7 +171,9 @@ export const categoryTranslations = pgTable(
     description: text("description"),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.categoryId, t.language] }),
+    categoryLanguageUnique: unique(
+      "category_translations_category_id_language_unique",
+    ).on(t.categoryId, t.language),
   }),
 );
 
@@ -237,6 +251,7 @@ export const ingredientVariants = pgTable("ingredient_variants", {
 export const ingredientTranslations = pgTable(
   "ingredient_translations",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     ingredientId: uuid("ingredient_id")
       .notNull()
       .references(() => ingredients.id, { onDelete: "cascade" }),
@@ -246,7 +261,9 @@ export const ingredientTranslations = pgTable(
     longDescription: text("long_description"),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.ingredientId, t.language] }),
+    ingredientLanguageUnique: unique(
+      "ingredient_translations_ingredient_id_language_unique",
+    ).on(t.ingredientId, t.language),
   }),
 );
 
@@ -272,6 +289,7 @@ export const preparationMethods = pgTable("preparation_methods", {
 export const preparationMethodTranslations = pgTable(
   "preparation_method_translations",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     methodId: uuid("method_id")
       .notNull()
       .references(() => preparationMethods.id, { onDelete: "cascade" }),
@@ -280,7 +298,9 @@ export const preparationMethodTranslations = pgTable(
     description: text("description"),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.methodId, t.language] }),
+    methodLanguageUnique: unique(
+      "preparation_method_translations_method_id_language_unique",
+    ).on(t.methodId, t.language),
   }),
 );
 
@@ -291,36 +311,55 @@ export const preparationMethodTranslations = pgTable(
 export const dishStatus = ["draft", "published", "archived"] as const;
 export type DishStatus = (typeof dishStatus)[number];
 
-export const dishes = pgTable("dishes", {
-  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-  canonicalName: text("canonical_name").notNull(),
-  slug: text("slug").notNull().unique(),
-  shortDescription: text("short_description"),
-  longDescription: text("long_description"),
-  originGeoId: uuid("origin_geo_id").references(() => geoEntities.id),
-  originLocation: geometry("origin_location", { srid: 4326 }),
-  originDateEarliest: integer("origin_date_earliest"),
-  originDateLatest: integer("origin_date_latest"),
-  status: text("status").$type<DishStatus>().notNull().default("draft"),
-  viewCount: integer("view_count").notNull().default(0),
-  editCount: integer("edit_count").notNull().default(0),
-  contributorCount: integer("contributor_count").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
-  // stored without an explicit cast. Seed UUIDs are valid text strings so the
-  // migration is lossless.
-  createdBy: text("created_by"),
-  lastEditedBy: text("last_edited_by"),
-});
+export const dishes = pgTable(
+  "dishes",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    canonicalName: text("canonical_name").notNull(),
+    slug: text("slug").notNull().unique(),
+    shortDescription: text("short_description"),
+    longDescription: text("long_description"),
+    originGeoId: uuid("origin_geo_id").references(() => geoEntities.id),
+    originLocation: geometry("origin_location", { srid: 4326 }),
+    originDateEarliest: integer("origin_date_earliest"),
+    originDateLatest: integer("origin_date_latest"),
+    status: text("status").$type<DishStatus>().notNull().default("draft"),
+    viewCount: integer("view_count").notNull().default(0),
+    editCount: integer("edit_count").notNull().default(0),
+    contributorCount: integer("contributor_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // `text` (not `uuid`) so that better-auth user IDs (opaque strings) can be
+    // stored without an explicit cast. Seed UUIDs are valid text strings so the
+    // migration is lossless.
+    createdBy: text("created_by"),
+    lastEditedBy: text("last_edited_by"),
+  },
+  (t) => ({
+    statusCheck: check(
+      "dishes_status_check",
+      sql`${t.status} IN ('draft', 'published', 'archived')`,
+    ),
+    originLocationBoundsCheck: check(
+      "dishes_origin_location_bounds_check",
+      sql`${t.originLocation} IS NULL OR (
+        ST_X(${t.originLocation}::geometry) >= -180 AND ST_X(${t.originLocation}::geometry) <= 180
+        AND ST_Y(${t.originLocation}::geometry) >= -90 AND ST_Y(${t.originLocation}::geometry) <= 90
+        AND ST_SRID(${t.originLocation}::geometry) = 4326
+      )`,
+    ),
+  }),
+);
 
 export const dishTranslations = pgTable(
   "dish_translations",
   {
+    // Still composite PK — table has 121 seeded rows. Surrogate-id migration
+    // deferred (Directus ignores composite-PK collections until then).
     dishId: uuid("dish_id")
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
@@ -363,6 +402,18 @@ export const dishVariants = pgTable(
     uniqueSlugPerParent: unique("dish_variants_parent_slug_unique").on(
       t.parentDishId,
       t.slug,
+    ),
+    statusCheck: check(
+      "dish_variants_status_check",
+      sql`${t.status} IN ('draft', 'published', 'archived')`,
+    ),
+    regionLocationBoundsCheck: check(
+      "dish_variants_region_location_bounds_check",
+      sql`${t.regionLocation} IS NULL OR (
+        ST_X(${t.regionLocation}::geometry) >= -180 AND ST_X(${t.regionLocation}::geometry) <= 180
+        AND ST_Y(${t.regionLocation}::geometry) >= -90 AND ST_Y(${t.regionLocation}::geometry) <= 90
+        AND ST_SRID(${t.regionLocation}::geometry) = 4326
+      )`,
     ),
   }),
 );
@@ -499,6 +550,10 @@ export const dishRelations = pgTable(
     fromIdx: index("dish_relations_from_idx").on(t.fromDishId),
     toIdx: index("dish_relations_to_idx").on(t.toDishId),
     typeIdx: index("dish_relations_type_idx").on(t.relationType),
+    noSelfCheck: check(
+      "dish_relations_no_self_check",
+      sql`${t.fromDishId} <> ${t.toDishId}`,
+    ),
   }),
 );
 
@@ -782,13 +837,18 @@ export const dishJourneyBeats = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    dishSeqIdx: index("dish_journey_beats_dish_seq_idx").on(
+    dishSeqUnique: unique("dish_journey_beats_dish_id_sequence_unique").on(
       t.dishId,
       t.sequence,
     ),
+    // Already present since 0008 — kept authoritative in Drizzle.
     confidenceCheck: check(
       "dish_journey_beats_confidence_check",
       sql`${t.confidence} IN ('documented', 'likely', 'possible', 'parallel')`,
+    ),
+    sequencePositiveCheck: check(
+      "dish_journey_beats_sequence_positive_check",
+      sql`${t.sequence} >= 1`,
     ),
   }),
 );

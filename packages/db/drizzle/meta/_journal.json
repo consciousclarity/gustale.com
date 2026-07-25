@@ -50,6 +50,13 @@
 			"when": 1782700000000,
 			"tag": "0008_dish_journey_beats",
 			"breakpoints": false
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1782800000000,
+			"tag": "0009_db_invariants",
+			"breakpoints": false
 		}
 	]
 }

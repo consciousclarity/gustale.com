@@ -8,6 +8,14 @@
  * Called at the top of seed.ts before any DB write. Reference errors
  * (checks 3–5) become warnings when SEED_ALLOW_ORPHANS=1 so known orphans
  * do not block local seed work until the cleanup pass lands.
+ *
+ * DB invariants (migration 0009 / dish_journey_beats 0008) also enforce:
+ *   - dish lat/lng ranges once written as origin_location geometry (check 8)
+ *   - journey confidence enum (check 9)
+ *   - journey sequence >= 1 and UNIQUE(dish_id, sequence)
+ * The validator still runs these against the seed *source* so bad content
+ * fails before a DB round-trip. Contiguous sequences (1..N with no gaps)
+ * and cross-file slug refs remain seed-only — the DB cannot express them.
  */
 
 import { pathToFileURL } from "node:url";
@@ -168,7 +176,8 @@ export function validateSeedData(
     }
   }
 
-  // 8. lat / lng in range and non-null
+  // 8. lat / lng in range and non-null (seed source).
+  //    DB also CHECK-constrains origin_location bounds after insert (0009).
   for (const d of DISHES) {
     if (d.lat == null || d.lng == null) {
       push(
@@ -207,7 +216,9 @@ export function validateSeedData(
     }
   }
 
-  // 9 + 10. Journey beat confidence + contiguous sequences from 1
+  // 9 + 10. Journey beat confidence + contiguous sequences from 1.
+  //    DB enforces confidence enum (0008) and sequence >= 1 +
+  //    UNIQUE(dish_id, sequence) (0009). Contiguity (no gaps) stays here.
   for (const [dishSlug, beats] of Object.entries(JOURNEY_BEATS)) {
     for (const beat of beats) {
       if (!JOURNEY_CONFIDENCE.has(beat.confidence)) {
