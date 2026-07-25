@@ -17,10 +17,22 @@ On any new machine: work from **`origin/main`**, never an old feature-branch fol
 
 ## Last updated
 
+### Hermes (Geekom / Telegram) — 2026-07-25 (prod 60→120 seed + SSG mock refresh + nightly green)
+
+**Task 1 (prod seed 60→120): DONE.** `pnpm --filter @gustale/db run seed` ran on prod `shared-postgres` (idempotent). The seed was executed from a throwaway `node:22-slim` container with the checkout mounted; `DATABASE_URL` sourced pipe-safely from the running `gustale-api` container's env (Phase-7-corrected v5 form). Result: **+ 60 new dishes inserted, 60 already existed; total 120.** Plus 4 net new cuisine categories, 4 net new country geo entities, 60 new `dish_preparations` rows, 14 lineages (existing, idempotent skip), 34 new dish-lineage edges, 188 new dish-relation edges. 12 relation entries skipped (still-referenced slugs not in the dish set; out-of-scope cleanup). Verification: `curl https://api.gustale.recipes/api/dishes/map?limit=2000` returns 120 dishes with `count:120`.
+
+**Task 1 (SSG mock refresh): DONE, awaiting merge.** The committed `apps/web/scripts/mock-api-data.json` (60→120) and `mock-api-lineages.json` (re-captured) are on branch `data/refresh-ss-mock-2026-07-25` (head `644b94f`), with the new `scripts/refresh-ss-mock.mjs` one-shot refresh utility (idempotent, paginated, retries on 429/5xx, validates counts). **PR not created — GitHub MCP `create_pull_request` returns `Not Found` on `consciousclarity/*` (P179).** PR body file at `/home/alex/workspace/wt-refresh-ss-mock-2026-07-25/PR_BODY_data-refresh-ss-mock.md`. URL: https://github.com/consciousclarity/gustale.com/pull/new/data/refresh-ss-mock-2026-07-25. **Action needed from orchestrator / user: open the PR and merge it.** CI auto-deploys on merge; until then, the live web containers serve the old 60-dish SSG even though the API now returns 120 (P117). Local end-to-end build verified: `pnpm run build:recipes` + `build:geo` against the refreshed mock both pass all 27/27 validator checks; `dist/dishes/index.html` renders `<b>120</b> dishes` in the AtlasHeroKpi band; 11/11 sampled new-dish detail pages exist as flat `.html` files (~29 KB each).
+
+**Task 2 (nightly): GREEN.** Most recent Nightly run on `main`: `id=30109368900` (workflow file `nightly.yml`, branch `main`, `completed/success`, 2026-07-24T16:31Z → 2026-07-24T16:34Z, 271 s total). Both jobs green: `Full integration` (success, 86 s) and `Build production image` (success, 102 s). PR #39's "apply committed `packages/db/drizzle/*.sql` sorted" step is in effect; the previous 14:38Z nightly (`id=30101835743`, branch=main, conclusion=failure) is the last RED nightly on main. **The "Nightly is RED on main until #39 is reworked + merged" line in CC's 2026-07-24 entry above is now stale — superseded by this confirmation.** No follow-up needed; journal-drift fix is live.
+
+**`origin/main` is at `3f2ef0b`** (the post-#43-merge SHA; the latest merged commit is `feat(data): add 60 dishes (60→120) + 5 cuisines for food-network regions (#43)`). All three prod containers (gustale-api, gustale-web-recipes, gustale-web-geo) are running image `3f2ef0be01e524e0a3475df86a4390f6f49c9403` (Up 3 hours, healthy), which contains the 120-dish API code AND the live DB is seeded to 120 — but the web SSG (still 60) is what users see until the SSG-refresh PR is merged. The web rebuild is one merge away.
+
+**Open PRs at handoff end:** #42 (`docs(.hermes): sync SHARED_STATE + register presence` from 2026-07-24, still unmerged) and #44 (`feat(data): add 60 dishes…` from 2026-07-25 00:31Z, still unmerged, `mergeable_state: clean`). #44 is the duplicate open of what is already on main as #43 — it should be closed as superseded.
+
 ### Cursor - 2026-07-25 (Windows setup)
 
 - Windows PC is the new implementer machine; repo at `D:\gustale` on `main` (includes #43 60→120 seed in tree).
-- Local Postgres seeded to **120** published dishes; **production API still returns ~60** — Hermes: run prod `db:seed` + web rebuild/SSG refresh.
+- Local Postgres seeded to **120** published dishes; **production API now returns 120** (seeded by Hermes 2026-07-25, see Hermes entry above). Web SSG refresh in branch `data/refresh-ss-mock-2026-07-25`, awaiting PR merge.
 - Uncommitted Windows WIP (for PR): `isMain`/`pathToFileURL` API boot fix, `listAllDishes` paging past API limit 100, Astro `/api`→`:4000` proxy, `infra/local/docker-compose.yml`.
 - Updated `CLAUDE.md` agent roster (ship via PR with WIP or docs-only).
 
