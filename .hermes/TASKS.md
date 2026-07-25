@@ -11,8 +11,11 @@
 
 ## Backlog (P0 — Windows handoff)
 
-### P0 — Hermes: prod catalog 60→120
-**Owner:** Hermes · Local Windows already seeded 120 on `main` (seed #43). Prod API still ~60. Run prod `pnpm db:seed`, confirm count, rebuild web SSG/mock so homepage shows 120. Update SHARED_STATE dish counts.
+### P0 — Hermes: prod catalog 60→120 ✅ DONE
+**Owner:** Hermes · **Status:** done 2026-07-25 (Round 1).
+Local Windows already seeded 120 on `main` (seed #43). Prod API at 120
+dishes; web SSG refreshed and serving `<b>120</b> dishes` on both
+domains. SHARED_STATE.md dish count is current.
 
 ### P0 — Cursor: PR Windows local fixes
 **Owner:** Cursor · `pathToFileURL` isMain fix, `listAllDishes` + homepage KPI paging, Astro `/api` proxy, `infra/local` compose. Claude Code reviews → merge → Hermes deploys.
@@ -71,6 +74,8 @@ travel blog. Mirror IDs below; update both files when claiming work.
 - [x] **P3-5** Real linting (Biome) in CI — DONE via PR #40 (2026-07-24; non-breaking, error rules parked at warn, ratchet pending)
 
 ## Done (recent — last 10)
+
+- 2026-07-25 by Hermes Agent (Telegram) — **Round 2: P0-4 email verification (code half) + Task 2 prod smoke + Task 3 ingredient audit.** (1) P0-4 code: `apps/api/src/auth.ts` flipped two booleans (`requireEmailVerification` + `sendOnSignUp`) to `!!env.RESEND_API_KEY` (gated, dev-unchanged) + added `sendVerificationEmail` callback that mirrors the existing magicLink Resend fallback. Branch `fix/p0-4-email-verification` @ `ee096aa` (rooted on `a32501f`), `tsc --noEmit` + biome clean. Env ops (DNS verify + API key + container recreate + smoke) are user-side, blocked on Resend domain verification at the registrar. (2) Task 2 prod smoke after PR #46/#48 merged: API returns 120 dishes ✓, web renders `<b>120</b> dishes` on both domains ✓ (regex needs `<b[^>]*>120</b>\s*dishes` not bare `<b>120</b>`), 5/5 spot-checked new dish pages return 200, full 60/60 sweep of PR #43 new pages all 200. (3) Task 3 ingredient audit (quantification only): 4 distinct `/ingredients/<slug>` links exist across all 120 dish pages (all from the moussaka seed fixture); 119/120 dishes have zero ingredient links. DB: `ingredients`=5 rows, `dish_ingredients`=4 rows. food_geography tables: only `food_regions` + `food_region_sources` exist in the schema (both empty); the 4 other tables named in the handoff don't exist — surface as a finding, not a bug. P1-2 (ingredient origins) jumps the queue.
 
 - 2026-07-24 by Claude Code (terminal) — **CI hardening + prod deploys.** Merged to `origin/main` (now `8f52282`) and deployed: **#38** (remove invalid pnpm cache from Docker jobs), **#37** (U0-C browse/list usability), **#41** (gitignore `dist-recipes/` + `graphify-out/`), **#40** (real Biome lint gate, non-breaking). Prod verified healthy (gustale.com 200, gustale.recipes 200, api health 200). **#39** (nightly full migration chain) left DRAFT/blocked — Nightly dispatch fails at "Apply committed schema" (spurious generated `0006_worthless_riptide.sql` from journal drift; fix = glob committed files via `git ls-files`). SiteHeader keep-vs-redesign → **KEEP Nav.astro** (WIP superseded by #34/#36).
 
@@ -223,12 +228,44 @@ credit line. Wire to `POST /api/media/upload`. Once uploaded,
 attach to the dish via `POST /api/dishes/:slug/media`. Currently
 the API exists but there's no UI to call it.
 
-### P2 — Re-enable email verification
-**Owner:** unassigned · **Estimate:** 30 min
-Sign up at resend.com (free tier: 3k emails/month), set
-`RESEND_API_KEY` in `/root/.env`, flip
-`requireEmailVerification: true` and `sendOnSignUp: true` in
-`apps/api/src/auth.ts`. Done.
+### P1-2 — Ingredient origins (jump the queue per Round-2 audit)
+**Owner:** unassigned · **Estimate:** ~1 day
+**Why this jumps:** Round-2 audit (2026-07-25, Hermes) found that across
+all 120 dish pages, only 4 distinct ingredient slugs are linked (all
+from the moussaka seed fixture: `bechamel`, `eggplant`, `lamb-mince`,
+`tomato`). 119 of 120 dish pages have zero `/ingredients/<slug>` links.
+DB state: `ingredients` table = 5 rows, `dish_ingredients` = 4 rows, all on
+moussaka-greek. On `gustale.recipes` the 4 linked slugs are 200; on
+`gustale.com` they're 404 (post-build pruner strips `/ingredients/`).
+Recommended seed pass: add `dish_ingredients` join rows for all 120
+dishes in `seed.ts` (mirrors what was done for cuisines + lineages
+in PR #43), plus a small `INGREDIENTS` table to `seed-data.ts`
+(maybe 20-30 common ingredients), then re-run the seeder. The 404
+on `gustale.com` is intentional (geo domain doesn't need ingredient
+pages) and not a bug.
+
+### P2 — Re-enable email verification [round-2 partial: code done, env ops pending]
+**Owner:** Hermes (code done) + user (env ops) · **Estimate:** 30 min code / variable env ops
+**Round-2 status (2026-07-25):** code is committed + pushed on
+`fix/p0-4-email-verification` @ `ee096aa` (rooted on `a32501f`,
++ahead of `origin/main`). 1 file changed: `apps/api/src/auth.ts`
+— `requireEmailVerification: !!env.RESEND_API_KEY`,
+`sendOnSignUp: !!env.RESEND_API_KEY`, new `sendVerificationEmail`
+callback that mirrors the existing `magicLink` Resend fallback.
+Verified `tsc --noEmit` + biome clean. PR body at
+`/home/alex/workspace/wt-p0-4-email-verification/PR_BODY_p0-4-email-verification.md`.
+**Remaining (user-side):** (1) wait for Resend domain verify
+(SPF/DKIM/DMARC for `gustale.com` at the registrar — happening
+now); (2) generate API key in Resend dashboard; (3) mirror to BOTH
+`/root/.env` AND `/home/deploy/gustale.com/.env` (Phase-7 lesson
+about drift); (4) recreate gustale-api container (`docker restart`
+does NOT re-read `--env-file`); (5) smoke test by registering a
+throwaway account and confirming the verify email arrives. All
+gated on `!!env.RESEND_API_KEY` so dev without a key is identical
+to today — safe to merge the PR independently of the env ops.
+**Original handoff task:** sign up at resend.com (3k/month free tier),
+DNS records, env key, two booleans, container recreate, smoke
+test.
 
 ### P2 — Set Telegram deploy-failure secrets
 **Owner:** user · **Estimate:** 5 min
