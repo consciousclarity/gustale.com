@@ -999,6 +999,21 @@ export const DISHES: SeedDish[] = [
     wikipediaSlug: "D%C3%B6ner",
   },
   {
+    slug: "musakka-turkish",
+    canonicalName: "Musakka",
+    shortDescription:
+      "A Turkish aubergine dish of fried slices in tomato-pepper meat sauce, typically without béchamel and often served with pilav.",
+    // Same Istanbul centroid already used by döner kebab and pide in this seed.
+    lat: 41.0082,
+    lng: 28.9784,
+    countryName: "Turkey",
+    isoCode: "TR",
+    cuisineSlug: "turkish-cuisine",
+    dishTypes: ["casserole", "main-course"],
+    // en.wikipedia.org/wiki/Musakka redirects to Moussaka (verified 2026-07-25).
+    wikipediaSlug: "Moussaka",
+  },
+  {
     slug: "pide",
     canonicalName: "Pide",
     shortDescription:
@@ -2579,11 +2594,22 @@ export const DISH_RELATIONS: SeedRelation[] = [
   },
 
   // ─── Moussaka neighbours ──────────────────────────────────────────────
+  // regional-cousin is the dish_relations vocabulary for neighboring-region
+  // variations (the canonical replacement for dish_variants rows).
   {
     from: "moussaka-greek",
     to: "musakka-turkish",
     relationType: "regional-cousin",
-    reason: "Greek and Turkish moussaka are the canonical regional cousins",
+    reason:
+      "Turkish musakka serves fried aubergine in a tomato-pepper meat sauce without béchamel; Greek moussaka is the layered casserole with béchamel",
+    strength: 5,
+  },
+  {
+    from: "moussaka-greek",
+    to: "moussaka-levant",
+    relationType: "regional-cousin",
+    reason:
+      "Levantine moussaka uses tomato and chickpeas, the Greek version adds béchamel",
     strength: 5,
   },
 
@@ -2875,14 +2901,6 @@ export const DISH_RELATIONS: SeedRelation[] = [
       "Both saffron-tinted rice dishes of the Atlantic world, paella vs jollof",
     strength: 3,
   },
-  {
-    from: "moussaka-greek",
-    to: "moussaka-levant",
-    relationType: "regional-cousin",
-    reason:
-      "Levantine moussaka uses tomato and chickpeas, the Greek version adds béchamel",
-    strength: 5,
-  },
 ];
 // =====================================================================
 // LINEAGE PREPARATION METHODS — the "family" axis of the encyclopedia.
@@ -2937,6 +2955,8 @@ export const LINEAGE_METHODS: Array<{
 // · pasta/pancake/omelette/steamed 1 each. No dish falls back to "other".
 export const DISH_LINEAGES: Record<string, string> = {
   "moussaka-greek": "fried-and-topped",
+  "moussaka-levant": "fried-and-topped",
+  "musakka-turkish": "fried-and-topped",
   "cacio-e-pepe": "pasta",
   "pizza-margherita": "bread",
   "paella-valenciana": "fried-rice",
@@ -2980,7 +3000,6 @@ export const DISH_LINEAGES: Record<string, string> = {
   udon: "noodle-soup",
   "mapo-tofu": "poached-in-sauce",
   congee: "fried-rice",
-  "moussaka-levant": "fried-and-topped",
   "baba-ganoush": "salad",
   shakshuka: "poached-in-sauce",
   "tacos-al-pastor": "kebab",

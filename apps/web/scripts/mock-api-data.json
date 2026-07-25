@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "https://api.gustale.recipes (live, 120 published dishes, captured 2026-07-25T02:40:29.182Z); journeys injected 2026-07-25",
+  "generatedFrom": "https://api.gustale.recipes (live, 120 published dishes, captured 2026-07-25T02:40:29.182Z); journeys injected 2026-07-25; musakka-turkish injected 2026-07-25 (variants-as-dishes)",
   "list": [
     {
       "id": "00000000-0000-0000-0000-000000000020",
@@ -1800,6 +1800,21 @@
       "familyName": "Turkish cuisine",
       "methodSlug": "kebab",
       "methodName": "Grilled \\& skewered"
+    },
+    {
+      "id": "c8f3a2b1-4d5e-6f70-8a9b-0c1d2e3f4a5b",
+      "slug": "musakka-turkish",
+      "canonicalName": "Musakka",
+      "shortDescription": "A Turkish aubergine dish of fried slices in tomato-pepper meat sauce, typically without béchamel and often served with pilav.",
+      "originGeoId": "dddf218d-d434-46a6-88b4-416aa32acd29",
+      "originName": "Turkey",
+      "status": "published",
+      "viewCount": 0,
+      "updatedAt": "2026-07-25 07:08:19.462+00",
+      "familySlug": "casserole",
+      "familyName": "Casserole",
+      "methodSlug": "fried-and-topped",
+      "methodName": "Fried \\& topped"
     }
   ],
   "map": [
@@ -3482,6 +3497,20 @@
         "isoCode": "TR",
         "entityType": "country"
       }
+    },
+    {
+      "slug": "musakka-turkish",
+      "canonicalName": "Musakka",
+      "shortDescription": "A Turkish aubergine dish of fried slices in tomato-pepper meat sauce, typically without béchamel and often served with pilav.",
+      "viewCount": 0,
+      "lat": 41.0082,
+      "lng": 28.9784,
+      "region": {
+        "name": "Turkey",
+        "localName": null,
+        "isoCode": "TR",
+        "entityType": "country"
+      }
     }
   ],
   "details": {
@@ -3524,22 +3553,7 @@
         "lat": 37.9838,
         "lng": 23.7275
       },
-      "variants": [
-        {
-          "id": "2618b607-54e6-4e53-b0c2-00ed7fce432b",
-          "parentDishId": "00000000-0000-0000-0000-000000000020",
-          "name": "Turkish Moussaka (Musakka)",
-          "slug": "musakka-turkish",
-          "description": "A Turkish variant, often lighter, sometimes without béchamel, using green peppers and tomatoes.",
-          "regionGeoId": null,
-          "regionLocation": null,
-          "creatorName": "Anonymous",
-          "creatorDate": null,
-          "status": "published",
-          "createdAt": "2026-06-15T12:06:48.012Z",
-          "updatedAt": "2026-06-15T12:06:48.012Z"
-        }
-      ],
+      "variants": [],
       "ingredients": [
         {
           "ingredientId": "41b79e77-64fb-4cdf-8b74-b7e675dca3f9",
@@ -15725,6 +15739,86 @@
           "reliability": "secondary"
         }
       ],
+      "media": [],
+      "coverImage": null,
+      "availableLanguages": ["en"]
+    },
+    "musakka-turkish": {
+      "dish": {
+        "id": "c8f3a2b1-4d5e-6f70-8a9b-0c1d2e3f4a5b",
+        "canonicalName": "Musakka",
+        "slug": "musakka-turkish",
+        "shortDescription": "A Turkish aubergine dish of fried slices in tomato-pepper meat sauce, typically without béchamel and often served with pilav.",
+        "longDescription": null,
+        "originGeoId": "dddf218d-d434-46a6-88b4-416aa32acd29",
+        "originLocation": "0101000020E610000000917EFB3AC041401895D40968F24040",
+        "originDateEarliest": null,
+        "originDateLatest": null,
+        "status": "published",
+        "viewCount": 0,
+        "editCount": 0,
+        "contributorCount": 0,
+        "createdAt": "2026-07-25T02:31:35.649Z",
+        "updatedAt": "2026-07-25T02:31:35.649Z",
+        "createdBy": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "displayName": "Alejandro Aguilar",
+          "role": "admin"
+        },
+        "lastEditedBy": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "displayName": "Alejandro Aguilar",
+          "role": "admin"
+        },
+        "name": "Levantine Moussaka",
+        "description": "A Levantine eggplant dish in which roasted eggplant is cooked with tomatoes, chickpeas, onions, garlic, and warm spices. Unlike the Greek casserole, it is usually served as a vegetable mezze or main dish without béchamel.",
+        "wikipediaSlug": "Moussaka"
+      },
+      "origin": {
+        "id": "dddf218d-d434-46a6-88b4-416aa32acd29",
+        "name": "Turkey",
+        "localName": null,
+        "isoCode": "TR",
+        "entityType": "country",
+        "lat": 41.0082,
+        "lng": 28.9784
+      },
+      "variants": [],
+      "ingredients": [],
+      "categories": [
+        {
+          "categoryId": "9eaf1507-71cb-428d-8834-87ff8f482e2b",
+          "name": "Turkish cuisine",
+          "slug": "turkish-cuisine",
+          "isPrimary": true
+        },
+        {
+          "categoryId": "a11c0001-0000-4000-8000-0000000000c1",
+          "name": "Casserole",
+          "slug": "casserole",
+          "isPrimary": false
+        },
+        {
+          "categoryId": "cd27df38-8303-4626-93b5-9aa784f4765a",
+          "name": "Main course",
+          "slug": "main-course",
+          "isPrimary": false
+        }
+      ],
+      "tags": [],
+      "preparations": [
+        {
+          "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80",
+          "methodId": "2e4ba7a4-8e60-49b4-9a56-87bc6cbc675b",
+          "methodSlug": "fried-and-topped",
+          "methodName": "Fried \\& topped",
+          "steps": "Fry thinly sliced aubergine. Prepare a tomato-based meat sauce with green peppers, garlic, and onions. Combine and serve warm, typically with pilav.",
+          "durationMinutes": 90,
+          "difficulty": 3,
+          "sequenceOrder": 0
+        }
+      ],
+      "sources": [],
       "media": [],
       "coverImage": null,
       "availableLanguages": ["en"]
