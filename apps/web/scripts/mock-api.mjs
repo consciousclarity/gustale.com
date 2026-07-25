@@ -302,6 +302,31 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/dishes/:slug/journey — P1-1 journey beats (empty array if none)
+  const journeyMatch = url.pathname.match(/^\/api\/dishes\/([^/]+)\/journey$/);
+  if (journeyMatch && req.method === "GET") {
+    const slug = decodeURIComponent(journeyMatch[1]);
+    const detail = DETAILS[slug];
+    if (!detail) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: `No dish with slug "${slug}"`,
+        }),
+      );
+      return;
+    }
+    const journey = detail.journey ?? {
+      slug,
+      beats: [],
+      lineages: [],
+    };
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(journey));
+    return;
+  }
+
   // GET /api/dishes/:slug — dish detail
   const slugMatch = url.pathname.match(/^\/api\/dishes\/([^/]+)$/);
   if (slugMatch && req.method === "GET") {

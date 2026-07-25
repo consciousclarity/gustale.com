@@ -1,13 +1,17 @@
 ---
 import { DishDetail } from "../../components/DishDetail";
+import type {
+  JourneyBeat,
+  JourneyLineageLink,
+} from "../../components/DishJourney";
 import { DishMap } from "../../components/DishMap";
 import { EditDishButton } from "../../components/EditDishButton";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
-import { getDishDetail } from "../../lib/api";
+import { getDishDetail, getDishJourney } from "../../lib/api";
 import type { DishDetailResponse } from "../../types/dish";
 
-// MapLibre control + popup CSS — required by <DishMap> mounted below.
+// MapLibre control + popup CSS — required by <DishMap> and journey path map.
 // Not loaded globally (see global.css); this per-route import is paired
 // with the matching one in pages/map.astro for <WorldMap>. P2-7.
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -61,6 +65,8 @@ const { slug } = Astro.params;
 let data: DishDetailResponse | null = null;
 let notFound = false;
 let fetchError: string | null = null;
+let journeyBeats: JourneyBeat[] = [];
+let journeyLineages: JourneyLineageLink[] = [];
 
 try {
   data = await getDishDetail(slug as string);
@@ -77,6 +83,18 @@ try {
   } else {
     fetchError = err instanceof Error ? err.message : String(err);
     notFound = true; // Treat fetch failures as not-found for the user.
+  }
+}
+
+if (data) {
+  try {
+    const journey = await getDishJourney(slug as string);
+    journeyBeats = journey.beats ?? [];
+    journeyLineages = journey.lineages ?? [];
+  } catch {
+    // Journey is optional — never fail the dish page if the sub-resource errs.
+    journeyBeats = [];
+    journeyLineages = [];
   }
 }
 
@@ -102,6 +120,7 @@ const seoDescription =
   {data ? (
     <>
       {/* Media-first: full-bleed cover + editorial body lead the page.
+          Journey mounts inside DishDetail after the hero / before preparation.
           Origin map sits below so the first viewport is image + title, not a widget. */}
       <DishDetail
         dish={data.dish}
@@ -113,6 +132,8 @@ const seoDescription =
         preparations={data.preparations}
         sources={data.sources}
         media={data.media}
+        journeyBeats={journeyBeats}
+        journeyLineages={journeyLineages}
         client:load
       />
 
