@@ -64,6 +64,12 @@ jobs:
           pnpm --filter @gustale/db run typecheck
           pnpm --filter @gustale/api run typecheck
 
+      # Seed-data content gate (no DB). SEED_ALLOW_ORPHANS=1 until the
+      # dangling DISH_RELATIONS / DISH_LINEAGES cleanup pass — remove the
+      # env once SHARED_STATE orphans are fixed so orphan refs fail PRs.
+      - name: Validate seed data
+        run: SEED_ALLOW_ORPHANS=1 pnpm --filter @gustale/db run validate
+
       - name: Lint
         run: pnpm lint
         # Root `pnpm lint` runs `biome check .` (@biomejs/biome pinned in
