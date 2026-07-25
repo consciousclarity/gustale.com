@@ -8,7 +8,6 @@ import {
   jsonb,
   numeric,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   unique,
@@ -358,8 +357,8 @@ export const dishes = pgTable(
 export const dishTranslations = pgTable(
   "dish_translations",
   {
-    // Still composite PK — table has 121 seeded rows. Surrogate-id migration
-    // deferred (Directus ignores composite-PK collections until then).
+    // Surrogate PK for Directus (ADR-002 Phase 2b). Natural key retained.
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     dishId: uuid("dish_id")
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
@@ -368,7 +367,10 @@ export const dishTranslations = pgTable(
     description: text("description"),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.dishId, t.language] }),
+    naturalKey: unique("dish_translations_natural_key").on(
+      t.dishId,
+      t.language,
+    ),
   }),
 );
 
@@ -453,6 +455,7 @@ export const dishPreparations = pgTable("dish_preparations", {
 export const dishCategories = pgTable(
   "dish_categories",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     dishId: uuid("dish_id")
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
@@ -462,13 +465,17 @@ export const dishCategories = pgTable(
     isPrimary: boolean("is_primary").notNull().default(false),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.dishId, t.categoryId] }),
+    naturalKey: unique("dish_categories_natural_key").on(
+      t.dishId,
+      t.categoryId,
+    ),
   }),
 );
 
 export const dishTags = pgTable(
   "dish_tags",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     dishId: uuid("dish_id")
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
@@ -477,7 +484,7 @@ export const dishTags = pgTable(
       .references(() => tags.id, { onDelete: "cascade" }),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.dishId, t.tagId] }),
+    naturalKey: unique("dish_tags_natural_key").on(t.dishId, t.tagId),
   }),
 );
 
@@ -711,6 +718,7 @@ export type ChangedElement = (typeof changedElement)[number];
 export const dishLineages = pgTable(
   "dish_lineages",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     dishId: uuid("dish_id")
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
@@ -735,7 +743,7 @@ export const dishLineages = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.dishId, t.lineageId] }),
+    naturalKey: unique("dish_lineages_natural_key").on(t.dishId, t.lineageId),
     lineageIdx: index("dish_lineages_lineage_idx").on(t.lineageId),
     roleIdx: index("dish_lineages_role_idx").on(t.role),
   }),
@@ -895,6 +903,7 @@ export const editHistory = pgTable(
 export const watchList = pgTable(
   "watch_list",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     userId: text("user_id").notNull(),
     targetType: text("target_type").notNull(),
     targetId: uuid("target_id").notNull(),
@@ -904,7 +913,11 @@ export const watchList = pgTable(
       .defaultNow(),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.userId, t.targetType, t.targetId] }),
+    naturalKey: unique("watch_list_natural_key").on(
+      t.userId,
+      t.targetType,
+      t.targetId,
+    ),
   }),
 );
 
@@ -1172,6 +1185,7 @@ export const dishLocations = pgTable(
 export const foodRegionSources = pgTable(
   "food_region_sources",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     regionId: uuid("region_id")
       .notNull()
       .references(() => foodRegions.id, { onDelete: "cascade" }),
@@ -1180,13 +1194,17 @@ export const foodRegionSources = pgTable(
       .references(() => sources.id, { onDelete: "cascade" }),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.regionId, t.sourceId] }),
+    naturalKey: unique("food_region_sources_natural_key").on(
+      t.regionId,
+      t.sourceId,
+    ),
   }),
 );
 
 export const dishRegionSources = pgTable(
   "dish_region_sources",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     dishId: uuid("dish_id")
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
@@ -1201,9 +1219,12 @@ export const dishRegionSources = pgTable(
       .references(() => sources.id, { onDelete: "cascade" }),
   },
   (t) => ({
-    pk: primaryKey({
-      columns: [t.dishId, t.regionId, t.relationshipType, t.sourceId],
-    }),
+    naturalKey: unique("dish_region_sources_natural_key").on(
+      t.dishId,
+      t.regionId,
+      t.relationshipType,
+      t.sourceId,
+    ),
     sourceIdx: index("dish_region_sources_source_id_idx").on(t.sourceId),
   }),
 );
@@ -1211,6 +1232,7 @@ export const dishRegionSources = pgTable(
 export const dishLocationSources = pgTable(
   "dish_location_sources",
   {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
     locationId: uuid("location_id")
       .notNull()
       .references(() => dishLocations.id, { onDelete: "cascade" }),
@@ -1219,6 +1241,9 @@ export const dishLocationSources = pgTable(
       .references(() => sources.id, { onDelete: "cascade" }),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.locationId, t.sourceId] }),
+    naturalKey: unique("dish_location_sources_natural_key").on(
+      t.locationId,
+      t.sourceId,
+    ),
   }),
 );
