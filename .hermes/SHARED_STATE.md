@@ -17,6 +17,20 @@ On any new machine: work from **`origin/main`**, never an old feature-branch fol
 
 ## Last updated
 
+### Hermes (Geekom / Telegram) — 2026-07-25 (Ops run: Task 1 /journey fix + Task 2 reseed + Task 3 PR #52 deploy + Task 4 standing migration risk)
+
+**Task 1 (/journey 500): RESOLVED.** Confirmed `public.dish_journey_beats` table was missing. Backed up DB to `/home/deploy/gustale.com/backups/gustale_pre_0008_20260725T091840Z.dump` (420 KB). Applied migration `packages/db/drizzle/0008_dish_journey_beats.sql` via pipe-safe v5 heredoc. Resynced sequence `drizzle.__drizzle_migrations_id_seq` to max ID 5, then inserted the drizzle tracking row with `id = 6` (hash `f0b939149c43e9b2bb8080b7826d82739e954185fb02392330dda53fcb95542b`, `created_at` timestamp). Verified `/api/dishes/vindaloo/journey` now returns 200 with `beats: []` and `/api/dishes/gazpacho/journey` returns 200 with `beats: []`.
+
+**Task 2 (reseed): DONE.** Reset `gustale-checkout` on VPS to `origin/main` (`1d02403`) to pull `musakka-turkish` (PR #51) and the 36 journey beats. Executed seeder in a throwaway `node:22-slim` container mounting `/home/deploy/gustale-checkout` with `DATABASE_URL` piped from the `gustale-api` container env. Seeder completed with exit 0: added `musakka-turkish` (+1 dish), 12 flagship timelines (+36 beats), skipped 11 relations referencing unknown dish slugs (the current skipped-relation count for SHARED_STATE). Verified live counts: `/api/dishes/map?limit=2000` count is `121` ✓; `/api/dishes/vindaloo/journey` beats length is `3` ✓; `/api/dishes/gazpacho/journey` beats is `[]` ✓.
+
+**Task 3 (PR #52 deployment): DONE.** Investigated why PR #52 coincident-count fix wasn't live. Discovered that the push CI run `30151682679` for PR #52 (`1d02403`) was automatically cancelled on GitHub due to a newer run triggered shortly after, preventing `Deploy to Hostinger` from running. Web containers remained on the old image `4ed17c3` (pre-#52). Pushed an empty commit `10f554b` to `main` on the host to trigger a fresh CI run. Polled run `30152807522` which completed with `success`. Verified live: all 3 prod containers (api, web-recipes, web-geo) are running our new image SHA `10f554b`. Confirmed static web bundle changed from `.u5ncRzkw.js` to `.Dxdl_QZ2.js` and successfully contains the coincident-count logic (`dishes-coincident-count` and `coincidentCount`).
+
+**Task 4 (named risk): RAISED.** Documented the "Post-Deploy Migration Gap" standing risk and workaround under `## Pending User Asks` (the named risk prevents next agents from being tripped up by hand-applied DDL delays).
+
+- **⚠️ Named Risk: Post-Deploy Migration Gap** (Standing Risk & Workaround). CI deployments (`Deploy to Hostinger` workflow) build and deploy the `gustale-api` and web containers automatically, but do **not** run Drizzle database migrations. All schema migrations must be applied manually to the VPS Postgres DB. If missed, endpoints querying new tables or columns will crash with HTTP 500 errors (as observed with `/journey` after PR #49).
+  - *Current Workaround / Runbook:* After merging a PR containing migrations, connect to the VPS via SSH and apply the sql file using the pipe-safe v5 heredoc structure. Then insert the drizzle tracking row in `drizzle.__drizzle_migrations` and resync the sequence `drizzle.__drizzle_migrations_id_seq` to `max(id)`.
+  - *Mitigation:* A CI migration step requires a reviewed PR; do not attempt to automate this on the host without a code-level PR.
+
 ### Hermes (Geekom / Telegram) — 2026-07-25 (round 2: P0-4 email verification + ingredient audit + Task 2 smoke)
 
 **Task 2 (prod smoke 120): PASS.** API `/api/dishes/map?limit=2000` returns `count:120` ✓. `gustale.recipes/dishes` and `gustale.com/` both render `<b>120</b> dishes` in the rendered HTML (regex needs to be loose: `<b[^>]*>120</b>\s*dishes` because the `<b>` carries a `data-astro-cid-…` attribute, not bare text). All 60 PR #43 new dish pages return 200 on both domains (spot-checked 5: `moussaka-levant`, `baba-ganoush`, `tacos-al-pastor`, `peking-duck`, `injera`; full 60/60 sweep verified). Listing pages on `gustale.recipes/dishes` show 25 unique slugs in the first page (paginated 24 per page) — total pool is 120, all serving correctly. The `<b>120</b> dishes` band on `gustale.com/` is the only place my initial regex was too strict and caused a false negative; it's there.
@@ -147,6 +161,12 @@ The earlier 4-attempt fix-script sequence (`/tmp/fix_root_env*.sh`) had three le
 ---
 
 ## ✅ Completed this session
+
+### 2026-07-25 — PR #49 Journey Fix & Reseed & PR #52 Deploy Retrigger
+
+- **Task 1: Resolved /journey 500 error** by manually applying migration `0008_dish_journey_beats.sql` to the production DB on the VPS. Backed up before DDL to `/home/deploy/gustale.com/backups/gustale_pre_0008_20260725T091840Z.dump`. Resynced the sequence `drizzle.__drizzle_migrations_id_seq` to max `id` (5), then inserted the migration tracking row for `0008_dish_journey_beats.sql` with auto-incremented `id = 6`. Verified that `/api/dishes/vindaloo/journey` now returns 200 with an empty beats array.
+- **Task 2: Reseeded production** to 121 dishes + 36 journey beats (added `musakka-turkish` from PR #51 and journey beats for 12 flagship dishes × 3 beats). Used a throwaway `node:22-slim` container with the checkout mounted, and `DATABASE_URL` piped from the `gustale-api` container env. All 121 dishes and 36 beats are verified live and returned by the API. Skipped-relation count reported by the seeder is `11` (for unknown dish slugs in relations).
+- **Task 3: Investigated PR #52 deployment failure & redeployed.** Discovered that the push CI run `30151682679` for PR #52 (`1d02403`) was cancelled on GitHub before reaching the `Deploy to Hostinger` job (canceled by a newer run due to concurrency/consecutive pushes). As a result, the live production web containers remained on the old image `4ed17c3` (pre-#52). Triggered a fresh CI deployment on `main` by pushing an empty commit (`10f554b`) from the local repo. Polled run `30152807522`, which completed with a `success` conclusion, and verified that all 3 VPS containers are now running the new image SHA `10f554b` (Up and healthy). Confirmed that the new static bundle hash has changed to `WorldMap.Dxdl_QZ2.js` and successfully contains the `dishes-coincident-count` and `coincidentCount` code.
 
 ### 2026-07-23 — API auth divergence (incident + recipe)
 

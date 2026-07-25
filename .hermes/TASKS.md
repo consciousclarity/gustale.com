@@ -7,7 +7,7 @@
 
 ## In progress
 
-- **U0/U0-C browse usability** — `feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, PR #37 (open, draft, awaiting human review/merge). Independently verified PASS on 2026-07-24. Do not mark done until PR #37 merges.
+(none)
 
 ## Backlog (P0 — Windows handoff)
 
@@ -74,6 +74,8 @@ travel blog. Mirror IDs below; update both files when claiming work.
 - [x] **P3-5** Real linting (Biome) in CI — DONE via PR #40 (2026-07-24; non-breaking, error rules parked at warn, ratchet pending)
 
 ## Done (recent — last 10)
+
+- 2026-07-25 by Hermes Agent (Telegram) — **Ops run: Task 1 /journey fix + Task 2 reseed + Task 3 PR #52 deploy + Task 4 standing migration risk.** (1) Task 1: Applied migration `0008_dish_journey_beats.sql` manually to the prod DB, backed up before DDL to `/home/deploy/gustale.com/backups/gustale_pre_0008_20260725T091840Z.dump` (420 KB), resynced the drizzle migrations sequence to max ID 5 and inserted the `0008` tracking row with `id = 6`. Verified `/api/dishes/vindaloo/journey` returns 200 with empty beats array. (2) Task 2: Reset `gustale-checkout` to `1d02403`, reseeded production DB to 121 dishes + 36 journey beats, seeder skip-relation count is 11, verified count 121 / beats length 3. (3) Task 3: Discovered PR #52 CI run was cancelled on GitHub preventing deploy, pushed empty commit `10f554b` to re-trigger, polled run `30152807522` which completed with success, verified all 3 containers running the new image, static bundle changed to `.Dxdl_QZ2.js` containing coincident-count. (4) Task 4: Raised the named risk "Post-Deploy Migration Gap" in SHARED_STATE.md and documented the workaround runbook.
 
 - 2026-07-25 by Hermes Agent (Telegram) — **Round 2: P0-4 email verification (code half) + Task 2 prod smoke + Task 3 ingredient audit.** (1) P0-4 code: `apps/api/src/auth.ts` flipped two booleans (`requireEmailVerification` + `sendOnSignUp`) to `!!env.RESEND_API_KEY` (gated, dev-unchanged) + added `sendVerificationEmail` callback that mirrors the existing magicLink Resend fallback. Branch `fix/p0-4-email-verification` @ `ee096aa` (rooted on `a32501f`), `tsc --noEmit` + biome clean. Env ops (DNS verify + API key + container recreate + smoke) are user-side, blocked on Resend domain verification at the registrar. (2) Task 2 prod smoke after PR #46/#48 merged: API returns 120 dishes ✓, web renders `<b>120</b> dishes` on both domains ✓ (regex needs `<b[^>]*>120</b>\s*dishes` not bare `<b>120</b>`), 5/5 spot-checked new dish pages return 200, full 60/60 sweep of PR #43 new pages all 200. (3) Task 3 ingredient audit (quantification only): 4 distinct `/ingredients/<slug>` links exist across all 120 dish pages (all from the moussaka seed fixture); 119/120 dishes have zero ingredient links. DB: `ingredients`=5 rows, `dish_ingredients`=4 rows. food_geography tables: only `food_regions` + `food_region_sources` exist in the schema (both empty); the 4 other tables named in the handoff don't exist — surface as a finding, not a bug. P1-2 (ingredient origins) jumps the queue.
 
