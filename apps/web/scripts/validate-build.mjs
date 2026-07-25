@@ -34,7 +34,7 @@ import {
   seeAllDishesHref,
 } from "./search-nav-helpers.mjs";
 
-const DIST = new URL("../dist/", import.meta.url).pathname;
+const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 const API_BASE = process.env.PUBLIC_API_BASE ?? "";
 

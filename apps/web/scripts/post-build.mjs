@@ -48,8 +48,9 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DIST = new URL("../dist/", import.meta.url).pathname;
+const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 
 // Floor: we have 31 seeded dishes. Anything <20 is almost certainly

@@ -16,6 +16,13 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 // and lets us defer the WebGL dependency until the user actually sees
 // the map.
 import { getMapDishes, type MapDish } from "../lib/api";
+import {
+  allShareSameCoordKey,
+  coordKey,
+  countCoincidentByCoord,
+  dedupeDishesBySlug,
+  expandToCoincidentStack,
+} from "../lib/mapCoincident";
 
 export interface WorldMapProps {
   dishes: MapDish[];
@@ -266,7 +273,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
 
         mapRef.current = mapInstance;
 
-        const coincidentByCoord = countCoincident(effectiveDishes);
+        const coincidentByCoord = countCoincidentByCoord(effectiveDishes);
         const featureCollection: GeoJSON.FeatureCollection = {
           type: "FeatureCollection",
           features: effectiveDishes.map((d) => {
@@ -488,23 +495,15 @@ export function WorldMap({ dishes }: WorldMapProps) {
               properties?: Record<string, unknown> | null;
             }>,
           ): MapDish[] => {
-            const bySlug = new Map<string, MapDish>();
+            const hit: MapDish[] = [];
             for (const f of features) {
               if (f.properties?.point_count) continue;
               const slug = f.properties?.slug as string | undefined;
-              if (!slug || bySlug.has(slug)) continue;
+              if (!slug) continue;
               const dish = effectiveDishes.find((d) => d.slug === slug);
-              if (dish) bySlug.set(slug, dish);
+              if (dish) hit.push(dish);
             }
-            const hit = [...bySlug.values()];
-            if (hit.length === 0) return hit;
-            const sample = hit[0];
-            if (!sample) return hit;
-            const key = coordKey(sample.lat, sample.lng);
-            const stack = effectiveDishes.filter(
-              (d) => coordKey(d.lat, d.lng) === key,
-            );
-            return stack.length > 1 ? stack : hit;
+            return expandToCoincidentStack(hit, effectiveDishes);
           };
 
           const onMove = (e: MapMouseEvent): void => {
@@ -553,30 +552,26 @@ export function WorldMap({ dishes }: WorldMapProps) {
               source
                 .getClusterLeaves(clusterId, 50, 0)
                 .then((leaves) => {
-                  const leafDishes: MapDish[] = [];
-                  for (const leaf of leaves) {
-                    const slug = leaf.properties?.slug as string | undefined;
-                    if (!slug) continue;
-                    const dish = effectiveDishes.find((d) => d.slug === slug);
-                    if (dish) leafDishes.push(dish);
-                  }
-                  if (leafDishes.length > 1) {
-                    const sample = leafDishes[0];
-                    if (sample) {
-                      const key0 = coordKey(sample.lat, sample.lng);
-                      const allSame = leafDishes.every(
-                        (d) => coordKey(d.lat, d.lng) === key0,
-                      );
-                      if (allSame && leafDishes.length === leaves.length) {
-                        setTooltip(null);
-                        setStackPopup({
-                          x: e.point.x,
-                          y: e.point.y,
-                          dishes: leafDishes,
-                        });
-                        return;
-                      }
-                    }
+                  const leafDishes = dedupeDishesBySlug(
+                    leaves.flatMap((leaf) => {
+                      const slug = leaf.properties?.slug as string | undefined;
+                      if (!slug) return [];
+                      const dish = effectiveDishes.find((d) => d.slug === slug);
+                      return dish ? [dish] : [];
+                    }),
+                  );
+                  if (
+                    leafDishes.length > 1 &&
+                    leafDishes.length === leaves.length &&
+                    allShareSameCoordKey(leafDishes)
+                  ) {
+                    setTooltip(null);
+                    setStackPopup({
+                      x: e.point.x,
+                      y: e.point.y,
+                      dishes: leafDishes,
+                    });
+                    return;
                   }
                   return source
                     .getClusterExpansionZoom(clusterId)
@@ -848,20 +843,6 @@ function TooltipBody({ dishes }: { dishes: MapDish[] }) {
       {more}
     </div>
   );
-}
-
-function coordKey(lat: number, lng: number): string {
-  // Match exact shared centroids as stored (API returns ~4 decimal places).
-  return `${lng.toFixed(4)},${lat.toFixed(4)}`;
-}
-
-function countCoincident(dishes: MapDish[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const d of dishes) {
-    const k = coordKey(d.lat, d.lng);
-    counts.set(k, (counts.get(k) ?? 0) + 1);
-  }
-  return counts;
 }
 
 function truncateOnWord(text: string, max: number): string {

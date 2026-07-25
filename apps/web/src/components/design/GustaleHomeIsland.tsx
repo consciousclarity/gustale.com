@@ -12,12 +12,28 @@ import type {
   GeoJSONSource,
   MapMouseEvent,
   Map as MlMap,
+  PointLike,
   StyleSpecification,
 } from "maplibre-gl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { MapDish } from "../../lib/api";
 import { getMapDishes, listAllDishes } from "../../lib/api";
 import { authoringHref } from "../../lib/domain";
+import {
+  allShareSameCoordKey,
+  coordKey,
+  countCoincidentByCoord,
+  dedupeDishesBySlug,
+  expandToCoincidentStack,
+  parseCoord,
+} from "../../lib/mapCoincident";
 import type { DishSummary } from "../../types/dish";
 import type { FoodRegionFeature } from "../../types/map";
 
@@ -51,10 +67,9 @@ function mergeDishes(list: DishSummary[], map: MapDish[]): AtlasDish[] {
   const mapBySlug = new Map(map.map((m) => [m.slug, m]));
   return list.map((d) => {
     const m = mapBySlug.get(d.slug);
-    const lat =
-      typeof m?.lat === "number" && Number.isFinite(m.lat) ? m.lat : null;
-    const lng =
-      typeof m?.lng === "number" && Number.isFinite(m.lng) ? m.lng : null;
+    // parseCoord treats 0 as valid; strings from JSON are coerced.
+    const lat = parseCoord(m?.lat);
+    const lng = parseCoord(m?.lng);
     return {
       slug: d.slug,
       name: d.canonicalName,
@@ -114,22 +129,53 @@ const MAP_STYLE: StyleSpecification = {
   ],
 };
 
+/** Keep clusters through city zooms (same rationale as WorldMap). */
+const ATLAS_CLUSTER_MAX_ZOOM = 11;
+
+const ATLAS_HIT_LAYERS = [
+  "atlas-dot",
+  "atlas-halo",
+  "atlas-clusters",
+  "atlas-coincident-count",
+] as const;
+
 function toFeatureCollection(dishes: AtlasDish[]): GeoJSON.FeatureCollection {
+  const located = dishes.filter(
+    (d): d is AtlasDish & { lat: number; lng: number } =>
+      d.lat !== null && d.lng !== null,
+  );
+  const coincidentByCoord = countCoincidentByCoord(located);
   return {
     type: "FeatureCollection",
-    features: dishes.map((d) => ({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [d.lng as number, d.lat as number],
-      },
-      properties: {
-        slug: d.slug,
-        name: d.name,
-        country: d.country,
-        family: d.family,
-      },
-    })),
+    features: located.map((d) => {
+      const key = coordKey(d.lat, d.lng);
+      return {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [d.lng, d.lat],
+        },
+        properties: {
+          slug: d.slug,
+          name: d.name,
+          country: d.country,
+          family: d.family,
+          coincidentCount: coincidentByCoord.get(key) ?? 1,
+        },
+      };
+    }),
+  };
+}
+
+function clampAtlasPopupStyle(
+  x: number,
+  y: number,
+): { left: string; top: string; transform: string; maxWidth: string } {
+  return {
+    left: `clamp(8px, ${x}px, calc(100% - 8px))`,
+    top: `clamp(8px, ${y}px, calc(100% - 8px))`,
+    transform: "translate(-50%, calc(-100% - 12px))",
+    maxWidth: "min(300px, calc(100% - 16px))",
   };
 }
 
@@ -148,6 +194,10 @@ interface AtlasViewProps {
 function AtlasView({ dishes, showRegions }: AtlasViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
+  const plottedRef = useRef<AtlasDish[]>([]);
+  const stackPopupRef = useRef<HTMLDivElement | null>(null);
+  const popupListRef = useRef<HTMLUListElement | null>(null);
+  const popupId = useId();
   // True once the GeoJSON source/layers exist — gates marker updates.
   const [styleLoaded, setStyleLoaded] = useState(false);
   // True once the dynamic import resolves (hides the loading hint).
@@ -156,9 +206,15 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
   // load failure). Triggers the list-only fallback instead of a blank box.
   const [mapError, setMapError] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
+  const [stackPopup, setStackPopup] = useState<{
+    x: number;
+    y: number;
+    dishes: AtlasDish[];
+  } | null>(null);
 
   // Dishes with usable coordinates — the only ones that can be plotted.
   const plotted = useMemo(() => dishes.filter((d) => d.hasLocation), [dishes]);
+  plottedRef.current = plotted;
 
   // Sidebar: every filtered dish grouped by origin country (not just the
   // plotted ones — the list is useful even without coords).
@@ -249,17 +305,28 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
             data: { type: "FeatureCollection", features: [] },
             cluster: true,
             clusterRadius: 34,
-            clusterMaxZoom: 6,
+            clusterMaxZoom: ATLAS_CLUSTER_MAX_ZOOM,
+            generateId: true,
           });
 
-          // Soft halo behind each individual dot.
+          // Soft halo behind each individual dot (scales with stack size).
           mapInstance.addLayer({
             id: "atlas-halo",
             type: "circle",
             source: "atlas",
             filter: ["!", ["has", "point_count"]],
             paint: {
-              "circle-radius": 11,
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["get", "coincidentCount"],
+                1,
+                11,
+                4,
+                14,
+                8,
+                18,
+              ],
               "circle-color": accent,
               "circle-opacity": 0.2,
             },
@@ -272,11 +339,40 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
             source: "atlas",
             filter: ["!", ["has", "point_count"]],
             paint: {
-              "circle-radius": 5.5,
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["get", "coincidentCount"],
+                1,
+                5.5,
+                4,
+                7,
+                8,
+                9,
+              ],
               "circle-color": accent,
               "circle-stroke-color": "#ffffff",
               "circle-stroke-width": 1.5,
             },
+          });
+
+          // Count label on coincident (unclustered) points.
+          mapInstance.addLayer({
+            id: "atlas-coincident-count",
+            type: "symbol",
+            source: "atlas",
+            filter: [
+              "all",
+              ["!", ["has", "point_count"]],
+              [">", ["get", "coincidentCount"], 1],
+            ],
+            layout: {
+              "text-field": ["to-string", ["get", "coincidentCount"]],
+              "text-size": 10,
+              "text-allow-overlap": true,
+              "text-ignore-placement": true,
+            },
+            paint: { "text-color": "#ffffff" },
           });
 
           // Cluster bubbles + counts.
@@ -313,36 +409,110 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
             paint: { "text-color": "#ffffff" },
           });
 
-          // Click a dot → open the dish. Click a cluster → zoom in.
-          const onDotClick = (
-            e: MapMouseEvent & { features?: GeoJSON.Feature[] },
-          ): void => {
-            const slug = e.features?.[0]?.properties?.slug as
-              | string
-              | undefined;
-            if (slug) window.location.href = `/dishes/${slug}`;
-          };
-          const onClusterClick = (
-            e: MapMouseEvent & { features?: GeoJSON.Feature[] },
-          ): void => {
-            const f = e.features?.[0];
-            const clusterId = f?.properties?.cluster_id as number | undefined;
-            if (clusterId == null) return;
-            const src = mapInstance.getSource("atlas") as GeoJSONSource;
-            src
-              .getClusterExpansionZoom(clusterId)
-              .then((zoom) => {
-                const coords = (f!.geometry as GeoJSON.Point).coordinates as [
-                  number,
-                  number,
-                ];
-                mapInstance.easeTo({ center: coords, zoom, duration: 500 });
-              })
-              .catch(() => undefined);
+          const hitFeatures = (point: PointLike) => {
+            const existing = ATLAS_HIT_LAYERS.filter((id) =>
+              mapInstance.getLayer(id),
+            );
+            if (existing.length === 0) return [];
+            return mapInstance.queryRenderedFeatures(point, {
+              layers: [...existing],
+            });
           };
 
-          for (const layer of ["atlas-dot", "atlas-halo"]) {
-            mapInstance.on("click", layer, onDotClick);
+          const dishesFromFeatures = (
+            features: Array<{ properties?: Record<string, unknown> | null }>,
+          ): AtlasDish[] => {
+            const current = plottedRef.current;
+            const located = current.filter(
+              (d): d is AtlasDish & { lat: number; lng: number } =>
+                d.lat !== null && d.lng !== null,
+            );
+            const hit: Array<AtlasDish & { lat: number; lng: number }> = [];
+            for (const f of features) {
+              if (f.properties?.point_count) continue;
+              const slug = f.properties?.slug as string | undefined;
+              if (!slug) continue;
+              const dish = located.find((d) => d.slug === slug);
+              if (dish) hit.push(dish);
+            }
+            return expandToCoincidentStack(hit, located);
+          };
+
+          const openDish = (slug: string): void => {
+            window.location.href = `/dishes/${slug}`;
+          };
+
+          const onMapClick = (e: MapMouseEvent): void => {
+            const features = hitFeatures(e.point);
+            if (features.length === 0) {
+              setStackPopup(null);
+              return;
+            }
+
+            const cluster = features.find((f) => f.properties?.cluster);
+            if (cluster?.properties?.cluster) {
+              const clusterId = cluster.properties.cluster_id as number;
+              const src = mapInstance.getSource("atlas") as GeoJSONSource;
+              src
+                .getClusterLeaves(clusterId, 80, 0)
+                .then((leaves) => {
+                  const current = plottedRef.current;
+                  const leafDishes = dedupeDishesBySlug(
+                    leaves.flatMap((leaf) => {
+                      const slug = leaf.properties?.slug as string | undefined;
+                      if (!slug) return [];
+                      const dish = current.find((d) => d.slug === slug);
+                      return dish ? [dish] : [];
+                    }),
+                  );
+                  const locatedLeaves = leafDishes.filter(
+                    (d): d is AtlasDish & { lat: number; lng: number } =>
+                      d.lat !== null && d.lng !== null,
+                  );
+                  // Pure coincident cluster: zooming never separates markers.
+                  if (
+                    locatedLeaves.length > 1 &&
+                    locatedLeaves.length === leafDishes.length &&
+                    allShareSameCoordKey(locatedLeaves)
+                  ) {
+                    setStackPopup({
+                      x: e.point.x,
+                      y: e.point.y,
+                      dishes: locatedLeaves,
+                    });
+                    return;
+                  }
+                  return src.getClusterExpansionZoom(clusterId).then((zoom) => {
+                    const coords = (cluster.geometry as GeoJSON.Point)
+                      .coordinates as [number, number];
+                    mapInstance.easeTo({
+                      center: coords,
+                      zoom,
+                      duration: 500,
+                    });
+                  });
+                })
+                .catch(() => undefined);
+              return;
+            }
+
+            const hitDishes = dishesFromFeatures(features);
+            if (hitDishes.length === 0) return;
+            if (hitDishes.length === 1) {
+              const only = hitDishes[0];
+              if (only?.slug) openDish(only.slug);
+              return;
+            }
+            setStackPopup({
+              x: e.point.x,
+              y: e.point.y,
+              dishes: hitDishes,
+            });
+          };
+
+          mapInstance.on("click", onMapClick);
+          mapInstance.on("movestart", () => setStackPopup(null));
+          for (const layer of ATLAS_HIT_LAYERS) {
             mapInstance.on("mouseenter", layer, () => {
               mapInstance.getCanvas().style.cursor = "pointer";
             });
@@ -350,13 +520,6 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
               mapInstance.getCanvas().style.cursor = "";
             });
           }
-          mapInstance.on("click", "atlas-clusters", onClusterClick);
-          mapInstance.on("mouseenter", "atlas-clusters", () => {
-            mapInstance.getCanvas().style.cursor = "pointer";
-          });
-          mapInstance.on("mouseleave", "atlas-clusters", () => {
-            mapInstance.getCanvas().style.cursor = "";
-          });
 
           // Promote the basemap to a 3D globe. setProjection() is the
           // MapLibre 5.x entry point — the constructor's `projection`
@@ -490,6 +653,40 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
     );
   }, [showRegions]);
 
+  // Close disambiguation popup on Escape / outside click.
+  useEffect(() => {
+    if (!stackPopup) return;
+    const onKey = (ev: KeyboardEvent): void => {
+      if (ev.key === "Escape") setStackPopup(null);
+    };
+    const onPointer = (ev: MouseEvent): void => {
+      const root = stackPopupRef.current;
+      if (root && !root.contains(ev.target as Node)) {
+        setStackPopup(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    // Defer so the opening click does not immediately dismiss.
+    const t = window.setTimeout(() => {
+      document.addEventListener("mousedown", onPointer);
+    }, 0);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [stackPopup]);
+
+  useEffect(() => {
+    if (!stackPopup) return;
+    const first = popupListRef.current?.querySelector("a");
+    first?.focus();
+  }, [stackPopup]);
+
+  const stackHeading =
+    stackPopup &&
+    `${stackPopup.dishes.length} dish${stackPopup.dishes.length === 1 ? "" : "es"} at this location`;
+
   return (
     <div className="atl-grid">
       <div className="atl-map">
@@ -508,6 +705,55 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
           )}
           {mapError && (
             <div className="atl-mapmsg atl-mapmsg--err">{mapError}</div>
+          )}
+          {stackPopup && (
+            <div
+              ref={stackPopupRef}
+              className="wm-stack-popup atl-stack-popup"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={popupId}
+              style={{
+                position: "absolute",
+                zIndex: 2,
+                ...clampAtlasPopupStyle(stackPopup.x, stackPopup.y),
+              }}
+            >
+              <div className="wm-stack-popup__header">
+                <p id={popupId} className="wm-stack-popup__heading">
+                  {stackHeading}
+                </p>
+                <button
+                  type="button"
+                  className="wm-stack-popup__close"
+                  aria-label="Close dish list"
+                  onClick={() => setStackPopup(null)}
+                >
+                  Close
+                </button>
+              </div>
+              <ul ref={popupListRef} className="wm-stack-popup__list">
+                {stackPopup.dishes
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((d) => (
+                    <li key={d.slug}>
+                      <a
+                        href={`/dishes/${d.slug}`}
+                        className="wm-stack-popup__link"
+                      >
+                        <span className="wm-stack-popup__name">{d.name}</span>
+                        {(d.family || d.country) && (
+                          <span className="wm-stack-popup__region">
+                            {[d.family, d.country].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+              </ul>
+              <p className="wm-stack-popup__hint">Esc to close</p>
+            </div>
           )}
         </div>
         <div className="atl-maplabel">
