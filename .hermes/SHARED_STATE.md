@@ -6,6 +6,12 @@
 
 ## Last updated
 
+2026-07-25 by Hermes (Macmini / WhatsApp) — 60 AI-generated dish images shipped
+via GitHub Release `dish-images-2026-07-25` (99.4 MB zip). Bulk-uploader
+script in PR #57 (branch `feat/content-copy-2026-07-24`). Geekbot can
+run `gh release download` + `scripts/upload-dish-images.py` to attach as
+cover images.
+
 2026-06-24 by Claude (Cowork) — CI web build blocker fixed: mock API server inside Dockerfile replaces the unreachable production API during Astro SSG.
 
 ## Current status
