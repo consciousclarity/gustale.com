@@ -11,6 +11,8 @@
 
 ## Done (recent — last 10)
 
+- 2026-07-25 by Hermes Agent (Telegram) — **Ops run: Google Drive GFS Backups & Verified Restore.** (1) Task 1: Deployed `backup.py` and `setup_gdrive.py` scripts on VPS with 7d/4w/3m Grandfather-Father-Son retention, automated checksum verification, and logging. Daily systemd timer/service `gustale-backup.timer` triggers at `01:00:00 UTC` with random jitter and persistence. All database backups are GPG-encrypted (AES-256) and immediately cleaned up from the VPS host filesystem after upload. MinIO public and private buckets are streamed directly over the network to Google Drive (`gustale_backups/media/`) with zero VPS host disk footprint! (2) Task 2: Authorized rclone with Google Drive via OAuth token. Performed a full offsite restore loop (downloading the encrypted `.gpg` from Google Drive, decrypting via GPG with our passphrase, and running `pg_restore` into a fresh `gustale_restore_test` database) which completed and verified 100% in exactly **38.65 seconds**! Row counts and PostGIS geography coordinates verified side-by-side. Test DB dropped. (3) Task 3: Provided SPOF offsite Google Drive storage setup and disaster recovery audit. Deployed standalone `.hermes/RECOVERY_RUNBOOK.md` and updated `.hermes/SHARED_STATE.md`.
+
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
 - 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
