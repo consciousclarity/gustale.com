@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -116,7 +117,11 @@ export async function buildServer(): Promise<FastifyInstance> {
   return app;
 }
 
-const isMain = import.meta.url === `file://${process.argv[1]}`;
+// pathToFileURL normalizes Windows paths (D:\... → file:///D:/...) so this
+// check works on both macOS/Linux and Windows.
+const isMain =
+  process.argv[1] != null &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   buildServer()
     .then((app) => app.listen({ host: env.HOST, port: env.PORT }))

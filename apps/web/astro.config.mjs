@@ -10,5 +10,16 @@ export default defineConfig({
 
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      // Client islands fetch same-origin `/api/*`. In prod, Caddy proxies
+      // that to the API. In local `astro dev` there is no Caddy — forward
+      // to the Fastify process on :4000 so the homepage/list islands work.
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:4000",
+          changeOrigin: true,
+        },
+      },
+    },
   },
 });
