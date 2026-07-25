@@ -1,120 +1,170 @@
-# Gustale — Disaster Recovery Runbook (Post-ADR-002)
+# Gustale — Recovery Runbook
 
-This document is the authoritative, step-by-step recovery guide for Gustale. It outlines the exact sequence required to rebuild the entire system, decrypt backups, and restore both database and media assets directly from your **Google Drive** offsite backups in the event of a catastrophic VPS or host loss.
+## Targets
 
----
+- **RPO:** 24 hours 15 minutes. Backup runs daily at `01:00 UTC` with up to 15 minutes jitter.
+- **Verified offsite DB restore:** 15.453 seconds on 2026-07-25 for download, decrypt, checksum, restore, and row-count validation.
+- **Realistic complete-VPS RTO:** 60–90 minutes, including VPS provisioning, DNS, container pulls, secrets, database restore, media restore, and smoke tests.
+- **Unrecoverable:** writes and uploads after the last successful daily backup; external secrets not held in the recovery vault; DNS/registrar access if those credentials are unavailable.
 
-## 📊 Core Recovery Metrics
+## Required recovery material
 
-| Metric | Target Value | Verification Date | Note |
-|---|---|---|---|
-| **RPO** (Recovery Point Objective) | **24 hours** | 2026-07-25 | Maximum worst-case data loss window, governed by the daily backup schedule. |
-| **RTO** (Recovery Time Objective) — Database Only | **1.54 seconds** | 2026-07-25 | Measured restore time including GPG decryption and `pg_restore` into a fresh DB. |
-| **RTO** (Recovery Time Objective) — System Rebuild | **~45 minutes** | 2026-07-25 | Projected end-to-end time: VPS provisioning, DNS update, git clone, decryption, GDrive sync, and smoke tests. |
+1. Obtain GitHub access to `consciousclarity/gustale.com`.
+2. Obtain Google Drive account access for the rclone remote.
+3. Obtain the backup key from `/home/alex/.local/share/gustale/backup-key` on the Geekom recovery host.
+4. Obtain the rclone config from the encrypted credential vault, or re-authorize `gdrive:` and recreate `gdrive-crypt:` with the same backup-key-derived password.
+5. Obtain production application secrets for `/root/.env` and `/home/deploy/gustale.com/.env`.
 
----
+## Complete VPS loss
 
-## ⚠️ What is Unrecoverable?
-Any transactional DB writes (user registrations, session cookies, review logs, edit history) or media files uploaded *between* the last daily backup and the point of complete host failure are **permanently lost** (up to a maximum of 24 hours of data, matching our RPO).
+1. Provision Ubuntu 24.04 and point `gustale.com`, `gustale.recipes`, `api.gustale.com`, and `api.gustale.recipes` to the new IP.
 
----
+2. Install packages and create the deployment user and deployment directory:
 
-## 🛠️ Step-by-Step Restoration Procedure
+```bash
+apt-get update
+apt-get install -y docker.io docker-compose-v2 git gnupg rclone jq
+useradd -m -s /bin/bash hermes || true
+usermod -aG docker hermes
+install -d -m 0755 -o hermes -g hermes /home/deploy
+```
 
-### Phase 1 — Infrastructure & DNS Provisioning
-1. **Provision a New VPS:** Spin up a clean Ubuntu 24.04 LTS instance at Hostinger (or alternative provider).
-2. **Assign Static IP:** Update your DNS records at your registrar to point `gustale.com`, `gustale.recipes`, and `api.gustale.recipes` to the new VPS static IP address.
-3. **Install Host-Level Packages:** Install Docker, Docker Compose, GnuPG, and Rclone:
-   ```bash
-   sudo apt-get update
-   sudo apt-get install -y docker.io docker-compose gnupg rclone
-   ```
+3. Clone the repository:
 
-### Phase 2 — Clone & Configure Environment
-1. **Clone the Git Monorepo:** Clone the code to the target directory:
-   ```bash
-   mkdir -p /home/deploy
-   cd /home/deploy
-   git clone https://github.com/consciousclarity/gustale.com.git
-   chown -R hermes:hermes /home/deploy/gustale.com
-   ```
-2. **Recreate Secrets (.env & backup-key):**
-   * Recreate `/root/.env` and `/home/deploy/gustale.com/.env` containing identical variables (`DATABASE_URL`, better-auth secrets, and Resend key).
-   * **Crucial:** Retrieve the symmetric backup encryption key from your secure offsite credential vault and write it to `/home/deploy/gustale.com/.backup-key` (mode 0600) and `/root/.backup-key` (mode 0600).
-   * *A backup you cannot decrypt is not a backup. Never lose the encryption key.*
+```bash
+sudo -u hermes git clone https://github.com/consciousclarity/gustale.com.git /home/deploy/gustale.com
+cd /home/deploy/gustale.com
+git checkout main
+git pull --ff-only origin main
+```
 
-### Phase 3 — Download & Decrypt Database Backup
-1. **Authorize Google Drive on the New VPS:**
-   If the VPS is lost, you will need to re-authorize Rclone to access your Google Drive. 
-   * Run `rclone authorize "drive"` on your personal computer to get a fresh JSON token.
-   * On the VPS, run the setup script:
-     ```bash
-     /home/deploy/gustale.com/backups/setup_gdrive.py '<your_pasted_json_token_blob>'
-     ```
-2. **Download the Latest DB Backup:**
-   List and find the latest `.dump.gpg` encrypted archive on your Google Drive, then pull it down:
-   ```bash
-   # List remote backups in Google Drive
-   rclone lsf gdrive:gustale_backups/db/
-   
-   # Download the latest GPG-encrypted dump
-   rclone copyto gdrive:gustale_backups/db/gustale_backup_<latest_timestamp>.dump.gpg /tmp/latest_backup.dump.gpg
-   ```
-3. **Decrypt the Backup File:**
-   Decrypt the archive using GnuPG with the secure passphrase:
-   ```bash
-   gpg --decrypt --batch --yes --passphrase-file /home/deploy/gustale.com/.backup-key -o /tmp/latest_backup.dump /tmp/latest_backup.dump.gpg
-   ```
+4. Restore both environment files. Confirm all keys shared by the two files match:
 
-### Phase 4 — Launch & Restore Database
-1. **Start Database and Storage Containers:**
-   Launch the Postgres and MinIO containers in detached mode:
-   ```bash
-   cd /home/deploy/gustale.com/infra/prod/
-   docker compose up -d shared-postgres shared-minio
-   ```
-2. **Recreate Blank Database:**
-   Create the target database `gustale` inside the `shared-postgres` container:
-   ```bash
-   docker exec -u postgres shared-postgres psql -U postgres -d postgres -c "CREATE DATABASE gustale;"
-   ```
-3. **Restore Postgres Schema & Data:**
-   Pipe the decrypted dump directly into `pg_restore`:
-   ```bash
-   docker exec -i shared-postgres pg_restore -U postgres -d gustale < /tmp/latest_backup.dump
-   ```
+```bash
+install -m 0600 -o root -g root /secure/recovery/root.env /root/.env
+install -m 0600 -o hermes -g hermes /secure/recovery/deploy.env /home/deploy/gustale.com/.env
+python3 - <<'PY'
+from pathlib import Path
+def read(path):
+    out={}
+    for raw in Path(path).read_text().splitlines():
+        line=raw.strip()
+        if line and not line.startswith('#') and '=' in line:
+            key,value=line.split('=',1); out[key]=value
+    return out
+root=read('/root/.env'); deploy=read('/home/deploy/gustale.com/.env')
+for key in sorted(root.keys() & deploy.keys()):
+    assert root[key] == deploy[key], f'env drift: {key}'
+print('shared env keys match')
+PY
+```
 
-### Phase 5 — Restore MinIO Object Storage
-1. **Sync Backups back to Local MinIO:**
-   Pull all media buckets (`gustale-public` and `gustale-media`) from your Google Drive back to your local container volume:
-   ```bash
-   # Configure local MinIO client env
-   export RCLONE_CONFIG_MINIO_TYPE=s3
-   export RCLONE_CONFIG_MINIO_PROVIDER=Minio
-   export RCLONE_CONFIG_MINIO_ENV_AUTH=false
-   export RCLONE_CONFIG_MINIO_ACCESS_KEY_ID=minio_admin
-   export RCLONE_CONFIG_MINIO_SECRET_ACCESS_KEY=<MinIO_Root_Password>
-   export RCLONE_CONFIG_MINIO_ENDPOINT=http://127.0.0.1:9000
-   export RCLONE_CONFIG_MINIO_ACL=private
-   
-   # Sync Google Drive offsite mirror back to local container S3 API
-   rclone sync gdrive:gustale_backups/media/ minio: --quiet
-   ```
+5. Restore the encryption key to both required locations:
 
-### Phase 6 — Launch Application & Verify
-1. **Start Main Application Containers:**
-   Launch the Fastify API and Astro/Nginx web containers:
-   ```bash
-   cd /home/deploy/gustale.com/infra/prod/
-   docker compose up -d gustale-api gustale-web-recipes gustale-web-geo
-   ```
-2. **Perform Smoke Verification Checks:**
-   Verify that all public and database-touching routes return healthy HTTP 200 responses:
-   ```bash
-   # Check API health
-   curl -sI https://api.gustale.recipes/health | head -1
-   # Check DB data touch
-   curl -s https://api.gustale.recipes/api/dishes/vindaloo/journey | jq '.beats | length' # Expect 3
-   # Check Web frontend
-   curl -sI https://gustale.com/ | head -1
-   ```
+```bash
+install -m 0600 -o root -g root /secure/recovery/backup-key /root/.backup-key
+install -m 0600 -o hermes -g hermes /secure/recovery/backup-key /home/deploy/gustale.com/.backup-key
+sha256sum /root/.backup-key /home/deploy/gustale.com/.backup-key
+```
+
+6. Re-authorize Google Drive as `hermes` on a browser-capable machine. Restore the encrypted-vault copy of `rclone.conf`, or recreate both remotes with the same key:
+
+```bash
+rclone authorize drive
+install -d -m 0700 -o hermes -g hermes /home/hermes/.config/rclone
+install -m 0600 -o hermes -g hermes /secure/recovery/rclone.conf /home/hermes/.config/rclone/rclone.conf
+# If rclone.conf is unavailable, configure gdrive: from the authorization token,
+# then recreate gdrive-crypt: using an obscured form of the recovered backup key:
+OBSCURED=$(sudo -u hermes rclone obscure "$(cat /home/deploy/gustale.com/.backup-key)")
+sudo -u hermes rclone config create gdrive-crypt crypt \
+  remote gdrive:gustale_backups/encrypted \
+  filename_encryption standard directory_name_encryption true \
+  password "$OBSCURED" password2 ""
+unset OBSCURED
+sudo -u hermes rclone lsd gdrive:
+sudo -u hermes rclone lsd gdrive-crypt:
+```
+
+7. Start PostgreSQL and MinIO using the production deployment definition:
+
+```bash
+cd /home/deploy/gustale.com
+# Use the current infra/prod deployment command documented on main.
+docker compose -f infra/prod/docker-compose.yml up -d shared-postgres shared-minio
+until docker exec shared-postgres pg_isready -U postgres; do sleep 2; done
+```
+
+8. Download and decrypt the latest database dump:
+
+```bash
+install -d -m 0700 /tmp/gustale-restore
+LATEST=$(sudo -u hermes rclone lsf gdrive-crypt:db --files-only \
+  | grep -E 'gustale_backup_[0-9]{8}T[0-9]{6}Z\.dump\.gpg$' | sort | tail -1)
+sudo -u hermes rclone copyto "gdrive-crypt:db/$LATEST" "/tmp/gustale-restore/$LATEST"
+sudo -u hermes rclone copyto \
+  "gdrive-crypt:db/${LATEST/.dump.gpg/.dump.sha256}" \
+  "/tmp/gustale-restore/${LATEST/.dump.gpg/.dump.sha256}"
+gpg --decrypt --batch --yes --passphrase-file /root/.backup-key \
+  -o /tmp/gustale-restore/gustale.dump "/tmp/gustale-restore/$LATEST"
+EXPECTED=$(awk '{print $1}' "/tmp/gustale-restore/${LATEST/.dump.gpg/.dump.sha256}")
+ACTUAL=$(sha256sum /tmp/gustale-restore/gustale.dump | awk '{print $1}')
+test "$EXPECTED" = "$ACTUAL"
+```
+
+9. Restore the whole database:
+
+```bash
+docker exec -u postgres shared-postgres psql -U postgres -d postgres \
+  -c 'DROP DATABASE IF EXISTS gustale WITH (FORCE);'
+docker exec -u postgres shared-postgres psql -U postgres -d postgres \
+  -c 'CREATE DATABASE gustale;'
+docker exec -i -u postgres shared-postgres pg_restore -U postgres -d gustale \
+  --no-owner --no-privileges < /tmp/gustale-restore/gustale.dump
+docker exec -u postgres shared-postgres psql -U postgres -d gustale -At \
+  -c "SELECT count(*) FROM pg_tables WHERE schemaname='public';"
+```
+
+10. Configure MinIO credentials without printing them and restore both buckets:
+
+```bash
+set -a
+. /home/deploy/gustale.com/.env
+set +a
+export RCLONE_CONFIG_MINIO_TYPE=s3
+export RCLONE_CONFIG_MINIO_PROVIDER=Minio
+export RCLONE_CONFIG_MINIO_ENV_AUTH=false
+export RCLONE_CONFIG_MINIO_ACCESS_KEY_ID="$MINIO_ACCESS_KEY"
+export RCLONE_CONFIG_MINIO_SECRET_ACCESS_KEY="$MINIO_SECRET_KEY"
+export RCLONE_CONFIG_MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
+rclone sync gdrive-crypt:media/gustale-public minio:gustale-public --check-first
+rclone sync gdrive-crypt:media/gustale-media minio:gustale-media --check-first
+rclone check gdrive-crypt:media/gustale-public minio:gustale-public --one-way
+rclone check gdrive-crypt:media/gustale-media minio:gustale-media --one-way
+unset MINIO_ACCESS_KEY MINIO_SECRET_KEY
+```
+
+11. Start the application with the production deployment method from current `main`:
+
+```bash
+cd /home/deploy/gustale.com
+# Prefer the current CI/container launch commands; do not invent image tags.
+git show origin/main:.github/workflows/ci.yml | less
+```
+
+12. Verify production:
+
+```bash
+curl -fsS https://api.gustale.recipes/health
+curl -fsS 'https://api.gustale.recipes/api/dishes?limit=100' | jq '.dishes | length'
+curl -fsS 'https://api.gustale.recipes/api/dishes/map?limit=2000' | jq '.dishes | length, .count'
+curl -fsSI https://gustale.com/ | head -1
+curl -fsSI https://gustale.recipes/ | head -1
+```
+
+13. Reinstall and enable `/home/deploy/gustale.com/backups/backup.py`, `gustale-backup.service`, and `gustale-backup.timer`; trigger one backup and repeat the throwaway restore drill.
+
+14. Remove plaintext restore artifacts:
+
+```bash
+rm -rf /tmp/gustale-restore
+```
