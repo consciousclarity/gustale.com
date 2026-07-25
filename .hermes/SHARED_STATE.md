@@ -1,15 +1,32 @@
 # Gustale — Shared State
 
-> **Read this first.** This file is the source of truth for project state,
-> decisions, and blockers across all AI assistants working on this repo.
-> Both Hermes Agent (Telegram) and Claude Code (terminal) write to it.
+> **Read this first.** Source of truth across Cursor (implementer), Claude Code
+> (orchestrator), and Hermes (ops). Sync via `private/state`.
 
 ## Last updated
 
+<<<<<<< Updated upstream
 ### CC - 2026-07-24  (Claude Code, terminal)
+=======
+2026-07-25 by Cursor (Windows) — **agent roster reset** after machine move.
+Canonical Windows repo: `D:\gustale` on `main` (`3f2ef0b`). Local DB seeded
+to **120** dishes. Production API still returns **~60** — Hermes needs prod
+`pnpm db:seed` + web rebuild. See `CLAUDE.md` for the three-role model.
+
+## Agent roster
+
+| Role | Agent | Machine |
+|------|-------|---------|
+| Implementer | Cursor | Windows — `D:\gustale` |
+| Orchestrator | Claude Code (not Codex at the same time) | Active session / Geekom as configured |
+| Ops / deploy | Hermes | Geekom → Hostinger |
+
+Cursor does not hold Hostinger SSH. Hermes owns deploy + prod seed + live smoke.
+>>>>>>> Stashed changes
 
 **CI hardening merged + deployed to prod; nightly fix blocked; SiteHeader decided.** `origin/main` is now `8f52282`. Landed and **deployed to prod** today (all via green CI incl. Deploy to Hostinger; prod verified healthy — gustale.com 200, gustale.recipes 200, `api.gustale.recipes/health` 200):
 
+<<<<<<< Updated upstream
 - **#38** `fix(ci): remove invalid pnpm cache from Docker jobs` — the `build`/`build-web` Docker jobs set `cache: pnpm` on setup-node but never run a host-side `pnpm install`, so post-job cache cleanup failed (`Path Validation Error`). Removed from those two jobs only; lint/test keep it.
 - **#37** `feat(web): U0-C browse/list usability` — merged (it had been draft; the #38 run finally got it to prod).
 - **#41** `chore: gitignore build outs` — adds `dist-recipes/` + `graphify-out/` to `.gitignore`. Nothing else.
@@ -22,6 +39,13 @@
 ---
 
 ### AL - 2026-07-24
+=======
+✅ Local Windows setup on latest `main` with 120-dish seed.
+⚠️ Prod catalog lagging (~60). Code for 120 is on `main` (#43); DB seed on VPS pending Hermes.
+📦 Uncommitted local fixes on Windows (ready for PR): Windows `isMain` boot fix,
+homepage `listAllDishes` paging past API limit 100, Astro `/api` → `:4000` proxy,
+`infra/local/docker-compose.yml`.
+>>>>>>> Stashed changes
 
 **State-only sync (no main or feature branch touched).** U0 + U0-C milestone reached today — U0 PRs #33 (Greptile dish-media cleanup), #34 (U0 trust: domain routing + family SSG + Atlas→Recipes CTAs), #35 (custom HTTP 404 from nginx), and #36 (U0 navigation + search) all **merged into `origin/main`** between 2026-07-23 11:31Z and 15:19Z. **U0-C browse/list usability** sits at PR #37 (`feat/u0c-browse-usability` @ `2ea9df95f95e67b35bfba2a97b4728f434a286db`, open, **draft**), independently verified **PASS** on 2026-07-24 with these totals:
 
