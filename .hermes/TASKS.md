@@ -11,6 +11,18 @@
 
 ## Done (recent — last 10)
 
+- 2026-07-25: **Generated 60 dish images via Gemini 2.5 Flash + shipped
+  bulk-uploader script.** Hermes (Macmini / WhatsApp) generated ~97 MB of
+  AI-generated food photography (60 PNGs, one per dish in
+  `packages/db/src/seed-data.ts`) using Gemini 2.5 Flash via
+  `gemini-2.5-flash-image:generateContent`. Per-dish prompts combined
+  cuisine hint + dish type + visual specifications. Shipped
+  `scripts/upload-dish-images.py` (dry-run by default, resume-safe,
+  CSV manifest) on branch `feat/content-copy-2026-07-24`,
+  awaiting PR. Image source attribution: `credit="AI-generated
+  (Gemini 2.5 Flash)"`, `license="CC-BY-SA-4.0"`. No auth used
+  locally — script is for Geekbot or user to run with Gustale
+  credentials. — Hermes (Macmini / WhatsApp)
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
 - 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
