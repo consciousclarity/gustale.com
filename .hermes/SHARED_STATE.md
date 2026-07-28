@@ -6,6 +6,12 @@
 
 ## Last updated
 
+2026-07-25 by Hermes (Macmini / WhatsApp) — Added AI-slop detector
+(`scripts/detect-ai-slop.py`). Initial scan of 60 dishes: 0 HIGH,
+16 MEDIUM (all `triple-adjective stacks` false-positive — heuristic
+is sensitive), 44 CLEAN. Inspired by Vusal Ismayilov's video on
+ASD-STE100 quality control.
+
 2026-07-25 by Hermes (Macmini / WhatsApp) — 60 AI-generated dish images shipped
 via GitHub Release `dish-images-2026-07-25` (99.4 MB zip). Bulk-uploader
 script in PR #57 (branch `feat/content-copy-2026-07-24`). Geekbot can
