@@ -23,4 +23,4 @@ Alejandro is the owner/decision-maker and is consulted only for the items in RUL
 | Media | shared-minio 127.0.0.1:9000 |
 | Env/secrets | /home/deploy/gustale.com/.env, .db-password, .backup-key (never print) |
 | Backups | gustale-backup.timer → /home/deploy/gustale.com/backups/backup.py |
-| Old checkout | /home/deploy/gustale-checkout — stale (feat/terracotta-design-pass @ 8ebeb73). Read-only reference; do not deploy from it. |
+| Old checkout | /home/deploy/gustale-checkout — stale (was `feat/terracotta-design-pass` @ `8ebeb73`, no longer on this VPS as a git object). Read-only reference; do not deploy from it. May still exist on GEEKOM (D:\gustale) or Mac — owner to check. |
