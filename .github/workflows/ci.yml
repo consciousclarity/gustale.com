@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    # Docs-only changes (markdown + .hermes/) don't change the API, web, or db
+    # code — skip the entire pipeline so they don't burn CI minutes on a
+    # no-op build + redeploy. The `git add -f` trick for .hermes/* keeps
+    # those files committed, so `**/*.md` is the matcher that covers them.
+    paths-ignore:
+      - '.hermes/**'
+      - '**/*.md'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '.hermes/**'
+      - '**/*.md'
 
 # Grant the GITHUB_TOKEN permissions to write to ghcr.io
 permissions:
