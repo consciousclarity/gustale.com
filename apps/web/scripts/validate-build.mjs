@@ -37,6 +37,12 @@ import {
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 const API_BASE = process.env.PUBLIC_API_BASE ?? "";
+// When the build uses real API data (not the in-container mock), the
+// pagination fixture family doesn't exist, so the fixture-specific
+// validations should be skipped. Set BUILD_DATA_SOURCE=mock in CI to
+// keep them on.
+const DATA_SOURCE = process.env.BUILD_DATA_SOURCE ?? "mock";
+const SKIP_MOCK_FIXTURES = DATA_SOURCE !== "mock";
 
 // Minimum distinct filter chips a taxonomy page must expose. Below this a page
 // has almost certainly collapsed to "All"/"Other" (the bug this guards).
@@ -264,11 +270,17 @@ check(
 );
 
 const lateFamilyPath = `${DIST}family/${LATE_PAGE_FAMILY_SLUG}/index.html`;
-check(
-  "/family/late-page-family/ exists (pagination fixture)",
-  await exists(lateFamilyPath),
-  lateFamilyPath,
-);
+if (SKIP_MOCK_FIXTURES) {
+  console.warn(
+    "[validate-build] BUILD_DATA_SOURCE != mock — skipping late-page-family fixture checks (live API does not have this fixture family)",
+  );
+} else {
+  check(
+    "/family/late-page-family/ exists (pagination fixture)",
+    await exists(lateFamilyPath),
+    lateFamilyPath,
+  );
+}
 
 // ─── 10. Domain identity baked at Astro render (PUBLIC_DOMAIN) ─────────────
 const homeHtml = await read(`${DIST}index.html`);
@@ -383,7 +395,16 @@ if (DOMAIN === "geo") {
 // Requires PUBLIC_API_BASE (set during CI/local mock builds). Proves a family
 // that only appears after offset>=100 is discovered by offset paging, and that
 // limit>100 is clamped (never silently omit post-first-page families).
-if (API_BASE) {
+//
+// Skipped entirely when BUILD_DATA_SOURCE != mock: the live API has 121
+// published dishes, no `late-page-family` fixture, and honors no
+// `X-Gustale-Fixture` header. The CI/local build is still gated on this
+// check.
+if (SKIP_MOCK_FIXTURES) {
+  console.warn(
+    "[validate-build] BUILD_DATA_SOURCE != mock — skipping live pagination fixture checks",
+  );
+} else if (API_BASE) {
   try {
     const fixtureFetch = (url, init = {}) =>
       fetch(url, {

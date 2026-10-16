@@ -54,6 +54,21 @@ ARG PUBLIC_API_BASE=https://api.gustale.recipes
 ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
+# BUILD_DATA_SOURCE controls where the build gets its data.
+#   mock  (default) — start an in-container mock on :8742 from the
+#                     committed seed. Used by GHA, which cannot reach
+#                     the VPS due to firewall rules.
+#   live           — fetch from a real API at PUBLIC_API_BASE. Used
+#                     when building on the VPS itself (where the API
+#                     is reachable on 127.0.0.1:4000). Skips the mock
+#                     and the wait-for-mock step, so the build is
+#                     faster and the static pages reflect the live
+#                     data (newly-published dishes, updated
+#                     longDescriptions, etc.) instead of the snapshot
+#                     in mock-api-data.json.
+ARG BUILD_DATA_SOURCE=mock
+ENV BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE}
+
 # Now copy the rest of the source. This layer's cache key is the full
 # monorepo tree, so it (and everything below) invalidates on every commit.
 COPY . .
@@ -81,17 +96,28 @@ RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 # unchanged, so the production runtime image has no trace of the
 # mock URL.
 
-# Use the right build script per domain.
-#   recipes → build:recipes  (drops /map)
-#   geo     → build:geo      (drops /ingredients, edit/new; keeps /dishes list)
-RUN node apps/web/scripts/mock-api.mjs --port 8742 & \
-    MOCK_PID=$!; \
-    trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \
-    node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742; \
-    if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
-      PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:geo; \
+# Build step. Branches on BUILD_DATA_SOURCE:
+#   mock → start an in-container mock on :8742, wait for it, build
+#   live → trust PUBLIC_API_BASE (the caller chose it; must be reachable
+#          on the build host), wait for its /health, build
+# In both cases the same pnpm build:recipes / build:geo script runs.
+RUN if [ "$BUILD_DATA_SOURCE" = "live" ]; then \
+      node apps/web/scripts/wait-for-api.mjs "$PUBLIC_API_BASE" && \
+      if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
+        pnpm --filter @gustale/web run build:geo; \
+      else \
+        pnpm --filter @gustale/web run build:recipes; \
+      fi; \
     else \
-      PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:recipes; \
+      node apps/web/scripts/mock-api.mjs --port 8742 & \
+      MOCK_PID=$!; \
+      trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \
+      node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742; \
+      if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
+        PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:geo; \
+      else \
+        PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:recipes; \
+      fi; \
     fi
 
 # ---------- Stage 2: runtime ----------
