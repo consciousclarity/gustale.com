@@ -7,10 +7,18 @@
 
 ## In progress
 
-(none right now — check Backlog)
+- 2026-10-16: **Content image plan (T4 follow-up).** Recommendation: auto-cover from Wikipedia/Wikimedia for 95/121 dishes, AI-generate covers for the rest, region/family covers, gallery for top-50 by view count. Awaiting Alejandro's pick of which to start with. — Hermes
 
 ## Done (recent — last 10)
 
+- 2026-10-16: **Backup test-restore proven.** Pulled `gustale_backup_20261016T010943Z.dump.gpg` from offsite, decrypted, sha256 verified, restored into throwaway postgis container, 121/121 published-dish match with live API. Offsite backup confirmed restorable. — Hermes
+- 2026-10-16: **SSG build data source evaluation (T3).** Compared (1) build on VPS against local API vs (2) CI pulls token-protected snapshot. Recommended option 2. Awaiting Alejandro's pick. — Hermes
+- 2026-10-16: **Content audit (T4).** 121 published dishes, 36 origins, 14 lineages, 62 family-tags. Coverage gap: 0/121 have longDescription; 1/121 (Moussaka) has coverImage/media/ingredients/variants; 121/121 have 1 Wikipedia source. Image + content plan in `.hermes/REPORTS/2026-10-16-content-audit.md`. — Hermes
+- 2026-10-16: **Round 3 branch triage.** 7 merged branches deleted after archive-tag (1 was already gone); 14 archive tags pushed for unmerged/abandoned branches. 19 total archive tags on origin. — Hermes
+- 2026-10-16: **5 wrongly-deleted branches recovered.** archive/feat-nav-editorial, archive/fix-homepage-island-hydration, archive/cursor-dev-environment-setup-e34b, archive/feat-content-pass-2026-07-24, archive/spike-directus-evaluation — all pushed to origin and verified. — Hermes
+- 2026-10-16: **R1+R2 branch deletions (30 total).** Done via API; includes 3 ancestors-of-main, 2 superseded investigations, 25 trivial squash-merged. — Hermes
+- 2026-10-16: **PR #62: `ci(workflow): skip CI for docs-only changes`.** Added `paths-ignore: [.hermes/**, '**/*.md']` to both push and pull_request triggers. Docs-only PRs no longer trigger Docker build + deploy. Verified after merge: pure-doc push to main triggers zero CI jobs. — Hermes
+- 2026-10-16: **PR #61: `chore/initial-hermes-state`** (charter, rules, status). Merged at 2026-10-16T14:13:43Z, all CI green including Deploy to Hostinger. Live image advanced to `073d7f9` then `fcf76a5` (PR #62). — Hermes
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
 - 2026-06-23: Merged PR #1 (`feat/maplibre-per-dish` → `main`). All
