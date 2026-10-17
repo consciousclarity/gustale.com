@@ -17,7 +17,7 @@
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "lint": "biome check .",
+    "lint": "biome check --max-diagnostics none --no-errors-on-unmatched .",
     "test": "pnpm -r run test",
     "db:generate": "pnpm --filter @gustale/db run generate",
     "db:migrate": "pnpm --filter @gustale/db run migrate",
