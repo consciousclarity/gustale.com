@@ -1,0 +1,17 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "gado-gado, Indonesian salad. The defining visual: a generous pool of thick, warm peanut sauce (from ground roasted peanuts, palm sugar, tamarind, chili, garlic, lime) poured liberally over a composed mound of blanched and steamed vegetables — long beans, bean sprouts, cabbage, spinach, water spinach (kangkung), cassava leaves, bitter melon, eggplant, tofu, tempeh, and compressed rice cakes (lontong). On the side: krupuk (Indonesian shrimp crackers) standing up like a fan, a wedge of boiled egg or two, a spoonful of sambal, a slice of lime. On authentic Indonesian ceramic or a banana leaf, on a teak wood table. Natural window light from the left, soft shadow on the right. 3/4 angle, shallow depth of field, magazine editorial food photography. Photorealistic. No text. No logos. No people. No hands. No cutlery distortion. No fusion garnishes like micro-herbs or edible flowers. No melted or floating objects. No white china plate. Realistic portion, single serving.",
+  "seed": null,
+  "width": 2048,
+  "height": 1536,
+  "files": [
+    "gado-gado-1.jpg",
+    "gado-gado-2.jpg",
+    "gado-gado-3.jpg",
+    "gado-gado-4.jpg"
+  ],
+  "trace_id": "072287ef0ca5be0c446f9f5ff7bce214",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T10:59:58+00:00"
+}
