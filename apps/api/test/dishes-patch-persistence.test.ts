@@ -23,12 +23,16 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { db as originalDb, dishes as dishesTbl, editHistory as editHistoryTbl } from "@gustale/db";
 import * as schemaModule from "@gustale/db";
+import {
+  dishes as dishesTbl,
+  editHistory as editHistoryTbl,
+  db as originalDb,
+} from "@gustale/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
 import type { FastifyInstance } from "fastify";
+import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as authModule from "../src/auth.js";
 import { buildServer } from "../src/server.js";
@@ -106,7 +110,8 @@ afterAll(async () => {
   const cleanupClient = postgres(url, { max: 2, idle_timeout: 5 });
   const cleanupSchema = Object.fromEntries(
     Object.entries(schemaModule).filter(
-      ([, v]) => v && typeof v === "object" && Symbol.for("drizzle:BaseName") in v,
+      ([, v]) =>
+        v && typeof v === "object" && Symbol.for("drizzle:BaseName") in v,
     ),
   );
   const cleanupDb = drizzle(cleanupClient, { schema: cleanupSchema });
@@ -119,9 +124,7 @@ afterAll(async () => {
           inArray(editHistory.targetId, cleanupDishIds),
         ),
       );
-    await cleanupDb
-      .delete(dishes)
-      .where(inArray(dishes.id, cleanupDishIds));
+    await cleanupDb.delete(dishes).where(inArray(dishes.id, cleanupDishIds));
   }
   await app.close();
   await cleanupClient.end();
@@ -211,7 +214,10 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     expect(probe.length).toBe(1);
 
     const reloaded = await freshDbModule.db
-      .select({ longDescription: dishes.longDescription, editCount: dishes.editCount })
+      .select({
+        longDescription: dishes.longDescription,
+        editCount: dishes.editCount,
+      })
       .from(dishes)
       .where(eq(dishes.id, created.id))
       .limit(1);
