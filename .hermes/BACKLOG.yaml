@@ -35,7 +35,11 @@ tasks:
     depends_on: [GUS-001]
     approval: false
     notes: "Previously investigated 2026-10-17 and NOT reproduced. Close only with evidence: a contract test that PATCHes, restarts gustale-api, re-reads."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    acceptance:
+      - "Contract test exists at apps/api/test/dishes-patch-persistence.test.ts"
+      - "Test PATCHes a draft, simulates a full API restart (close app + end pg pool, build fresh client + fresh app), and asserts the PATCHed value + edit_history survive"
+      - "Test passes in CI"
+    status: in_progress
     evidence: []
   - id: GUS-003
     title: "Add database transaction safety. Ensure related changes are committed atomically, especially changes involving dishes, sources, regions, and lineages"
