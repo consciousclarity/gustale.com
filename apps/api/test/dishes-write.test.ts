@@ -18,6 +18,9 @@
  *   - POST /api/dishes/:slug/publish moderator can transition draft → published
  */
 
+import { randomUUID } from "node:crypto";
+import { db, dishes, editHistory } from "@gustale/db";
+import { and, eq, inArray } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as authModule from "../src/auth.js";
@@ -80,13 +83,29 @@ function asAnonymous(): void {
   mockGetSession.mockResolvedValue(null as never);
 }
 
+function uniqueSlug(prefix: string): string {
+  return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
 let app: FastifyInstance;
+const createdDishIds: string[] = [];
 
 beforeAll(async () => {
   app = await buildServer();
 });
 
 afterAll(async () => {
+  if (createdDishIds.length > 0) {
+    await db
+      .delete(editHistory)
+      .where(
+        and(
+          eq(editHistory.targetType, "dish"),
+          inArray(editHistory.targetId, createdDishIds),
+        ),
+      );
+    await db.delete(dishes).where(inArray(dishes.id, createdDishIds));
+  }
   await app.close();
   mockGetSession.mockRestore();
 });
@@ -166,6 +185,138 @@ describe("POST /api/dishes/:slug/publish — RBAC", () => {
     // Already published → 409, not 403 (RBAC passed, state check failed)
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe("already_published");
+  });
+});
+
+describe("POST /api/dishes — draft lifecycle", () => {
+  it("contributor creates a draft and moderator publishes it", async () => {
+    asContributor();
+    const slug = uniqueSlug("test-write");
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/dishes",
+      payload: {
+        canonicalName: "Test Write Dish",
+        slug,
+        shortDescription: "Temporary dish for the Phase 7c write-flow test.",
+      },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const created = createRes.json().dish as {
+      id: string;
+      slug: string;
+      status: string;
+    };
+    createdDishIds.push(created.id);
+    expect(created).toMatchObject({ slug, status: "draft" });
+
+    asContributor();
+    const forbidden = await app.inject({
+      method: "POST",
+      url: `/api/dishes/${slug}/publish`,
+      payload: { comment: "contributor cannot publish" },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.json().error).toBe("forbidden");
+
+    asModerator();
+    const published = await app.inject({
+      method: "POST",
+      url: `/api/dishes/${slug}/publish`,
+      payload: { comment: "approved in test" },
+    });
+    expect(published.statusCode).toBe(200);
+    expect(published.json().dish).toMatchObject({
+      id: created.id,
+      slug,
+      status: "published",
+    });
+  });
+});
+
+describe("PATCH /api/dishes/:slug — persistence and audit diff", () => {
+  it("persists the patch and returns the field diff", async () => {
+    asContributor();
+    const slug = uniqueSlug("test-patch");
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/dishes",
+      payload: { canonicalName: "Test Patch Dish", slug },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const created = createRes.json().dish as { id: string; slug: string };
+    createdDishIds.push(created.id);
+
+    const longDescription =
+      "A persisted long description from the Phase 7c write-flow test.";
+    asContributor();
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: `/api/dishes/${slug}`,
+      payload: { longDescription, comment: "phase 7c test patch" },
+    });
+    expect(patchRes.statusCode).toBe(200);
+    const patchBody = patchRes.json() as {
+      dish: { editCount: number };
+      diff: Record<string, { from: unknown; to: unknown }>;
+    };
+    expect(patchBody.dish.editCount).toBe(1);
+    expect(patchBody.diff.longDescription).toEqual({
+      from: null,
+      to: longDescription,
+    });
+
+    const rows = await db
+      .select({
+        longDescription: dishes.longDescription,
+        editCount: dishes.editCount,
+        lastEditedBy: dishes.lastEditedBy,
+      })
+      .from(dishes)
+      .where(eq(dishes.id, created.id))
+      .limit(1);
+    expect(rows[0]).toMatchObject({
+      longDescription,
+      editCount: 1,
+      lastEditedBy: CONTRIBUTOR.id,
+    });
+
+    const history = await db
+      .select({
+        action: editHistory.action,
+        diff: editHistory.diff,
+        comment: editHistory.comment,
+      })
+      .from(editHistory)
+      .where(
+        and(
+          eq(editHistory.targetType, "dish"),
+          eq(editHistory.targetId, created.id),
+        ),
+      );
+    expect(history.map((row) => row.action)).toEqual(
+      expect.arrayContaining(["create", "update"]),
+    );
+    const update = history.find((row) => row.action === "update");
+    expect(update?.comment).toBe("phase 7c test patch");
+    const updateDiff = update?.diff as
+      | Record<string, { from: unknown; to: unknown }>
+      | undefined;
+    expect(updateDiff?.longDescription).toEqual({
+      from: null,
+      to: longDescription,
+    });
+  });
+
+  it("returns 403 when a contributor edits a published dish", async () => {
+    asContributor();
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/dishes/moussaka-greek",
+      payload: { shortDescription: "contributor should not edit published" },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("forbidden");
   });
 });
 
