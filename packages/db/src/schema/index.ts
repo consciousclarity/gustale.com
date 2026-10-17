@@ -1000,6 +1000,24 @@ export const media = pgTable("media", {
   altText: text("alt_text"),
   credit: text("credit"),
   license: text("license"),
+  /**
+   * Pre-rendered derivative variants for fast delivery.
+   *
+   * JSONB shape: `{"<width>": "<storageKey>"}`, e.g.
+   *   `{"800": "dishes/foo/cover-800w.webp", "1536": "dishes/foo/cover-1536w.webp"}`
+   *
+   * The width string keys are nominal ("800", "1536") and used directly as
+   * `<img srcset>` width descriptors by the front-end. Values are storage
+   * keys in the `gustale-public` bucket (or `gustale-media` for pre-migration
+   * rows — the route that resolves them does the bucket lookup).
+   *
+   * Rows without variants fall back to the `storageKey` field, which
+   * represents the original (typically the master JPG).
+   */
+  variants: jsonb("variants")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   uploadedBy: text("uploaded_by"),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true })
     .notNull()

@@ -303,6 +303,68 @@ export async function removeObject(
   }
 }
 
+/**
+ * Server-side copy of an object between buckets (or between keys
+ * in the same bucket). Used by the migration that moves
+ * newly-published media from the private `gustale-media` bucket
+ * (where the upload route puts them) to the public `gustale-public`
+ * bucket (where Caddy serves them at `/media/*`).
+ */
+export async function copyObject(
+  sourceBucket: string,
+  sourceKey: string,
+  destBucket: string,
+  destKey: string,
+): Promise<void> {
+  const client = getClient();
+  try {
+    // MinIO S3 CopyObject takes a fully-qualified source path
+    // (`/bucket/key`). Newer minio SDK versions accept the same
+    // shape via the ConditionSource / sources object too, but
+    // the path-string form is the most stable.
+    const sourcePath = `/${sourceBucket}/${sourceKey}`;
+    await client.copyObject(destBucket, destKey, sourcePath);
+  } catch (err) {
+    throw new MediaStorageError(
+      "copy_failed",
+      `Could not copy ${sourceBucket}/${sourceKey} → ${destBucket}/${destKey}`,
+      err,
+    );
+  }
+}
+
+/**
+ * Set the `gustale-public` bucket policy to allow anonymous GET
+ * (and HEAD) on every object. Idempotent — safe to call on every
+ * API boot. The Caddy proxy enforces the actual public surface
+ * via `/media/*`; this policy is belt-and-suspenders (it lets
+ * direct MinIO URLs work for previews, debugging, and any future
+ * CDN).
+ */
+export async function ensurePublicBucketPolicy(): Promise<void> {
+  const client = getClient();
+  const policy = {
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Effect: "Allow",
+        Principal: { AWS: ["*"] },
+        Action: ["s3:GetObject"],
+        Resource: [`arn:aws:s3:::${PUBLIC_BUCKET}/*`],
+      },
+    ],
+  };
+  try {
+    await client.setBucketPolicy(PUBLIC_BUCKET, JSON.stringify(policy));
+  } catch (err) {
+    throw new MediaStorageError(
+      "policy_failed",
+      `Could not set bucket policy on ${PUBLIC_BUCKET}`,
+      err,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Key generation
 // ---------------------------------------------------------------------------

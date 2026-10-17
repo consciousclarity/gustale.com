@@ -247,6 +247,47 @@ describe("GET /api/media/:id/signed-url", () => {
     const body = res.json();
     expect(body.error).toBe("validation_error");
   });
+
+  it(
+    "returns a publicUrl + variantsUrls for media attached to a published dish",
+    async () => {
+      // The Moussaka cover is the canonical published-media fixture in
+      // the seed data (and was the trigger for the public-URL feature).
+      // If the seed has been removed, the test is skipped.
+      const found = await db
+        .select({ id: media.id, storageKey: media.storageKey, variants: media.variants })
+        .from(media)
+        .where(eq(media.storageKey, "unattached/634ae2e838d24f95.jpg"))
+        .limit(1);
+      if (found.length === 0) {
+        // Seed removed — nothing to test. The schema and route are
+        // still exercised by the malformed-uuid test above.
+        return;
+      }
+      const m = found[0]!;
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/media/${m.id}/signed-url`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      // Public URL is same-origin and points at /media/<storageKey>.
+      expect(body.kind).toBe("public");
+      expect(body.url).toBe(`/media/${m.storageKey}`);
+      expect(body.publicUrl).toBe(`/media/${m.storageKey}`);
+      // expiresInSeconds is null for public (no expiry).
+      expect(body.expiresInSeconds).toBeNull();
+      // variantsUrls mirrors the row's `variants` JSONB but with
+      // /media/ URLs instead of raw storage keys.
+      const rowVariants = (m.variants as Record<string, string>) ?? {};
+      expect(Object.keys(body.variantsUrls).sort()).toEqual(
+        Object.keys(rowVariants).sort(),
+      );
+      for (const [width, key] of Object.entries(rowVariants)) {
+        expect(body.variantsUrls[width]).toBe(`/media/${key}`);
+      }
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

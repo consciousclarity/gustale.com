@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { ApiError, getMediaSignedUrl } from "../lib/api";
+import { useState } from "react";
 import type { DishMediaAttachment } from "../types/dish";
 
 export interface DishGalleryProps {
@@ -14,7 +13,12 @@ export interface DishGalleryProps {
 
 /**
  * Secondary gallery. Hero lives in DishCoverHero — exclude that mediaId here.
- * Empty / loading cells use a quiet placeholder — never "Loading cover…".
+ *
+ * Build-time render: the API bakes the same-origin public URL into
+ * each media row (`publicUrl` + `variantsUrls`), so the gallery paints
+ * real `<img srcset>` tags directly from the static HTML. No
+ * `useEffect` fetch, no client-side spinner, no broken `<img>` on
+ * first paint.
  */
 export function DishGallery({
   media,
@@ -24,47 +28,7 @@ export function DishGallery({
     .filter((m) => m.mediaId !== excludeMediaId)
     .sort((a, b) => a.position - b.position);
 
-  const [galleryUrls, setGalleryUrls] = useState<Record<string, string>>({});
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<DishMediaAttachment | null>(null);
-
-  useEffect(() => {
-    if (gallery.length === 0) return;
-
-    let cancelled = false;
-
-    async function load() {
-      const errors: string[] = [];
-      const galleryResults = await Promise.allSettled(
-        gallery.map(async (m) => {
-          const res = await getMediaSignedUrl(m.mediaId);
-          return { id: m.mediaId, url: res.url };
-        }),
-      );
-      if (cancelled) return;
-      const next: Record<string, string> = {};
-      for (const r of galleryResults) {
-        if (r.status === "fulfilled") next[r.value.id] = r.value.url;
-        else errors.push(`gallery: ${errorMessage(r.reason)}`);
-      }
-      setGalleryUrls(next);
-      if (errors.length > 0) {
-        setLoadError(
-          errors.length === gallery.length
-            ? "Could not load gallery images. Check your connection and try again."
-            : `Some images failed to load (${errors.length}/${gallery.length}).`,
-        );
-      } else {
-        setLoadError(null);
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(gallery.map((m) => m.mediaId))]);
 
   if (gallery.length === 0) return null;
 
@@ -75,29 +39,37 @@ export function DishGallery({
           <h2 id="media-heading">Gallery</h2>
         </div>
 
-        {loadError && (
-          <div role="status" className="dish-gallery__banner">
-            {loadError}
-          </div>
-        )}
-
         <ul className="dish-gallery__grid">
           {gallery.map((m) => {
-            const url = galleryUrls[m.mediaId];
+            const src = m.publicUrl;
+            const srcSet = buildSrcSet(m.variantsUrls);
+            // The gallery uses small thumbnails; the 800w is the
+            // natural size for the grid cell. Sizes hint picks the
+            // 800w for both 1x and 2x displays.
+            const sizes =
+              srcSet !== undefined
+                ? "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                : undefined;
+            const alt = m.altText ?? "Gallery image";
             return (
               <li key={m.attachmentId}>
                 <button
                   type="button"
                   className="dish-gallery__thumb"
                   onClick={() => setLightbox(m)}
-                  aria-label={`Open larger view${m.altText ? `: ${m.altText}` : ""}`}
+                  aria-label={`Open larger view${alt ? `: ${alt}` : ""}`}
                 >
-                  {url ? (
+                  {src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={url}
-                      alt={m.altText ?? "Gallery image"}
+                      src={src}
+                      srcSet={srcSet}
+                      sizes={sizes}
+                      alt={alt}
                       loading="lazy"
                       decoding="async"
+                      {...(m.width ? { width: m.width } : {})}
+                      {...(m.height ? { height: m.height } : {})}
                     />
                   ) : (
                     <span className="dish-gallery__ph" aria-hidden="true" />
@@ -113,44 +85,102 @@ export function DishGallery({
         </p>
       </section>
 
-      {lightbox &&
-        (() => {
-          const url = galleryUrls[lightbox.mediaId];
-          return (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label={`Full-size view of ${lightbox.altText ?? "image"}`}
-              className="dish-gallery__lightbox"
-              onClick={() => setLightbox(null)}
-            >
-              <button
-                type="button"
-                className="dish-gallery__lightbox-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightbox(null);
-                }}
-                aria-label="Close image"
+      {lightbox
+        ? (() => {
+            const src = lightbox.publicUrl;
+            const srcSet = buildSrcSet(lightbox.variantsUrls);
+            // Lightbox uses the largest variant by default; the
+            // browser picks the 1536w on most viewports.
+            const lightboxSrc = pickLargest(lightbox.variantsUrls) ?? src;
+            const alt = lightbox.altText ?? "Full-size image";
+            return (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Full-size view of ${alt}`}
+                className="dish-gallery__lightbox"
+                onClick={() => setLightbox(null)}
               >
-                Close
-              </button>
-              {url && (
-                <img
-                  src={url}
-                  alt={lightbox.altText ?? "Full-size image"}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
-            </div>
-          );
-        })()}
+                <button
+                  type="button"
+                  className="dish-gallery__lightbox-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightbox(null);
+                  }}
+                  aria-label="Close image"
+                >
+                  Close
+                </button>
+                {lightboxSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={lightboxSrc}
+                    srcSet={srcSet}
+                    alt={alt}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : null}
+                {(lightbox.credit || lightbox.license) && (
+                  <figcaption className="dish-gallery__lightbox-credit">
+                    {lightbox.credit && <span>{lightbox.credit}</span>}
+                    {lightbox.credit && lightbox.license && (
+                      <span aria-hidden="true"> · </span>
+                    )}
+                    {lightbox.license && (
+                      <span className="dish-gallery__lightbox-license">
+                        {lightbox.license}
+                      </span>
+                    )}
+                  </figcaption>
+                )}
+              </div>
+            );
+          })()
+        : null}
     </>
   );
 }
 
-function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) return `${err.status} ${err.message}`;
-  if (err instanceof Error) return err.message;
-  return "unknown";
+/**
+ * Build an `<img srcset>` string from a `{width: publicUrl}` map.
+ * See DishCoverHero for the same logic — kept local to avoid a
+ * cross-component helper that would need a shared `lib/img.ts` file
+ * for a 6-line function.
+ */
+function buildSrcSet(
+  variantsUrls: Record<string, string> | undefined,
+): string | undefined {
+  if (!variantsUrls) return undefined;
+  const entries: string[] = [];
+  for (const [width, url] of Object.entries(variantsUrls)) {
+    if (typeof url === "string" && url.length > 0) {
+      entries.push(`${url} ${width}w`);
+    }
+  }
+  if (entries.length === 0) return undefined;
+  return entries.join(", ");
+}
+
+/**
+ * Pick the largest variant by numeric width key. Returns the URL.
+ *
+ * Used for the lightbox, which should show the biggest version
+ * (1536w typically). Falls back to the publicUrl if there are no
+ * variants.
+ */
+function pickLargest(
+  variantsUrls: Record<string, string> | undefined,
+): string | undefined {
+  if (!variantsUrls) return undefined;
+  let best: { width: number; url: string } | undefined;
+  for (const [w, url] of Object.entries(variantsUrls)) {
+    if (typeof url !== "string" || url.length === 0) continue;
+    const n = Number(w);
+    if (!Number.isFinite(n)) continue;
+    if (!best || n > best.width) {
+      best = { width: n, url };
+    }
+  }
+  return best?.url;
 }

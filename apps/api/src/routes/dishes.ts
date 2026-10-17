@@ -37,6 +37,7 @@ import {
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { httpError } from "../errors.js";
+import { mediaPublicUrl } from "./media.js";
 
 const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
@@ -547,6 +548,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         altText: media.altText,
         credit: media.credit,
         license: media.license,
+        variants: media.variants,
         uploadedAt: media.uploadedAt,
       })
       .from(mediaAttachments)
@@ -559,6 +561,26 @@ export function registerDishRoutes(app: FastifyInstance): void {
       dishMedia.find((m) => m.role === "cover") ??
       dishMedia.find((m) => m.role === "gallery") ??
       null;
+
+    // Augment each media row with the same-origin public URL (and a
+    // variants map keyed by nominal width). The dish page is build-time
+    // SSG, so we want the URLs baked into the HTML — the front-end
+    // doesn't need to call /signed-url for published media.
+    //
+    // `variants` is `{"<width>": "<storageKey>"}` on the row; we expose
+    // it as `variantsUrls: {"<width>": "/media/<key>"}` for the front-end.
+    const shapedMedia = dishMedia.map((m) => ({
+      ...m,
+      publicUrl: mediaPublicUrl(m.storageKey),
+      variantsUrls: mapVariantsToUrls(m.variants),
+    }));
+    const shapedCoverImage = coverImage
+      ? {
+          ...coverImage,
+          publicUrl: mediaPublicUrl(coverImage.storageKey),
+          variantsUrls: mapVariantsToUrls(coverImage.variants),
+        }
+      : null;
 
     // Origin geo: entity + lat/lng from PostGIS
     let origin: {
@@ -663,8 +685,8 @@ export function registerDishRoutes(app: FastifyInstance): void {
         sequenceOrder: p.sequenceOrder,
       })),
       sources: dishCitations,
-      media: dishMedia,
-      coverImage,
+      media: shapedMedia,
+      coverImage: shapedCoverImage,
       availableLanguages: translations.map((t) => t.language),
     };
   });
@@ -881,4 +903,27 @@ export function registerDishRoutes(app: FastifyInstance): void {
       })),
     };
   });
+}
+
+
+/**
+ * Map a media row's `variants` JSONB (`{"800": "<key>", "1536": "<key>"}`)
+ * to `{"800": "/media/<key>", "1536": "/media/<key>"}` for the front-end.
+ *
+ * Defined here as a local copy because dishes.ts is built into the API
+ * bundle, and we don't want a circular import with media.ts (which
+ * already exports `mediaPublicUrl`). Both helpers are pure functions of
+ * the input; if they drift, the API test in media-public.test.ts catches it.
+ */
+function mapVariantsToUrls(
+  variants: Record<string, string> | null | undefined,
+): Record<string, string> {
+  if (!variants) return {};
+  const out: Record<string, string> = {};
+  for (const [width, key] of Object.entries(variants)) {
+    if (typeof key === "string" && key.length > 0) {
+      out[width] = mediaPublicUrl(key);
+    }
+  }
+  return out;
 }

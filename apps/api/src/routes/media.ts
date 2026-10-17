@@ -22,7 +22,7 @@
  */
 import { Readable } from "node:stream";
 import { db, media } from "@gustale/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { httpError } from "../errors.js";
@@ -285,6 +285,14 @@ export const registerMediaRoutes: FastifyPluginAsync = async (
         storageKey: media.storageKey,
         mimeType: media.mimeType,
         byteSize: media.byteSize,
+        variants: media.variants,
+        published: sql<boolean>`EXISTS (
+          SELECT 1 FROM media_attachments ma
+          JOIN dishes d ON d.id = ma.target_id
+          WHERE ma.media_id = ${media.id}
+            AND ma.target_type = 'dish'
+            AND d.status = 'published'
+        )`,
       })
       .from(media)
       .where(eq(media.id, id))
@@ -294,17 +302,55 @@ export const registerMediaRoutes: FastifyPluginAsync = async (
     }
     const row = rows[0]!;
 
+    if (row.published) {
+      const publicUrl = mediaPublicUrl(row.storageKey);
+      return {
+        url: publicUrl,
+        publicUrl,
+        variants: mapVariantsToUrls(row.variants),
+        expiresInSeconds: null,
+        mimeType: row.mimeType,
+        byteSize: row.byteSize,
+        kind: "public" as const,
+      };
+    }
+
     const url = await presignGet(
       PRIVATE_BUCKET,
       row.storageKey,
       SIGNED_URL_TTL_SECONDS,
     );
-
     return {
       url,
+      publicUrl: null,
+      variants: {},
       expiresInSeconds: SIGNED_URL_TTL_SECONDS,
       mimeType: row.mimeType,
       byteSize: row.byteSize,
+      kind: "presigned" as const,
     };
   });
 };
+
+/**
+ * Build a same-origin /media/<key> path for the public MinIO bucket.
+ * Exported so the dishes read route can produce per-row publicUrl fields
+ * for build-time <img src> rendering.
+ */
+export function mediaPublicUrl(storageKey: string): string {
+  const trimmed = storageKey.replace(/^\/+/, "");
+  return `/media/${trimmed}`;
+}
+
+function mapVariantsToUrls(
+  variants: Record<string, string> | null | undefined,
+): Record<string, string> {
+  if (!variants) return {};
+  const out: Record<string, string> = {};
+  for (const [width, key] of Object.entries(variants)) {
+    if (typeof key === "string" && key.length > 0) {
+      out[width] = mediaPublicUrl(key);
+    }
+  }
+  return out;
+}
