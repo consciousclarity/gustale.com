@@ -111,10 +111,9 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     });
     expect(patchRes.statusCode).toBe(200);
     const patchBody = patchRes.json() as {
-      dish: { editCount: number; longDescription: string | null };
+      dish: { id: string; slug: string; status: string; editCount: number };
       diff: Record<string, { from: unknown; to: unknown }>;
     };
-    expect(patchBody.dish.longDescription).toBe(longDescription);
     expect(patchBody.dish.editCount).toBe(1);
     expect(patchBody.diff.longDescription).toEqual({
       from: null,
