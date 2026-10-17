@@ -312,8 +312,11 @@ jobs:
               set -euo pipefail
               REPO="ghcr.io/${{ github.repository }}"
               API_IMAGE="$REPO/gustale-api:${{ github.sha }}"
-              WEB_RECIPES_IMAGE="$REPO/gustale-web-recipes:${{ github.sha }}"
-              WEB_GEO_IMAGE="$REPO/gustale-web-geo:${{ github.sha }}"
+              WORKSPACE="${{ vars.GUSTALE_WORKSPACE || '/home/hermes/projects/gustale.com' }}"
+              SHA="${{ github.sha }}"
+              SHORT_SHA="${SHA:0:7}"
+              TAG="live-data-${SHORT_SHA}"
+              TAG_FILE="/tmp/gustale-web-live-tag.env"
 
               # Capture the deploy outcome into a file so the post-step can
               # forward it to Telegram even though we run `set -e`.
@@ -360,8 +363,52 @@ jobs:
                 exit 1
               fi
 
+              # --- Step 1: pull the API image (GHA-built, data-only) ---
               echo "--- Pulling API image: $API_IMAGE ---"
               docker pull "$API_IMAGE"
+
+              # --- Step 2: ensure the VPS workspace is on the deploy SHA ---
+              # The VPS already has a persistent clone at $WORKSPACE
+              # (per project convention; the old /home/deploy/gustale-checkout
+              # was superseded). The build-web-live.sh script needs the
+              # source as the Docker build context, and the source
+              # must be at the deploy SHA so the build can tag the
+              # resulting image with the right commit reference.
+              echo "--- Updating workspace $WORKSPACE to $SHA ---"
+              if [ ! -d "$WORKSPACE/.git" ]; then
+                echo "::error::Workspace $WORKSPACE is not a git checkout. Set the GUSTALE_WORKSPACE repo variable or initialise the clone on the VPS."
+                echo "DEPLOY_FAILED_AT=workspace missing" >> "$DEPLOY_LOG"
+                echo 1 > /tmp/deploy_exit
+                exit 1
+              fi
+              # git fetch + checkout can fail if the SHA is behind a
+              # force-push; the deploy's job is to ship the merge commit
+              # of main, which is always reachable, so plain reset works.
+              git -C "$WORKSPACE" fetch --no-tags --depth=50 origin "$SHA" || true
+              git -C "$WORKSPACE" checkout --quiet --force "$SHA"
+              git -C "$WORKSPACE" log -1 --format="%H %s" HEAD
+
+              # --- Step 3: build the web images with LIVE data on the VPS ---
+              # The GHA build is mock-data; we need the live-data build
+              # so the static pages reflect what's in the API right now.
+              # The script pushes images tagged :live-data-<short-sha>;
+              # we then pull them by tag below.
+              echo "--- Running build-web-live.sh at SHA=$SHA ---"
+              ( cd "$WORKSPACE" && ./scripts/hermes/build-web-live.sh "$SHA" ) || {
+                echo "::error::build-web-live.sh failed; aborting deploy to keep old containers running"
+                echo "DEPLOY_FAILED_AT=build-web-live" >> "$DEPLOY_LOG"
+                echo 1 > /tmp/deploy_exit
+                exit 1
+              }
+
+              # The script writes TAG / IMAGE_RECIPES / IMAGE_GEO to $TAG_FILE.
+              # shellcheck disable=SC1090
+              source "$TAG_FILE"
+              : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+              : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
+              WEB_RECIPES_IMAGE="$IMAGE_RECIPES"
+              WEB_GEO_IMAGE="$IMAGE_GEO"
+
               echo "--- Pulling recipes web image: $WEB_RECIPES_IMAGE ---"
               docker pull "$WEB_RECIPES_IMAGE"
               echo "--- Pulling geo web image: $WEB_GEO_IMAGE ---"

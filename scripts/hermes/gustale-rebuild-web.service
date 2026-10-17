@@ -1,0 +1,14 @@
+[Unit]
+Description=Gustale: rebuild web images from live API and redeploy
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=hermes
+WorkingDirectory=/home/hermes/projects/gustale.com
+ExecStart=/home/hermes/projects/gustale.com/scripts/hermes/rebuild-web-live.sh --deploy
+StandardOutput=journal
+StandardError=journal
+# If a previous run is still going, abort it.
+ExecStartPre=/usr/bin/test -f /tmp/gustale-rebuild.lock
