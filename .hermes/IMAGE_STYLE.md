@@ -55,10 +55,26 @@ Every image is an **AI illustration labeled as such on the page** (front-end ren
 
 ## Storage & derivatives
 
-- Store the **original** (highest-resolution export) in MinIO bucket `gustale-media`, key `dishes/<slug>/cover-original.<ext>`.
-- Generate a **WebP derivative** at 1600px wide (keep under 400KB), store as `dishes/<slug>/cover.webp`.
-- Generate a **thumbnail** at 400px wide for list views, store as `dishes/<slug>/cover-thumb.webp`.
-- All three files referenced by the API; the front-end picks the appropriate size for the viewport.
+- Image generation tool: `minimax-image` (uses `minimax-oauth` Max-subscription token from `~/.hermes/auth.json`; falls back to `MINIMAX_API_KEY`).
+- Model: `image-01`. Default size: **1536×1024** (3:2 aspect). Tool also accepts `--width`/`--height` (must be 512..2048 and divisible by 8).
+- Output per candidate: one **JPG master** (private, never on the site) + two **WebP derivatives**:
+  - `<slug>-<n>-1536w.webp` (~50–60 KB) — for the dish page hero/lightbox
+  - `<slug>-<n>-800w.webp` (~20 KB) — for dish cards, lists, related-dishes, journey thumbnails
+- **The JPG master is private.** It is kept only in the local generation working dir (and pushed to `private/state` for provenance) but never uploaded to MinIO, never linked from the API, and never referenced by the front-end.
+- **Publish only the WebP versions.** The `cover` media attachment's `storageKey` references the `1536w` WebP; the `thumbnail` field references the `800w` WebP. The front-end picks 800w for cards/lists and 1536w for the dish page.
+- **Target: under 200 KB per published image.** Current typical: ~80–115 KB total payload (both WebPs) per dish.
+- All files referenced by the API in two ways:
+  - The `media` row (master / derivatives / metadata)
+  - The `media_attachments` row (links media → dish, with `role='cover'`)
+
+## Generation command
+
+```bash
+minimax-image --prompt-file prompt.txt --out <dir> --slug <dish> --n 4
+# Optional: --width 1536 --height 1024 (default), --seed N (omit for random), --prompt-optimizer
+```
+
+Tool emits JSON to stdout including `files[]` (master JPGs) and a `web[]` array (WebP derivatives with width + KB per file) plus a `<slug>.json` sidecar with model, prompt, seed, width, height, trace_id, blocked_by_safety count, and generated_at timestamp. The sidecar is the provenance record — push to `private/state` per batch.
 
 ## Media metadata & credit (visible on the page)
 
