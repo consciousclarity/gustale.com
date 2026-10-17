@@ -88,6 +88,16 @@ jobs:
         # DO NOT add `continue-on-error: true` here; that flag is what
         # made the previous stub gate silently invisible for months.
 
+      - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
+        run: python3 scripts/validate-backlog.py .hermes/BACKLOG.yaml
+        # PyYAML silently keeps the last value when a key is duplicated at
+        # the same indentation. That bit us 2026-10-17: `status: todo` from
+        # the original template survived behind a later `status: done`,
+        # so the file *looked* done but the YAML read back as todo.
+        # This check uses a SafeLoader subclass that raises on duplicate
+        # keys at any mapping. Run as a separate step so a YAML error
+        # shows up as its own check failure with a clean message.
+
   # ─── Job 2: Tests with ephemeral Postgres ──────────────────────────
   test:
     name: Tests (vitest + postgis)
