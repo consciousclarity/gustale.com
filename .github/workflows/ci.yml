@@ -280,95 +280,69 @@ jobs:
   deploy:
       name: Deploy to Hostinger
       runs-on: ubuntu-24.04
-      timeout-minutes: 10
+      timeout-minutes: 15
       needs: [build, build-web]  # api + both web variants must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      env:
+        # Define on the runner so the action can read them. The action's
+        # `envs:` (under `with:`) is the allow-list forwarded to the remote
+        # script via SSH.
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_ACTOR: ${{ github.actor }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        # HOME for the deploy SSH user. The appleboy/ssh-action's
+        # drone-ssh binary does not always forward HOME correctly, so
+        # we set it explicitly. Default /home/hermes, override via the
+        # GUSTALE_SSH_HOME repo variable.
+        HOME: ${{ vars.GUSTALE_SSH_HOME || '/home/hermes' }}
       steps:
-        # Always notify (success or failure). We use the github actions
-        # `if: always()` pattern with a wrapper step at the end so the deploy
-        # step itself remains `set -euo pipefail` and clean.
+        # Always notify (success or failure). The notify step is wrapped
+        # in `if: always()` and runs regardless of deploy outcome.
         - name: Deploy via SSH
           uses: appleboy/ssh-action@v1
-          env:
-            # Define the env vars on the runner so they're available
-            # for the action to read. The action's `envs:` (under
-            # `with:`) is a comma-separated allow-list of which of
-            # these to forward to the remote script via SSH.
-            GHA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            GHA_ACTOR: ${{ github.actor }}
-            # HOME is needed so that `git fetch` can resolve the
-            # `github-gustale` SSH alias via `~/.ssh/config`. The
-            # action's drone-ssh binary does not always set HOME
-            # correctly for the inner script; without this, the
-            # alias falls through to DNS, which fails with
-            # "Could not resolve hostname github-gustale". Default
-            # to /home/hermes (the project workspace user) but allow
-            # override via a repo variable.
-            HOME: ${{ vars.GUSTALE_SSH_HOME || '/home/hermes' }}
           with:
             host: ${{ secrets.HOSTINGER_HOST }}
             username: ${{ secrets.HOSTINGER_USER }}
             key: ${{ secrets.HOSTINGER_SSH_KEY }}
-            command_timeout: 8m
-            # Forward GHA_TOKEN and GHA_ACTOR to the remote script so
-            # the script can use the workflow's auto-issued token for
-            # `docker login ghcr.io` instead of relying on a separate
-            # long-lived PAT (GHCR_PAT). The action's `envs:` field
-            # is a comma-separated allow-list; without it, none of
-            # the runner's env vars reach the remote script.
-            envs: GHA_TOKEN,GHA_ACTOR,HOME
+            command_timeout: 10m
+            # Forward the env vars declared in `env:` to the remote script.
+            envs: GITHUB_TOKEN,GITHUB_ACTOR,GITHUB_RUN_ID,HOME
             script: |
               set -euo pipefail
               REPO="ghcr.io/${{ github.repository }}"
               API_IMAGE="$REPO/gustale-api:${{ github.sha }}"
-              WORKSPACE="${{ vars.GUSTALE_WORKSPACE || '/home/hermes/projects/gustale.com' }}"
+              BUILD_DIR="${{ vars.GUSTALE_BUILD_DIR || '/home/deploy/gustale-build' }}"
               SHA="${{ github.sha }}"
               SHORT_SHA="${SHA:0:7}"
               TAG="live-data-${SHORT_SHA}"
               TAG_FILE="/tmp/gustale-web-live-tag.env"
-
-              # Capture the deploy outcome into a file so the post-step can
-              # forward it to Telegram even though we run `set -e`.
-              DEPLOY_LOG="/tmp/gustale-deploy.log"
+              # Per-run log file: include the run ID so concurrent deploys
+              # (rare but possible) don't trample each other, and so a
+              # failed run's log is preserved for the verify step. NEVER
+              # use a shared /tmp/gustale-deploy.log — it gets clobbered
+              # by overlapping runs and stale state.
+              DEPLOY_LOG="/tmp/gustale-deploy-${GITHUB_RUN_ID}.log"
               : > "$DEPLOY_LOG"
-              # Track the original exit code via a sentinel. On ERR we
-              # log the failing command and stash the real exit code; on
-              # EXIT we surface it so the post-step can notify correctly.
               _DEPLOY_EXIT=0
               trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ] && [ "$_DEPLOY_EXIT" = "0" ]; then _DEPLOY_EXIT=$rc; echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; fi' ERR
               trap 'echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "$_DEPLOY_EXIT"' EXIT
 
-              # Two auth paths tried here, in order:
-              #   1. GHA_TOKEN (preferred). The workflow already has
-              #      `packages: write` (see top-level `permissions:`),
-              #      and we pass `${{ secrets.GITHUB_TOKEN }}` to the
-              #      remote script via the `env:` block of the SSH
-              #      action. The same auto-issued token the build job
-              #      used to push the three images is good for pulling
-              #      them back, because the build pushed them into the
-              #      same namespace the deploy is reading from.
-              #   2. GHCR_PAT (fallback). A separate Personal Access Token
-              #      saved as a repo secret. Used historically because
-              #      GITHUB_TOKEN was assumed to lack `packages: read`
-              #      for private packages. In practice, with the build
-              #      pushing to the same namespace (consciousclarity/
-              #      gustale.com/*), GHA_TOKEN is sufficient and the
-              #      PAT has been a source of silent failures (token
-              #      rotation, missing scopes for gustale-api, etc.).
-              #
-              # We try GHA_TOKEN first; if it's not present (which
-              # should not happen for any workflow run on a push to
-              # main), we fall back to GHCR_PAT for backward compat.
-              if [ -n "$GHA_TOKEN" ]; then
-                echo "--- Logging into ghcr.io with GHA_TOKEN (auto-issued workflow token) ---"
-                echo "$GHA_TOKEN" | docker login ghcr.io -u "${GHA_ACTOR:-consciousclarity}" --password-stdin
-              elif [ -n "${{ secrets.GHCR_PAT }}" ]; then
-                echo "--- Logging into ghcr.io with GHCR_PAT fallback ---"
-                echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u consciousclarity --password-stdin
+              echo "=== Gustale deploy run $GITHUB_RUN_ID at SHA=$SHORT_SHA ==="
+              echo "    run_id:    $GITHUB_RUN_ID"
+              echo "    api_image: $API_IMAGE"
+              echo "    build_dir: $BUILD_DIR"
+              echo "    log_file:  $DEPLOY_LOG"
+
+              # --- Login to ghcr.io using the GHA-issued token ---
+              # The workflow has top-level `permissions: contents: read,
+              # packages: write`, so the auto-issued $GITHUB_TOKEN is
+              # sufficient to push/pull from consciousclarity/gustale.com/*.
+              if [ -n "$GITHUB_TOKEN" ]; then
+                echo "--- Logging into ghcr.io with GITHUB_TOKEN (auto-issued workflow token) ---"
+                echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-consciousclarity}" --password-stdin
               else
-                echo "::error::Neither GHA_TOKEN nor GHCR_PAT is set — deploy cannot authenticate to ghcr.io"
+                echo "::error::GITHUB_TOKEN is not set — deploy cannot authenticate to ghcr.io"
                 echo "DEPLOY_FAILED_AT=auth missing" >> "$DEPLOY_LOG"
-                echo 1 > /tmp/deploy_exit
                 exit 1
               fi
 
@@ -376,54 +350,36 @@ jobs:
               echo "--- Pulling API image: $API_IMAGE ---"
               docker pull "$API_IMAGE"
 
-              # --- Step 2: ensure the VPS workspace is on the deploy SHA ---
-              # The VPS already has a persistent clone at $WORKSPACE
-              # (per project convention; the old /home/deploy/gustale-checkout
-              # was superseded). The build-web-live.sh script needs the
-              # source as the Docker build context, and the source
-              # must be at the deploy SHA so the build can tag the
-              # resulting image with the right commit reference.
-              echo "--- Updating workspace $WORKSPACE to $SHA ---"
-              if [ ! -d "$WORKSPACE/.git" ]; then
-                echo "::error::Workspace $WORKSPACE is not a git checkout. Set the GUSTALE_WORKSPACE repo variable or initialise the clone on the VPS."
-                echo "DEPLOY_FAILED_AT=workspace missing" >> "$DEPLOY_LOG"
-                echo 1 > /tmp/deploy_exit
+              # --- Step 2: ensure the VPS build checkout is on the deploy SHA ---
+              # The build dir is /home/deploy/gustale-build/ — a persistent
+              # clone dedicated to the deploy, NEVER the working folder.
+              # This keeps the build context isolated from any in-progress
+              # work and avoids surprises when /home/hermes/projects/gustale.com
+              # has uncommitted changes.
+
+              # The dir is owned by root (chown to the deploy user) so the
+              # deploy can do `git fetch` and `git checkout` without sudo.
+              echo "--- Updating build checkout $BUILD_DIR to $SHA ---"
+              if [ ! -d "$BUILD_DIR/.git" ]; then
+                echo "::error::Build dir $BUILD_DIR is not a git checkout. Initialise it:  cd $BUILD_DIR && git init && git remote add origin github-gustale:consciousclarity/gustale.com.git && git fetch --depth=50 origin main && git checkout origin/main"
+                echo "DEPLOY_FAILED_AT=build_dir missing" >> "$DEPLOY_LOG"
                 exit 1
               fi
-              # Belt-and-braces: explicitly point git at the deploy user's
-              # SSH config so the `github-gustale` host alias resolves
-              # even if the appleboy/ssh-action's $HOME forwarding
-              # didn't make it into the inner shell. Falls through to
-              # the default config if the file doesn't exist.
-              if [ -f "$HOME/.ssh/config" ]; then
-                export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config"
-              fi
-              # The workspace is owned by the project user (hermes), but
-              # the deploy SSH user may differ (the appleboy action
-              # logs in as HOSTINGER_USER, which can be root or a
-              # service account). Git refuses to operate on a repo
-              # owned by a different user ("dubious ownership") without
-              # an explicit allow-list. '*' is safe here because the
-              # workspace dir is the only thing we ever `git -C` into.
-              git config --global --add safe.directory '*' 2>/dev/null || true
-              # git fetch + checkout: if either fails, the deploy
-              # is on a SHA the workspace doesn't have. We do NOT use
-              # `|| true` here — a failed fetch must abort the deploy
-              # to avoid shipping a build on a stale source.
-              git -C "$WORKSPACE" fetch --no-tags --depth=50 origin "$SHA"
-              git -C "$WORKSPACE" checkout --quiet --force "$SHA"
-              git -C "$WORKSPACE" log -1 --format="%H %s" HEAD
+              # git safe.directory: only needed if the build dir is owned
+              # by a user other than the deploy SSH user. With chown root,
+              # this is a no-op; we set it defensively for setup variants.
+              git config --global --add safe.directory "$BUILD_DIR" 2>/dev/null || true
+              git -C "$BUILD_DIR" fetch --no-tags --depth=50 origin "$SHA"
+              git -C "$BUILD_DIR" checkout --quiet --force "$SHA"
+              git -C "$BUILD_DIR" log -1 --format="%H %s" HEAD
 
               # --- Step 3: build the web images with LIVE data on the VPS ---
               # The GHA build is mock-data; we need the live-data build
               # so the static pages reflect what's in the API right now.
-              # The script pushes images tagged :live-data-<short-sha>;
-              # we then pull them by tag below.
-              echo "--- Running build-web-live.sh at SHA=$SHA ---"
-              ( cd "$WORKSPACE" && ./scripts/hermes/build-web-live.sh "$SHA" ) || {
+              echo "--- Running build-web-live.sh at SHA=$SHA from $BUILD_DIR ---"
+              ( cd "$BUILD_DIR" && ./scripts/hermes/build-web-live.sh "$SHA" ) || {
                 echo "::error::build-web-live.sh failed; aborting deploy to keep old containers running"
                 echo "DEPLOY_FAILED_AT=build-web-live" >> "$DEPLOY_LOG"
-                echo 1 > /tmp/deploy_exit
                 exit 1
               }
 
@@ -440,15 +396,13 @@ jobs:
               echo "--- Pulling geo web image: $WEB_GEO_IMAGE ---"
               docker pull "$WEB_GEO_IMAGE"
 
-              # Verify ALL THREE images are present before destroying any running
-              # container. If any pull failed, the old containers stay up
-              # and we surface a clear error.
+              # Verify ALL THREE images are present locally before destroying
+              # any running container.
               echo "--- Verifying all images are present locally ---"
               for IMG in "$API_IMAGE" "$WEB_RECIPES_IMAGE" "$WEB_GEO_IMAGE"; do
                 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
                   echo "::error::Image $IMG not present locally — aborting deploy to keep old containers running"
                   echo "DEPLOY_FAILED_AT=image missing: $IMG" >> "$DEPLOY_LOG"
-                  echo 1 > /tmp/deploy_exit
                   exit 1
                 fi
               done
@@ -456,9 +410,6 @@ jobs:
               deploy_container() {
                 local NAME="$1"
                 local IMAGE="$2"
-                # HOST_PORT and CONTAINER_PORT allow asymmetric mappings
-                # (e.g. host:4002 → container:4001 for gustale-web-geo).
-                # When they differ, we use HOST_PORT:CONTAINER_PORT syntax.
                 local HOST_PORT="$3"
                 local CONTAINER_PORT="${4:-$3}"
                 local EXTRA_ARGS="${5:-}"
@@ -473,28 +424,21 @@ jobs:
 
               # gustale-api needs /root/.env for DB / MinIO / auth secrets.
               # gustale-web-{recipes,geo} are pure static; no env-file needed.
-              #
+
               # IMPORTANT: gustale-api runs with --network host because
               # shared-postgres and shared-minio are bound to 127.0.0.1
               # on the VPS host. From inside a container on the default
               # bridge, 127.0.0.1 is the container's own loopback — NOT
               # the host. --network host puts the container in the host's
-              # network namespace so 127.0.0.1 resolves correctly. The
-              # host firewall (hPanel) is the trust boundary; container-
-              # level isolation is not the goal here.
-              #
-              # gustale-web-{recipes,geo} do NOT need --network host because
-              # they serve static files; nothing on the host's loopback is
-              # involved.
-              #
+              # network namespace so 127.0.0.1 resolves correctly.
+
               # Port mapping:
               #   gustale-api           → host:4000 → container:4000
               #   gustale-web-recipes   → host:4001 → container:4001
               #   gustale-web-geo       → host:4002 → container:4001
-              # Both web containers listen on the same internal port (4001)
-              # per their shared nginx config; the host-side port differs so
-              # they don't collide. Caddy routes gustale.recipes → :4001
-              # and gustale.com → :4002.
+              # Both web containers listen on the same internal port (4001);
+              # the host-side port differs so they don't collide. Caddy
+              # routes gustale.recipes → :4001 and gustale.com → :4002.
               deploy_container "gustale-api"         "$API_IMAGE"         "4000" "4000" "--network host --env-file /root/.env"
               deploy_container "gustale-web-recipes" "$WEB_RECIPES_IMAGE" "4001" "4001"
               deploy_container "gustale-web-geo"     "$WEB_GEO_IMAGE"     "4002" "4001"
@@ -515,7 +459,6 @@ jobs:
                 fi
               done
               if [ "$FAILED" = "1" ]; then
-                echo 1 > /tmp/deploy_exit
                 exit 1
               fi
 
@@ -525,56 +468,120 @@ jobs:
               echo "--- Deploy OK ---"
               echo 0 > /tmp/deploy_exit
 
-        # ── Verify deploy ─────────────────────────────────────────────
-        # The appleboy/ssh-action has a known issue where the
-        # inner script's exit code doesn't always propagate to the
-        # step's outcome (it can report success on a script that
-        # failed). To work around this, we re-read the deploy
-        # outcome from /tmp/gustale-deploy.log over a second SSH
-        # call and explicitly fail the job if the script reported
-        # any failure. This makes the action's exit code irrelevant
-        # — the verification is the source of truth.
-        #
-        # Without this step, we would have shipped PR #65 (and now
-        # PR #66) without realizing the deploy had silently bailed
-        # out on the `git fetch` step. This step exists because
-        # of that lesson.
-        - name: Verify deploy
+        # ── Real verify ──────────────────────────────────────────────
+        # The appleboy/ssh-action has a known issue where the inner
+        # script's exit code does not always propagate to the step's
+        # outcome (it can report success on a script that failed).
+        # We work around that with a real, multi-check verify step:
+
+        #   1. Read /tmp/gustale-deploy-${GITHUB_RUN_ID}.log and
+        #      require DEPLOY_EXIT_CODE=0 + no DEPLOY_FAILED_AT line.
+        #   2. SSH in again, `docker inspect` all 3 running containers
+        #      and require their Image references match the deploy SHA.
+        #      If a container is still on the previous SHA, the deploy
+        #      was partial.
+        #   3. curl https://gustale.com/dishes/bakso/ and require that
+        #      the rendered longDescription contains a known phrase
+        #      (a fixed substring of the live API's content). If it's
+        #      null/empty/placeholder, the live data didn't make it.
+
+        # Any of those failing fails the job.
+        - name: Real verify
           if: always()
           uses: appleboy/ssh-action@v1
           with:
             host: ${{ secrets.HOSTINGER_HOST }}
             username: ${{ secrets.HOSTINGER_USER }}
             key: ${{ secrets.HOSTINGER_SSH_KEY }}
-            command_timeout: 1m
-            envs: HOME
+            command_timeout: 2m
+            envs: GITHUB_RUN_ID,HOME
             script: |
-              # The previous SSH step set up HOME for the deploy
-              # user; re-set it here so we can find the SSH config
-              # and read the deploy log written by the deploy script.
+              set -euo pipefail
               export HOME="${{ vars.GUSTALE_SSH_HOME || '/home/hermes' }}"
 
-              if [ ! -f /tmp/gustale-deploy.log ]; then
-                echo "::error::Deploy log /tmp/gustale-deploy.log not found. The deploy step did not write a log file. The appleboy/ssh-action's inner script may have failed before it could write the log."
-                exit 1
-              fi
-              echo "--- Deploy log ---"
-              cat /tmp/gustale-deploy.log
-              echo "--- end ---"
+              DEPLOY_LOG="/tmp/gustale-deploy-${GITHUB_RUN_ID}.log"
+              SHA="${{ github.sha }}"
+              SHORT_SHA="${SHA:0:7}"
+              FAILED=0
 
-              if grep -qE "^DEPLOY_FAILED_AT=" /tmp/gustale-deploy.log; then
-                FAILED_AT=$(grep -E "^DEPLOY_FAILED_AT=" /tmp/gustale-deploy.log | head -1)
-                echo "::error::Deploy failed at: $FAILED_AT"
-                exit 1
+              # --- Check 1: deploy log is OK ---
+              echo "--- Check 1: deploy log ---"
+              if [ ! -f "$DEPLOY_LOG" ]; then
+                echo "::error::Deploy log $DEPLOY_LOG not found. The deploy step did not write a log file."
+                FAILED=1
+              else
+                echo "--- $DEPLOY_LOG ---"
+                cat "$DEPLOY_LOG"
+                echo "--- end ---"
+                if grep -qE "^DEPLOY_FAILED_AT=" "$DEPLOY_LOG"; then
+                  FAILED_AT=$(grep -E "^DEPLOY_FAILED_AT=" "$DEPLOY_LOG" | head -1)
+                  echo "::error::Deploy reported failure: $FAILED_AT"
+                  FAILED=1
+                fi
+                if ! grep -qE "^DEPLOY_EXIT_CODE=0$" "$DEPLOY_LOG"; then
+                  echo "::error::Deploy did not report DEPLOY_EXIT_CODE=0"
+                  FAILED=1
+                fi
               fi
-              if ! grep -qE "^DEPLOY_EXIT_CODE=0$" /tmp/gustale-deploy.log; then
-                echo "::error::Deploy did not report DEPLOY_EXIT_CODE=0"
-                cat /tmp/gustale-deploy.log
-                exit 1
-              fi
-              echo "--- Deploy verified OK ---"
 
-        # ── Post-deploy notification ──────────────────────────────────────
+              # --- Check 2: docker inspect — all 3 containers on the deploy SHA ---
+              # The deploy uses tag-based pulls, so the tag (with the
+              # short SHA for the API image and `live-data-<short-sha>`
+              # for the web images) is what's actually live. We match on
+              # the trailing short tag in the image reference.
+              echo ""
+              echo "--- Check 2: docker inspect SHA ---"
+              EXPECTED_API="gustale-api:${SHORT_SHA}"
+              EXPECTED_RECIPES="gustale-web-recipes:live-data-${SHORT_SHA}"
+              EXPECTED_GEO="gustale-web-geo:live-data-${SHORT_SHA}"
+              for ENTRY in "gustale-api:${EXPECTED_API}" "gustale-web-recipes:${EXPECTED_RECIPES}" "gustale-web-geo:${EXPECTED_GEO}"; do
+                NAME="${ENTRY%%:*}"
+                EXPECT_SUFFIX="${ENTRY#*:}"
+                if ! docker inspect "$NAME" >/dev/null 2>&1; then
+                  echo "::error::Container $NAME is missing"
+                  FAILED=1
+                  continue
+                fi
+                IMAGE=$(docker inspect --format='{{.Config.Image}}' "$NAME" 2>/dev/null)
+                case "$IMAGE" in
+                  *"$EXPECT_SUFFIX")
+                    echo "  $NAME: image=$IMAGE  OK"
+                    ;;
+                  *)
+                    echo "::error::$NAME: image=$IMAGE  expected suffix '$EXPECT_SUFFIX'"
+                    FAILED=1
+                    ;;
+                esac
+              done
+
+              # --- Check 3: live page renders the longDescription ---
+              # The phrase is a fixed substring of the bakso long
+              # description as it exists in the live API. If the
+              # static page is on the mock-data build, the longDescription
+              # field is null/empty and the substring won't appear.
+              echo ""
+              echo "--- Check 3: live page phrase ---"
+              PHRASE="Indonesian meatball"  # from the bakso longDescription
+              PAGE=$(curl -fsS --max-time 10 "https://gustale.com/dishes/bakso/" 2>&1) || {
+                echo "::error::curl https://gustale.com/dishes/bakso/ failed"
+                FAILED=1
+              }
+              if [ -n "${PAGE:-}" ] && echo "$PAGE" | grep -qF "$PHRASE"; then
+                echo "  gustale.com/dishes/bakso/ contains '$PHRASE'  OK"
+              else
+                echo "::error::gustale.com/dishes/bakso/ does not contain '$PHRASE' (live data not on the page)"
+                FAILED=1
+              fi
+
+              if [ "$FAILED" = "1" ]; then
+                echo ""
+                echo "::error::Real verify FAILED for run $GITHUB_RUN_ID at SHA $SHORT_SHA"
+                exit 1
+              fi
+              echo ""
+              echo "=== Real verify OK for run $GITHUB_RUN_ID at SHA $SHORT_SHA ==="
+
+        # ── Post-deploy notification ──────────────────────────────────
         # Runs always (success + failure) and posts a Telegram message.
         # Silently no-ops if TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is unset.
         - name: Notify Telegram (deploy outcome)
@@ -595,18 +602,17 @@ jobs:
             Commit: \`${SHORT_SHA}\`
             Branch: \`${{ github.ref_name}}\`
             Author: ${{ github.actor }}
-            [View run](${RUN_URL})"
+            [View run](${RUN_URL})\"
 
             if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] || [ -z "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
-              echo "::notice::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification (deploy ${{ job.status }})"
-              echo "To enable: add both secrets in GitHub repo Settings → Secrets and variables → Actions"
+              echo "::notice::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification (deploy ${{ job.status }})\"
+              echo "To enable: add both secrets in GitHub repo Settings → Secrets and variables → Actions\"
               exit 0
             fi
 
-            curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-              -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -d parse_mode=Markdown \
-              -d disable_web_page_preview=true \
-              --data-urlencode "text=${MSG}" \
-              --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
-
+            curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \\
+              -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \\
+              -d parse_mode="Markdown" \\
+              -d disable_web_page_preview=true \\
+              --data-urlencode "text=${MSG}" \\
+              --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)\"
