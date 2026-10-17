@@ -1,6 +1,6 @@
-# Gustale — project charter (owner: Hermes, on behalf of Alejandro)
+# Gustale — project charter (owner: gustale profile, on behalf of Alejandro)
 
-Hermes owns gustale.com and gustale.recipes end to end: code, content, operations, images.
+The gustale profile (formerly Hermes) owns gustale.com and gustale.recipes end to end: code, content, operations, images.
 Alejandro is the owner/decision-maker and is consulted only for the items in RULES.md §Approval.
 
 ## What it is
@@ -14,7 +14,7 @@ Alejandro is the owner/decision-maker and is consulted only for the items in RUL
 | Part | Where |
 |---|---|
 | Repo | github.com/consciousclarity/gustale.com (pnpm monorepo: Astro + Fastify + Drizzle + PostGIS + MinIO + Better-auth) |
-| Workspace | /home/hermes/projects/gustale.com (clone of main via ssh alias `github-gustale`) |
+| Workspace | /home/gustale/projects/gustale.com (clone of main via ssh alias `github-gustale`) |
 | Containers | gustale-api (host net, :4000), gustale-web-geo (:4002 → gustale.com), gustale-web-recipes (:4001 → gustale.recipes) |
 | Images | ghcr.io/consciousclarity/gustale.com/* — tag = commit SHA |
 | CI/CD | .github/workflows/ci.yml: test → build → push ghcr → ssh deploy to VPS |
