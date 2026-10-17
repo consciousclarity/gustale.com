@@ -92,7 +92,14 @@ tasks:
       - "Dependabot #58 (vitest), #59 (maplibre-gl), #60 (astro) rebased on main and either merged green or closed with reason"
       - ".github/dependabot.yml exists with weekly schedule + grouped updates"
       - "CI runs pnpm audit (non-blocking for now, promote to blocking once criticals reach 0)"
-    evidence: []
+    evidence:
+      - "Audit report: .hermes/REPORTS/GUS-006-deps-audit.md (PR #85, f0624a4)"
+      - "Dependabot #59 (maplibre-gl 6.4.1) MERGED (94c4102) — closes CRITICAL prod XSS bypass (GHSA-jrc7-96c5-q579)"
+      - "Dependabot #60 (astro 7.2.8) MERGED (da5d0a3a) — closes CRITICAL prod RCE in AVIF (GHSA-26w7-cxv4-gfx2)"
+      - "Dependabot #58 (vitest 4.1.11) MERGED (3c60c77) — closes CRITICAL dev (vitest UI RCE, GHSA-5xrq-8626-4rwp)"
+      - "CI now runs pnpm audit --audit-level=critical (non-blocking)"
+      - ".github/dependabot.yml added (weekly Monday 04:00 UTC, grouped, skips semver-major)"
+      - "Remaining: tinypool 1.1.1 → 2.1.2 (dev, transitive of vitest — verify resolved by #58); 36 HIGH prod remaining (fastify 5.8.5 → 5.12.2 cluster, fast-uri 3.1.2 → 3.1.7, js-yaml 4.2.0 → 4.3.2, devalue 5.8.1 → 5.9.3, sharp 0.34.5 → 0.35.5, nanoid, better-auth, browserslist, svgo, smol-toml, postcss, @fastify/busboy, http-cache-semantics, source-map-js, etc.)"
   - id: GUS-007
     title: "Resolve container registry authentication. Fix GHCR token permissions if container publishing is required"
     epic: "EPIC 01 — Stabilize the technical foundation"
