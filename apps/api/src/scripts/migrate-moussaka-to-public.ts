@@ -6,9 +6,12 @@
  * existed. The bytes are in the private `gustale-media` bucket at
  * `unattached/634ae2e838d24f95.jpg`. The dish page is the public
  * face of the platform, so we:
- *   1. Copy the original JPG to `gustale-public` at
- *      `dishes/moussaka-greek/cover.jpg` (the canonical public path).
- *   2. Generate 800w + 1536w WebP derivatives and upload them too.
+ *   1. SKIP the master JPG. It stays in `gustale-media` (private)
+ *      and is never proxied at `/media/*` — only WebP variants are
+ *      publicly served. The master is the source for regeneration,
+ *      not a public deliverable.
+ *   2. Generate 800w + 1536w WebP derivatives from the master,
+ *      upload them to the public bucket.
  *   3. Update the `media.variants` JSONB to point at the new keys.
  *
  * Run once (after migration 0012 is applied):
@@ -19,11 +22,10 @@
  */
 import { db, media } from "@gustale/db";
 import { eq } from "drizzle-orm";
-import { copyObject, getClient, PUBLIC_BUCKET, uploadStream } from "../lib/minio.js";
+import { getClient, PUBLIC_BUCKET, uploadStream } from "../lib/minio.js";
 
 const MOUSSAKA_SLUG = "moussaka-greek";
 const MOUSSAKA_ORIGINAL_KEY = "unattached/634ae2e838d24f95.jpg";
-const MOUSSAKA_PUBLIC_KEY = `dishes/${MOUSSAKA_SLUG}/cover.jpg`;
 
 async function main(): Promise<void> {
   // Find the media row.
@@ -40,14 +42,12 @@ async function main(): Promise<void> {
   const row = rows[0]!;
   console.log(`Found media row ${row.id} (${row.altText ?? "no alt"})`);
 
-  // 1. Copy the original to the public bucket.
-  await copyObject(
-    "gustale-media",
-    MOUSSAKA_ORIGINAL_KEY,
-    PUBLIC_BUCKET,
-    MOUSSAKA_PUBLIC_KEY,
-  );
-  console.log(`Copied → gustale-public/${MOUSSAKA_PUBLIC_KEY}`);
+  // 1. Skip the master JPG. Per the PR #78 spec, only WebP variants
+  //    go to the public bucket — the master stays in the private
+  //    `gustale-media` bucket (`unattached/<uuid>.jpg`) and is never
+  //    proxied at /media/*. Crawlers + the front-end's srcset will use
+  //    the largest variant; the master is the source for regeneration,
+  //    not a public deliverable.
 
   // 2. Generate WebP derivatives. We use the system `cwebp` (from
   //    libwebp-tools) when available; that keeps the dependency

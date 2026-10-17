@@ -569,15 +569,24 @@ export function registerDishRoutes(app: FastifyInstance): void {
     //
     // `variants` is `{"<width>": "<storageKey>"}` on the row; we expose
     // it as `variantsUrls: {"<width>": "/media/<key>"}` for the front-end.
+    //
+    // The row's `publicUrl` is the *fallback* for `<img src>` (used by
+    // browsers that don't understand srcset, and for the OG/Twitter
+    // meta tags). It must be a real, same-origin URL that 200s. The
+    // master storageKey typically points to the private `gustale-media`
+    // bucket (which is NOT proxied at /media/*), so we use the largest
+    // variant URL instead. If no variants are set, the row must be
+    // either a public-bucket storageKey or it will 404 — we do not
+    // silently expose private-bucket keys via /media.
     const shapedMedia = dishMedia.map((m) => ({
       ...m,
-      publicUrl: mediaPublicUrl(m.storageKey),
+      publicUrl: pickPublicUrl(m.storageKey, m.variants),
       variantsUrls: mapVariantsToUrls(m.variants),
     }));
     const shapedCoverImage = coverImage
       ? {
           ...coverImage,
-          publicUrl: mediaPublicUrl(coverImage.storageKey),
+          publicUrl: pickPublicUrl(coverImage.storageKey, coverImage.variants),
           variantsUrls: mapVariantsToUrls(coverImage.variants),
         }
       : null;
@@ -926,4 +935,59 @@ function mapVariantsToUrls(
     }
   }
   return out;
+}
+
+/**
+ * Pick the canonical public URL for a media row.
+ *
+ * Only WebP variants go to the `gustale-public` bucket — the master
+ * file (typically a JPG in `gustale-media/unattached/<uuid>.jpg`) is
+ * private and not proxied at /media/*. So a naive `publicUrl =
+ * mediaPublicUrl(storageKey)` would yield `/media/unattached/...jpg`
+ * which 404s, and worse, would leak a hint that the private file
+ * exists.
+ *
+ * This helper returns:
+ *   - the URL of the largest variant (highest numeric width key) if
+ *     the row has any variants — this is the WebP a `<img src>` (or
+ *     a pre-srcset crawler) should land on
+ *   - the storageKey-based URL only if the storageKey is recognisably
+ *     in a *public* prefix (e.g. `dishes/<slug>/...` paths that the
+ *     upload-and-promote flow writes to `gustale-public`)
+ *   - null otherwise (master in `gustale-media/unattached/...` is
+ *     not exposed; the variants map is the only public surface)
+ *
+ * Storage key conventions:
+ *   - Private upload prefix (master JPG): `unattached/<uuid>.<ext>`
+ *   - Public variant prefix (WebP): `dishes/<slug>/cover-<width>w.webp`
+ *   - Future public-direct uploads could use any other path under
+ *     `gustale-public/`; we conservatively only trust `dishes/...`
+ *     here, since that's the only shape we currently use.
+ */
+function pickPublicUrl(
+  storageKey: string,
+  variants: Record<string, string> | null | undefined,
+): string | null {
+  if (variants && typeof variants === "object") {
+    let best: { width: number; key: string } | undefined;
+    for (const [w, key] of Object.entries(variants)) {
+      if (typeof key !== "string" || key.length === 0) continue;
+      const n = Number(w);
+      if (!Number.isFinite(n)) continue;
+      if (!best || n > best.width) {
+        best = { width: n, key };
+      }
+    }
+    if (best) {
+      return mediaPublicUrl(best.key);
+    }
+  }
+  // No variants. Only return a URL if the storageKey is in a
+  // recognisably-public path. `unattached/...` is the private upload
+  // prefix and is never proxied; we return null to avoid leaking
+  // existence.
+  if (storageKey.startsWith("dishes/")) {
+    return mediaPublicUrl(storageKey);
+  }
+  return null;
 }

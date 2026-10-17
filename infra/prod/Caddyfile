@@ -55,37 +55,20 @@ www.gustale.com {
 		respond 404
 	}
 
-	# ─── /media/* — published dish media (Phase 11)
-	# Same-origin reverse proxy to MinIO. The API stores published media
-	# (attached to a published dish) in the `gustale-public` bucket and
-	# returns `/media/<storageKey>` as the read URL, so dish pages can
-	# bake real <img src> tags at build time.
-	#
-	# Security: GET/HEAD only, the bucket is hard-coded so a path
-	# parameter cannot reach gustale-media (private), Cache-Control
-	# is `public, max-age=31536000, immutable`, and a defensive 404
-	# blocks the bucket-level `/media/` and `/media` paths so
-	# ListBucket listings can never be reached.
-	#
-	# Path handling: the matching path is `/media/<key>`. The `rewrite`
-	# prepends `/gustale-public/` so the MinIO upstream sees the
-	# bucket prefix. `{http.request.uri.path}` expands to the full
-	# path including the leading slash, e.g. `/media/foo.jpg` →
-	# `/gustale-public/foo.jpg` after the strip-and-rewrite.
-	#
-	# The bucket name is hard-coded; no path parameter can reach a
-	# different bucket.
-	handle_path /media/* {
-		rewrite * /gustale-public{path}
-		reverse_proxy 127.0.0.1:9000 {
-			header_up Host {host}
-			header_up X-Real-IP {remote_host}
-		}
+	# ─── /media/* — published dish media (gustale PR #78)
+	# Same-origin, read-only proxy to the public MinIO bucket (hard-coded).
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
 		header Cache-Control "public, max-age=31536000, immutable"
 	}
-
-	@listing path /media/ /media
-	handle @listing {
+	# Anything else under /media (listing, writes) -> 404
+	@media_other path /media /media/ /media/*
+	handle @media_other {
 		respond 404
 	}
 
@@ -126,18 +109,20 @@ www.gustale.recipes {
 		respond 404
 	}
 
-	# ─── /media/* — same as gustale.com block above
-	handle_path /media/* {
-		rewrite * /gustale-public{path}
-		reverse_proxy 127.0.0.1:9000 {
-			header_up Host {host}
-			header_up X-Real-IP {remote_host}
-		}
+	# ─── /media/* — published dish media (gustale PR #78)
+	# Same-origin, read-only proxy to the public MinIO bucket (hard-coded).
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
 		header Cache-Control "public, max-age=31536000, immutable"
 	}
-
-	@listing path /media/ /media
-	handle @listing {
+	# Anything else under /media (listing, writes) -> 404
+	@media_other path /media /media/ /media/*
+	handle @media_other {
 		respond 404
 	}
 

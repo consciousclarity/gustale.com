@@ -271,20 +271,43 @@ describe("GET /api/media/:id/signed-url", () => {
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      // Public URL is same-origin and points at /media/<storageKey>.
+
+      // The row's master storageKey is the private `unattached/<uuid>.jpg`
+      // path — never proxied at /media/*. So we expect the publicUrl
+      // to come from the largest variant, not the master.
+      const rowVariants = (m.variants as Record<string, string>) ?? {};
+      expect(Object.keys(rowVariants).length).toBeGreaterThan(0);
+
+      const expectedWidths = Object.keys(rowVariants)
+        .map((w) => Number(w))
+        .filter(Number.isFinite);
+      const largestWidth = Math.max(...expectedWidths);
+      const largestVariantKey = rowVariants[String(largestWidth)]!;
+      const expectedPublicUrl = `/media/${largestVariantKey}`;
+
+      // Public URL is the largest variant's same-origin /media URL.
       expect(body.kind).toBe("public");
-      expect(body.url).toBe(`/media/${m.storageKey}`);
-      expect(body.publicUrl).toBe(`/media/${m.storageKey}`);
+      expect(body.url).toBe(expectedPublicUrl);
+      expect(body.publicUrl).toBe(expectedPublicUrl);
+      // Security: the public URL must not expose the private
+      // `unattached/<uuid>.jpg` prefix — that's only reachable via
+      // the 15-min presigned URL for private/unmoderated uploads.
+      expect(body.publicUrl).not.toMatch(/^\/media\/unattached\//);
+      expect(body.publicUrl).not.toMatch(/\.jpg$/);
+
       // expiresInSeconds is null for public (no expiry).
       expect(body.expiresInSeconds).toBeNull();
-      // variantsUrls mirrors the row's `variants` JSONB but with
-      // /media/ URLs instead of raw storage keys.
-      const rowVariants = (m.variants as Record<string, string>) ?? {};
-      expect(Object.keys(body.variantsUrls).sort()).toEqual(
+      // `variants` here is the signed-url endpoint's response shape:
+      // it's already the {width: /media/<key>} URL map (the API
+      // does the storageKey → URL conversion before responding). The
+      // dishes endpoint uses `variantsUrls` for the same field; both
+      // carry the same /media/* URLs.
+      const bodyVariants = (body.variants ?? {}) as Record<string, string>;
+      expect(Object.keys(bodyVariants).sort()).toEqual(
         Object.keys(rowVariants).sort(),
       );
       for (const [width, key] of Object.entries(rowVariants)) {
-        expect(body.variantsUrls[width]).toBe(`/media/${key}`);
+        expect(bodyVariants[width]).toBe(`/media/${key}`);
       }
     },
   );
