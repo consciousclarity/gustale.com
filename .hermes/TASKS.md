@@ -7,13 +7,19 @@
 
 ## In progress
 
-- 2026-10-17: **Moussaka cover image live in API; awaiting next timer-driven web rebuild.** Signed in as hermes-bot@gustale.com (moderator). Uploaded `Mousakas.jpg` (Wikimedia Commons, CC BY-SA 3.0, Dieter Mueller) via `POST /api/media/upload` (media id `c7e8b2ae-263e-4ae8-a357-50fe53e12f8f`, storageKey `unattached/634ae2e838d24f95.jpg`). Attached as `role=cover` to `moussaka-greek` via `POST /api/dishes/moussaka-greek/media` (attachment id `cdb78a50-5045-484c-91d2-94cbefd582c7`). Then PATCHed the dish's `shortDescription` to its existing value to bump `updatedAt` to `2026-10-17T10:03:44.250Z` so the `gustale-rebuild-web.timer` content-version check fires on the next tick (~every 30 min). Note: the DishGallery hydration itself was already fixed in `2da83d1`; the real defect was missing media. The P2 backlog entry "Fix DishGallery hydration" should be closed as already-shipped; the actual remaining gap is the seed-vs-API state mismatch on Moussaka (now resolved for this one dish). Cannot run the rebuild script directly (no passwordless sudo to hermes user; gustale user lacks docker group in this gateway-spawned shell). Systemd timer will pick up the change. — gustale profile
+- 2026-10-17: **PR #77 — DishGallery lightbox credit+license (prereq for Phase 11 image expansion).** Branch `fix/gallery-lightbox-credit`, commit `b46a43c` (+30/-0, 2 files: `apps/web/src/components/DishGallery.tsx`, `apps/web/src/styles/global.css`). Hero already shows credit/license; lightbox did not. URL: https://github.com/consciousclarity/gustale.com/pull/77. — gustale profile
+
+- 2026-10-17: **Moussaka cover image live on both domains; CC BY-SA credit visible.** Confirmed via `curl https://gustale.recipes/dishes/moussaka-greek` and `https://gustale.com/dishes/moussaka-greek`: the static HTML now contains `Dieter Mueller via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Mousakas.jpg), CC BY-SA 3.0` and `CC-BY-SA-3.0` rendered by `<DishCoverHero>` (lines 96–99). The new `live-data-2f1f985` images are running on `gustale-web-recipes` and `gustale-web-geo`. — gustale profile
 
 - 2026-10-17 by gustale profile — **PR #76: docs(hermes): record gustale profile as owner, workspace moved to /home/gustale/projects/gustale.com.** Updated `.hermes/PROJECT.md` on main: owner is now the `gustale` profile (formerly Hermes), workspace path is `/home/gustale/projects/gustale.com`. Squash-merged into main at `2f1f985`. Docs-only; CI `paths-ignore` correctly skipped Docker pipeline. 1 file, +3/-3.
 
 ## Done (recent — last 10)
 
-- 2026-07-25 by Hermes Agent (Telegram) — **Ops run: Applied Migrations 0009, 0010, 0011 to Production.** (1) Backed up database to `/home/deploy/gustale.com/backups/gustale_pre_migration_0009_20260725T121711Z.dump` (sha256 `9fdc5c3fcd823cbe...`, TOC count `1086`). (2) Applied migrations 0009 (db invariants), 0010 (surrogate pks), and 0011 (dish ingredients pk) in strict order as postgres superuser. (3) Resynced drizzle sequence and inserted tracking rows for all three migrations, bringing drizzle tracking count to 9. (4) Verified pg_constraint return p and u constraints for all 11 modified tables plus dish_ingredients, confirmed published dish count remains 121, all API smoke routes return 200, and PostGIS geometries are unchanged.
+- 2026-10-17 by gustale profile — **DB corrections verified (live query, not from reports).** (1) `SELECT count(long_description) FROM dishes WHERE status='published'` = **21** (not 0). (2) `SELECT id, slug, canonical_name, count(refs) FROM ingredients WHERE slug ILIKE '%bechamel%'` returned **2 rows**: `bechamel` (id `57f6dda0…`, 1 ref, published) and `bechamel-sauce` (id `33f93412…`, 0 refs, published), both with `canonical_name = 'Béchamel sauce'`. The duplicate is real. Public API `/api/ingredients` returns both. Merge proposal: keep `bechamel` (has the reference and is alphabetically shorter); move `bechamel-sauce` to an alias; redirect `/ingredients/bechamel-sauce` to `/ingredients/bechamel`. Merge plan filed as TODO below.
+
+- 2026-10-17 by gustale profile — **Ran `rebuild-web-live.sh` directly with docker group active (group 988).** Image built `live-data-2f1f985`, deployed to `gustale-web-recipes` and `gustale-web-geo` on VPS, both `running healthy`. First run failed at `rm -f /tmp/gustale-web-live-tag.env` because the file was owned by `root:root` (left over from a previous systemd-driven run; `/tmp` sticky bit blocked `gustale` from removing it; the `set -euo pipefail` propagated the failure into the inner `build-web-live.sh`, even though the outer wrapper's `tail -200` reported exit 0). Cleared the file via `docker run --rm -v /tmp:/tmp --user root alpine:latest rm -f /tmp/gustale-web-live-tag.env`, then re-ran. State-file write still fails (the `/var/lib/gustale-rebuild/` dir is owned by `hermes:hermes` from 2026-07-25) — but the actual image deploy succeeded and the containers are healthy. The systemd timer will refresh the state file on its next tick under the `hermes` user. **Real bug surfaced:** non-root users of the rebuild script hit these two permission collisions. Should be fixed in a follow-up PR (make the build script self-heal: `chmod` its own tag file before `rm -f`, and write state.json via `install -m 0644` so the dir doesn't matter).
+
+- 2026-07-25 by Hermes Agent (Telegram) — **Ops run: Applied Migrations 0009, 0010, 0011 to Production.** (1) Backed up database to `/home/deploy/gustale.com/backups/gustale_pre_migration_0009_20260725T121711Z.dump` (sha256 `9fdc5c3fcd823cbe...`, TOC count `1086`). (2) Applied migrations 0009 (db invariants), 0010 (surrogate pks), and 0011 (dish ingredients pk) in strict order as postgres superuser. (3) Resynced drizzle sequence and inserted tracking rows for all three migrations, bringing the drizzle tracking count to 9. (4) Verified pg_constraint return p and u constraints for all 11 modified tables plus dish_ingredients, confirmed published dish count remains 121, all API smoke routes return 200, and PostGIS geometries are unchanged.
 
 - 2026-06-24: **Fixed CI web build blocker.** Created `apps/web/scripts/mock-api.mjs` — a local HTTP server that serves all 31 dishes from inlined seed data. The Dockerfile now starts the mock inside the build container (overriding `PUBLIC_API_BASE=http://127.0.0.1:8742`), so Astro SSG generates all dish pages without needing the production API. Removed the async `wait-for-api` step from ci.yml. — Claude (Cowork)
 
@@ -214,6 +220,46 @@ Map-based discovery + unified search. Plan summary:
   Front-end: `<GlobalSearch>` island in header with grouped results.
 - **9c (3h)** — "Cuisines near me" + taste-based similarity via
   shared categories and shared origin regions.
+
+## Backlog
+
+### P0 — Merge `bechamel` + `bechamel-sauce` duplicate ingredient
+**Owner:** unassigned · **Discovered:** 2026-10-17
+
+**Evidence (live DB):**
+- `bechamel` (id `57f6dda0-af1f-4bbc-a5c5-5009cf4bff05`, `canonical_name='Béchamel sauce'`, status=published, 1 reference from `moussaka-greek` dish_ingredients at position 3).
+- `bechamel-sauce` (id `33f93412-19d4-5365-976b-9b3ece95af5f`, `canonical_name='Béchamel sauce'`, status=published, 0 references, 0 variants, 0 translations).
+- Both appear in the public `/api/ingredients` list with `dishCount=1` and `dishCount=0`.
+
+**Merge plan:**
+1. **Keep `bechamel`** (id `57f6dda0…`): it has the real reference, is alphabetically shorter, and is the form used by the Moussaka recipe in the seed.
+2. **Add `bechamel-sauce` as a slug alias** on the surviving row. This requires (a) making `slug` non-unique (drop the unique constraint) or (b) adding an `ingredient_aliases` table. The current schema has only `ingredients.slug` (unique) and `ingredient_variants.name` (per-ingredient). **No alias mechanism exists today.**
+3. **Recommended schema change:** new table `ingredient_aliases(ingredient_id uuid REFERENCES ingredients(id), alias text, source text, created_at)` plus a partial unique index on `LOWER(alias)`. This generalises beyond this one case.
+4. **Migration order:** (a) backfill `bechamel-sauce` → `bechamel` alias; (b) DELETE the orphan row (id `33f93412…`) AFTER backfill and AFTER confirming no FK references exist; (c) add the alias table.
+5. **Web redirects:** `apps/web/src/pages/ingredients/[slug].astro` should 301 redirect any slug not found in `ingredients.slug` to a slug found in `ingredient_aliases`. Add a small `resolveIngredientSlug` helper in `apps/web/src/lib/api.ts` that tries the slug, then the alias, and returns the canonical dish page.
+6. **API:** add `GET /api/ingredients/by-alias/:alias` if we want the API to surface the alias table for editors; not required for read-side redirect.
+
+**Risk:** The slug column is `text not null unique`. If the migration in step 2 is done before the alias table exists, the temporary state allows both rows to coexist (no FK conflict), but external links to `/ingredients/bechamel-sauce` will 404 unless step 5 is shipped in the same release. Coordinate deploy.
+
+**Owner estimate:** ~½ day. DB migration + web redirect + smoke test.
+
+### P1 — Fix `rebuild-web-live.sh` permission collisions for non-root runners
+**Owner:** unassigned · **Discovered:** 2026-10-17 (gustale profile run)
+
+**Evidence:**
+- First run today failed at `rm -f /tmp/gustale-web-live-tag.env` because the file was owned `root:root` from a prior systemd-driven run, and `/tmp`'s sticky bit blocked `gustale` from removing it. `set -euo pipefail` propagated this into the inner `build-web-live.sh`.
+- Final step also failed: `cat > /var/lib/gustale-rebuild/state.json.tmp.693433` → "Permission denied" because that dir is owned `hermes:hermes`.
+- The wrapper's `tail -200` masked the exit code so CI/deploy dashboards saw a green exit.
+- Cleared the tag file via `docker run --rm -v /tmp:/tmp --user root alpine:latest rm -f /tmp/gustale-web-live-tag.env` as a workaround.
+
+**Fix:**
+1. In `build-web-live.sh`, before the `rm -f` of `$TAG_FILE`, run `chmod 0666 "$TAG_FILE" 2>/dev/null || true` and `chmod 1777 /tmp 2>/dev/null || true` (no-op if already correct).
+2. Switch the state-file write to `install -m 0644 /dev/null "$STATE_FILE.tmp" < <(jq -n …)` so it does not depend on the parent dir's group.
+3. Outer wrapper: replace the `| tail -200` with `tee /var/log/gustale-rebuild-$(date -u +%s).log | tail -200` AND propagate the real `$PIPESTATUS[0]` (or just drop the `| tail` and use `--lines=200` in the logfile). The current masking is a real safety defect: failed deploys can look successful.
+4. Add a `--no-restart` flag for cases where we only want to rebuild (CI does its own restart via GHCR pull).
+5. Add a `--check` mode that just prints what it would do.
+
+**Estimate:** ~2h. Real bug. Worth filing.
 
 ## Backlog (longer-term)
 
