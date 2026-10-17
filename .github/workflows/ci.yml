@@ -327,6 +327,45 @@ jobs:
               trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ] && [ "$_DEPLOY_EXIT" = "0" ]; then _DEPLOY_EXIT=$rc; echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; fi' ERR
               trap 'echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "$_DEPLOY_EXIT"' EXIT
 
+              # deploy_container must be DEFINED BEFORE FIRST USE.
+              # PR #79's script called it at "Step 3" ~80 lines before the
+              # definition, so the deploy died with
+              # `bash: line 84: deploy_container: command not found` and the
+              # API was never swapped (caught by Real verify). Keep the
+              # definition here, immediately after the traps.
+              deploy_container() {
+                local NAME="$1"
+                local IMAGE="$2"
+                local HOST_PORT="$3"
+                local CONTAINER_PORT="${4:-$3}"
+                local EXTRA_ARGS="${5:-}"
+                echo "--- Deploying $NAME from $IMAGE on ${HOST_PORT}:${CONTAINER_PORT} ---"
+                docker stop "$NAME" 2>/dev/null || true
+                docker rm   "$NAME" 2>/dev/null || true
+                # shellcheck disable=SC2086
+                docker run -d --name "$NAME" --restart unless-stopped \
+                  -p "${HOST_PORT}:${CONTAINER_PORT}" $EXTRA_ARGS \
+                  "$IMAGE"
+              }
+
+              # gustale-api needs /root/.env for DB / MinIO / auth secrets.
+              # gustale-web-{recipes,geo} are pure static; no env-file needed.
+              #
+              # IMPORTANT: gustale-api runs with --network host because
+              # shared-postgres and shared-minio are bound to 127.0.0.1
+              # on the VPS host. From inside a container on the default
+              # bridge, 127.0.0.1 is the container's own loopback — NOT
+              # the host. --network host puts the container in the host's
+              # network namespace so 127.0.0.1 resolves correctly.
+              #
+              # Port mapping:
+              #   gustale-api           → host:4000 → container:4000
+              #   gustale-web-recipes   → host:4001 → container:4001
+              #   gustale-web-geo       → host:4002 → container:4001
+              # Both web containers listen on the same internal port (4001);
+              # the host-side port differs so they don't collide. Caddy
+              # routes gustale.recipes → :4001 and gustale.com → :4002.
+
               echo "=== Gustale deploy run $GITHUB_RUN_ID at SHA=$SHORT_SHA ==="
               echo "    run_id:    $GITHUB_RUN_ID"
               echo "    api_image: $API_IMAGE"
@@ -466,39 +505,11 @@ jobs:
                 fi
               done
 
-              deploy_container() {
-                local NAME="$1"
-                local IMAGE="$2"
-                local HOST_PORT="$3"
-                local CONTAINER_PORT="${4:-$3}"
-                local EXTRA_ARGS="${5:-}"
-                echo "--- Deploying $NAME from $IMAGE on ${HOST_PORT}:${CONTAINER_PORT} ---"
-                docker stop "$NAME" 2>/dev/null || true
-                docker rm   "$NAME" 2>/dev/null || true
-                # shellcheck disable=SC2086
-                docker run -d --name "$NAME" --restart unless-stopped \
-                  -p "${HOST_PORT}:${CONTAINER_PORT}" $EXTRA_ARGS \
-                  "$IMAGE"
-              }
-
-              # gustale-api needs /root/.env for DB / MinIO / auth secrets.
-              # gustale-web-{recipes,geo} are pure static; no env-file needed.
-
-              # IMPORTANT: gustale-api runs with --network host because
-              # shared-postgres and shared-minio are bound to 127.0.0.1
-              # on the VPS host. From inside a container on the default
-              # bridge, 127.0.0.1 is the container's own loopback — NOT
-              # the host. --network host puts the container in the host's
-              # network namespace so 127.0.0.1 resolves correctly.
-
-              # Port mapping:
-              #   gustale-api           → host:4000 → container:4000
-              #   gustale-web-recipes   → host:4001 → container:4001
-              #   gustale-web-geo       → host:4002 → container:4001
-              # Both web containers listen on the same internal port (4001);
-              # the host-side port differs so they don't collide. Caddy
-              # routes gustale.recipes → :4001 and gustale.com → :4002.
-              deploy_container "gustale-api"         "$API_IMAGE"         "4000" "4000" "--network host --env-file /root/.env"
+              # --- Step 5: swap the WEB containers only ---
+              # The API was already deployed + health-checked at Step 3 —
+              # do NOT redeploy it here (a second stop/start would be a
+              # needless API outage mid-deploy). deploy_container() is
+              # defined at the top of this script, before first use.
               deploy_container "gustale-web-recipes" "$WEB_RECIPES_IMAGE" "4001" "4001"
               deploy_container "gustale-web-geo"     "$WEB_GEO_IMAGE"     "4002" "4001"
 

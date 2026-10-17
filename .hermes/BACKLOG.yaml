@@ -67,8 +67,13 @@ tasks:
     depends_on: [GUS-001]
     approval: false
     notes: "Known defect: CI deploy job builds web before the new API is live (PR #78 needed 2 manual rebuilds). Order must be: deploy API -> health-check -> live web build against new API -> swap web containers. Also absorbs COMPETITIVE_ROADMAP P3-5 (real linting)."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
-    evidence: []
+    acceptance:
+      - "Deploy order is: deploy API -> health-check (container + public /health) -> live web build against new API -> swap web containers"
+      - "Deploy script is bash-clean (functions defined before use) and exits non-zero on failure"
+      - "A real merge-to-main deploy completes with the Real verify step green (no manual rebuilds)"
+    status: in_progress
+    evidence:
+      - "PR #79 (aa0fab0) attempted the reorder but failed on main: run 39037580515, 'bash: line 84: deploy_container: command not found' — function used before definition; API never swapped (no partial deploy; live stayed on ff1a88c)"
   - id: GUS-006
     title: "Audit existing GitHub branches and Dependabot configuration. Consolidate stale work without losing valuable changes"
     epic: "EPIC 01 — Stabilize the technical foundation"
