@@ -2345,6 +2345,25 @@ h4 {
   padding: 8px 12px;
   cursor: pointer;
 }
+.dish-gallery__lightbox-credit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 20px;
+  background: linear-gradient(to top, rgba(33, 28, 22, 0.9), rgba(33, 28, 22, 0));
+  color: var(--accent-ink);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
+.dish-gallery__lightbox-license {
+  color: rgba(251, 239, 230, 0.7);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
 
 @media (max-width: 1000px) {
   .dish-page .rec-body {
