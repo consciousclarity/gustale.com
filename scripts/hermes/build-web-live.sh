@@ -2,9 +2,9 @@
 # scripts/hermes/build-web-live.sh
 #
 # Build the Gustale web images on the VPS using LIVE data from the local
-# API (127.0.0.1:4000), then push to ghcr.io under a :live-data-<short-sha>
-# tag so the deploy job can pull the live-data images and start the
-# web containers from them.
+# API (127.0.0.1:4000), then optionally push to ghcr.io under a
+# :live-data-<short-sha> tag so the deploy job can pull the live-data
+# images and start the web containers from them.
 #
 # Why this exists: GHA cannot reach the VPS API through the firewall,
 # so the GHA build uses an in-container mock (apps/web/scripts/mock-api.mjs).
@@ -22,8 +22,16 @@
 #
 # Required env:
 #   GITHUB_TOKEN     PAT or workflow token with packages:write on this repo.
+#                    Only required if GUSTALE_NO_PUSH is NOT set to 1.
 #   GITHUB_REPOSITORY  Default: consciousclarity/gustale.com
 #   GITHUB_ACTOR       Default: $USER
+#   GUSTALE_NO_PUSH     Set to 1 to skip the docker push. The image is still
+#                       tagged with the ghcr.io/...:live-data-<short-sha>
+#                       tag, but it lives only in the local docker cache.
+#                       The rebuild timer (gustale-rebuild-web.timer) sets
+#                       this because the local-only image is fine for the
+#                       subsequent `docker run` that the timer does right
+#                       after the build.
 #
 # Output (stdout, line-prefixed with "TAG=" for easy parsing by the deploy):
 #   TAG=live-data-<short-sha>
@@ -55,9 +63,10 @@ GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
 TAG="live-data-${SHORT_SHA}"
 REGISTRY="ghcr.io/${REPO}"
 TAG_FILE="${GUSTALE_WEB_LIVE_TAG_FILE:-/tmp/gustale-web-live-tag.env}"
+NO_PUSH="${GUSTALE_NO_PUSH:-0}"
 
-if [ -z "${GITHUB_TOKEN:-}" ]; then
-  echo "ERROR: GITHUB_TOKEN must be set (for docker login to ghcr.io)" >&2
+if [ "$NO_PUSH" != "1" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "ERROR: GITHUB_TOKEN must be set (for docker login to ghcr.io). Or set GUSTALE_NO_PUSH=1 to skip the push and use the image locally only." >&2
   exit 1
 fi
 
@@ -74,6 +83,7 @@ echo "  repo:    $REPO"
 echo "  sha:     $SHA"
 echo "  tag:     $TAG"
 echo "  context: $(pwd)"
+echo "  push:    $([ "$NO_PUSH" = "1" ] && echo "skipped (GUSTALE_NO_PUSH=1)" || echo "to ghcr")"
 
 # Verify the API is reachable and the build will hit it.
 echo ""
@@ -81,10 +91,12 @@ echo "--- API health check ---"
 curl -fsS http://127.0.0.1:4000/health | head -c 200
 echo ""
 
-# Login to ghcr
-echo ""
-echo "--- docker login to ghcr.io ---"
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+# Login to ghcr (only if we're going to push)
+if [ "$NO_PUSH" != "1" ]; then
+  echo ""
+  echo "--- docker login to ghcr.io ---"
+  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+fi
 
 # Build both web variants. The Dockerfile takes the BUILD_DATA_SOURCE=live
 # arg, which makes it skip the mock and use PUBLIC_API_BASE=http://127.0.0.1:4000
@@ -106,8 +118,10 @@ build_one() {
     -f apps/web/Dockerfile \
     -t "$img" \
     . 2>&1 | tail -10
-  echo "  pushing $img to ghcr..."
-  docker push "$img" | tail -5
+  if [ "$NO_PUSH" != "1" ]; then
+    echo "  pushing $img to ghcr..."
+    docker push "$img" | tail -5
+  fi
 }
 
 build_one recipes gustale-web-recipes
@@ -125,5 +139,9 @@ cat "$TAG_FILE"
 
 echo ""
 echo "=== DONE ==="
-echo "  images pushed: $REGISTRY/gustale-web-recipes:$TAG, $REGISTRY/gustale-web-geo:$TAG"
+if [ "$NO_PUSH" = "1" ]; then
+  echo "  images built (local only): $REGISTRY/gustale-web-recipes:$TAG, $REGISTRY/gustale-web-geo:$TAG"
+else
+  echo "  images pushed: $REGISTRY/gustale-web-recipes:$TAG, $REGISTRY/gustale-web-geo:$TAG"
+fi
 echo "  tag file:      $TAG_FILE"

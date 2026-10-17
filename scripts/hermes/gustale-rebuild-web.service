@@ -6,9 +6,24 @@ Requires=docker.service
 [Service]
 Type=oneshot
 User=hermes
-WorkingDirectory=/home/hermes/projects/gustale.com
-ExecStart=/home/hermes/projects/gustale.com/scripts/hermes/rebuild-web-live.sh --deploy
+# Run from the dedicated build checkout, NEVER the working folder.
+# The script does its own `git fetch origin main && git checkout
+# origin/main` so any branch / dirty tree in /home/hermes/projects/gustale.com
+# is irrelevant.
+WorkingDirectory=/home/deploy/gustale-build
+ExecStart=/home/deploy/gustale-rebuild/rebuild-web-live.sh
 StandardOutput=journal
 StandardError=journal
-# If a previous run is still going, abort it.
-ExecStartPre=/usr/bin/test -f /tmp/gustale-rebuild.lock
+# Overlap protection lives INSIDE the script via `flock` on
+# /var/lock/gustale-rebuild.lock. Do not add an ExecStartPre here —
+# the previous `ExecStartPre=/usr/bin/test -f /tmp/gustale-rebuild.lock`
+# was inverted: it returned 0 only when a stale lock file existed,
+# so the service would silently fail to start except when an
+# orphaned lock was present.
+#
+# Environment file: holds GITHUB_TOKEN so build-web-live.sh can
+# optionally push to ghcr.io. The rebuild script sets GUSTALE_NO_PUSH=1
+# to skip the push, so this is no longer strictly required for the
+# rebuild flow; it remains for the deploy path. Owned by hermes:hermes,
+# mode 0600, created by scripts/hermes/install-rebuild-timer.sh.
+EnvironmentFile=/home/deploy/gustale-rebuild.env
