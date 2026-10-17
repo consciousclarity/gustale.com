@@ -24,3 +24,6 @@ Alejandro is the owner/decision-maker and is consulted only for the items in RUL
 | Env/secrets | /home/deploy/gustale.com/.env, .db-password, .backup-key (never print) |
 | Backups | gustale-backup.timer → /home/deploy/gustale.com/backups/backup.py |
 | Old checkout | /home/deploy/gustale-checkout — stale (was `feat/terracotta-design-pass` @ `8ebeb73`, no longer on this VPS as a git object). Read-only reference; do not deploy from it. May still exist on GEEKOM (D:\gustale) or Mac — owner to check. |
+
+## Roadmap
+Master roadmap `.hermes/ROADMAP.md` (adopted 2026-10-17) supersedes `COMPETITIVE_ROADMAP.md`. Backlog: `.hermes/BACKLOG.yaml`. Program: `.hermes/ROADMAP_EXECUTION.md`.
