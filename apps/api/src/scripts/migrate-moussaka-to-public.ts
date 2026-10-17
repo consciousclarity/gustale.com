@@ -73,10 +73,7 @@ async function main(): Promise<void> {
   }
 
   // 3. Update the row.
-  await db
-    .update(media)
-    .set({ variants })
-    .where(eq(media.id, row.id));
+  await db.update(media).set({ variants }).where(eq(media.id, row.id));
   console.log(`Updated media.variants: ${JSON.stringify(variants)}`);
 
   console.log("\nDone. The Moussaka cover is now same-origin public.");

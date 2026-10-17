@@ -52,7 +52,10 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
             in when the browser reports a successful load. For SSR
             builds the <img> is the real source so crawlers + first
             byte see the actual image. */}
-        <div className="dish-cover-hero__fallback" aria-hidden={Boolean(imgSrc)}>
+        <div
+          className="dish-cover-hero__fallback"
+          aria-hidden={Boolean(imgSrc)}
+        >
           <div className="dish-cover-hero__fallback-inner">
             <span className="dish-cover-hero__code">{placeCode}</span>
             <span className="dish-cover-hero__place">{placeLabel}</span>

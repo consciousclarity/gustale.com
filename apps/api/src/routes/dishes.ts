@@ -914,7 +914,6 @@ export function registerDishRoutes(app: FastifyInstance): void {
   });
 }
 
-
 /**
  * Map a media row's `variants` JSONB (`{"800": "<key>", "1536": "<key>"}`)
  * to `{"800": "/media/<key>", "1536": "/media/<key>"}` for the front-end.
