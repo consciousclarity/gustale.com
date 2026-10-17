@@ -110,7 +110,18 @@ build_one() {
   local img="${REGISTRY}/${img_name}:${TAG}"
   echo ""
   echo "--- building $img (PUBLIC_DOMAIN=$domain, BUILD_DATA_SOURCE=live) ---"
+  # Honour a caller-controlled no-cache toggle. The default is to use
+  # buildx cache (fast), but a manual --force / GUSTALE_BUILD_NO_CACHE=1
+  # forces a clean rebuild so fresh API data is reflected on the next
+  # deploy. The earlier bug here was that buildx layer-cache hit on the
+  # COPY-fetch-Dockerfile steps and re-baked the OLD data even when the
+  # API had changed (2026-10-17).
+  local -a cache_args=()
+  if [ "${GUSTALE_BUILD_NO_CACHE:-0}" = "1" ]; then
+    cache_args=(--no-cache --pull)
+  fi
   docker build \
+    "${cache_args[@]}" \
     --network host \
     --build-arg PUBLIC_DOMAIN="$domain" \
     --build-arg BUILD_DATA_SOURCE=live \

@@ -98,7 +98,8 @@ log "  force:     $FORCE"
 
 # --- Step 2: read the API's current content version ---
 # We use the public (no-auth) endpoints:
-#   - /api/dishes?status=published&limit=1&sort=-updatedAt — newest updatedAt
+#   - /api/dishes?status=published&limit=100&offset=0..N — paginated, max
+#     the API's `updatedAt` across pages (server-side sort is unreliable).
 #   - /api/categories?limit=500 — total count
 log ""
 log "--- Reading API content version ---"
@@ -111,17 +112,47 @@ read_json() {
   printf '%s' "$body" | jq -r "$filter" 2>/dev/null
 }
 
-DISHES_BODY=$(curl -fsS --max-time 15 "$API_BASE/api/dishes?status=published&limit=1&sort=-updatedAt" 2>&1) || {
-  log "ERROR: failed to fetch newest dish from $API_BASE: $DISHES_BODY"
-  exit 1
-}
-NEWEST_DISH_UPDATED_AT=$(read_json "$DISHES_BODY" '.dishes[0].updatedAt // ""')
-NEWEST_DISH_SLUG=$(read_json "$DISHES_BODY" '.dishes[0].slug // ""')
+# Page through all published dishes and find the max(updatedAt). The
+# public list endpoint does NOT honor sort/order params consistently
+# (verified 2026-10-17), so we paginate and sort client-side. API caps
+# limit at 100, so walk offset=0,100,200,... up to ~300 dishes.
+NEWEST_DISH_UPDATED_AT=""
+NEWEST_DISH_SLUG=""
+offset=0
+while :; do
+  PAGE=$(curl -fsS --max-time 15 "$API_BASE/api/dishes?status=published&limit=100&offset=$offset" 2>&1) || {
+    log "ERROR: failed to fetch dishes (offset=$offset) from $API_BASE: $PAGE"
+    exit 1
+  }
+  page_count=$(read_json "$PAGE" '.dishes | length')
+  [ -n "$page_count" ] && [ "$page_count" -gt 0 ] 2>/dev/null || {
+    log "ERROR: API returned no dishes (offset=$offset, length: $page_count)"
+    exit 1
+  }
+  # Update the running max from this page.
+  page_max=$(read_json "$PAGE" '[.dishes[].updatedAt] | max // ""')
+  page_max_slug=$(read_json "$PAGE" "[.dishes[] | select(.updatedAt == \"$page_max\")] | first | .slug // \"\"")
+  if [ -n "$page_max" ] && { [ -z "$NEWEST_DISH_UPDATED_AT" ] || [ "$page_max" \> "$NEWEST_DISH_UPDATED_AT" ]; }; then
+    NEWEST_DISH_UPDATED_AT="$page_max"
+    NEWEST_DISH_SLUG="$page_max_slug"
+  fi
+  log "  page offset=$offset: $page_count dishes, max updatedAt on page = $page_max"
+  # Stop if the page wasn't full (we've reached the end).
+  if [ "$page_count" -lt 100 ]; then
+    break
+  fi
+  offset=$((offset + 100))
+  # Safety cap: 5 pages = 500 dishes, well above the current ~130 published.
+  if [ "$offset" -gt 400 ]; then
+    log "WARN: hit 5-page cap, stopping pagination"
+    break
+  fi
+done
 [ -n "$NEWEST_DISH_UPDATED_AT" ] || {
-  log "ERROR: API returned no dishes (dishes.0.updatedAt is empty)"
+  log "ERROR: API returned no dishes across all pages"
   exit 1
 }
-log "  newest dish: $NEWEST_DISH_SLUG @ $NEWEST_DISH_UPDATED_AT"
+log "  newest dish overall: $NEWEST_DISH_SLUG @ $NEWEST_DISH_UPDATED_AT"
 
 CATEGORIES_BODY=$(curl -fsS --max-time 15 "$API_BASE/api/categories?limit=500" 2>&1) || {
   log "ERROR: failed to fetch categories from $API_BASE: $CATEGORIES_BODY"
