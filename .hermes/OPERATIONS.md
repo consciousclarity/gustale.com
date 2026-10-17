@@ -50,12 +50,14 @@ If read #1 was ambiguous (e.g. read before job finished), say "unknown, checking
 - Do NOT use the token-protected-snapshot option (option 2) unless I can show it works without opening the firewall.
 
 ## Auth (learned 2026-10-16)
+- **NEVER print, log, or send tokens, cookies, or passwords — not even partially** (learned 2026-10-16 — I leaked a partial session token in chat; user revoked all 72 sessions). The signed-in user can sign out remotely. If I need to verify auth worked, I print the email/role only, not the token.
+- Sign in once per job, reuse the session. Re-signin on 401 (token expired) only.
 - Credentials live in `~/.hermes/.hermes/.env` (mode 600) as `GUSTALE_API_BASE` / `GUSTALE_API_EMAIL` / `GUSTALE_API_PASSWORD`. Password is never echoed in chat or logs.
 - Sign in: `POST /api/auth/sign-in/email` with body `{"email", "password"}` and header `Origin: https://gustale.com`. The user account is `hermes-bot@gustale.com` (role: moderator).
 - **API calls MUST go through the public HTTPS endpoint** (`https://api.gustale.recipes`), not the local `http://127.0.0.1:4000`. The session cookies are `Secure`-flagged and the `requests` library (rightly) will not send them over HTTP. The env value `GUSTALE_API_BASE = http://127.0.0.1:4000` is documentation only; the client hardcodes the HTTPS base.
 - After signin, reuse the `requests.Session` — it carries the cookies across calls. Don't re-signin per request.
 - The bearer token returned in the signin body is **not** accepted by the PATCH endpoint (verified 401 on `PATCH /api/dishes/moussaka-greek` with `Authorization: Bearer ...`). The cookie is the only auth path that works.
-- The Hermes client is at `/tmp/gustale_client.py` (host-local). Sign in once, then call `api("METHOD", "/path", body=...)` for each request.
+- The Hermes client lives at **`scripts/hermes/gustale_client.py`** in the repo (not in `/tmp` — `/tmp` is volatile, surviving reboots and `rm -rf /tmp`). It contains NO secrets — credentials are read from `~/.hermes/.hermes/.env` at runtime.
 
 ## Memory hygiene (learned 2026-10-16)
 - **NEVER delete or trim another project's memory entries.** I removed a bali.business entry; user caught it. Restoring it at start of next turn.
