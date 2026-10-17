@@ -1,0 +1,59 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "Candid documentary photo of a real serving of sambal as served in a small Padang warung in West Sumatra: a coarse, wet, brick-red chili paste mounded on a small white ceramic saucer, with visible chunks of bird's eye chili (cabe rawit), shallots, garlic, candlenut, a thread of palm sugar, and a slick of reddish oil pooling at the edge. A small piece of terasi (fermented shrimp paste) sitting on the side. A spoonful of the sambal on a small spoon next to the saucer. Served on a worn wooden or formica warung table, a small bowl of plain white rice in the background, softly out of focus. Soft natural daylight from the open shopfront, viewed from about 40 degrees above, 35mm lens, moderate depth of field. Everyday unstyled serving, slightly messy edges with chili oil smears, true-to-life colours, realistic textures. No food styling, no lettuce, no basil leaves, no microgreens, no studio lighting, no text, no logos, no people, no hands.",
+  "seed": null,
+  "width": 1536,
+  "height": 1024,
+  "files": [
+    "sambal-1.jpg",
+    "sambal-2.jpg",
+    "sambal-3.jpg",
+    "sambal-4.jpg"
+  ],
+  "web": [
+    {
+      "file": "sambal-1-1536w.webp",
+      "width": 1536,
+      "kb": 75
+    },
+    {
+      "file": "sambal-1-800w.webp",
+      "width": 800,
+      "kb": 27
+    },
+    {
+      "file": "sambal-2-1536w.webp",
+      "width": 1536,
+      "kb": 111
+    },
+    {
+      "file": "sambal-2-800w.webp",
+      "width": 800,
+      "kb": 43
+    },
+    {
+      "file": "sambal-3-1536w.webp",
+      "width": 1536,
+      "kb": 70
+    },
+    {
+      "file": "sambal-3-800w.webp",
+      "width": 800,
+      "kb": 26
+    },
+    {
+      "file": "sambal-4-1536w.webp",
+      "width": 1536,
+      "kb": 68
+    },
+    {
+      "file": "sambal-4-800w.webp",
+      "width": 800,
+      "kb": 27
+    }
+  ],
+  "trace_id": "07228fb66509073329ae8c35b1605fc0",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T11:32:33+00:00"
+}
