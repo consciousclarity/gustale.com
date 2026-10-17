@@ -503,8 +503,6 @@ jobs:
               SHA="${{ github.sha }}"
               SHORT_SHA="${SHA:0:7}"
               FAILED=0
-
-              # --- Check 1: deploy log is OK ---
               echo "--- Check 1: deploy log ---"
               if [ ! -f "$DEPLOY_LOG" ]; then
                 echo "::error::Deploy log $DEPLOY_LOG not found. The deploy step did not write a log file."
@@ -525,13 +523,15 @@ jobs:
               fi
 
               # --- Check 2: docker inspect — all 3 containers on the deploy SHA ---
-              # The deploy uses tag-based pulls, so the tag (with the
-              # short SHA for the API image and `live-data-<short-sha>`
-              # for the web images) is what's actually live. We match on
-              # the trailing short tag in the image reference.
+              # The deploy uses tag-based pulls. The API image is tagged
+              # with the FULL SHA (per `API_IMAGE="$REPO/gustale-api:${{ github.sha }}"`
+              # above); the web images are tagged with `live-data-<short-sha>`.
+              # We match on the trailing short tag in the image reference,
+              # and for the API image we additionally require the full SHA
+              # substring as a safety check.
               echo ""
               echo "--- Check 2: docker inspect SHA ---"
-              EXPECTED_API="gustale-api:${SHORT_SHA}"
+              EXPECTED_API="gustale-api:${SHA}"  # full SHA
               EXPECTED_RECIPES="gustale-web-recipes:live-data-${SHORT_SHA}"
               EXPECTED_GEO="gustale-web-geo:live-data-${SHORT_SHA}"
               for ENTRY in "gustale-api:${EXPECTED_API}" "gustale-web-recipes:${EXPECTED_RECIPES}" "gustale-web-geo:${EXPECTED_GEO}"; do
