@@ -129,12 +129,20 @@ build_one geo     gustale-web-geo
 
 # Emit the deploy variables. Two channels: stdout (line-prefixed with TAG=
 # / IMAGE_=, for the deploy script to capture) and a file (for operators
-# to inspect after a deploy).
+# to inspect after a deploy). Remove any stale file first so the `cat >`
+# below doesn't fail with "Permission denied" if a previous run (run as
+# a different user — e.g. hermes for the rebuild, root for the deploy)
+# left a non-writable file behind.
+rm -f "$TAG_FILE"
 cat >"$TAG_FILE" <<EOF
 TAG=$TAG
 IMAGE_RECIPES=$REGISTRY/gustale-web-recipes:$TAG
 IMAGE_GEO=$REGISTRY/gustale-web-geo:$TAG
 EOF
+# Make the file world-readable so the deploy script (running as root)
+# can `source` it even if the file was originally written by hermes
+# (the rebuild user).
+chmod 0644 "$TAG_FILE"
 cat "$TAG_FILE"
 
 echo ""
