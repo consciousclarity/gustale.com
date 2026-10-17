@@ -223,9 +223,31 @@ Map-based discovery + unified search. Plan summary:
 
 ## Backlog
 
+### P0 — Data-coverage funnel (largest gap, 2026-10-17 audit)
+**Owner:** unassigned · **Discovered:** 2026-10-17 (gustale profile)
+
+Live DB reality check — published dishes: 121. Cross-tabulation:
+
+| what | count | % of 121 |
+|---|---|---|
+| have `longDescription` | 21 | 17% (the 11-dish India batch + others) |
+| have a `cover` media attachment | 1 | <1% (moussaka-greek only) |
+| have **both** longDescription AND cover | **0** | **0%** |
+| have **zero** ingredients (no `dish_ingredients` rows) | **120** | **99%** |
+| have **zero** media attachments (cover OR gallery) | **120** | **99%** |
+
+The published ingredients table is itself a skeleton: **5 published, 4 actually used, 4 total `dish_ingredients` rows across 121 dishes.** Only `moussaka-greek` (bechamel, position 3) has a real recipe ingredient chain. The "Phase 11 image-licensing" perception in prior memory is wrong: the actual state is *near-zero media coverage*.
+
+**Implication for the queue:**
+- "Wikimedia covers" is a **120-dish task**, not a small follow-up.
+- "Ingredients for all dishes" is a **120-dish task** and the data model needs serious thought (which ingredients? canonical or free-text? what sources?).
+- "Japan long descriptions" is a sub-batch of the 100 dishes that don't have longDescription.
+- The "all 11 India dishes are cookable" framing in older notes is a fiction: 11 have longDescription but only 1 has ingredients.
+
+**Recommendation:** before scaling content, ship (a) the béchamel merge (P0 below — schema prerequisite for an alias table that the canonical ingredient model will need anyway); (b) the rebuild-script permission fix; (c) a `longDescription` template + source-tracker schema that the Japan + remaining 89 dishes can share. Then attack the funnel in this order: (1) long descriptions (100 remaining); (2) media covers (120 remaining); (3) ingredients (120 remaining). Each is research-heavy and should be batched (10–15 per PR, not 120 in one).
+
 ### P0 — Merge `bechamel` + `bechamel-sauce` duplicate ingredient
 **Owner:** unassigned · **Discovered:** 2026-10-17
-
 **Evidence (live DB):**
 - `bechamel` (id `57f6dda0-af1f-4bbc-a5c5-5009cf4bff05`, `canonical_name='Béchamel sauce'`, status=published, 1 reference from `moussaka-greek` dish_ingredients at position 3).
 - `bechamel-sauce` (id `33f93412-19d4-5365-976b-9b3ece95af5f`, `canonical_name='Béchamel sauce'`, status=published, 0 references, 0 variants, 0 translations).
@@ -242,6 +264,27 @@ Map-based discovery + unified search. Plan summary:
 **Risk:** The slug column is `text not null unique`. If the migration in step 2 is done before the alias table exists, the temporary state allows both rows to coexist (no FK conflict), but external links to `/ingredients/bechamel-sauce` will 404 unless step 5 is shipped in the same release. Coordinate deploy.
 
 **Owner estimate:** ~½ day. DB migration + web redirect + smoke test.
+
+### P1 — PR #57: 60-AI-generated dish images, needs review before merge
+**Owner:** unassigned · **Discovered:** 2026-10-17
+
+`feat(scripts): bulk-upload 60 AI-generated dish images + gitignore` — still open, no merge conflict yet.
+
+**Why this needs review now (not auto-merge):**
+1. **Content rules say** "Wikimedia Commons is preferred for covers" and "AI images only used when nothing exists and must be labelled as illustrations". A bulk upload of 60 AI images as primary content is the opposite of the rule.
+2. PR was opened before PR #77 (DishGallery lightbox credit/license), so even if the AI images had credit strings, they wouldn't be visible on the lightbox yet.
+3. The 60 AI images would crowd out the 120 remaining Commons-covers work because once AI covers are attached, replacing them with Commons requires deleting media_attachments and re-uploading.
+
+**Recommendation:** **do not merge as-is.** Either (a) close in favor of the Commons-priority plan in the data-coverage funnel, or (b) get explicit user sign-off that the 60 AI images are wanted as placeholders with a clear "swap-to-Commons" migration step, AND require the PR author to add a `source_acknowledged: ai-illustration` field to each upload so the front-end can label them.
+
+### P1 — Dependabot: 3 open PRs, all major-version jumps
+**Owner:** unassigned · **Discovered:** 2026-10-17
+
+- **#58** `chore(deps-dev): bump vitest from 2.1.9 to 4.1.11` — major-skip. Affects test runner; PR #75 (test-dish-7c) was merged at 2.x, so a 4.x bump may need test-rewrite. Coordinate with the API test pass.
+- **#59** `chore(deps): bump maplibre-gl from 5.24.0 to 6.4.1` — major. The per-dish `<DishMap>` and standalone /map use MapLibre. PR #1 shipped this; 6.x is a breaking bump (style spec, marker API). Should go through a smoke test on a staging deploy, not direct-to-main.
+- **#60** `chore(deps): bump astro from 6.4.7 to 7.2.8` — major. The whole `apps/web` is built on Astro; a major bump is days of work. Defer until after Phase 11 image-licensing is shipped.
+
+**Recommendation:** close #58/#59/#60 for now with a comment explaining the deferral; revisit post-Phase-11. Add a `dependabot.yml` `groups` config so minor/patch updates still flow automatically.
 
 ### P1 — Fix `rebuild-web-live.sh` permission collisions for non-root runners
 **Owner:** unassigned · **Discovered:** 2026-10-17 (gustale profile run)
