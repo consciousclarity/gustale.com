@@ -1,0 +1,59 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "Candid documentary photo of a real serving of babi guling as eaten at a small Balinese warung in Ubud. CRUCIAL defining feature — the CRACKLING: blistered, puffed, bubbly golden-brown crackle armor from spit-roasting a young pig over a coconut-husk fire for hours. The crackle surface must be visibly bubbled and blistered, with raised crispy bubbles 2-10mm across and a heavily cratered, almost coral-like surface — NOT smooth, NOT glazed, NOT fried-battered, NOT thin fried coating. Show 2-3 pieces of pork with the bubbly crackle cap prominent and unmistakable on each. Served on a banana leaf (authentic Balinese presentation). Side: small mound of white rice, tiny saucer of sambal matah (raw shallot + chili + lime + lemongrass), small heap of lawar (chopped pork with grated coconut + long bean + herbs), wedge of lime. Worn wooden or formica warung table. Glass of es teh and clay periuk pot in soft background. Soft natural Balinese daylight from the open shopfront, ~40° above, 35mm lens, moderate depth of field. Everyday unstyled, slightly messy crumb of crackle on the banana leaf. The bubbly crackle is the visual hero. Do NOT render as: babi kecap, babi goreng kremes, babi panggang, or fried chicken. No microgreens, no fusion garnish, no studio lighting, no text, no logos, no people, no hands.",
+  "seed": null,
+  "width": 1536,
+  "height": 1024,
+  "files": [
+    "babi-guling-1.jpg",
+    "babi-guling-2.jpg",
+    "babi-guling-3.jpg",
+    "babi-guling-4.jpg"
+  ],
+  "web": [
+    {
+      "file": "babi-guling-1-1536w.webp",
+      "width": 1536,
+      "kb": 118
+    },
+    {
+      "file": "babi-guling-1-800w.webp",
+      "width": 800,
+      "kb": 44
+    },
+    {
+      "file": "babi-guling-2-1536w.webp",
+      "width": 1536,
+      "kb": 109
+    },
+    {
+      "file": "babi-guling-2-800w.webp",
+      "width": 800,
+      "kb": 40
+    },
+    {
+      "file": "babi-guling-3-1536w.webp",
+      "width": 1536,
+      "kb": 135
+    },
+    {
+      "file": "babi-guling-3-800w.webp",
+      "width": 800,
+      "kb": 52
+    },
+    {
+      "file": "babi-guling-4-1536w.webp",
+      "width": 1536,
+      "kb": 115
+    },
+    {
+      "file": "babi-guling-4-800w.webp",
+      "width": 800,
+      "kb": 43
+    }
+  ],
+  "trace_id": "0722aea09c287d08ffbf9bbb0be2a72a",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T13:44:33+00:00"
+}
