@@ -9,7 +9,6 @@ tasks:
     priority: P0
     phase: 0
     first15_order: 1
-    status: todo
     depends_on: []
     approval: false
     notes: "Output: .hermes/REPORTS/GUS-001-architecture-audit.md. Read-only. Also maps what of this roadmap already exists."
@@ -31,7 +30,6 @@ tasks:
     priority: P0
     phase: 0
     first15_order: 2
-    status: todo
     depends_on: [GUS-001]
     approval: false
     notes: "Previously investigated 2026-10-17 and NOT reproduced. Close only with evidence: a contract test that PATCHes, restarts gustale-api, re-reads."
@@ -71,7 +69,6 @@ tasks:
     priority: P0
     phase: 0
     first15_order: 3
-    status: todo
     depends_on: [GUS-001]
     approval: false
     notes: "Known defect: CI deploy job builds web before the new API is live (PR #78 needed 2 manual rebuilds). Order must be: deploy API -> health-check -> live web build against new API -> swap web containers. Also absorbs COMPETITIVE_ROADMAP P3-5 (real linting)."
@@ -105,9 +102,9 @@ tasks:
       - "Dependabot #59 (maplibre-gl 6.4.1) MERGED (94c4102) — closes CRITICAL prod XSS bypass (GHSA-jrc7-96c5-q579)"
       - "Dependabot #60 (astro 7.2.8) MERGED (da5d0a3a) — closes CRITICAL prod RCE in AVIF (GHSA-26w7-cxv4-gfx2)"
       - "Dependabot #58 (vitest 4.1.11) MERGED (3c60c77) — closes CRITICAL dev (vitest UI RCE, GHSA-5xrq-8626-4rwp)"
-      - "CI now runs pnpm audit --audit-level=critical (non-blocking)"
+      - "CI now runs pnpm audit --audit-level=critical (non-blocking); pnpm audit --prod on main today = 0 critical / 26 high prod / 15 moderate prod / 1 moderate dev / 3 low prod"
       - ".github/dependabot.yml added (weekly Monday 04:00 UTC, grouped, skips semver-major)"
-      - "Remaining: tinypool 1.1.1 → 2.1.2 (dev, transitive of vitest — verify resolved by #58); 36 HIGH prod remaining (fastify 5.8.5 → 5.12.2 cluster, fast-uri 3.1.2 → 3.1.7, js-yaml 4.2.0 → 4.3.2, devalue 5.8.1 → 5.9.3, sharp 0.34.5 → 0.35.5, nanoid, better-auth, browserslist, svgo, smol-toml, postcss, @fastify/busboy, http-cache-semantics, source-map-js, etc.)"
+      - "Remaining 26 HIGH prod grouped into 10 clusters for GUS-006.b: fastify (1-4), better-auth (5), browserslist (6), smol-toml (7), source-map-js (8) + 2 fix-up clusters. Order: fastify first."
   - id: GUS-007
     title: "Resolve container registry authentication. Fix GHCR token permissions if container publishing is required"
     epic: "EPIC 01 — Stabilize the technical foundation"
@@ -156,7 +153,6 @@ tasks:
     priority: P0
     phase: 0
     first15_order: 4
-    status: todo
     depends_on: [GUS-001]
     approval: false
     notes: "Include: homepage says 15 lineages, /lineages lists 14 — find and fix the cause."
