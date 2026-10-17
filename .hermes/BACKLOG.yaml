@@ -71,9 +71,12 @@ tasks:
       - "Deploy order is: deploy API -> health-check (container + public /health) -> live web build against new API -> swap web containers"
       - "Deploy script is bash-clean (functions defined before use) and exits non-zero on failure"
       - "A real merge-to-main deploy completes with the Real verify step green (no manual rebuilds)"
-    status: in_progress
+    status: done
     evidence:
       - "PR #79 (aa0fab0) attempted the reorder but failed on main: run 39037580515, 'bash: line 84: deploy_container: command not found' — function used before definition; API never swapped (no partial deploy; live stayed on ff1a88c)"
+      - "PR #82 (71df930) merged"
+      - "Main deploy run 39045129051 SUCCESS end-to-end (lint, tests, all 3 Docker builds, deploy); live API on new SHA serving /health, bakso longDescription rendered on gustale.com/dishes/bakso/ ('Indonesian meatball' phrase)"
+      - "Fix: deploy_container() defined at top of script before first use; removed redundant second API redeploy (API now swapped exactly once, before the live web build)"
   - id: GUS-006
     title: "Audit existing GitHub branches and Dependabot configuration. Consolidate stale work without losing valuable changes"
     epic: "EPIC 01 — Stabilize the technical foundation"
