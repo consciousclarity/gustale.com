@@ -96,8 +96,19 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // The test closes the originalDb pool mid-flight to simulate a restart.
+  // afterAll must therefore use a fresh client, not originalDb.
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL must be set for afterAll cleanup");
+  const cleanupClient = postgres(url, { max: 2, idle_timeout: 5 });
+  const cleanupSchema = Object.fromEntries(
+    Object.entries(schemaModule).filter(
+      ([, v]) => v && typeof v === "object" && Symbol.for("drizzle:BaseName") in v,
+    ),
+  );
+  const cleanupDb = drizzle(cleanupClient, { schema: cleanupSchema });
   if (cleanupDishIds.length > 0) {
-    await originalDb
+    await cleanupDb
       .delete(editHistory)
       .where(
         and(
@@ -105,11 +116,12 @@ afterAll(async () => {
           inArray(editHistory.targetId, cleanupDishIds),
         ),
       );
-    await originalDb
+    await cleanupDb
       .delete(dishes)
       .where(inArray(dishes.id, cleanupDishIds));
   }
   await app.close();
+  await cleanupClient.end();
   mockGetSession.mockRestore();
 });
 
@@ -149,16 +161,26 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     // detail endpoint (this is the same API the test PATCHes, so it does
     // not yet prove restart-survival — that comes after the restart).
     // The detail endpoint hides drafts from anonymous reads (A1 visibility
-    // rule — see apps/api/src/routes/dishes.ts), so the pre-restart check
-    // has to use an admin-context GET. We use a direct DB read for this
-    // sanity step instead; the post-restart check below uses the public
-    // endpoint AFTER publish (so both paths exercise the API).
+    // rule — see apps/api/src/routes/dishes.ts). The post-restart check
+    // below uses the public endpoint AFTER publish, which exercises both
+    // the API write path and the read path through a fresh process.
     const preDb = await originalDb
       .select({ longDescription: dishes.longDescription })
       .from(dishes)
       .where(eq(dishes.id, created.id))
       .limit(1);
     expect(preDb[0]?.longDescription).toBe(longDescription);
+
+    // Promote the dish to published BEFORE the restart, so the post-restart
+    // GET hits the public path (no moderator session needed after the
+    // restart). Doing it on the same running app keeps the test simple.
+    asModerator();
+    const publishRes = await app.inject({
+      method: "POST",
+      url: `/api/dishes/${slug}/publish`,
+      payload: { comment: "GUS-002 pre-restart publish" },
+    });
+    expect(publishRes.statusCode).toBe(200);
 
     // ── 3. SIMULATE A FULL API RESTART ────────────────────────────────
     // Close the running app + its pool, then build a *fresh* client and
@@ -207,17 +229,8 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     // Bring up a *new* Fastify app and confirm the public detail endpoint
     // returns the PATCHed value — the strongest possible "survives restart"
     // assertion, because the read path uses a different process / client.
-    // The dish is still a draft at this point; A1 hides drafts from the
-    // public detail endpoint. Promote it to published first (moderator
-    // role) so the GET hits the public path.
-    asModerator();
-    const publishRes = await app.inject({
-      method: "POST",
-      url: `/api/dishes/${slug}/publish`,
-      payload: { comment: "GUS-002 post-restart publish" },
-    });
-    expect(publishRes.statusCode).toBe(200);
-
+    // The dish was already published pre-restart, so the anonymous public
+    // GET hits the real published path.
     app = await buildServer();
     const postRestart = await app.inject({
       method: "GET",
