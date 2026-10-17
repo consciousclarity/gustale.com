@@ -137,7 +137,12 @@ tasks:
     depends_on: [GUS-001]
     approval: false
     notes: "Include: homepage says 15 lineages, /lineages lists 14 — find and fix the cause."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    acceptance:
+      - "Report exists at .hermes/REPORTS/GUS-011-integrity-report.md (initial baseline)"
+      - "Covers: duplicate records, broken references, orphaned relations, invalid coordinates, missing required fields"
+      - "Identifies and root-causes the 15-vs-14 lineages discrepancy"
+      - "Findings graded P0/P1/P2 with concrete next-step actions"
+    status: in_progress
     evidence: []
   - id: GUS-012
     title: "Verify backup and disaster recovery. Test PostgreSQL restoration, object-storage recovery, and application redeployment"
