@@ -1,105 +1,59 @@
-# Gustale Image Style Guide
+# Gustale Image Style — "Documentary field photography"
 
-> **Audience:** every batch of 10 dishes (and any one-off dish image) generated for Gustale. Strictly follow this spec — the lead reviewer rejects any image that violates it.
+> Binding spec for every dish image (AI-generated or real). Owner decision 2026-10-17.
+> Supersedes the earlier "editorial magazine" spec. Any image that breaks a rule below is rejected, however pretty.
 
-## Source of truth
+## The idea
+Every dish is photographed the way a food anthropologist would find it: **where it is actually eaten, as it is actually served** — a warung table, a street stall, a home kitchen, an izakaya counter, a taverna. Calm, honest, credible. Not a restaurant shoot, not a recipe blog, not Instagram.
 
-Every image is an **AI illustration labeled as such on the page** (front-end renders the `credit` field as a figcaption under both the hero and the gallery lightbox; see `DishCoverHero.tsx` line 96 and `DishGallery.tsx` lightbox figcaption). Real photos (Wikimedia Commons or contributor-submitted) take priority when available. AI fills the gap.
-
-## Fixed art direction (every dish, every time)
-
-| Axis | Spec |
+## Constant across all dishes (makes 121 images one collection)
+| Axis | Rule |
 |---|---|
-| **Genre** | Editorial food photography. Magazine-quality, never painterly or illustrated. |
-| **Lighting** | Natural daylight only. Soft window light from camera-left, gentle shadow on camera-right. No studio strobes, no coloured gels, no dramatic rim-light. |
-| **Subject** | The dish itself, plated as it is authentically served in its region of origin. Realistic portion size (a single serving, not a banquet platter). |
-| **Serveware** | Authentic regional serveware: clay/earthenware for South-East Asian dishes, ceramic for Mediterranean, lacquerware for East Asian, etc. No white china, no generic restaurant plates, no modern designer ceramics unless that's the authentic style. |
-| **Background** | Calm, neutral, slightly desaturated. Solid wood, neutral linen, pale stone, or out-of-focus kitchen counter. Never a busy environment, never a restaurant scene, never a backdrop with branding or text. |
-| **Composition** | 3/4 angle, slight overhead, 50–85mm equivalent. Subject occupies ~60% of frame. Shallow depth of field (f/2.8–f/4 look). Rule of thirds. |
-| **People** | No people. No hands holding cutlery. No chef in the frame. No diners in the background. |
-| **Text** | No text. No words on signage in the background. No chalkboard menus. No overlays. |
-| **Logos** | No brand logos. No branded packaging. No product placements. |
-| **Garnishes** | Only authentic regional garnishes that belong in the recipe. No micro-herbs, no edible flowers, no gold leaf, no fusion-style "elevated" garnishes that wouldn't be on a home-cooked version. |
-| **Color treatment** | Warm, slightly muted. Avoid over-saturated HDR. Think Saveur / Bon Appétit / Cibo magazine covers, not Instagram. |
-| **AI artifacts to reject** | Distorted hands, melted cutlery, extra fingers, asymmetric eyes (in any case, no people so mostly N/A), food that defies physics (floating garnishes, sauce pouring in zero gravity), ingredient substitutions that contradict the recipe (e.g. mozzarella on a "Greek" dish). |
+| Angle | Seated diner's view, 25–40° above the table (image-01 tends to drift low; accept 25°+). Never flat-lay, never table-level hero shot. |
+| Framing | One serving, dish centred, filling ~55–65% of frame, so a centred square crop works for cards. |
+| Format | Generate 1536×1024 (3:2). Publish WebP only: 1536w (dish page) and 800w (cards/lists). Target < 200 KB. JPG master stays private. |
+| Light | Soft natural daylight (open shopfront, window, overcast outdoors). Never flash, studio light, dramatic rim light or hard spotlight. |
+| Colour | Neutral-warm, true-to-life, gently muted. No HDR, no oversaturation, no teal-orange grade. |
+| Focus | Dish sharp edge-to-edge; background softly out of focus but recognisable (moderate depth of field, ~f/4). |
+| Lens look | 35–40mm, candid, slightly imperfect — a real photo, not a render. |
 
-## Prompt construction rules
+## Varies by dish (this is the authenticity)
+- **Setting** true to where the dish is eaten: Indonesian warung (formica/plain wood table, glass of es teh), Indian home or dhaba (steel thali, steel tumbler), Japanese counter or shokudō (lacquer tray, wooden counter), Greek taverna (paper tablecloth), etc.
+- **Serveware** that locals actually use: enamel or melamine plate, banana leaf, clay pot, steel thali, bamboo steamer, donburi bowl.
+- **Real portions and real mess**: sauce edges, a crumb, a drip — food about to be eaten, not arranged.
+- **Traditional accompaniments only** (krupuk, sambal, acar, chutney, pickles, rice) — only if they are actually served with that dish.
 
-1. **Build the prompt from the dish's verified ingredients + description, NEVER the name alone.** Example: for "Nasi Goreng" the prompt should be: "Indonesian fried rice with kecap manis, garlic, shallots, bird's eye chili, fried shallot garnish, served on a banana leaf with a side of acar and krupuk, on a ceramic plate on a teak wood table" — NOT just "Nasi Goreng".
-2. Include:
-   - The dish's principal ingredients (2–6)
-   - The region (e.g. "Javanese", "Bali", "Minang")
-   - The serveware and the surface
-   - The lighting ("natural window light from left, soft shadow right")
-   - The composition ("3/4 angle, shallow depth of field, magazine editorial food photography")
-3. Exclude:
-   - The dish name itself (forces the model to construct from ingredients)
-   - Any text/logo descriptors
-   - "Delicious", "tasty", "yummy" — empty adjectives
-   - Hyperbole ("perfect", "amazing", "incredible")
-4. Negative prompt: "no text, no logos, no people, no hands, no cutlery distortion, no floating objects, no modern minimalist plating, no fusion garnishes, no white plates unless authentic to the cuisine".
+## Accuracy first
+Every prompt starts with the dish's **defining visual feature** — the thing a local checks first:
+gado-gado = peanut sauce poured over everything; rawon = near-black kluwek broth; rendang = dry, dark, caramelised, almost no sauce; babi guling = blistered, puffed crackling; masala dosa = large thin golden crêpe, crisp, folded over potato masala; tonkotsu ramen = opaque creamy white broth.
+If that feature is wrong or missing, the image is rejected.
 
-## Generation & QA workflow (per dish)
+## Lessons from the 2026-10-17 test sheet
+- Name what the dish is NOT when the model confuses it (masala dosa: "thin crisp wafer-like crepe, nothing like bread or roti"). Round 1 gave 3 parathas; round 2 fixed it.
+- Check background objects for text (a tumbler with lettering = reject).
+- Reject toppings the prompt did not ask for (minced meat on ramen, orange threads on rendang).
+- Approved references: rendang-3, masala-dosa-v2-3, ramen-japanese-1 (in .hermes/SAMPLES/style-test-2026-10-17/).
 
-1. Generate **2–4 candidates** with different seeds at the highest resolution the model supports.
-2. For each candidate, run a vision check against the ingredient list:
-   - Are the principal ingredients visible and identifiable?
-   - Is the serveware authentic for the region?
-   - Are the AI-artifact rejection criteria satisfied?
-3. **Reject** any candidate that:
-   - Shows the wrong dish (cross-check against the recipe)
-   - Shows clear AI artifacts (melted cutlery, impossible food, extra fingers)
-   - Violates any rule above
-4. If **none** of the candidates pass, regenerate (different seeds). **Do not publish a weak one.** It is better to leave a dish with no cover than with a wrong cover.
-5. The selected candidate becomes the `cover` media attachment.
-
-## Storage & derivatives
-
-- Image generation tool: `minimax-image` (uses `minimax-oauth` Max-subscription token from `~/.hermes/auth.json`; falls back to `MINIMAX_API_KEY`).
-- Model: `image-01`. Default size: **1536×1024** (3:2 aspect). Tool also accepts `--width`/`--height` (must be 512..2048 and divisible by 8).
-- Output per candidate: one **JPG master** (private, never on the site) + two **WebP derivatives**:
-  - `<slug>-<n>-1536w.webp` (~50–60 KB) — for the dish page hero/lightbox
-  - `<slug>-<n>-800w.webp` (~20 KB) — for dish cards, lists, related-dishes, journey thumbnails
-- **The JPG master is private.** It is kept only in the local generation working dir (and pushed to `private/state` for provenance) but never uploaded to MinIO, never linked from the API, and never referenced by the front-end.
-- **Publish only the WebP versions.** The `cover` media attachment's `storageKey` references the `1536w` WebP; the `thumbnail` field references the `800w` WebP. The front-end picks 800w for cards/lists and 1536w for the dish page.
-- **Target: under 200 KB per published image.** Current typical: ~80–115 KB total payload (both WebPs) per dish.
-- All files referenced by the API in two ways:
-  - The `media` row (master / derivatives / metadata)
-  - The `media_attachments` row (links media → dish, with `role='cover'`)
-
-## Generation command
-
-```bash
-minimax-image --prompt-file prompt.txt --out <dir> --slug <dish> --n 4
-# Optional: --width 1536 --height 1024 (default), --seed N (omit for random), --prompt-optimizer
+## Prompt template
 ```
+Candid documentary photo of a real serving of <dish as locals know it>, as eaten at <real setting, region>:
+<defining visual feature, described concretely>. <Key components in real proportions and real colours>.
+Served on/in <authentic serveware>, on <real surface>, <one or two true background details, softly out of focus>.
+Soft natural daylight from <source>, viewed from about 40 degrees above, 35mm lens, moderate depth of field.
+Everyday unstyled plating, slightly messy edges, true-to-life colours, realistic textures.
+No food styling, no non-traditional garnish, no studio lighting, no text, no logos, no people, no hands.
+```
+Build it from the dish's **verified** ingredients and description — never the name alone. Max 1500 characters.
 
-Tool emits JSON to stdout including `files[]` (master JPGs) and a `web[]` array (WebP derivatives with width + KB per file) plus a `<slug>.json` sidecar with model, prompt, seed, width, height, trace_id, blocked_by_safety count, and generated_at timestamp. The sidecar is the provenance record — push to `private/state` per batch.
+## Hard no's
+People, hands, faces · text, signage, logos, branded packaging · overhead flat-lays · glossy magazine/studio look · fake steam · microgreens, edible flowers, gold leaf, fusion garnish · ingredients that are not in the dish · Western serveware for non-Western dishes (and vice versa).
 
-## Media metadata & credit (visible on the page)
+## Quality gate (per dish)
+1. Generate 4 candidates (`minimax-image --n 4`).
+2. Vision-check each against: defining feature, components, serveware/setting, hard no's, AI artifacts (melted cutlery, impossible food, warped plates).
+3. Pick the best; if none passes, rewrite the prompt and regenerate — never publish "close enough".
+4. Owner reviews batches until he says otherwise.
 
-Every `media` row must have:
-- `alt_text`: a 1-sentence description ("Indonesian fried rice with fried shallot garnish on a banana leaf, served on ceramic").
-- `credit`: `"AI illustration — MiniMax <model>, <YYYY-MM-DD>"` (where `<model>` is the actual model name; never write a model name you didn't use). If the model in use is **not** MiniMax (e.g. Flux Dev, SDXL), the credit is `"AI illustration — <model>, <YYYY-MM-DD>"` and we update the `AI_MODEL` constant in the generator script.
-- `license`: `"AI-generated"` (a new value distinct from CC-BY-*).
-- `source_url`: optional, points to the generation run log if persistent.
-- `uploaded_by`: the contributor account that ran the generation.
-
-The front-end already renders `credit` and `license` in both the hero figcaption and the gallery lightbox, so this metadata is **automatically visible** on the page next to the image.
-
-## Cost tracking (per batch)
-
-Every batch log records:
-- Model name and revision
-- Number of candidates generated per dish
-- Number of candidates rejected per dish (and the rejection reason: wrong-dish, AI artifact, serveware mismatch, etc.)
-- Per-image cost (cents or API credits)
-- Total batch cost
-
-The batch report includes this breakdown so cost trends are visible over time.
-
-## Open questions to resolve before batch 1
-
-1. **Which image generation model?** Per the user, the model must be **MiniMax image generation, highest quality**. The `gustale` profile currently has only text inference providers (`minimax-oauth`, `minimax`) and `MINIMAX_API_KEY` is a text key. No MiniMax image endpoint is configured. The `comfyui` skill is available but only provides local/Comfy-Cloud paths (no MiniMax). This needs an answer before batch 1 can start.
-2. **Where do generated images live during the SAMPLES review step?** Per the user's instruction, batch 1 images are placed in `SAMPLES` (presumably a MinIO prefix or a public path) and the URLs are sent back to Alejandro for visual check. The exact bucket and ACL need to be confirmed.
-3. **What's the per-batch budget cap?** 10 dishes × 4 candidates = 40 generations. If the chosen model is per-image, that's a non-trivial spend. Cap needed.
+## Credit (always visible on the page)
+`AI illustration · MiniMax image-01 · <YYYY-MM-DD>` — rendered as figcaption on hero and gallery.
+Real photos (Wikimedia Commons, contributors) keep priority when they exist and keep their own license credit.
