@@ -165,8 +165,11 @@ tasks:
       - "Covers: duplicate records, broken references, orphaned relations, invalid coordinates, missing required fields"
       - "Identifies and root-causes the 15-vs-14 lineages discrepancy"
       - "Findings graded P0/P1/P2 with concrete next-step actions"
-    status: in_progress
-    evidence: []
+    status: done
+    evidence:
+      - "Report: .hermes/REPORTS/GUS-011-integrity-report.md (PR #83, 4a07604a)"
+      - "Live sweep 2026-10-17: 121 published dishes; no duplicates (slugs/canonical); no orphan dish→dish relations; no invalid/zero coords; all sources = Wikipedia (P0); 86/152 categories near-duplicates (P0); 15-vs-14 lineages root-caused (AtlasHeroKpi counts distinct methodSlug, not lineages table)"
+      - "Two Phase 0 gate items: (a) schedule this as a cron, (b) de-dupe categories — tracked in BACKLOG as follow-ups under GUS-014 prep"
   - id: GUS-012
     title: "Verify backup and disaster recovery. Test PostgreSQL restoration, object-storage recovery, and application redeployment"
     epic: "EPIC 01 — Stabilize the technical foundation"
