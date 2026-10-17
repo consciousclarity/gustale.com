@@ -602,7 +602,7 @@ jobs:
             Commit: \`${SHORT_SHA}\`
             Branch: \`${{ github.ref_name}}\`
             Author: ${{ github.actor }}
-            [View run](${RUN_URL})\"
+            View run: ${RUN_URL}\"
 
             if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] || [ -z "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
               echo "::notice::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification (deploy ${{ job.status }})\"
