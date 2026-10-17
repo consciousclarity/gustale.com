@@ -1,0 +1,2277 @@
+# Gustale backlog — generated from .hermes/ROADMAP.md (2026-10-17).
+# Source of truth for roadmap work. Hermes updates status/evidence after every task.
+# status: todo | in_progress | blocked | review | done | wontfix
+# approval: true = needs Alejandro's OK before the destructive/schema/auth step (RULES.md §Approval)
+tasks:
+  - id: GUS-001
+    title: "Audit the existing architecture. Inventory the repositories, database schema, services, routes, APIs, deployment configuration, content pipeline, and unfinished features"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    first15_order: 1
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Output: .hermes/REPORTS/GUS-001-architecture-audit.md. Read-only. Also maps what of this roadmap already exists."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-002
+    title: "Repair the API PATCH persistence bug. Verify that updates actually persist to PostgreSQL and remain correct after application restarts"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    first15_order: 2
+    status: todo
+    depends_on: [GUS-001]
+    approval: false
+    notes: "Previously investigated 2026-10-17 and NOT reproduced. Close only with evidence: a contract test that PATCHes, restarts gustale-api, re-reads."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-003
+    title: "Add database transaction safety. Ensure related changes are committed atomically, especially changes involving dishes, sources, regions, and lineages"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-004
+    title: "Introduce database migration discipline. Use versioned migrations, rollback procedures, and migration tests"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-005
+    title: "Fix CI/CD reliability. Eliminate hidden test failures, flaky linting, ignored exit codes, and deployment steps that report success incorrectly"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    first15_order: 3
+    status: todo
+    depends_on: [GUS-001]
+    approval: false
+    notes: "Known defect: CI deploy job builds web before the new API is live (PR #78 needed 2 manual rebuilds). Order must be: deploy API -> health-check -> live web build against new API -> swap web containers. Also absorbs COMPETITIVE_ROADMAP P3-5 (real linting)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-006
+    title: "Audit existing GitHub branches and Dependabot configuration. Consolidate stale work without losing valuable changes"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Branch triage R1-R3 done 2026-10-16 (archive tags pushed). Remaining: Dependabot #58-60, PR #57, claude/api-auth-divergence-resolved, fix/p0-4-email-verification."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-007
+    title: "Resolve container registry authentication. Fix GHCR token permissions if container publishing is required"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "CI already pushes to ghcr.io/consciousclarity/gustale.com/* — verify and close if working."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-008
+    title: "Verify automated deployments. Preserve the existing build-checkout, systemd timer, content-change detection, image SHA verification, and live-page checks"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Exists: gustale-rebuild-web.timer (30 min, flock, content-change detection, --force). Verify, document, close."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-009
+    title: "Implement API contract tests. Cover GET, POST, PATCH, DELETE, pagination, filtering, authorization, and validation"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-010
+    title: "Implement centralized error reporting. Capture frontend exceptions, API failures, failed content imports, and database errors"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-011
+    title: "Implement scheduled integrity checks. Identify duplicate records, broken references, orphaned relations, invalid coordinates, and missing required fields"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    first15_order: 4
+    status: todo
+    depends_on: [GUS-001]
+    approval: false
+    notes: "Include: homepage says 15 lineages, /lineages lists 14 — find and fix the cause."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-012
+    title: "Verify backup and disaster recovery. Test PostgreSQL restoration, object-storage recovery, and application redeployment"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: true
+    notes: "Postgres restore proven 2026-10-16 (121 dishes matched). MinIO (gustale-media + gustale-public) restore NOT yet tested."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-013
+    title: "Introduce feature flags. Allow unfinished functionality to remain deployed but unavailable until its acceptance tests pass"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-014
+    title: "Establish canonical culinary entity types. Distinguish dishes, recipe variants, ingredients, cooking techniques, places, communities, culinary traditions, historical events, and sources"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    first15_order: 5
+    status: todo
+    depends_on: [GUS-001]
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-015
+    title: "Separate dishes from recipes. A dish represents a culinary concept; individual recipes represent documented preparations of that dish"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: [GUS-014]
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-016
+    title: "Separate dishes from regional variants. One dish can have multiple historically and culturally legitimate regional manifestations"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-017
+    title: "Refactor food taxonomy. Separate food families, cuisines, courses, techniques, and culinary traditions into independent classification dimensions"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    first15_order: 6
+    status: todo
+    depends_on: [GUS-014]
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-018
+    title: "Implement permanent identifiers. Give every entity a stable UUID and canonical URL"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-019
+    title: "Implement multilingual naming. Support native names, historical names, transliterations, spelling variants, and regional synonyms"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-020
+    title: "Add typed relationships. Model relationships explicitly rather than relying on shared tags"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-021
+    title: "Introduce historical time intervals. Support approximate dates, ranges, uncertain periods, and BCE dates"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-022
+    title: "Introduce geographically scoped assertions. Associate culinary facts with specific places and appropriate precision"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-023
+    title: "Build bidirectional relationship queries. Users should be able to move from a dish to its ingredients, places, related traditions, and back again"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-024
+    title: "Create data-integrity constraints. Prevent invalid entity types, duplicate associations, broken lineage links, and impossible chronological relationships"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-025
+    title: "Implement migration tools for existing content. Preserve existing IDs, references, editorial history, and URLs where possible"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: [GUS-014, GUS-004]
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-026
+    title: "Develop an editorial evidence policy. Define reliable sources, accepted evidence types, verification requirements, and uncertainty handling"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    first15_order: 7
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-027
+    title: "Implement a structured source registry. Record authors, titles, publishers, dates, URLs, identifiers, languages, and source types"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: [GUS-026]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-028
+    title: "Create claim-level citations. Associate references with specific statements rather than attaching a bibliography to the entire dish"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    first15_order: 8
+    status: todo
+    depends_on: [GUS-014, GUS-026, GUS-027]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-029
+    title: "Support independent corroboration. Require sufficiently independent sources for significant historical assertions whenever such evidence is available"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-030
+    title: "Distinguish source quality from source quantity. Multiple websites repeating the same unsupported assertion must not be treated as independent confirmation"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-031
+    title: "Implement claim classifications. Distinguish documented facts, scholarly interpretations, oral traditions, disputed claims, hypotheses, and unsupported assertions"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    first15_order: 9
+    status: todo
+    depends_on: [GUS-028]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-032
+    title: "Introduce editorial verification states. Implement draft, research pending, under review, verified, disputed, published, and needs revision"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-033
+    title: "Implement claim-level review history. Record when a statement changed, who reviewed it, and why"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-034
+    title: "Add an evidence-inspection interface. Allow readers to inspect the sources supporting a historical or cultural claim"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: [GUS-028]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-035
+    title: "Add a corrections and disputes workflow. Support evidence-backed challenges, moderator resolution, and public correction notices"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-036
+    title: "Implement periodic evidence revalidation. Check dead links, retractions, source updates, and previously unresolved research questions"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-037
+    title: "Build a research-assistance pipeline for Hermes. Automatically discover and organize potential references, while requiring evidence verification before publication"
+    epic: "EPIC 03 — Build the evidence and authenticity verification system"
+    priority: P0
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-038
+    title: "Implement historical relationship types. Support adaptation, documented influence, shared ancestry, parallel development, and disputed connections"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-039
+    title: "Implement typed historical events. Model migration, trade, colonial exchange, agricultural introduction, technological change, and cultural transmission"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-040
+    title: "Associate events with locations and time intervals"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-041
+    title: "Support many-to-many geographical associations. A dish may belong to several communities and regions"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-042
+    title: "Introduce geographical precision metadata. Distinguish exact locality, region, country, historical territory, and unknown location"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-043
+    title: "Support historically changing geographical boundaries"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-044
+    title: "Create historical relationship APIs. Allow the frontend to request connected dishes, historical events, and their supporting evidence"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-045
+    title: "Create graph traversal and filtering. Explore connections by time, geography, relationship type, and evidence status"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-046
+    title: "Implement lineage validation. Prevent the system from interpreting superficial similarities as historical transmission"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-047
+    title: "Create a graph visualization interface. Display connected dishes, ingredients, traditions, places, and historical events"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: [GUS-044]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-048
+    title: "Implement pathway discovery. Allow users to select two dishes or regions and discover documented relationships between them"
+    epic: "EPIC 04 — Develop a historical and geographical knowledge graph"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-049
+    title: "Audit all existing geographical coordinates. Identify inaccurate, defaulted, duplicated, and country-centroid coordinates"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    first15_order: 10
+    status: todo
+    depends_on: [GUS-011]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-050
+    title: "Replace misleading location markers. Use geographical areas or clearly qualified approximate markers when precise origins are unknown"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-051
+    title: "Introduce multiple map layers. Display dishes, ingredients, historical movements, culinary regions, and food traditions"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-052
+    title: "Implement geographic clustering. Prevent crowded marker displays"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-053
+    title: "Implement continent, country, region, and city exploration"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-054
+    title: "Connect map selection with encyclopedia entries"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-055
+    title: "Implement historical timeline filtering. Show known geographical associations within selected historical periods"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-056
+    title: "Visualize documented culinary transmission. Draw connections between locations where sufficient evidence exists"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: [GUS-038, GUS-039]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-057
+    title: "Implement geographical comparison. Let visitors compare the culinary characteristics of different regions"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-058
+    title: "Create map legends for uncertainty. Distinguish documented relationships, approximate areas, disputed locations, and illustrative routes"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-059
+    title: "Optimize map performance. Use viewport queries, clustering, caching, and vector tiles when appropriate"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-060
+    title: "Ensure map accessibility. Provide equivalent textual and keyboard-accessible ways to explore the same information"
+    epic: "EPIC 05 — Transform the interactive world map"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-061
+    title: "Redesign the dish-detail template"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    first15_order: 11
+    status: todo
+    depends_on: [GUS-014, GUS-028]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-062
+    title: "Add native names, pronunciation, and name etymology where documented"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-063
+    title: "Add geographical and community associations"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-064
+    title: "Add a chronological historical overview"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-065
+    title: "Add cultural importance and traditional occasions"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-066
+    title: "Add characteristic ingredients and cooking techniques"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-067
+    title: "Add documented regional variations"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-068
+    title: "Add related dishes and historical connections"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-069
+    title: "Add evidence-backed source sections"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-070
+    title: "Add an interactive location and historical journey panel"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P1-1 (Dish Journey UI)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-071
+    title: "Connect dishes to available recipes"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-072
+    title: "Add contributor credits and revision history"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-073
+    title: "Add related reading and deeper exploration"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-074
+    title: "Add a visible content-completeness indicator"
+    epic: "EPIC 06 — Turn every dish into a complete encyclopedia article"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-075
+    title: "Implement a dedicated recipe entity and authoring workflow"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    first15_order: 12
+    status: todo
+    depends_on: [GUS-015]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-076
+    title: "Add structured ingredient quantities and units"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-077
+    title: "Add complete preparation instructions"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-078
+    title: "Add preparation, cooking, resting, and total times"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-079
+    title: "Add serving-size adjustment"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-080
+    title: "Support metric and imperial unit conversions"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-081
+    title: "Add cooking equipment and preparation notes"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-082
+    title: "Support multiple documented variants for one dish"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-083
+    title: "Add ingredient substitutions with authenticity context"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-084
+    title: "Add dietary filters and reliably documented allergen information"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-085
+    title: "Implement step-by-step cooking mode"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-086
+    title: "Add integrated cooking timers"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-087
+    title: "Implement printable recipes"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-088
+    title: "Add shopping-list generation"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-089
+    title: "Add recipe collections and favorites"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-090
+    title: "Add source attribution and practical recipe review"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-091
+    title: "Validate actual cookability before marking recipes as kitchen-tested"
+    epic: "EPIC 07 — Build a genuinely useful recipe platform"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Hermes may NEVER set kitchen-tested itself. Only the owner (or a named human tester) can."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-092
+    title: "Consolidate duplicate ingredient records"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    first15_order: 13
+    status: todo
+    depends_on: [GUS-011]
+    approval: true
+    notes: "Known: bechamel and bechamel-sauce duplicate. Merge needs owner approval (data change that deletes a record)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-093
+    title: "Create a canonical ingredient registry"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: [GUS-092]
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-094
+    title: "Add scientific names where relevant"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-095
+    title: "Add regional and historical names"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-096
+    title: "Add ingredient categories and preparation forms"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-097
+    title: "Implement structured ingredient-to-recipe relationships"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-098
+    title: "Add cultural and geographical distribution information"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P1-2 (ingredient origins layer)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-099
+    title: "Add documented historical uses"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-100
+    title: "Connect ingredients to preparation techniques"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-101
+    title: "Add regional substitutions and functional equivalents"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-102
+    title: "Add seasonal information where geographically meaningful"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-103
+    title: "Build ingredient-based dish discovery"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-104
+    title: "Implement intelligent ingredient normalization"
+    epic: "EPIC 08 — Create a comprehensive ingredient encyclopedia"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-105
+    title: "Implement unified search across Gustale"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    first15_order: 14
+    status: todo
+    depends_on: [GUS-019]
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P0-3."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-106
+    title: "Search dishes, ingredients, places, cuisines, lineages, and historical events"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-107
+    title: "Add autocomplete and instant suggestions"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-108
+    title: "Support regional names and spelling variations"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-109
+    title: "Add multilingual search support"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-110
+    title: "Implement fuzzy matching and typo tolerance"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-111
+    title: "Add faceted filtering"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-112
+    title: "Implement relevance ranking"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-113
+    title: "Add interactive filters without unnecessary page reloads"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-114
+    title: "Implement similarity-based recommendations"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-115
+    title: "Add contextual recommendations to dish and ingredient pages"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-116
+    title: "Implement useful empty-result states"
+    epic: "EPIC 09 — Build powerful search and discovery"
+    priority: P1
+    phase: 3
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-117
+    title: "Build an interactive culinary discovery homepage"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-118
+    title: "Implement a “Surprise Me” discovery feature"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-119
+    title: "Create interactive culinary journeys"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-120
+    title: "Implement visually animated historical timelines"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-121
+    title: "Build a side-by-side dish comparison tool"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-122
+    title: "Add interactive relationship diagrams"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-123
+    title: "Create guided food-history stories"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P1-4 (stories layer)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-124
+    title: "Build culinary knowledge quizzes"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-125
+    title: "Implement personal discovery collections"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-126
+    title: "Create a culinary exploration passport"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-127
+    title: "Introduce daily featured discoveries"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-128
+    title: "Add interactive ingredient and preparation explainers"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-129
+    title: "Support accessible storytelling animations"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-130
+    title: "Enable sharing of dishes, journeys, and discoveries"
+    epic: "EPIC 10 — Make Gustale interactive, engaging, and entertaining"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-131
+    title: "Introduce long-form editorial articles"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-132
+    title: "Create historical culinary collections"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-133
+    title: "Implement interactive story templates combining maps, timelines, media, and sources"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-134
+    title: "Connect editorial articles directly to structured encyclopedia entities"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-135
+    title: "Introduce themed discovery trails"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-136
+    title: "Add reading-time indicators and progress tracking"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-137
+    title: "Provide accessible, source-linked historical illustrations"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-138
+    title: "Create an editorial calendar for recurring features"
+    epic: "EPIC 11 — Create historical storytelling and editorial collections"
+    priority: P2
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-139
+    title: "Audit account creation and authentication"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: true
+    notes: "Absorbs COMPETITIVE_ROADMAP P0-4 (email verification)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-140
+    title: "Improve the contributor dashboard"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-141
+    title: "Implement guided dish-submission forms"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-142
+    title: "Allow contributors to propose corrections"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-143
+    title: "Implement source-supported historical claims"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-144
+    title: "Create editorial review queues"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P2-4 (moderation queue UI)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-145
+    title: "Support discussions around disputed claims"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-146
+    title: "Build contributor attribution and revision history"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-147
+    title: "Implement transparent editorial decisions"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-148
+    title: "Add role-based permissions"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-149
+    title: "Implement anti-spam and abuse protections"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-150
+    title: "Create community recognition and contributor profiles"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-151
+    title: "Support traditional-practitioner and expert contributions"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-152
+    title: "Implement consent and attribution requirements for oral-history submissions"
+    epic: "EPIC 12 — Build a contributor and editorial community"
+    priority: P2
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-153
+    title: "Audit all dish images and missing covers"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Partial: PR #78 shipped public /media pipeline + variants. Remaining: audit of all \"Cover pending\" dishes."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-154
+    title: "Implement a centralized media registry"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-155
+    title: "Record image copyright, license, attribution, and provenance"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: [GUS-154]
+    approval: false
+    notes: "Must record ai_generated=true + model/prompt/seed (minimax-image provenance JSON) for AI images."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-156
+    title: "Establish a licensed-image acquisition workflow"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-157
+    title: "Integrate permitted Wikimedia Commons image discovery"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-158
+    title: "Support contributor-owned image uploads"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P2-5."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-159
+    title: "Add automatic image resizing and optimization"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Done for the minimax-image CLI path (1536w/800w WebP). Generalise for uploads."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-160
+    title: "Generate responsive image variants"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Done in PR #78 (media.variants + srcset). Extend to galleries/regions."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-161
+    title: "Implement image-review workflows"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-162
+    title: "Add contextual image galleries to dish pages"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-163
+    title: "Support historical illustrations and document scans"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-164
+    title: "Add accurate alternative text and descriptive captions"
+    epic: "EPIC 13 — Establish a high-quality culinary media library"
+    priority: P1
+    phase: 2
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Every image needs real alt text + caption; see IMAGE_STYLE.md."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-165
+    title: "Create a standardized culinary research dossier"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    first15_order: 15
+    status: todo
+    depends_on: [GUS-026]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-166
+    title: "Develop automated source discovery"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-167
+    title: "Implement cross-source claim comparison"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-168
+    title: "Detect unsupported assertions and contradictions"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-169
+    title: "Identify duplicate dishes and spelling variations"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-170
+    title: "Generate structured draft content from verified research notes"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-171
+    title: "Validate geographical information before publication"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-172
+    title: "Detect missing essential information"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-173
+    title: "Implement editorial quality gates"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-174
+    title: "Implement batch review and approval tools"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-175
+    title: "Automatically create related-entity suggestions"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-176
+    title: "Generate content-completeness and quality reports"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-177
+    title: "Add post-publication monitoring and correction workflows"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-178
+    title: "Ensure the research pipeline is idempotent"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-179
+    title: "Create a global content-coverage dashboard"
+    epic: "EPIC 14 — Build a scalable culinary research and publishing pipeline"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-180
+    title: "Conduct a complete UX audit of the homepage, navigation, atlas, search, directories, individual entries, and account functions"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-181
+    title: "Create a consistent design system across gustale.com and gustale.recipes"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-182
+    title: "Improve homepage information architecture with clear entry points for geography, history, recipes, and exploration"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-183
+    title: "Make all core experiences mobile-first, including maps and historical timelines"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-184
+    title: "Add breadcrumb navigation and contextual links"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-185
+    title: "Eliminate incomplete or duplicated interface elements"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-186
+    title: "Design proper loading, empty, and error states"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-187
+    title: "Improve typography, content hierarchy, spacing, and readability"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-188
+    title: "Make advanced interactions accessible by keyboard"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-189
+    title: "Target WCAG 2.2 AA accessibility"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-190
+    title: "Provide reduced-motion alternatives to animations"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-191
+    title: "Improve performance on slower mobile networks"
+    epic: "EPIC 15 — Improve usability, accessibility, and visual design"
+    priority: P1
+    phase: 4
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P2-7 (MapLibre CSS only on map routes)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-192
+    title: "Establish canonical URLs for dishes, recipes, ingredients, regions, and lineages"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-193
+    title: "Implement appropriate Schema.org structured data"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P2-6 (JSON-LD)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-194
+    title: "Distinguish encyclopedia Article markup from Recipe markup"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-195
+    title: "Generate XML sitemaps"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-196
+    title: "Improve metadata, titles, and social previews"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P2-6 (OG/Twitter cards)."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-197
+    title: "Audit internal linking and orphaned pages"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-198
+    title: "Implement multilingual content architecture"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P3-3."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-199
+    title: "Support translated interfaces and localized culinary terminology"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-200
+    title: "Implement proper `hreflang` relationships"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-201
+    title: "Prevent untranslated or low-quality machine translations from appearing authoritative"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-202
+    title: "Develop a documented public read API"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    notes: "Absorbs COMPETITIVE_ROADMAP P3-2."
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-203
+    title: "Add machine-readable identifiers and citations"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-204
+    title: "Define data licensing and reuse conditions"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: true
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-205
+    title: "Establish performance budgets and monitor Core Web Vitals"
+    epic: "EPIC 16 — Internationalization, SEO, and public discoverability"
+    priority: P1
+    phase: 5
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-206
+    title: "Implement semantic culinary search"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-207
+    title: "Create evidence-grounded question answering"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: [GUS-028, GUS-105]
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-208
+    title: "Connect AI responses to Gustale's knowledge graph"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-209
+    title: "Require citations for factual historical answers"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-210
+    title: "Expose uncertainty and conflicting evidence"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-211
+    title: "Support natural-language discovery requests"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-212
+    title: "Implement answer-quality evaluation and hallucination testing"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-213
+    title: "Prevent unsupported AI-generated claims from entering the canonical database"
+    epic: "EPIC 17 — Develop an evidence-grounded culinary AI"
+    priority: P3
+    phase: 6
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-214
+    title: "Create an operational dashboard"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-215
+    title: "Create a content-quality dashboard"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-216
+    title: "Track source completeness and independence"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-217
+    title: "Measure regional representation and coverage gaps"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-218
+    title: "Track broken links, missing media, and invalid relationships"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-219
+    title: "Measure search success and zero-result queries"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-220
+    title: "Measure engagement with maps, timelines, and articles"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-221
+    title: "Track editorial correction rates"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-222
+    title: "Add automated regression and accessibility testing"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
+  - id: GUS-223
+    title: "Create recurring competitor and product reviews"
+    epic: "EPIC 18 — Monitoring, evaluation, and continuous improvement"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    evidence: []
