@@ -25,13 +25,16 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { db as originalDb, dishes, editHistory } from "@gustale/db";
+import { db as originalDb, dishes as dishesTbl, editHistory as editHistoryTbl } from "@gustale/db";
 import * as schemaModule from "@gustale/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as authModule from "../src/auth.js";
 import { buildServer } from "../src/server.js";
+
+const dishes = dishesTbl;
+const editHistory = editHistoryTbl;
 
 const mockGetSession = vi.spyOn(authModule.auth.api, "getSession");
 
@@ -183,27 +186,31 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     expect(publishRes.statusCode).toBe(200);
 
     // ── 3. SIMULATE A FULL API RESTART ────────────────────────────────
-    // Close the running app + its pool, then build a *fresh* client and
-    // a *fresh* app instance against the same DATABASE_URL. This is what
-    // would happen on a deploy / container restart in prod.
+    // Close the running app + the singleton @gustale/db client. Force a
+    // module reset so the next buildServer() call picks up a fresh
+    // postgres-js client (and a fresh drizzle wrapper) — exactly what
+    // a new container process would see after a deploy.
     await app.close();
-    await (originalDb as unknown as { $client: { end: () => Promise<void> } })
-      .$client.end();
-
+    vi.resetModules();
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL must be set for the restart test");
 
-    // A brand-new client + drizzle instance — independent of the
-    // `originalDb` singleton. Just like a freshly-spawned container would.
-    const freshClient = postgres(url, { max: 4, idle_timeout: 5 });
-    const freshSchema = Object.fromEntries(
-      Object.entries(schemaModule).filter(
-        ([, v]) => v && typeof v === "object" && Symbol.for("drizzle:BaseName") in v,
-      ),
-    );
-    const freshDb = drizzle(freshClient, { schema: freshSchema });
+    // Dynamically import the freshly-reset modules.
+    const freshDbModule = await import("@gustale/db");
+    const freshAuthModule = await import("../src/auth.js");
+    const { buildServer: buildServerFresh } = await import("../src/server.js");
 
-    const reloaded = await freshDb
+    // Re-apply the getSession spy onto the fresh auth module.
+    const freshSpy = vi
+      .spyOn(freshAuthModule.auth.api, "getSession")
+      .mockImplementation(mockGetSession.getMockImplementation() as never);
+
+    // The fresh DB module re-creates the singleton client. Verify with a
+    // simple select that the new pool is open.
+    const probe = await freshDbModule.db.execute(sql`select 1 as ok`);
+    expect(probe.length).toBe(1);
+
+    const reloaded = await freshDbModule.db
       .select({ longDescription: dishes.longDescription, editCount: dishes.editCount })
       .from(dishes)
       .where(eq(dishes.id, created.id))
@@ -214,7 +221,7 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     });
 
     // The edit_history row must also be on disk.
-    const history = await freshDb
+    const history = await freshDbModule.db
       .select({ action: editHistory.action, comment: editHistory.comment })
       .from(editHistory)
       .where(
@@ -231,7 +238,7 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     // assertion, because the read path uses a different process / client.
     // The dish was already published pre-restart, so the anonymous public
     // GET hits the real published path.
-    app = await buildServer();
+    app = await buildServerFresh();
     const postRestart = await app.inject({
       method: "GET",
       url: `/api/dishes/${slug}`,
@@ -239,9 +246,6 @@ describe("GUS-002 — PATCH persistence contract (with API restart)", () => {
     expect(postRestart.statusCode).toBe(200);
     expect(postRestart.json().dish.longDescription).toBe(longDescription);
 
-    // Clean up the new client's pool; the existing afterAll cleanup uses
-    // originalDb, so the freshly-built client is closed here to avoid
-    // a hanging process.
-    await freshClient.end();
+    freshSpy.mockRestore();
   }, 60_000);
 });
