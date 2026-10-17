@@ -597,16 +597,19 @@ jobs:
               EMOJI="❌"
               HEAD="Deploy FAILED"
             fi
-            MSG="$EMOJI *${HEAD}*
-            Repo: \`${REPO_NAME}\`
-            Commit: \`${SHORT_SHA}\`
-            Branch: \`${{ github.ref_name}}\`
-            Author: ${{ github.actor }}
-            View run: ${RUN_URL}\"
+            # Single-line message. Multi-line YAML strings end up as
+            # one bash line via `\<newline>` line continuation, which
+            # breaks the `MSG="..."` literal (the closing `"` is far
+            # from the opening `"`, the `<spaces>` from YAML indentation
+            # end up after the closing `"`, and the `if` on the next
+            # line gets joined as a continuation). All of that produces
+            # 'unexpected EOF while looking for matching `"' and the
+            # whole step exits 2. Keep the message one line.
+            MSG="${EMOJI} *${HEAD}* Repo: \`${REPO_NAME}\` Commit: \`${SHORT_SHA}\` Branch: \`${{ github.ref_name }}\` Author: ${{ github.actor }} View run: ${RUN_URL}"
 
             if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] || [ -z "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
-              echo "::notice::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification (deploy ${{ job.status }})\"
-              echo "To enable: add both secrets in GitHub repo Settings → Secrets and variables → Actions\"
+              echo "::notice::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification (deploy ${{ job.status }})"
+              echo "To enable: add both secrets in GitHub repo Settings → Secrets and variables → Actions"
               exit 0
             fi
 
@@ -615,4 +618,4 @@ jobs:
               -d parse_mode="Markdown" \\
               -d disable_web_page_preview=true \\
               --data-urlencode "text=${MSG}" \\
-              --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)\"
+              --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
