@@ -22,7 +22,7 @@
  */
 import { Readable } from "node:stream";
 import { db, media } from "@gustale/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { httpError } from "../errors.js";
@@ -285,6 +285,22 @@ export const registerMediaRoutes: FastifyPluginAsync = async (
         storageKey: media.storageKey,
         mimeType: media.mimeType,
         byteSize: media.byteSize,
+        variants: media.variants,
+        // True if the media is attached to a published dish. We resolve
+        // this with a subquery: a single `EXISTS` keeps the query to one
+        // round-trip and lets the planner short-circuit.
+        //
+        // We fully-qualify `media.id` (rather than using the column
+        // object, which Drizzle renders as bare `"id"`) because the
+        // `media_attachments` join introduces an `id` column too and
+        // Postgres rejects bare `id` as ambiguous.
+        published: sql<boolean>`EXISTS (
+          SELECT 1 FROM media_attachments ma
+          JOIN dishes d ON d.id = ma.target_id
+          WHERE ma.media_id = media.id
+            AND ma.target_type = 'dish'
+            AND d.status = 'published'
+        )`,
       })
       .from(media)
       .where(eq(media.id, id))
@@ -294,17 +310,94 @@ export const registerMediaRoutes: FastifyPluginAsync = async (
     }
     const row = rows[0]!;
 
+    if (row.published) {
+      // Same-origin public URL — but only if we can produce one that
+      // actually 200s. The master's storageKey is often in the
+      // private `unattached/...` prefix, which is NOT proxied at
+      // /media/*. We prefer the largest variant if present, and fall
+      // back to the storageKey only when the row is recognisably
+      // public (e.g. legacy `dishes/<slug>/...` paths).
+      const publicUrl = pickPublicUrl(row.storageKey, row.variants);
+      return {
+        url: publicUrl,
+        publicUrl,
+        variants: mapVariantsToUrls(row.variants),
+        expiresInSeconds: null,
+        mimeType: row.mimeType,
+        byteSize: row.byteSize,
+        kind: "public" as const,
+      };
+    }
+
     const url = await presignGet(
       PRIVATE_BUCKET,
       row.storageKey,
       SIGNED_URL_TTL_SECONDS,
     );
-
     return {
       url,
+      publicUrl: null,
+      variants: {},
       expiresInSeconds: SIGNED_URL_TTL_SECONDS,
       mimeType: row.mimeType,
       byteSize: row.byteSize,
+      kind: "presigned" as const,
     };
   });
 };
+
+/**
+ * Build a same-origin /media/<key> path for the public MinIO bucket.
+ * Exported so the dishes read route can produce per-row publicUrl fields
+ * for build-time <img src> rendering.
+ */
+export function mediaPublicUrl(storageKey: string): string {
+  const trimmed = storageKey.replace(/^\/+/, "");
+  return `/media/${trimmed}`;
+}
+
+function mapVariantsToUrls(
+  variants: Record<string, string> | null | undefined,
+): Record<string, string> {
+  if (!variants) return {};
+  const out: Record<string, string> = {};
+  for (const [width, key] of Object.entries(variants)) {
+    if (typeof key === "string" && key.length > 0) {
+      out[width] = mediaPublicUrl(key);
+    }
+  }
+  return out;
+}
+
+/**
+ * Pick the canonical public URL for a media row.
+ *
+ * Mirrors the helper in routes/dishes.ts (kept local to avoid the
+ * circular import — both routes export a `/media`-shaped URL helper).
+ *
+ * The master JPG (e.g. `unattached/<uuid>.jpg`) is private and not
+ * proxied at /media/*, so we never expose that. If the row has
+ * variants, we use the largest. If not, we only return a URL for
+ * storageKeys that are clearly in the public-bucket namespace.
+ */
+function pickPublicUrl(
+  storageKey: string,
+  variants: Record<string, string> | null | undefined,
+): string | null {
+  if (variants && typeof variants === "object") {
+    let best: { width: number; key: string } | undefined;
+    for (const [w, key] of Object.entries(variants)) {
+      if (typeof key !== "string" || key.length === 0) continue;
+      const n = Number(w);
+      if (!Number.isFinite(n)) continue;
+      if (!best || n > best.width) {
+        best = { width: n, key };
+      }
+    }
+    if (best) return mediaPublicUrl(best.key);
+  }
+  if (storageKey.startsWith("dishes/")) {
+    return mediaPublicUrl(storageKey);
+  }
+  return null;
+}

@@ -247,6 +247,71 @@ describe("GET /api/media/:id/signed-url", () => {
     const body = res.json();
     expect(body.error).toBe("validation_error");
   });
+
+  it("returns a publicUrl + variantsUrls for media attached to a published dish", async () => {
+    // The Moussaka cover is the canonical published-media fixture in
+    // the seed data (and was the trigger for the public-URL feature).
+    // If the seed has been removed, the test is skipped.
+    const found = await db
+      .select({
+        id: media.id,
+        storageKey: media.storageKey,
+        variants: media.variants,
+      })
+      .from(media)
+      .where(eq(media.storageKey, "unattached/634ae2e838d24f95.jpg"))
+      .limit(1);
+    if (found.length === 0) {
+      // Seed removed — nothing to test. The schema and route are
+      // still exercised by the malformed-uuid test above.
+      return;
+    }
+    const m = found[0]!;
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/media/${m.id}/signed-url`,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    // The row's master storageKey is the private `unattached/<uuid>.jpg`
+    // path — never proxied at /media/*. So we expect the publicUrl
+    // to come from the largest variant, not the master.
+    const rowVariants = (m.variants as Record<string, string>) ?? {};
+    expect(Object.keys(rowVariants).length).toBeGreaterThan(0);
+
+    const expectedWidths = Object.keys(rowVariants)
+      .map((w) => Number(w))
+      .filter(Number.isFinite);
+    const largestWidth = Math.max(...expectedWidths);
+    const largestVariantKey = rowVariants[String(largestWidth)]!;
+    const expectedPublicUrl = `/media/${largestVariantKey}`;
+
+    // Public URL is the largest variant's same-origin /media URL.
+    expect(body.kind).toBe("public");
+    expect(body.url).toBe(expectedPublicUrl);
+    expect(body.publicUrl).toBe(expectedPublicUrl);
+    // Security: the public URL must not expose the private
+    // `unattached/<uuid>.jpg` prefix — that's only reachable via
+    // the 15-min presigned URL for private/unmoderated uploads.
+    expect(body.publicUrl).not.toMatch(/^\/media\/unattached\//);
+    expect(body.publicUrl).not.toMatch(/\.jpg$/);
+
+    // expiresInSeconds is null for public (no expiry).
+    expect(body.expiresInSeconds).toBeNull();
+    // `variants` here is the signed-url endpoint's response shape:
+    // it's already the {width: /media/<key>} URL map (the API
+    // does the storageKey → URL conversion before responding). The
+    // dishes endpoint uses `variantsUrls` for the same field; both
+    // carry the same /media/* URLs.
+    const bodyVariants = (body.variants ?? {}) as Record<string, string>;
+    expect(Object.keys(bodyVariants).sort()).toEqual(
+      Object.keys(rowVariants).sort(),
+    );
+    for (const [width, key] of Object.entries(rowVariants)) {
+      expect(bodyVariants[width]).toBe(`/media/${key}`);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

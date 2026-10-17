@@ -41,8 +41,8 @@ api.gustale.recipes {
 }
 
 # ─── Root + www — block /admin and /api/admin/* with 404 ─────────────────
-# /admin is for gustale.recipes admins only. /api/admin/* is blocked
-# here too so admin API calls don't leak through the inner /api/* handle.
+#/admin is for gustale.recipes admins only. /api/admin/* is blocked
+#here too so admin API calls don't leak through the inner /api/* handle.
 gustale.com,
 www.gustale.com {
 	@admin_block path /admin /admin/* /admin/
@@ -52,6 +52,23 @@ www.gustale.com {
 
 	@admin_api_block path /api/admin /api/admin/*
 	handle @admin_api_block {
+		respond 404
+	}
+
+	# ─── /media/* — published dish media (gustale PR #78)
+	# Same-origin, read-only proxy to the public MinIO bucket (hard-coded).
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+	# Anything else under /media (listing, writes) -> 404
+	@media_other path /media /media/ /media/*
+	handle @media_other {
 		respond 404
 	}
 
@@ -81,14 +98,31 @@ www.gustale.com {
 }
 
 # ─── gustale.recipes — encyclopedia domain ───────────────────────────────
-# /admin is reachable here (the admin editor's actual home). Block only
-# /api/admin/* so admin API calls can't be reached from the static site
-# path matcher (admin UI uses same-origin relative paths anyway, so this
-# is mostly defense in depth).
+#/admin is reachable here (the admin editor's actual home). Block only
+#/api/admin/* so admin API calls can't be reached from the static site
+#path matcher (admin UI uses same-origin relative paths anyway, so this
+#is mostly defense in depth).
 gustale.recipes,
 www.gustale.recipes {
 	@admin_api_block path /api/admin /api/admin/*
 	handle @admin_api_block {
+		respond 404
+	}
+
+	# ─── /media/* — published dish media (gustale PR #78)
+	# Same-origin, read-only proxy to the public MinIO bucket (hard-coded).
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+	# Anything else under /media (listing, writes) -> 404
+	@media_other path /media /media/ /media/*
+	handle @media_other {
 		respond 404
 	}
 

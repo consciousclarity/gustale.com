@@ -177,6 +177,32 @@ export interface DishMediaAttachment {
   altText: string | null;
   credit: string | null;
   license: string | null;
+  /**
+   * Same-origin public URL for this media (e.g. `/media/<storageKey>`).
+   * Caddy serves this from MinIO's `gustale-public` bucket with a
+   * 1-year immutable cache header. The dish page is built at
+   * deploy time, so this URL is baked directly into the static
+   * HTML's `<img src>` — no client-side signed-URL fetch.
+   *
+   * Always set on rows served by the API now; null only for legacy
+   * rows that pre-date the `/media/*` proxy.
+   */
+  publicUrl: string | null;
+  /**
+   * Variant map keyed by nominal width (e.g. "800", "1536") →
+   * same-origin public URL. Used to build the `<img srcset>` for
+   * responsive delivery without an extra round-trip. Missing or
+   * empty means the row has no pre-rendered derivatives and the
+   * front-end should fall back to the original `publicUrl`.
+   */
+  variantsUrls: Record<string, string>;
+  /**
+   * Raw `variants` JSONB from the API: `{"<width>": "<storageKey>"}`.
+   * Same shape as `variantsUrls` but with raw storage keys instead
+   * of public URLs. Kept for debugging; the front-end uses
+   * `variantsUrls` for `<img srcset>`.
+   */
+  variants: Record<string, string>;
   uploadedAt: string;
 }
 

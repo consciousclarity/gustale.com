@@ -168,6 +168,17 @@ verification pending on a real device after the PR merges and deploys.
   legacy react-leaflet touch `window` at import time (MapLibre
   imports `mapbox-gl`'s WebGL helpers). The `noscript` fallback in
   the dish page handles no-JS users gracefully.
+- **Caddy changes go in the file, never via the admin API.** The
+  authoritative source is `infra/prod/Caddyfile` (the live file at
+  `/etc/caddy/Caddyfile` drifts because of the local on-demand-TLS
+  block — that's an environment feature, not a project feature).
+  Procedure: edit the file in the branch → `caddy fmt --overwrite
+  infra/prod/Caddyfile` → `caddy validate --config infra/prod/Caddyfile
+  --adapter caddyfile` → open PR → **ask the user to run `caddy
+  validate` on the live file and `systemctl reload caddy`** (the
+  gustale user is in `docker` but not in `sudoers`, and reload needs
+  root). Never POST to `127.0.0.1:2019/load` — the change only lives
+  in Caddy's in-memory state and is lost on reload or reboot.
 - **CSS @import order**: `@import url(...)` MUST come before other
   rules (including `@import "tailwindcss"`). Tailwind's @property
   rules will trigger a Vite warning otherwise.
