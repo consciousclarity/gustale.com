@@ -296,6 +296,15 @@ jobs:
             # these to forward to the remote script via SSH.
             GHA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GHA_ACTOR: ${{ github.actor }}
+            # HOME is needed so that `git fetch` can resolve the
+            # `github-gustale` SSH alias via `~/.ssh/config`. The
+            # action's drone-ssh binary does not always set HOME
+            # correctly for the inner script; without this, the
+            # alias falls through to DNS, which fails with
+            # "Could not resolve hostname github-gustale". Default
+            # to /home/hermes (the project workspace user) but allow
+            # override via a repo variable.
+            HOME: ${{ vars.GUSTALE_SSH_HOME || '/home/hermes' }}
           with:
             host: ${{ secrets.HOSTINGER_HOST }}
             username: ${{ secrets.HOSTINGER_USER }}
@@ -307,7 +316,7 @@ jobs:
             # long-lived PAT (GHCR_PAT). The action's `envs:` field
             # is a comma-separated allow-list; without it, none of
             # the runner's env vars reach the remote script.
-            envs: GHA_TOKEN,GHA_ACTOR
+            envs: GHA_TOKEN,GHA_ACTOR,HOME
             script: |
               set -euo pipefail
               REPO="ghcr.io/${{ github.repository }}"
@@ -381,10 +390,19 @@ jobs:
                 echo 1 > /tmp/deploy_exit
                 exit 1
               fi
-              # git fetch + checkout can fail if the SHA is behind a
-              # force-push; the deploy's job is to ship the merge commit
-              # of main, which is always reachable, so plain reset works.
-              git -C "$WORKSPACE" fetch --no-tags --depth=50 origin "$SHA" || true
+              # Belt-and-braces: explicitly point git at the deploy user's
+              # SSH config so the `github-gustale` host alias resolves
+              # even if the appleboy/ssh-action's $HOME forwarding
+              # didn't make it into the inner shell. Falls through to
+              # the default config if the file doesn't exist.
+              if [ -f "$HOME/.ssh/config" ]; then
+                export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config"
+              fi
+              # git fetch + checkout: if either fails, the deploy
+              # is on a SHA the workspace doesn't have. We do NOT use
+              # `|| true` here — a failed fetch must abort the deploy
+              # to avoid shipping a build on a stale source.
+              git -C "$WORKSPACE" fetch --no-tags --depth=50 origin "$SHA"
               git -C "$WORKSPACE" checkout --quiet --force "$SHA"
               git -C "$WORKSPACE" log -1 --format="%H %s" HEAD
 
