@@ -6,24 +6,6 @@
 
 ## Last updated
 
-### Hermes (Geekom / Telegram) — 2026-07-25 (Encrypted offsite backup and restore gate)
-
-- **Contradiction resolved:** the earlier statement “no offsite copies exist” is now stale, and the migration report was correct at the time it was written. A working Google Drive backup was installed on 2026-07-25 before this re-issued audit: `gustale-backup.timer` runs daily at `01:00 UTC` with `RandomizedDelaySec=15m` and `Persistent=true`.
-- **Offsite destination:** Google Drive retained by explicit user decision; Cloudflare R2 was not configured. The remote account owner cannot be identified from the stored OAuth token/config because the token lacks a usable identity endpoint; record the owning Google account in the external credential vault.
-- **Coverage:** whole-database PostgreSQL custom-format dump plus `gustale-public` and `gustale-media` MinIO buckets. Database dumps are AES-256 GPG encrypted. MinIO now synchronizes through `rclone crypt` (`gdrive-crypt:`), encrypting object contents, filenames, and directory names before Google Drive receives them.
-- **MinIO inventory before implementation:** `gustale-public` = 0 objects / 0 bytes; `gustale-media` = 0 objects / 0 bytes. There was no user media to migrate. A 16,384-byte canary was uploaded, backed up, deleted from MinIO, restored from Google Drive, and checksum verified (`a9d2110f7e926d57797637b610989aff7afe54fe6ad015be08aae2155d9291f9`); the canary was then removed.
-- **Retention:** DB = 7 daily + 4 weekly + 3 monthly snapshots. Media = current append-mostly mirror plus deleted/replaced object versions for 90 days under `media/deleted/YYYYMMDD/`; no GFS rotation for current media.
-- **Key recovery:** active key exists at `/root/.backup-key` (`0600 root:root`) and `/home/deploy/gustale.com/.backup-key` (`0600 hermes:hermes`), with matching SHA-256. A verified off-VPS recovery copy now exists on Geekom at `/home/alex/.local/share/gustale/backup-key` (`0600 alex:alex`). This Geekom copy must itself be included in the operator's encrypted workstation backup/credential vault.
-- **Restore drill:** pulled `gustale_backup_20260725T131747Z.dump.gpg` from `gdrive-crypt:db`, decrypted it, matched its plaintext SHA-256 manifest, restored into `gustale_restore_test`, compared all public-table counts, and dropped the throwaway DB. Elapsed: **15.453 seconds**. All non-volatile table counts matched; live `rate_limit` changed during the drill (`1` live vs `2` in snapshot), which is expected write activity after the dump.
-- **Directus readiness:** the job runs `pg_dump -Fc` against the entire `gustale` database with no table allowlist. Any future `directus_*` tables created in the same database are covered automatically. At verification time there were `0` `directus_*` tables because ADR-002 Phase 3 has not started.
-- **Capacity:** encrypted offsite backup tree currently uses approximately 316 KB. Google Drive reports ~5.30 TB free, so the previously proposed R2 10 GB free-tier calculation is no longer applicable. With only one measured snapshot and empty media buckets, there is not yet enough history to calculate a defensible growth rate or exceed date.
-- **Environment drift check:** `DATABASE_URL`, `BETTER_AUTH_URL`, MinIO credentials, and `RESEND_API_KEY` match between `/root/.env` and `/home/deploy/gustale.com/.env`. `BETTER_AUTH_SECRET`, `SESSION_SECRET`, and `CORS_ORIGIN` differ and require a separate application-env audit; no secret value was printed or changed during this backup task.
-- **Runbook:** `.hermes/RECOVERY_RUNBOOK.md` is now the standalone post-ADR-002 recovery source of truth. Git seed data is explicitly not a content backup.
-
-### Hermes (Geekom / Telegram) — 2026-07-25 (Ops run: Applied Migrations 0009, 0010, 0011)
-
-**Task 4 (Apply Migrations): RESOLVED.** Successfully backed up production DB to `/home/deploy/gustale.com/backups/gustale_pre_migration_0009_20260725T121711Z.dump` (sha256 `9fdc5c3fcd823cbe28b80f5e163703b306dcbe8443b9858e09dfe1ab9d7d1527`, TOC lines `1086`). Applied migrations `0009_db_invariants.sql`, `0010_surrogate_pks.sql`, and `0011_dish_ingredients_pk.sql` in strict order as `postgres` superuser. Resynced drizzle sequence and inserted tracking rows for all three migrations, bringing the `drizzle.__drizzle_migrations` table count to 9 rows. Fully verified primary and unique constraints exist on all 11 modified tables plus `dish_ingredients` via pg_constraint query. Confirmed published dish count remains `121` and all API smoke endpoints are green.
-
 2026-06-24 by Claude (Cowork) — CI web build blocker fixed: mock API server inside Dockerfile replaces the unreachable production API during Astro SSG.
 
 ## Current status
@@ -186,6 +168,31 @@ verification pending on a real device after the PR merges and deploys.
   legacy react-leaflet touch `window` at import time (MapLibre
   imports `mapbox-gl`'s WebGL helpers). The `noscript` fallback in
   the dish page handles no-JS users gracefully.
+- **Caddy changes go in the file, never via the admin API.** The
+  authoritative source is `infra/prod/Caddyfile` (the live file at
+  `/etc/caddy/Caddyfile` drifts because of the local on-demand-TLS
+  block — that's an environment feature, not a project feature).
+  Procedure: edit the file in the branch → `caddy fmt --overwrite
+  infra/prod/Caddyfile` → `caddy validate --config infra/prod/Caddyfile
+  --adapter caddyfile` → open PR → **ask the user to run `caddy
+  validate` on the live file and `systemctl reload caddy`** (the
+  gustale user is in `docker` but not in `sudoers`, and reload needs
+  root). Never POST to `127.0.0.1:2019/load` — the change only lives
+  in Caddy's in-memory state and is lost on reload or reboot.
+- **Deploy order is API → healthcheck → web build → web swap.** The
+  CI workflow (`.github/workflows/ci.yml`, `deploy` job) deploys the
+  new `gustale-api` image FIRST, polls its healthcheck up to 60s,
+  smoke-tests `https://api.gustale.com/health`, then runs
+  `build-web-live.sh` (which fetches from `http://127.0.0.1:4000`) so
+  the web static pages are baked against the new API shape, then swaps
+  `gustale-web-recipes` and `gustale-web-geo`. This avoids the
+  chicken-and-egg where the web build is built against the old API
+  and the static HTML misses fields like `publicUrl` / `variantsUrls`
+  that the new API just introduced. The local rebuild step also
+  passes `GUSTALE_NO_PUSH=1` because the deploy SSH context isn't
+  authorised to push to ghcr (workflow token has no `packages:write`).
+  Earlier PR #78 (ff1a88c5) required two manual rebuilds on the
+  VPS to get the new HTML live; the new order eliminates that.
 - **CSS @import order**: `@import url(...)` MUST come before other
   rules (including `@import "tailwindcss"`). Tailwind's @property
   rules will trigger a Vite warning otherwise.
