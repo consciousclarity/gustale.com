@@ -1,0 +1,12 @@
+[Unit]
+Description=Gustale: rebuild web from live API every 30 minutes
+
+[Timer]
+# Run 30 minutes after boot, then every 30 minutes.
+OnBootSec=30min
+OnUnitActiveSec=30min
+# Persistent across reboots (catch up if missed).
+Persistent=true
+
+[Install]
+WantedBy=timers.target
