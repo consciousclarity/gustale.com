@@ -13,7 +13,13 @@ tasks:
     depends_on: []
     approval: false
     notes: "Output: .hermes/REPORTS/GUS-001-architecture-audit.md. Read-only. Also maps what of this roadmap already exists."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    acceptance:
+      - "Report exists at .hermes/REPORTS/GUS-001-architecture-audit.md and is merged to main"
+      - "Covers inventory: repo, DB schema, services, routes/APIs, deployment config, content pipeline, unfinished features"
+      - "Verifies the observed-condition table with live evidence (121 dishes; 15-vs-14 lineages cause; Wikipedia-only sources; 'No detailed steps'; 'Cover pending')"
+      - "Maps which roadmap items already exist"
+      - "Read-only: no code changes"
+    status: in_progress
     evidence: []
   - id: GUS-002
     title: "Repair the API PATCH persistence bug. Verify that updates actually persist to PostgreSQL and remain correct after application restarts"
