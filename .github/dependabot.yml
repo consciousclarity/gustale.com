@@ -1,0 +1,33 @@
+# Dependabot configuration — weekly grouped updates.
+# Created 2026-10-17 as part of GUS-006.
+# Schedule is weekly (Monday 04:00 UTC) and groups low/medium bumps
+# together so we get one PR per ecosystem per week, not 30/day.
+# High-severity bumps still go out immediately (Dependabot's default
+# security-update schedule is unchanged).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    groups:
+      production-direct:
+        applies-to: version-updates
+        dependency-type: "production"
+      development-direct:
+        applies-to: version-updates
+        dependency-type: "development"
+    # Rebase in place so Dependabot PRs keep tracking main without
+    # constant manual "update branch" clicks. The Dependabot GITHUB_TOKEN
+    # does not have write to our protected branches; the action still
+    # pushes to PR branches.
+    rebase-strategy: "auto"
+    target-branch: "main"
+    # Avoid noisy majors; let humans review major bumps separately.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

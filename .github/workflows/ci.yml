@@ -130,6 +130,14 @@ jobs:
       - name: Build db package
         run: pnpm --filter @gustale/db run build
 
+      # GUS-006: dependency vulnerability audit. Non-blocking for now so
+      # existing PRs don't flip red; promote to blocking once critical
+      # advisories reach 0 (see .hermes/REPORTS/GUS-006-deps-audit.md).
+      - name: pnpm audit (non-blocking)
+        if: always()
+        continue-on-error: true
+        run: pnpm audit --audit-level=critical
+
       - name: Apply schema to ephemeral DB
         run: |
           # Apply the full *committed* migration chain (not a hardcoded prefix).

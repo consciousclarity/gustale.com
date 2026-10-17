@@ -82,11 +82,16 @@ tasks:
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: todo
+    status: in_progress
     depends_on: []
     approval: false
-    notes: "Branch triage R1-R3 done 2026-10-16 (archive tags pushed). Remaining: Dependabot #58-60, PR #57, claude/api-auth-divergence-resolved, fix/p0-4-email-verification."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    notes: "Branch triage R1-R3 done 2026-10-16 (archive tags pushed). Remaining: Dependabot #58-60, PR #57, claude/api-auth-divergence-resolved, fix/p0-4-email-verification. Per user 2026-10-17: run pnpm audit locally; fix critical+prod-high in small PRs; rebase/merge or close #58-60; add audit to CI (non-blocking) and dependabot.yml."
+    acceptance:
+      - "Dependency audit report at .hermes/REPORTS/GUS-006-deps-audit.md"
+      - "All critical advisories in production deps have PRs opened (or merged if green)"
+      - "Dependabot #58 (vitest), #59 (maplibre-gl), #60 (astro) rebased on main and either merged green or closed with reason"
+      - ".github/dependabot.yml exists with weekly schedule + grouped updates"
+      - "CI runs pnpm audit (non-blocking for now, promote to blocking once criticals reach 0)"
     evidence: []
   - id: GUS-007
     title: "Resolve container registry authentication. Fix GHCR token permissions if container publishing is required"
