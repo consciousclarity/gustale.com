@@ -7,7 +7,9 @@
 
 ## In progress
 
-(none right now — check Backlog)
+- 2026-10-17: **Moussaka cover image live in API; awaiting next timer-driven web rebuild.** Signed in as hermes-bot@gustale.com (moderator). Uploaded `Mousakas.jpg` (Wikimedia Commons, CC BY-SA 3.0, Dieter Mueller) via `POST /api/media/upload` (media id `c7e8b2ae-263e-4ae8-a357-50fe53e12f8f`, storageKey `unattached/634ae2e838d24f95.jpg`). Attached as `role=cover` to `moussaka-greek` via `POST /api/dishes/moussaka-greek/media` (attachment id `cdb78a50-5045-484c-91d2-94cbefd582c7`). Then PATCHed the dish's `shortDescription` to its existing value to bump `updatedAt` to `2026-10-17T10:03:44.250Z` so the `gustale-rebuild-web.timer` content-version check fires on the next tick (~every 30 min). Note: the DishGallery hydration itself was already fixed in `2da83d1`; the real defect was missing media. The P2 backlog entry "Fix DishGallery hydration" should be closed as already-shipped; the actual remaining gap is the seed-vs-API state mismatch on Moussaka (now resolved for this one dish). Cannot run the rebuild script directly (no passwordless sudo to hermes user; gustale user lacks docker group in this gateway-spawned shell). Systemd timer will pick up the change. — gustale profile
+
+- 2026-10-17 by gustale profile — **PR #76: docs(hermes): record gustale profile as owner, workspace moved to /home/gustale/projects/gustale.com.** Updated `.hermes/PROJECT.md` on main: owner is now the `gustale` profile (formerly Hermes), workspace path is `/home/gustale/projects/gustale.com`. Squash-merged into main at `2f1f985`. Docs-only; CI `paths-ignore` correctly skipped Docker pipeline. 1 file, +3/-3.
 
 ## Done (recent — last 10)
 
