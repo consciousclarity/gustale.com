@@ -179,6 +179,20 @@ verification pending on a real device after the PR merges and deploys.
   gustale user is in `docker` but not in `sudoers`, and reload needs
   root). Never POST to `127.0.0.1:2019/load` — the change only lives
   in Caddy's in-memory state and is lost on reload or reboot.
+- **Deploy order is API → healthcheck → web build → web swap.** The
+  CI workflow (`.github/workflows/ci.yml`, `deploy` job) deploys the
+  new `gustale-api` image FIRST, polls its healthcheck up to 60s,
+  smoke-tests `https://api.gustale.com/health`, then runs
+  `build-web-live.sh` (which fetches from `http://127.0.0.1:4000`) so
+  the web static pages are baked against the new API shape, then swaps
+  `gustale-web-recipes` and `gustale-web-geo`. This avoids the
+  chicken-and-egg where the web build is built against the old API
+  and the static HTML misses fields like `publicUrl` / `variantsUrls`
+  that the new API just introduced. The local rebuild step also
+  passes `GUSTALE_NO_PUSH=1` because the deploy SSH context isn't
+  authorised to push to ghcr (workflow token has no `packages:write`).
+  Earlier PR #78 (ff1a88c5) required two manual rebuilds on the
+  VPS to get the new HTML live; the new order eliminates that.
 - **CSS @import order**: `@import url(...)` MUST come before other
   rules (including `@import "tailwindcss"`). Tailwind's @property
   rules will trigger a Vite warning otherwise.

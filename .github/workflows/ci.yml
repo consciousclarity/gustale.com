@@ -373,12 +373,68 @@ jobs:
               git -C "$BUILD_DIR" checkout --quiet --force "$SHA"
               git -C "$BUILD_DIR" log -1 --format="%H %s" HEAD
 
-              # --- Step 3: build the web images with LIVE data on the VPS ---
-              # The GHA build is mock-data; we need the live-data build
-              # so the static pages reflect what's in the API right now.
-              echo "--- Running build-web-live.sh at SHA=$SHA from $BUILD_DIR ---"
-              ( cd "$BUILD_DIR" && ./scripts/hermes/build-web-live.sh "$SHA" ) || {
-                echo "::error::build-web-live.sh failed; aborting deploy to keep old containers running"
+              # --- Step 3: deploy the new API image FIRST + healthcheck ---
+              # Order matters: the web build that follows fetches from the
+              # live API at http://127.0.0.1:4000, so the new API must be
+              # serving before we build. We build the web images AFTER
+              # the API is up, not in parallel.
+              #
+              # The GHA `build-web` job (separate, runs in parallel with
+              # `build`) still produces the web images, but with the *live
+              # API at GHA build time* — which is the previous API on the
+              # VPS. We re-do the build locally against the freshly-deployed
+              # API and use the local images for the web swap. The GHA-built
+              # images are kept in the registry as a smoke-test artifact
+              # (build still succeeds end-to-end) but not pulled here.
+              echo "--- Deploying new API first so the web build can use it ---"
+              deploy_container "gustale-api" "$API_IMAGE" "4000" "4000" "--network host --env-file /root/.env"
+
+              # Wait for the new API to pass its healthcheck before building
+              # the web images against it. The container has a `HEALTHCHECK
+              # CMD wget -q --spider http://localhost:4000/health || exit 1`
+              # baked into the image; we poll up to 60s.
+              echo "--- Waiting for gustale-api to be healthy ---"
+              for i in $(seq 1 30); do
+                STATUS=$(docker inspect --format='{{.State.Health.Status}}' gustale-api 2>/dev/null || echo "missing")
+                if [ "$STATUS" = "healthy" ]; then
+                  echo "  gustale-api is healthy after ${i} polls (~$((i * 2))s)"
+                  break
+                fi
+                sleep 2
+              done
+              if [ "$STATUS" != "healthy" ]; then
+                echo "::error::gustale-api did not become healthy within 60s. Last 30 log lines:"
+                docker logs --tail 30 gustale-api 2>&1 || true
+                echo "DEPLOY_FAILED_AT=api unhealthy" >> "$DEPLOY_LOG"
+                exit 1
+              fi
+
+              # Smoke-test the live API one more time at the public hostname
+              # (the healthcheck above only confirms the local port; the
+              # hostname hop exercises the Caddy route too).
+              echo "--- Confirming https://api.gustale.com/health ---"
+              if ! curl -fsS --max-time 10 "https://api.gustale.com/health" >/dev/null; then
+                echo "::error::api.gustale.com/health did not return 200; aborting before web build"
+                echo "DEPLOY_FAILED_AT=api health public" >> "$DEPLOY_LOG"
+                exit 1
+              fi
+
+              # --- Step 4: build the web images with the NEW API live ---
+              # `build-web-live.sh` does `BUILD_DATA_SOURCE=live` and
+              # fetches from http://127.0.0.1:4000, which is now the
+              # newly-deployed API. The build bakes the new publicUrl /
+              # variantsUrls / variants shape into the static HTML.
+              #
+              # `GUSTALE_NO_PUSH=1` is required: the deploy SSH step is
+              # not authorised to push to ghcr (the `packages:write` scope
+              # isn't on the workflow token, and pushing from the VPS has
+              # been failing with `permission_denied` since the token
+              # scope audit). The local image is what the deploy
+              # actually uses; we just tag it with the live-data-* name
+              # so the verify step's `docker image inspect` resolves.
+              echo "--- Running build-web-live.sh at SHA=$SHA from $BUILD_DIR (against new API, no push) ---"
+              ( cd "$BUILD_DIR" && GUSTALE_NO_PUSH=1 ./scripts/hermes/build-web-live.sh "$SHA" ) || {
+                echo "::error::build-web-live.sh failed; gustale-api already swapped (rollback path needed) — see DEPLOY_LOG"
                 echo "DEPLOY_FAILED_AT=build-web-live" >> "$DEPLOY_LOG"
                 exit 1
               }
@@ -391,10 +447,13 @@ jobs:
               WEB_RECIPES_IMAGE="$IMAGE_RECIPES"
               WEB_GEO_IMAGE="$IMAGE_GEO"
 
-              echo "--- Pulling recipes web image: $WEB_RECIPES_IMAGE ---"
-              docker pull "$WEB_RECIPES_IMAGE"
-              echo "--- Pulling geo web image: $WEB_GEO_IMAGE ---"
-              docker pull "$WEB_GEO_IMAGE"
+              # The local rebuild just produced the images and pushed them
+              # nowhere (GUSTALE_NO_PUSH=1 default). Tag them as :latest
+              # locally so `docker image inspect` resolves the same way
+              # the live data was built for.
+              echo "--- Tagging local web images as live-data ---"
+              docker tag "$WEB_RECIPES_IMAGE" "gustale-web-recipes:live-data-$SHORT_SHA" 2>/dev/null || true
+              docker tag "$WEB_GEO_IMAGE"     "gustale-web-geo:live-data-$SHORT_SHA"      2>/dev/null || true
 
               # Verify ALL THREE images are present locally before destroying
               # any running container.
