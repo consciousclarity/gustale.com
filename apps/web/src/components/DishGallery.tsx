@@ -142,6 +142,17 @@ export function DishGallery({
                   onClick={(e) => e.stopPropagation()}
                 />
               )}
+              {lightbox.credit && (
+                <figcaption className="dish-gallery__lightbox-credit">
+                  {lightbox.credit}
+                  {lightbox.license && (
+                    <span className="dish-gallery__lightbox-license">
+                      {" · "}
+                      {lightbox.license}
+                    </span>
+                  )}
+                </figcaption>
+              )}
             </div>
           );
         })()}
