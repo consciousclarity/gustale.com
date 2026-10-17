@@ -398,6 +398,14 @@ jobs:
               if [ -f "$HOME/.ssh/config" ]; then
                 export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config"
               fi
+              # The workspace is owned by the project user (hermes), but
+              # the deploy SSH user may differ (the appleboy action
+              # logs in as HOSTINGER_USER, which can be root or a
+              # service account). Git refuses to operate on a repo
+              # owned by a different user ("dubious ownership") without
+              # an explicit allow-list. '*' is safe here because the
+              # workspace dir is the only thing we ever `git -C` into.
+              git config --global --add safe.directory '*' 2>/dev/null || true
               # git fetch + checkout: if either fails, the deploy
               # is on a SHA the workspace doesn't have. We do NOT use
               # `|| true` here — a failed fetch must abort the deploy
@@ -516,6 +524,55 @@ jobs:
 
               echo "--- Deploy OK ---"
               echo 0 > /tmp/deploy_exit
+
+        # ── Verify deploy ─────────────────────────────────────────────
+        # The appleboy/ssh-action has a known issue where the
+        # inner script's exit code doesn't always propagate to the
+        # step's outcome (it can report success on a script that
+        # failed). To work around this, we re-read the deploy
+        # outcome from /tmp/gustale-deploy.log over a second SSH
+        # call and explicitly fail the job if the script reported
+        # any failure. This makes the action's exit code irrelevant
+        # — the verification is the source of truth.
+        #
+        # Without this step, we would have shipped PR #65 (and now
+        # PR #66) without realizing the deploy had silently bailed
+        # out on the `git fetch` step. This step exists because
+        # of that lesson.
+        - name: Verify deploy
+          if: always()
+          uses: appleboy/ssh-action@v1
+          with:
+            host: ${{ secrets.HOSTINGER_HOST }}
+            username: ${{ secrets.HOSTINGER_USER }}
+            key: ${{ secrets.HOSTINGER_SSH_KEY }}
+            command_timeout: 1m
+            envs: HOME
+            script: |
+              # The previous SSH step set up HOME for the deploy
+              # user; re-set it here so we can find the SSH config
+              # and read the deploy log written by the deploy script.
+              export HOME="${{ vars.GUSTALE_SSH_HOME || '/home/hermes' }}"
+
+              if [ ! -f /tmp/gustale-deploy.log ]; then
+                echo "::error::Deploy log /tmp/gustale-deploy.log not found. The deploy step did not write a log file. The appleboy/ssh-action's inner script may have failed before it could write the log."
+                exit 1
+              fi
+              echo "--- Deploy log ---"
+              cat /tmp/gustale-deploy.log
+              echo "--- end ---"
+
+              if grep -qE "^DEPLOY_FAILED_AT=" /tmp/gustale-deploy.log; then
+                FAILED_AT=$(grep -E "^DEPLOY_FAILED_AT=" /tmp/gustale-deploy.log | head -1)
+                echo "::error::Deploy failed at: $FAILED_AT"
+                exit 1
+              fi
+              if ! grep -qE "^DEPLOY_EXIT_CODE=0$" /tmp/gustale-deploy.log; then
+                echo "::error::Deploy did not report DEPLOY_EXIT_CODE=0"
+                cat /tmp/gustale-deploy.log
+                exit 1
+              fi
+              echo "--- Deploy verified OK ---"
 
         # ── Post-deploy notification ──────────────────────────────────────
         # Runs always (success + failure) and posts a Telegram message.
