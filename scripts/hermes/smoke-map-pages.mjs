@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 /**
  * Map pages visual + console smoke.
  *
@@ -23,7 +24,6 @@
  * before anyone clicks on /map and sees a flat Mercator basemap.
  */
 import { mkdir } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium } from "playwright";
 
@@ -39,14 +39,19 @@ const OUTPUT_DIR = process.env.OUTPUT_DIR ?? "/tmp/snap";
 // apps/web/scripts/post-build.mjs:66-67 GEO_ONLY). The script will
 // record a 404 on recipes /map as INFO, not a failure.
 const TARGETS = [
-  { slug: "map",  path: "/map",              expectHttp: (code, host) => (host.includes("gustale.recipes") ? code === 404 : code === 200) },
-  { slug: "dish", path: "/dishes/rendang",   expectHttp: (code) => code === 200 },
-  { slug: "home", path: "/",                 expectHttp: (code) => code === 200 },
+  {
+    slug: "map",
+    path: "/map",
+    expectHttp: (code, host) =>
+      host.includes("gustale.recipes") ? code === 404 : code === 200,
+  },
+  { slug: "dish", path: "/dishes/rendang", expectHttp: (code) => code === 200 },
+  { slug: "home", path: "/", expectHttp: (code) => code === 200 },
 ];
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800 },
-  { name: "mobile",  width: 393,  height: 851 },
+  { name: "mobile", width: 393, height: 851 },
 ];
 
 // We accept failures from these hosts without failing the run — they are
@@ -123,10 +128,16 @@ async function main() {
             // ignore source-map probes for the worker
             return;
           }
-          if (u.includes("maplibre-gl-worker") && req.failure()?.errorText?.includes("404")) {
+          if (
+            u.includes("maplibre-gl-worker") &&
+            req.failure()?.errorText?.includes("404")
+          ) {
             worker404 = true;
           }
-          failedRequests.push({ url: u.slice(0, 200), failure: (req.failure()?.errorText ?? "").slice(0, 200) });
+          failedRequests.push({
+            url: u.slice(0, 200),
+            failure: (req.failure()?.errorText ?? "").slice(0, 200),
+          });
         };
         const onResponse = (resp) => {
           const u = resp.url();
@@ -143,7 +154,10 @@ async function main() {
         const t0 = Date.now();
         let status = "no_response";
         try {
-          const resp = await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+          const resp = await page.goto(url, {
+            waitUntil: "networkidle",
+            timeout: 30_000,
+          });
           status = `http_${resp ? resp.status() : "no_response"}`;
         } catch (err) {
           status = `goto_error: ${err.name}: ${String(err).slice(0, 200)}`;
@@ -151,7 +165,11 @@ async function main() {
         const elapsedMs = Date.now() - t0;
 
         // Give MapLibre a beat to settle (camera moves, style.load, etc.)
-        try { await page.waitForLoadState("networkidle", { timeout: 10_000 }); } catch { /* ignore */ }
+        try {
+          await page.waitForLoadState("networkidle", { timeout: 10_000 });
+        } catch {
+          /* ignore */
+        }
         await sleep(1500);
 
         const png = `${OUTPUT_DIR}/${target.slug}-${domain.replace(/\./g, "_")}-${vp.name}.png`;
@@ -179,11 +197,17 @@ async function main() {
 
         const expectHttp = target.expectHttp(status, domain);
         const failures = [];
-        if (!expectHttp) failures.push(`unexpected http ${status} for ${domain}${target.path}`);
-        if (consoleErrors.length > 0) failures.push(`${consoleErrors.length} console.error(s)`);
-        if (pageErrors.length > 0) failures.push(`${pageErrors.length} pageerror(s)`);
+        if (!expectHttp)
+          failures.push(
+            `unexpected http ${status} for ${domain}${target.path}`,
+          );
+        if (consoleErrors.length > 0)
+          failures.push(`${consoleErrors.length} console.error(s)`);
+        if (pageErrors.length > 0)
+          failures.push(`${pageErrors.length} pageerror(s)`);
         if (worker404) failures.push("maplibre-gl-worker 404");
-        if (globeLikely === false) failures.push("globe not visibly round in screenshot");
+        if (globeLikely === false)
+          failures.push("globe not visibly round in screenshot");
 
         summary.push({
           url,
@@ -216,7 +240,14 @@ async function main() {
   for (const s of summary) {
     const marker = s.failures.length === 0 ? "OK" : "FAIL";
     if (marker === "FAIL") bad += 1;
-    const g = s.globe_likely === null ? "-" : s.globe_likely === true ? "round" : s.globe_likely === false ? "flat" : String(s.globe_likely).slice(0, 30);
+    const g =
+      s.globe_likely === null
+        ? "-"
+        : s.globe_likely === true
+          ? "round"
+          : s.globe_likely === false
+            ? "flat"
+            : String(s.globe_likely).slice(0, 30);
     console.log(
       `  [${marker}] ${s.url.padEnd(45)} ${s.viewport.padEnd(8)} ` +
         `load=${s.page_load_status} err=${s.console_errors.length + s.page_errors.length} ` +
@@ -224,18 +255,29 @@ async function main() {
         `worker_404=${s.worker_404} globe=${g} -> ${s.screenshot}`,
     );
     if (s.console_errors.length) {
-      for (const e of s.console_errors.slice(0, 2)) console.log(`        console.error: ${e.split("\n")[0].slice(0, 200)}`);
+      for (const e of s.console_errors.slice(0, 2))
+        console.log(`        console.error: ${e.split("\n")[0].slice(0, 200)}`);
     }
     if (s.page_errors.length) {
-      for (const e of s.page_errors.slice(0, 2)) console.log(`        pageerror:    ${e.split("\n")[0].slice(0, 200)}`);
+      for (const e of s.page_errors.slice(0, 2))
+        console.log(`        pageerror:    ${e.split("\n")[0].slice(0, 200)}`);
     }
-    if (s.worker_404) console.log(`        worker_404:    /_astro/maplibre-gl-worker.*.mjs returned 404`);
-    if (s.globe_likely === false) console.log(`        globe_check:   centre row uniform → projection likely flat`);
+    if (s.worker_404)
+      console.log(
+        `        worker_404:    /_astro/maplibre-gl-worker.*.mjs returned 404`,
+      );
+    if (s.globe_likely === false)
+      console.log(
+        `        globe_check:   centre row uniform → projection likely flat`,
+      );
   }
 
   // Persist a machine-readable summary next to the screenshots.
   await import("node:fs/promises").then((fs) =>
-    fs.writeFile(`${OUTPUT_DIR}/summary.json`, JSON.stringify(summary, null, 2)),
+    fs.writeFile(
+      `${OUTPUT_DIR}/summary.json`,
+      JSON.stringify(summary, null, 2),
+    ),
   );
 
   console.log(`\nTotal: ${summary.length} shots, ${bad} failures`);
@@ -258,7 +300,9 @@ async function main() {
  */
 async function sampleGlobeRenders(page) {
   return await page.evaluate(() => {
-    const canvas = document.querySelector("canvas.maplibregl-canvas, canvas.maplibregl-canvas-container, canvas");
+    const canvas = document.querySelector(
+      "canvas.maplibregl-canvas, canvas.maplibregl-canvas-container, canvas",
+    );
     if (!canvas) return false;
     const w = canvas.width;
     const h = canvas.height;
@@ -270,7 +314,11 @@ async function sampleGlobeRenders(page) {
     off.height = h;
     const ctx = off.getContext("2d");
     if (!ctx) return false;
-    try { ctx.drawImage(canvas, 0, 0); } catch { return false; }
+    try {
+      ctx.drawImage(canvas, 0, 0);
+    } catch {
+      return false;
+    }
 
     // 5 vertical samples at x = w/2, y = 10%, 30%, 50%, 70%, 90%
     const xs = [Math.floor(w / 2)];
