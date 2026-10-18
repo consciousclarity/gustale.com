@@ -7,14 +7,19 @@ import type {
   PointLike,
   StyleSpecification,
 } from "maplibre-gl";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
 // IMPORTANT: maplibre-gl is dynamically imported inside the effect, not
 // statically imported at the top. Static imports execute at module-eval
 // time, which means even a `client:only` island would try to evaluate
-// this module's transitive imports (including WebGL helpers) before any
-// client code runs. Dynamic import keeps the initial module payload tiny
-// and lets us defer the WebGL dependency until the user actually sees
-// the map.
+// the WebGL helpers before any client code runs. Dynamic import keeps
+// the initial module payload tiny and lets us defer the WebGL
+// dependency until the user actually sees the map.
+//
+// The Web Worker URL is loaded via Vite's `?url` import so the built
+// path is correct under Astro 7 (which otherwise does not copy
+// `maplibre-gl/dist/maplibre-gl-worker.mjs` into `_astro/`). The same
+// pattern is used in <DishMap> and <GustaleHomeIsland>.
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { getMapDishes, type MapDish } from "../lib/api";
 import {
   allShareSameCoordKey,
@@ -180,12 +185,30 @@ export function WorldMap({ dishes }: WorldMapProps) {
       .then((mod) => {
         if (cancelled) return;
         const maplibregl = mod.default ?? mod;
+        // Point MapLibre at the worker bundle Astro/Vite emitted. The
+        // `?url` import above resolves to a stable `/_astro/...mjs` path
+        // at build time. Calling this before `new maplibregl.Map(...)`
+        // is what prevents the `/_astro/maplibre-gl-worker.mjs` 404
+        // we saw on gustale.com/map under Astro 7 + MapLibre 6.
+        maplibregl.setWorkerUrl(maplibreWorkerUrl);
         const NavigationControl =
           mod.NavigationControl ?? maplibregl.NavigationControl;
         const ScaleControl = mod.ScaleControl ?? maplibregl.ScaleControl;
 
+        // Boot the map as a globe directly. Previously this was done
+        // with `mapInstance.setProjection({ type: "globe" })` after
+        // construction; in MapLibre 6 that call must run AFTER
+        // `style.load` fires, otherwise it throws `Style is not done
+        // loading` and the catch below flipped the view to "flat" —
+        // the map was rendering as a flat Mercator basemap. Baking
+        // `projection: { type: "globe" }` into the style is supported
+        // by MapLibre 6 and boots the map as a globe on first paint.
+        // The toggle button (line ~644) still uses `setProjection` for
+        // runtime globe↔flat switching, which works because the style
+        // is loaded by the time a user clicks it.
         const style: StyleSpecification = {
           version: 8,
+          projection: { type: "globe" },
           glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
           sources: {
             "carto-positron": {
@@ -247,28 +270,35 @@ export function WorldMap({ dishes }: WorldMapProps) {
           "bottom-left",
         );
 
-        try {
-          mapInstance.setProjection({ type: "globe" });
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn("[WorldMap] globe projection unavailable:", err);
-          setView("flat");
-        }
+        // No more `mapInstance.setProjection({ type: "globe" })` here:
+        // the style already declares `projection: { type: "globe" }`
+        // (see the `style` object above) so the map boots as a globe on
+        // first paint. The toggle button (below) still uses
+        // `setProjection` for runtime globe↔flat switching, which is
+        // safe because the style is fully loaded by the time a user
+        // can click it.
 
         mapInstance.on("style.load", () => {
-          try {
-            mapInstance.setSky({
-              "sky-color": "#1992ff",
-              "sky-horizon-blend": 0.7,
-              "horizon-fog-blend": 0.7,
-              "fog-color": "#e8e8e8",
-              "fog-ground-blend": 0.5,
-              "space-color": "#000000",
-              "star-intensity": 0.6,
-            } as Parameters<MlMap["setSky"]>[0]);
-          } catch {
-            // Sky is optional; ignore if the style rejects it.
-          }
+          // Set the sky. Only valid MapLibre 6 sky properties are used:
+          // `sky-color`, `sky-horizon-blend`, `horizon-fog-blend`,
+          // `fog-color`, `fog-ground-blend`. The Mapbox-only `space-color`
+          // and `star-intensity` (which were present in the pre-6 code
+          // and caused the two console errors on gustale.com/map) are
+          // removed.
+          //
+          // Note: MapLibre 6 reports validation failures via
+          // `map.fire('error', ...)` rather than `throw`-ing from
+          // `setSky`, so a try/catch here would silently swallow
+          // the very thing we want surfaced in dev. The runtime error
+          // listener above (on "error") will log anything that goes
+          // wrong; we don't add a catch.
+          mapInstance.setSky({
+            "sky-color": "#1992ff",
+            "sky-horizon-blend": 0.7,
+            "horizon-fog-blend": 0.7,
+            "fog-color": "#e8e8e8",
+            "fog-ground-blend": 0.5,
+          });
         });
 
         mapRef.current = mapInstance;
