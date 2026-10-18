@@ -8,6 +8,12 @@
 //
 // Type-only imports below are erased at build time — no runtime cost, no
 // module evaluation.
+//
+// The Web Worker URL is loaded via Vite's `?url` import so the built
+// path is correct under Astro 7 (which otherwise does not copy
+// `maplibre-gl/dist/maplibre-gl-worker.mjs` into `_astro/`). The same
+// pattern is used in <WorldMap> and <DishMap>.
+
 import type {
   GeoJSONSource,
   MapMouseEvent,
@@ -15,6 +21,7 @@ import type {
   PointLike,
   StyleSpecification,
 } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
   useCallback,
   useEffect,
@@ -254,6 +261,9 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
       .then((mod) => {
         if (cancelled) return;
         const maplibregl = mod.default ?? mod;
+        // Point MapLibre at the worker bundle Astro/Vite emitted.
+        // Must be set before `new maplibregl.Map(...)`.
+        maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
         const accent =
           (typeof document !== "undefined" &&

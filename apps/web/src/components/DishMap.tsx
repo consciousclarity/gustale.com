@@ -5,12 +5,22 @@
 // the initial module payload tiny and lets us defer the WebGL
 // dependency until the user actually sees the map. Mirrors the same
 // pattern as <WorldMap>.
+//
+// The Web Worker is loaded via Vite's `?url` import so the built path
+// is correct under Astro 7 (which otherwise does not copy
+// `maplibre-gl/dist/maplibre-gl-worker.mjs` into the `_astro/` output).
+// `setWorkerUrl(workerUrl)` must be called BEFORE the first Map() is
+// created; the dynamic import chain below does it before the Map
+// constructor. Same pattern is used in <DishMap> and
+// <GustaleHomeIsland>.
+
 import type {
   MapMouseEvent,
   Map as MlMap,
   Popup as PopupType,
   StyleSpecification,
 } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
 import type { DishOrigin } from "../types/dish";
 
@@ -116,6 +126,12 @@ export function DishMap({ origin, dishName }: DishMapProps) {
       .then((mod) => {
         if (cancelled) return;
         const maplibregl = mod.default ?? mod;
+        // Point MapLibre at the worker bundle Astro/Vite emitted. The
+        // `?url` import above resolves to a stable `/_astro/...mjs` path
+        // at build time. Calling this before `new maplibregl.Map(...)`
+        // is what prevents the `/_astro/maplibre-gl-worker.mjs` 404
+        // we saw on gustale.com/map under Astro 7 + MapLibre 6.
+        maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
         // Same basemap as <WorldMap>. Carto's positron-glight raster —
         // free, no API key, OSM-derived. Keeping the look consistent
