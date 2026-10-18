@@ -2,84 +2,58 @@
 
 **Date:** 2026-10-18 · **Scope:** `gustale.com` and `gustale.recipes`, 3 pages each, 2 viewports (1280×800 desktop, 393×851 mobile / Pixel 5) — 12 screenshots, full console + network capture per shot.
 
-Captured by `/tmp/snap/snap.py` (Playwright + headless Chromium 1248). Screenshots: `/tmp/snap/*.png`. Per-shot console logs: `/tmp/snap/*.log`.
+**Two iterations:**
 
-## Summary
+- **2026-10-18 day-2 afternoon (BEFORE)**: initial Playwright smoke against the live site. Found 2 real bugs (flat map on `/map`, worker 404 on every page) and 1 false alarm (`gustale.recipes/map` 404 is by design — `post-build.mjs` drops it on the recipes vhost). Triggered the hotfix PR #91.
+- **2026-10-18 day-2 evening (AFTER)**: same smoke after PR #91 + follow-up PR #93 merged. 0 console errors, 0 page errors, 0 worker 404s on every page. The `/map` toggle button reads **"Globe"** in the AFTER (vs. "Flat map" before the fix, indicating the view had silently fallen back), confirming the projection fix is live.
 
-| Page | Domain | Desktop | Mobile | Notes |
+Screenshots: `/tmp/snap-before/*.png` (BEFORE) and `/tmp/snap-after/*.png` (AFTER). Per-shot console logs: same dir, `.log` files. Per-run summary: `summary.json`.
+
+## Summary (12 shots, BEFORE vs AFTER)
+
+| Page | Domain | Viewport | Before | After |
 |---|---|---|---|---|
-| `/` (homepage) | gustale.com | ✅ 200, 0 err | ✅ 200, 0 err | Clean |
-| `/` | gustale.recipes | ✅ 200, 0 err, 4 warn | ✅ 200, 0 err | The 4 desktop warnings are non-blocking (homepage loads lightbox + island assets) |
-| `/dishes/rendang` (dish page) | gustale.com | ✅ 200, 0 err | ✅ 200, 0 err | Embedded map island renders |
-| `/dishes/rendang` | gustale.recipes | ✅ 200, 0 err | ✅ 200, 0 err | Same as above |
-| **`/map`** | **gustale.com** | **❌ 200, 2 console errors** | **❌ 200, 2 console errors** | **Map renders a flat basemap but the sky/globe projection is broken; see Issue 1** |
-| **`/map`** | **gustale.recipes** | **❌ 404** | **❌ 404** | **The `/map` page is not being served by the `gustale.recipes` Caddy vhost; see Issue 2** |
+| `/map` | gustale.com | desktop | 2 console errors, worker 404 | clean, globe canvas 1278×560 |
+| `/map` | gustale.com | mobile | 2 console errors, worker 404 | clean, globe canvas 351×560 |
+| `/dishes/rendang` | gustale.com | desktop | clean, worker 404 | clean |
+| `/dishes/rendang` | gustale.com | mobile | clean, worker 404 | clean |
+| `/` | gustale.com | desktop | clean, worker 404 | clean |
+| `/` | gustale.com | mobile | clean, worker 404 | clean |
+| `/map` | gustale.recipes | both | 404 (by design) | 404 (by design) |
+| `/dishes/rendang` | gustale.recipes | both | clean, worker 404 | clean |
+| `/` | gustale.recipes | both | clean, worker 404 | clean |
 
-Network log (every map page): `https://<host>/_astro/maplibre-gl-worker.mjs` returns 404 — the MapLibre Web Worker file. See Issue 3.
+**Totals:** 6 console errors + 10 worker 404s across 12 shots BEFORE → **0 of each** AFTER. The `gustale.recipes/map` 404 is excluded (it is by design).
 
-## Issue 1 — MapLibre 6 setSky properties rejected (only on `gustale.com/map`)
+## Issues — corrected after Alejandro's review
 
-**Error (console):**
+| # | What the smoke saw | What Alejandro corrected | What we did |
+|---|---|---|---|
+| 1 | "Flat map" — root-caused as `setProjection` before style loaded | ✅ same root cause; fix is to put `projection: { type: "globe" }` in the style, not call `setProjection` after construction | Fixed in PR #91 — `WorldMap.tsx` boots as a globe on first paint |
+| 2 | Two `setSky` errors: `space-color`, `star-intensity` (treated as MapLibre properties) | ✅ only those two properties are wrong; `fog-color`, `fog-ground-blend`, `horizon-fog-blend` are valid; `try/catch` was hiding validation errors because ML 6 reports them via `map.fire("error")` not `throw` | Fixed in PR #91 — deleted the Mapbox-only props and the try/catch |
+| 3 | `maplibre-gl-worker.mjs` 404 on every map page (Astro 7 build output missing the worker) | ✅ same | Fixed in PR #91 — `import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"` + `setWorkerUrl(workerUrl)` in all three components (WorldMap, DishMap, GustaleHomeIsland) |
+| 4 | "gustale.recipes/map 404" listed as a bug | ❌ false alarm — `post-build.mjs:66-67 GEO_ONLY` drops `/map` on the recipes vhost by design, and `validate-build.mjs` asserts it | Smoke now treats the recipes /map 404 as expected, not a failure |
+
+## Regression guard
+
+`scripts/hermes/smoke-map-pages.mjs` (Node + Playwright, added in PR #91, improved in PR #93) is now part of the repo. The smoke:
+
+- Captures console errors, page errors, failed requests
+- Filters CDN 4xx (e.g. Carto basemap 429) — not our bug
+- Probes the MapLibre canvas via `waitForSelector('canvas.maplibregl-canvas')` and confirms it's sized
+- Uses `wait_until: 'load'` (not `networkidle`, which never settles on a live map page)
+- Treats the `gustale.recipes/map` 404 as expected
+- Writes `summary.json` and per-shot `.log` files; exits 1 on any real failure
+
+Run after any major MapLibre / Astro / Vite bump or before a release:
 ```
-Error: space-color: unknown property "space-color"
-    at Sx._validate (maplibre-gl.DHGuYBnq.js:1:437821)
-    at Sx.setSky (maplibre-gl.DHGuYBnq.js:1:437214)
-    at PT.setSky (maplibre-gl.DHGuYBnq.js:799:92191)
-    at FA.setSky (maplibre-gl.DHGuYBnq.js:801:185949)
-    at WorldMap.DFH7K2pz.js:1:3069
-Error: star-intensity: unknown property "star-intensity"
-    (same stack)
+pnpm smoke:map
 ```
 
-**Source:** `apps/web/src/components/WorldMap.tsx:260-268` — the `mapInstance.setSky({...})` call uses MapLibre 5 property names. The MapLibre 6 / style-spec 26.4 valid sky properties are `sky-color` and `sky-horizon-blend` (verified in `node_modules/.pnpm/@maplibre+maplibre-gl-style-spec@26.4.2/.../index.d.ts:8518-8568`). ML 5's `space-color` and `star-intensity` are gone.
+`pkill -f "playwright install"` is **not** required — the chromium-headless-shell is already in the local cache.
 
-Also rejected: `horizon-fog-blend`, `fog-color`, `fog-ground-blend` — these are **fog** properties, not **sky** properties. In ML 6 they live on the style root (`style: { fog: {...} }`), not on `setSky()`.
+## Visual confirmation
 
-**Why only on `gustale.com/map`?** Because `gustale.recipes/map` 404s before the JS runs, so the bug is masked there. Dish pages embed a small `DishMap` island that doesn't call `setSky`, so they're unaffected.
+The smoke pixel probes can't reliably read the WebGL canvas (MapLibre doesn't set `preserveDrawingBuffer: true`), so the **visual confirmation is the screenshot itself**. Open the AFTER files at `/tmp/snap-after/map-gustale_com-{desktop,mobile}.png` to see a globe with dish markers around the equator.
 
-**Visible symptom:** map renders a flat Mercator basemap; the globe projection falls back (`console.warn: [WorldMap] globe projection unavailable: Error: Style is not done loading`). The setSky error is thrown before the style is fully validated.
-
-**Fix (proposed, not applied):** edit `apps/web/src/components/WorldMap.tsx:260-268`:
-- remove `space-color`, `star-intensity` (not valid in ML 6)
-- move `fog-color` / `fog-ground-blend` / `horizon-fog-blend` to `mapInstance.setFog({...})` on the style
-- keep `sky-color` and `sky-horizon-blend` in `setSky()`
-
-## Issue 2 — `gustale.recipes/map` is 404
-
-Curl directly: `https://gustale.recipes/map` returns 404. `https://gustale.com/map` returns 200. The `/dishes/<slug>` page is reachable on both vhosts.
-
-**Likely cause:** Caddy vhost for `gustale.recipes` is missing the `@map` route, OR the `gustale-web-recipes` container doesn't have `/map` in its SSG snapshot. Need to inspect `infra/prod/Caddyfile` and the live `gustale-web-recipes:live-data-*` image to confirm.
-
-**Visible symptom:** users on `gustale.recipes/map` get a generic Astro 404 page.
-
-## Issue 3 — `maplibre-gl-worker.mjs` 404 on every map
-
-**Astro build output does not include MapLibre's Web Worker ESM.** The file exists in `node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs` (verified) but the Astro/Vite build for v7 does not copy it to `_astro/`. The worker is referenced by the runtime via `import.meta.url` resolution from `maplibre-gl.DHGuYBnq.js:1:...`, so any page that instantiates a MapLibre map tries to fetch `<host>/_astro/maplibre-gl-worker.mjs` and gets 404.
-
-**In MapLibre 5 this apparently worked** — either the file was inlined, or Vite hoisted it. In MapLibre 6 it's a separate ESM file that Astro 7's build output omits.
-
-**Fix candidates (in order of preference):**
-1. Add `vite.optimizeDeps.exclude: ['maplibre-gl']` to `astro.config.mjs` so Vite treats it as ESM and copies the worker.
-2. Manually copy `node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs` into the build output via a small `astro:build:done` integration.
-3. Set the worker via `maplibregl.workerUrl` / `maplibregl.workerClass` to a CDN copy of the worker.
-
-**Impact:** worker handles tile decoding/parsing. Without it, tile requests likely fall back to a slower main-thread path, but the map still renders. So this is a *correctness/perf* regression, not a render blocker.
-
-## Per-shot files
-
-Screenshots:
-- `/tmp/snap/home-geo-{desktop,mobile}.png`
-- `/tmp/snap/home-recipes-{desktop,mobile}.png`
-- `/tmp/snap/dish-geo-{desktop,mobile}.png`
-- `/tmp/snap/dish-recipes-{desktop,mobile}.png`
-- `/tmp/snap/map-geo-{desktop,mobile}.png` (broken — Issue 1)
-- `/tmp/snap/map-recipes-{desktop,mobile}.png` (404 page)
-
-Console logs (JSON, one per shot):
-- `/tmp/snap/<slug>-<domain>-<viewport>.log`
-
-## What to look at next
-
-1. **Issue 1 (map broken on `gustale.com`)**: the fix is a 5-line edit to `WorldMap.tsx` and a re-deploy. Highest impact, smallest change. **Recommend fixing as the first task of GUS-006.b or as a standalone hotfix PR.**
-2. **Issue 2 (`gustale.recipes/map` 404)**: Caddy / SSG snapshot. Needs investigation. Easy once root cause is found.
-3. **Issue 3 (worker 404)**: real but lower priority; the map renders. Could ship with the Astro 7 cleanup work.
+The user-reported signal that the fix works: on `gustale.com/map` after the fix, the "Globe / Flat map" toggle button reads **"Globe"** (meaning a click will switch to flat). Before the fix, it read "Flat map" because the projection had silently fallen back. Verified live via Playwright: `toggle.textContent.trim() === "Globe"`.
