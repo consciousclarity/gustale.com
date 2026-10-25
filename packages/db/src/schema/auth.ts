@@ -115,6 +115,13 @@ export const verification = pgTable("verification", {
 /**
  * Passkeys — WebAuthn credentials registered to a user.
  * Used for passwordless sign-in via device biometrics / security keys.
+ *
+ * `aaguid` is the authenticator AAGUID (the vendor identifier of the
+ * credential, e.g. Touch ID, Google Password Manager). better-auth's
+ * `@better-auth/passkey` plugin declares it as an optional string and
+ * uses it to label the credential. better-auth 1.7.x validates the
+ * runtime schema against the database on every request, so the column
+ * must exist — see packages/db/drizzle/0013_passkey_aaguid.sql.
  */
 export const passkey = pgTable("passkey", {
   id: text("id").primaryKey(),
@@ -129,6 +136,9 @@ export const passkey = pgTable("passkey", {
   backedUp: boolean("backed_up").notNull(),
   transports: text("transports"),
   createdAt: timestamp("created_at"),
+  // Authenticator AAGUID — optional in better-auth's plugin schema.
+  // Nullable so existing rows stay valid.
+  aaguid: text("aaguid"),
 });
 
 /**
