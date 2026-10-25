@@ -48,16 +48,20 @@ tasks:
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: in_progress
+    status: done
     depends_on: []
     approval: false
-    notes: "Audit found 9 handlers doing multi-statement writes with NO transaction: 6 in apps/api/src/routes/dishes-write.ts and 3 in apps/api/src/routes/admin-dishes.ts (27 write statements total). Only dishes-media.ts had one (the cover-demotion + insert). Worst cases: PATCH /api/dishes/:slug DELETE-then-INSERT on categories and tags (a failure between them leaves the dish with no categories); PATCH .../variants/:id DELETE variant then write audit (a failure leaves the variant gone with no trace); POST /api/admin/dishes/:slug/sources did source insert + citation insert + audit across 3 tables (the evidence path — a partial failure leaves an orphaned source or a citation with no audit trail)."
+    notes: "Audit found 9 handlers doing multi-statement writes with NO transaction: 6 in apps/api/src/routes/dishes-write.ts and 3 in apps/api/src/routes/admin-dishes.ts (27 write statements total). Only dishes-media.ts had one (the cover-demotion + insert). Worst cases: PATCH /api/dishes/:slug DELETE-then-INSERT on categories and tags (a failure between them leaves the dish with no categories); PATCH .../variants/:id DELETE variant then write audit (a failure leaves the variant gone with no trace); POST /api/admin/dishes/:slug/sources did source insert + citation insert + audit across 3 tables (the evidence path — a partial failure leaves an orphaned source or a citation with no audit trail). FIXED 2026-10-25 in PR #110."
     acceptance:
       - "Every multi-statement write handler runs inside a single db.transaction"
       - "No bare db.insert/update/delete remains outside a transaction in the write paths"
       - "A regression test proves the atomicity: a mid-transaction failure rolls back the earlier writes"
       - "Full test suite + typecheck + biome + astro build green"
-    evidence: []
+    evidence:
+      - "PR #110 (9cdbc8c) MERGED 2026-10-25 — all 10 multi-statement write handlers now atomic (9 handlers, 27 write statements, 0 bare db.insert/update/delete remaining in the two write files). Live deploy verified."
+      - "Regression test apps/api/test/dishes-atomicity.test.ts proves the guarantee: PATCHes with a category id that violates the FK so the INSERT fails INSIDE the transaction after the DELETE has already run; asserts the original category survived, the column update rolled back, and no edit_history row was written."
+      - "Confirmed the test is a real guard: reverting dishes-write.ts to the pre-transaction version makes it fail with 'expected [] to deeply equal [ Array(1) ]' (the dish lost its category); it passes again with the fix in place."
+      - "Local CI mirror (postgis 16-3.4 + committed migration chain + seeds + vitest + astro build): typecheck OK, biome OK, 9 test files / 63 passed / 3 skipped, 22 pages built, exit 0."
   - id: GUS-004
     title: "Introduce database migration discipline. Use versioned migrations, rollback procedures, and migration tests"
     epic: "EPIC 01 — Stabilize the technical foundation"
@@ -120,7 +124,7 @@ tasks:
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: in_progress
+    status: done
     depends_on: [GUS-006]
     approval: false
     notes: "Split out of GUS-006 (which closed 2026-10-24). Re-audited 2026-10-25 against current main: 0 critical / 20 HIGH prod / 16 moderate / 6 low. The weekly Dependabot group bumps (#94/#95/#98) closed 6 HIGHs since the day-2 count of 26. Remaining 20 HIGHs live in 6 modules, all reached via @astrojs/react or fastify: fast-uri (11), @fastify/busboy (3), js-yaml (3), browserslist (2), find-my-way (1), devalue (4 — newly HIGH), vite (1 — newly HIGH). Plan: one PR per cluster, fastify first."
@@ -129,6 +133,9 @@ tasks:
       - "Each cluster lands as its own PR with green CI and a live check"
       - "The CI `pnpm audit --audit-level=critical` gate is promoted to blocking once criticals reach 0 (already true) and extended to high once HIGHs reach 0"
     evidence:
+      - "ACCEPTANCE MET — PR #107 (abc5b832) Fastify cluster (10 HIGH), PR #108 (96b23fb) Astro cluster (10 HIGH), PR #109 (b7e062d) blocking CI gate. All MERGED and live-verified 2026-10-25."
+      - "pnpm audit --prod on current main: 0 critical / 0 HIGH / 6 moderate / 1 low. The CI gate `pnpm audit --audit-level=high` is now BLOCKING and returns exit 0."
+      - "Every multi-statement write handler runs inside a single db.transaction"
       - "Cluster 1 (Fastify chain) — MERGED in #107 (abc5b832): pnpm.overrides for fast-uri 3.1.2 -> 3.1.9, find-my-way 9.6.0 -> 9.10.0, @fastify/busboy 3.2.0 -> 3.2.4. Closed 10 of the 20 HIGHs. All three are in-range patch/minor bumps (ajv wants fast-uri ^3.0.1, fastify wants find-my-way ^9.6.0, @fastify/multipart wants @fastify/busboy ^3.0.0) so no parent package needs a major bump and no API surface changes."
       - "Cluster 1 live verification: deploy run 40197049935 SUCCESS (all 6 jobs); api.gustale.com/health ok; the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor) all return 200 published; /api/dishes, /api/lineages, /api/categories, /api/search all 200."
       - "Overrides live in pnpm-workspace.yaml, NOT package.json — pnpm 11 no longer reads the `pnpm` field in package.json (see https://pnpm.io/settings). Verified: a package.json `pnpm.overrides` block is silently ignored with a WARN."
