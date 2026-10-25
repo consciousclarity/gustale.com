@@ -140,13 +140,23 @@ jobs:
       - name: Build db package
         run: pnpm --filter @gustale/db run build
 
-      # GUS-006: dependency vulnerability audit. Non-blocking for now so
-      # existing PRs don't flip red; promote to blocking once critical
-      # advisories reach 0 (see .hermes/REPORTS/GUS-006-deps-audit.md).
-      - name: pnpm audit (non-blocking)
+      # GUS-006.b: the dependency audit gate. Promoted to BLOCKING at
+      # `high` once pnpm audit --prod reached 0 critical / 0 high
+      # (#107 closed the Fastify cluster, #108 the Astro cluster).
+      # Critical was already 0 since #85/#87, so `--audit-level=high`
+      # now holds BOTH severities to zero.
+      #
+      # `pnpm audit` (no --prod flag) is used deliberately: it covers the
+      # whole tree, dev deps included, so a new HIGH in a build-time
+      # package fails the PR too. The 6 moderate + 1 low that remain
+      # are all below this threshold.
+      #
+      # To relax the gate later (e.g. while working GUS-006.c on the
+      # remaining majors), set `continue-on-error: true` here and
+      # update this comment -- but do not leave it silently disabled.
+      - name: pnpm audit (blocking at high)
         if: always()
-        continue-on-error: true
-        run: pnpm audit --audit-level=critical
+        run: pnpm audit --audit-level=high
 
       - name: Apply schema to ephemeral DB
         run: |
