@@ -7,3 +7,21 @@ onlyBuiltDependencies:
 allowBuilds:
   esbuild: true
   sharp: true
+# pnpm 11 no longer reads the `pnpm` field in package.json — overrides
+# live here (see https://pnpm.io/settings).
+#
+# GUS-006.b — Fastify dependency cluster. These three transitives carry
+# 15 of the 20 remaining HIGH production advisories:
+#   fast-uri      3.1.2 -> 3.1.9   (11 advisories: host confusion,
+#                                   SSRF, authority injection)
+#   find-my-way   9.6.0 -> 9.10.0  (1 advisory: HTTP/2 DoS)
+#   @fastify/busboy 3.2.0 -> 3.2.4 (3 advisories: multipart DoS)
+#
+# All three are patch/minor bumps inside the ranges their parents
+# already declare (ajv wants fast-uri ^3.0.1, fastify wants
+# find-my-way ^9.6.0, @fastify/multipart wants @fastify/busboy ^3.0.0),
+# so no parent package needs a major bump and no API surface changes.
+overrides:
+  fast-uri: 3.1.9
+  find-my-way: 9.10.0
+  "@fastify/busboy": 3.2.4
