@@ -110,6 +110,24 @@ tasks:
       - "DEPENDABOT GROUPS 2026-10-24: #94 (dev-direct, 5 updates) MERGED 4157579, all checks green. #95 (prod-direct, 17 updates) conflicted with #94 on pnpm-lock.yaml; rebased onto main with the lockfile regenerated via `pnpm install --lockfile-only` so both groups' bumps coexist, opened as PR #96 and MERGED 2a402c6. #98 (prod-direct, 2 more updates, astro 7.2.8 -> 7.4.2) MERGED 1116131."
       - "pnpm audit --prod measured on both trees 2026-10-24: main = 0 critical / 28 high / 20 moderate / 6 low; after the prod group bump = 0 critical / 23 high / 17 moderate / 6 low. The prod group bump removes 5 HIGH advisories. 0 critical throughout."
       - "Remaining 23 HIGH prod advisories grouped into clusters for GUS-006.b: fastify first, then better-auth, browserslist, smol-toml, source-map-js."
+  - id: GUS-006b
+    title: "Close the remaining HIGH production advisories in small per-cluster PRs"
+    epic: "EPIC 01 — Stabilize the technical foundation"
+    priority: P0
+    phase: 0
+    status: in_progress
+    depends_on: [GUS-006]
+    approval: false
+    notes: "Split out of GUS-006 (which closed 2026-10-24). Re-audited 2026-10-25 against current main: 0 critical / 20 HIGH prod / 16 moderate / 6 low. The weekly Dependabot group bumps (#94/#95/#98) closed 6 HIGHs since the day-2 count of 26. Remaining 20 HIGHs live in 6 modules, all reached via @astrojs/react or fastify: fast-uri (11), @fastify/busboy (3), js-yaml (3), browserslist (2), find-my-way (1), devalue (4 — newly HIGH), vite (1 — newly HIGH). Plan: one PR per cluster, fastify first."
+    acceptance:
+      - "0 HIGH production advisories remain in `pnpm audit --prod`"
+      - "Each cluster lands as its own PR with green CI and a live check"
+      - "The CI `pnpm audit --audit-level=critical` gate is promoted to blocking once criticals reach 0 (already true) and extended to high once HIGHs reach 0"
+    evidence:
+      - "Cluster 1 (Fastify chain) — IN PROGRESS: pnpm.overrides for fast-uri 3.1.2 -> 3.1.9, find-my-way 9.6.0 -> 9.10.0, @fastify/busboy 3.2.0 -> 3.2.4. Closes 10 of the 20 HIGHs. All three are in-range patch/minor bumps (ajv wants fast-uri ^3.0.1, fastify wants find-my-way ^9.6.0, @fastify/multipart wants @fastify/busboy ^3.0.0) so no parent package needs a major bump and no API surface changes."
+      - "Overrides live in pnpm-workspace.yaml, NOT package.json — pnpm 11 no longer reads the `pnpm` field in package.json (see https://pnpm.io/settings). Verified: a package.json `pnpm.overrides` block is silently ignored with a WARN."
+      - "Audit delta measured in a container with the frozen lockfile: 20 HIGH prod -> 10 HIGH prod. Remaining 10 are the Astro chain (js-yaml x3, browserslist x2, devalue x4, vite x1) via @astrojs/react."
+      - "Full CI mirror run locally (postgis 16-3.4 + committed migration chain + seeds + vitest): typecheck OK, db build OK, 8 test files / 61 passed / 3 skipped, exit 0."
   - id: GUS-007
     title: "Resolve container registry authentication. Fix GHCR token permissions if container publishing is required"
     epic: "EPIC 01 — Stabilize the technical foundation"
