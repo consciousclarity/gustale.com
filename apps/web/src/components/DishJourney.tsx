@@ -1,5 +1,9 @@
-import type { Map as MlMap, StyleSpecification } from "maplibre-gl";
+import type { Map as MlMap } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
+import {
+  basemapTransformRequest,
+  CARTO_VECTOR_STYLE_URL,
+} from "../lib/basemap";
 
 export type JourneyConfidence =
   | "documented"
@@ -167,30 +171,9 @@ function JourneyPathMap({
         if (cancelled || !containerRef.current) return;
         const maplibregl = mod.default ?? mod;
 
-        const style: StyleSpecification = {
-          version: 8,
-          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-          sources: {
-            "carto-positron": {
-              type: "raster",
-              tiles: [
-                "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-              ],
-              tileSize: 256,
-              attribution:
-                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-            },
-          },
-          layers: [
-            {
-              id: "carto-positron-layer",
-              type: "raster",
-              source: "carto-positron",
-            },
-          ],
-        };
+        // Same basemap as <WorldMap> — CARTO's vector GL style. See
+        // lib/basemap for why the raster endpoint was abandoned.
+        const style = CARTO_VECTOR_STYLE_URL;
 
         const lngs = points.map((p) => p.lng);
         const lats = points.map((p) => p.lat);
@@ -208,6 +191,7 @@ function JourneyPathMap({
             minZoom: 0.5,
             maxZoom: 12,
             attributionControl: { compact: true },
+            transformRequest: basemapTransformRequest,
           });
         } catch {
           setMapError("The journey map could not be initialised.");

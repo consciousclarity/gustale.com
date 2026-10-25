@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 /**
  * Map pages visual + console smoke.
  *
@@ -66,6 +67,18 @@ const TILE_HOST_SUFFIXES = [
 
 const isTileHost = (url) => TILE_HOST_SUFFIXES.some((h) => url.includes(h));
 
+// Basemap tiles are fetched from these hosts. We track their bodies so
+// we can detect a *watermarked* basemap: CARTO serves HTTP 200 with a
+// valid PNG that is only the text "API KEY REQUIRED" when a request
+// has no key, so nothing fails — every tile is simply identical.
+//
+// This exact failure shipped to production unnoticed for a month
+// (2026-09-25 → 2026-10-25): the map looked "loaded" to every check
+// we had, because the requests succeeded and the images decoded. The
+// only reliable signal is that real map tiles differ from each other
+// while a watermark tile is byte-identical everywhere.
+const BASEMAP_HOST_SUFFIXES = ["basemaps.cartocdn.com", "openfreemap.org"];
+
 async function ensurePlaywright() {
   // Use the same Python venv as the original snap script if present, so
   // both approaches work in CI. Node Playwright is the canonical entry
@@ -92,6 +105,13 @@ async function main() {
   const browser = await chromium.launch({
     headless: true,
     args: ["--no-sandbox"],
+    // Allow pointing at an already-installed Chromium. Playwright's
+    // bundled browser revision is not always present on a given host,
+    // and the failure mode ("Executable doesn't exist") is confusing
+    // because the rest of the script works fine.
+    ...(process.env.CHROMIUM_PATH
+      ? { executablePath: process.env.CHROMIUM_PATH }
+      : {}),
   });
 
   for (const vp of VIEWPORTS) {
@@ -100,7 +120,9 @@ async function main() {
       deviceScaleFactor: 1,
     });
     for (const domain of DOMAINS) {
-      const base = `https://${domain}`;
+      const base = process.env.BASE_SCHEME
+        ? `${process.env.BASE_SCHEME}://${domain}`
+        : `https://${domain}`;
       for (const target of TARGETS) {
         const url = `${base}${target.path}`;
         const page = await ctx.newPage();
@@ -110,6 +132,9 @@ async function main() {
         const pageErrors = [];
         const failedRequests = [];
         let worker404 = false;
+        // Hashes of basemap tile bodies, to detect a watermarked basemap.
+        const basemapTileHashes = new Set();
+        let basemapTileCount = 0;
 
         const onConsole = (msg) => {
           if (msg.type() === "error") {
@@ -156,6 +181,23 @@ async function main() {
           if (u.includes("maplibre-gl-worker") && resp.status() === 404) {
             worker404 = true;
           }
+          // Track basemap tile bodies so we can tell a real basemap from
+          // a watermarked one. We look at image tiles (raster basemap)
+          // and vector tiles (the current basemap) — the style.json and
+          // glyph responses are not map data and would add noise.
+          if (!BASEMAP_HOST_SUFFIXES.some((h) => u.includes(h))) return;
+          if (!/\.(png|jpg|jpeg|webp|mvt|pbf)(\?|$)/i.test(u)) return;
+          resp
+            .body()
+            .then((buf) => {
+              basemapTileCount += 1;
+              basemapTileHashes.add(
+                createHash("sha256").update(buf).digest("hex").slice(0, 16),
+              );
+            })
+            .catch(() => {
+              /* body unavailable — nothing to compare */
+            });
         };
 
         page.on("console", onConsole);
@@ -250,6 +292,35 @@ async function main() {
           }
         }
 
+        // The map container must actually have height. A MapLibre
+        // container that collapses to 0px still creates a canvas and
+        // still requests tiles, so every other check passes — but the
+        // map is invisible. This is exactly what happened on every
+        // dish page: the container sized itself with Tailwind's
+        // `h-full`, and Tailwind's CSS was never imported, so the
+        // class resolved to nothing and the box collapsed.
+        let mapBoxH = null;
+        let mapContainerCollapsed = false;
+        try {
+          const box = await page.evaluate(() => {
+            const el =
+              document.querySelector(".dish-map-canvas") ??
+              document.querySelector(".wm-canvas") ??
+              document.querySelector(".dj__map-canvas") ??
+              document.querySelector(".atl-mapbox") ??
+              document.querySelector(".maplibregl-map");
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return { h: Math.round(r.height), w: Math.round(r.width) };
+          });
+          mapBoxH = box ? box.h : null;
+        } catch {
+          mapBoxH = null;
+        }
+        if (mapBoxH !== null && mapBoxH < 100) {
+          mapContainerCollapsed = true;
+        }
+
         const httpCode = status.startsWith("http_")
           ? Number(status.slice(5))
           : null;
@@ -265,8 +336,24 @@ async function main() {
         if (pageErrors.length > 0)
           failures.push(`${pageErrors.length} pageerror(s)`);
         if (worker404) failures.push("maplibre-gl-worker 404");
+        if (mapContainerCollapsed)
+          failures.push(`map container collapsed to ${mapBoxH}px tall`);
         if (globeLikely && globeLikely.startsWith("flat"))
           failures.push("globe not visibly round in screenshot");
+        // A watermarked basemap: every tile response is byte-identical.
+        // CARTO returns HTTP 200 for these, so nothing else fails — the
+        // map only *looks* wrong. Requiring distinct tile bodies is the
+        // only way to catch it.
+        if (basemapTileCount >= 3 && basemapTileHashes.size === 1) {
+          failures.push(
+            `basemap looks watermarked (${basemapTileCount} tiles, all byte-identical)`,
+          );
+        }
+        if (basemapTileCount === 0 && target.slug !== "home") {
+          // The dish + map pages always request basemap tiles. Zero
+          // means the basemap never loaded at all.
+          failures.push("no basemap tiles requested");
+        }
 
         summary.push({
           url,
@@ -282,6 +369,9 @@ async function main() {
           failed_requests: failedRequests,
           worker_404: worker404,
           globe_likely: globeLikely,
+          map_container_height_px: mapBoxH,
+          basemap_tiles: basemapTileCount,
+          basemap_distinct_tiles: basemapTileHashes.size,
           screenshot: png,
           screenshot_ok: screenshotOk,
           failures,

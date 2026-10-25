@@ -5045,6 +5045,72 @@ body.nav-panel-open {
 .wm-canvas.is-hidden {
   display: none;
 }
+
+/* Per-dish origin map (DishMap).
+   This used to rely on Tailwind's `h-full w-full` for its size, but
+   Tailwind is registered as a Vite plugin without its CSS ever being
+   imported — so no utility classes are emitted at all and `h-full`
+   resolved to nothing. The map container collapsed to 0px tall and the
+   map was invisible on every dish page (it was never a basemap problem).
+   Explicit dimensions, like .wm-canvas above. */
+.dish-map-frame {
+  position: relative;
+  height: 280px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.dish-map-canvas {
+  height: 100%;
+  width: 100%;
+}
+.dish-map-canvas.is-hidden {
+  display: none;
+}
+.dish-map-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  pointer-events: none;
+}
+.dish-map-overlay--stack {
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  pointer-events: auto;
+}
+.dish-map-note {
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--sub);
+  font-size: 0.875rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+.dish-map-note--warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #78350f;
+}
+.dish-map-origin {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+.dish-map-origin-muted {
+  color: var(--sub);
+}
+.dish-map-origin-faint {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
 .wm-view-toggle {
   position: absolute;
   right: 12px;

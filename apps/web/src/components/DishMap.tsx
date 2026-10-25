@@ -18,10 +18,13 @@ import type {
   MapMouseEvent,
   Map as MlMap,
   Popup as PopupType,
-  StyleSpecification,
 } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
+import {
+  basemapTransformRequest,
+  CARTO_VECTOR_STYLE_URL,
+} from "../lib/basemap";
 import type { DishOrigin } from "../types/dish";
 
 export interface DishMapProps {
@@ -133,33 +136,10 @@ export function DishMap({ origin, dishName }: DishMapProps) {
         // we saw on gustale.com/map under Astro 7 + MapLibre 6.
         maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
-        // Same basemap as <WorldMap>. Carto's positron-glight raster —
-        // free, no API key, OSM-derived. Keeping the look consistent
-        // across the two maps on the site.
-        const style: StyleSpecification = {
-          version: 8,
-          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-          sources: {
-            "carto-positron": {
-              type: "raster",
-              tiles: [
-                "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-              ],
-              tileSize: 256,
-              attribution:
-                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-            },
-          },
-          layers: [
-            {
-              id: "carto-positron-layer",
-              type: "raster",
-              source: "carto-positron",
-            },
-          ],
-        };
+        // Same basemap as <WorldMap>. CARTO's vector GL style — see
+        // lib/basemap for why the raster endpoint was abandoned. The
+        // look is consistent across every map on the site.
+        const style = CARTO_VECTOR_STYLE_URL;
 
         try {
           // MapLibre uses [lng, lat] (GeoJSON order). Our API stores
@@ -172,6 +152,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
             minZoom: 0.5,
             maxZoom: 18,
             attributionControl: { compact: true },
+            transformRequest: basemapTransformRequest,
           });
         } catch (err) {
           // eslint-disable-next-line no-console
@@ -373,22 +354,19 @@ export function DishMap({ origin, dishName }: DishMapProps) {
     <div
       role="figure"
       aria-label={`${dishName} — origin: ${origin.name || `${lat}, ${lng}`}`}
-      className="overflow-hidden rounded-lg border border-slate-200"
-      style={{ height: "280px" }}
+      className="dish-map-frame"
     >
       <div
         ref={containerRef}
-        className={mapError ? "hidden" : "h-full w-full"}
+        className={mapError ? "dish-map-canvas is-hidden" : "dish-map-canvas"}
         aria-label="Interactive map showing this dish's geographic origin"
       />
 
       {/* MapLibre loading overlay. Hidden the moment the dynamic
           import resolves. */}
       {!mapReady && !mapError && (
-        <div className="pointer-events-none flex h-full w-full items-center justify-center bg-slate-50">
-          <p className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
-            Loading map…
-          </p>
+        <div className="dish-map-overlay">
+          <p className="dish-map-note">Loading map…</p>
         </div>
       )}
 
@@ -397,21 +375,21 @@ export function DishMap({ origin, dishName }: DishMapProps) {
           it has 31+ items; per-dish has exactly one origin, so a
           simple panel is the right shape. */}
       {mapError && (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-50 p-4 text-center">
-          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            {mapError}
-          </p>
-          <p className="text-sm text-slate-700">
+        <div className="dish-map-overlay dish-map-overlay--stack">
+          <p className="dish-map-note dish-map-note--warn">{mapError}</p>
+          <p className="dish-map-origin">
             <strong>{dishName}</strong>
             <br />
-            <span className="text-slate-500">
+            <span className="dish-map-origin-muted">
               Origin: {origin.name}
               {origin.isoCode && (
-                <span className="ml-1 text-slate-400">({origin.isoCode})</span>
+                <span className="dish-map-origin-faint">
+                  ({origin.isoCode})
+                </span>
               )}
             </span>
             <br />
-            <span className="text-xs text-slate-400">
+            <span className="dish-map-origin-faint">
               {formatCoord(lat!, "lat")}, {formatCoord(lng!, "lng")}
             </span>
           </p>
@@ -419,7 +397,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
       )}
 
       <noscript>
-        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="dish-map-note dish-map-note--warn">
           Enable JavaScript to see the interactive map of where this dish
           originates.
         </p>
