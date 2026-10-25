@@ -5,7 +5,6 @@ import type {
   MapMouseEvent,
   Map as MlMap,
   PointLike,
-  StyleSpecification,
 } from "maplibre-gl";
 // IMPORTANT: maplibre-gl is dynamically imported inside the effect, not
 // statically imported at the top. Static imports execute at module-eval
@@ -21,6 +20,10 @@ import type {
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { getMapDishes, type MapDish } from "../lib/api";
+import {
+  basemapTransformRequest,
+  CARTO_VECTOR_STYLE_URL,
+} from "../lib/basemap";
 import {
   allShareSameCoordKey,
   coordKey,
@@ -195,42 +198,18 @@ export function WorldMap({ dishes }: WorldMapProps) {
           mod.NavigationControl ?? maplibregl.NavigationControl;
         const ScaleControl = mod.ScaleControl ?? maplibregl.ScaleControl;
 
-        // Boot the map as a globe directly. Previously this was done
-        // with `mapInstance.setProjection({ type: "globe" })` after
-        // construction; in MapLibre 6 that call must run AFTER
-        // `style.load` fires, otherwise it throws `Style is not done
-        // loading` and the catch below flipped the view to "flat" —
-        // the map was rendering as a flat Mercator basemap. Baking
-        // `projection: { type: "globe" }` into the style is supported
-        // by MapLibre 6 and boots the map as a globe on first paint.
-        // The toggle button (line ~644) still uses `setProjection` for
-        // runtime globe↔flat switching, which works because the style
-        // is loaded by the time a user clicks it.
-        const style: StyleSpecification = {
-          version: 8,
-          projection: { type: "globe" },
-          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-          sources: {
-            "carto-positron": {
-              type: "raster",
-              tiles: [
-                "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-                "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-              ],
-              tileSize: 256,
-              attribution:
-                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-            },
-          },
-          layers: [
-            {
-              id: "carto-positron-layer",
-              type: "raster",
-              source: "carto-positron",
-            },
-          ],
-        };
+        // Boot the map as a globe. The basemap is CARTO's *vector* GL
+        // style (see lib/basemap for why the raster endpoint was
+        // abandoned), so the style is fetched by MapLibre and we cannot
+        // bake `projection` into it the way the old inline raster style
+        // allowed. Instead we call setProjection() from the `style.load`
+        // handler below — MapLibre 6 rejects that call before the style
+        // is ready, and it must run *after* `style.load` or the map
+        // renders as a flat Mercator basemap. The toggle button
+        // (line ~644) uses the same call for runtime globe↔flat
+        // switching, which is safe because the style is fully loaded by
+        // the time a user can click it.
+        const style = CARTO_VECTOR_STYLE_URL;
 
         try {
           const el = containerRef.current;
@@ -243,6 +222,7 @@ export function WorldMap({ dishes }: WorldMapProps) {
             minZoom: 0.5,
             maxZoom: 14,
             attributionControl: { compact: true },
+            transformRequest: basemapTransformRequest,
           });
         } catch (err) {
           // eslint-disable-next-line no-console
@@ -270,15 +250,21 @@ export function WorldMap({ dishes }: WorldMapProps) {
           "bottom-left",
         );
 
-        // No more `mapInstance.setProjection({ type: "globe" })` here:
-        // the style already declares `projection: { type: "globe" }`
-        // (see the `style` object above) so the map boots as a globe on
-        // first paint. The toggle button (below) still uses
+        // The basemap is a remote CARTO vector style, so `projection`
+        // cannot be baked into it — it is applied in the `style.load`
+        // handler below. The toggle button (further down) uses
         // `setProjection` for runtime globe↔flat switching, which is
         // safe because the style is fully loaded by the time a user
         // can click it.
 
         mapInstance.on("style.load", () => {
+          // Promote the basemap to a 3D globe. MapLibre 6 rejects
+          // setProjection() before the style has finished loading, so
+          // this has to run from `style.load` — calling it earlier
+          // throws "Style is not done loading" and the map ends up
+          // rendering as a flat Mercator basemap.
+          mapInstance.setProjection({ type: "globe" });
+
           // Set the sky. Only valid MapLibre 6 sky properties are used:
           // `sky-color`, `sky-horizon-blend`, `horizon-fog-blend`,
           // `fog-color`, `fog-ground-blend`. The Mapbox-only `space-color`

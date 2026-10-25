@@ -284,6 +284,7 @@ jobs:
           build-args: |
             PUBLIC_DOMAIN=${{ matrix.domain }}
             PUBLIC_API_BASE=https://api.gustale.recipes
+            PUBLIC_CARTO_API_KEY=${{ secrets.CARTO_BASEMAP_API_KEY }}
           tags: >-
             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}

@@ -69,6 +69,19 @@ ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 ARG BUILD_DATA_SOURCE=mock
 ENV BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE}
 
+# Optional CARTO basemap key. CARTO's *vector* basemap styles still load
+# without a key, so this defaults to empty and the maps work keyless.
+# If CARTO extends the key requirement to vector styles (they have said
+# they may), setting this build arg is all that is needed — the key is
+# attached to every basemaps.cartocdn.com request at runtime by
+# apps/web/src/lib/basemap.ts.
+#
+# This is a public, browser-side token by design (like a Mapbox public
+# token) — it is not a server secret, and the value never reaches the
+# API container.
+ARG PUBLIC_CARTO_API_KEY=
+ENV PUBLIC_CARTO_API_KEY=${PUBLIC_CARTO_API_KEY}
+
 # Now copy the rest of the source. This layer's cache key is the full
 # monorepo tree, so it (and everything below) invalidates on every commit.
 COPY . .

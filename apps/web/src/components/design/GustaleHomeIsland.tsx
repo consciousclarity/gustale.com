@@ -19,7 +19,6 @@ import type {
   MapMouseEvent,
   Map as MlMap,
   PointLike,
-  StyleSpecification,
 } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import {
@@ -32,6 +31,10 @@ import {
 } from "react";
 import type { MapDish } from "../../lib/api";
 import { getMapDishes, listAllDishes } from "../../lib/api";
+import {
+  basemapTransformRequest,
+  CARTO_VECTOR_STYLE_URL,
+} from "../../lib/basemap";
 import { authoringHref } from "../../lib/domain";
 import {
   allShareSameCoordKey,
@@ -110,31 +113,12 @@ function detectWebGL(): boolean {
   }
 }
 
-// Carto positron-voyager raster basemap — same look as the standalone
-// /map page and the per-dish mini-map. Free, no API key, OSM-derived.
-const MAP_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    "carto-positron": {
-      type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-      ],
-      tileSize: 256,
-      attribution:
-        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-    },
-  },
-  layers: [
-    {
-      id: "carto-positron-layer",
-      type: "raster",
-      source: "carto-positron",
-    },
-  ],
-};
+/**
+ * Carto vector basemap — shared with <WorldMap>, <DishMap> and
+ * <DishJourney> via lib/basemap. See that module for why the raster
+ * endpoint was abandoned (it now returns an "API KEY REQUIRED"
+ * watermark instead of map data).
+ */
 
 /** Keep clusters through city zooms (same rationale as WorldMap). */
 const ATLAS_CLUSTER_MAX_ZOOM = 11;
@@ -275,12 +259,13 @@ function AtlasView({ dishes, showRegions }: AtlasViewProps) {
         try {
           map = new maplibregl.Map({
             container: containerRef.current!,
-            style: MAP_STYLE,
+            style: CARTO_VECTOR_STYLE_URL,
             center: [20, 20],
             zoom: 1.4,
             minZoom: 0.5,
             maxZoom: 16,
             attributionControl: { compact: true },
+            transformRequest: basemapTransformRequest,
           });
         } catch (err) {
           // eslint-disable-next-line no-console
