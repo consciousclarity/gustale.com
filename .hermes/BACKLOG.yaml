@@ -223,12 +223,21 @@ tasks:
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: todo
+    status: done
     depends_on: []
     approval: true
-    notes: "Postgres restore proven 2026-10-16 (121 dishes matched). MinIO (gustale-media + gustale-public) restore NOT yet tested."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
-    evidence: []
+    notes: "Postgres restore proven 2026-10-16 (121 dishes matched). MinIO (gustale-media + gustale-public) restore PROVEN 2026-10-25 — see evidence."
+    acceptance:
+      - "Postgres offsite backup restores into a throwaway instance with the published catalog intact"
+      - "MinIO offsite backup restores into a throwaway instance and every live object is present with an identical sha256"
+      - "The restored bucket actually serves the objects (not just a successful file copy)"
+      - "The verification is re-runnable as a script, not a one-off manual procedure"
+    evidence:
+      - "Postgres: proven 2026-10-16 — pulled gustale_backup_20261016T010943Z.dump.gpg from offsite, decrypted with .backup-key, sha256 verified, restored into a throwaway postgis/postgis:16-3.4 container, 45 tables (incl. PostGIS), 121 published dishes exact match with the live API."
+      - "MinIO: PROVEN 2026-10-25 by scripts/hermes/verify-minio-restore.sh — 33 objects (22 gustale-public + 11 gustale-media) compared live-vs-offsite: 0 missing, 0 size mismatches, 0 sha256 mismatches; the offsite-only copies were loaded into a throwaway MinIO and served back with matching sha256. Exit 0."
+      - "Finding: the object backup DOES exist and runs daily — backup.py's backup_media() does 'rclone sync minio:<bucket> gdrive-crypt:media/<bucket> --backup-dir gdrive-crypt:media/deleted/<day>/<bucket>' for BOTH buckets. The last successful run was 2026-10-25T12:53:53Z. What was missing was not the backup but the PROOF that it restores — that is what this closes."
+      - "Coverage note: rclone sync also keeps deleted/replaced objects for 90 days under gdrive-crypt:media/deleted/<day>/<bucket>, so the archive survives a bad delete, not just a lost bucket."
+      - "The script is read-only with respect to live data: it only reads live, writes to a temp dir, and uses a throwaway MinIO container that is torn down at the end."
   - id: GUS-013
     title: "Introduce feature flags. Allow unfinished functionality to remain deployed but unavailable until its acceptance tests pass"
     epic: "EPIC 01 — Stabilize the technical foundation"
