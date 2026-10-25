@@ -500,17 +500,47 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
 
     // Reuse existing source if URL+title match. Two citations can point at
     // the same source for different claims; dedup avoids duplicates.
-    let sourceId: string;
-    if (body.url) {
-      const existing = await db
-        .select({ id: sources.id })
-        .from(sources)
-        .where(and(eq(sources.title, body.title), eq(sources.url, body.url)))
-        .limit(1);
-      if (existing.length > 0) {
-        sourceId = existing[0]!.id;
+    //
+    // Atomic (GUS-003): the source insert (when new), the citation that
+    // links the dish to it, and the audit row all land in ONE
+    // transaction. This is the evidence path — a partial failure here
+    // would leave either a source with no citation (an orphan in the
+    // source registry) or a citation with no audit trail.
+    const { sourceId, citationRow } = await db.transaction(async (tx) => {
+      let sourceId: string;
+      if (body.url) {
+        const existing = await tx
+          .select({ id: sources.id })
+          .from(sources)
+          .where(and(eq(sources.title, body.title), eq(sources.url, body.url)))
+          .limit(1);
+        if (existing.length > 0) {
+          sourceId = existing[0]!.id;
+        } else {
+          const inserted = await tx
+            .insert(sources)
+            .values({
+              sourceType: body.sourceType,
+              title: body.title,
+              authors: body.authors ?? null,
+              year: body.year ?? null,
+              publisher: body.publisher ?? null,
+              isbn: body.isbn ?? null,
+              doi: body.doi ?? null,
+              url: body.url ?? null,
+              archiveName: body.archiveName ?? null,
+              archiveCatalogId: body.archiveCatalogId ?? null,
+              citationText: body.citationText ?? null,
+              language: body.language,
+              reliability: body.reliability ?? null,
+              createdBy: user.id,
+            })
+            .returning({ id: sources.id });
+          sourceId = inserted[0]!.id;
+        }
       } else {
-        const inserted = await db
+        // No URL — must create new (URL is the natural dedup key).
+        const inserted = await tx
           .insert(sources)
           .values({
             sourceType: body.sourceType,
@@ -520,7 +550,7 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
             publisher: body.publisher ?? null,
             isbn: body.isbn ?? null,
             doi: body.doi ?? null,
-            url: body.url ?? null,
+            url: null,
             archiveName: body.archiveName ?? null,
             archiveCatalogId: body.archiveCatalogId ?? null,
             citationText: body.citationText ?? null,
@@ -531,58 +561,41 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
           .returning({ id: sources.id });
         sourceId = inserted[0]!.id;
       }
-    } else {
-      // No URL — must create new (URL is the natural dedup key).
-      const inserted = await db
-        .insert(sources)
-        .values({
-          sourceType: body.sourceType,
-          title: body.title,
-          authors: body.authors ?? null,
-          year: body.year ?? null,
-          publisher: body.publisher ?? null,
-          isbn: body.isbn ?? null,
-          doi: body.doi ?? null,
-          url: null,
-          archiveName: body.archiveName ?? null,
-          archiveCatalogId: body.archiveCatalogId ?? null,
-          citationText: body.citationText ?? null,
-          language: body.language,
-          reliability: body.reliability ?? null,
-          createdBy: user.id,
-        })
-        .returning({ id: sources.id });
-      sourceId = inserted[0]!.id;
-    }
 
-    // Create the citation linking this dish to the source.
-    const citationInserted = await db
-      .insert(citations)
-      .values({
-        sourceId,
+      // Create the citation linking this dish to the source.
+      const citationInserted = await tx
+        .insert(citations)
+        .values({
+          sourceId,
+          targetType: "dish",
+          targetId: dishId,
+          claimText: body.claimText ?? null,
+          location: body.location ?? null,
+        })
+        .returning({
+          id: citations.id,
+          claimText: citations.claimText,
+          location: citations.location,
+          addedAt: citations.addedAt,
+        });
+      const insertedCitation = citationInserted[0]!;
+
+      // Audit trail
+      await tx.insert(editHistory).values({
+        userId: user.id,
         targetType: "dish",
         targetId: dishId,
-        claimText: body.claimText ?? null,
-        location: body.location ?? null,
-      })
-      .returning({
-        id: citations.id,
-        claimText: citations.claimText,
-        location: citations.location,
-        addedAt: citations.addedAt,
+        action: "update" satisfies EditAction,
+        diff: {
+          sourcesAdded: {
+            title: body.title,
+            claimText: body.claimText ?? null,
+          },
+        },
+        comment: `Added source: ${body.title}`,
       });
-    const citationRow = citationInserted[0]!;
 
-    // Audit trail
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: "dish",
-      targetId: dishId,
-      action: "update" satisfies EditAction,
-      diff: {
-        sourcesAdded: { title: body.title, claimText: body.claimText ?? null },
-      },
-      comment: `Added source: ${body.title}`,
+      return { sourceId, citationRow: insertedCitation };
     });
 
     return reply.status(201).send({
@@ -663,50 +676,58 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
       }
       const sourceId = existing[0]!.sourceId;
 
-      // Update citation if requested.
-      const citationUpdates: Record<string, unknown> = {};
-      if (body.claimText !== undefined)
-        citationUpdates.claimText = body.claimText;
-      if (body.location !== undefined) citationUpdates.location = body.location;
-      if (Object.keys(citationUpdates).length > 0) {
-        await db
-          .update(citations)
-          .set(citationUpdates)
-          .where(eq(citations.id, citationId));
-      }
+      // Atomic (GUS-003): the citation update, the source metadata
+      // update, and the audit row land together. These are three
+      // separate tables describing one editorial action on the evidence
+      // graph — a partial failure would leave the citation and the
+      // source disagreeing, with no record of the edit.
+      await db.transaction(async (tx) => {
+        // Update citation if requested.
+        const citationUpdates: Record<string, unknown> = {};
+        if (body.claimText !== undefined)
+          citationUpdates.claimText = body.claimText;
+        if (body.location !== undefined)
+          citationUpdates.location = body.location;
+        if (Object.keys(citationUpdates).length > 0) {
+          await tx
+            .update(citations)
+            .set(citationUpdates)
+            .where(eq(citations.id, citationId));
+        }
 
-      // Update source if any source field provided.
-      const sourceUpdates: Record<string, unknown> = {};
-      if (body.title !== undefined) sourceUpdates.title = body.title;
-      if (body.authors !== undefined) sourceUpdates.authors = body.authors;
-      if (body.year !== undefined) sourceUpdates.year = body.year;
-      if (body.publisher !== undefined)
-        sourceUpdates.publisher = body.publisher;
-      if (body.url !== undefined) sourceUpdates.url = body.url;
-      if (body.isbn !== undefined) sourceUpdates.isbn = body.isbn;
-      if (body.doi !== undefined) sourceUpdates.doi = body.doi;
-      if (body.citationText !== undefined)
-        sourceUpdates.citationText = body.citationText;
-      if (body.reliability !== undefined)
-        sourceUpdates.reliability = body.reliability;
-      if (Object.keys(sourceUpdates).length > 0) {
-        await db
-          .update(sources)
-          .set(sourceUpdates)
-          .where(eq(sources.id, sourceId));
-      }
+        // Update source if any source field provided.
+        const sourceUpdates: Record<string, unknown> = {};
+        if (body.title !== undefined) sourceUpdates.title = body.title;
+        if (body.authors !== undefined) sourceUpdates.authors = body.authors;
+        if (body.year !== undefined) sourceUpdates.year = body.year;
+        if (body.publisher !== undefined)
+          sourceUpdates.publisher = body.publisher;
+        if (body.url !== undefined) sourceUpdates.url = body.url;
+        if (body.isbn !== undefined) sourceUpdates.isbn = body.isbn;
+        if (body.doi !== undefined) sourceUpdates.doi = body.doi;
+        if (body.citationText !== undefined)
+          sourceUpdates.citationText = body.citationText;
+        if (body.reliability !== undefined)
+          sourceUpdates.reliability = body.reliability;
+        if (Object.keys(sourceUpdates).length > 0) {
+          await tx
+            .update(sources)
+            .set(sourceUpdates)
+            .where(eq(sources.id, sourceId));
+        }
 
-      // Audit trail
-      await db.insert(editHistory).values({
-        userId: user.id,
-        targetType: "dish",
-        targetId: dishId,
-        action: "update" satisfies EditAction,
-        diff: {
-          citationUpdated: { citationId, ...citationUpdates },
-          sourceUpdated: sourceUpdates,
-        },
-        comment: `Updated source ${citationId}`,
+        // Audit trail
+        await tx.insert(editHistory).values({
+          userId: user.id,
+          targetType: "dish",
+          targetId: dishId,
+          action: "update" satisfies EditAction,
+          diff: {
+            citationUpdated: { citationId, ...citationUpdates },
+            sourceUpdated: sourceUpdates,
+          },
+          comment: `Updated source ${citationId}`,
+        });
       });
 
       return reply.send({ citationId, updated: true });
@@ -752,16 +773,21 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
         );
       }
 
-      await db.delete(citations).where(eq(citations.id, citationId));
+      // Atomic (GUS-003): the citation delete and its audit row land
+      // together, so a citation is never removed without the record
+      // that it was removed.
+      await db.transaction(async (tx) => {
+        await tx.delete(citations).where(eq(citations.id, citationId));
 
-      // Audit trail
-      await db.insert(editHistory).values({
-        userId: user.id,
-        targetType: "dish",
-        targetId: dishId,
-        action: "update" satisfies EditAction,
-        diff: { citationRemoved: { citationId } },
-        comment: `Removed source citation ${citationId}`,
+        // Audit trail
+        await tx.insert(editHistory).values({
+          userId: user.id,
+          targetType: "dish",
+          targetId: dishId,
+          action: "update" satisfies EditAction,
+          diff: { citationRemoved: { citationId } },
+          comment: `Removed source citation ${citationId}`,
+        });
       });
 
       return reply.send({ removed: true, citationId });

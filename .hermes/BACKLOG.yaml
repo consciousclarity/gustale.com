@@ -48,10 +48,15 @@ tasks:
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: todo
+    status: in_progress
     depends_on: []
     approval: false
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
+    notes: "Audit found 9 handlers doing multi-statement writes with NO transaction: 6 in apps/api/src/routes/dishes-write.ts and 3 in apps/api/src/routes/admin-dishes.ts (27 write statements total). Only dishes-media.ts had one (the cover-demotion + insert). Worst cases: PATCH /api/dishes/:slug DELETE-then-INSERT on categories and tags (a failure between them leaves the dish with no categories); PATCH .../variants/:id DELETE variant then write audit (a failure leaves the variant gone with no trace); POST /api/admin/dishes/:slug/sources did source insert + citation insert + audit across 3 tables (the evidence path — a partial failure leaves an orphaned source or a citation with no audit trail)."
+    acceptance:
+      - "Every multi-statement write handler runs inside a single db.transaction"
+      - "No bare db.insert/update/delete remains outside a transaction in the write paths"
+      - "A regression test proves the atomicity: a mid-transaction failure rolls back the earlier writes"
+      - "Full test suite + typecheck + biome + astro build green"
     evidence: []
   - id: GUS-004
     title: "Introduce database migration discipline. Use versioned migrations, rollback procedures, and migration tests"

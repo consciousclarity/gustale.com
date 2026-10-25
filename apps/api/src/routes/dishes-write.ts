@@ -227,7 +227,11 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     const pointWkt = body.origin
       ? pointLiteral(body.origin.lat, body.origin.lng)
       : null;
-    const inserted = await db.execute(sql`
+    // Atomic (GUS-003): the dish insert and its "create" audit row land
+    // together, so a dish never exists without the record that it was
+    // created (and by whom).
+    const row = await db.transaction(async (tx) => {
+      const inserted = await tx.execute(sql`
       INSERT INTO dishes (
         canonical_name, slug, short_description, long_description,
         origin_location, origin_date_earliest, origin_date_latest,
@@ -246,26 +250,29 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       )
       RETURNING id, slug, status, created_at
     `);
-    const row = (
-      inserted as unknown as Array<{
-        id: string;
-        slug: string;
-        status: string;
-        created_at: string;
-      }>
-    )[0];
-    if (!row) {
-      throw new Error("Insert returned no rows");
-    }
+      const insertedRow = (
+        inserted as unknown as Array<{
+          id: string;
+          slug: string;
+          status: string;
+          created_at: string;
+        }>
+      )[0];
+      if (!insertedRow) {
+        throw new Error("Insert returned no rows");
+      }
 
-    // Audit trail.
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: "dish",
-      targetId: row.id,
-      action: "create" satisfies EditAction,
-      diff: { after: body },
-      comment: "Initial draft",
+      // Audit trail.
+      await tx.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish",
+        targetId: insertedRow.id,
+        action: "create" satisfies EditAction,
+        diff: { after: body },
+        comment: "Initial draft",
+      });
+
+      return insertedRow;
     });
 
     return reply.status(201).send({
@@ -327,75 +334,92 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     }
 
     // Single UPDATE with RETURNING to avoid two round-trips.
-    const result = await db
-      .update(dishes)
-      .set({
-        ...updateValues,
-        editCount: sql`${dishes.editCount} + 1`,
-      })
-      .where(eq(dishes.id, before.id))
-      .returning();
-
-    const after = result[0];
-    if (!after) {
-      throw new Error("Update affected zero rows (race?)");
-    }
-
-    const diff = diffDish(
-      before as unknown as Record<string, unknown>,
-      after as unknown as Record<string, unknown>,
-    );
-
-    // Categories & tags are relational (not columns on `dishes`), so they
-    // can't go through diffDish — handled here but folded into the same
-    // edit_history entry for one coherent audit record per PATCH call.
-    if (patch.categories !== undefined) {
-      const beforeCats = await db
-        .select({
-          categoryId: dishCategories.categoryId,
-          isPrimary: dishCategories.isPrimary,
+    //
+    // Everything from here to the edit_history insert runs inside ONE
+    // transaction (GUS-003). The categories and tags blocks below
+    // DELETE-then-INSERT, so without a transaction a failure between
+    // the two would leave the dish with no categories (or no tags) and
+    // no audit trail. With the transaction, any error rolls the whole
+    // PATCH back: the dish keeps its old column values, its old
+    // categories and tags, and no edit_history row is written.
+    const result = await db.transaction(async (tx) => {
+      const updateRows = await tx
+        .update(dishes)
+        .set({
+          ...updateValues,
+          editCount: sql`${dishes.editCount} + 1`,
         })
-        .from(dishCategories)
-        .where(eq(dishCategories.dishId, before.id));
-      await db
-        .delete(dishCategories)
-        .where(eq(dishCategories.dishId, before.id));
-      if (patch.categories.length > 0) {
-        await db.insert(dishCategories).values(
-          patch.categories.map((c) => ({
-            dishId: before.id,
-            categoryId: c.categoryId,
-            isPrimary: c.isPrimary ?? false,
-          })),
-        );
-      }
-      diff.categories = { from: beforeCats, to: patch.categories };
-    }
+        .where(eq(dishes.id, before.id))
+        .returning();
 
-    if (patch.tagIds !== undefined) {
-      const beforeTags = await db
-        .select({ tagId: dishTags.tagId })
-        .from(dishTags)
-        .where(eq(dishTags.dishId, before.id));
-      await db.delete(dishTags).where(eq(dishTags.dishId, before.id));
-      if (patch.tagIds.length > 0) {
-        await db
-          .insert(dishTags)
-          .values(patch.tagIds.map((tagId) => ({ dishId: before.id, tagId })));
+      const updated = updateRows[0];
+      if (!updated) {
+        throw new Error("Update affected zero rows (race?)");
       }
-      diff.tags = { from: beforeTags.map((t) => t.tagId), to: patch.tagIds };
-    }
 
-    if (Object.keys(diff).length > 0) {
-      await db.insert(editHistory).values({
-        userId: user.id,
-        targetType: "dish",
-        targetId: before.id,
-        action: "update" satisfies EditAction,
-        diff,
-        comment: patch.comment ?? null,
-      });
-    }
+      const diff = diffDish(
+        before as unknown as Record<string, unknown>,
+        updated as unknown as Record<string, unknown>,
+      );
+
+      // Categories & tags are relational (not columns on `dishes`), so they
+      // can't go through diffDish — handled here but folded into the same
+      // edit_history entry for one coherent audit record per PATCH call.
+      if (patch.categories !== undefined) {
+        const beforeCats = await tx
+          .select({
+            categoryId: dishCategories.categoryId,
+            isPrimary: dishCategories.isPrimary,
+          })
+          .from(dishCategories)
+          .where(eq(dishCategories.dishId, before.id));
+        await tx
+          .delete(dishCategories)
+          .where(eq(dishCategories.dishId, before.id));
+        if (patch.categories.length > 0) {
+          await tx.insert(dishCategories).values(
+            patch.categories.map((c) => ({
+              dishId: before.id,
+              categoryId: c.categoryId,
+              isPrimary: c.isPrimary ?? false,
+            })),
+          );
+        }
+        diff.categories = { from: beforeCats, to: patch.categories };
+      }
+
+      if (patch.tagIds !== undefined) {
+        const beforeTags = await tx
+          .select({ tagId: dishTags.tagId })
+          .from(dishTags)
+          .where(eq(dishTags.dishId, before.id));
+        await tx.delete(dishTags).where(eq(dishTags.dishId, before.id));
+        if (patch.tagIds.length > 0) {
+          await tx
+            .insert(dishTags)
+            .values(
+              patch.tagIds.map((tagId) => ({ dishId: before.id, tagId })),
+            );
+        }
+        diff.tags = { from: beforeTags.map((t) => t.tagId), to: patch.tagIds };
+      }
+
+      if (Object.keys(diff).length > 0) {
+        await tx.insert(editHistory).values({
+          userId: user.id,
+          targetType: "dish",
+          targetId: before.id,
+          action: "update" satisfies EditAction,
+          diff,
+          comment: patch.comment ?? null,
+        });
+      }
+
+      return { updated, diff };
+    });
+
+    const after = result.updated;
+    const diff = result.diff;
 
     return reply.send({
       dish: {
@@ -443,22 +467,27 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       });
     }
 
-    await db
-      .update(dishes)
-      .set({
-        status: "published",
-        lastEditedBy: user.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(dishes.id, row.id));
+    // Atomic (GUS-003): the status flip and its audit row land together.
+    // A publish without a matching edit_history entry would be a dish
+    // that went live with no record of who approved it.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(dishes)
+        .set({
+          status: "published",
+          lastEditedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(dishes.id, row.id));
 
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: "dish",
-      targetId: row.id,
-      action: "review" satisfies EditAction, // 'review' = moderator approval
-      diff: { status: { from: "draft", to: "published" } },
-      comment: body.comment ?? "Published",
+      await tx.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish",
+        targetId: row.id,
+        action: "review" satisfies EditAction, // 'review' = moderator approval
+        diff: { status: { from: "draft", to: "published" } },
+        comment: body.comment ?? "Published",
+      });
     });
 
     return reply.send({
@@ -484,22 +513,25 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     }
     const row = existing[0]!;
 
-    await db
-      .update(dishes)
-      .set({
-        status: "archived",
-        lastEditedBy: user.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(dishes.id, row.id));
+    // Atomic (GUS-003): the archive flag and its audit row land together.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(dishes)
+        .set({
+          status: "archived",
+          lastEditedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(dishes.id, row.id));
 
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: "dish",
-      targetId: row.id,
-      action: "archive" satisfies EditAction,
-      diff: { status: { from: row.status, to: "archived" } },
-      comment: "Archived by admin",
+      await tx.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish",
+        targetId: row.id,
+        action: "archive" satisfies EditAction,
+        diff: { status: { from: row.status, to: "archived" } },
+        comment: "Archived by admin",
+      });
     });
 
     return reply.send({ dish: { id: row.id, slug, status: "archived" } });
@@ -547,7 +579,10 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
     const regionWkt = body.region
       ? pointLiteral(body.region.lat, body.region.lng)
       : null;
-    const inserted = await db.execute(sql`
+    // Atomic (GUS-003): the variant insert and its audit row land
+    // together, so a variant never exists without a "create" record.
+    const { row } = await db.transaction(async (tx) => {
+      const inserted = await tx.execute(sql`
       INSERT INTO dish_variants (
         parent_dish_id, name, slug, description,
         region_location, creator_name, creator_date, status
@@ -558,18 +593,23 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
       )
       RETURNING id, parent_dish_id, name, slug, description, creator_name, creator_date, status, created_at, updated_at
     `);
-    const row = (inserted as unknown as Array<Record<string, unknown>>)[0];
-    if (!row) {
-      throw new Error("Insert returned no rows");
-    }
+      const insertedRow = (
+        inserted as unknown as Array<Record<string, unknown>>
+      )[0];
+      if (!insertedRow) {
+        throw new Error("Insert returned no rows");
+      }
 
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: "dish_variant",
-      targetId: row.id as string,
-      action: "create" satisfies EditAction,
-      diff: { after: body },
-      comment: `Added variant to ${dishRow.canonicalName}`,
+      await tx.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish_variant",
+        targetId: insertedRow.id as string,
+        action: "create" satisfies EditAction,
+        diff: { after: body },
+        comment: `Added variant to ${dishRow.canonicalName}`,
+      });
+
+      return { row: insertedRow };
     });
 
     return reply.status(201).send({ variant: row });
@@ -627,20 +667,26 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
           : sql`ST_GeomFromText(${pointLiteral(body.region.lat, body.region.lng)}, 4326)`;
     }
 
-    const result = await db
-      .update(dishVariants)
-      .set(updateValues)
-      .where(eq(dishVariants.id, variantId))
-      .returning();
-    const after = result[0]!;
+    // Atomic (GUS-003): the variant update and its audit row land
+    // together.
+    const after = await db.transaction(async (tx) => {
+      const result = await tx
+        .update(dishVariants)
+        .set(updateValues)
+        .where(eq(dishVariants.id, variantId))
+        .returning();
+      const updated = result[0]!;
 
-    await db.insert(editHistory).values({
-      userId: user.id,
-      targetType: "dish_variant",
-      targetId: variantId,
-      action: "update" satisfies EditAction,
-      diff: { ...body },
-      comment: `Edited variant of ${dishRow.canonicalName}`,
+      await tx.insert(editHistory).values({
+        userId: user.id,
+        targetType: "dish_variant",
+        targetId: variantId,
+        action: "update" satisfies EditAction,
+        diff: { ...body },
+        comment: `Edited variant of ${dishRow.canonicalName}`,
+      });
+
+      return updated;
     });
 
     return reply.send({ variant: after });
@@ -683,15 +729,21 @@ export function registerDishWriteRoutes(app: FastifyInstance): void {
         throw httpError(404, "not_found", "Variant not found on this dish");
       }
 
-      await db.delete(dishVariants).where(eq(dishVariants.id, variantId));
+      // Atomic (GUS-003): the variant delete and its audit row land
+      // together. Without the transaction, a failure between the DELETE
+      // and the edit_history insert would remove the variant with no
+      // record that it was ever removed.
+      await db.transaction(async (tx) => {
+        await tx.delete(dishVariants).where(eq(dishVariants.id, variantId));
 
-      await db.insert(editHistory).values({
-        userId: user.id,
-        targetType: "dish_variant",
-        targetId: variantId,
-        action: "archive" satisfies EditAction,
-        diff: { deleted: true },
-        comment: `Removed variant from ${dishRow.canonicalName}`,
+        await tx.insert(editHistory).values({
+          userId: user.id,
+          targetType: "dish_variant",
+          targetId: variantId,
+          action: "archive" satisfies EditAction,
+          diff: { deleted: true },
+          comment: `Removed variant from ${dishRow.canonicalName}`,
+        });
       });
 
       return reply.status(204).send();
