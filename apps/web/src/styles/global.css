@@ -1102,6 +1102,38 @@ h4 {
   padding: 14px;
   background: var(--card);
 }
+/* Hero density map — a static world map with one dot per dish origin.
+   It replaced a placeholder checkerboard that shipped a hardcoded
+   "0°N 0°E" caption. The land outline is a cached SVG asset referenced
+   with <use>, so its fill comes from CSS and it stays out of the JS
+   bundle. */
+.hero-map {
+  display: flex;
+  flex-direction: column;
+}
+.hero-map-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #f4f7f4 0%, #eef3ee 100%);
+}
+.hero-map-land {
+  fill: rgba(33, 28, 22, 0.14);
+  stroke: rgba(33, 28, 22, 0.22);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+}
+.hero-map-dot {
+  fill: var(--accent);
+  stroke: var(--card);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: r 120ms ease;
+}
+.hero-map-dot:hover {
+  fill: var(--accent-dark);
+}
 .hero-coord {
   display: flex;
   justify-content: space-between;
