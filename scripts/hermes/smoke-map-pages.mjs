@@ -349,9 +349,16 @@ async function main() {
             `basemap looks watermarked (${basemapTileCount} tiles, all byte-identical)`,
           );
         }
-        if (basemapTileCount === 0 && target.slug !== "home") {
+        if (
+          basemapTileCount === 0 &&
+          target.slug !== "home" &&
+          expectHttp &&
+          httpCode === 200
+        ) {
           // The dish + map pages always request basemap tiles. Zero
-          // means the basemap never loaded at all.
+          // means the basemap never loaded at all. (A page that is
+          // expected to 404 — gustale.recipes has no /map route —
+          // legitimately requests no tiles.)
           failures.push("no basemap tiles requested");
         }
 
