@@ -46,6 +46,7 @@ import {
 } from "../../lib/mapCoincident";
 import type { DishSummary } from "../../types/dish";
 import type { FoodRegionFeature } from "../../types/map";
+import { HeroDensityMap } from "./HeroDensityMap";
 
 type ViewMode = "atlas" | "index" | "gallery" | "feed";
 type SortKey = "name" | "origin" | "family";
@@ -1027,19 +1028,16 @@ export default function GustaleHomeIsland() {
           </div>
         </div>
         <div className="hero-frame">
-          <div
-            className="ph"
-            style={{
-              background:
-                "repeating-conic-gradient(var(--accent-soft) 0% 25%, var(--card) 0% 50%) 0 0 / 40px 40px",
-              borderRadius: "9px",
-              height: "280px",
-            }}
+          <HeroDensityMap
+            dishes={dishes.map((d) => ({
+              slug: d.slug,
+              name: d.name,
+              country: d.country,
+              lat: d.lat,
+              lng: d.lng,
+            }))}
+            plottedCount={plottedCount}
           />
-          <div className="hero-coord">
-            <span>0°N 0°E</span>
-            <span>{plottedCount} dishes plotted</span>
-          </div>
         </div>
       </section>
 
