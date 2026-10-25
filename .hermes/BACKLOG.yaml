@@ -87,46 +87,70 @@ tasks:
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: in_progress
+    status: done
     depends_on: []
     approval: false
-    notes: "Branch triage R1-R3 done 2026-10-16 (archive tags pushed). Remaining: Dependabot #58-60, PR #57, claude/api-auth-divergence-resolved, fix/p0-4-email-verification. Per user 2026-10-17: run pnpm audit locally; fix critical+prod-high in small PRs; rebase/merge or close #58-60; add audit to CI (non-blocking) and dependabot.yml."
+    notes: "Branch triage R1-R3 done 2026-10-16 (archive tags pushed). Dependabot #58-60 merged 2026-10-17. Branch consolidation completed 2026-10-24: 27 remote branches -> 4. Dependabot group PRs #94/#95/#98 handled 2026-10-24. Remaining audit work (23 HIGH prod advisories) tracked as GUS-006.b clusters."
     acceptance:
       - "Dependency audit report at .hermes/REPORTS/GUS-006-deps-audit.md"
       - "All critical advisories in production deps have PRs opened (or merged if green)"
       - "Dependabot #58 (vitest), #59 (maplibre-gl), #60 (astro) rebased on main and either merged green or closed with reason"
       - ".github/dependabot.yml exists with weekly schedule + grouped updates"
       - "CI runs pnpm audit (non-blocking for now, promote to blocking once criticals reach 0)"
+      - "All remote branches are either ancestors of main, have a merged PR, or carry a verified archive tag"
     evidence:
       - "Audit report: .hermes/REPORTS/GUS-006-deps-audit.md (PR #85, f0624a4)"
       - "Dependabot #59 (maplibre-gl 6.4.1) MERGED (94c4102) — closes CRITICAL prod XSS bypass (GHSA-jrc7-96c5-q579)"
       - "Dependabot #60 (astro 7.2.8) MERGED (da5d0a3a) — closes CRITICAL prod RCE in AVIF (GHSA-26w7-cxv4-gfx2)"
       - "Dependabot #58 (vitest 4.1.11) MERGED (3c60c77) — closes CRITICAL dev (vitest UI RCE, GHSA-5xrq-8626-4rwp)"
-      - "CI now runs pnpm audit --audit-level=critical (non-blocking); pnpm audit --prod on main today = 0 critical / 26 high prod / 15 moderate prod / 1 moderate dev / 3 low prod"
+      - "CI now runs pnpm audit --audit-level=critical (non-blocking)"
       - ".github/dependabot.yml added (weekly Monday 04:00 UTC, grouped, skips semver-major)"
-      - "Remaining 26 HIGH prod grouped into 10 clusters for GUS-006.b: fastify (1-4), better-auth (5), browserslist (6), smol-toml (7), source-map-js (8) + 2 fix-up clusters. Order: fastify first."
+      - "BRANCH CONSOLIDATION 2026-10-24: 27 remote branches -> 4. Deleted 23: 13 with merged PRs (#50, #63, #64, #65, #67, #70, #72, #73, #74, #76, #78, #79, #91), 6 closed-no-merge that already carried a verified-matching archive tag (cursor/gallery-and-nav-editorial-6cb3, feat/lineages-data-fix, feat/site-sophistication-pass, feat/taxonomy-foundation, feat/homepage-globe-v1, fix/dishes-search-pagination), 'head' (tip 625b21f = astro bump already merged via #60) after pushing archive/head, the superseded fix/gallery-lightbox-credit branch, and transient task branches. 22 archive tags verified on origin; recovery of two archived tips (feat/homepage-globe-v1 -> 04ac0c26, fix/dishes-search-pagination -> f7d2ed03) proven by fetching them back."
+      - "Remaining 4 branches: main; private/state (KEEP — shared agent state); claude/api-auth-divergence-resolved (no PR — awaiting owner decision); feat/content-copy-2026-07-24 (PR #57 open — awaiting owner decision)."
+      - "DEPENDABOT GROUPS 2026-10-24: #94 (dev-direct, 5 updates) MERGED 4157579, all checks green. #95 (prod-direct, 17 updates) conflicted with #94 on pnpm-lock.yaml; rebased onto main with the lockfile regenerated via `pnpm install --lockfile-only` so both groups' bumps coexist, opened as PR #96 and MERGED 2a402c6. #98 (prod-direct, 2 more updates, astro 7.2.8 -> 7.4.2) MERGED 1116131."
+      - "pnpm audit --prod measured on both trees 2026-10-24: main = 0 critical / 28 high / 20 moderate / 6 low; after the prod group bump = 0 critical / 23 high / 17 moderate / 6 low. The prod group bump removes 5 HIGH advisories. 0 critical throughout."
+      - "Remaining 23 HIGH prod advisories grouped into clusters for GUS-006.b: fastify first, then better-auth, browserslist, smol-toml, source-map-js."
   - id: GUS-007
     title: "Resolve container registry authentication. Fix GHCR token permissions if container publishing is required"
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: todo
+    status: done
     depends_on: []
     approval: false
-    notes: "CI already pushes to ghcr.io/consciousclarity/gustale.com/* — verify and close if working."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
-    evidence: []
+    notes: "CI publishes to ghcr.io on every merge. The VPS rebuild path runs with GUSTALE_NO_PUSH=1 and never pushes, so no VPS-side token scope is required. Verified 2026-10-24."
+    acceptance:
+      - "CI can publish container images to ghcr.io/consciousclarity/gustale.com/*"
+      - "The VPS rebuild path does not require a ghcr push, or has a token with the right scope"
+    evidence:
+      - "CI workflow grants `packages: write` on its own GITHUB_TOKEN (.github/workflows/ci.yml) and pushes gustale-api + gustale-web-{recipes,geo}. Deploy pulls those images by SHA tag and the live containers run them — so CI publishing works end to end."
+      - "Live proof 2026-10-24T15:27:51Z: gustale-api, gustale-web-recipes and gustale-web-geo all running CI-published images on commit 5044617."
+      - "The VPS rebuild path sets GUSTALE_NO_PUSH=1 (scripts/hermes/build-web-live.sh), so it builds the :live-data-<short-sha> tag locally and never pushes. A local `docker push` with the repo-scoped token fails with `permission_denied: The token provided does not match expected scopes` because that token lacks `write:packages` — but nothing in the rebuild flow needs the push."
+      - "No token rotation needed. Only if a VPS-side push is ever required does the token need `write:packages` added."
   - id: GUS-008
     title: "Verify automated deployments. Preserve the existing build-checkout, systemd timer, content-change detection, image SHA verification, and live-page checks"
     epic: "EPIC 01 — Stabilize the technical foundation"
     priority: P0
     phase: 0
-    status: todo
+    status: done
     depends_on: []
     approval: false
-    notes: "Exists: gustale-rebuild-web.timer (30 min, flock, content-change detection, --force). Verify, document, close."
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
-    evidence: []
+    notes: "Verified live 2026-10-24. Report: .hermes/REPORTS/2026-10-24-GUS-008-deploy-verification.md"
+    acceptance:
+      - "The deploy job builds in a dedicated checkout, never in the agent workspace"
+      - "A systemd timer rebuilds and swaps the web containers on a fixed interval, with overlap protection inside the script"
+      - "A content-change check prevents unnecessary rebuilds and container restarts"
+      - "The deploy job verifies the running container image SHAs against the deploy SHA"
+      - "The deploy job checks a live page for a known long-description phrase"
+    evidence:
+      - "Report: .hermes/REPORTS/2026-10-24-GUS-008-deploy-verification.md (PR #99, 5e67767)"
+      - "Build checkout: /home/deploy/gustale-build (owner gustale), used by the CI deploy job via BUILD_DIR. The agent workspace /home/gustale/projects/gustale.com is never a CI build context."
+      - "Timer: gustale-rebuild-web.timer active, 30-minute interval, Type=oneshot, User=hermes. Overlap protection is a flock on /var/lock/gustale-rebuild.lock inside the script (NOT an ExecStartPre, which was inverted and silently failed after reboot)."
+      - "Content-change detection exercised twice on 2026-10-24 (12:53:25Z, 13:23:26Z): both runs read the paginated max(updatedAt) + category count and exited 'No content change detected' without rebuilding or restarting anything. Detection is not vacuous — the paginated scan was added in PR #74 because the previous single-row sort=-updatedAt query silently returned a stale row and skipped real content changes."
+      - "Image SHA verification: CI 'Real verify' step reads the per-run log /tmp/gustale-deploy-${GITHUB_RUN_ID}.log (requires DEPLOY_EXIT_CODE=0, no DEPLOY_FAILED_AT), then SSHes in and docker-inspects all 3 running containers against the deploy SHA. Needed because appleboy/ssh-action@v1 does not reliably propagate the inner script's exit code."
+      - "Live-page check: the same verify step curls https://gustale.com/dishes/bakso/ and requires the phrase 'Indonesian meatball'. Per-run log names include the run ID; no shared /tmp log."
+      - "Live verification 2026-10-24T15:26:15Z after the PR #96 deploy: all 3 containers on 2a402c6, /health ok, bakso/pempek/nasi-goreng/biryani-hyderabadi long descriptions rendering on both domains."
+      - "CAUTION: the two image families use different tag shapes — gustale-api uses the full 40-hex commit SHA, the web images use live-data-<7-char>. A verify step must compare like-for-like."
   - id: GUS-009
     title: "Implement API contract tests. Cover GET, POST, PATCH, DELETE, pagination, filtering, authorization, and validation"
     epic: "EPIC 01 — Stabilize the technical foundation"
