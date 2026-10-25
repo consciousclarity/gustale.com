@@ -254,11 +254,21 @@ tasks:
     priority: P0
     phase: 1
     first15_order: 5
-    status: todo
+    status: in_progress
     depends_on: [GUS-001]
     approval: true
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
-    evidence: []
+    notes: "ADR drafted 2026-10-25 (.hermes/REPORTS/ADR-001-canonical-entity-model.md). DOCS ONLY — no migration written, no schema changed. The ADR proposes: split `categories` into typed dimensions (dish_families / dish_cuisines / dish_courses / ingredient_categories / dish_traditions), add a `recipes` subtree, and add `claims` as the evidence atom with `citations.claim_id`. Checked against the three reference dishes."
+    acceptance:
+      - "ADR drafted and reviewed by Alejandro (docs only, no migration yet)"
+      - "The ADR maps the current tables to the proposed entity types"
+      - "The ADR is checked against the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor)"
+      - "Open questions are listed for Alejandro's decision"
+    evidence:
+      - "ADR: .hermes/REPORTS/ADR-001-canonical-entity-model.md (2026-10-25, DRAFT)"
+      - "Live-catalog findings that motivate the ADR: 152 categories, only 43 in use, 109 orphans (71.7%); the live set mixes dimensions (course `main-course` 97 dishes + cuisine `indonesian-cuisine` 16 + family `curry` 8 + technique `kebab` 8 in ONE table)"
+      - "Reference-dish check (live API 2026-10-25): all three have empty longDescription, ZERO ingredients, ZERO recipe steps, exactly ONE Wikipedia source, no claim-level granularity. rendang has no variants despite strong regional variation; tacos-al-pastor has ZERO dish_relations despite a textbook shawarma lineage and carries main-course + street-snack simultaneously (a dimension the single `categories` join cannot type-check)."
+      - "Key finding: the Glasgow dispute (ROADMAP's designated test case) is UNREPRESENTABLE today — a `disputed` origin claim with competing place objects needs a claim row, not a dish-level citation. That makes `claims` the keystone of EPIC 02, and argues for building it before `recipes`."
+      - "Proposed sequencing: (1) claims + citations.claim_id, (2) recipes subtree, (3) dimensions + resolve the 109 orphans, (4) traditions/variants/events."
   - id: GUS-015
     title: "Separate dishes from recipes. A dish represents a culinary concept; individual recipes represent documented preparations of that dish"
     epic: "EPIC 02 — Redesign the culinary knowledge model"
@@ -376,11 +386,24 @@ tasks:
     priority: P0
     phase: 1
     first15_order: 7
-    status: todo
+    status: in_progress
     depends_on: []
     approval: false
-    acceptance: []  # fill in when the task is picked up (see ROADMAP.md §23 template)
-    evidence: []
+    notes: "Policy draft written 2026-10-25 (.hermes/REPORTS/GUS-026-evidence-policy-draft.md). DOCS ONLY — a draft for Alejandro's review, not enforced, no data changed."
+    acceptance:
+      - "Policy draft written for Alejandro's review (docs only)"
+      - "Defines source classes with an explicit bar for what each may support"
+      - "Defines claim classes and the verification states"
+      - "States the independence test so corroboration is computable"
+      - "States what an agent may and may not do"
+      - "Open questions are listed for Alejandro's decision"
+    evidence:
+      - "Draft: .hermes/REPORTS/GUS-026-evidence-policy-draft.md (2026-10-25, DRAFT)"
+      - "Motivating number: 121/121 published dishes (100%) cite Wikipedia and nothing else. The ROADMAP's own rule ('Wikipedia must never be the sole basis for a contested historical origin claim') is therefore ALREADY violated across the whole catalog."
+      - "Policy content: 7 source classes (S1 primary historical .. S7 unverified) with a per-class bar; 6 claim classes (documented / scholarly_interpretation / oral_tradition / disputed / hypothesis / unsupported); 7 verification states; 11 testable rules (R1-R11) mapped to GUS-027..GUS-036 and to RULES.md; an independence test ('if this source were deleted, would the other still say the same thing?'); explicit agent boundaries."
+      - "Tightened the ROADMAP's Wikipedia rule into something checkable: an origin/date/person claim classed documented or disputed must have at least one non-S6 source; S6 (Wikipedia/Wikidata) may accompany but never be the sole basis."
+      - "Migration estimate: the 121 existing dish-level Wikipedia citations become roughly 300-500 claim rows (2-5 assertable facts per typical short description), of which ~121 are origin claims that immediately fail the policy bar and must be researched, downgraded, or reclassified."
+      - "Open questions flagged: staleness interval (24 months proposed), whether practitioner/oral testimony may ever support an origin claim, claim granularity (sentence vs assertable fact), whether R1 applies to short descriptions or only long ones, minimum bar for `published`, and how prominent `disputed` must be."
   - id: GUS-027
     title: "Implement a structured source registry. Record authors, titles, publishers, dates, URLs, identifiers, languages, and source types"
     epic: "EPIC 03 — Build the evidence and authenticity verification system"
