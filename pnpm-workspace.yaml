@@ -10,18 +10,24 @@ allowBuilds:
 # pnpm 11 no longer reads the `pnpm` field in package.json — overrides
 # live here (see https://pnpm.io/settings).
 #
-# GUS-006.b — Fastify dependency cluster. These three transitives carry
-# 15 of the 20 remaining HIGH production advisories:
-#   fast-uri      3.1.2 -> 3.1.9   (11 advisories: host confusion,
-#                                   SSRF, authority injection)
-#   find-my-way   9.6.0 -> 9.10.0  (1 advisory: HTTP/2 DoS)
-#   @fastify/busboy 3.2.0 -> 3.2.4 (3 advisories: multipart DoS)
-#
-# All three are patch/minor bumps inside the ranges their parents
-# already declare (ajv wants fast-uri ^3.0.1, fastify wants
-# find-my-way ^9.6.0, @fastify/multipart wants @fastify/busboy ^3.0.0),
+# GUS-006.b — production dependency advisories, in clusters. Each entry
+# is a patch/minor bump INSIDE the range its parent already declares,
 # so no parent package needs a major bump and no API surface changes.
+#
+# Cluster 1 — Fastify chain (merged in #107):
+#   fast-uri         3.1.2 -> 3.1.9    (host confusion, SSRF, authority injection)
+#   find-my-way      9.6.0 -> 9.10.0   (HTTP/2 DoS)
+#   @fastify/busboy  3.2.0 -> 3.2.4    (multipart DoS)
+#
+# Cluster 2 — Astro chain: handled by bumping @astrojs/react itself
+# (5.0.7 -> 7.1.1) rather than by overriding its transitives. That
+# bump brings vite 8.3.x, devalue 6.0.3 and a newer
+# @astrojs/internal-helpers in one go, and drops js-yaml and
+# browserslist out of the tree entirely. Overriding vite to 7.3.7
+# instead BREAKS the Astro build: astro 7.4.2 needs vite's
+# transformWithOxc export, which only exists in vite 8.x.
 overrides:
+  # cluster 1 — Fastify chain
   fast-uri: 3.1.9
   find-my-way: 9.10.0
   "@fastify/busboy": 3.2.4
