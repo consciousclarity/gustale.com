@@ -297,10 +297,46 @@ Consequences for the live data:
 
 **Consequence:** "how much of this dish is evidenced?" becomes a query — `anchored_sentences / total_factual_sentences` — computed over the claim anchors in the description, not a count of claims.
 
-### Still open (D5–D7)
+### D6 — Claim granularity: one claim per *assertable fact*
 
-5. **Scope of the first migration**: all 121 dishes, or the three reference dishes first? The latter is cheaper and gives a working example (GUS-025's "migration tools" becomes testable on 3 rows).
-6. **Claim granularity**: one claim per sentence, or one per *assertable fact* (e.g. "originates in Glasgow" is one claim, but the description sentence containing it may also assert "marinated in yoghurt and spices")? The second is more work but is what makes "how much of this is evidenced" meaningful.
+> **An assertable fact = one subject–predicate–value statement that can be independently supported or contradicted by one source.**
+
+A single source must be able to settle a claim on its own — that is the test.
+
+**Worked example — `rendang` is 6 claims, not 1:**
+
+| # | subject | predicate | value |
+|---|---|---|---|
+| 1 | rendang | origin | West Sumatra, Indonesia (Minangkabau) |
+| 2 | rendang | family | curry |
+| 3 | rendang | protein | beef |
+| 4 | rendang | technique | braising (dry) |
+| 5 | rendang | medium | coconut milk |
+| 6 | rendang | duration | hours (slow-cooked) |
+
+Each has its own evidence requirement. A scholar on Minangkabau settles #1 but not #3; a recipe book settles #3, #5 and #6 but says nothing about #1. That separation is what makes corroboration computable (D6b) and what lets a *disputed* claim (#1) coexist with a *documented* one (#3) in the same sentence.
+
+### D6b — Evidence coverage and corroboration are two separate metrics
+
+**D4 amended.** A sentence counts as **evidenced only if ALL of its facts are anchored**.
+
+- A sentence with *all* facts anchored → **evidenced**
+- A sentence with *some* facts anchored → **partial** → counted as **unevidenced** (it does not count toward coverage)
+- A sentence with *no* facts anchored → **unevidenced** (flagged)
+
+**Coverage = fully-evidenced sentences / total factual sentences.** Partial anchoring earns nothing — a sentence that half-cites a compound claim is not evidenced, it is half-sourced.
+
+**Separate metric — corroboration:**
+> **corroboration = claims with ≥ 2 independent sources**
+
+The two are independent and both matter:
+- **coverage** asks *how much of this dish's prose is sourced at all*
+- **corroboration** asks *how much of it is confirmed more than once*
+
+A dish can be 100% covered and 0% corroborated (every sentence anchored to a single Wikipedia source — which is exactly the current catalog). Coverage alone would therefore have looked like success while the catalog stayed single-sourced. Both are reported per dish.
+
+### Still open (D7)
+
 7. **The `dish_context` value set** is proposed above but not yet confirmed against the live dishes — specifically whether `restaurant` and `market` are both needed, or whether they collapse.
 
 > **Note on `skewering`:** Alejandro added `skewering` to `dish_technique` as an instruction inside the D4 message (it is a gerund, and `tacos-al-pastor` / `sate-lilit` / `satay` are skewered). It is **not** a separate numbered decision and carries no separate approval.
@@ -380,6 +416,8 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D4 | 2026-10-26 | Description stays authored; claims anchor it | Each factual sentence carries claim-ID anchors. Validation fails on anchors to unpublished/retracted/missing claims. Unanchored sentences allowed but flagged `unevidenced`. Evidence coverage = anchored-sentence ratio. Live edits fine. |
 | D5 | 2026-10-26 | Pilot = all 3; baseline by content, `editCount` invalidated as a provenance signal | `edit_history` is authoritative. Baseline table recorded. `stew` still live on rendang |
 | D5b | 2026-10-26 | `dish_technique` gains `spit-roasting` | `tacos-al-pastor` → technique `spit-roasting` (vertical spit, not horizontal skewer); `sate-lilit`, `satay` → `skewering` |
+| D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
+| D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
 
 ### Live-data consequences of D1–D5 (to apply in the migration)
 
