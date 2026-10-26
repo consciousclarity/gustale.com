@@ -271,6 +271,10 @@ tasks:
       - "The ADR is checked against the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor)"
       - "Open questions are listed for Alejandro's decision"
     evidence:
+      - "ADR-002 Q1 DECIDED 2026-10-26 (Alejandro): a claim is a STATEMENT in the Wikidata model - (subject, predicate, value) + qualifiers (place, period, variant, occasion) + references. Predicates come from a controlled vocabulary taken VERBATIM; new predicates only by explicit decision. Values are TYPED - an entity reference (dish / vocabulary value / place) or a typed literal; free text only as a MARKED EXCEPTION. The exact source passage and locator live on the EVIDENCE LINK, not on the claim - the shape of that link is a later question. The list is frozen from here. The consequence recorded explicitly: because predicates are controlled and values typed, most statements cannot be free prose - that is what stops a claim row quietly becoming prose again, the failure mode of citations.claim_text."
+
+      - "TEST FIXTURE EXCLUDED FROM METRICS 2026-10-26 (Alejandro). There is exactly ONE fixture: test-dish-7c (canonical_name 'Test Dish 7c', description 'Updated via PATCH - phase 7c is alive'), created 2026-06-17. It was ALREADY excluded from every public view - dishes.status is 'archived', /api/dishes/test-dish-7c returns 404 and /dishes/test-dish-7c returns 404; all 121 published dishes are real. The exposure was ONLY in my own metric denominators, which counted all 122 rows and so read '114 of 119' when the real population is 118 (121 published minus the 3 pilot dishes) and the real figure is 114 of 118. The fixture has ZERO dimension rows - it only ever inflated the denominator. FIXED: the mapper and the mapper regression test now compute their population from dishes.status='published'. Corrected population: 122 rows = 121 published (3 the pilot) + 1 archived fixture; the mapper's 118 = published minus pilot. Backlogged as GUS-231 to mark fixtures explicitly rather than relying on archived, archive them out of the active catalog, and add a standing check that no non-published dish can enter a metric population."
+
       - "ADR-002 DRAFTED 2026-10-26: .hermes/REPORTS/ADR-002-claims-model.md - the claims model as a NUMBERED Q&A (Q1-Q13) in the same format as ADR-001: claim schema, sources, independence, claim_class, statuses, anchors. Nothing implemented, no schema change. Q1 (claim identity: one subject-predicate-value row per assertable fact vs free prose) is the one to answer first, because the schema follows from it and Q2-Q13 are mostly consequences. It must be consistent with GUS-026, which has ALREADY decided source classes S1-S7 (Wikipedia is S6), the six claim classes, the independence test, and the seven verification states - ADR-002 implements that policy rather than re-litigating it."
 
       - "THE EXISTING SCHEMA ADR-002 BUILDS ON, measured live: sources has 142 rows, ALL source_type='web', ALL reliability='secondary', ALL language='en'. citations has 121 rows, ALL target_type='dish', 121 DISTINCT claim_text strings (one prose sentence per dish, not per fact), and 121 of 121 with a location - but the locations are sections ('Lead paragraph'), not claim locations. The gap: 'Moussaka is a dish popular in Greece, the Balkans, and the Levant' asserts three separable facts with one source, so today's model cannot compute coverage or corroboration at all - which is why dish_tradition (0/118), ingredient_category (0/118), dish_context (10/118) and relation sourcing (0 relation-level citations) are all blocked."
@@ -2631,3 +2635,24 @@ tasks:
       - "WHY THIS IS A CONTENT TASK AND NOT A DIMENSION ASSIGNMENT: dish_family is single-valued, so one dish row can only carry one family. Giving the combined row 'pancake' would mislabel the savoury half; giving it 'filled-pastry' would mislabel the sweet half. Splitting the dish into two rows is the only way for both halves to carry the right family - and that means new dish records, new slugs, new covers, new citations and a changed URL."
       - "DEFERRED for now: the combined 'martabak' row was left with NO family (dish_family unset) in the 2026-10-26 migration rather than being given a family that would be wrong for one of its two halves. The 'pancake' family keeps 4 other members (dosa, idli, masala-dosa, okonomiyaki) and 'filled-pastry' keeps 5, so neither is affected."
       - "ALSO UNSET (for a different reason each, so they are not interchangeable): bubur-ayam (a porridge; 'porridge' is not in the controlled vocabulary), soba and udon (noodle dishes served dry; there is no 'noodle' family in the vocabulary), bandeja-paisa (a platter, not a rice dish), lechon (a whole-roasted pig - a roast, not a family), asado (only 1 fitting 'barbecue' member, below the 2-member rule), lomo saltado (a stir-fry - technique, not a family), poutine (fried potatoes under cheese curds)."
+
+  - id: GUS-231
+    title: "Exclude test fixtures from public views and all metrics, then archive them"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P2
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "No test fixture appears in any public API response, page, list, count or metric"
+      - "Every metric denominator is computed over published dishes only"
+      - "The fixture rows are archived out of the active catalog"
+      - "A regression check fails if a non-published dish enters a metric population"
+      - "The 121 published dishes are unaffected - the counts before and after are identical"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro). There is exactly ONE fixture in the catalog: 'test-dish-7c' (canonical_name 'Test Dish 7c', description 'Updated via PATCH - phase 7c is alive'), created 2026-06-17."
+      - "IT IS ALREADY EXCLUDED FROM EVERY PUBLIC VIEW: dishes.status is 'archived', and the API returns 404 for /api/dishes/test-dish-7c and the web page /dishes/test-dish-7c returns 404. All 121 published dishes are real."
+      - "THE EXPOSURE WAS ONLY IN THE METRICS: my own denominators counted all 122 dish rows, so coverage read as '114 of 119' when the real population is 118 (121 published minus the 3 pilot dishes) and the real figure is 114 of 118. The fixture has ZERO dimension rows - it only ever inflated the denominator, which is exactly the kind of silent error that is invisible in the output and obvious in the arithmetic."
+      - "FIXED 2026-10-26: the mapper and the mapper regression test now compute their population from dishes.status='published'. The corrected population is 122 rows = 121 published (3 of them the pilot) + 1 archived fixture; the mapper's 118 = published minus the 3 pilot dishes; technique coverage 114 of 118."
+      - "REMAINING WORK: mark the fixture explicitly (a slug prefix, a flag column, or a fixture table) rather than relying on it being archived; archive it out of the active catalog; and add a standing check that no non-published dish can enter a metric population."

@@ -637,12 +637,15 @@ def main() -> int:
         preps[slug].append(method)
 
     # ---- pull the old categories per dish ----
+    # PUBLISHED ONLY. Test fixtures (e.g. test-dish-7c) are archived and
+    # must not enter any metric population - a fixture with no dimension
+    # rows would otherwise silently inflate the denominator.
     rows = psql(args.db, """
         SELECT d.slug, c.name, c.kind
         FROM dishes d
         JOIN dish_categories dc ON dc.dish_id = d.id
         JOIN categories c ON c.id = dc.category_id
-        WHERE d.status <> 'archived'
+        WHERE d.status = 'published'
         ORDER BY d.slug, c.name;""")
 
     dishes = collections.defaultdict(list)

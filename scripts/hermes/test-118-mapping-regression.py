@@ -99,26 +99,20 @@ def live_coverage_excluding_pilot() -> dict:
         ["docker", "exec", "-i", "shared-postgres", "psql", "-U", "postgres",
          "-d", "gustale", "-tA", "-F", "\t", "-c",
          "SELECT 'dish_family', count(DISTINCT j.dish_id) FROM dish_dish_families j "
-         "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor') "
+         "JOIN dishes d ON d.id=j.dish_id WHERE d.status='published' "
          "UNION ALL SELECT 'dish_cuisine', count(DISTINCT j.dish_id) FROM dish_dish_cuisines j "
-         "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor') "
+         "JOIN dishes d ON d.id=j.dish_id WHERE d.status='published' "
          "UNION ALL SELECT 'dish_course', count(DISTINCT j.dish_id) FROM dish_dish_courses j "
-         "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor') "
+         "JOIN dishes d ON d.id=j.dish_id WHERE d.status='published' "
          "UNION ALL SELECT 'dish_technique', count(DISTINCT j.dish_id) FROM dish_dish_techniques j "
-         "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor') "
+         "JOIN dishes d ON d.id=j.dish_id WHERE d.status='published' "
          "UNION ALL SELECT 'ingredient_category', count(DISTINCT j.dish_id) FROM dish_dish_ingredient_categories j "
-         "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor') "
+         "JOIN dishes d ON d.id=j.dish_id WHERE d.status='published' "
          "UNION ALL SELECT 'dish_tradition', count(DISTINCT j.dish_id) FROM dish_dish_traditions j "
-         "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor') "
+         "JOIN dishes d ON d.id=j.dish_id WHERE d.status='published' "
          "UNION ALL SELECT 'dish_context', count(DISTINCT j.dish_id) FROM dish_dish_contexts j "
          "JOIN dishes d ON d.id=j.dish_id WHERE d.slug NOT IN "
-         "('rendang','chicken-tikka-masala','tacos-al-pastor');"],
+         "'published';"],
         capture_output=True, text=True,
     )
     out = {}
@@ -214,7 +208,7 @@ def main() -> int:
             ["docker", "exec", "-i", "shared-postgres", "psql", "-U", "postgres",
              "-d", "gustale", "-tA", "-c",
              f"SELECT DISTINCT d.slug FROM {join} j JOIN dishes d ON d.id=j.dish_id "
-             "WHERE d.slug NOT IN ('rendang','chicken-tikka-masala','tacos-al-pastor');"],
+             "WHERE d.status='published';"],
             capture_output=True, text=True).stdout.split()
         for slug in rows:
             if slug in mapping and not mapping[slug].get(dim):

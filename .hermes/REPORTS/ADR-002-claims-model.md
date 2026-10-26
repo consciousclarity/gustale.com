@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — question 1 of N open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 DECIDED, Q2 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -79,7 +79,38 @@ Each question states a decision, my **recommendation**, the reason, and an **alt
 
 ---
 
-### Q1 — What is the claim's identity: one subject–predicate–value row, or free prose?
+### ✅ Q1 — DECIDED (Alejandro, 2026-10-26): the Wikidata-model statement
+
+**A claim is a *statement*: `(subject, predicate, value)` + qualifiers + references — the Wikidata model.**
+
+```
+statement = (subject, predicate, value)
+             + qualifiers (place, period, variant, occasion)
+             + references (the evidence links)
+```
+
+**The decision, as amended:**
+
+| part | rule |
+|---|---|
+| **shape** | `(subject, predicate, value)` + qualifiers + references — the **Wikidata model** |
+| **qualifiers** | `place`, `period`, `variant`, `occasion` — the scoping dimensions that make one statement true in a specific context |
+| **references** | the evidence links hang off the statement, not on a separate text blob |
+| **predicates** | a **controlled vocabulary**, taken **verbatim**; **new predicates only by explicit decision** |
+| **values** | **typed**: either an **entity reference** (dish / vocabulary value / place) or a **typed literal**. **Free text only as a marked exception** |
+| **evidence passage + locator** | live on the **evidence link**, not on the claim. *(The exact shape of that link is a later question.)* |
+
+**What this settles.** The claim is the atom; the text is not the atom. Every metric ADR-001 promised becomes computable because each statement has one addressable proposition, and the qualifiers are what let one proposition be true in one context and false in another — the Glasgow case being the canonical example (*"originated in Glasgow"* scoped by `period`, competing with *"originated in the subcontinent"* scoped by the same `period`).
+
+**The consequence I want recorded explicitly:** because predicates are controlled and values are typed, **most statements cannot be free prose.** A statement is `subject + predicate + typed value`, and it is either well-formed for that predicate or it is rejected. That is the point: it is what stops a claim row quietly becoming prose again, which is the failure mode of `citations.claim_text`.
+
+**Free text as a marked exception.** Where a value genuinely cannot be typed — a sensory or descriptive detail that has no entity and no literal type — it is allowed, but **marked as an exception**, so a query can distinguish "this statement's value is typed" from "this statement's value is free text and therefore not machine-comparable". An unmarked free-text value is a validation error.
+
+**Verbatim predicates.** The predicate vocabulary is not paraphrased or reworded at the call site. If a claim needs a predicate that does not exist, that is a **decision** (the vocabulary grows deliberately), not a data-entry convenience.
+
+---
+
+### Q1 (original) — What is the claim's identity: one subject–predicate–value row, or free prose?
 
 **The decision:** what a `claims` row *is*.
 
@@ -99,15 +130,45 @@ Each question states a decision, my **recommendation**, the reason, and an **alt
 
 ---
 
-### Q2 — Does the claim store its own text, or is the text generated?
+### Q2 — Does a statement carry readable text, or is the text generated from its parts?
 
-**Decision:** whether `claims` carries a `text` column.
+**Decision:** whether a statement has a `text` column, and if so, whether that text is authoritative.
 
-**Recommendation: yes, carry `text`, but make it explicitly **derived and regenerable**, not the source of truth.** The structured fields `(subject, predicate, object)` decide the claim; `text` is the readable rendering, regenerated whenever the structured fields change, and any hand-edit to `text` is rejected by validation.
+**This question changed shape when Q1 was decided.** A claim is now a structured statement — `(subject, predicate, value)` + qualifiers + references — so "does the claim store prose?" is no longer a free choice: the claim *is* the structure. The live question is narrower:
 
-**Reason:** the live API and the web UI need a sentence to render, and regenerating it on every read is wasteful and makes editorial wording impossible. But if `text` can drift from the structured fields, the two disagree and the coverage metric lies — a claim that says one thing while the sentence says another.
+> **When the editor or the API needs to show a human-readable sentence for a statement, where does that sentence come from?**
 
-**Alternative: no `text` column; the rendering is generated at query time** from predicate + object templates. One source of truth, guaranteed. But it requires a predicate→template registry, which becomes a maintenance surface, and it cannot express a claim whose natural wording does not fit the template (e.g. *"its method derives from X, adapted in Y"*).
+**Recommendation: the statement does NOT store authoritative text. A human-readable rendering is a separate, optional, and explicitly non-authoritative annotation.**
+
+```
+statements (
+  id, subject_type, subject_id, predicate_id, value_type, value_ref,
+  ... qualifiers ...
+  -- NO authoritative text column
+)
+
+statement_readings (        -- optional, editorial, non-authoritative
+  statement_id, text, locale, kind  -- kind: 'plain' | 'editorial'
+)
+```
+
+**Reason:**
+
+1. **One source of truth.** Q1 made the structure the claim. Adding an authoritative `text` column reintroduces exactly the drift Q1 removed: the structure says one thing, the text another, and the coverage metric — which counts *anchored facts*, not sentences — would quietly measure the wrong thing. ADR-001 D6b's rule ("a sentence counts as evidenced only if **all** its facts are anchored") is only meaningful if the facts are the thing being counted.
+2. **But readers and the API need prose.** "Rendang — originated in West Sumatra, Indonesia" is what a reader sees. Generating it from a predicate→template registry works for the common shapes, but not for every claim, and not in every language.
+3. **A non-authoritative reading solves both.** The structure is always the truth. A reading is a convenience, and when it drifts from the structure, **nothing breaks** — because nothing measures the reading. Validation can even *warn* when a reading no longer matches its statement.
+
+**The alternative, and it is a serious one: the statement carries an authoritative `text` column**, and the structure is treated as a machine index *of* the text rather than as the claim. This is what today's `citations.claim_text` effectively does, and it is why the current model cannot compute coverage.
+
+**Its cost, stated plainly:** the editor writes the sentence, and the structured fields are derived from it — so the structured fields become an approximation, the coverage metric becomes approximate, and "is this sentence fully evidenced?" requires guessing which facts the sentence asserts. That is the failure ADR-001 D6 exists to prevent.
+
+**A third option worth naming: no text at all.** The UI renders from the structure only, through a predicate→template function. One source of truth, guaranteed, and no drift is possible because there is nothing to drift.
+
+**Its cost:** the API and every consumer become coupled to the template set, a non-English rendering needs a full template set per locale, and a statement whose natural phrasing does not fit a template is awkward to express.
+
+**What I recommend:** the non-authoritative `statement_readings` table — the structure is the claim, the reading is a convenience, and neither can corrupt the other.
+
+**One sub-question I will decide by following Q1 rather than asking:** whether a reading may be **hand-edited**. It may — that is what `kind: 'editorial'` is for — but it may never be the basis of a metric, and it may never be the sole carrier of a fact. If a fact only exists in a reading, it does not exist in the model.
 
 ---
 
@@ -284,9 +345,10 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 ## Q&A format
 
-Same as ADR-001: I propose, you answer **ok** to accept or override. The question list is **frozen once Q1 is answered**.
+Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q1 is the one to answer first** — claim identity determines the schema, and Q2–Q13 are mostly consequences of it.
+**Q2 is open** — with one amendment to carry forward: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
+
 
 ---
 
@@ -304,7 +366,7 @@ These are decisions I will make by following the existing policy, and flag rathe
 
 | ADR-002 section | depends on |
 |---|---|
-| Q1 claim identity | ADR-001 D6 (one assertable fact) |
+| Q1 claim identity | ADR-001 D6 (one assertable fact) — **DECIDED**: the Wikidata-model statement (S-P-V + qualifiers + references), controlled predicates, typed values, free text only as a marked exception |
 | Q2 text | ADR-001 D6b (coverage counts sentences) |
 | Q3 subject | ADR-001 §2.1 entity graph |
 | Q4 predicate | ADR-001 §2.4 sketch |
