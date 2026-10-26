@@ -2704,3 +2704,37 @@ tasks:
       - "WHY IT CANNOT BE FUDGED: a statement whose subject is a VOCABULARY value cannot carry per-entity claims. A claim about the history of THIS braising technique is not the same claim as one about the word 'braising'. Pointing subject_type='technique' at dish_techniques would conflate them and make the entity tables a later refactor rather than a later addition."
       - "WHY IT IS SEPARATE WORK: technique and tradition entities are places to hang history, provenance, regional variation and community practice. That is the same shape of work as the recipes subtree (GUS-015/016) and the tradition work, and doing it inside the claims ADR would couple two independent subtrees."
       - "BLOCKED BY: the recipe and tradition subtree design, and by GUS-027/028 (a statement about a technique needs the claims model to exist)."
+
+  - id: GUS-234
+    title: "Assign dish_cuisine to the 19 published dishes that have none"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P1
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "All 121 published dishes have a dish_cuisine value"
+      - "Each assignment is sourced, not guessed - where the cuisine is genuinely contested, the dimension is left unset with the reason recorded"
+      - "The 19 affected dishes are listed with their proposed cuisine and the evidence for it"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro) during the menu-expansion proposal work (GUSTALE-menu-expansion-01). 19 of the 121 published dishes have NO dish_cuisine: acaraje, bacalhau-a-bras, borscht, chicken-tikka-masala, couscous, feijoada, goulash-hungarian, hamburger-american, jollof-rice, khao-soi, mansaf, momo, moussaka-greek, pierogi, poutine, tagine-moroccan, tostones, vindaloo, wiener-schnitzel."
+      - "THIS IS A LARGER GAP THAN THE 12 NEW DISHES PROPOSED in GUSTALE-menu-expansion-proposal-2026-10-26. Adding dishes while 19 existing ones have no cuisine makes the coverage number worse, not better."
+      - "Several are non-obvious and should be decided with the same care as the taxonomy itself: acaraje is a Brazilian (Bahian) dish of West African origin, so its cuisine is a judgement; feijoada and bacalhau-a-bras are Brazilian but of Portuguese/African roots; hamburger-american, poutine, wiener-schnitzel and goulash-hungarian are all straightforward."
+      - "RELATED: the ADR-002 Q3 decision needs a place hierarchy (country > region > city) before origin claims can be scoped - see that ADR."
+  - id: GUS-235
+    title: "Fill the empty 'breakfast' course and 'fermented-dish' family"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P2
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "The 'breakfast' course has at least one dish, sourced and evidenced"
+      - "The 'fermented-dish' family has at least one dish, sourced and evidenced"
+      - "Any dish chosen is verified to be a real traditional breakfast or fermented dish"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro) during the menu-expansion proposal work. Two controlled-vocabulary values are seeded in the live taxonomy but have ZERO dishes attached: the 'breakfast' course and the 'fermented-dish' family. An empty vocabulary value is either a placeholder or a missing dish - and the taxonomy should not keep placeholders."
+      - "CANDIDATES identified (not yet verified or decided): waakye (Ghana, rice and black-eyed peas cooked with dried sorghum leaves and limestone, eaten for breakfast) for breakfast; attieke (Cote d'Ivoire, fermented cassava pulp steamed into couscous-like grains) for fermented-dish. Both are real, documented dishes with Wikipedia articles, and both are in the GUSTALE-menu-expansion-01 proposal."
+      - "DO NOT treat this as a substitute for the proposal - it is recorded so the two empty vocabulary values are tracked and not forgotten."
