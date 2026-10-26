@@ -433,6 +433,40 @@ An earlier draft of this ADR asserted the opposite (descendant → ancestor) and
 
 **Rule:** a new `relation_type` is added only by an explicit decision, never opportunistically — free text plus a fresh type per use is how a vocabulary rots.
 
+#### D3g note 2 (2026-10-26, GUS-224 audit CORRECTION) — identical types across a pair is the CONTRADICTION
+
+An earlier version of this note concluded that the D3g consistency check "passed" because every pair carries the same `relation_type` in both directions. **That conclusion was wrong and is withdrawn.**
+
+For a **directional** `relation_type` (`ancestor`, `diaspora`) the pair stores an *order*: `from` = source, `to` = target. Storing both directions therefore makes the table assert:
+
+- `shawarma → tacos-al-pastor` ⇒ *"shawarma is the ancestor of tacos-al-pastor"*
+- `tacos-al-pastor → shawarma` ⇒ *"**tacos-al-pastor is the ancestor of shawarma**"*
+
+**The two cannot both be true.** Identical `relation_type` on the reverse row is the **symptom** of the contradiction, not evidence of consistency.
+
+**All 5 directional pairs in the catalog are self-contradicting — including the `shawarma ↔ tacos-al-pastor` pair this ADR's pilot wrote.** The bidirectional storage pattern is therefore **not** a harmless redundancy: it is a systematic assertion of mutually exclusive claims.
+
+For **symmetric** types (`family`, `shared-method`, `similar-serving`, `regional-cousin`, `shared-ingredient`) the relation holds equally in both directions, so a stored pair is redundant but not contradictory.
+
+**Resolution — Option B (approved by Alejandro, 2026-10-26):** store **one directed row per relation** and derive the inverse. The inverse is emitted **only for symmetric types**; for a directional type the inverse is not a valid assertion.
+
+**The `symmetric` flag lives on a `relation_types` vocabulary table**, not a CHECK enum — because the flag is metadata (it is what makes the stored-pair pattern safe for symmetric types and forbidden for directional ones), and a vocabulary table lets a type carry metadata and be extended without a schema migration.
+
+| relation_type | `symmetric` | pairs |
+|---|---|---|
+| `family`, `regional-cousin`, `shared-method`, `similar-serving`, `shared-ingredient` | **true** | 91 |
+| `ancestor`, `diaspora` | **false** | 5 |
+
+**Directional pairs keep the row that matches the reason text** — the row whose `from_dish_id` is the dish the reason names as the source.
+
+**Source/claim link on `dish_relations` is sequenced into GUS-027 (source registry) and GUS-028 (claim-level citations)**, not into this migration.
+
+**Quarantine:** 4 of the 5 directional pairs are **likely wrong** and are quarantined — marked unverified and excluded from the public view — with **no hand edits**. Their `reason`, `from_dish_id` and `to_dish_id` are left intact as the audit trail. The mis-wired `shawarma ↔ hamburger-american` pair is quarantine-only: rewiring it to `doner-kebab` would be a **new claim**, not a correction.
+
+**Evidence status:** every relation claim rests on **exactly one tertiary source** (Wikipedia). The pilot's own relation is **not independently corroborated** — it has one source, and the pilot wrote it, so the pilot cannot be its own corroboration.
+
+**Full plan and quarantine list:** `.hermes/REPORTS/GUS-224-option-b-plan.md`. **Audit:** `.hermes/REPORTS/GUS-224-relations-audit.md`.
+
 #### D3g note (2026-10-26, GUS-224 audit) — the convention is writer intent, and its content is unverified
 
 Two limitations of the direction convention, recorded so they are not mistaken for stronger guarantees than they are:
@@ -635,6 +669,7 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
 | D3g | 2026-10-26 | Relation types use the existing vocabulary; **source = ancestor** | `dish_relations.relation_type` is free text, but the pilot uses `ancestor`, not a new `derived-from`. **Direction: `from_dish_id` is the ANCESTOR** (`bacalhau-a-bras → vindaloo`, *"…is the direct ancestor of vindaloo"*). Every relation in the catalog is stored BIDIRECTIONALLY (190 rows = 95 pairs, zero unpaired), so the pilot writes a pair: `shawarma → tacos-al-pastor` and the reverse, same `reason`, strength 4. An earlier draft asserting "descendant → ancestor" was wrong and is corrected here |
+| D3g-note2 | 2026-10-26 | **CORRECTION:** identical types across a pair IS the contradiction | An earlier note concluded the D3g consistency check "passed" because every pair carries the same `relation_type` in both directions. That was WRONG and is withdrawn: for a DIRECTIONAL type (`ancestor`, `diaspora`) the pair stores an order, so holding both directions asserts "A → B" AND "B → A" — mutually exclusive claims. **All 5 directional pairs are self-contradicting, including the pair this pilot wrote.** Resolution (Alejandro, 2026-10-26): **Option B** — one directed row per relation, inverse derived **for symmetric types only**; `symmetric` flag on a `relation_types` **vocabulary table** (not a CHECK enum); directional pairs keep the row matching the reason text; source/claim link sequenced into GUS-027/028; 4 likely-wrong pairs quarantined (unverified, excluded from public view) with no hand edits; every relation claim rests on exactly one tertiary source and the pilot relation is NOT independently corroborated. Plan: `.hermes/REPORTS/GUS-224-option-b-plan.md` |
 | D3g-note | 2026-10-26 | Direction convention is writer intent; content unverified | The `from_dish_id` = ancestor reading is inferred from the original writer's reason text and the universal bidirectional pairing — NOT from an independent source, because `dish_relations` has no source column and there are 0 relation-level citations. The `bacalhau-a-bras → vindaloo` content is **unverified and on audit likely wrong**: the vindaloo ← *carne de vinha d'alhos* derivation is well sourced, but *carne de vinha d'alhos* is PORK in garlic wine vinegar while *bacalhau à brás* is SALT COD — unrelated. The pilot's own relation is independently corroborated by Wikipedia *Al pastor*. Full audit: GUS-224 |
 | D3h | 2026-10-26 | `ingredient_category` stores LEAVES only | Parents are derived at query time, never stored. `red-meat`, `white-meat`, `produce` are parents of `beef`/`pork`/`game`/`offal`, `chicken`/`poultry`/`fish`/`shellfish`/`seafood`, and `vegetable`/`fruit`/`herb`/`nut`/`seed`/`legume` respectively. Storing both a leaf and its parent double-counts. Pilot: rendang `beef`+`coconut`, CTM `chicken`+`dairy`, tacos `pork` — no parents. `dairy` is a leaf in the pilot (the claim says "dairy base") |
 | D4a | 2026-10-26 | Claims anchor to `short_description`, not `long_description` | Live schema has both columns. `short_description` is populated for all 3 pilot dishes (149–206 chars) and is the prose the claims attach to; `long_description` is empty for all 3 (and 100 of 122 catalog-wide). Rendang's short description is verbatim the D6 6-claim worked example. **Coverage is therefore measurable: expected `0%` (no claims exist yet), not `null`** — consistent with GUS-011's catalog-wide Wikipedia-only finding |
