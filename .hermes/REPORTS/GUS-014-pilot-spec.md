@@ -378,7 +378,52 @@ Without this, I15 would fail on every run and the check would have to be weakene
 | V2 | The exact expected end state for all 3 dishes is written down (this document) | ✅ done |
 | V3 | A **snapshot** of the pre-pilot DB state for the 3 pilot dishes (plus the full 122-dish comparison baseline) exists and is restorable | ✅ **done** — `scripts/hermes/gus-014-pilot-snapshot.sh snapshot`; 472K `db.dump` + schema + 3-dish baseline + 122-dish digest baseline + SHA256SUMS + `edit_history` high-water mark. **Snapshot on disk:** `.hermes/snapshots/gus-014/20261026T040610Z/` (gitignored — a binary dump does not belong in git; the *tooling* is committed, the *artifact* lives on disk and on the VPS backup) |
 | V4 | A **rollback** path is written and **test** (not just assumed) | ✅ **done and TESTED** — `scripts/hermes/gus-014-rollback-test.sh`: restore → mutate → **observe divergence** → restore → identical. The mutation-observability step is what makes the test meaningful. Plus 11 passing restore-guard tests (`test-restore-guard.sh`) proving the live DB can never be a restore target |
-| V5 | Alejandro has given the explicit go for the pilot | ⏳ **pending** — **STOP HERE** |
+| V5 | Alejandro has given the explicit go for the pilot | ✅ **done** — Alejandro gave the go on 2026-10-26 with 4 amendments; the pilot has been run and passed (see §8) |
+
+---
+
+## 8. Pilot result — 2026-10-26
+
+**Status: 🟢 PILOT PASSED.** Applied to the live `gustale` database.
+
+| | |
+|---|---|
+| migration | `db/migrations/gus-014-pilot-dimensions.sql` (idempotent — re-run inserts 0 rows) |
+| pre-flight | live DB verified **IDENTICAL** to the V3 snapshot baseline before the write |
+| dry-run | full run on a restored copy first — 51/51 checks, 0 failures |
+| live result | **51 / 51 checks PASS, 0 FAIL** |
+| I15 | **118 unchanged**, 1 changed-and-explained (`shawarma`), **0 unexplained** |
+| rollback | V4 re-verified post-migration — still PASS |
+| live API | `api.gustale.com/health` 200 · `gustale.com/dishes` 200 · `/api/dishes/rendang` 200 |
+
+**Dimension values written: 23** (rendang 10 · CTM 7 · tacos 6), plus 2 relation rows and 4 `edit_history` rows.
+
+**Dishes touched: 4** — the 3 pilot dishes, plus `shawarma` as the ancestor side of the relation pair (see the I15 note above).
+
+### Check results
+
+| check | result |
+|---|---|
+| I1 — all 21 dimension cells match the spec exactly | ✅ |
+| I2 — no cell contains a value outside §1 | ✅ |
+| I2b — no `ingredient_category` cell stores a parent value | ✅ |
+| I3 — spec ↔ DB agreement (independent re-read) | ✅ |
+| I4 — `rendang` no longer carries `stew` | ✅ |
+| I5 — `tacos-al-pastor` family is `taco`; no `kebab` family row | ✅ |
+| I6 — bidirectional `ancestor` pair with `shawarma`, source = ancestor, same reason, strength 4 | ✅ |
+| I7 — `chicken-tikka-masala` cuisine **unset** (Glasgow dispute not resolved) | ✅ |
+| I8 — CTM has exactly 2 techniques (`grilling`, `simmering`) | ✅ |
+| I9 — `rendang` has exactly 3 contexts (`home`, `festival/ceremonial`, `restaurant`) | ✅ |
+| I10 — `rendang` technique cell is exactly `braising` (no `dry`) | ✅ |
+| I11 — `ingredient_category` leaf values: beef+coconut / chicken+dairy / pork | ✅ |
+| I12 — tradition `minangkabau` for rendang; unset for the other two | ✅ |
+| I13 — slugs, ids, names, URLs unchanged; 122 dishes | ✅ |
+| I14 — 4 `edit_history` rows with comment `GUS-014 pilot`; 4 `updated_at` bumps | ✅ |
+| I15 — 118 other dishes unchanged; 1 explained; 0 unexplained | ✅ |
+| I16 — rollback verified (restore → mutate → observe → restore → identical) | ✅ |
+| I17 — coverage scope measurable (`short_description` populated → `0%`, not `null`) | ✅ |
+
+**Next:** the 118-dish run remains blocked on Alejandro's explicit go, and on **GUS-224** (audit all `dish_relations`) which he raised as a non-blocking follow-up but which should land first.
 
 ---
 
