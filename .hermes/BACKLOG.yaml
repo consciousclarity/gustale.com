@@ -2555,3 +2555,38 @@ tasks:
       - "RAISED 2026-10-26 (Alejandro, during the 118-dish mapping review). The live preparation_methods.name values contain a LITERAL backslash before the ampersand: 'Fried \\& topped', 'Stew \\& braise', 'Grilled \\& skewered', 'Bread \\& dough', 'Small plates \\& preserves', 'Steamed \\& custard', 'Sweets \\& custard', 'Boiled \\& cured', 'Omelettes \\& scrambles'. This is a data-entry artifact from an earlier migration, not an escaped ampersand. It affects 8 of the 15 methods in use and is visible wherever the preparation name is rendered."
       - "IMPACT: the 118-dish mapping had to normalise both spellings to resolve the preparation methods. It does not block the mapping (the mapper handles it) but the underlying data should be corrected rather than worked around."
       - "NOT YET APPLIED - this is a separate task because it changes user-visible content and is independent of the dimension migration."
+
+  - id: GUS-228
+    title: "Fix root-owned files that break the gustale-rebuild-web script"
+    epic: "EPIC 17 — Operations, reliability, and incident response"
+    priority: P1
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "/home/deploy/gustale-build and everything under its .git are owned by gustale, so git fetch works without sudo"
+      - "/tmp/gustale-web-live-tag.env no longer blocks a rebuild run (removed, or replaced by the mktemp change in GUS-229)"
+      - "A gustale-rebuild-web run completes end to end with exit code 0, including its own cleanup"
+      - "The deployed web containers still come from the correct live-data tag and the content-change detector still fires"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro, during the GUS-227 rebuild). TWO root-owned permission problems block the unattended rebuild timer, and neither can be fixed from the gustale user (no sudo). Alejandro will chown them."
+      - "ISSUE 1 - /home/deploy/gustale-build: 77 files and directories under .git are owned by root while the rest is gustale. The directory itself is mode 755 and not writable by gustale. Result: 'git fetch --no-tags --depth=50 origin main' fails with 'error: insufficient permission for adding an object to repository database .git/objects' and 'fatal: unpack-objects failed', so the rebuild aborts before building. Workaround used on 2026-10-26: clone to /home/gustale/gustale-build and run the script with GUSTALE_BUILD_DIR pointed at it."
+      - "ISSUE 2 - /tmp/gustale-web-live-tag.env is owned by root with mode 644. The rebuild script writes it, sources it, then removes it at the end; the rm fails with 'Operation not permitted' and, because the script runs under set -e, the failure ABORTS THE SCRIPT BEFORE THE DEPLOY STEP - even though both docker images built successfully. Workaround used on 2026-10-26: run the deploy_container step directly. NOTE GUS-229 changes the script to use mktemp, which removes this failure mode, but the stale root-owned file should still be removed so it stops confusing things."
+      - "IMPACT: an unattended gustale-rebuild-web.timer run cannot rebuild. The content-change detector itself works correctly - it fired and detected the change - so the failure is purely in the fetch and teardown steps."
+      - "WHY IT MATTERS: the web serves a BAKED SSG snapshot, so a DB-only fix is invisible on the pages until the web containers are rebuilt. This is not theoretical - it is exactly what happened with the GUS-227 backslash fix."
+  - id: GUS-229
+    title: "Change the rebuild script to use mktemp instead of a fixed /tmp path"
+    epic: "EPIC 17 — Operations, reliability, and incident response"
+    priority: P2
+    phase: 0
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "The rebuild script creates its tag file with mktemp instead of a fixed /tmp/gustale-web-live-tag.env"
+      - "The tag file is removed on exit via a trap, so a failed run never leaves a stale file that blocks the next one"
+      - "A rebuild run completes end to end with exit code 0 and leaves no tag file behind"
+      - "The build-web-live.sh script that WRITES the tag file is updated to write to the path the caller supplies"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro). The fixed path /tmp/gustale-web-live-tag.env is a single point of failure: two concurrent runs collide, and a leftover file owned by another user makes the rm fail and aborts the script under set -e BEFORE the deploy step (seen on 2026-10-26 with GUS-227). A mktemp path plus a cleanup trap removes both failure modes."

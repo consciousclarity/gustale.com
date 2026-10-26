@@ -62,7 +62,19 @@ REPO="${GITHUB_REPOSITORY:-consciousclarity/gustale.com}"
 GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
 TAG="live-data-${SHORT_SHA}"
 REGISTRY="ghcr.io/${REPO}"
-TAG_FILE="${GUSTALE_WEB_LIVE_TAG_FILE:-/tmp/gustale-web-live-tag.env}"
+# The tag file is a per-run artefact. A fixed /tmp path collides between
+# concurrent runs, and a leftover file owned by another user makes the
+# final rm fail - which under `set -e` aborts the caller BEFORE its deploy
+# step, even though the images built fine (seen 2026-10-26 during GUS-227).
+#
+# The caller may pass an explicit path (rebuild-web-live.sh does, so it can
+# clean it up via a trap); standalone runs get their own mktemp file.
+if [ -n "${GUSTALE_WEB_LIVE_TAG_FILE:-}" ]; then
+  TAG_FILE="$GUSTALE_WEB_LIVE_TAG_FILE"
+else
+  TAG_FILE="$(mktemp /tmp/gustale-web-live-tag.XXXXXX.env)"
+  trap 'rm -f "$TAG_FILE"' EXIT
+fi
 NO_PUSH="${GUSTALE_NO_PUSH:-0}"
 
 if [ "$NO_PUSH" != "1" ] && [ -z "${GITHUB_TOKEN:-}" ]; then

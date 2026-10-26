@@ -228,10 +228,22 @@ log "  build sha: $BUILD_SHA"
 # dir avoids that chicken-and-egg.
 log ""
 log "--- Building web images with live data ---"
-GUSTALE_NO_PUSH=1 /home/deploy/gustale-rebuild/build-web-live.sh "$BUILD_SHA"
-
+# A per-run temp file, not a fixed /tmp path. A fixed path is a single
+# point of failure: concurrent runs collide, and a leftover file owned by
+# another user makes the final `rm` fail, which under `set -e` aborts the
+# script BEFORE the deploy step even though the images built fine.
+#
+# build-web-live.sh already honours GUSTALE_WEB_LIVE_TAG_FILE, so the
+# path is created here and passed down.
+TAG_FILE="$(mktemp /tmp/gustale-web-live-tag.XXXXXX.env)"
 # shellcheck disable=SC1090
-TAG_FILE="/tmp/gustale-web-live-tag.env"
+cleanup_tag_file() { rm -f "$TAG_FILE"; }
+trap cleanup_tag_file EXIT
+
+GUSTALE_NO_PUSH=1 \
+  GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
+  /home/deploy/gustale-rebuild/build-web-live.sh "$BUILD_SHA"
+
 # shellcheck disable=SC1090
 source "$TAG_FILE"
 : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
