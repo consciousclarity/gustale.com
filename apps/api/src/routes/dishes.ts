@@ -9,6 +9,7 @@ import {
   dishLineages,
   dishPreparations,
   dishRelations,
+  dishRelationsPublic,
   dishTags,
   dishTranslations,
   dishVariants,
@@ -758,12 +759,22 @@ export function registerDishRoutes(app: FastifyInstance): void {
     // We LEFT JOIN categories and geo_entities to surface the related
     // dish's cuisine/region in one round trip. Filtering on
     // `dishes.status = 'published'` keeps unpublished siblings out.
+    // GUS-224 Option B: `dish_relations` now holds ONE directed row per
+    // relation. The inverse is derived for SYMMETRIC types only, and
+    // quarantined rows are excluded from the public view. Reading through
+    // `dish_relations_public` gives both behaviours in one place.
+    //
+    //   dish_relations_public = dish_relations_symmetric WHERE status='active'
+    //   dish_relations_symmetric emits the inverse for symmetric types only
+    //
+    // A directional type (ancestor, diaspora) therefore appears exactly once,
+    // in its true direction - never mirrored.
     const rows = await db
       .select({
-        relationId: dishRelations.id,
-        relationType: dishRelations.relationType,
-        reason: dishRelations.reason,
-        strength: dishRelations.strength,
+        relationId: sql<string>`${dishRelationsPublic.sourceRowId}`,
+        relationType: sql<string>`${dishRelationsPublic.relationType}`,
+        reason: dishRelationsPublic.reason,
+        strength: dishRelationsPublic.strength,
         toDishId: dishes.id,
         toDishSlug: dishes.slug,
         toDishName: dishes.canonicalName,
@@ -773,8 +784,8 @@ export function registerDishRoutes(app: FastifyInstance): void {
         toCuisineSlug: categories.slug,
         toCuisineName: categories.name,
       })
-      .from(dishRelations)
-      .innerJoin(dishes, eq(dishRelations.toDishId, dishes.id))
+      .from(dishRelationsPublic)
+      .innerJoin(dishes, eq(dishRelationsPublic.toDishId, dishes.id))
       .leftJoin(geoEntities, eq(dishes.originGeoId, geoEntities.id))
       // Only the primary cuisine category — secondary dish-types would
       // muddy the "what cuisine is this?" answer the UI needs.
@@ -788,11 +799,11 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .leftJoin(categories, eq(dishCategories.categoryId, categories.id))
       .where(
         and(
-          eq(dishRelations.fromDishId, sourceId),
+          eq(dishRelationsPublic.fromDishId, sourceId),
           eq(dishes.status, "published"),
         ),
       )
-      .orderBy(desc(dishRelations.strength), asc(dishes.canonicalName));
+      .orderBy(desc(dishRelationsPublic.strength), asc(dishes.canonicalName));
 
     // 3) Group by relation_type for the UI. Within each group, sort
     //    is already correct (by strength desc, then name asc).

@@ -8,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  pgView,
   text,
   timestamp,
   unique,
@@ -539,6 +540,36 @@ export const dishRelationType = [
 ] as const;
 export type DishRelationType = (typeof dishRelationType)[number];
 
+// GUS-224 Option B: the relation_type vocabulary. A TABLE, not a CHECK enum,
+// because `is_symmetric` is metadata and a vocabulary table can be extended
+// without a schema migration.
+export const relationTypes = pgTable("relation_types", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  isSymmetric: boolean("is_symmetric").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// The inverse rows dropped by GUS-224 Option B. Nothing is hard-deleted:
+// the original row (same id) is kept here for provenance.
+export const dishRelationsArchive = pgTable("dish_relations_archive", {
+  id: uuid("id").primaryKey(),
+  fromDishId: uuid("from_dish_id").notNull(),
+  toDishId: uuid("to_dish_id").notNull(),
+  relationType: text("relation_type").notNull(),
+  reason: text("reason"),
+  strength: integer("strength").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  archivedReason: text("archived_reason").notNull(),
+});
+
 export const dishRelations = pgTable(
   "dish_relations",
   {
@@ -550,6 +581,22 @@ export const dishRelations = pgTable(
       .notNull()
       .references(() => dishes.id, { onDelete: "cascade" }),
     relationType: text("relation_type").$type<DishRelationType>().notNull(),
+    // GUS-224 Option B: the relation_type vocabulary table is authoritative;
+    // `relation_type` above is a denormalized mirror kept in sync by a DB
+    // trigger, so existing readers and the UNIQUE(from,to,relation_type)
+    // constraint keep working.
+    relationTypeId: uuid("relation_type_id").references(() => relationTypes.id),
+    // symmetric = the relation holds equally in both directions.
+    // FALSE for directional types (ancestor, diaspora) — storing both
+    // directions there would assert a contradiction.
+    isSymmetric: boolean("is_symmetric").notNull().default(true),
+    // 'active' | 'quarantined'. Quarantined rows are excluded from the
+    // public view; admins still see them with `quarantineNote`.
+    status: text("status")
+      .$type<"active" | "unverified" | "quarantined">()
+      .notNull()
+      .default("unverified"),
+    quarantineNote: text("quarantine_note"),
     // Free-text reason shown to the user ("both share a fermented-cabbage base"
     // / "traded along the Silk Road" / "regional variation of the same dish").
     // Optional — some relations are obvious from the relation_type alone.
@@ -1280,3 +1327,43 @@ export const dishLocationSources = pgTable(
     ),
   }),
 );
+
+// GUS-224 Option B — the derived relation views.
+//
+// dish_relations_symmetric emits each ACTIVE relation, plus its INVERSE for
+// SYMMETRIC types only. For a directional type (ancestor, diaspora) the
+// inverse is NOT a valid assertion — emitting it would recreate exactly the
+// contradiction the Option B migration removed.
+//
+// dish_relations_public is the public read path: active rows only, with
+// quarantined rows excluded.
+
+const relationViewColumns = {
+  sourceRowId: uuid("source_row_id").notNull(),
+  fromDishId: uuid("from_dish_id").notNull(),
+  toDishId: uuid("to_dish_id").notNull(),
+  relationTypeId: uuid("relation_type_id").notNull(),
+  relationType: text("relation_type").notNull(),
+  isSymmetric: boolean("is_symmetric").notNull(),
+  reason: text("reason"),
+  strength: integer("strength").notNull(),
+  status: text("status").notNull(),
+  quarantineNote: text("quarantine_note"),
+};
+
+export const dishRelationsSymmetric = pgView(
+  "dish_relations_symmetric",
+  relationViewColumns,
+).existing();
+
+export const dishRelationsPublic = pgView(
+  "dish_relations_public",
+  relationViewColumns,
+).existing();
+
+// Admin view: active + quarantined rows, with the quarantine note.
+// Quarantined rows are excluded from the PUBLIC view only.
+export const dishRelationsAdmin = pgView(
+  "dish_relations_admin",
+  relationViewColumns,
+).existing();

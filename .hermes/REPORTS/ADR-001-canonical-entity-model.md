@@ -467,6 +467,53 @@ For **symmetric** types (`family`, `shared-method`, `similar-serving`, `regional
 
 **Full plan and quarantine list:** `.hermes/REPORTS/GUS-224-option-b-plan.md`. **Audit:** `.hermes/REPORTS/GUS-224-relations-audit.md`.
 
+#### D3g-note3 (2026-10-26) — Option B APPLIED to live
+
+**Status: 🟢 APPLIED.** `db/migrations/gus-224-relations-option-b.sql` ran against the live `gustale` database on 2026-10-26. **22 / 22 verification gates pass.**
+
+**What changed:**
+
+| | before | after |
+|---|---|---|
+| `dish_relations` rows | 192 (96 pairs × 2) | **96** (one directed row per relation) |
+| `dish_relations_archive` | — | **96** (the dropped inverse rows, **original ids preserved**, no hard delete) |
+| `relation_types` (vocab table) | — | **7** rows, each with `is_symmetric` |
+| self-contradicting pairs | **5** | **0** |
+| quarantined relations | — | **4** (excluded from the public view) |
+
+**Schema:** `relation_types` (vocab table, not a CHECK enum); `dish_relations` gains `relation_type_id`, `is_symmetric`, `status`, `quarantine_note` — the legacy `relation_type` text column is kept as a **denormalised mirror** of the FK, kept in step by a trigger, so existing readers and the `UNIQUE(from,to,relation_type)` constraint keep working. `dish_relations_archive` holds the dropped inverses.
+
+**Three views:**
+
+- `dish_relations_symmetric` — active rows + their inverse **for symmetric types only**
+- `dish_relations_public` — the public read path (active only; quarantined excluded)
+- `dish_relations_admin` — active **+ quarantined**, with the quarantine note, so curators can see what was pulled and why
+
+**Two triggers** (named `trg_a_sync_*` / `trg_b_check_*` so the sync runs first — PostgreSQL fires BEFORE triggers in alphabetical name order):
+
+- a **directional** relation may not have its inverse present → the self-contradiction cannot be reintroduced
+- a **symmetric** relation must satisfy `from_dish_id < to_dish_id` → the canonical direction is a stored invariant, not a convention that can drift
+
+**The 5 directional keep-rows** (explicit ids, no auto-parsing):
+
+| keep id | direction | type | strength | status |
+|---|---|---|---|---|
+| `b7e468e0-16c5-4499-8bd4-ab2ecb95d677` | `shawarma → tacos-al-pastor` | ancestor | 4 | **active** — flagged *single tertiary source*, not independently corroborated |
+| `0afcdf4e-e05f-5315-8b24-67e3b8a15aa0` | `bacalhau-a-bras → vindaloo` | ancestor | 5 | **quarantined** |
+| `7109f0e7-9d99-5858-9ee2-78e3a6fe1c90` | `biryani-hyderabadi → jollof-rice` | ancestor | 4 | **quarantined** |
+| `27b97221-f85c-532c-9264-7899f34399b7` | `shawarma → hamburger-american` | diaspora | 2 | **quarantined** |
+| `c212c598-0297-4597-aefa-6dc4bfc9e3a6` | `tonkatsu → wiener-schnitzel` | diaspora | 4 | **quarantined** |
+
+**Quarantine semantics:** the 4 quarantined relations keep their `reason`, `from_dish_id` and `to_dish_id` **unedited** — the mis-wiring is the evidence of the defect and is preserved as the audit trail. A `quarantine_note` on each records why. Admins see them with the note; the public view filters them out.
+
+**Pre-check:** all 96 pairs had **identical `strength` and `reason`** on both rows (0 mismatches), so collapsing a pair to one row loses no information.
+
+**Verification:** `scripts/hermes/gus-014-verify-relations-option-b.py` (22 gates) and `scripts/hermes/test-relations-option-b-triggers.sh` (9 tests, proving both triggers actually REJECT). The trigger suite exists because a trigger that does not reject is not a trigger.
+
+**Sequencing:** GUS-224 is now **complete and applied**, so the 118-dish dimension run is unblocked (it writes dimensions only, no relations).
+
+**Source/claim link remains sequenced into GUS-027/028** — `dish_relations` still has no source column, so every relation claim is still unverified by construction. That gap is now explicit in the schema rather than invisible.
+
 #### D3g note (2026-10-26, GUS-224 audit) — the convention is writer intent, and its content is unverified
 
 Two limitations of the direction convention, recorded so they are not mistaken for stronger guarantees than they are:
@@ -669,6 +716,7 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
 | D3g | 2026-10-26 | Relation types use the existing vocabulary; **source = ancestor** | `dish_relations.relation_type` is free text, but the pilot uses `ancestor`, not a new `derived-from`. **Direction: `from_dish_id` is the ANCESTOR** (`bacalhau-a-bras → vindaloo`, *"…is the direct ancestor of vindaloo"*). Every relation in the catalog is stored BIDIRECTIONALLY (190 rows = 95 pairs, zero unpaired), so the pilot writes a pair: `shawarma → tacos-al-pastor` and the reverse, same `reason`, strength 4. An earlier draft asserting "descendant → ancestor" was wrong and is corrected here |
+| D3g-note3 | 2026-10-26 | **Option B APPLIED to live** | `dish_relations` 192 -> 96 rows (one directed row per relation); the 96 dropped inverses moved to `dish_relations_archive` with original ids (no hard delete). New `relation_types` vocab table with `is_symmetric`; `dish_relations` gains `relation_type_id`/`is_symmetric`/`status`/`quarantine_note` (legacy `relation_type` text kept as a trigger-synced mirror). Three views: `dish_relations_symmetric` (inverse for SYMMETRIC types only), `dish_relations_public` (quarantined excluded), `dish_relations_admin` (quarantined visible with the note). Two triggers: a directional relation may not have its inverse present; a symmetric relation must satisfy from < to. Self-contradicting pairs 5 -> 0. 4 relations quarantined (unverified, public-filtered, no hand edits). Pilot relation stays ACTIVE, flagged single tertiary source. 22/22 gates pass; 9 trigger tests pass. Source/claim link still sequenced into GUS-027/028 |
 | D3g-note2 | 2026-10-26 | **CORRECTION:** identical types across a pair IS the contradiction | An earlier note concluded the D3g consistency check "passed" because every pair carries the same `relation_type` in both directions. That was WRONG and is withdrawn: for a DIRECTIONAL type (`ancestor`, `diaspora`) the pair stores an order, so holding both directions asserts "A → B" AND "B → A" — mutually exclusive claims. **All 5 directional pairs are self-contradicting, including the pair this pilot wrote.** Resolution (Alejandro, 2026-10-26): **Option B** — one directed row per relation, inverse derived **for symmetric types only**; `symmetric` flag on a `relation_types` **vocabulary table** (not a CHECK enum); directional pairs keep the row matching the reason text; source/claim link sequenced into GUS-027/028; 4 likely-wrong pairs quarantined (unverified, excluded from public view) with no hand edits; every relation claim rests on exactly one tertiary source and the pilot relation is NOT independently corroborated. Plan: `.hermes/REPORTS/GUS-224-option-b-plan.md` |
 | D3g-note | 2026-10-26 | Direction convention is writer intent; content unverified | The `from_dish_id` = ancestor reading is inferred from the original writer's reason text and the universal bidirectional pairing — NOT from an independent source, because `dish_relations` has no source column and there are 0 relation-level citations. The `bacalhau-a-bras → vindaloo` content is **unverified and on audit likely wrong**: the vindaloo ← *carne de vinha d'alhos* derivation is well sourced, but *carne de vinha d'alhos* is PORK in garlic wine vinegar while *bacalhau à brás* is SALT COD — unrelated. The pilot's own relation is independently corroborated by Wikipedia *Al pastor*. Full audit: GUS-224 |
 | D3h | 2026-10-26 | `ingredient_category` stores LEAVES only | Parents are derived at query time, never stored. `red-meat`, `white-meat`, `produce` are parents of `beef`/`pork`/`game`/`offal`, `chicken`/`poultry`/`fish`/`shellfish`/`seafood`, and `vegetable`/`fruit`/`herb`/`nut`/`seed`/`legume` respectively. Storing both a leaf and its parent double-counts. Pilot: rendang `beef`+`coconut`, CTM `chicken`+`dairy`, tacos `pork` — no parents. `dairy` is a leaf in the pilot (the claim says "dairy base") |

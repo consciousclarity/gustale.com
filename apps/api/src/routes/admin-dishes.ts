@@ -24,6 +24,7 @@ import {
   dishIngredients,
   dishPreparations,
   dishRelations,
+  dishRelationsAdmin,
   type EditAction,
   editHistory,
   geoEntities,
@@ -330,20 +331,31 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
         .from(dishCategories)
         .leftJoin(categories, eq(categories.id, dishCategories.categoryId))
         .where(eq(dishCategories.dishId, dish.id)),
-      // Related dishes via dish_relations (both directions).
+      // Related dishes via dish_relations.
+      //
+      // GUS-224 Option B: `dish_relations` holds ONE directed row per
+      // relation; the inverse is derived for SYMMETRIC types only. Reading
+      // through `dish_relations_symmetric` gives both the outgoing relation
+      // and its symmetric inverse.
+      //
+      // Admins see QUARANTINED rows too (Q4: excluded from the public view
+      // only), with their status and quarantine note so a curator can see
+      // what was pulled and why. That is the `dish_relations_admin` view.
       db
         .select({
-          id: dishRelations.id,
-          relationType: dishRelations.relationType,
-          reason: dishRelations.reason,
-          strength: dishRelations.strength,
-          relatedDishId: dishRelations.toDishId,
-          relatedSlug: sql<string>`(SELECT d2.slug FROM dishes d2 WHERE d2.id = ${dishRelations.toDishId})`,
-          relatedName: sql<string>`(SELECT d2.canonical_name FROM dishes d2 WHERE d2.id = ${dishRelations.toDishId})`,
+          id: dishRelationsAdmin.sourceRowId,
+          relationType: dishRelationsAdmin.relationType,
+          reason: dishRelationsAdmin.reason,
+          strength: dishRelationsAdmin.strength,
+          relationStatus: dishRelationsAdmin.status,
+          quarantineNote: dishRelationsAdmin.quarantineNote,
+          relatedDishId: dishRelationsAdmin.toDishId,
+          relatedSlug: sql<string>`(SELECT d2.slug FROM dishes d2 WHERE d2.id = ${dishRelationsAdmin.toDishId})`,
+          relatedName: sql<string>`(SELECT d2.canonical_name FROM dishes d2 WHERE d2.id = ${dishRelationsAdmin.toDishId})`,
         })
-        .from(dishRelations)
-        .where(eq(dishRelations.fromDishId, dish.id))
-        .orderBy(desc(dishRelations.strength))
+        .from(dishRelationsAdmin)
+        .where(eq(dishRelationsAdmin.fromDishId, dish.id))
+        .orderBy(desc(dishRelationsAdmin.strength))
         .limit(50),
     ]);
 
