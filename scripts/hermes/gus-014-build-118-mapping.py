@@ -50,6 +50,10 @@ VOCAB = {
         "soup", "stew", "casserole", "salad", "sandwich", "pancake", "sauce",
         "dessert", "fried-rice", "pasta", "egg-dish", "breaded-cutlet",
         "fermented-dish", "side-dish", "moussaka", "street-snack",
+        # approved 2026-10-26: a family for dough enclosing a filling,
+        # baked or fried (a dumpling is a boiled/steamed parcel), and a
+        # family for batter-coated or twice-fried items.
+        "filled-pastry", "fritter",
     },
     "dish_cuisine": {
         "indonesian", "japanese", "chinese", "lebanese", "indian", "italian",
@@ -225,114 +229,142 @@ FAMILY_SPECIFICITY = {"stew", "noodle-soup", "rice-dish", "fried-rice"}
 # use the literal form, and the loader also normalises a plain '&' so both
 # spellings resolve.
 PREPARATION_TO_TECHNIQUE = {
-    "Fried \\& topped":           ["frying"],
-    "Stew \\& braise":            ["stewing", "braising"],
-    "Rice bowl":                    ["steaming"],          # rice is steamed
-    "Grilled \\& skewered":       ["grilling", "skewering"],
-    "Noodle soup":                  ["boiling", "simmering"],
-    "Small plates \\& preserves": [],                    # a serving format, not a technique
-    "Bread \\& dough":            ["baking", "kneading"],
-    "Curry":                        ["simmering"],
-    "Steamed \\& custard":        ["steaming"],
-    "Poached in sauce":             ["poaching", "simmering"],
-    "Dumpling":                     ["steaming", "boiling"],
-    "Sweets \\& custard":         ["baking"],
-    "Flatbread":                    ["baking"],
-    "Boiled \\& cured":           ["boiling", "curing"],
-    "Pasta":                        ["boiling"],
+    # The keys use a PLAIN '&'. The live data was fixed by GUS-227 (which
+    # removed a literal backslash), but the mapper must tolerate BOTH
+    # spellings so it works against a pre-GUS-227 snapshot too.
+    "Fried & topped":           ["frying"],
+    "Stew & braise":            ["stewing", "braising"],
+    "Rice bowl":                ["steaming"],          # rice is steamed
+    "Grilled & skewered":       ["grilling", "skewering"],
+    "Noodle soup":              ["boiling", "simmering"],
+    "Small plates & preserves": [],                    # a serving format, not a technique
+    "Bread & dough":            ["baking", "kneading"],
+    "Curry":                    ["simmering"],
+    "Steamed & custard":        ["steaming"],
+    "Poached in sauce":         ["poaching", "simmering"],
+    "Dumpling":                 ["steaming", "boiling"],
+    "Sweets & custard":         ["baking"],
+    "Flatbread":                ["baking"],
+    "Boiled & cured":           ["boiling", "curing"],
+    "Pasta":                    ["boiling"],
     # methods present in the table but not used by any dish:
-    "Baking":                       ["baking"],
-    "Simmering":                    ["simmering"],
-    "Omelettes \\& scrambles":     ["frying"],
+    "Baking":                   ["baking"],
+    "Simmering":                ["simmering"],
+    "Omelettes & scrambles":    ["frying"],
+}
+
+
+# --------------------------------------------------------------------------
+# FAMILY BROADENING (applied and approved 2026-10-26).
+#
+# The rule (Alejandro):
+#   1. NO SINGLETON FAMILIES. A proposed family must have >= 2 member
+#      dishes in the catalog.
+#   2. PROPOSE THE BROADER FAMILY FIRST (asado -> grilled-meat,
+#      empanada -> filled-pastry, falafel -> fritter).
+#   3. ONLY WHERE NOTHING FITS, propose a NEW broad family - a SEPARATE
+#      VOCABULARY DECISION.
+#
+# The decisions as applied: filled-pastry and fritter were approved as new
+# families; grilled-meat was REJECTED (it is technique x ingredient and
+# therefore derivable). The remaining proposals below are the ones that
+# were NOT approved - they stay unset.
+# --------------------------------------------------------------------------
+BROADER_FAMILY_PROPOSALS = {
+    # APPROVED and already written
+    "filled-pastry": ["acaraje", "dolma", "empanada", "samosa", "takoyaki"],
+    "fritter":       ["falafel", "tostones", "tempura", "vada"],
+    # REJECTED - technique x ingredient, derivable from dish_technique
+    "grilled-meat":  ["anticuchos", "asado", "choripan", "lomo-saltado", "poutine"],
+    # APPROVED but already written by the 118-run
+    "soup":          ["bakso", "borscht", "rawon", "sinigang", "soto-ayam", "tom-yum"],
+    "noodle-soup":   ["khao-soi", "laksa", "pho-vietnamese", "ramen-japanese"],
+    "dumpling":      ["manti", "momo", "pierogi"],
+    "stew":          ["adobo-filipino", "kare-kare"],
+    "kebab":         ["doner-kebab", "iskender-kebab", "kofta"],
+    "curry":         ["aloo-gobi", "butter-chicken", "palak-paneer"],
+    "rice-dish":     ["jollof-rice"],
+    "sauce":         ["baba-ganoush", "hummus", "sambal", "mole-poblano"],
+    "pancake":       ["okonomiyaki"],
+    "bread":         ["arepa", "injera", "pide"],
+}
+
+# The new broad families are now in the controlled vocabulary.
+NEW_BROAD_FAMILIES = {"filled-pastry", "fritter"}
+
+# Dishes whose family the broadening rule cannot place - each needs either a
+# new broad family or an explicit decision. These stay unset.
+FAMILY_UNPLACEABLE = {
+    "bubur-ayam": "a porridge, and 'porridge' is not in the controlled vocabulary",
+    "soba": "a noodle dish served dry; there is no 'noodle' family in the vocabulary",
+    "udon": "a noodle dish served dry; there is no 'noodle' family in the vocabulary",
+    "lechon": "a whole-roasted pig - a roast, not a family",
+    "bandeja-paisa": "a platter, not a rice dish",
+    "martabak": "split deferred to GUS-230; until then it has no family",
+    "asado": "a whole-grilled animal; 'barbecue' has only 1 fitting member, below the 2-member rule",
+    "lomo-saltado": "a stir-fry - technique, not a family",
+    "poutine": "fried potatoes under cheese curds - a dish, not a family",
+    "sushi": "a single sushi dish - would be a singleton family",
+    "ceviche-peruvian": "a single ceviche dish - would be a singleton family",
+    "chiles-en-nogada": "no broader family fits",
+    "tarte-tatin": "a single tart dish - would be a singleton family",
+    "tiramisu": "a single tiramisu dish - would be a singleton family",
+    "halo-halo": "a single halo-halo dish - would be a singleton family",
+    "char-siu": "a single char siu dish - would be a singleton family",
+    "peking-duck": "a single peking duck dish - would be a singleton family",
+    "congee": "a single congee dish - would be a singleton family",
+    "chow-mein": "a single chow mein dish - would be a singleton family",
+    "kung-pao-chicken": "a single kung pao dish - would be a singleton family",
+    "shakshuka": "a single shakshuka dish - would be a singleton family",
+    "tamales": "a single tamale dish - would be a singleton family",
+    "bacalhau-a-bras": "a salt cod dish; the 'cod' family would have one member",
+    "menemen": "a single menemen dish - would be a singleton family",
+    "kibbeh": "a single kibbeh dish - would be a singleton family",
+}
+
+
+# --------------------------------------------------------------------------
+# TECHNIQUE FALLBACK - dishes whose preparation method names a SERVING FORMAT
+# rather than a method.
+#
+# Nine dishes carry the preparation 'Small plates & preserves', which is a
+# serving format and maps to no technique - so the preparation alone leaves
+# them with no technique at all. Their own short_description carries the
+# method, so the technique is taken from there.
+#
+# These are EXPLICIT, per dish, from the dish's own description - not
+# keyword-guessed. Each line records the evidence.
+# --------------------------------------------------------------------------
+TECHNIQUE_FROM_DESCRIPTION = {
+    "baba-ganoush": (["roasting"], "fire-roasted eggplant blended with tahini"),
+    "falafel":      (["frying"], "deep-fried balls or patties of ground chickpeas"),
+    "fattoush":     (["frying"], "tossed with toasted or fried pieces of pita"),
+    "gado-gado":    (["blanching", "steaming", "boiling", "frying"],
+                      "blanched and steamed vegetables, hard-boiled egg, fried tofu"),
+    "gazpacho":     ([], "raw blended vegetables - no cooking method"),
+    "hummus":       (["boiling"], "cooked, mashed chickpeas"),
+    "pempek":       (["boiling", "frying"], "boiled, sliced, and fried"),
+    # lechon's technique is set by the broader-family review: a whole-roasted
+    # pig is ROASTED, not skewered, and 'grilling' alone misses the roast.
+    "lechon":       (["roasting", "grilling"], "a festive Filipino whole-roasted pig cooked slowly over charcoal"),
+    "sambal":       ([], "pounded fresh or dried chilies - no cooking method"),
+    "tabbouleh":    ([], "finely chopped herbs and vegetables - no cooking method"),
 }
 
 
 def preparation_techniques(method: str):
-    """Resolve a preparation method to technique values, tolerating the
-    literal-backslash ampersand artifact in the live data."""
+    """Resolve a preparation method to technique values.
+
+    Tolerates the literal-backslash ampersand that GUS-227 removed from
+    the live data, so the mapper works against both a pre-GUS-227
+    snapshot and the current database.
+    """
     if method in PREPARATION_TO_TECHNIQUE:
         return PREPARATION_TO_TECHNIQUE[method]
-    normalised = method.replace("\\\\&", "&")
+    normalised = method.replace("\\\\", "")
     if normalised in PREPARATION_TO_TECHNIQUE:
         return PREPARATION_TO_TECHNIQUE[normalised]
     return None
-
-# `dish_tags` is EMPTY (0 rows) and `dish_ingredients` has only 4 rows, so
-# there is NO tradition signal and almost no ingredient-category signal in
-# the old data. Those two dimensions are left unset for all 118 dishes and
-# reported as a DATA GAP rather than invented from the dish name.
-
-# The technique values the preparation names imply but the vocabulary must
-# contain. If any of these are missing from the live vocabulary they become
-# PROPOSALS (not written) - no extension during the run.
-
-# --------------------------------------------------------------------------
-# FAMILY BROADENING (reported as PROPOSALS, NOT written by default).
-#
-# 43 dishes carry no family-ish old category, so the old data cannot supply
-# one. The rule (Alejandro, 2026-10-26):
-#
-#   1. NO SINGLETON FAMILIES. A proposed family must have >= 2 member
-#      dishes in the catalog. A family with one member is a dish, not a
-#      family.
-#   2. PROPOSE THE BROADER FAMILY FIRST. Map each dish to the broadest
-#      EXISTING family that fits (asado -> grilled-meat, empanada ->
-#      filled-pastry, falafel -> fritter), not to its own name.
-#   3. ONLY WHERE NOTHING FITS, propose a NEW broad family. A new broad
-#      family is a SEPARATE VOCABULARY DECISION and is NOT written during
-#      this run.
-#
-# The proposed families below are therefore the BROAD ones. `member_dishes`
-# is the evidence that the family is not a singleton.
-# --------------------------------------------------------------------------
-BROADER_FAMILY_PROPOSALS = {
-    # existing vocabulary (already in the controlled vocabulary)
-    "soup":          ["bakso", "borscht", "bubur-ayam", "rawon", "sinigang",
-                       "soto-ayam", "tom-yum"],
-    "noodle-soup":   ["khao-soi", "laksa", "pho-vietnamese", "ramen-japanese",
-                       "soba", "udon"],
-    "dumpling":      ["manti", "momo", "pierogi"],
-    "stew":          ["adobo-filipino", "chole-bhature", "kare-kare", "lechon",
-                       "mole-poblano"],
-    "kebab":         ["doner-kebab", "iskender-kebab", "kofta"],
-    "curry":         ["aloo-gobi", "butter-chicken", "palak-paneer"],
-    "rice-dish":     ["bandeja-paisa", "jollof-rice", "nasi-goreng"],
-    "sauce":         ["baba-ganoush", "hummus", "sambal"],
-    "pancake":       ["martabak", "okonomiyaki"],
-    "bread":         ["arepa", "injera", "pide"],
-    # NEW broad families - separate vocabulary decision, NOT written
-    "grilled-meat":  ["anticuchos", "asado", "choripan", "lomo-saltado", "poutine"],
-    "filled-pastry": ["acaraje", "dolma", "empanada", "manti", "martabak",
-                       "pierogi", "samosa", "takoyaki"],
-    "fritter":       ["falafel", "tostones", "tempura", "vada"],
-}
-
-# The new broad families are NOT in the controlled vocabulary, so they can
-# never be written by this run - they are proposals only.
-NEW_BROAD_FAMILIES = {"grilled-meat", "filled-pastry", "fritter"}
-
-# Dishes whose family the broadening rule cannot place. Each needs either a
-# new broad family or an explicit decision.
-FAMILY_UNPLACEABLE = {
-    "sushi": "a single sushi dish - would be a singleton family; needs a new broad family",
-    "ceviche-peruvian": "a single ceviche dish - would be a singleton family; needs a new broad family",
-    "chiles-en-nogada": "no broader family fits; needs a new broad family",
-    "tarte-tatin": "a single tart dish - would be a singleton family; needs a new broad family",
-    "tiramisu": "a single tiramisu dish - would be a singleton family; needs a new broad family",
-    "halo-halo": "a single halo-halo dish - would be a singleton family; needs a new broad family",
-    "char-siu": "a single char siu dish - would be a singleton family; needs a new broad family",
-    "peking-duck": "a single peking duck dish - would be a singleton family; needs a new broad family",
-    "congee": "a single congee dish - would be a singleton family; needs a new broad family",
-    "chow-mein": "a single chow mein dish - would be a singleton family; needs a new broad family",
-    "kung-pao-chicken": "a single kung pao dish - would be a singleton family; needs a new broad family",
-    "shakshuka": "a single shakshuka dish - would be a singleton family; needs a new broad family",
-    "tamales": "a single tamale dish - would be a singleton family; needs a new broad family",
-    "sushi": "a single sushi dish - would be a singleton family; needs a new broad family",
-    "bacalhau-a-bras": "salt cod dish; the 'cod' family would have one member",
-    "menemen": "a single menemen dish - would be a singleton family; needs a new broad family",
-    "kibbeh": "a single kibbeh dish - would be a singleton family; needs a new broad family",
-    "ceviche-peruvian": "a single ceviche dish - would be a singleton family; needs a new broad family",
-}
 
 
 def broaden_family(slug: str) -> str | None:
@@ -597,6 +629,7 @@ def main() -> int:
     nofamily_slugs = []  # dishes with no family from the old data
     old_cats = {}  # slug -> old category names
     decisions = []  # (slug, dim, value, why) - explicit hand decisions
+    desc_technique_evidence = {}  # slug -> the description phrase that gave the technique
     mapping = {}
     stats = collections.Counter()
 
@@ -660,6 +693,26 @@ def main() -> int:
             decisions.append((slug, "dish_family", "soup", "gazpacho is a soup family; its course is appetizer"))
             decisions.append((slug, "dish_course", "appetizer", "gazpacho is a soup family; its course is appetizer"))
             stats["explicit_decisions"] += 1
+
+        # ---- technique from the dish's own description, when the
+        #      preparation names a serving format or does not capture the
+        #      method. This OVERRIDES the preparation-derived value, so a
+        #      review decision is not lost to a generic preparation label.
+        if slug in TECHNIQUE_FROM_DESCRIPTION:
+            techs, evidence = TECHNIQUE_FROM_DESCRIPTION[slug]
+            # REPLACE the preparation-derived value: for these dishes the
+            # preparation either names a serving format or misses the
+            # method, and the description is authoritative.
+            per_dim["dish_technique"] = []
+            for t in techs:
+                if t not in VOCAB["dish_technique"]:
+                    proposals["dish_technique"].add((t, f"description: {evidence}"))
+                    stats["proposed_value_uses"] += 1
+                    continue
+                if t not in per_dim["dish_technique"]:
+                    per_dim["dish_technique"].append(t)
+                    stats["technique_from_description"] += 1
+                    desc_technique_evidence[slug] = evidence
 
         # single-valued dimensions: resolve generic-vs-specific and
         # priority ties. A genuine ambiguity -> UNSET + reported.

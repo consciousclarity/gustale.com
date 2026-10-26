@@ -19,7 +19,7 @@
 | `dish_family` | 87 | 31 |
 | `dish_cuisine` | 100 | 18 |
 | `dish_course` | 113 | 5 |
-| `dish_technique` | 109 | 9 |
+| `dish_technique` | 115 | 3 |
 | `ingredient_category` | 0 | 118 |
 | `dish_tradition` | 0 | 118 |
 | `dish_context` | 10 | 108 |
@@ -96,19 +96,18 @@ These are **proposals for review**. They are NOT written by this run: the three 
 
 | dish | proposed broader family | in vocab? |
 |---|---|---|
-| `acaraje` | `filled-pastry` | **no - new, needs a vocabulary decision** |
+| `acaraje` | `filled-pastry` | yes |
 | `asado` | `grilled-meat` | **no - new, needs a vocabulary decision** |
-| `dolma` | `filled-pastry` | **no - new, needs a vocabulary decision** |
-| `empanada` | `filled-pastry` | **no - new, needs a vocabulary decision** |
-| `falafel` | `fritter` | **no - new, needs a vocabulary decision** |
-| `lechon` | `stew` | yes |
+| `dolma` | `filled-pastry` | yes |
+| `empanada` | `filled-pastry` | yes |
+| `falafel` | `fritter` | yes |
 | `lomo-saltado` | `grilled-meat` | **no - new, needs a vocabulary decision** |
 | `poutine` | `grilled-meat` | **no - new, needs a vocabulary decision** |
-| `samosa` | `filled-pastry` | **no - new, needs a vocabulary decision** |
-| `takoyaki` | `filled-pastry` | **no - new, needs a vocabulary decision** |
-| `tempura` | `fritter` | **no - new, needs a vocabulary decision** |
-| `tostones` | `fritter` | **no - new, needs a vocabulary decision** |
-| `vada` | `fritter` | **no - new, needs a vocabulary decision** |
+| `samosa` | `filled-pastry` | yes |
+| `takoyaki` | `filled-pastry` | yes |
+| `tempura` | `fritter` | yes |
+| `tostones` | `fritter` | yes |
+| `vada` | `fritter` | yes |
 
 ### Member counts (the no-singleton evidence)
 
@@ -117,35 +116,36 @@ These are **proposals for review**. They are NOT written by this run: the three 
 | `bread` | 3 | yes |
 | `curry` | 3 | yes |
 | `dumpling` | 3 | yes |
-| `filled-pastry` | 8 | **no** |
-| `fritter` | 4 | **no** |
+| `filled-pastry` | 5 | yes |
+| `fritter` | 4 | yes |
 | `grilled-meat` | 5 | **no** |
 | `kebab` | 3 | yes |
-| `noodle-soup` | 6 | yes |
-| `pancake` | 2 | yes |
-| `rice-dish` | 3 | yes |
-| `sauce` | 3 | yes |
-| `soup` | 7 | yes |
-| `stew` | 5 | yes |
+| `noodle-soup` | 4 | yes |
+| `pancake` | 1 | yes |
+| `rice-dish` | 1 | yes |
+| `sauce` | 4 | yes |
+| `soup` | 6 | yes |
+| `stew` | 2 | yes |
 
 ### Dishes the rule cannot place (left unset)
 
 | dish | why |
 |---|---|
-| `ceviche-peruvian` | a single ceviche dish - would be a singleton family; needs a new broad family |
-| `char-siu` | a single char siu dish - would be a singleton family; needs a new broad family |
-| `chiles-en-nogada` | no broader family fits; needs a new broad family |
-| `chow-mein` | a single chow mein dish - would be a singleton family; needs a new broad family |
-| `halo-halo` | a single halo-halo dish - would be a singleton family; needs a new broad family |
-| `kibbeh` | a single kibbeh dish - would be a singleton family; needs a new broad family |
-| `kung-pao-chicken` | a single kung pao dish - would be a singleton family; needs a new broad family |
-| `menemen` | a single menemen dish - would be a singleton family; needs a new broad family |
-| `peking-duck` | a single peking duck dish - would be a singleton family; needs a new broad family |
-| `shakshuka` | a single shakshuka dish - would be a singleton family; needs a new broad family |
-| `sushi` | a single sushi dish - would be a singleton family; needs a new broad family |
-| `tamales` | a single tamale dish - would be a singleton family; needs a new broad family |
-| `tarte-tatin` | a single tart dish - would be a singleton family; needs a new broad family |
-| `tiramisu` | a single tiramisu dish - would be a singleton family; needs a new broad family |
+| `ceviche-peruvian` | a single ceviche dish - would be a singleton family |
+| `char-siu` | a single char siu dish - would be a singleton family |
+| `chiles-en-nogada` | no broader family fits |
+| `chow-mein` | a single chow mein dish - would be a singleton family |
+| `halo-halo` | a single halo-halo dish - would be a singleton family |
+| `kibbeh` | a single kibbeh dish - would be a singleton family |
+| `kung-pao-chicken` | a single kung pao dish - would be a singleton family |
+| `lechon` | a whole-roasted pig - a roast, not a family |
+| `menemen` | a single menemen dish - would be a singleton family |
+| `peking-duck` | a single peking duck dish - would be a singleton family |
+| `shakshuka` | a single shakshuka dish - would be a singleton family |
+| `sushi` | a single sushi dish - would be a singleton family |
+| `tamales` | a single tamale dish - would be a singleton family |
+| `tarte-tatin` | a single tart dish - would be a singleton family |
+| `tiramisu` | a single tiramisu dish - would be a singleton family |
 
 ### Remaining dishes with no family and no proposal (left unset)
 
@@ -244,7 +244,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** `sauce`
 - **`dish_cuisine`:** `lebanese`
 - **`dish_course`:** `appetizer`
-- **`dish_technique`:** —
+- **`dish_technique`:** `roasting`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -552,7 +552,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** —
 - **`dish_cuisine`:** `israeli`
 - **`dish_course`:** `appetizer`
-- **`dish_technique`:** —
+- **`dish_technique`:** `frying`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -563,7 +563,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** `salad`
 - **`dish_cuisine`:** `lebanese`
 - **`dish_course`:** `appetizer`
-- **`dish_technique`:** —
+- **`dish_technique`:** `frying`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -596,7 +596,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** `salad`
 - **`dish_cuisine`:** `indonesian`
 - **`dish_course`:** `main-course`
-- **`dish_technique`:** —
+- **`dish_technique`:** `blanching`, `boiling`, `frying`, `steaming`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -684,7 +684,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** `sauce`
 - **`dish_cuisine`:** `israeli`
 - **`dish_course`:** `appetizer`
-- **`dish_technique`:** —
+- **`dish_technique`:** `boiling`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -849,7 +849,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** —
 - **`dish_cuisine`:** `filipino`
 - **`dish_course`:** `main-course`
-- **`dish_technique`:** `grilling`, `skewering`
+- **`dish_technique`:** `grilling`, `roasting`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -1080,7 +1080,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** —
 - **`dish_cuisine`:** `indonesian`
 - **`dish_course`:** `appetizer`
-- **`dish_technique`:** —
+- **`dish_technique`:** `boiling`, `frying`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -1592,7 +1592,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_family": [
       "sauce"
     ],
-    "dish_technique": [],
+    "dish_technique": [
+      "roasting"
+    ],
     "dish_tradition": [],
     "ingredient_category": []
   },
@@ -2059,7 +2061,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
       "israeli"
     ],
     "dish_family": [],
-    "dish_technique": [],
+    "dish_technique": [
+      "frying"
+    ],
     "dish_tradition": [],
     "ingredient_category": []
   },
@@ -2074,7 +2078,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_family": [
       "salad"
     ],
-    "dish_technique": [],
+    "dish_technique": [
+      "frying"
+    ],
     "dish_tradition": [],
     "ingredient_category": []
   },
@@ -2123,7 +2129,12 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_family": [
       "salad"
     ],
-    "dish_technique": [],
+    "dish_technique": [
+      "blanching",
+      "steaming",
+      "boiling",
+      "frying"
+    ],
     "dish_tradition": [],
     "ingredient_category": []
   },
@@ -2250,7 +2261,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_family": [
       "sauce"
     ],
-    "dish_technique": [],
+    "dish_technique": [
+      "boiling"
+    ],
     "dish_tradition": [],
     "ingredient_category": []
   },
@@ -2502,8 +2515,8 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     ],
     "dish_family": [],
     "dish_technique": [
-      "grilling",
-      "skewering"
+      "roasting",
+      "grilling"
     ],
     "dish_tradition": [],
     "ingredient_category": []
@@ -2852,7 +2865,10 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
       "indonesian"
     ],
     "dish_family": [],
-    "dish_technique": [],
+    "dish_technique": [
+      "boiling",
+      "frying"
+    ],
     "dish_tradition": [],
     "ingredient_category": []
   },
