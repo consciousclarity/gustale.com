@@ -283,12 +283,51 @@ Consequences for the live data:
 - `stew` **stays a `dish_family` value** (it is a noun, and it names a family of preparations).
 - **Rendang** → `dish_family = curry`, `dish_technique = braising` (a dry braise), and the `stew` tag is **dropped**.
 
-### Still open (D4–D7)
+### D4 — The dish keeps a description, but the description is *derived*
 
-4. **Does a `Dish` still carry a description**, or does the description become a set of claims? The reference dishes have no long description today, so this can be decided without a migration cost.
-5. **Scope of the first migration**: all 121 dishes, or the three reference dishes first? The latter is cheaper and gives a working example (GUS-025's "migration tools" becomes testable on 3 rows).
-6. **Claim granularity**: one claim per sentence, or one per *assertable fact* (e.g. "originates in Glasgow" is one claim, but the description sentence containing it may also assert "marinated in yoghurt and spices")? The second is more work but is what makes "how much of this is evidenced" meaningful.
-7. **The `dish_context` value set** is proposed above but not yet confirmed against the live dishes — specifically whether `restaurant` and `market` are both needed, or whether they collapse.
+- The `Dish` row still carries a description.
+- **The description is rendered from published claims; the claims are the source of truth.**
+- Live editing of the description is fine (edits create/update the underlying claims).
+- The reference dishes have **empty** `longDescription` today, so this costs nothing to decide now.
+- If the description were the source of truth, every edit would risk silently orphaning claims — the same class of bug as the duplicate `status: todo` keys, and invisible until someone audits.
+
+**Consequence:** "how much of this dish is evidenced?" becomes a query over claim rows, not an impression.
+
+### D5 — `dish_technique` gains `skewering`
+
+`dish_technique` gerunds: **stewing, braising, simmering, grilling, skewering**, plus the existing baking / frying / roasting.
+
+**Consequence for the reference dishes:** `tacos-al-pastor` → `technique = skewering` (it is currently `kebab`, which D3 reclassified as a family). `sate-lilit` and `satay` likewise.
+
+### Still open (D6–D8)
+
+6. **Scope of the first migration**: all 121 dishes, or the three reference dishes first? The latter is cheaper and gives a working example (GUS-025's "migration tools" becomes testable on 3 rows).
+7. **Claim granularity**: one claim per sentence, or one per *assertable fact* (e.g. "originates in Glasgow" is one claim, but the description sentence containing it may also assert "marinated in yoghurt and spices")? The second is more work but is what makes "how much of this is evidenced" meaningful.
+8. **The `dish_context` value set** is proposed above but not yet confirmed against the live dishes — specifically whether `restaurant` and `market` are both needed, or whether they collapse.
+
+---
+
+## 6. Changelog of applied edits
+
+Every decision that changes the model, in order, with the date it was taken. This section is appended to, never rewritten.
+
+| # | Date | Decision | Applied to the model |
+|---|---|---|---|
+| D1 | 2026-10-26 | Seven dimensions | `dish_family`, `dish_cuisine`, `dish_course`, `dish_technique`, `ingredient_category`, `dish_tradition`, `dish_context` |
+| D2 | 2026-10-26 | `street-snack` splits | `dish_course = snack` + `dish_context = street-food`; `dish_context` values: `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market` |
+| D3 | 2026-10-26 | Noun/gerund rule | family = nouns, technique = gerunds. `kebab` + `curry` removed from `dish_technique` (they are families). `stew` stays a `dish_family`. Rendang → family `curry`, technique `braising` (dry braise), `stew` tag dropped |
+| D4 | 2026-10-26 | Description is derived | `dishes.long_description` remains but is rendered from published claims; claims are authoritative. Live description edits allowed (they write through to claims) |
+| D5 | 2026-10-26 | `dish_technique` gains `skewering` | `tacos-al-pastor` → technique `skewering` (was `kebab`); `sate-lilit`, `satay` likewise |
+
+### Live-data consequences of D1–D5 (to apply in the migration)
+
+| Dish | family | cuisine | course | technique | context |
+|---|---|---|---|---|---|
+| `rendang` | curry | indonesian | main-course | braising (dry) | home |
+| `chicken-tikka-masala` | curry | — (disputed: UK / South Asian) | main-course | — | restaurant |
+| `tacos-al-pastor` | kebab | mexican | main-course | skewering | street-food |
+
+Note `chicken-tikka-masala`'s cuisine is **deliberately left unset** — that is the Glasgow dispute, and it must not be resolved by a migration.
 
 ## 6. What this ADR does NOT decide
 
