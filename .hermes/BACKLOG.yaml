@@ -264,13 +264,14 @@ tasks:
     status: in_progress
     depends_on: [GUS-001]
     approval: true
-    notes: "ADR drafted 2026-10-25 (.hermes/REPORTS/ADR-001-canonical-entity-model.md). DOCS ONLY — no migration written, no schema changed. The ADR proposes: split `categories` into typed dimensions (dish_families / dish_cuisines / dish_courses / ingredient_categories / dish_traditions), add a `recipes` subtree, and add `claims` as the evidence atom with `citations.claim_id`. Checked against the three reference dishes."
+    notes: "ADR drafted 2026-10-25 (.hermes/REPORTS/ADR-001-canonical-entity-model.md). DOCS ONLY — no migration written, no schema changed. The ADR proposes: split `categories` into typed dimensions (dish_families / dish_cuisines / dish_courses / ingredient_categories / dish_traditions / dish_contexts), add a `recipes` subtree, and add `claims` as the evidence atom with `citations.claim_id`. Checked against the three reference dishes."
     acceptance:
       - "ADR drafted and reviewed by Alejandro (docs only, no migration yet)"
       - "The ADR maps the current tables to the proposed entity types"
       - "The ADR is checked against the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor)"
       - "Open questions are listed for Alejandro's decision"
     evidence:
+      - "DECISIONS TAKEN 2026-10-26 (Alejandro) — D1 seven dimensions: dish_family, dish_cuisine, dish_course, dish_technique, ingredient_category, dish_tradition, dish_context. D2 street-snack splits into dish_course=snack + dish_context=street-food (context values: street-food, home, festival/ceremonial, restaurant, market); tacos-al-pastor becomes course=main-course, context=street-food. D3 the noun/gerund rule — family = nouns (what it is), technique = gerunds (how it is made); kebab and curry REMOVED from dish_technique (they are families); stew STAYS a dish_family; rendang -> family=curry, technique=braising (dry braise), drop the stew tag."
       - "ADR: .hermes/REPORTS/ADR-001-canonical-entity-model.md (2026-10-25, DRAFT)"
       - "Live-catalog findings that motivate the ADR: 152 categories, only 43 in use, 109 orphans (71.7%); the live set mixes dimensions (course `main-course` 97 dishes + cuisine `indonesian-cuisine` 16 + family `curry` 8 + technique `kebab` 8 in ONE table)"
       - "Reference-dish check (live API 2026-10-25): all three have empty longDescription, ZERO ingredients, ZERO recipe steps, exactly ONE Wikipedia source, no claim-level granularity. rendang has no variants despite strong regional variation; tacos-al-pastor has ZERO dish_relations despite a textbook shawarma lineage and carries main-course + street-snack simultaneously (a dimension the single `categories` join cannot type-check)."

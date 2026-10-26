@@ -256,14 +256,39 @@ lineages     skewered-grilled-meat
 3. Dimensions — split `categories`; the 109 orphans get resolved at the same time.
 4. `dish_traditions`, `dish_variants` enrichment, `historical_events`.
 
-## 5. Open questions for Alejandro
+## 5. Decisions taken (Alejandro, 2026-10-26)
 
-1. **Dimension count.** Seven dimensions (family, cuisine, course, technique, ingredient-category, tradition, format) — or fewer? The reference dishes already strain the model: `tacos-al-pastor` wants both `main-course` and `street-snack`, which are different *kinds* of thing.
-2. **`street-snack` / `appetizer`** — are these courses (eaten at a point in a meal) or formats (how it is served)? This decides whether they need separate dimensions.
-3. **`stew`** — preparation character, technique, or family? Rendang is tagged with it today.
+### D1 — Seven classification dimensions
+
+`dish_family` · `dish_cuisine` · `dish_course` · `dish_technique` · `ingredient_category` · `dish_tradition` · `dish_context`
+
+Five are already forced by the live data; `dish_tradition` is the cultural layer the ROADMAP's entity model needs; `dish_context` was added in D2.
+
+### D2 — `street-snack` splits: course + context
+
+`street-snack` is **not** a course. It becomes:
+- `dish_course = snack`
+- `dish_context = street-food` (one of: `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`)
+
+`tacos-al-pastor` today carries both `main-course` and `street-snack`. In the new model that is `dish_course = main-course`, `dish_context = street-food` — no ambiguity, and the "one value per dimension" rule holds.
+
+### D3 — The noun/gerund rule
+
+> **family = nouns (what it is)**
+> **technique = gerunds (how it's made)**
+
+Consequences for the live data:
+- `dish_technique` values are gerunds: **stewing, braising, simmering, grilling**, and the other existing techniques (`baking`, `frying`, `roasting`, `grilling`).
+- `kebab` and `curry` are **removed from `dish_technique`** — they are families. They were doing double duty as family *and* technique, which is precisely the ambiguity the dimension split exists to kill.
+- `stew` **stays a `dish_family` value** (it is a noun, and it names a family of preparations).
+- **Rendang** → `dish_family = curry`, `dish_technique = braising` (a dry braise), and the `stew` tag is **dropped**.
+
+### Still open (D4–D7)
+
 4. **Does a `Dish` still carry a description**, or does the description become a set of claims? The reference dishes have no long description today, so this can be decided without a migration cost.
 5. **Scope of the first migration**: all 121 dishes, or the three reference dishes first? The latter is cheaper and gives a working example (GUS-025's "migration tools" becomes testable on 3 rows).
 6. **Claim granularity**: one claim per sentence, or one per *assertable fact* (e.g. "originates in Glasgow" is one claim, but the description sentence containing it may also assert "marinated in yoghurt and spices")? The second is more work but is what makes "how much of this is evidenced" meaningful.
+7. **The `dish_context` value set** is proposed above but not yet confirmed against the live dishes — specifically whether `restaurant` and `market` are both needed, or whether they collapse.
 
 ## 6. What this ADR does NOT decide
 
