@@ -195,6 +195,15 @@ def main() -> int:
     # the reverse row must NOT be present (that would be the contradiction)
     rev_bad = any(l.startswith("tacos-al-pastor -> shawarma") for l in rel_lines)
     check("I6", not rev_bad, "the contradicting reverse row is NOT present")
+    # the surviving row must carry the ORIGINAL reason text (not a rewritten
+    # one). The old "both rows carry the same reason" check became vacuous
+    # with a single row, so it is replaced by this: the kept row's reason
+    # must still be the reason the pilot wrote.
+    expected_reason = ("Al pastor derives from Levantine shawarma, "
+                       "adapted in Mexico with achiote and a vertical spit")
+    reasons = {l.split(" | ", 3)[-1] for l in rel_lines}
+    check("I6", reasons == {expected_reason},
+          f"kept row reason is the original pilot reason (got {reasons})")
     # strength 4
     strengths = {l.split(" | ")[2].strip() for l in rel_lines}
     check("I6", strengths == {"4"}, f"strengths: {strengths}")
