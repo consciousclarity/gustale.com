@@ -288,76 +288,110 @@ export function registerAdminDishRoutes(app: FastifyInstance): void {
     }
     const dish = dishRows[0]!;
 
-    const [ingredientRows, prepRows, catRows, relatedRows] = await Promise.all([
-      // dish_ingredients is a junction table (no id column). Returns one
-      // row per (dishId, ingredientId) pair, ordered by `position`.
-      db
-        .select({
-          ingredientId: dishIngredients.ingredientId,
-          ingredientName: ingredients.canonicalName,
-          quantity: dishIngredients.quantity,
-          unit: dishIngredients.unit,
-          isOptional: dishIngredients.isOptional,
-          preparationNote: dishIngredients.preparationNote,
-          position: dishIngredients.position,
-        })
-        .from(dishIngredients)
-        .leftJoin(ingredients, eq(ingredients.id, dishIngredients.ingredientId))
-        .where(eq(dishIngredients.dishId, dish.id))
-        .orderBy(asc(dishIngredients.position)),
-      db
-        .select({
-          id: dishPreparations.id,
-          methodId: dishPreparations.methodId,
-          methodName: preparationMethods.name,
-          methodSlug: preparationMethods.slug,
-          sequenceOrder: dishPreparations.sequenceOrder,
-        })
-        .from(dishPreparations)
-        .leftJoin(
-          preparationMethods,
-          eq(preparationMethods.id, dishPreparations.methodId),
-        )
-        .where(eq(dishPreparations.dishId, dish.id))
-        .orderBy(asc(dishPreparations.sequenceOrder)),
-      // dish_categories is also a junction table (no id). One row per
-      // (dishId, categoryId) pair.
-      db
-        .select({
-          categoryId: dishCategories.categoryId,
-          categoryName: categories.name,
-          categorySlug: categories.slug,
-        })
-        .from(dishCategories)
-        .leftJoin(categories, eq(categories.id, dishCategories.categoryId))
-        .where(eq(dishCategories.dishId, dish.id)),
-      // Related dishes via dish_relations.
-      //
-      // GUS-224 Option B: `dish_relations` holds ONE directed row per
-      // relation; the inverse is derived for SYMMETRIC types only. Reading
-      // through `dish_relations_symmetric` gives both the outgoing relation
-      // and its symmetric inverse.
-      //
-      // Admins see QUARANTINED rows too (Q4: excluded from the public view
-      // only), with their status and quarantine note so a curator can see
-      // what was pulled and why. That is the `dish_relations_admin` view.
-      db
-        .select({
-          id: dishRelationsAdmin.sourceRowId,
-          relationType: dishRelationsAdmin.relationType,
-          reason: dishRelationsAdmin.reason,
-          strength: dishRelationsAdmin.strength,
-          relationStatus: dishRelationsAdmin.status,
-          quarantineNote: dishRelationsAdmin.quarantineNote,
-          relatedDishId: dishRelationsAdmin.toDishId,
-          relatedSlug: sql<string>`(SELECT d2.slug FROM dishes d2 WHERE d2.id = ${dishRelationsAdmin.toDishId})`,
-          relatedName: sql<string>`(SELECT d2.canonical_name FROM dishes d2 WHERE d2.id = ${dishRelationsAdmin.toDishId})`,
-        })
-        .from(dishRelationsAdmin)
-        .where(eq(dishRelationsAdmin.fromDishId, dish.id))
-        .orderBy(desc(dishRelationsAdmin.strength))
-        .limit(50),
-    ]);
+    const [ingredientRows, prepRows, catRows, relatedRowsRaw] =
+      await Promise.all([
+        // dish_ingredients is a junction table (no id column). Returns one
+        // row per (dishId, ingredientId) pair, ordered by `position`.
+        db
+          .select({
+            ingredientId: dishIngredients.ingredientId,
+            ingredientName: ingredients.canonicalName,
+            quantity: dishIngredients.quantity,
+            unit: dishIngredients.unit,
+            isOptional: dishIngredients.isOptional,
+            preparationNote: dishIngredients.preparationNote,
+            position: dishIngredients.position,
+          })
+          .from(dishIngredients)
+          .leftJoin(
+            ingredients,
+            eq(ingredients.id, dishIngredients.ingredientId),
+          )
+          .where(eq(dishIngredients.dishId, dish.id))
+          .orderBy(asc(dishIngredients.position)),
+        db
+          .select({
+            id: dishPreparations.id,
+            methodId: dishPreparations.methodId,
+            methodName: preparationMethods.name,
+            methodSlug: preparationMethods.slug,
+            sequenceOrder: dishPreparations.sequenceOrder,
+          })
+          .from(dishPreparations)
+          .leftJoin(
+            preparationMethods,
+            eq(preparationMethods.id, dishPreparations.methodId),
+          )
+          .where(eq(dishPreparations.dishId, dish.id))
+          .orderBy(asc(dishPreparations.sequenceOrder)),
+        // dish_categories is also a junction table (no id). One row per
+        // (dishId, categoryId) pair.
+        db
+          .select({
+            categoryId: dishCategories.categoryId,
+            categoryName: categories.name,
+            categorySlug: categories.slug,
+          })
+          .from(dishCategories)
+          .leftJoin(categories, eq(categories.id, dishCategories.categoryId))
+          .where(eq(dishCategories.dishId, dish.id)),
+        // Related dishes via dish_relations.
+        //
+        // GUS-224 Option B: `dish_relations` holds ONE directed row per
+        // relation; the inverse is derived for SYMMETRIC types only. Reading
+        // through `dish_relations_symmetric` gives both the outgoing relation
+        // and its symmetric inverse.
+        //
+        // Admins see QUARANTINED rows too (Q4: excluded from the public view
+        // only), with their status and quarantine note so a curator can see
+        // what was pulled and why. That is the `dish_relations_admin` view.
+        db
+          // DISTINCT ON the source row: the view emits a symmetric relation
+          // twice (the row and its inverse) and both match the WHERE clause
+          // below. De-duplicating keeps each relation once, in its true
+          // direction.
+          .select({
+            id: dishRelationsAdmin.sourceRowId,
+            relationType: dishRelationsAdmin.relationType,
+            reason: dishRelationsAdmin.reason,
+            strength: dishRelationsAdmin.strength,
+            relationStatus: dishRelationsAdmin.status,
+            quarantineNote: dishRelationsAdmin.quarantineNote,
+            // The OTHER end of the relation, whichever way it points.
+            relatedDishId: sql<string>`CASE WHEN ${dishRelationsAdmin.fromDishId} = ${dish.id}
+                                          THEN ${dishRelationsAdmin.toDishId}
+                                          ELSE ${dishRelationsAdmin.fromDishId} END`,
+            relatedSlug: sql<string>`(SELECT d2.slug FROM dishes d2 WHERE d2.id =
+            CASE WHEN ${dishRelationsAdmin.fromDishId} = ${dish.id}
+                 THEN ${dishRelationsAdmin.toDishId} ELSE ${dishRelationsAdmin.fromDishId} END)`,
+            relatedName: sql<string>`(SELECT d2.canonical_name FROM dishes d2 WHERE d2.id =
+            CASE WHEN ${dishRelationsAdmin.fromDishId} = ${dish.id}
+                 THEN ${dishRelationsAdmin.toDishId} ELSE ${dishRelationsAdmin.fromDishId} END)`,
+          })
+          .from(dishRelationsAdmin)
+          // A relation may point AT this dish or FROM it. Under Option B
+          // there is ONE directed row per relation, so both ends must be
+          // considered.
+          .where(
+            or(
+              eq(dishRelationsAdmin.fromDishId, dish.id),
+              eq(dishRelationsAdmin.toDishId, dish.id),
+            ),
+          )
+          .orderBy(desc(dishRelationsAdmin.strength))
+          .limit(50),
+      ]);
+
+    // De-duplicate by source relation row: the view emits a SYMMETRIC
+    // relation twice (the row and its inverse) and both match the WHERE
+    // clause. A DIRECTIONAL relation arrives once - its inverse is
+    // deliberately not emitted.
+    const seenRelationRows = new Set<string>();
+    const relatedRows = relatedRowsRaw.filter((r) => {
+      if (seenRelationRows.has(r.id)) return false;
+      seenRelationRows.add(r.id);
+      return true;
+    });
 
     return reply.send({
       id: dish.id,

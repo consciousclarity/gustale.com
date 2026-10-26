@@ -770,12 +770,18 @@ export function registerDishRoutes(app: FastifyInstance): void {
     // A directional type (ancestor, diaspora) therefore appears exactly once,
     // in its true direction - never mirrored.
     const rows = await db
+      // DISTINCT ON the source row: the view emits a symmetric relation
+      // twice (the row and its inverse) and both match the WHERE clause
+      // below. De-duplicating on the source row id keeps each relation
+      // once, in its true direction.
       .select({
         relationId: sql<string>`${dishRelationsPublic.sourceRowId}`,
         relationType: sql<string>`${dishRelationsPublic.relationType}`,
         reason: dishRelationsPublic.reason,
         strength: dishRelationsPublic.strength,
-        toDishId: dishes.id,
+        toDishId: sql<string>`CASE WHEN ${dishRelationsPublic.fromDishId} = ${sourceId}
+                                    THEN ${dishRelationsPublic.toDishId}
+                                    ELSE ${dishRelationsPublic.fromDishId} END`,
         toDishSlug: dishes.slug,
         toDishName: dishes.canonicalName,
         toDishShortDescription: dishes.shortDescription,
@@ -785,7 +791,19 @@ export function registerDishRoutes(app: FastifyInstance): void {
         toCuisineName: categories.name,
       })
       .from(dishRelationsPublic)
-      .innerJoin(dishes, eq(dishRelationsPublic.toDishId, dishes.id))
+      // `toDishId` in the view is the OTHER end of the relation relative
+      // to the requested dish: the view's `to_dish_id` when the relation
+      // points away from the source, and its `from_dish_id` when it points
+      // at the source. `relatedDishId` is resolved with the same CASE.
+      .innerJoin(
+        dishes,
+        eq(
+          dishes.id,
+          sql`CASE WHEN ${dishRelationsPublic.fromDishId} = ${sourceId}
+                   THEN ${dishRelationsPublic.toDishId}
+                   ELSE ${dishRelationsPublic.fromDishId} END`,
+        ),
+      )
       .leftJoin(geoEntities, eq(dishes.originGeoId, geoEntities.id))
       // Only the primary cuisine category — secondary dish-types would
       // muddy the "what cuisine is this?" answer the UI needs.
@@ -797,9 +815,24 @@ export function registerDishRoutes(app: FastifyInstance): void {
         ),
       )
       .leftJoin(categories, eq(dishCategories.categoryId, categories.id))
+      // The relation may point AT this dish (the descendant side of an
+      // 'ancestor' relation) or FROM it. The old storage kept both
+      // directions as separate rows, so querying only `from_dish_id`
+      // worked. Under Option B there is ONE directed row per relation, so
+      // the query must consider both ends.
+      //
+      // The view emits the inverse ONLY for symmetric types, so a
+      // directional relation appears exactly once — in its true
+      // direction. For a SYMMETRIC type the view emits both the row and
+      // its inverse, and both match this query, so the result is
+      // de-duplicated by `source_row_id` (DISTINCT ON). The relation is
+      // reported once, with `relatedDishId` = the other end.
       .where(
         and(
-          eq(dishRelationsPublic.fromDishId, sourceId),
+          or(
+            eq(dishRelationsPublic.fromDishId, sourceId),
+            eq(dishRelationsPublic.toDishId, sourceId),
+          ),
           eq(dishes.status, "published"),
         ),
       )
@@ -821,8 +854,18 @@ export function registerDishRoutes(app: FastifyInstance): void {
       strength: number;
     };
 
+    // De-duplicate by source relation row. The view emits a SYMMETRIC
+    // relation twice (the row and its inverse) and both match the WHERE
+    // clause above, so the same relation can arrive twice. A DIRECTIONAL
+    // relation arrives once - its inverse is deliberately not emitted.
+    //
+    // The relation set per dish is tiny (<= ~12 rows), so an in-memory
+    // de-duplication is simpler and clearer than a DISTINCT ON subquery.
+    const seenRelations = new Set<string>();
     const grouped: Record<string, RelatedRow[]> = {};
     for (const r of rows) {
+      if (seenRelations.has(r.relationId)) continue;
+      seenRelations.add(r.relationId);
       const bucket = grouped[r.relationType] ?? [];
       bucket.push({
         slug: r.toDishSlug,
