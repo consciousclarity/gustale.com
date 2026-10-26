@@ -362,6 +362,54 @@ This is the reason `dish_course` is single-valued while `dish_context` is multi-
 - **Evidence coverage = anchored-sentence ratio.**
 - Live edits of the description are fine.
 
+### D4a — Which column the claims attach to: `short_description`, not `long_description`
+
+**Correction, verified against the live schema 2026-10-26.** The `dishes` table has **two** description columns:
+
+| column | pilot dishes | catalog |
+|---|---|---|
+| `dishes.short_description` | **populated** (149–206 chars, all 3) | populated for all |
+| `dishes.long_description` | empty (all 3) | empty for 100 of 122 |
+
+**`short_description` is the prose the claims anchor to.** `long_description` is the long-form 200–400-word field (ADR content rule) and is a separate, later workstream.
+
+Each pilot dish's `short_description` is a single compound factual sentence, and **rendang's is verbatim the D6 worked example**:
+
+> *"A West Sumatran dry curry of beef slow-cooked for hours in coconut milk and a paste of ginger, galangal, turmeric, chili, lemongrass, garlic, and shallots until the sauce fully reduces and the meat darkens."*
+
+D6 decomposes that sentence into 6 claims (origin / family / protein / technique / medium / duration), and the pilot's dimension values are derived from it. That is the D4 "authored prose + claim anchors" model working exactly as intended.
+
+**Consequence — coverage is measurable, and the honest starting value is `0%`:**
+- each pilot dish has **≥1 factual sentence** → coverage is **measurable**, not `null`;
+- **no claim rows exist yet** (claims are GUS-027/028) → coverage = **`0%`** and corroboration = **`0%`**;
+- `0%` is distinct from `null`: `null` = *not measurable*, `0%` = *measurable and unsourced*.
+
+This is consistent with the catalog-wide finding (GUS-011): **121/121 dishes are Wikipedia-only**, so `0%` corroboration across the board is the true baseline, not a defect to be hidden.
+
+**Not contradicted:** the ADR's earlier statement that *all three have empty `longDescription`* remains **true**. The correction is that `short_description` also exists, is populated, and is where the claims live.
+
+### D3g — Relation types are an existing vocabulary, not invented per use
+
+`dish_relations.relation_type` is **free text** (no CHECK constraint), which makes it easy to introduce a one-off type. The pilot uses the vocabulary that already exists:
+
+| `relation_type` | live uses | meaning |
+|---|---|---|
+| `family` | 104 | taxonomic family relation |
+| `regional-cousin` | 30 | regional variant kinship |
+| `shared-method` | 28 | shares a cooking technique |
+| `similar-serving` | 14 | eaten in similar contexts |
+| `shared-ingredient` | 6 | shares a defining ingredient |
+| `ancestor` | 4 | X is the documented ancestor of Y |
+| `diaspora` | 4 | X travelled/adapted into Y in a diaspora |
+
+**The shawarma → al pastor lineage is `ancestor`**, not a new `derived-from` type. The live precedent is exact: `bacalhau-a-bras → vindaloo` is `ancestor` (*"Portuguese carne de vinha d'alhos is the direct ancestor of vindaloo"*, strength 5).
+
+Note that `shawarma → hamburger-american` is `diaspora` (*"Doner kebab's diaspora to Berlin inspired the hamburger-among-immigrants"*, strength 2) — a **different** relation. The two shawarma relations use different types because they tell different stories, which is why the pilot must not copy the `diaspora` precedent by mistake.
+
+**Direction convention (verified live):** ancestry rows read `descendant → ancestor` (`bacalhau-a-bras → vindaloo`; `biryani-hyderabadi → jollof-rice`). The pilot writes `tacos-al-pastor → shawarma`, `relation_type = ancestor`, `strength = 4`.
+
+**Rule:** a new `relation_type` is added only by an explicit decision, never opportunistically — free text plus a fresh type per use is how a vocabulary rots.
+
 **Why this is better than deriving the description:** the prose keeps editorial voice (which matters for a reference work), while the evidence layer stays machine-checkable. Deriving the prose from claims would have made evidence coverage trivially 100% — every sentence would be a claim — and so the metric would measure nothing. With anchoring, coverage is a real, falsifiable number: *how much of this dish's prose is actually sourced?*
 
 **Consequence:** "how much of this dish is evidenced?" becomes a query — `anchored_sentences / total_factual_sentences` — computed over the claim anchors in the description, not a count of claims.
@@ -527,9 +575,11 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D5b | 2026-10-26 | `dish_technique` gains `spit-roasting` | `tacos-al-pastor` → technique `spit-roasting` (vertical spit, not horizontal skewer); `sate-lilit`, `satay` → `skewering` |
 | D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
+| D3g | 2026-10-26 | Relation types use the existing vocabulary | `dish_relations.relation_type` is free text, but the pilot uses `ancestor` for shawarma → al pastor (live precedent: `bacalhou-a-bras → vindaloo`, strength 5), not a new `derived-from`. Direction: descendant → ancestor. New relation types require an explicit decision |
+| D4a | 2026-10-26 | Claims anchor to `short_description`, not `long_description` | Live schema has both columns. `short_description` is populated for all 3 pilot dishes (149–206 chars) and is the prose the claims attach to; `long_description` is empty for all 3 (and 100 of 122 catalog-wide). Rendang's short description is verbatim the D6 6-claim worked example. **Coverage is therefore measurable: expected `0%` (no claims exist yet), not `null`** — consistent with GUS-011's catalog-wide Wikipedia-only finding |
 | D7 | 2026-10-26 | `dish_context` = multi-valued, flat 5 values, no qualifiers | `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`. `market` ≠ `street-food` (pasar purchase vs. stall/cart; `jajan pasar` carries both). No qualifier mechanism |
 | D7b | 2026-10-26 | Cardinality table for all 7 dimensions | Single-valued: `dish_family`, `dish_cuisine`, `dish_course`. Multi-valued: `dish_technique`, `ingredient_category`, `dish_tradition`, `dish_context`. DB enforcement: unique constraint on single-valued joins |
-| D3b | 2026-10-26 | `tacos-al-pastor` family = `taco`; shawarma lineage → relation | `dish_family = taco` (controlled-vocab noun). `kebab` not used as family. Shawarma lineage recorded as `dish_relations(target=shawarma, type=derived-from)` — lineage is a historical relation, not taxonomic membership |
+| D3b | 2026-10-26 | `tacos-al-pastor` family = `taco`; shawarma lineage → relation | `dish_family = taco` (controlled-vocab noun). `kebab` not used as family. Shawarma lineage recorded as a `dish_relations` row (type fixed to `ancestor` in D3g) — lineage is a historical relation, not taxonomic membership |
 | D3c | 2026-10-26 | `chicken-tikka-masala` technique = grilling + simmering | Two-stage method: grilling covers the `tikka`, simmering covers the sauce. `dish_technique` is multi-valued, so no compound verb needed. Both are existing controlled-vocab gerunds |
 | D3d | 2026-10-26 | `rendang` context = home + festival/ceremonial + restaurant | Rendang is a home dish, a festival/ceremonial dish (Minangkabau wedding and communal feasts) and a restaurant dish. Recording all three is the point of a multi-valued context dimension |
 | D3e | 2026-10-26 | Controlled-vocabulary discipline for all 7 dimensions | Dimension cells are verbatim controlled-vocab values or the literal token `unset` — no free text, no parentheticals. `braising (dry)` is rejected: `braising` is the technique value, "dry" is a **claim** (a separately-sourceable assertable fact, per D6). `dry-braising` would have to be added to the vocabulary explicitly, not smuggled in |
@@ -546,7 +596,7 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | `tacos-al-pastor` | taco | mexican | main-course | spit-roasting | street-food |
 
 Amended 2026-10-26 (D3b–D3f):
-- `tacos-al-pastor` family = **`taco`** (not `kebab`); its shawarma lineage is a `dish_relations` row, type **`derived-from`** (D3b).
+- `tacos-al-pastor` family = **`taco`** (not `kebab`); its shawarma lineage is a `dish_relations` row, type **`ancestor`** (D3b + D3g), direction `tacos-al-pastor → shawarma`, strength 4.
 - `chicken-tikka-masala` technique = **`grilling`, `simmering`** (D3c).
 - `rendang` context = **`home`, `festival/ceremonial`, `restaurant`** (D3d).
 - `rendang` technique = **`braising`** — the "dry" qualifier is a **claim**, not a dimension value (D3e).

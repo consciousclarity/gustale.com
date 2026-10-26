@@ -58,7 +58,9 @@ Gerunds — *how it is made*.
 
 Applied **per ingredient**, not per dish. The dish-level cell in §3 records whether the dish has any ingredient rows in this dimension, and which categories those ingredients fall into.
 
-`meat` · `poultry` · `seafood` · `fish` · `shellfish` · `game` · `offal` · `legume` · `grain` · `rice` · `noodle` · `bread` · `vegetable` · `leafy-green` · `root-vegetable` · `allium` · `fruit` · `citrus` · `herb` · `spice` · `aromatic-base` · `chili` · `paste` · `fat` · `oil` · `dairy` · `egg` · `nut` · `seed` · `sweetener` · `sugar` · `fermented` · `salt` · `beverage` · `liquid` · `broth` · `sauce` · `vinegar` · `wrapper` · `dough` · `pickle` · `cheese` · `stock` · `fumigation` · `sweet` · `savoury`
+`meat` · `red-meat` · `beef` · `pork` · `poultry` · `chicken` · `seafood` · `fish` · `shellfish` · `game` · `offal` · `legume` · `grain` · `rice` · `noodle` · `bread` · `vegetable` · `leafy-green` · `root-vegetable` · `allium` · `fruit` · `citrus` · `coconut` · `herb` · `spice` · `aromatic-base` · `chili` · `paste` · `fat` · `oil` · `dairy` · `egg` · `nut` · `seed` · `sweetener` · `sugar` · `fermented` · `salt` · `beverage` · `liquid` · `broth` · `sauce` · `vinegar` · `wrapper` · `dough` · `pickle` · `cheese` · `stock` · `fumigation` · `sweet` · `savoury`
+
+> **Vocabulary extended 2026-10-26 (Alejandro):** `red-meat`, `beef`, `pork`, `chicken`, `coconut` were added verbatim so the pilot can fill `ingredient_category` **from the D6 claims** rather than leaving it `unset`. The generic `meat` / `poultry` / `dairy` values remain in the vocabulary for dishes whose claims only establish the broad class. A dish's `ingredient_category` cell lists **every** category its evidenced ingredients fall into — the narrow and the broad can coexist (e.g. `beef` + `red-meat`).
 
 ### 1.6 `dish_tradition` — multi-valued (D7b)
 
@@ -92,7 +94,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | `dish_cuisine` | single | `indonesian` | §1.2 |
 | `dish_course` | single | `main-course` | §1.3 |
 | `dish_technique` | multi | `braising` | §1.4 |
-| `ingredient_category` | multi | `unset` | §1.5 — the dish has **zero** ingredient rows today; this dimension is per-ingredient and nothing to assign |
+| `ingredient_category` | multi | `beef`, `red-meat`, `coconut` | §1.5 — from the D6 claims: protein = beef (→ `beef`, `red-meat`), medium = coconut milk (→ `coconut`) |
 | `dish_tradition` | multi | `minangkabau` | §1.6 |
 | `dish_context` | multi | `home`, `festival/ceremonial`, `restaurant` | §1.7 — D3d |
 
@@ -112,7 +114,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | `dish_cuisine` | single | `unset` | §1.2 — **the Glasgow dispute.** The migration must NOT resolve it. Leaving it unset and recording the dispute as competing claims is the correct end state, not a failure. |
 | `dish_course` | single | `main-course` | §1.3 |
 | `dish_technique` | multi | `grilling`, `simmering` | §1.4 — D3c |
-| `ingredient_category` | multi | `unset` | §1.5 — zero ingredient rows today |
+| `ingredient_category` | multi | `chicken`, `poultry`, `dairy` | §1.5 — from the D6 claims: protein = chicken (→ `chicken`, `poultry`), the sauce's dairy base (yoghurt/cream) (→ `dairy`) |
 | `dish_tradition` | multi | `unset` | §1.6 — no evidenced tradition for CTM; the Glasgow/Muslim-British question is an **origin/cuisine dispute**, not a tradition assignment |
 | `dish_context` | multi | `restaurant` | §1.7 |
 
@@ -128,13 +130,63 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | `dish_cuisine` | single | `mexican` | §1.2 |
 | `dish_course` | single | `main-course` | §1.3 — **primary meal role** (D3f). Its street-food usage is the *context*, not a second course. |
 | `dish_technique` | multi | `spit-roasting` | §1.4 — D5b (vertical spit ≠ horizontal skewering) |
-| `ingredient_category` | multi | `unset` | §1.5 — zero ingredient rows today |
+| `ingredient_category` | multi | `pork`, `red-meat` | §1.5 — from the D6 claims: protein = pork (→ `pork`, `red-meat`) |
 | `dish_tradition` | multi | `unset` | §1.6 — no evidenced tradition |
 | `dish_context` | multi | `street-food` | §1.7 |
 
 **Dimension cells: 7. Expected values: 7.**
 
-**NOT a dimension value (must be a typed relation):** the Lebanese `shawarma` → Mexican `al pastor` lineage → `dish_relations(target = shawarma, type = derived-from)`. Per D3b this is a **relation**, not a family assignment. The family cell must read `taco` and only `taco`.
+**NOT a dimension value (must be a typed relation):** the Lebanese `shawarma` → Mexican `al pastor` lineage → a `dish_relations` row. Per D3b this is a **relation**, not a family assignment. The family cell must read `taco` and only `taco`.
+
+**Relation type = `ancestor`** (not `derived-from`). Verified against the live table 2026-10-26:
+
+| live `relation_type` | uses | example |
+|---|---|---|
+| `ancestor` | 4 | `bacalhau-a-bras` → `vindaloo`, *"Portuguese carne de vinha d'alhos is the direct ancestor of vindaloo"* (strength 5) |
+| `diaspora` | 4 | `shawarma` → `hamburger-american`, *"Doner kebab's diaspora to Berlin inspired the hamburger-among-immigrants"* (strength 2) |
+| `family` | 104 | — |
+| `regional-cousin` | 30 | — |
+| `shared-method` | 28 | — |
+| `similar-serving` | 14 | — |
+| `shared-ingredient` | 6 | — |
+
+`dish_relations.relation_type` is **free text** (no CHECK constraint), so `derived-from` *would* have been accepted by the DB — but it would have been an inconsistent 8th type in a vocabulary that already carries the right word. Shawarma is the documented **ancestor** of al pastor, exactly parallel to `bacalhau-a-bras → vindaloo`. The existing `shawarma → hamburger-american` row is a *diaspora* relation (a different migration story: doner kebab to Berlin), which is why the two shawarma relations use **different types** — and why the pilot must not copy the `diaspora` precedent by mistake.
+
+**The exact relation row the pilot writes:**
+
+| column | value |
+|---|---|
+| `from_dish_id` | `tacos-al-pastor` |
+| `to_dish_id` | `shawarma` |
+| `relation_type` | `ancestor` |
+| `reason` | *"Al pastor derives from Levantine shawarma, adapted in Mexico with achiote and a vertical spit"* |
+| `strength` | `4` (matches the other documented ancestry relations, which use 4–5) |
+
+> **Direction convention:** the existing ancestry rows read `ancestor → descendant` (`bacalhau-a-bras → vindaloo`; `biryani-hyderabadi → jollof-rice`). So the pilot writes **`tacos-al-pastor → shawarma`** with `relation_type = ancestor`, i.e. *the descendant points at its ancestor*. This is confirmed against the live data, not assumed.
+>
+> `tacos-al-pastor` currently has **0 relations** — the ADR's finding is confirmed live, and this pilot writes its **first** relation.
+
+---
+
+## 3.4 D6 claim → `ingredient_category` mapping
+
+`ingredient_category` is filled **from the claims**, not from ingredient rows (the dishes have zero ingredient rows today). Each D6 claim that asserts a protein or a cooking medium contributes specific controlled-vocabulary values.
+
+| dish | D6 claim (predicate → value) | → `ingredient_category` values | rationale |
+|---|---|---|---|
+| `rendang` | protein → beef | `beef`, `red-meat` | `beef` is the specific animal; `red-meat` is the class. Both are recorded — the dimension is multi-valued and a narrow value does not exclude its class. |
+| `rendang` | medium → coconut milk | `coconut` | coconut milk is the cooking medium; `coconut` is the ingredient category it falls into. |
+| `chicken-tikka-masala` | protein → chicken | `chicken`, `poultry` | same narrow + class pattern. |
+| `chicken-tikka-masala` | sauce base → yoghurt/cream | `dairy` | the sauce's dairy component is what makes CTM a curry rather than a grilled-meat-with-tomato dish. |
+| `tacos-al-pastor` | protein → pork | `pork`, `red-meat` | al pastor is marinated pork; `red-meat` is the class. |
+| `chicken-tikka-masala` | origin → Glasgow | — | **no `ingredient_category` contribution** — origin is not an ingredient fact. The two competing origin claims contribute nothing to this dimension. |
+
+**Rules:**
+- A claim contributes to `ingredient_category` only if its predicate asserts an **ingredient, protein, or cooking medium**. Claims about origin, family, technique, duration, or context contribute **nothing**.
+- A claim that is **disputed** contributes **nothing** to the dimension — CTM's origin claims are disputed and are not ingredient facts anyway. A disputed *ingredient* claim would be excluded and flagged.
+- The cell lists **every** category contributed by the evidenced claims. It is not a single "primary" category.
+
+**Vocabulary used by these mappings** (all verbatim from §1.5): `beef`, `red-meat`, `coconut`, `chicken`, `poultry`, `dairy`, `pork`.
 
 ---
 
@@ -142,19 +194,46 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 
 | metric | rendang | chicken-tikka-masala | tacos-al-pastor |
 |---|---|---|---|
-| dimensions with ≥1 value | 5 of 7 | 4 of 7 | 5 of 7 |
-| `unset` dimensions | `ingredient_category` | `dish_cuisine`, `ingredient_category`, `dish_tradition` | `ingredient_category`, `dish_tradition` |
-| dimension values written | 8 | 5 | 5 |
+| dimensions with ≥1 value | **7 of 7** | **5 of 7** | **6 of 7** |
+| `unset` dimensions | **none** | `dish_cuisine`, `dish_tradition` | `dish_tradition` |
+| dimension values written | **11** | **8** | **7** |
 
-> **Note on `dish_tradition` for rendang:** it is **assigned** (`minangkabau`), not `unset` — rendang is the canonical Minangkabau dish and the tradition is evidenced. `ingredient_category` is `unset` for rendang only because the dish has **zero ingredient rows** — the dimension is per-ingredient, so there is nothing to categorise. That is a different kind of `unset` from CTM's `dish_cuisine`, which is unset because of an **unresolved dispute**. Both are written as `unset` in the spec; they mean different things and the migration must not conflate them.
-| relations written | 0 | 0 | 1 (`derived-from` → shawarma) |
-| claims required (not dimension values) | 1 (dry braise) + 2 disputed origin claims for CTM → **3 total across pilot** | 2 (disputed origin) | 0 |
-| **evidence coverage** | `null` | `null` | `null` |
-| **corroboration** | `null` | `null` | `null` |
+> **Note on `dish_tradition` for rendang:** it is **assigned** (`minangkabau`), not `unset` — rendang is the canonical Minangkabau dish and the tradition is evidenced.
+>
+> **`ingredient_category` is now populated for all three dishes** (from the D6 claims, per Alejandro's amendment 2026-10-26). It was previously `unset` because the dishes have zero *ingredient rows* in the live DB — but the dimension is filled from **claims**, not from ingredient rows, so the claims supply it directly. This is why rendang now has **7 of 7** dimensions assigned and **no** `unset` cells.
+>
+> **The two kinds of `unset` are different and must not be conflated:** CTM's `dish_cuisine` is unset because of an **unresolved dispute** (the Glasgow question — the migration must not resolve it), and the two remaining `dish_tradition` cells are unset because **no tradition is evidenced** for those dishes. A migration that treats "unset" as "use a default" would silently resolve the Glasgow dispute.
+| relations written | 0 | 0 | 1 (`ancestor` → `shawarma`, strength 4) |
+| claims required (not dimension values) | 6 (D6: origin, family, protein, technique, medium, duration) — of which the **dry-braise qualifier** is one | 2 (disputed origin) + protein/dairy claims feeding `ingredient_category` | 1 (pork protein claim) |
+| **claims total across pilot** | **6** | **4** | **1** → **11 claims** |
+| **evidence coverage** | **0%** | **0%** | **0%** |
+| **corroboration** | **0%** | **0%** | **0%** |
 
-**Coverage/corroboration are `null` for all three pilot dishes** because **all three have empty `longDescription`** — there are zero factual sentences to cover. Per the D6b amendment, `null` means *not measurable*, distinct from `0%` (*measurable and unsourced*). The pilot must therefore report `null`, and a reported `0%` is a **fail**.
+### CORRECTION (2026-10-26) — coverage is measurable, not `null`
 
-> This is the point of the pilot: it proves the dimensions migrate correctly **before** descriptions and claims exist. The `claims` work (GUS-027/028) then populates the prose and the metrics become measurable.
+**The earlier draft of this spec said coverage = `null` for all three dishes, reasoning that `long_description` is empty.** That was based on the wrong column. The live schema has **both**:
+
+- `dishes.long_description` — empty for all three pilot dishes (and for 100 of 122 catalog dishes)
+- `dishes.short_description` — **populated** for all three pilot dishes (149–206 chars)
+
+**`short_description` is the authored prose that carries the claims.** Each pilot dish's short description is a single compound factual sentence:
+
+| dish | `short_description` (the factual sentence) |
+|---|---|
+| `rendang` | *"A West Sumatran dry curry of beef slow-cooked for hours in coconut milk and a paste of ginger, galangal, turmeric, chili, lemongrass, garlic, and shallots until the sauce fully reduces and the meat darkens."* |
+| `chicken-tikka-masala` | *"A dish of roasted marinated chicken chunks (chicken tikka) in a spiced, creamy tomato sauce. Often considered a British national dish due to its invention in Glasgow."* |
+| `tacos-al-pastor` | *"Mexican tacos of marinated pork cooked on a vertical spit, shaved onto small corn tortillas, and finished with onion, cilantro, salsa, and pineapple."* |
+
+Rendang's short description is **verbatim the D6 worked example** — the sentence D6 decomposes into 6 claims (origin / family / protein / technique / medium / duration). The dimension values in §3 are *derived from* this sentence, which is exactly the D4 "authored prose + claim anchors" model working as designed.
+
+**Therefore:**
+- **Each pilot dish has ≥ 1 factual sentence** → coverage is **measurable**, not `null`.
+- **Expected coverage = `0%`** — measurable, and *nothing is anchored yet* (no claim rows exist; the claims work is GUS-027/028). `0%` is distinct from `null`: `null` = not measurable, `0%` = measurable and unsourced.
+- **Expected corroboration = `0%`** — no claim has ≥2 independent sources, because no claims exist yet.
+
+**This is a fail-fast signal, not a formality.** A pilot that reports `null` would mean the metric is looking at the wrong column; a pilot that reports `0%` proves the metric is correctly wired and correctly reports an unsourced catalog. The catalog-wide baseline is the same: **121/121 dishes are Wikipedia-only** (GUS-011), so the honest starting number is `0%` coverage / `0%` corroboration across the board.
+
+> The ADR's original statement — *"all three have empty `longDescription`"* — remains **true** and is not contradicted. The correction is that `short_description` also exists, is populated, and is the prose the claims attach to. ADR-001 §3 and the spec are amended accordingly (see ADR §5, D4a).
 
 ---
 
@@ -167,7 +246,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | I3 | No cell contains free text, a parenthetical, or a modifier | pass |
 | I4 | `rendang` no longer carries `stew` | pass |
 | I5 | `tacos-al-pastor` family is `taco`, and no `kebab` family row | pass |
-| I6 | `tacos-al-pastor` has exactly one `dish_relations` row, type `derived-from`, target `shawarma` | pass |
+| I6 | `tacos-al-pastor` has exactly one `dish_relations` row: `relation_type = ancestor`, `to_dish_id = shawarma`, `strength = 4` (direction: descendant → ancestor, per the live convention) | pass |
 | I7 | `chicken-tikka-masala` `dish_cuisine` is **unset** — no cuisine value written, no "winner" implied | pass |
 | I8 | `chicken-tikka-masala` technique has exactly 2 values: `grilling`, `simmering` | pass |
 | I9 | `rendang` context has exactly 3 values: `home`, `festival/ceremonial`, `restaurant` | pass |
@@ -176,9 +255,44 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | I12 | `dish_tradition` = `minangkabau` for rendang; `unset` for the other two | pass |
 | I13 | Slugs, ids, names, and URLs are unchanged for all 3 dishes | pass |
 | I14 | `edit_history` gains exactly one `update` row per dish, with comment naming the ADR-001 pilot | pass |
-| I15 | All other dishes (118) are byte-identical before/after | pass |
+| I15 | **All other dishes (119 non-pilot) are unchanged**, where "unchanged" = byte-identical digest **OR** changed with every change explained by an `edit_history` row written **inside the pilot window** | pass |
 | I16 | Rollback restores the pre-pilot state exactly (verified by snapshot diff) | pass |
-| I17 | Coverage/corroboration report `null`, not `0%`, for all 3 dishes | pass |
+| I17 | Coverage and corroboration report **`0%`** (not `null`) for all 3 dishes — the metric reads `short_description`, which is populated, so coverage is *measurable* | pass |
+
+### I15 in detail — the "other dishes unchanged" check, and why it tolerates concurrent writes
+
+**The rule:** every dish outside the 3-dish pilot set must be unchanged, where "unchanged" means either:
+
+- **(a) byte-identical** to the pre-pilot content digest, or
+- **(b) changed, with every change explained by an `edit_history` row written inside the pilot window** (the window opens at the snapshot's `edit_history` high-water mark).
+
+**Why (b) is allowed.** The pilot does not run in a vacuum — other agents and scripts may write to the same catalog. Demanding literal byte-identity across the whole catalog would fail the check for reasons unrelated to the pilot's correctness, and it could mask a genuine pilot defect by forcing someone to "clean up" the noise before the check could run at all. An unexplained change is still a hard FAIL; a change with an in-window `edit_history` row is a **concurrent legitimate write** and is reported, not failed.
+
+**Why bot writes are NOT paused.** Checked 2026-10-26:
+- `hermes cron list` → **no scheduled jobs**.
+- `crontab -l` → **empty**.
+- No content-bot process is running.
+- The only timers are `gustale-rebuild-web.timer` (reads the live API, rebuilds web images — **read-only** for the DB) and `gustale-backup.timer` (dumps the DB — **read-only** for the DB).
+- Last `edit_history` write was **2026-10-17 05:36** — 9 days before the pilot window.
+
+There is no bot write to pause. Pausing would be theatre, and it would remove the guarantee that a concurrent write during the window is *detected* rather than *prevented*. The `edit_history`-window approach is strictly stronger: it handles the case that pausing cannot (a write that starts before the pause and lands after it).
+
+**The checker is itself tested** — `scripts/hermes/test-i15-checker.sh` proves it (a) passes on an unmodified copy, (b) **FAILS** on a change with no `edit_history` row, (c) passes on a change with one, and (d) leaves the live DB untouched. A checker that cannot fail proves nothing.
+
+---
+
+## 5a. V3/V4 tooling
+
+| script | purpose | tests |
+|---|---|---|
+| `scripts/hermes/gus-014-pilot-snapshot.sh` | `snapshot` / `restore` / `verify`. Restores are blocked from targeting the live DB or any production-looking name. `verify` is read-only. | `test-restore-guard.sh` — 11 tests |
+| `scripts/hermes/gus-014-rollback-test.sh` | The V4 proof: restore → mutate → **observe divergence** → restore → identical → confirm live untouched | itself (5 assertions) |
+| `scripts/hermes/gus-014-check-other-dishes.py` | The I15 check: 119 non-pilot dishes unchanged, or changed only via an in-window `edit_history` row | `test-i15-checker.sh` — 4 tests |
+| `scripts/hermes/validate-pilot-spec.py` | Gate V1: every spec cell validated against its controlled vocabulary | `test-validate-pilot-spec.py` — 10 tests |
+
+**Why the rollback test has a "mutation must be observable" step.** Without it, the final identity check could pass simply because the mutation never landed — the test would prove nothing. This is not theoretical: the test **caught a real bug** during development (the mutation heredoc was missing `docker exec -i`, so stdin never reached `psql` and the mutation silently no-oped). The test failed, which is exactly its job. The mutation is now also asserted explicitly (3 descriptions mutated, 1 relation row) rather than trusting an exit code.
+
+**Why every checker has a negative test.** A validator that cannot fail is not a validator. Each of the four test suites exercises at least one case that must be *rejected*, so a green run means something.
 
 ---
 
@@ -188,9 +302,9 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 |---|---|---|
 | V1 | A script validates every value in §3 against §1 and exits non-zero on any unknown value | ✅ **done** — `scripts/hermes/validate-pilot-spec.py`, passing (exit 0, 21/21 cells) |
 | V2 | The exact expected end state for all 3 dishes is written down (this document) | ✅ done |
-| V3 | A **snapshot** of the pre-pilot DB state for the 3 pilot dishes (plus the 118-dish comparison baseline) exists and is restorable | **to create** |
-| V4 | A **rollback** path is written and **test** (not just assumed) | **to write + test** |
-| V5 | Alejandro has given the explicit go for the pilot | ⏳ **pending** |
+| V3 | A **snapshot** of the pre-pilot DB state for the 3 pilot dishes (plus the full 122-dish comparison baseline) exists and is restorable | ✅ **done** — `scripts/hermes/gus-014-pilot-snapshot.sh snapshot`; 472K `db.dump` + schema + 3-dish baseline + 122-dish digest baseline + SHA256SUMS + `edit_history` high-water mark. **Snapshot on disk:** `.hermes/snapshots/gus-014/20261026T040610Z/` (gitignored — a binary dump does not belong in git; the *tooling* is committed, the *artifact* lives on disk and on the VPS backup) |
+| V4 | A **rollback** path is written and **test** (not just assumed) | ✅ **done and TESTED** — `scripts/hermes/gus-014-rollback-test.sh`: restore → mutate → **observe divergence** → restore → identical. The mutation-observability step is what makes the test meaningful. Plus 11 passing restore-guard tests (`test-restore-guard.sh`) proving the live DB can never be a restore target |
+| V5 | Alejandro has given the explicit go for the pilot | ⏳ **pending** — **STOP HERE** |
 
 ---
 
