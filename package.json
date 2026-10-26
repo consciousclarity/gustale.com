@@ -26,7 +26,7 @@
     "smoke:map:summary": "node scripts/hermes/smoke-map-pages.mjs >/dev/null 2>&1; cat /tmp/snap/summary.json | python3 -c \"import json,sys; d=json.load(sys.stdin); print(f'{len(d)} shots, {sum(1 for s in d if s[\\\"failures\\\"])} failures')\""
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.2",
     "@types/node": "^22.20.5",
     "playwright": "^1.49.0",
     "typescript": "^5.6.3"
