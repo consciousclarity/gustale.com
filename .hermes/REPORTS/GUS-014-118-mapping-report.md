@@ -16,16 +16,16 @@
 
 | dimension | dishes with ≥1 value | dishes unset |
 |---|---|---|
-| `dish_family` | 75 | 43 |
+| `dish_family` | 87 | 31 |
 | `dish_cuisine` | 100 | 18 |
-| `dish_course` | 112 | 6 |
+| `dish_course` | 113 | 5 |
 | `dish_technique` | 109 | 9 |
 | `ingredient_category` | 0 | 118 |
 | `dish_tradition` | 0 | 118 |
 | `dish_context` | 10 | 108 |
 
 - dishes mapped: **118**
-- ambiguous cells (multi-valued old data in a single-valued dimension): **4**
+- ambiguous cells (multi-valued old data in a single-valued dimension): **0**
 - old-category uses with no mapping rule: **0**
 - values that would need a vocabulary extension: **0**
 
@@ -41,9 +41,25 @@ _None._
 | `ingredient_category` | `dish_ingredients` has only **4 rows** across the whole catalog (tomato, béchamel sauce, lamb minced, eggplant) covering 3 dishes. There is effectively no ingredient signal. All 118 stay unset. |
 | `dish_context` | The old `categories` table has no context dimension. Only `Street snack` (11 dishes) maps to `street-food`. The remaining 108 dishes have no context signal and stay unset — context is a judgement about where a dish is eaten, not a fact recoverable from the old taxonomy. |
 
+### The street-food count reconciled
+
+The old `Street snack` category covers **11** dishes. **10** of them are in the 118-run; the other **1** is `tacos-al-pastor`, the pilot dish, which already carries `dish_context = street-food` from the GUS-014 pilot. So the run writes **10** street-food values and the catalog total is **11** — not 11 new ones.
+
 ## 3. Vocabulary proposals (NOT written)
 
 _None — every mapped value is already in the controlled vocabulary._
+
+## 3b. Explicit cell decisions (Alejandro, 2026-10-26)
+
+These four cells were ambiguous under the automatic rules and were **decided by hand**. They are recorded explicitly so the decision is visible rather than re-derived.
+
+| dish | dimension | value | why |
+|---|---|---|---|
+| `chole-bhature` | `dish_family` | `curry` | old categories gave bread and curry; decided: curry |
+| `doner-kebab` | `dish_family` | `kebab` | old categories gave kebab and sandwich; decided: kebab (the sandwich is a serving form, not a family) |
+| `gazpacho` | `dish_family` | `soup` | gazpacho is a soup family; its course is appetizer |
+| `gazpacho` | `dish_course` | `appetizer` | gazpacho is a soup family; its course is appetizer |
+| `khao-soi` | `dish_family` | `noodle-soup` | old categories gave curry and noodle-soup; decided: noodle-soup |
 
 ## 4. Resolved ties (the generic fallback losing to a specific value)
 
@@ -51,101 +67,94 @@ The old `categories` table mixes a **generic fallback** with **specific** values
 
 | dish | dimension | resolution |
 |---|---|---|
-| `bakso` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `borscht` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `bubur-ayam` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
 | `ceviche-peruvian` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `chole-bhature` | `dish_family` | multiple candidate values: bread, curry |
-| `congee` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
 | `dolma` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `doner-kebab` | `dish_family` | a serving form (sandwich) and a family (kebab) both present - needs a decision |
 | `empanada` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
 | `falafel` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `gazpacho` | `dish_course` | two specific courses compete at the same priority: soup, appetizer |
-| `goulash-hungarian` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
+| `goulash-hungarian` | `dish_family` | more specific family wins (stew over soup) |
 | `humita` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `khao-soi` | `dish_family` | multiple candidate values: curry, noodle-soup |
 | `kibbeh` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `kimchi-jjigae` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `laksa` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
+| `kimchi-jjigae` | `dish_family` | more specific family wins (stew over soup) |
+| `laksa` | `dish_family` | more specific family wins (noodle-soup over soup) |
 | `pempek` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `rawon` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `sinigang` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `soto-ayam` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
 | `tamales` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
 | `tempura` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
-| `tom-yum` | `dish_course` | 'main-course' is the generic fallback; the specific value wins |
 
 ## 5. Ambiguous cells (left unset, need a decision)
 
-### `dish_family` — single-valued, but the old data gave more than one value
+_None._
 
-| dish | candidate values (old categories) | why it is ambiguous |
+## 5b. Broader families proposed for the dishes with no family (PROPOSALS, not written)
+
+**31 dishes carry no family-ish old category.** The rule applied:
+
+1. **No singleton families.** A proposed family must have **>= 2 member dishes** in the catalog - a family with one member is a dish, not a family.
+2. **Propose the broader family first** (asado -> `grilled-meat`, empanada -> `filled-pastry`, falafel -> `fritter`) rather than the dish's own name.
+3. **Only where nothing fits**, propose a new broad family - a **separate vocabulary decision**, not written during this run.
+
+These are **proposals for review**. They are NOT written by this run: the three new broad families (`grilled-meat`, `filled-pastry`, `fritter`) are outside the controlled vocabulary, and adding them would be a vocabulary extension, which is forbidden during the run.
+
+| dish | proposed broader family | in vocab? |
 |---|---|---|
-| `chole-bhature` | bread, curry | multiple candidate values: bread, curry |
-| `doner-kebab` | kebab, sandwich | a serving form (sandwich) and a family (kebab) both present - needs a decision |
-| `khao-soi` | curry, noodle-soup | multiple candidate values: curry, noodle-soup |
+| `acaraje` | `filled-pastry` | **no - new, needs a vocabulary decision** |
+| `asado` | `grilled-meat` | **no - new, needs a vocabulary decision** |
+| `dolma` | `filled-pastry` | **no - new, needs a vocabulary decision** |
+| `empanada` | `filled-pastry` | **no - new, needs a vocabulary decision** |
+| `falafel` | `fritter` | **no - new, needs a vocabulary decision** |
+| `lechon` | `stew` | yes |
+| `lomo-saltado` | `grilled-meat` | **no - new, needs a vocabulary decision** |
+| `poutine` | `grilled-meat` | **no - new, needs a vocabulary decision** |
+| `samosa` | `filled-pastry` | **no - new, needs a vocabulary decision** |
+| `takoyaki` | `filled-pastry` | **no - new, needs a vocabulary decision** |
+| `tempura` | `fritter` | **no - new, needs a vocabulary decision** |
+| `tostones` | `fritter` | **no - new, needs a vocabulary decision** |
+| `vada` | `fritter` | **no - new, needs a vocabulary decision** |
 
-### `dish_course` — single-valued, but the old data gave more than one value
+### Member counts (the no-singleton evidence)
 
-| dish | candidate values (old categories) | why it is ambiguous |
+| proposed family | members | in vocab? |
 |---|---|---|
-| `gazpacho` | appetizer, soup | two specific courses compete at the same priority: soup, appetizer |
+| `bread` | 3 | yes |
+| `curry` | 3 | yes |
+| `dumpling` | 3 | yes |
+| `filled-pastry` | 8 | **no** |
+| `fritter` | 4 | **no** |
+| `grilled-meat` | 5 | **no** |
+| `kebab` | 3 | yes |
+| `noodle-soup` | 6 | yes |
+| `pancake` | 2 | yes |
+| `rice-dish` | 3 | yes |
+| `sauce` | 3 | yes |
+| `soup` | 7 | yes |
+| `stew` | 5 | yes |
 
+### Dishes the rule cannot place (left unset)
 
-## 5b. Families inferable from the dish's own name (PROPOSALS, not written)
+| dish | why |
+|---|---|
+| `ceviche-peruvian` | a single ceviche dish - would be a singleton family; needs a new broad family |
+| `char-siu` | a single char siu dish - would be a singleton family; needs a new broad family |
+| `chiles-en-nogada` | no broader family fits; needs a new broad family |
+| `chow-mein` | a single chow mein dish - would be a singleton family; needs a new broad family |
+| `halo-halo` | a single halo-halo dish - would be a singleton family; needs a new broad family |
+| `kibbeh` | a single kibbeh dish - would be a singleton family; needs a new broad family |
+| `kung-pao-chicken` | a single kung pao dish - would be a singleton family; needs a new broad family |
+| `menemen` | a single menemen dish - would be a singleton family; needs a new broad family |
+| `peking-duck` | a single peking duck dish - would be a singleton family; needs a new broad family |
+| `shakshuka` | a single shakshuka dish - would be a singleton family; needs a new broad family |
+| `sushi` | a single sushi dish - would be a singleton family; needs a new broad family |
+| `tamales` | a single tamale dish - would be a singleton family; needs a new broad family |
+| `tarte-tatin` | a single tart dish - would be a singleton family; needs a new broad family |
+| `tiramisu` | a single tiramisu dish - would be a singleton family; needs a new broad family |
 
-**43 dishes carry no family-ish old category.** Most are self-describing: the dish's canonical name *is* the family name ('Sushi' -> sushi, 'Ceviche' -> ceviche, 'Asado' -> asado, 'Empanada' -> empanada, 'Falafel' -> falafel).
-
-**But the families those dishes would need are NOT in the controlled vocabulary.** Adding them would be a vocabulary extension, which is forbidden during the run. So they are **left unset** and listed here as proposals for a separate, explicit vocabulary decision.
-
-_No proposal could be formed even from the name - every candidate family is outside the vocabulary._
+### Remaining dishes with no family and no proposal (left unset)
 
 | dish | canonical name | old categories |
 |---|---|---|
-| `acaraje` | Acarajé | `Appetizer`, `Street snack` |
-| `asado` | Asado | `Argentine cuisine`, `Main course` |
-| `bakso` | Bakso | `Indonesian cuisine`, `Main course`, `Soup` |
-| `borscht` | Borscht | `Main course`, `Soup` |
-| `bubur-ayam` | Bubur ayam | `Indonesian cuisine`, `Main course`, `Soup` |
-| `ceviche-peruvian` | Ceviche | `Appetizer`, `Main course`, `Peruvian cuisine` |
-| `char-siu` | Char siu | `Chinese cuisine`, `Main course` |
-| `chiles-en-nogada` | Chiles en nogada | `Main course`, `Mexican cuisine` |
-| `chole-bhature` | Chole bhature | `Bread`, `Curry`, `Indian cuisine`, `Main course` |
-| `chow-mein` | Chow mein | `Chinese cuisine`, `Main course`, `Stir-fry` |
-| `congee` | Congee | `Chinese cuisine`, `Main course`, `Soup` |
-| `dolma` | Dolma | `Appetizer`, `Main course`, `Turkish cuisine` |
-| `doner-kebab` | Döner kebab | `Kebab`, `Main course`, `Sandwich`, `Turkish cuisine` |
-| `empanada` | Empanada | `Appetizer`, `Argentine cuisine`, `Main course` |
-| `falafel` | Falafel | `Appetizer`, `Israeli cuisine`, `Main course` |
-| `gazpacho` | Gazpacho | `Appetizer`, `Soup`, `Spanish cuisine` |
-| `halo-halo` | Halo-halo | `Dessert`, `Filipino cuisine` |
 | `humita` | Humita | `Appetizer`, `Argentine cuisine`, `Main course` |
 | `ikan-bakar` | Ikan bakar | `Indonesian cuisine`, `Main course` |
-| `khao-soi` | Khao Soi | `Curry`, `Main course`, `Noodle soup` |
-| `kibbeh` | Kibbeh | `Appetizer`, `Lebanese cuisine`, `Main course` |
-| `kung-pao-chicken` | Kung Pao chicken | `Chinese cuisine`, `Main course`, `Stir-fry` |
-| `lechon` | Lechon | `Filipino cuisine`, `Main course` |
-| `lomo-saltado` | Lomo saltado | `Main course`, `Peruvian cuisine`, `Stir-fry` |
-| `menemen` | Menemen | `Main course`, `Turkish cuisine` |
-| `peking-duck` | Peking duck | `Chinese cuisine`, `Main course` |
 | `pempek` | Pempek | `Appetizer`, `Indonesian cuisine`, `Main course` |
-| `poutine` | Poutine | `Main course`, `Street snack` |
-| `rawon` | Rawon | `Indonesian cuisine`, `Main course`, `Soup` |
-| `samosa` | Samosa | `Appetizer`, `Indian cuisine`, `Street snack` |
-| `shakshuka` | Shakshuka | `Israeli cuisine`, `Main course` |
-| `sinigang` | Sinigang | `Filipino cuisine`, `Main course`, `Soup` |
-| `soto-ayam` | Soto Ayam | `Indonesian cuisine`, `Main course`, `Soup` |
-| `sushi` | Sushi | `Japanese cuisine`, `Main course` |
-| `takoyaki` | Takoyaki | `Appetizer`, `Japanese cuisine`, `Street snack` |
-| `tamales` | Tamales | `Appetizer`, `Main course`, `Mexican cuisine` |
-| `tarte-tatin` | Tarte Tatin | `Dessert`, `French cuisine` |
-| `tempura` | Tempura | `Appetizer`, `Japanese cuisine`, `Main course` |
-| `tiramisu` | Tiramisù | `Dessert`, `Italian cuisine` |
-| `tom-yum` | Tom Yum | `Main course`, `Soup`, `Thai cuisine` |
 | `tonkatsu` | Tonkatsu | `Japanese cuisine`, `Main course` |
-| `tostones` | Tostones | `Appetizer` |
-| `vada` | Vada | `Appetizer`, `South Indian cuisine`, `Street snack` |
 
 ## 6. Per-dish mapping
 
@@ -265,9 +274,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `bakso`
 
 - **old categories:** `Indonesian cuisine`, `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `indonesian`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `boiling`, `simmering`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -331,9 +340,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `borscht`
 
 - **old categories:** `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** —
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -342,9 +351,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `bubur-ayam`
 
 - **old categories:** `Indonesian cuisine`, `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `indonesian`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `steaming`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -419,7 +428,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `chole-bhature`
 
 - **old categories:** `Bread`, `Curry`, `Indian cuisine`, `Main course`
-- **`dish_family`:** —
+- **`dish_family`:** `curry`
 - **`dish_cuisine`:** `indian`
 - **`dish_course`:** `main-course`
 - **`dish_technique`:** `simmering`
@@ -452,9 +461,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `congee`
 
 - **old categories:** `Chinese cuisine`, `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `chinese`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `steaming`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -496,7 +505,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `doner-kebab`
 
 - **old categories:** `Kebab`, `Main course`, `Sandwich`, `Turkish cuisine`
-- **`dish_family`:** —
+- **`dish_family`:** `kebab`
 - **`dish_cuisine`:** `turkish`
 - **`dish_course`:** `main-course`
 - **`dish_technique`:** `grilling`, `skewering`
@@ -595,9 +604,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `gazpacho`
 
 - **old categories:** `Appetizer`, `Soup`, `Spanish cuisine`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `spanish`
-- **`dish_course`:** —
+- **`dish_course`:** `appetizer`
 - **`dish_technique`:** —
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -608,7 +617,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **old categories:** `Main course`, `Soup`, `Stew`
 - **`dish_family`:** `stew`
 - **`dish_cuisine`:** —
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -771,7 +780,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `khao-soi`
 
 - **old categories:** `Curry`, `Main course`, `Noodle soup`
-- **`dish_family`:** —
+- **`dish_family`:** `noodle-soup`
 - **`dish_cuisine`:** —
 - **`dish_course`:** `main-course`
 - **`dish_technique`:** `boiling`, `simmering`
@@ -795,7 +804,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **old categories:** `Korean cuisine`, `Main course`, `Soup`, `Stew`
 - **`dish_family`:** `stew`
 - **`dish_cuisine`:** `korean`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -828,7 +837,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **old categories:** `Main course`, `Noodle soup`, `Singaporean cuisine`, `Soup`
 - **`dish_family`:** `noodle-soup`
 - **`dish_cuisine`:** `singaporean`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `boiling`, `simmering`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -1145,9 +1154,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `rawon`
 
 - **old categories:** `Indonesian cuisine`, `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `indonesian`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -1233,9 +1242,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `sinigang`
 
 - **old categories:** `Filipino cuisine`, `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `filipino`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -1255,9 +1264,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `soto-ayam`
 
 - **old categories:** `Indonesian cuisine`, `Main course`, `Soup`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `indonesian`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -1354,9 +1363,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `tom-yum`
 
 - **old categories:** `Main course`, `Soup`, `Thai cuisine`
-- **`dish_family`:** —
+- **`dish_family`:** `soup`
 - **`dish_cuisine`:** `thai`
-- **`dish_course`:** `soup`
+- **`dish_course`:** `main-course`
 - **`dish_technique`:** `braising`, `stewing`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
@@ -1623,12 +1632,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "bakso": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "indonesian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "boiling",
       "simmering"
@@ -1726,10 +1737,12 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "borscht": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "stewing",
       "braising"
@@ -1740,12 +1753,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "bubur-ayam": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "indonesian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "steaming"
     ],
@@ -1858,7 +1873,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "indian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "curry"
+    ],
     "dish_technique": [
       "simmering"
     ],
@@ -1902,12 +1919,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "congee": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "chinese"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "steaming"
     ],
@@ -1971,7 +1990,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "turkish"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "kebab"
+    ],
     "dish_technique": [
       "grilling",
       "skewering"
@@ -2108,11 +2129,15 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   },
   "gazpacho": {
     "dish_context": [],
-    "dish_course": [],
+    "dish_course": [
+      "appetizer"
+    ],
     "dish_cuisine": [
       "spanish"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [],
     "dish_tradition": [],
     "ingredient_category": []
@@ -2120,7 +2145,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "goulash-hungarian": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [],
     "dish_family": [
@@ -2372,7 +2397,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
       "main-course"
     ],
     "dish_cuisine": [],
-    "dish_family": [],
+    "dish_family": [
+      "noodle-soup"
+    ],
     "dish_technique": [
       "boiling",
       "simmering"
@@ -2398,7 +2425,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "kimchi-jjigae": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "korean"
@@ -2450,7 +2477,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "laksa": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "singaporean"
@@ -2935,12 +2962,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "rawon": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "indonesian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "stewing",
       "braising"
@@ -3070,12 +3099,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "sinigang": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "filipino"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "stewing",
       "braising"
@@ -3104,12 +3135,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "soto-ayam": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "indonesian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "stewing",
       "braising"
@@ -3244,12 +3277,14 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
   "tom-yum": {
     "dish_context": [],
     "dish_course": [
-      "soup"
+      "main-course"
     ],
     "dish_cuisine": [
       "thai"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "soup"
+    ],
     "dish_technique": [
       "stewing",
       "braising"

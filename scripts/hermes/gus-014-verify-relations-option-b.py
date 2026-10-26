@@ -36,14 +36,19 @@ EXPECTED_KEEP = {
     "0afcdf4e-e05f-5315-8b24-67e3b8a15aa0": ("bacalhau-a-bras", "vindaloo", "ancestor", "quarantined"),
     "7109f0e7-9d99-5858-9ee2-78e3a6fe1c90": ("biryani-hyderabadi", "jollof-rice", "ancestor", "quarantined"),
     "27b97221-f85c-532c-9264-7899f34399b7": ("shawarma", "hamburger-american", "diaspora", "quarantined"),
-    "c212c598-0297-4597-aefa-6dc4bfc9e3a6": ("tonkatsu", "wiener-schnitzel", "diaspora", "quarantined"),
+    # tonkatsu: the reason reads 'Tonkatsu is the Japanese adaptation of
+    # European breaded cutlets' - tonkatsu is the ADAPTATION (the diaspora
+    # side), so the ORIGIN is the European cutlet. Direction is decided by
+    # the MEANING of the reason, not by its grammatical subject (the al
+    # pastor row proves the subject rule is false).
+    "01ef505e-75cc-433d-a6e4-5a65bfe5a515": ("wiener-schnitzel", "tonkatsu", "diaspora", "quarantined"),
 }
 EXPECTED_ARCHIVED_INVERSES = {
     "78dd6076-08ca-4cd5-91a0-6d80f266aa39",
     "55acfe66-13a1-53a2-94f0-fb2f5e3cb8ee",
     "2ded426c-c667-5b40-8e86-da52cb7a51f3",
     "11ff5b8d-eb5c-521f-a10a-d04058d4785f",
-    "01ef505e-75cc-433d-a6e4-5a65bfe5a515",
+    "c212c598-0297-4597-aefa-6dc4bfc9e3a6",
 }
 PILOT_ROW = "b7e468e0-16c5-4499-8bd4-ab2ecb95d677"
 
@@ -161,7 +166,7 @@ def main() -> int:
                      '55acfe66-13a1-53a2-94f0-fb2f5e3cb8ee',
                      '2ded426c-c667-5b40-8e86-da52cb7a51f3',
                      '11ff5b8d-eb5c-521f-a10a-d04058d4785f',
-                     '01ef505e-75cc-433d-a6e4-5a65bfe5a515');""").strip()
+                     'c212c598-0297-4597-aefa-6dc4bfc9e3a6');""").strip()
     gate("G6 the 5 directional inverses are archived (original ids)", arch_directional == "5",
          f"count={arch_directional}")
     arch_still_active = psql(args.db, """
@@ -170,7 +175,7 @@ def main() -> int:
                      '55acfe66-13a1-53a2-94f0-fb2f5e3cb8ee',
                      '2ded426c-c667-5b40-8e86-da52cb7a51f3',
                      '11ff5b8d-eb5c-521f-a10a-d04058d4785f',
-                     '01ef505e-75cc-433d-a6e4-5a65bfe5a515');""").strip()
+                     'c212c598-0297-4597-aefa-6dc4bfc9e3a6');""").strip()
     gate("G6 the 5 directional inverses are NOT still in dish_relations",
          arch_still_active == "0", f"still present={arch_still_active}")
 

@@ -271,6 +271,24 @@ tasks:
       - "The ADR is checked against the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor)"
       - "Open questions are listed for Alejandro's decision"
     evidence:
+      - "118-DISH DIMENSION MIGRATION APPLIED TO LIVE 2026-10-26 after Alejandro's amendments. Dry-run on a copy first (0 mismatches), the diff vs the previous report was limited to the amendments, then live. Live result: 0 mismatches between the DB and the mapping report (118 dishes x 7 dimensions). Coverage: dish_family 87, dish_cuisine 100, dish_course 113, dish_technique 109, ingredient_category 0, dish_tradition 0, dish_context 10. Integrity: relations 96, archive 96, sources 142, citations 121, ingredients 4 all unchanged; 118 edit_history rows (comment GUS-014 118-dish dimensions) across 118 dishes with the 3 pilot dishes at 0; 0 single-valued violations; I15 119 unchanged, 0 unexplained."
+
+      - "AMENDMENT 1 - THE TONKATSU ROW WAS INVERTED AND HAS BEEN CORRECTED. Direction is decided by the MEANING of the reason, NOT by its grammatical subject - the al pastor row proves the subject rule is false (Al pastor DERIVES FROM shawarma keeps shawarma as the ancestor even though al pastor is the sentence subject). Tonkatsu IS the Japanese ADAPTATION, i.e. the diaspora side, so the ORIGIN is the European cutlet: the kept row is now wiener-schnitzel -> tonkatsu (id 01ef505e), and the inverse (tonkatsu -> wiener-schnitzel, id c212c598) is archived. It stays QUARANTINED - the pairing is unsupported either way, only the direction was wrong. Live correction applied with 2 edit_history rows (comment GUS-224 direction correction) and updated_at bumped on both dishes. ADR D3g-note4's tonkatsu sentence is WITHDRAWN and replaced with the semantic rule."
+
+      - "AMENDMENT 2 - 'soup' REMOVED from the dish_course vocabulary; it is a FAMILY (ADR-001 D3). The old Soup category now maps to dish_family=soup. Soup dishes get their course from their meal role. The family specificity rule was added to match: a MORE SPECIFIC family beats a broader one (stew over soup, noodle-soup over soup), the same specific-beats-generic rule that resolves Main course + Soup. Verified live: 0 dishes have course=soup."
+
+      - "AMENDMENT 3 - THE 43 NO-FAMILY DISHES now use the broadening rule: (1) NO SINGLETON FAMILIES - a proposed family must have >= 2 member dishes; (2) propose the BROADER family first (asado -> grilled-meat, empanada -> filled-pastry, falafel -> fritter); (3) only where nothing fits, propose a NEW broad family as a SEPARATE VOCABULARY DECISION, not written during the run. 13 broader-family proposals are reported; the three new broad families (grilled-meat, filled-pastry, fritter) are outside the controlled vocabulary so they are proposals only and the dishes stay unset."
+
+      - "AMENDMENT 4 - FOUR EXPLICIT CELL DECISIONS applied and recorded explicitly in the report (section 3b) so they are visible rather than re-derived: chole-bhature family=curry; doner-kebab family=kebab; khao-soi family=noodle-soup; gazpacho family=soup + course=appetizer. Ambiguous cells after the amendments: 0 (was 4)."
+
+      - "AMENDMENT 5 - stir-fry is STORED as dish_technique=stir-frying (a gerund, per D3). The old Stir-fry category was previously unmappable; it now maps to dish_technique. Unmappable old categories: 0."
+
+      - "AMENDMENT 6 - THE STREET-FOOD COUNT RECONCILED: the old Street snack category covers 11 dishes; 10 are in the 118-run and the 11th is tacos-al-pastor, the pilot dish, which already carries dish_context=street-food from the GUS-014 pilot. So the run writes 10 street-food values and the catalog total is 11 - not 11 new ones. Verified live: 10 in-scope."
+
+      - "AMENDMENT 7 - the literal-backslash defect in preparation_methods.name is BACKLOGGED as GUS-227 (8 of the 15 methods in use). It does not block the mapping - the mapper normalises both spellings - but the underlying data should be corrected rather than worked around."
+
+      - "THE DIFF vs the PREVIOUS report was LIMITED TO THE AMENDMENTS: 15 dishes changed, all in dish_family (12) and dish_course (12) - the soup dishes moving from course=soup to family=soup/noodle-soup with their meal-role course, plus the 4 explicit decisions. No other dimension changed for any dish."
+
       - "118-DISH MAPPING REPORT BUILT + DRY-RUN ON A COPY (2026-10-26, Alejandro go-ahead). NOTHING APPLIED TO LIVE. Report: .hermes/REPORTS/GUS-014-118-mapping-report.md. Builder: scripts/hermes/gus-014-build-118-mapping.py. Generated migration SQL: db/migrations/gus-014-118-dimensions.sql. Scope: the 118 non-pilot dishes; the 3 pilot dishes are excluded."
 
       - "MAPPING COVERAGE on the 118: dish_family 75 set / 43 unset, dish_cuisine 100 / 18, dish_course 112 / 6, dish_technique 109 / 9, ingredient_category 0 / 118, dish_tradition 0 / 118, dish_context 10 / 108. 465 dimension values total."
@@ -2503,3 +2521,21 @@ tasks:
       - "The coverage and corroboration queries implement the definition"
     evidence:
       - "RAISED 2026-10-26 (Alejandro, pilot go-ahead). Non-blocking for the GUS-014 pilot but required before GUS-029 (corroboration) is implemented. ADR D4a established that the claims anchor to dishes.short_description (populated for all 3 pilot dishes; long_description empty for all 3 and for 100 of 122 catalog dishes) and that coverage is therefore measurable rather than null. But the scope was decided ad hoc for the pilot and is not yet a policy. The scope must be: BOTH short_description AND long_description contribute factual sentences (long_description becomes populated as the 200-400-word content workstream proceeds, and its sentences must be anchorable and counted), and ONLY the canonical-language text is measured - translated text in dish_translations (language column) is not counted toward coverage, because a translation is a rendering of the canonical prose rather than an independent assertion. Decide and record whether per-language coverage is reported as a separate informational metric."
+
+  - id: GUS-227
+    title: "Fix the literal backslash in preparation_methods.name"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P2
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "No preparation_methods.name contains a literal backslash before an ampersand"
+      - "The affected names render as 'Fried & topped', 'Stew & braise', 'Grilled & skewered', 'Bread & dough', 'Small plates & preserves', 'Steamed & custard', 'Sweets & custard', 'Boiled & cured', 'Omelettes & scrambles'"
+      - "The change is logged in edit_history and the affected dishes' updated_at is bumped"
+      - "The API and web surfaces that render the preparation name show a clean ampersand"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro, during the 118-dish mapping review). The live preparation_methods.name values contain a LITERAL backslash before the ampersand: 'Fried \\& topped', 'Stew \\& braise', 'Grilled \\& skewered', 'Bread \\& dough', 'Small plates \\& preserves', 'Steamed \\& custard', 'Sweets \\& custard', 'Boiled \\& cured', 'Omelettes \\& scrambles'. This is a data-entry artifact from an earlier migration, not an escaped ampersand. It affects 8 of the 15 methods in use and is visible wherever the preparation name is rendered."
+      - "IMPACT: the 118-dish mapping had to normalise both spellings to resolve the preparation methods. It does not block the mapping (the mapper handles it) but the underlying data should be corrected rather than worked around."
+      - "NOT YET APPLIED - this is a separate task because it changes user-visible content and is independent of the dimension migration."

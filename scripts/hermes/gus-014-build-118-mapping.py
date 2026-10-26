@@ -57,8 +57,11 @@ VOCAB = {
         "korean", "french", "singaporean", "spanish", "thai", "vietnamese",
         "turkish", "filipino", "colombian", "ethiopian",
     },
+    # NOTE: 'soup' is NOT a course. Per ADR-001 D3 (family = nouns, what the
+    # dish IS) a soup is a FAMILY; its COURSE is its meal role. Alejandro
+    # removed 'soup' from the dish_course vocabulary on 2026-10-26.
     "dish_course": {
-        "main-course", "appetizer", "dessert", "side", "soup", "breakfast",
+        "main-course", "appetizer", "dessert", "side", "breakfast",
         "snack", "drink", "condiment",
     },
     "dish_technique": {
@@ -136,7 +139,9 @@ CATEGORY_MAP = {
     "Appetizer":    [("dish_course", ["appetizer"])],
     "Dessert":      [("dish_course", ["dessert"])],
     "Side dish":    [("dish_course", ["side"])],
-    "Soup":         [("dish_course", ["soup"])],
+    # 'Soup' is a FAMILY, not a course (ADR-001 D3). The course for a soup
+    # dish is its MEAL ROLE, taken from its other old categories.
+    "Soup":         [("dish_family", ["soup"])],
 
     # ---- family (nouns: what the dish IS) ----
     "Stew":         [("dish_family", ["stew"])],
@@ -190,12 +195,18 @@ GENERIC_FALLBACK = {
 
 # Specific course values, in priority order. A dish carrying several picks
 # the first match; two of the SAME priority are ambiguous.
-COURSE_PRIORITY = ["soup", "dessert", "appetizer", "snack", "side", "breakfast", "drink"]
+COURSE_PRIORITY = ["dessert", "appetizer", "snack", "side", "breakfast", "drink"]
 
 # Family values that are FORMS (how the dish is served) rather than what it
 # IS. A form beats a family when both are present, because ADR-001 D3
 # separates family (what it is) from course/context (how it is served).
 FAMILY_FORM_VALUES = {"sandwich", "pancake", "salad", "sauce"}
+
+# A family that is MORE SPECIFIC than another: 'stew' is a kind of soup,
+# 'noodle-soup' is a kind of soup. When the old categories give both, the
+# specific one wins - the same 'specific beats generic' rule that resolves
+# 'Main course' + 'Soup'.
+FAMILY_SPECIFICITY = {"stew", "noodle-soup", "rice-dish", "fried-rice"}
 
 
 # --------------------------------------------------------------------------
@@ -256,33 +267,86 @@ def preparation_techniques(method: str):
 # PROPOSALS (not written) - no extension during the run.
 
 # --------------------------------------------------------------------------
-# DISH-NAME FAMILY INFERENCE (reported separately, NOT written by default).
+# FAMILY BROADENING (reported as PROPOSALS, NOT written by default).
 #
 # 43 dishes carry no family-ish old category, so the old data cannot supply
-# one. Many of them are SELF-DESCRIBING dishes whose canonical name IS the
-# family name ('Sushi' -> sushi, 'Ceviche' -> ceviche, 'Asado' -> asado).
+# one. The rule (Alejandro, 2026-10-26):
 #
-# That is an inference from the dish name, not a fact recovered from the
-# old taxonomy, so it is reported in its own section for a human decision
-# rather than written silently.
+#   1. NO SINGLETON FAMILIES. A proposed family must have >= 2 member
+#      dishes in the catalog. A family with one member is a dish, not a
+#      family.
+#   2. PROPOSE THE BROADER FAMILY FIRST. Map each dish to the broadest
+#      EXISTING family that fits (asado -> grilled-meat, empanada ->
+#      filled-pastry, falafel -> fritter), not to its own name.
+#   3. ONLY WHERE NOTHING FITS, propose a NEW broad family. A new broad
+#      family is a SEPARATE VOCABULARY DECISION and is NOT written during
+#      this run.
 #
-# Only these families are inferable: the value must already be in the
-# controlled vocabulary, and the dish's canonical name must contain the
-# family name as a word.
+# The proposed families below are therefore the BROAD ones. `member_dishes`
+# is the evidence that the family is not a singleton.
 # --------------------------------------------------------------------------
-NAME_INFERABLE_FAMILIES = {
-    "sushi", "ceviche", "asado", "ceviche-peruvian", "tamales", "empanada",
-    "falafel", "hummus", "shakshuka", "kibbeh", "kofta", "tabbouleh",
-    "fattoush", "baba-ganoush", "bakso", "rawon", "soto-ayam", "bubur-ayam",
-    "sambal", "sate-lilit", "satay", "pempek", "adobo-filipino", "sinigang",
-    "lechon", "halo-halo", "tarte-tatin", "tiramisu", "poutine", "tonkatsu",
-    "tempura", "takoyaki", "char-siu", "peking-duck", "mapo-tofu", "kung-pao-chicken",
-    "chow-mein", "congee", "lomo-saltado", "tom-yum", "khao-soi", "menemen",
-    "dolma", "manti", "pierogi", "gyoza", "xiaolongbao", "jiaozi", "momo",
-    "samosa", "vada", "idli", "dosa", "masala-dosa", "tostones", "acaraje",
-    "chiles-en-nogada", "mole-poblano", "borscht", "gazpacho", "empanada",
-    "hummus", "chole-bhature", "kibbeh",
+BROADER_FAMILY_PROPOSALS = {
+    # existing vocabulary (already in the controlled vocabulary)
+    "soup":          ["bakso", "borscht", "bubur-ayam", "rawon", "sinigang",
+                       "soto-ayam", "tom-yum"],
+    "noodle-soup":   ["khao-soi", "laksa", "pho-vietnamese", "ramen-japanese",
+                       "soba", "udon"],
+    "dumpling":      ["manti", "momo", "pierogi"],
+    "stew":          ["adobo-filipino", "chole-bhature", "kare-kare", "lechon",
+                       "mole-poblano"],
+    "kebab":         ["doner-kebab", "iskender-kebab", "kofta"],
+    "curry":         ["aloo-gobi", "butter-chicken", "palak-paneer"],
+    "rice-dish":     ["bandeja-paisa", "jollof-rice", "nasi-goreng"],
+    "sauce":         ["baba-ganoush", "hummus", "sambal"],
+    "pancake":       ["martabak", "okonomiyaki"],
+    "bread":         ["arepa", "injera", "pide"],
+    # NEW broad families - separate vocabulary decision, NOT written
+    "grilled-meat":  ["anticuchos", "asado", "choripan", "lomo-saltado", "poutine"],
+    "filled-pastry": ["acaraje", "dolma", "empanada", "manti", "martabak",
+                       "pierogi", "samosa", "takoyaki"],
+    "fritter":       ["falafel", "tostones", "tempura", "vada"],
 }
+
+# The new broad families are NOT in the controlled vocabulary, so they can
+# never be written by this run - they are proposals only.
+NEW_BROAD_FAMILIES = {"grilled-meat", "filled-pastry", "fritter"}
+
+# Dishes whose family the broadening rule cannot place. Each needs either a
+# new broad family or an explicit decision.
+FAMILY_UNPLACEABLE = {
+    "sushi": "a single sushi dish - would be a singleton family; needs a new broad family",
+    "ceviche-peruvian": "a single ceviche dish - would be a singleton family; needs a new broad family",
+    "chiles-en-nogada": "no broader family fits; needs a new broad family",
+    "tarte-tatin": "a single tart dish - would be a singleton family; needs a new broad family",
+    "tiramisu": "a single tiramisu dish - would be a singleton family; needs a new broad family",
+    "halo-halo": "a single halo-halo dish - would be a singleton family; needs a new broad family",
+    "char-siu": "a single char siu dish - would be a singleton family; needs a new broad family",
+    "peking-duck": "a single peking duck dish - would be a singleton family; needs a new broad family",
+    "congee": "a single congee dish - would be a singleton family; needs a new broad family",
+    "chow-mein": "a single chow mein dish - would be a singleton family; needs a new broad family",
+    "kung-pao-chicken": "a single kung pao dish - would be a singleton family; needs a new broad family",
+    "shakshuka": "a single shakshuka dish - would be a singleton family; needs a new broad family",
+    "tamales": "a single tamale dish - would be a singleton family; needs a new broad family",
+    "sushi": "a single sushi dish - would be a singleton family; needs a new broad family",
+    "bacalhau-a-bras": "salt cod dish; the 'cod' family would have one member",
+    "menemen": "a single menemen dish - would be a singleton family; needs a new broad family",
+    "kibbeh": "a single kibbeh dish - would be a singleton family; needs a new broad family",
+    "ceviche-peruvian": "a single ceviche dish - would be a singleton family; needs a new broad family",
+}
+
+
+def broaden_family(slug: str) -> str | None:
+    """Return the broader family proposed for a dish with no family, or None.
+
+    The proposed family must have >= 2 member dishes (no singleton
+    families). It may be an existing controlled-vocabulary value or a NEW
+    broad family - a new one is a separate vocabulary decision and is
+    never written by this run.
+    """
+    for family, members in BROADER_FAMILY_PROPOSALS.items():
+        if slug in members and len(members) >= 2:
+            return family
+    return None
 
 
 def resolve_single(dim: str, values: list[str], slug: str, cats: list[str]):
@@ -322,6 +386,18 @@ def resolve_single(dim: str, values: list[str], slug: str, cats: list[str]):
         if forms and fams:
             return [], (f"a serving form ({', '.join(forms)}) and a family "
                         f"({', '.join(fams)}) both present - needs a decision")
+        # a MORE SPECIFIC family beats a broader one: 'stew' beats 'soup',
+        # 'noodle-soup' beats 'soup'. Same 'specific beats generic' rule as
+        # 'Main course' losing to 'Soup'.
+        if len(fams) > 1:
+            narrow = [v for v in fams if v in FAMILY_SPECIFICITY]
+            broad = [v for v in fams if v not in FAMILY_SPECIFICITY]
+            if len(narrow) == 1 and not broad:
+                return narrow, (f"more specific family wins ({narrow[0]} over "
+                                f"{', '.join(broad)})")
+            if len(narrow) == 1 and broad:
+                return narrow, (f"more specific family wins ({narrow[0]} over "
+                                f"{', '.join(broad)})")
 
     return [], f"multiple candidate values: {', '.join(vals)}"
 
@@ -508,6 +584,8 @@ def main() -> int:
 
     target = {s: c for s, c in dishes.items() if s not in PILOT_SLUGS}
 
+    # street-food reconciliation is computed after the stats counter exists.
+
     # ---- build the mapping ----
     proposals = collections.defaultdict(set)   # dimension -> {value: {categories}}
     unmappable = collections.defaultdict(set)  # category -> {reason}
@@ -518,8 +596,16 @@ def main() -> int:
     name_inferred_ambiguous = []  # (slug, candidates)
     nofamily_slugs = []  # dishes with no family from the old data
     old_cats = {}  # slug -> old category names
+    decisions = []  # (slug, dim, value, why) - explicit hand decisions
     mapping = {}
     stats = collections.Counter()
+
+    # street-food reconciliation: the old 'Street snack' category total
+    # (including the pilot dish) vs. the in-scope count.
+    stats["street_snack_total"] = sum(
+        1 for s, cs in dishes.items() if any(c == "Street snack" for c, _ in cs))
+    stats["street_snack_pilot"] = sum(
+        1 for s in PILOT_SLUGS if any(c == "Street snack" for c, _ in dishes.get(s, [])))
 
     for slug, cats in sorted(target.items()):
         per_dim = {d: [] for d in DIMENSIONS}
@@ -552,6 +638,29 @@ def main() -> int:
                 if t not in per_dim["dish_technique"]:
                     per_dim["dish_technique"].append(t)
 
+        # ---- EXPLICIT CELL DECISIONS (Alejandro, 2026-10-26) ----
+        # These four cells were ambiguous under the automatic rules and were
+        # decided by hand. They are recorded explicitly so the decision is
+        # visible in the report rather than being re-derived.
+        if slug == "chole-bhature":
+            per_dim["dish_family"] = ["curry"]
+            decisions.append((slug, "dish_family", "curry", "old categories gave bread and curry; decided: curry"))
+            stats["explicit_decisions"] += 1
+        elif slug == "doner-kebab":
+            per_dim["dish_family"] = ["kebab"]
+            decisions.append((slug, "dish_family", "kebab", "old categories gave kebab and sandwich; decided: kebab (the sandwich is a serving form, not a family)"))
+            stats["explicit_decisions"] += 1
+        elif slug == "khao-soi":
+            per_dim["dish_family"] = ["noodle-soup"]
+            decisions.append((slug, "dish_family", "noodle-soup", "old categories gave curry and noodle-soup; decided: noodle-soup"))
+            stats["explicit_decisions"] += 1
+        elif slug == "gazpacho":
+            per_dim["dish_family"] = ["soup"]
+            per_dim["dish_course"] = ["appetizer"]
+            decisions.append((slug, "dish_family", "soup", "gazpacho is a soup family; its course is appetizer"))
+            decisions.append((slug, "dish_course", "appetizer", "gazpacho is a soup family; its course is appetizer"))
+            stats["explicit_decisions"] += 1
+
         # single-valued dimensions: resolve generic-vs-specific and
         # priority ties. A genuine ambiguity -> UNSET + reported.
         for dim in ("dish_family", "dish_cuisine", "dish_course"):
@@ -562,24 +671,23 @@ def main() -> int:
                 ambiguous[dim].append((slug, ", ".join(sorted(per_dim[dim])), note or "multiple candidates"))
                 stats["ambiguous_cells"] += 1
             per_dim[dim] = resolved
-        # ---- family from the dish NAME, when the old data gave none ----
-        # Reported as a PROPOSAL for review, not written by this run.
+        # ---- family from the BROADENING rule, when the old data gave none ----
+        # Reported as a PROPOSAL for review, NOT written by this run:
+        #   1. no singleton families (>= 2 member dishes)
+        #   2. propose the broader family first
+        #   3. a new broad family is a separate vocabulary decision
         if not per_dim["dish_family"]:
-            canonical = canonical_names.get(slug, "")
-            words = set(re.findall(r"[a-z]+", canonical.lower()))
-            candidates = sorted(
-                f for f in NAME_INFERABLE_FAMILIES
-                if f in VOCAB["dish_family"]
-                and (f in words or f.replace("-", " ") in canonical.lower())
-            )
-            if len(candidates) == 1:
-                name_inferred[slug] = candidates[0]
-                stats["name_inferred_families"] += 1
-            elif len(candidates) > 1:
-                name_inferred_ambiguous.append((slug, ", ".join(candidates)))
+            proposed = broaden_family(slug)
+            if proposed:
+                name_inferred[slug] = proposed
+                stats["broadened_families"] += 1
+            elif slug in FAMILY_UNPLACEABLE:
+                name_inferred_ambiguous.append((slug, FAMILY_UNPLACEABLE[slug]))
 
         mapping[slug] = per_dim
         stats["dishes"] += 1
+        if "street-food" in per_dim["dish_context"]:
+            stats["street_snack_in_scope"] += 1
         if not per_dim["dish_family"]:
             stats["nofamily_dishes"] += 1
             nofamily_slugs.append(slug)
@@ -664,6 +772,17 @@ def main() -> int:
     md.append("| `dish_context` | The old `categories` table has no context dimension. Only `Street snack` (11 dishes) maps to `street-food`. The remaining 108 dishes have no context signal and stay unset — context is a judgement about where a dish is eaten, not a fact recoverable from the old taxonomy. |")
     md.append("")
 
+    # ---- street-food reconciliation ----
+    md.append("### The street-food count reconciled")
+    md.append("")
+    md.append(f"The old `Street snack` category covers **{stats['street_snack_total']}** dishes. "
+              f"**{stats['street_snack_in_scope']}** of them are in the 118-run; the other "
+              f"**{stats['street_snack_pilot']}** is `tacos-al-pastor`, the pilot dish, which already carries "
+              "`dish_context = street-food` from the GUS-014 pilot. So the run writes "
+              f"**{stats['street_snack_in_scope']}** street-food values and the catalog total is "
+              f"**{stats['street_snack_total']}** — not 11 new ones.")
+    md.append("")
+
     # ---- proposals ----
     md.append("## 3. Vocabulary proposals (NOT written)")
     md.append("")
@@ -680,6 +799,20 @@ def main() -> int:
     md.append("")
 
     # ---- ambiguous ----
+    md.append("## 3b. Explicit cell decisions (Alejandro, 2026-10-26)")
+    md.append("")
+    if not decisions:
+        md.append("_None._")
+    else:
+        md.append("These four cells were ambiguous under the automatic rules and were **decided by hand**. They are "
+                  "recorded explicitly so the decision is visible rather than re-derived.")
+        md.append("")
+        md.append("| dish | dimension | value | why |")
+        md.append("|---|---|---|---|")
+        for slug, dim, val, why in decisions:
+            md.append(f"| `{slug}` | `{dim}` | `{val}` | {why} |")
+    md.append("")
+
     md.append("## 4. Resolved ties (the generic fallback losing to a specific value)")
     md.append("")
     if not resolutions:
@@ -711,42 +844,50 @@ def main() -> int:
             md.append("")
     md.append("")
 
-    # ---- name-inferred families ----
-    md.append("## 5b. Families inferable from the dish's own name (PROPOSALS, not written)")
+    # ---- broadened families ----
+    md.append("## 5b. Broader families proposed for the dishes with no family (PROPOSALS, not written)")
     md.append("")
-    md.append(f"**{stats['nofamily_dishes']} dishes carry no family-ish old category.** Most are self-describing: "
-              "the dish's canonical name *is* the family name ('Sushi' -> sushi, 'Ceviche' -> ceviche, "
-              "'Asado' -> asado, 'Empanada' -> empanada, 'Falafel' -> falafel).")
+    md.append(f"**{stats['nofamily_dishes']} dishes carry no family-ish old category.** The rule applied:")
     md.append("")
-    md.append("**But the families those dishes would need are NOT in the controlled vocabulary.** "
-              "Adding them would be a vocabulary extension, which is forbidden during the run. So they are "
-              "**left unset** and listed here as proposals for a separate, explicit vocabulary decision.")
+    md.append("1. **No singleton families.** A proposed family must have **>= 2 member dishes** in the catalog - a family with one member is a dish, not a family.")
+    md.append("2. **Propose the broader family first** (asado -> `grilled-meat`, empanada -> `filled-pastry`, falafel -> `fritter`) rather than the dish's own name.")
+    md.append("3. **Only where nothing fits**, propose a new broad family - a **separate vocabulary decision**, not written during this run.")
     md.append("")
-    if not name_inferred:
-        md.append("_No proposal could be formed even from the name - every candidate family is outside the vocabulary._")
+    md.append("These are **proposals for review**. They are NOT written by this run: the three new broad families "
+              "(`grilled-meat`, `filled-pastry`, `fritter`) are outside the controlled vocabulary, and adding them "
+              "would be a vocabulary extension, which is forbidden during the run.")
+    md.append("")
+    if name_inferred:
+        md.append("| dish | proposed broader family | in vocab? |")
+        md.append("|---|---|---|")
+        for slug, fam in sorted(name_inferred.items()):
+            in_vocab = "yes" if fam in VOCAB["dish_family"] else "**no - new, needs a vocabulary decision**"
+            md.append(f"| `{slug}` | `{fam}` | {in_vocab} |")
+    md.append("")
+    md.append("### Member counts (the no-singleton evidence)")
+    md.append("")
+    md.append("| proposed family | members | in vocab? |")
+    md.append("|---|---|---|")
+    for fam, members in sorted(BROADER_FAMILY_PROPOSALS.items()):
+        in_vocab = "yes" if fam in VOCAB["dish_family"] else "**no**"
+        md.append(f"| `{fam}` | {len(members)} | {in_vocab} |")
+    md.append("")
+    if name_inferred_ambiguous:
+        md.append("### Dishes the rule cannot place (left unset)")
+        md.append("")
+        md.append("| dish | why |")
+        md.append("|---|---|")
+        for slug, why in name_inferred_ambiguous:
+            md.append(f"| `{slug}` | {why} |")
+        md.append("")
+    unset_fam = sorted(set(nofamily_slugs) - set(name_inferred) - {sl for sl, _ in name_inferred_ambiguous})
+    if unset_fam:
+        md.append("### Remaining dishes with no family and no proposal (left unset)")
         md.append("")
         md.append("| dish | canonical name | old categories |")
         md.append("|---|---|---|")
-        for slug in sorted(nofamily_slugs):
+        for slug in unset_fam:
             md.append(f"| `{slug}` | {canonical_names.get(slug,'')} | {', '.join(f'`{c}`' for c in sorted(old_cats.get(slug, [])))} |")
-    else:
-        md.append(f"{len(name_inferred)} dishes carry no family-ish old category, but their **own name is the family name** "
-                  "('Sushi' → `sushi`, 'Ceviche' → `ceviche`). That is an **inference from the dish name**, not a "
-                  "fact recovered from the old taxonomy, so it is reported here rather than written. Approving this "
-                  "list would set `dish_family` for these dishes; leaving it alone leaves them unset.")
-        md.append("")
-        md.append("| dish | proposed family |")
-        md.append("|---|---|")
-        for slug, fam in sorted(name_inferred.items()):
-            md.append(f"| `{slug}` | `{fam}` |")
-    md.append("")
-    if name_inferred_ambiguous:
-        md.append("### Name-inference ambiguities (left unset)")
-        md.append("")
-        md.append("| dish | candidate families |")
-        md.append("|---|---|")
-        for slug, cands in name_inferred_ambiguous:
-            md.append(f"| `{slug}` | {cands} |")
         md.append("")
 
     # ---- per-dish ----
@@ -806,8 +947,9 @@ def main() -> int:
     for dim in DIMENSIONS:
         for value, cat in sorted(proposals.get(dim, [])):
             print(f"    {dim}: {value}  (from '{cat}')")
+    print(f"explicit cell decisions   : {stats['explicit_decisions']}")
     print(f"ambiguous cells           : {stats['ambiguous_cells']}")
-    print(f"name-inferred families    : {stats['name_inferred_families']} (PROPOSALS, not written)")
+    print(f"broadened families        : {stats['broadened_families']} (PROPOSALS, not written)")
     for dim, items in ambiguous.items():
         for slug, vals, note in items:
             print(f"    {dim}: {slug} <- {vals}  ({note})")

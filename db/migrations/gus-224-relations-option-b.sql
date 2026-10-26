@@ -140,7 +140,21 @@ CREATE TABLE IF NOT EXISTS dish_relations_archive (
 -- ---------------------------------------------------------------------
 
 -- 4a. DIRECTIONAL - archive the inverse of each of the 5 keep-rows.
---     (the reverse of every explicit keep-row)
+--
+--     The direction is decided by the MEANING of the reason, not by which
+--     dish the sentence names as its grammatical subject. The al pastor
+--     row proves the subject rule is false: 'Al pastor derives from
+--     Levantine shawarma' keeps shawarma -> tacos-al-pastor (shawarma is
+--     the ancestor, the thing derived FROM), while 'Tonkatsu is the
+--     Japanese adaptation of European breaded cutlets' puts TONKATSU on
+--     the diaspora side and the European cutlet in the origin role - so
+--     that row runs wiener-schnitzel -> tonkatsu.
+--
+--     semantic rule:
+--       ancestor : 'X derives from Y' / 'X is the ancestor of Y' -> Y is
+--                  the ancestor, so from = Y
+--       diaspora : 'X is the <national> adaptation of Y' -> Y is the
+--                  origin, so from = Y
 INSERT INTO dish_relations_archive
   (id, from_dish_id, to_dish_id, relation_type, reason, strength, created_at, archived_reason)
 SELECT dr.id, dr.from_dish_id, dr.to_dish_id, dr.relation_type, dr.reason,
@@ -156,8 +170,9 @@ WHERE dr.id IN (
   '2ded426c-c667-5b40-8e86-da52cb7a51f3',
   -- inverse of shawarma -> hamburger-american
   '11ff5b8d-eb5c-521f-a10a-d04058d4785f',
-  -- inverse of tonkatsu -> wiener-schnitzel
-  '01ef505e-75cc-433d-a6e4-5a65bfe5a515'
+  -- inverse of wiener-schnitzel -> tonkatsu  (the ORIGIN is the European
+  -- cutlet; tonkatsu is the Japanese adaptation, i.e. the diaspora side)
+  'c212c598-0297-4597-aefa-6dc4bfc9e3a6'
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -167,7 +182,7 @@ WHERE id IN (
   '55acfe66-13a1-53a2-94f0-fb2f5e3cb8ee',
   '2ded426c-c667-5b40-8e86-da52cb7a51f3',
   '11ff5b8d-eb5c-521f-a10a-d04058d4785f',
-  '01ef505e-75cc-433d-a6e4-5a65bfe5a515'
+  'c212c598-0297-4597-aefa-6dc4bfc9e3a6'
 );
 
 -- 4b. SYMMETRIC - archive the row where from_dish_id > to_dish_id.
@@ -213,14 +228,14 @@ SET status = 'quarantined',
       WHEN relation_type = 'diaspora' AND from_dish_id = (SELECT id FROM dishes WHERE slug='shawarma')
         THEN 'GUS-224: mis-wired. The claim (doner kebab 1970s West Berlin diaspora -> the hamburger-among-immigrants) is supported by one tertiary source, but the relation connects shawarma. doner-kebab exists as a dish and has ZERO relations. A rewire to doner-kebab would be a NEW CLAIM, not a correction, so no hand edit.'
       WHEN relation_type = 'diaspora'
-        THEN 'GUS-224: unsupported pairing. The supporting quote (Wikipedia Tonkatsu) is for the French cote de veau; Wikipedia Wiener schnitzel traces a different lineage (Nuremberg 1691, 19th-century designation, Radetzky 1857 which Pohl says concerns veal Milanese). No hand edit.'
+        THEN 'GUS-224: unsupported pairing. The reason reads Tonkatsu is the Japanese adaptation of European breaded cutlets, so the origin side is the European cutlet - but Wikipedia Tonkatsu derives it from the French cote de veau, and Wikipedia Wiener schnitzel traces a different lineage (Nuremberg 1691, 19th-century designation, Radetzky 1857 which Pohl says concerns veal Milanese). The pair is unsupported either way. Direction: from = the origin (wiener-schnitzel). No hand edit.'
       ELSE 'GUS-224: quarantined.'
     END
 WHERE id IN (
   '0afcdf4e-e05f-5315-8b24-67e3b8a15aa0',  -- bacalhau-a-bras -> vindaloo
   '7109f0e7-9d99-5858-9ee2-78e3a6fe1c90',  -- biryani-hyderabadi -> jollof-rice
   '27b97221-f85c-532c-9264-7899f34399b7',  -- shawarma -> hamburger-american
-  'c212c598-0297-4597-aefa-6dc4bfc9e3a6'   -- tonkatsu -> wiener-schnitzel
+  '01ef505e-75cc-433d-a6e4-5a65bfe5a515'   -- wiener-schnitzel -> tonkatsu (origin = the European cutlet)
 );
 
 -- 5b. The pilot relation stays LIVE (Q1), flagged as a single tertiary source.
