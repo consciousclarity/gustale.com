@@ -1,6 +1,6 @@
 # ADR-001 — Canonical culinary entity model
 
-**Status:** 🟢 **CLOSED — all 7 questions decided (D1–D7). Not implemented. No migration written.** Awaiting Alejandro's final review of the decision list before the pilot.
+**Status:** 🟢 **CLOSED — approved 2026-10-26 (with amendments D3b–D3f, D6b-amend). Not implemented. No migration written.** One open follow-up (cuisine hierarchy) recorded in §4 as a follow-up, not a decision.
 **Date:** 2026-10-25 · **Task:** GUS-014 (EPIC 02 — Redesign the culinary knowledge model) · **Related:** ROADMAP.md §4 (EPIC 02), GUS-015…GUS-025
 
 ---
@@ -250,6 +250,23 @@ lineages     skewered-grilled-meat
 - `citations` must be migrated from `target_type/target_id` to `claim_id`, and the 121 existing dish-level citations become claim-level — which means **creating a claim row per existing citation**. That is the honest cost: today's 121 Wikipedia citations are 121 claims that happen to be about whole dishes.
 - Readers of the old URLs must keep working (GUS-018/025): dish slugs and ids must be preserved.
 
+### Open follow-up — cuisine hierarchy (national vs. regional)
+
+**This ADR does not decide a cuisine hierarchy.** `dish_cuisine` is specified here as a flat, single-valued dimension with a controlled vocabulary, and `rendang` is assigned `indonesian`. But `indonesian` (national) and `minangkabau` (regional/regional-cultural) are different *granularities* of the same axis, and the model currently has no way to say that a dish is Minangkabau *within* Indonesian cuisine rather than in some peer category of it.
+
+Observed pressure for this:
+- `rendang` → `indonesian` is true but coarse; its documented origin is West Sumatra / Minangkabau.
+- The reference dish already carries `origin` as a **place** (`geo_entities`), which is a different mechanism from a cuisine value — `place` = where it came from, `cuisine` = which culinary tradition it belongs to. `minangkabau` is arguably both a place-derived cuisine and a culinary tradition.
+- The 152-row `categories` table contains both national (`indonesian-cuisine`, `mexican-cuisine`) and regional (`indonesian-cuisine` vs. implied sub-regional) values mixed flat, which is exactly the flattening D1 removes.
+
+**Open questions for a follow-up ADR (not decided here):**
+1. Is cuisine hierarchical (national → regional → sub-regional), or flat with a separate `dish_tradition` layer carrying the regional identity?
+2. If hierarchical, is the hierarchy stored as a parent pointer on the cuisine rows, or as a `dish_cuisines` join with a depth/level column?
+3. Does `minangkabau` belong in `dish_cuisine`, `dish_tradition`, or both — and if both, what stops the two from disagreeing?
+4. Does a dish get one cuisine or a path through the hierarchy (`indonesian > minangkabau`)? Note this interacts with the single-valued `dish_cuisine` decision (D7b): a path is not a single value.
+
+**Until that follow-up lands, the pilot uses the flat vocabulary as decided here** — `rendang` → `dish_cuisine = indonesian` — and the Minangkabau specificity is carried by `origin` (place) and by claims, **not** by inventing a `minangkabau` cuisine row.
+
 ### Sequencing (proposal, not decided)
 1. `claims` + `citations.claim_id` — unblocks EPIC 03, and is the prerequisite for GUS-026's policy to be enforceable.
 2. `recipes` + `recipe_steps` + `recipe_ingredients` — unblocks GUS-015.
@@ -282,6 +299,58 @@ Consequences for the live data:
 - `kebab` and `curry` are **removed from `dish_technique`** — they are families. They were doing double duty as family *and* technique, which is precisely the ambiguity the dimension split exists to kill.
 - `stew` **stays a `dish_family` value** (it is a noun, and it names a family of preparations).
 - **Rendang** → `dish_family = curry`, `dish_technique = braising` (a dry braise), and the `stew` tag is **dropped**.
+
+### D3b — `tacos-al-pastor` family = `taco`; its shawarma lineage is a relation, not a family
+
+`tacos-al-pastor` → `dish_family = taco`.
+
+`taco` is a **controlled-vocabulary family value** (a noun naming a family of preparations — the same class as `curry`, `kebab`, `stew`, `dumpling`). `kebab` is **not** the family here: `kebab` names a *form of meat preparation*, which is what the technique dimension is for, and it would force `kebab` back into double duty that D3 just killed.
+
+**The Lebanese `shawarma` → Mexican `al pastor` lineage is a `dish_relations` row, not a family assignment.** It is recorded as a typed relation:
+
+> `dish_relations(target = shawarma, type = derived-from)`
+
+Rationale: lineage is a historical relationship between two dishes, not a taxonomic membership. A dish's family answers *what kind of dish is this*; the relation answers *where did this come from*. Putting the lineage in `dish_family` would make the family dimension a relation store — the same mistake D3 removed.
+
+**Consequence for the pilot spec:** `tacos-al-pastor` carries `dish_family = taco` and **no** family value of `kebab`; its shawarma lineage appears as a `dish_relations` row with type `derived-from`.
+
+### D3c — `chicken-tikka-masala` technique = `grilling` + `simmering`
+
+`chicken-tikka-masala` → `dish_technique = grilling, simmering` (multi-valued, per D7b).
+
+*Grilling* covers the `tikka` (the marinated chunks cooked over fire); *simmering* covers the sauce the grilled pieces are added to. Both are gerund technique values already in the controlled vocabulary. The technique dimension is multi-valued precisely so a two-stage method like this is representable without inventing a compound verb.
+
+**Consequence:** the pilot spec must list **two** technique values for `chicken-tikka-masala`, and `dish_technique` for the pilot is validated against the controlled vocabulary (no free-text techniques).
+
+### D3d — `rendang` context = `home` + `festival/ceremonial` + `restaurant`
+
+`rendang` → `dish_context = home, festival/ceremonial, restaurant` (multi-valued, per D7/D7b).
+
+Rendang is not only a home dish: it is served at **festivals and ceremonial occasions** (it is a staple of Minangkabau ceremonial and celebratory cooking, including wedding and communal feasts), and it is a **restaurant** dish too. Recording all three is the point of a multi-valued context dimension — the single-valued alternative would have forced dropping two true facts.
+
+### D3e — Controlled-vocabulary discipline: `dry braise` is a claim, not a technique value
+
+**All 7 dimensions accept only controlled-vocabulary values.** No free-text values, no compound adjectives, no parenthetical qualifiers in the dimension column.
+
+`braising` is the technique value for `rendang`. The fact that the braise is **dry** (as opposed to wet/liquid braising) is **not** a dimension value — it is an **assertable fact** and therefore belongs in a **claim**:
+
+> claim: `rendang` — technique-qualifier → `dry` (braise), source-anchored
+
+This is the same principle as D6: a compound fact that one source can settle is one claim. "Rendang is braised" (technique = `braising`, dimension value) and "the braise is dry" (a qualifier on the technique, a claim) are two separately-sourced facts. If the vocabulary later proves to need `dry-braising` as an atomic technique, it is added to the controlled vocabulary explicitly and the claim is re-expressed — but it is **not** smuggled into the dimension as `braising (dry)`.
+
+**Vocabulary rule for the pilot spec:** every dimension cell is either a value drawn verbatim from the dimension's controlled vocabulary, or the literal token **`unset`**. Nothing else — no parentheticals, no modifiers, no prose.
+
+### D3f — `dish_course` rationale: primary meal role
+
+**Corrected rationale for the single-valued `dish_course` dimension:**
+
+> **`dish_course` = the dish's PRIMARY role in a meal.** Secondary / situational uses belong to `dish_context`.
+
+A dish may be eaten in more than one situational capacity, but it occupies one *primary* seat at the table. Examples:
+- `tacos-al-pastor` — primary course: `main-course`; it is also eaten as street food → that is `dish_context = street-food`, not a second course value. (D2's split stands; `street-snack` was correctly rejected as a course.)
+- A dish served both as an appetizer and as a main gets `dish_course = main-course` (its primary role) and any appetizer usage is captured as context, not as a competing course.
+
+This is the reason `dish_course` is single-valued while `dish_context` is multi-valued: **one primary role, many situations.**
 
 ### D4 — The description stays authored; claims anchor it
 
@@ -326,6 +395,13 @@ Each has its own evidence requirement. A scholar on Minangkabau settles #1 but n
 
 **Coverage = fully-evidenced sentences / total factual sentences.** Partial anchoring earns nothing — a sentence that half-cites a compound claim is not evidenced, it is half-sourced.
 
+**Edge case — coverage is `null`, not `0`, when the dish has no factual sentences.** A dish with no description prose (or only non-factual prose: greetings, navigation text, "see below") has an undefined coverage, not zero coverage. Reporting `0%` there would falsely accuse the dish of being unsourced. `null` means *not measurable*; `0%` means *measurable and nothing is sourced*. These are different states and must be stored and displayed differently.
+
+```
+coverage = null                                      if total_factual_sentences == 0
+coverage = fully_evidenced / total_factual_sentences  otherwise
+```
+
 **Separate metric — corroboration:**
 > **corroboration = claims with ≥ 2 independent sources**
 
@@ -333,7 +409,11 @@ The two are independent and both matter:
 - **coverage** asks *how much of this dish's prose is sourced at all*
 - **corroboration** asks *how much of it is confirmed more than once*
 
-A dish can be 100% covered and 0% corroborated (every sentence anchored to a single Wikipedia source — which is exactly the current catalog). Coverage alone would therefore have looked like success while the catalog stayed single-sourced. Both are reported per dish.
+A dish can have **full coverage (100%) and zero corroboration (0%)** — every sentence anchored, but every anchor pointing at a single Wikipedia source, which is exactly the current catalog. Coverage alone would therefore have looked like success while the catalog stayed single-sourced. Both metrics are reported per dish.
+
+Two further clarifications on the pair:
+- **The two metrics are independent.** Coverage asks *how much of the prose is sourced at all*; corroboration asks *how much of it is confirmed more than once*. A dish can be 100% covered and 0% corroborated; a dish can be 40% covered and 90% corroborated (few sentences, but each rests on multiple sources). Neither implies the other.
+- **Coverage is `null` when there are no factual sentences** (see above), so the "100% covered" case only arises for dishes that actually have prose to cover.
 
 ### D7 — `dish_context` is multi-valued, flat 5 values, no qualifiers
 
@@ -425,9 +505,11 @@ A dish can be 100% covered and 0% corroborated (every sentence anchored to a sin
 
 ### ADR-001 is CLOSED
 
-All 7 questions asked (Q1–Q7) are decided and recorded as D1–D7 (with D5b, D6b, D7b as sub-decisions). The question list is frozen and no further questions will be added to ADR-001.
+All 7 questions asked (Q1–Q7) are decided and recorded as D1–D7, with sub-decisions D3b–D3f, D5b, D6b (amended) and D7b.
 
-**This ADR is accepted pending Alejandro's final review of the decision list (below).** Implementation has NOT started: no schema migration, no pilot migration. The pilot on the 3 reference dishes requires Alejandro's explicit go, after the pass/fail expected-end-state spec and the snapshot/rollback are written.
+**Approved by Alejandro 2026-10-26 with amendments** (D3b–D3f, D6b-amend) plus one **open follow-up** that is explicitly *not* a decision (cuisine hierarchy, recorded in §4 Consequences).
+
+**Implementation has NOT started:** no schema migration, no pilot migration. The pilot on the 3 reference dishes requires Alejandro's explicit go, after the pass/fail expected-end-state spec (`.hermes/REPORTS/GUS-014-pilot-spec.md`) and the snapshot/rollback are written.
 
 ---
 
@@ -447,18 +529,31 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
 | D7 | 2026-10-26 | `dish_context` = multi-valued, flat 5 values, no qualifiers | `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`. `market` ≠ `street-food` (pasar purchase vs. stall/cart; `jajan pasar` carries both). No qualifier mechanism |
 | D7b | 2026-10-26 | Cardinality table for all 7 dimensions | Single-valued: `dish_family`, `dish_cuisine`, `dish_course`. Multi-valued: `dish_technique`, `ingredient_category`, `dish_tradition`, `dish_context`. DB enforcement: unique constraint on single-valued joins |
+| D3b | 2026-10-26 | `tacos-al-pastor` family = `taco`; shawarma lineage → relation | `dish_family = taco` (controlled-vocab noun). `kebab` not used as family. Shawarma lineage recorded as `dish_relations(target=shawarma, type=derived-from)` — lineage is a historical relation, not taxonomic membership |
+| D3c | 2026-10-26 | `chicken-tikka-masala` technique = grilling + simmering | Two-stage method: grilling covers the `tikka`, simmering covers the sauce. `dish_technique` is multi-valued, so no compound verb needed. Both are existing controlled-vocab gerunds |
+| D3d | 2026-10-26 | `rendang` context = home + festival/ceremonial + restaurant | Rendang is a home dish, a festival/ceremonial dish (Minangkabau wedding and communal feasts) and a restaurant dish. Recording all three is the point of a multi-valued context dimension |
+| D3e | 2026-10-26 | Controlled-vocabulary discipline for all 7 dimensions | Dimension cells are verbatim controlled-vocab values or the literal token `unset` — no free text, no parentheticals. `braising (dry)` is rejected: `braising` is the technique value, "dry" is a **claim** (a separately-sourceable assertable fact, per D6). `dry-braising` would have to be added to the vocabulary explicitly, not smuggled in |
+| D3f | 2026-10-26 | `dish_course` rationale corrected | `dish_course` = the dish's **primary meal role**; secondary/situational uses → `dish_context`. This is why course is single-valued and context multi-valued: one primary role, many situations |
+| D6b-amend | 2026-10-26 | Coverage `null` when no factual sentences | `coverage = null` if `total_factual_sentences == 0` (not `0%` — `null` = not measurable, `0%` = measurable and unsourced). Also fixed the wording of the "100% covered and 0% corroborated" line and stated that the two metrics are independent |
+| follow-up | 2026-10-26 | **Open follow-up (not a decision): cuisine hierarchy** | Recorded in §4 Consequences. National vs. regional granularity (`indonesian` vs. `minangkabau`) is unresolved: hierarchy vs. flat + tradition layer; where Minangkabau belongs (`dish_cuisine` / `dish_tradition` / both); and how a hierarchical path interacts with single-valued `dish_cuisine`. Pilot uses the flat vocabulary as decided here; Minangkabau specificity is carried by `origin` (place) and claims, not by inventing a cuisine row |
 
 ### Live-data consequences of D1–D7 (to apply in the migration)
 
 | Dish | family | cuisine | course | technique | context |
 |---|---|---|---|---|---|
-| `rendang` | curry | indonesian | main-course | braising (dry) | home |
-| `chicken-tikka-masala` | curry | — (disputed: UK / South Asian) | main-course | — | restaurant |
-| `tacos-al-pastor` | kebab | mexican | main-course | spit-roasting | street-food |
+| `rendang` | curry | indonesian | main-course | braising | home, festival/ceremonial, restaurant |
+| `chicken-tikka-masala` | curry | unset | main-course | grilling, simmering | restaurant |
+| `tacos-al-pastor` | taco | mexican | main-course | spit-roasting | street-food |
 
-Note `chicken-tikka-masala`'s cuisine is **deliberately left unset** — that is the Glasgow dispute, and it must not be resolved by a migration.
+Amended 2026-10-26 (D3b–D3f):
+- `tacos-al-pastor` family = **`taco`** (not `kebab`); its shawarma lineage is a `dish_relations` row, type **`derived-from`** (D3b).
+- `chicken-tikka-masala` technique = **`grilling`, `simmering`** (D3c).
+- `rendang` context = **`home`, `festival/ceremonial`, `restaurant`** (D3d).
+- `rendang` technique = **`braising`** — the "dry" qualifier is a **claim**, not a dimension value (D3e).
+- `chicken-tikka-masala` cuisine = **`unset`** (the Glasgow dispute; a migration must not resolve it).
+- `dish_course` = primary meal role; secondary uses → `dish_context` (D3f).
 
-`context` above shows one value per dish only because these three dishes each have one known context. The dimension itself is **multi-valued** (D7/D7b): the pilot may legitimately assign two values to a dish (e.g. `tacos-al-pastor` → `street-food` + `market` if the source evidence supports it).
+**Controlled vocabulary rule (D3e):** every dimension cell above is either a value drawn verbatim from the dimension's controlled vocabulary, or the literal token **`unset`**. The full pilot spec (including `ingredient_category` and `dish_tradition`, with explicit `unset` where empty) is `.hermes/REPORTS/GUS-014-pilot-spec.md`.
 
 ## 6. What this ADR does NOT decide
 
