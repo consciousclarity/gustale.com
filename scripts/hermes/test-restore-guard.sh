@@ -11,6 +11,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/gus-014-pilot-snapshot.sh"
 LIVE_DB="${LIVE_DB:-gustale}"
+PG_CONTAINER="${PG_CONTAINER:-shared-postgres}"
+PG_SUPERUSER="${PG_SUPERUSER:-postgres}"
 SNAPSHOT_DIR="${GUS014_SNAPSHOT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)/.hermes/snapshots/gus-014}"
 
 fail=0
@@ -23,7 +25,18 @@ echo "GUS-014 restore-guard tests (live db = '$LIVE_DB')"
 TMP="$(mktemp -d)"
 mkdir -p "$TMP/snap"
 : > "$TMP/snap/db.dump"
-trap 'rm -rf "$TMP"' EXIT
+
+# The guard test's "accepted" cases actually reach the restore path, which
+# creates databases. Clean them up so the test leaves no residue.
+GUARD_TEST_DBS="gustale_pilot_restore gustale_pilot_rollback_test gustale_staging_copy"
+cleanup_guard_dbs() {
+  for db in $GUARD_TEST_DBS; do
+    docker exec "$PG_CONTAINER" psql -U "$PG_SUPERUSER" -d postgres \
+      -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE);" >/dev/null 2>&1 || true
+  done
+}
+trap 'rm -rf "$TMP"; cleanup_guard_dbs' EXIT
+cleanup_guard_dbs
 
 # --- the live database must be refused ---
 if bash "$SCRIPT" restore "$TMP/snap" "$LIVE_DB" >/dev/null 2>&1; then
