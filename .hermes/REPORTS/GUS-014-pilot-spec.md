@@ -58,9 +58,29 @@ Gerunds — *how it is made*.
 
 Applied **per ingredient**, not per dish. The dish-level cell in §3 records whether the dish has any ingredient rows in this dimension, and which categories those ingredients fall into.
 
-`meat` · `red-meat` · `beef` · `pork` · `poultry` · `chicken` · `seafood` · `fish` · `shellfish` · `game` · `offal` · `legume` · `grain` · `rice` · `noodle` · `bread` · `vegetable` · `leafy-green` · `root-vegetable` · `allium` · `fruit` · `citrus` · `coconut` · `herb` · `spice` · `aromatic-base` · `chili` · `paste` · `fat` · `oil` · `dairy` · `egg` · `nut` · `seed` · `sweetener` · `sugar` · `fermented` · `salt` · `beverage` · `liquid` · `broth` · `sauce` · `vinegar` · `wrapper` · `dough` · `pickle` · `cheese` · `stock` · `fumigation` · `sweet` · `savoury`
+**STORED VALUES (leaves only)** — these are what a dish's `ingredient_category` cell may contain:
 
-> **Vocabulary extended 2026-10-26 (Alejandro):** `red-meat`, `beef`, `pork`, `chicken`, `coconut` were added verbatim so the pilot can fill `ingredient_category` **from the D6 claims** rather than leaving it `unset`. The generic `meat` / `poultry` / `dairy` values remain in the vocabulary for dishes whose claims only establish the broad class. A dish's `ingredient_category` cell lists **every** category its evidenced ingredients fall into — the narrow and the broad can coexist (e.g. `beef` + `red-meat`).
+`meat` · `beef` · `pork` · `poultry` · `chicken` · `seafood` · `fish` · `shellfish` · `game` · `offal` · `legume` · `grain` · `rice` · `noodle` · `bread` · `vegetable` · `leafy-green` · `root-vegetable` · `allium` · `fruit` · `citrus` · `coconut` · `herb` · `spice` · `aromatic-base` · `chili` · `paste` · `fat` · `oil` · `dairy` · `egg` · `nut` · `seed` · `sweetener` · `sugar` · `fermented` · `salt` · `beverage` · `liquid` · `broth` · `sauce` · `vinegar` · `wrapper` · `dough` · `pickle` · `cheese` · `stock` · `fumigation` · `sweet` · `savoury`
+
+**PARENT VALUES (derived — never stored on a dish):**
+
+`red-meat` (parent of `beef`, `pork`, `game`, `offal`) · `white-meat` (parent of `poultry`, `seafood`, `fish`, `shellfish`) · `produce` (parent of `vegetable`, `fruit`, `herb`, `nut`, `seed`, `legume`) · `dairy` (parent of `cheese`, `egg`)
+
+> **Leaf-only storage (Alejandro, 2026-10-26).** A dish's `ingredient_category` cell stores **leaf values only**. Parent categories are **derived**, not stored:
+>
+> | stored leaf | derived parent(s) |
+> |---|---|
+> | `beef`, `pork`, `game`, `offal` | `red-meat` |
+> | `chicken`, `poultry` | `white-meat` |
+> | `fish`, `shellfish`, `seafood` | `white-meat` |
+> | `vegetable`, `fruit`, `herb`, `nut`, `seed`, `legume` | `produce` |
+> | `cheese`, `egg` | `dairy` |
+>
+> **Why:** storing both a leaf and its parent double-counts. A dish with `beef` would carry `beef` **and** `red-meat`, and a query for "how many dishes use red meat" would return the same dish twice under two rows, while a query for "how many distinct categories does this dish have" would be inflated. The parent is a **query-time derivation** over the leaf set, not a stored fact.
+>
+> **Consequence for the pilot:** `rendang` stores `beef`, `coconut` — **not** `red-meat`. `chicken-tikka-masala` stores `chicken`, `dairy` — **not** `poultry`. `tacos-al-pastor` stores `pork` — **not** `red-meat`. Derived parents are reported by the query layer, never written.
+>
+> **Exception — `dairy` is a leaf here.** Dairy has no more specific evidence-backed leaf in these three dishes (the claim says "dairy base", not "cream" or "yoghurt"), so `dairy` is stored as the most specific evidenced value. The `dairy → cheese, egg` parent row above is future vocabulary, not a claim that these pilot dishes are `cheese` or `egg`.
 
 ### 1.6 `dish_tradition` — multi-valued (D7b)
 
@@ -94,7 +114,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | `dish_cuisine` | single | `indonesian` | §1.2 |
 | `dish_course` | single | `main-course` | §1.3 |
 | `dish_technique` | multi | `braising` | §1.4 |
-| `ingredient_category` | multi | `beef`, `red-meat`, `coconut` | §1.5 — from the D6 claims: protein = beef (→ `beef`, `red-meat`), medium = coconut milk (→ `coconut`) |
+| `ingredient_category` | multi | `beef`, `coconut` | §1.5 — from the D6 claims: protein = beef (→ `beef`), medium = coconut milk (→ `coconut`). Derived parent `red-meat` is **not stored** (leaf-only) |
 | `dish_tradition` | multi | `minangkabau` | §1.6 |
 | `dish_context` | multi | `home`, `festival/ceremonial`, `restaurant` | §1.7 — D3d |
 
@@ -114,7 +134,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | `dish_cuisine` | single | `unset` | §1.2 — **the Glasgow dispute.** The migration must NOT resolve it. Leaving it unset and recording the dispute as competing claims is the correct end state, not a failure. |
 | `dish_course` | single | `main-course` | §1.3 |
 | `dish_technique` | multi | `grilling`, `simmering` | §1.4 — D3c |
-| `ingredient_category` | multi | `chicken`, `poultry`, `dairy` | §1.5 — from the D6 claims: protein = chicken (→ `chicken`, `poultry`), the sauce's dairy base (yoghurt/cream) (→ `dairy`) |
+| `ingredient_category` | multi | `chicken`, `dairy` | §1.5 — from the D6 claims: protein = chicken (→ `chicken`), the sauce's dairy base (yoghurt/cream) (→ `dairy`). Derived parent `white-meat` is **not stored** (leaf-only) |
 | `dish_tradition` | multi | `unset` | §1.6 — no evidenced tradition for CTM; the Glasgow/Muslim-British question is an **origin/cuisine dispute**, not a tradition assignment |
 | `dish_context` | multi | `restaurant` | §1.7 |
 
@@ -130,7 +150,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 | `dish_cuisine` | single | `mexican` | §1.2 |
 | `dish_course` | single | `main-course` | §1.3 — **primary meal role** (D3f). Its street-food usage is the *context*, not a second course. |
 | `dish_technique` | multi | `spit-roasting` | §1.4 — D5b (vertical spit ≠ horizontal skewering) |
-| `ingredient_category` | multi | `pork`, `red-meat` | §1.5 — from the D6 claims: protein = pork (→ `pork`, `red-meat`) |
+| `ingredient_category` | multi | `pork` | §1.5 — from the D6 claims: protein = pork (→ `pork`). Derived parent `red-meat` is **not stored** (leaf-only) |
 | `dish_tradition` | multi | `unset` | §1.6 — no evidenced tradition |
 | `dish_context` | multi | `street-food` | §1.7 |
 
@@ -140,31 +160,61 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 
 **Relation type = `ancestor`** (not `derived-from`). Verified against the live table 2026-10-26:
 
-| live `relation_type` | uses | example |
+| live `relation_type` | uses | example (`from` → `to`) |
 |---|---|---|
 | `ancestor` | 4 | `bacalhau-a-bras` → `vindaloo`, *"Portuguese carne de vinha d'alhos is the direct ancestor of vindaloo"* (strength 5) |
 | `diaspora` | 4 | `shawarma` → `hamburger-american`, *"Doner kebab's diaspora to Berlin inspired the hamburger-among-immigrants"* (strength 2) |
-| `family` | 104 | — |
+| `family` | 104 | `chicken-tikka-masala` → `biryani-hyderabadi` |
 | `regional-cousin` | 30 | — |
 | `shared-method` | 28 | — |
 | `similar-serving` | 14 | — |
 | `shared-ingredient` | 6 | — |
 
-`dish_relations.relation_type` is **free text** (no CHECK constraint), so `derived-from` *would* have been accepted by the DB — but it would have been an inconsistent 8th type in a vocabulary that already carries the right word. Shawarma is the documented **ancestor** of al pastor, exactly parallel to `bacalhau-a-bras → vindaloo`. The existing `shawarma → hamburger-american` row is a *diaspora* relation (a different migration story: doner kebab to Berlin), which is why the two shawarma relations use **different types** — and why the pilot must not copy the `diaspora` precedent by mistake.
+`dish_relations.relation_type` is **free text** (no CHECK constraint), so `derived-from` *would* have been accepted by the DB — but it would have been an inconsistent 8th type in a vocabulary that already carries the right word.
 
-**The exact relation row the pilot writes:**
+### Direction convention — source = ancestor (CORRECTED 2026-10-26)
 
-| column | value |
-|---|---|
-| `from_dish_id` | `tacos-al-pastor` |
-| `to_dish_id` | `shawarma` |
-| `relation_type` | `ancestor` |
-| `reason` | *"Al pastor derives from Levantine shawarma, adapted in Mexico with achiote and a vertical spit"* |
-| `strength` | `4` (matches the other documented ancestry relations, which use 4–5) |
+**`from_dish_id` is the ANCESTOR; `to_dish_id` is the descendant.** This is the opposite of what an earlier draft of this spec asserted, and the earlier draft was **wrong**.
 
-> **Direction convention:** the existing ancestry rows read `ancestor → descendant` (`bacalhau-a-bras → vindaloo`; `biryani-hyderabadi → jollof-rice`). So the pilot writes **`tacos-al-pastor → shawarma`** with `relation_type = ancestor`, i.e. *the descendant points at its ancestor*. This is confirmed against the live data, not assumed.
+The evidence, read from the live rows' own `reason` text:
+
+| row | reason | source is… |
+|---|---|---|
+| `bacalhau-a-bras → vindaloo` | *"…is the direct **ancestor of** vindaloo"* | **the ancestor** |
+| `biryani-hyderabadi → jollof-rice` | *"Biryani's … tradition is the documented **ancestor of** jollof"* | **the ancestor** |
+| `shawarma → hamburger-american` | *"Doner kebab's **diaspora to** Berlin inspired…"* | the diaspora source |
+
+`from_dish_id` is always the **subject** of the relation and `to_dish_id` the **object** — the same convention as `family` (`chicken-tikka-masala → biryani-hyderabadi`, *"Both pillars of…"*).
+
+### The relation rows the pilot writes — TWO, not one
+
+**Every relation in the live table is stored bidirectionally.** Verified across all 190 rows:
+
+| `relation_type` | rows | with reverse row | without |
+|---|---|---|---|
+| `family` | 104 | 104 | 0 |
+| `regional-cousin` | 30 | 30 | 0 |
+| `shared-method` | 28 | 28 | 0 |
+| `shared-ingredient` | 6 | 6 | 0 |
+| `similar-serving` | 14 | 14 | 0 |
+| `diaspora` | 4 | 4 | 0 |
+| `ancestor` | 4 | 4 | 0 |
+
+**190 rows = 95 pairs, zero unpaired.** Writing one row would make `tacos-al-pastor` the only dish with a one-sided relation in the entire catalog.
+
+The pilot therefore writes **two rows**:
+
+| column | row 1 | row 2 |
+|---|---|---|
+| `from_dish_id` | **`shawarma`** (the ancestor) | `tacos-al-pastor` |
+| `to_dish_id` | `tacos-al-pastor` | **`shawarma`** |
+| `relation_type` | `ancestor` | `ancestor` |
+| `reason` | *"Al pastor derives from Levantine shawarma, adapted in Mexico with achiote and a vertical spit"* | same reason (the live reverse rows carry the identical reason) |
+| `strength` | `4` | `4` |
+
+> The live reverse rows carry the **same `reason` string** as their forward pair (e.g. both `bacalhau-a-bras → vindaloo` and `vindaloo → bacalhau-a-bras` carry *"Portuguese carne de vinha d'alhos is the direct ancestor of vindaloo"*). The pilot copies that pattern exactly.
 >
-> `tacos-al-pastor` currently has **0 relations** — the ADR's finding is confirmed live, and this pilot writes its **first** relation.
+> `tacos-al-pastor` currently has **0 relations** — the ADR's finding is confirmed live, and this pilot writes its **first** relations.
 
 ---
 
@@ -172,21 +222,23 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 
 `ingredient_category` is filled **from the claims**, not from ingredient rows (the dishes have zero ingredient rows today). Each D6 claim that asserts a protein or a cooking medium contributes specific controlled-vocabulary values.
 
-| dish | D6 claim (predicate → value) | → `ingredient_category` values | rationale |
-|---|---|---|---|
-| `rendang` | protein → beef | `beef`, `red-meat` | `beef` is the specific animal; `red-meat` is the class. Both are recorded — the dimension is multi-valued and a narrow value does not exclude its class. |
-| `rendang` | medium → coconut milk | `coconut` | coconut milk is the cooking medium; `coconut` is the ingredient category it falls into. |
-| `chicken-tikka-masala` | protein → chicken | `chicken`, `poultry` | same narrow + class pattern. |
-| `chicken-tikka-masala` | sauce base → yoghurt/cream | `dairy` | the sauce's dairy component is what makes CTM a curry rather than a grilled-meat-with-tomato dish. |
-| `tacos-al-pastor` | protein → pork | `pork`, `red-meat` | al pastor is marinated pork; `red-meat` is the class. |
-| `chicken-tikka-masala` | origin → Glasgow | — | **no `ingredient_category` contribution** — origin is not an ingredient fact. The two competing origin claims contribute nothing to this dimension. |
+| dish | D6 claim (predicate → value) | → `ingredient_category` values (leaf only) | derived parent (NOT stored) | rationale |
+|---|---|---|---|---|
+| `rendang` | protein → beef | `beef` | `red-meat` | `beef` is the most specific evidenced leaf. `red-meat` is **derived** at query time, not stored. |
+| `rendang` | medium → coconut milk | `coconut` | `produce` | coconut milk is the cooking medium; `coconut` is the ingredient category it falls into. |
+| `chicken-tikka-masala` | protein → chicken | `chicken` | `white-meat` | `chicken` is the leaf. `poultry` is a **parent** in this vocabulary and is not stored; `white-meat` is derived. |
+| `chicken-tikka-masala` | sauce base → yoghurt/cream | `dairy` | — | the sauce's dairy component is what makes CTM a curry rather than a grilled-meat-with-tomato dish. `dairy` is the most specific evidenced leaf (the claim says "dairy base", not "cream" or "yoghurt"). |
+| `tacos-al-pastor` | protein → pork | `pork` | `red-meat` | al pastor is marinated pork; `pork` is the leaf. |
+| `chicken-tikka-masala` | origin → Glasgow | — | — | **no `ingredient_category` contribution** — origin is not an ingredient fact. The two competing origin claims contribute nothing to this dimension. |
 
 **Rules:**
 - A claim contributes to `ingredient_category` only if its predicate asserts an **ingredient, protein, or cooking medium**. Claims about origin, family, technique, duration, or context contribute **nothing**.
 - A claim that is **disputed** contributes **nothing** to the dimension — CTM's origin claims are disputed and are not ingredient facts anyway. A disputed *ingredient* claim would be excluded and flagged.
 - The cell lists **every** category contributed by the evidenced claims. It is not a single "primary" category.
 
-**Vocabulary used by these mappings** (all verbatim from §1.5): `beef`, `red-meat`, `coconut`, `chicken`, `poultry`, `dairy`, `pork`.
+**Vocabulary used by these mappings** (all verbatim from §1.5): `beef`, `coconut`, `chicken`, `dairy`, `pork`.
+
+**Parents are never written.** `red-meat`, `white-meat`, `produce` are derived from the stored leaves by the query layer. See §1.5 for the parent→child derivation table.
 
 ---
 
@@ -196,14 +248,14 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 |---|---|---|---|
 | dimensions with ≥1 value | **7 of 7** | **5 of 7** | **6 of 7** |
 | `unset` dimensions | **none** | `dish_cuisine`, `dish_tradition` | `dish_tradition` |
-| dimension values written | **11** | **8** | **7** |
+| dimension values written | **10** | **7** | **6** |
 
 > **Note on `dish_tradition` for rendang:** it is **assigned** (`minangkabau`), not `unset` — rendang is the canonical Minangkabau dish and the tradition is evidenced.
 >
 > **`ingredient_category` is now populated for all three dishes** (from the D6 claims, per Alejandro's amendment 2026-10-26). It was previously `unset` because the dishes have zero *ingredient rows* in the live DB — but the dimension is filled from **claims**, not from ingredient rows, so the claims supply it directly. This is why rendang now has **7 of 7** dimensions assigned and **no** `unset` cells.
 >
 > **The two kinds of `unset` are different and must not be conflated:** CTM's `dish_cuisine` is unset because of an **unresolved dispute** (the Glasgow question — the migration must not resolve it), and the two remaining `dish_tradition` cells are unset because **no tradition is evidenced** for those dishes. A migration that treats "unset" as "use a default" would silently resolve the Glasgow dispute.
-| relations written | 0 | 0 | 1 (`ancestor` → `shawarma`, strength 4) |
+| relations written | 0 | 0 | **2** (bidirectional `ancestor` pair with `shawarma`, strength 4) |
 | claims required (not dimension values) | 6 (D6: origin, family, protein, technique, medium, duration) — of which the **dry-braise qualifier** is one | 2 (disputed origin) + protein/dairy claims feeding `ingredient_category` | 1 (pork protein claim) |
 | **claims total across pilot** | **6** | **4** | **1** → **11 claims** |
 | **evidence coverage** | **0%** | **0%** | **0%** |
@@ -243,10 +295,11 @@ Rendang's short description is **verbatim the D6 worked example** — the senten
 |---|---|---|
 | I1 | Every one of the 21 dimension cells matches §3 exactly | pass |
 | I2 | No cell contains a value absent from §1 | pass |
+| I2b | No `ingredient_category` cell contains a **parent** value (`red-meat`, `white-meat`, `produce`) — leaf-only storage | pass |
 | I3 | No cell contains free text, a parenthetical, or a modifier | pass |
 | I4 | `rendang` no longer carries `stew` | pass |
 | I5 | `tacos-al-pastor` family is `taco`, and no `kebab` family row | pass |
-| I6 | `tacos-al-pastor` has exactly one `dish_relations` row: `relation_type = ancestor`, `to_dish_id = shawarma`, `strength = 4` (direction: descendant → ancestor, per the live convention) | pass |
+| I6 | `tacos-al-pastor` has exactly **2** `dish_relations` rows forming a bidirectional `ancestor` pair with `shawarma`: `shawarma → tacos-al-pastor` and `tacos-al-pastor → shawarma`, both `strength = 4`, both carrying the same `reason`. **Source = ancestor.** This matches all 95 existing relation pairs in the catalog, every one of which is bidirectionally paired | pass |
 | I7 | `chicken-tikka-masala` `dish_cuisine` is **unset** — no cuisine value written, no "winner" implied | pass |
 | I8 | `chicken-tikka-masala` technique has exactly 2 values: `grilling`, `simmering` | pass |
 | I9 | `rendang` context has exactly 3 values: `home`, `festival/ceremonial`, `restaurant` | pass |
@@ -254,7 +307,7 @@ Rendang's short description is **verbatim the D6 worked example** — the senten
 | I11 | `ingredient_category` is `unset` for all three (zero ingredient rows) | pass |
 | I12 | `dish_tradition` = `minangkabau` for rendang; `unset` for the other two | pass |
 | I13 | Slugs, ids, names, and URLs are unchanged for all 3 dishes | pass |
-| I14 | `edit_history` gains exactly one `update` row per dish, with comment naming the ADR-001 pilot | pass |
+| I14 | `edit_history` gains exactly one `update` row per **touched** dish — the 3 pilot dishes **plus `shawarma`** (the ancestor side of the relation pair) = **4 rows** — with comment exactly **`GUS-014 pilot`**, and `dishes.updated_at` is bumped on every pilot write | pass |
 | I15 | **All other dishes (119 non-pilot) are unchanged**, where "unchanged" = byte-identical digest **OR** changed with every change explained by an `edit_history` row written **inside the pilot window** | pass |
 | I16 | Rollback restores the pre-pilot state exactly (verified by snapshot diff) | pass |
 | I17 | Coverage and corroboration report **`0%`** (not `null`) for all 3 dishes — the metric reads `short_description`, which is populated, so coverage is *measurable* | pass |
@@ -278,6 +331,27 @@ Rendang's short description is **verbatim the D6 worked example** — the senten
 There is no bot write to pause. Pausing would be theatre, and it would remove the guarantee that a concurrent write during the window is *detected* rather than *prevented*. The `edit_history`-window approach is strictly stronger: it handles the case that pausing cannot (a write that starts before the pause and lands after it).
 
 **The checker is itself tested** — `scripts/hermes/test-i15-checker.sh` proves it (a) passes on an unmodified copy, (b) **FAILS** on a change with no `edit_history` row, (c) passes on a change with one, and (d) leaves the live DB untouched. A checker that cannot fail proves nothing.
+
+### The `shawarma` side-effect — a 4th dish is touched by the pilot
+
+The dry-run caught this: the pilot writes a `dish_relations` row whose `from_dish_id` is **`shawarma`**. A relation is part of a dish's content digest (I15 hashes `rel:` entries), so **shawarma's digest changes** — and shawarma is not one of the 3 pilot dishes.
+
+The I15 checker correctly **FAILED** on this, reporting `shawarma` as an unexplained change.
+
+**Resolution — shawarma gets its own `edit_history` row.** The pilot writes **4** `edit_history` rows, not 3:
+
+| dish | `edit_history` row | why |
+|---|---|---|
+| `rendang` | ✅ | pilot dish — dimensions assigned |
+| `chicken-tikka-masala` | ✅ | pilot dish — dimensions assigned |
+| `tacos-al-pastor` | ✅ | pilot dish — dimensions assigned + relation pair |
+| **`shawarma`** | ✅ | **touched as the ancestor side of the relation pair** — its content genuinely changed |
+
+Without this, I15 would fail on every run and the check would have to be weakened to accept an unexplained change — which is exactly what the checker is designed to prevent. A relation that changes a dish's content **is** an edit to that dish, and it must be logged as one.
+
+**This does not weaken I15.** The other **118** dishes must still be completely untouched. The pilot touches **4** dishes, and **all 4** are accounted for with an `edit_history` row.
+
+> **Updated I15 wording:** *all dishes outside the pilot set are unchanged, except `shawarma`, whose change (the ancestor side of the relation pair) is logged in `edit_history` like any other edit.*
 
 ---
 

@@ -28,6 +28,15 @@ DIMENSIONS = [
 PILOT_DISHES = ["rendang", "chicken-tikka-masala", "tacos-al-pastor"]
 UNSET = "unset"
 
+# Parent categories are DERIVED at query time and never stored on a dish.
+# A dish's ingredient_category cell must contain leaf values only.
+PARENT_VALUES = {
+    "red-meat", "white-meat", "produce", "dairy",
+}
+# `dairy` is a leaf for the pilot (the claim says "dairy base", not "cream"),
+# so it is allowed. Everything else in PARENT_VALUES is a strict parent.
+STRICT_PARENTS = {"red-meat", "white-meat", "produce"}
+
 
 def parse_vocab(text: str) -> dict[str, list[str]]:
     """Parse §1 vocabulary blocks: '### 1.N `dim`' then lines of `a` · `b` · `c`"""
@@ -53,6 +62,26 @@ def parse_vocab(text: str) -> dict[str, list[str]]:
                     if tok not in vocab[current]:
                         vocab[current].append(tok)
     return vocab
+
+
+def parse_parents(text: str) -> set[str]:
+    """Parse the '**PARENT VALUES (derived - never stored on a dish):**' block."""
+    parents: set[str] = set()
+    in_block = False
+    for line in text.splitlines():
+        if line.startswith("**PARENT VALUES"):
+            in_block = True
+            continue
+        if in_block:
+            if line.startswith("`"):
+                for tok in line.split("·"):
+                    tok = tok.strip().strip("`").strip()
+                    if tok and re.fullmatch(r"[a-z][a-z0-9\- ]*", tok):
+                        parents.add(tok)
+                break
+            if line.strip() and not line.startswith("**"):
+                continue
+    return parents
 
 
 def parse_expected(text: str) -> dict[str, dict[str, str]]:
@@ -92,6 +121,15 @@ def main() -> int:
     text = SPEC.read_text()
     vocab = parse_vocab(text)
     expected = parse_expected(text)
+    declared_parents = parse_parents(text)
+    # The effective strict-parent set is the union of the hard-coded set and
+    # whatever the spec declares, minus any value the spec also lists as a
+    # storable leaf (dairy is both a parent in the abstract and a leaf here).
+    global STRICT_PARENTS
+    strict_parents = set(STRICT_PARENTS) | declared_parents
+    for dim in ("ingredient_category",):
+        strict_parents -= set(vocab.get(dim, [])) - {"dairy"}
+    STRICT_PARENTS = strict_parents
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -136,8 +174,18 @@ def main() -> int:
                 if v == UNSET:
                     errors.append(f"'{dish}'.{dim}: 'unset' must be the whole cell, not part of a list")
                     continue
+                # Parent check FIRST: a parent is rejected for the more
+                # specific reason (leaf-only rule), not the generic
+                # "not in vocabulary" one.
+                if dim == "ingredient_category" and v in STRICT_PARENTS:
+                    errors.append(
+                        f"'{dish}'.{dim}: PARENT value '{v}' must not be stored "
+                        "(leaf-only storage; parents are derived at query time)"
+                    )
+                    continue
                 if v not in vocab.get(dim, []):
                     errors.append(f"'{dish}'.{dim}: value '{v}' NOT in controlled vocabulary")
+                    continue
             if len(vals) != len(set(vals)):
                 errors.append(f"'{dish}'.{dim}: duplicate values in cell: {vals}")
 
@@ -159,6 +207,8 @@ def main() -> int:
     print("Controlled vocabularies:")
     for dim in DIMENSIONS:
         print(f"  {dim:<20} {len(vocab.get(dim, []))} values")
+    print()
+    print(f"  ingredient_category parents (derived, never stored): {', '.join(sorted(STRICT_PARENTS))}")
     print()
     print("Pilot dishes:")
     for dish in PILOT_DISHES:

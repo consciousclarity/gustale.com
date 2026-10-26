@@ -402,13 +402,54 @@ This is consistent with the catalog-wide finding (GUS-011): **121/121 dishes are
 | `ancestor` | 4 | X is the documented ancestor of Y |
 | `diaspora` | 4 | X travelled/adapted into Y in a diaspora |
 
-**The shawarma → al pastor lineage is `ancestor`**, not a new `derived-from` type. The live precedent is exact: `bacalhau-a-bras → vindaloo` is `ancestor` (*"Portuguese carne de vinha d'alhos is the direct ancestor of vindaloo"*, strength 5).
+**The shawarma → al pastor lineage is `ancestor`**, not a new `derived-from` type.
 
 Note that `shawarma → hamburger-american` is `diaspora` (*"Doner kebab's diaspora to Berlin inspired the hamburger-among-immigrants"*, strength 2) — a **different** relation. The two shawarma relations use different types because they tell different stories, which is why the pilot must not copy the `diaspora` precedent by mistake.
 
-**Direction convention (verified live):** ancestry rows read `descendant → ancestor` (`bacalhau-a-bras → vindaloo`; `biryani-hyderabadi → jollof-rice`). The pilot writes `tacos-al-pastor → shawarma`, `relation_type = ancestor`, `strength = 4`.
+**Direction convention (CORRECTED 2026-10-26 — Alejandro): `from_dish_id` is the ANCESTOR, `to_dish_id` is the descendant.**
+
+An earlier draft of this ADR asserted the opposite (descendant → ancestor) and was **wrong**. The live rows' own `reason` text settles it:
+
+| row | reason | source is… |
+|---|---|---|
+| `bacalhau-a-bras → vindaloo` | *"…is the direct **ancestor of** vindaloo"* | **the ancestor** |
+| `biryani-hyderabadi → jollof-rice` | *"Biryani's … tradition is the documented **ancestor of** jollof"* | **the ancestor** |
+
+`from_dish_id` is always the **subject** of the relation and `to_dish_id` the **object** — the same convention as `family` (`chicken-tikka-masala → biryani-hyderabadi`).
+
+**Every relation is stored bidirectionally.** Verified across all 190 live rows:
+
+| `relation_type` | rows | with reverse | without |
+|---|---|---|---|
+| `family` | 104 | 104 | 0 |
+| `regional-cousin` | 30 | 30 | 0 |
+| `shared-method` | 28 | 28 | 0 |
+| `similar-serving` | 14 | 14 | 0 |
+| `shared-ingredient` | 6 | 6 | 0 |
+| `diaspora` | 4 | 4 | 0 |
+| `ancestor` | 4 | 4 | 0 |
+
+**190 rows = 95 pairs, zero unpaired.** A single one-sided row would make its dish the only one in the catalog with an asymmetric relation. The pilot therefore writes **two** rows: `shawarma → tacos-al-pastor` and `tacos-al-pastor → shawarma`, both `relation_type = ancestor`, both `strength = 4`, both carrying the **same** `reason` string — exactly the pattern of the existing pairs.
 
 **Rule:** a new `relation_type` is added only by an explicit decision, never opportunistically — free text plus a fresh type per use is how a vocabulary rots.
+
+### D3h — `ingredient_category` stores leaves only; parents are derived
+
+A dish's `ingredient_category` assignment stores **leaf values only**. Parent categories are **derived at query time** and are never written.
+
+| stored leaf | derived parent(s) |
+|---|---|
+| `beef`, `pork`, `game`, `offal` | `red-meat` |
+| `chicken`, `poultry` | `white-meat` |
+| `fish`, `shellfish`, `seafood` | `white-meat` |
+| `vegetable`, `fruit`, `herb`, `nut`, `seed`, `legume` | `produce` |
+| `cheese`, `egg` | `dairy` |
+
+**Why:** storing both a leaf and its parent double-counts. A dish with `beef` would carry `beef` **and** `red-meat`; a query for "how many dishes use red meat" would return that dish under two rows, and a query for "how many distinct categories does this dish have" would be inflated. The parent is a **derivation over the leaf set**, not a stored fact.
+
+**Pilot consequence:** `rendang` stores `beef`, `coconut` — **not** `red-meat`. `chicken-tikka-masala` stores `chicken`, `dairy` — **not** `poultry`. `tacos-al-pastor` stores `pork` — **not** `red-meat`.
+
+**Exception:** `dairy` is stored as a leaf in the pilot, because the claim establishes "dairy base", not "cream" or "yoghurt". The `dairy → cheese, egg` derivation is future vocabulary.
 
 **Why this is better than deriving the description:** the prose keeps editorial voice (which matters for a reference work), while the evidence layer stays machine-checkable. Deriving the prose from claims would have made evidence coverage trivially 100% — every sentence would be a claim — and so the metric would measure nothing. With anchoring, coverage is a real, falsifiable number: *how much of this dish's prose is actually sourced?*
 
@@ -575,11 +616,12 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D5b | 2026-10-26 | `dish_technique` gains `spit-roasting` | `tacos-al-pastor` → technique `spit-roasting` (vertical spit, not horizontal skewer); `sate-lilit`, `satay` → `skewering` |
 | D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
-| D3g | 2026-10-26 | Relation types use the existing vocabulary | `dish_relations.relation_type` is free text, but the pilot uses `ancestor` for shawarma → al pastor (live precedent: `bacalhou-a-bras → vindaloo`, strength 5), not a new `derived-from`. Direction: descendant → ancestor. New relation types require an explicit decision |
+| D3g | 2026-10-26 | Relation types use the existing vocabulary; **source = ancestor** | `dish_relations.relation_type` is free text, but the pilot uses `ancestor`, not a new `derived-from`. **Direction: `from_dish_id` is the ANCESTOR** (`bacalhau-a-bras → vindaloo`, *"…is the direct ancestor of vindaloo"*). Every relation in the catalog is stored BIDIRECTIONALLY (190 rows = 95 pairs, zero unpaired), so the pilot writes a pair: `shawarma → tacos-al-pastor` and the reverse, same `reason`, strength 4. An earlier draft asserting "descendant → ancestor" was wrong and is corrected here |
+| D3h | 2026-10-26 | `ingredient_category` stores LEAVES only | Parents are derived at query time, never stored. `red-meat`, `white-meat`, `produce` are parents of `beef`/`pork`/`game`/`offal`, `chicken`/`poultry`/`fish`/`shellfish`/`seafood`, and `vegetable`/`fruit`/`herb`/`nut`/`seed`/`legume` respectively. Storing both a leaf and its parent double-counts. Pilot: rendang `beef`+`coconut`, CTM `chicken`+`dairy`, tacos `pork` — no parents. `dairy` is a leaf in the pilot (the claim says "dairy base") |
 | D4a | 2026-10-26 | Claims anchor to `short_description`, not `long_description` | Live schema has both columns. `short_description` is populated for all 3 pilot dishes (149–206 chars) and is the prose the claims attach to; `long_description` is empty for all 3 (and 100 of 122 catalog-wide). Rendang's short description is verbatim the D6 6-claim worked example. **Coverage is therefore measurable: expected `0%` (no claims exist yet), not `null`** — consistent with GUS-011's catalog-wide Wikipedia-only finding |
 | D7 | 2026-10-26 | `dish_context` = multi-valued, flat 5 values, no qualifiers | `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`. `market` ≠ `street-food` (pasar purchase vs. stall/cart; `jajan pasar` carries both). No qualifier mechanism |
 | D7b | 2026-10-26 | Cardinality table for all 7 dimensions | Single-valued: `dish_family`, `dish_cuisine`, `dish_course`. Multi-valued: `dish_technique`, `ingredient_category`, `dish_tradition`, `dish_context`. DB enforcement: unique constraint on single-valued joins |
-| D3b | 2026-10-26 | `tacos-al-pastor` family = `taco`; shawarma lineage → relation | `dish_family = taco` (controlled-vocab noun). `kebab` not used as family. Shawarma lineage recorded as a `dish_relations` row (type fixed to `ancestor` in D3g) — lineage is a historical relation, not taxonomic membership |
+| D3b | 2026-10-26 | `tacos-al-pastor` family = `taco`; shawarma lineage → relation | `dish_family = taco` (controlled-vocab noun). `kebab` not used as family. Shawarma lineage recorded as a `dish_relations` pair (type `ancestor`, direction fixed in D3g) — lineage is a historical relation, not taxonomic membership |
 | D3c | 2026-10-26 | `chicken-tikka-masala` technique = grilling + simmering | Two-stage method: grilling covers the `tikka`, simmering covers the sauce. `dish_technique` is multi-valued, so no compound verb needed. Both are existing controlled-vocab gerunds |
 | D3d | 2026-10-26 | `rendang` context = home + festival/ceremonial + restaurant | Rendang is a home dish, a festival/ceremonial dish (Minangkabau wedding and communal feasts) and a restaurant dish. Recording all three is the point of a multi-valued context dimension |
 | D3e | 2026-10-26 | Controlled-vocabulary discipline for all 7 dimensions | Dimension cells are verbatim controlled-vocab values or the literal token `unset` — no free text, no parentheticals. `braising (dry)` is rejected: `braising` is the technique value, "dry" is a **claim** (a separately-sourceable assertable fact, per D6). `dry-braising` would have to be added to the vocabulary explicitly, not smuggled in |
@@ -596,7 +638,8 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | `tacos-al-pastor` | taco | mexican | main-course | spit-roasting | street-food |
 
 Amended 2026-10-26 (D3b–D3f):
-- `tacos-al-pastor` family = **`taco`** (not `kebab`); its shawarma lineage is a `dish_relations` row, type **`ancestor`** (D3b + D3g), direction `tacos-al-pastor → shawarma`, strength 4.
+- `tacos-al-pastor` family = **`taco`** (not `kebab`); its shawarma lineage is a **`dish_relations` pair**, type **`ancestor`** (D3b + D3g): `shawarma → tacos-al-pastor` and the reverse, same reason, strength 4 (source = ancestor; every live relation is bidirectionally paired).
+- `ingredient_category` stores **leaves only** (D3h): rendang `beef` + `coconut`; CTM `chicken` + `dairy`; tacos `pork`. Parents (`red-meat`, `white-meat`, `produce`) are derived, never written.
 - `chicken-tikka-masala` technique = **`grilling`, `simmering`** (D3c).
 - `rendang` context = **`home`, `festival/ceremonial`, `restaurant`** (D3d).
 - `rendang` technique = **`braising`** — the "dry" qualifier is a **claim**, not a dimension value (D3e).

@@ -53,8 +53,8 @@ def main() -> int:
 
     cases = [
         ("unknown vocabulary value",
-         "| `ingredient_category` | multi | `beef`, `red-meat`, `coconut` |",
-         "| `ingredient_category` | multi | `beef`, `red-meat`, `cocunut` |",
+         "| `ingredient_category` | multi | `beef`, `coconut` |",
+         "| `ingredient_category` | multi | `beef`, `cocunut` |",
          "NOT in controlled vocabulary"),
 
         ("parenthetical modifier (D3e)",
@@ -81,6 +81,16 @@ def main() -> int:
          "| `dish_tradition` | multi | `minangkabau` | §1.6 |",
          "| `dish_tradition` | multi |  | §1.6 |",
          "not backticked"),
+
+        ("parent category stored instead of leaf (leaf-only rule)",
+         "| `ingredient_category` | multi | `beef`, `coconut` |",
+         "| `ingredient_category` | multi | `beef`, `red-meat`, `coconut` |",
+         "PARENT value"),
+
+        ("another parent category (white-meat)",
+         "| `ingredient_category` | multi | `chicken`, `dairy` |",
+         "| `ingredient_category` | multi | `chicken`, `white-meat`, `dairy` |",
+         "PARENT value"),
     ]
 
     for name, old, new, needle in cases:
