@@ -1,6 +1,6 @@
 # ADR-001 — Canonical culinary entity model
 
-**Status:** 🟡 **DRAFT — for Alejandro's review. Not implemented. No migration written.**
+**Status:** 🟢 **CLOSED — all 7 questions decided (D1–D7). Not implemented. No migration written.** Awaiting Alejandro's final review of the decision list before the pilot.
 **Date:** 2026-10-25 · **Task:** GUS-014 (EPIC 02 — Redesign the culinary knowledge model) · **Related:** ROADMAP.md §4 (EPIC 02), GUS-015…GUS-025
 
 ---
@@ -270,7 +270,7 @@ Five are already forced by the live data; `dish_tradition` is the cultural layer
 - `dish_course = snack`
 - `dish_context = street-food` (one of: `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`)
 
-`tacos-al-pastor` today carries both `main-course` and `street-snack`. In the new model that is `dish_course = main-course`, `dish_context = street-food` — no ambiguity, and the "one value per dimension" rule holds.
+`tacos-al-pastor` today carries both `main-course` and `street-snack`. In the new model that is `dish_course = main-course`, `dish_context = street-food` — no ambiguity. (`dish_course` is single-valued; `dish_context` is multi-valued — see D7b cardinality table.)
 
 ### D3 — The noun/gerund rule
 
@@ -335,9 +335,34 @@ The two are independent and both matter:
 
 A dish can be 100% covered and 0% corroborated (every sentence anchored to a single Wikipedia source — which is exactly the current catalog). Coverage alone would therefore have looked like success while the catalog stayed single-sourced. Both are reported per dish.
 
-### Still open (D7)
+### D7 — `dish_context` is multi-valued, flat 5 values, no qualifiers
 
-7. **The `dish_context` value set** is proposed above but not yet confirmed against the live dishes — specifically whether `restaurant` and `market` are both needed, or whether they collapse.
+`dish_context` value set (final, flat — **no qualifier mechanism**):
+
+`street-food` · `home` · `festival/ceremonial` · `restaurant` · `market`
+
+**`market` ≠ `street-food`.** They are siblings, not parent/child:
+- `market` = purchased at a **pasar** (traditional market) — bought to take away or cook at home.
+- `street-food` = sold and eaten from a **stall or cart** — the purchase is the eating occasion.
+- `jajan pasar` (snacking at the market) is its own case: the same dish may carry `market` **and** `street-food`, which is exactly why the dimension must be multi-valued.
+
+**Multi-valued, not single-valued.** A dish may carry more than one `dish_context` value, and the values are stored flat (one row per value in the join table). No qualifier column, no nesting.
+
+### D7b — Cardinality table (all 7 dimensions)
+
+| # | dimension | cardinality | rationale |
+|---|---|---|---|
+| 1 | `dish_family` | **single-valued** | A dish belongs to one family in the taxonomy; multiple families would make family-based lookup ambiguous. (Related dishes that straddle families are expressed as `dish_relations`, not as multiple family rows.) |
+| 2 | `dish_cuisine` | **single-valued** | One primary cuisine. A dish with contested origin (e.g. `chicken-tikka-masala`) leaves the dimension **unset** and records the dispute as competing `claims` — the migration must not resolve it. |
+| 3 | `dish_course` | **single-valued** | A dish is served as one course. `street-snack` was split out to `dish_context` precisely because a dish can be a snack *and* a main course. |
+| 4 | `dish_technique` | **multi-valued** | A dish can legitimately be prepared by more than one technique (e.g. grilled **and** braised, roasted **and** smoked). Gerund values. |
+| 5 | `ingredient_category` | **multi-valued** | An ingredient may belong to several overlapping categories (e.g. a nut that is also a spice, a fruit that is also an herb); the dimension is applied per ingredient, not per dish. |
+| 6 | `dish_tradition` | **multi-valued** | A dish can participate in several cultural traditions (e.g. a festival tradition *and* a regional culinary tradition). |
+| 7 | `dish_context` | **multi-valued** | D7 — flat 5 values, no qualifiers. A dish can be both `market` and `street-food`; `home` and `restaurant` co-occur less often but are equally valid. |
+
+**Summary: 3 single-valued (`dish_family`, `dish_cuisine`, `dish_course`), 4 multi-valued (`dish_technique`, `ingredient_category`, `dish_tradition`, `dish_context`).**
+
+**Enforcement:** single-valued dimensions reject a second assignment at the DB level (unique constraint on `(dish_id, dimension)`); multi-valued dimensions are one-row-per-value join tables with a uniqueness constraint on `(dish_id, value_id)`.
 
 > **Note on `skewering`:** Alejandro added `skewering` to `dish_technique` as an instruction inside the D4 message (it is a gerund, and `tacos-al-pastor` / `sate-lilit` / `satay` are skewered). It is **not** a separate numbered decision and carries no separate approval.
 
@@ -398,9 +423,11 @@ A dish can be 100% covered and 0% corroborated (every sentence anchored to a sin
 
 **Consequence:** `tacos-al-pastor` → `technique = spit-roasting`; `sate-lilit` and `satay` → `technique = skewering`.
 
-### Question list is frozen
+### ADR-001 is CLOSED
 
-No further questions will be added to ADR-001. The remaining open set is exactly D5–D7 as listed above.
+All 7 questions asked (Q1–Q7) are decided and recorded as D1–D7 (with D5b, D6b, D7b as sub-decisions). The question list is frozen and no further questions will be added to ADR-001.
+
+**This ADR is accepted pending Alejandro's final review of the decision list (below).** Implementation has NOT started: no schema migration, no pilot migration. The pilot on the 3 reference dishes requires Alejandro's explicit go, after the pass/fail expected-end-state spec and the snapshot/rollback are written.
 
 ---
 
@@ -418,16 +445,20 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D5b | 2026-10-26 | `dish_technique` gains `spit-roasting` | `tacos-al-pastor` → technique `spit-roasting` (vertical spit, not horizontal skewer); `sate-lilit`, `satay` → `skewering` |
 | D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
+| D7 | 2026-10-26 | `dish_context` = multi-valued, flat 5 values, no qualifiers | `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`. `market` ≠ `street-food` (pasar purchase vs. stall/cart; `jajan pasar` carries both). No qualifier mechanism |
+| D7b | 2026-10-26 | Cardinality table for all 7 dimensions | Single-valued: `dish_family`, `dish_cuisine`, `dish_course`. Multi-valued: `dish_technique`, `ingredient_category`, `dish_tradition`, `dish_context`. DB enforcement: unique constraint on single-valued joins |
 
-### Live-data consequences of D1–D5 (to apply in the migration)
+### Live-data consequences of D1–D7 (to apply in the migration)
 
 | Dish | family | cuisine | course | technique | context |
 |---|---|---|---|---|---|
 | `rendang` | curry | indonesian | main-course | braising (dry) | home |
 | `chicken-tikka-masala` | curry | — (disputed: UK / South Asian) | main-course | — | restaurant |
-| `tacos-al-pastor` | kebab | mexican | main-course | skewering | street-food |
+| `tacos-al-pastor` | kebab | mexican | main-course | spit-roasting | street-food |
 
 Note `chicken-tikka-masala`'s cuisine is **deliberately left unset** — that is the Glasgow dispute, and it must not be resolved by a migration.
+
+`context` above shows one value per dish only because these three dishes each have one known context. The dimension itself is **multi-valued** (D7/D7b): the pilot may legitimately assign two values to a dish (e.g. `tacos-al-pastor` → `street-food` + `market` if the source evidence supports it).
 
 ## 6. What this ADR does NOT decide
 
