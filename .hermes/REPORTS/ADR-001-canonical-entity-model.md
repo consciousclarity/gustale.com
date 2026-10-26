@@ -566,6 +566,49 @@ Two limitations of the direction convention, recorded so they are not mistaken f
 
 **Recorded as GUS-224:** the audit of all 96 relation pairs, and the recommendation to move to a single directed row with a derived inverse, a `relation_type` CHECK constraint, and a source/claim link on `dish_relations`.
 
+### D3i — Family specificity precedence (PROVISIONAL)
+
+> **⚠️ PROVISIONAL — this is an editorial call, not a derivation.** Recorded after the 118-dish migration (2026-10-26) because the rule was applied during that run without a prior decision. Alejandro's note: *"The stew>soup / noodle-soup>soup precedence wasn't in the amendments — record it as D3i (provisional, soup/stew is an editorial call)."*
+
+**The rule:** when the old `categories` give a dish two candidate families where one is a *more specific form* of the other, the **more specific one wins** and the broader one is dropped.
+
+| more specific | beats | rationale |
+|---|---|---|
+| `stew` | `soup` | a stew *is* a soup preparation; the narrow label is more informative |
+| `noodle-soup` | `soup` | a noodle soup *is* a soup; the narrow label is more informative |
+| `rice-dish` | `soup` | (same shape) |
+| `fried-rice` | `rice-dish` | (same shape) |
+
+This is the same *"specific beats generic"* shape as the `Main course` + `Soup` case resolved in D3f's favour, but **on the family axis rather than the course axis**.
+
+**Dishes affected — exactly 3** (the only dishes where two soup-family candidates were present):
+
+| dish | candidates | result | note |
+|---|---|---|---|
+| `goulash-hungarian` | `Stew` + `Soup` | family = **`stew`** | Hungarian goulash is a stew; the old data tagged it both |
+| `kimchi-jjigae` | `Stew` + `Soup` | family = **`stew`** | Korean stew-based; the old data tagged it both |
+| `laksa` | `Noodle soup` + `Soup` | family = **`noodle-soup`** | Malaysian laksa is a coconut noodle soup |
+
+**Not affected:** the other 15 soup-family dishes each had only one candidate (`bakso`, `borscht`, `bubur-ayam`, `congee`, `gazpacho`, `rawon`, `sinigang`, `soto-ayam`, `tom-yum` → `soup`; `dan-dan-noodles`, `japchae`, `khao-soi`, `pad-thai`, `pho-vietnamese`, `ramen-japanese`, `soba`, `udon` → `noodle-soup`), so no precedence was needed.
+
+**Why it is PROVISIONAL and could reasonably be decided the other way:**
+
+- **The case for the current behaviour:** the narrow label is more informative. `stew` tells a reader more than `soup`, and a stew *is* a soup — so nothing is lost and something is gained.
+- **The case against:** it is an **editorial judgement**, not a fact recovered from the data. The old data said *both*; picking one discards the other. A reader could reasonably expect `goulash-hungarian` to appear under both `soup` and `stew` — and `dish_family` is **single-valued** (D7b), so it cannot. If the model should carry both, the fix is to make `dish_family` multi-valued, which is a structural change far larger than this rule.
+- **A third option:** keep `soup` as the family for these three and treat `stew` / `noodle-soup` as **technique-adjacent** refinements — but neither is a technique (they are nouns), so that does not fit D3.
+
+**If reversed**, the 3 dishes change as follows — and nothing else in the catalog changes:
+
+| dish | current | if reversed |
+|---|---|---|
+| `goulash-hungarian` | `stew` | `soup` |
+| `kimchi-jjigae` | `stew` | `soup` |
+| `laksa` | `noodle-soup` | `soup` |
+
+**Implementation note:** the rule lives in `scripts/hermes/gus-014-build-118-mapping.py` as `FAMILY_SPECIFICITY`. It is one constant list — reversing it is a one-line change plus a re-run.
+
+**This rule does not touch `dish_course`.** A soup dish's *course* is its meal role (`main-course` for `goulash-hungarian`, `appetizer` for `gazpacho`), independent of which family label was chosen.
+
 ### D3h — `ingredient_category` stores leaves only; parents are derived
 
 A dish's `ingredient_category` assignment stores **leaf values only**. Parent categories are **derived at query time** and are never written.
@@ -754,6 +797,7 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D3g-note3 | 2026-10-26 | **Option B APPLIED to live** | `dish_relations` 192 -> 96 rows (one directed row per relation); the 96 dropped inverses moved to `dish_relations_archive` with original ids (no hard delete). New `relation_types` vocab table with `is_symmetric`; `dish_relations` gains `relation_type_id`/`is_symmetric`/`status`/`quarantine_note` (legacy `relation_type` text kept as a trigger-synced mirror). Three views: `dish_relations_symmetric` (inverse for SYMMETRIC types only), `dish_relations_public` (quarantined excluded), `dish_relations_admin` (quarantined visible with the note). Two triggers: a directional relation may not have its inverse present; a symmetric relation must satisfy from < to. Self-contradicting pairs 5 -> 0. 4 relations quarantined (unverified, public-filtered, no hand edits). Pilot relation stays ACTIVE, flagged single tertiary source. 22/22 gates pass; 9 trigger tests pass. Source/claim link still sequenced into GUS-027/028 |
 | D3g-note2 | 2026-10-26 | **CORRECTION:** identical types across a pair IS the contradiction | An earlier note concluded the D3g consistency check "passed" because every pair carries the same `relation_type` in both directions. That was WRONG and is withdrawn: for a DIRECTIONAL type (`ancestor`, `diaspora`) the pair stores an order, so holding both directions asserts "A → B" AND "B → A" — mutually exclusive claims. **All 5 directional pairs are self-contradicting, including the pair this pilot wrote.** Resolution (Alejandro, 2026-10-26): **Option B** — one directed row per relation, inverse derived **for symmetric types only**; `symmetric` flag on a `relation_types` **vocabulary table** (not a CHECK enum); directional pairs keep the row matching the reason text; source/claim link sequenced into GUS-027/028; 4 likely-wrong pairs quarantined (unverified, excluded from public view) with no hand edits; every relation claim rests on exactly one tertiary source and the pilot relation is NOT independently corroborated. Plan: `.hermes/REPORTS/GUS-224-option-b-plan.md` |
 | D3g-note | 2026-10-26 | Direction convention is writer intent; content unverified | The `from_dish_id` = ancestor reading is inferred from the original writer's reason text and the universal bidirectional pairing — NOT from an independent source, because `dish_relations` has no source column and there are 0 relation-level citations. The `bacalhau-a-bras → vindaloo` content is **unverified and on audit likely wrong**: the vindaloo ← *carne de vinha d'alhos* derivation is well sourced, but *carne de vinha d'alhos* is PORK in garlic wine vinegar while *bacalhau à brás* is SALT COD — unrelated. The pilot's own relation is independently corroborated by Wikipedia *Al pastor*. Full audit: GUS-224 |
+| D3i | 2026-10-26 | **PROVISIONAL** — family specificity precedence | When the old categories give two candidate families where one is a more specific form of the other, the specific one wins: `stew` > `soup`, `noodle-soup` > `soup`, `rice-dish` > `soup`, `fried-rice` > `rice-dish`. **This is an EDITORIAL CALL, not a derivation** — it was applied during the 118-dish run before being decided, and Alejandro asked that it be recorded as provisional. Affected dishes, exactly 3: `goulash-hungarian` and `kimchi-jjigae` → `stew` (were `Stew` + `Soup`); `laksa` → `noodle-soup` (was `Noodle soup` + `Soup`). The other 15 soup-family dishes each had one candidate and were not affected. The case for: the narrow label is more informative and nothing is lost. The case against: it discards a true label from the old data, and `dish_family` is single-valued so a dish cannot carry both — if it should, `dish_family` would have to become multi-valued, a much larger structural change. Implemented as one constant (`FAMILY_SPECIFICITY`) in scripts/hermes/gus-014-build-118-mapping.py, so reversing it is a one-line change plus a re-run. Does not affect `dish_course`, which is set by meal role independently |
 | D3h | 2026-10-26 | `ingredient_category` stores LEAVES only | Parents are derived at query time, never stored. `red-meat`, `white-meat`, `produce` are parents of `beef`/`pork`/`game`/`offal`, `chicken`/`poultry`/`fish`/`shellfish`/`seafood`, and `vegetable`/`fruit`/`herb`/`nut`/`seed`/`legume` respectively. Storing both a leaf and its parent double-counts. Pilot: rendang `beef`+`coconut`, CTM `chicken`+`dairy`, tacos `pork` — no parents. `dairy` is a leaf in the pilot (the claim says "dairy base") |
 | D4a | 2026-10-26 | Claims anchor to `short_description`, not `long_description` | Live schema has both columns. `short_description` is populated for all 3 pilot dishes (149–206 chars) and is the prose the claims attach to; `long_description` is empty for all 3 (and 100 of 122 catalog-wide). Rendang's short description is verbatim the D6 6-claim worked example. **Coverage is therefore measurable: expected `0%` (no claims exist yet), not `null`** — consistent with GUS-011's catalog-wide Wikipedia-only finding |
 | D7 | 2026-10-26 | `dish_context` = multi-valued, flat 5 values, no qualifiers | `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`. `market` ≠ `street-food` (pasar purchase vs. stall/cart; `jajan pasar` carries both). No qualifier mechanism |

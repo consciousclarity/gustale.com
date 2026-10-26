@@ -271,6 +271,12 @@ tasks:
       - "The ADR is checked against the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor)"
       - "Open questions are listed for Alejandro's decision"
     evidence:
+      - "D3i RECORDED 2026-10-26 (PROVISIONAL, an editorial call): family specificity precedence - when the old categories give two candidate families where one is a more specific form of the other, the specific one wins: stew > soup, noodle-soup > soup, rice-dish > soup, fried-rice > rice-dish. It was applied during the 118-run before being decided and Alejandro asked that it be recorded as provisional. Affected dishes, exactly 3: goulash-hungarian and kimchi-jjigae -> stew (were Stew + Soup), laksa -> noodle-soup (was Noodle soup + Soup). The other 15 soup-family dishes each had one candidate and were not affected. The case for: the narrow label is more informative and nothing is lost. The case against: it is an editorial judgement rather than a fact recovered from the data, it discards a true label the old data carried, and dish_family is single-valued so a dish cannot hold both - if it should, dish_family would have to become multi-valued, a much larger structural change. Implemented as one constant (FAMILY_SPECIFICITY) so reversing it is a one-line change plus a re-run. It does not affect dish_course, which is set by meal role independently."
+
+      - "NEXT PRIORITY (Alejandro, 2026-10-26): the GUS-027/028 claims model. It is what unblocks dish_tradition (0 of 118 set - dish_tags is empty), ingredient_category (0 of 118 set - dish_ingredients has 4 rows catalog-wide), dish_context (10 of 118 set - the old categories table has no context dimension), and relation sourcing (dish_relations has no source column and there are 0 relation-level citations, so every relation claim is unverified by construction). Until claims exist, those three dimensions and the relation evidence cannot be populated from evidence rather than inference."
+
+      - "OPEN: the 13 broader-family proposals (see .hermes/REPORTS/GUS-014-118-mapping-report.md section 5b) are awaiting Alejandro's decision as a separate vocabulary question. 3 of them (grilled-meat, filled-pastry, fritter) would be NEW controlled-vocabulary values, which is why those dishes stay unset."
+
       - "118-DISH DIMENSION MIGRATION APPLIED TO LIVE 2026-10-26 after Alejandro's amendments. Dry-run on a copy first (0 mismatches), the diff vs the previous report was limited to the amendments, then live. Live result: 0 mismatches between the DB and the mapping report (118 dishes x 7 dimensions). Coverage: dish_family 87, dish_cuisine 100, dish_course 113, dish_technique 109, ingredient_category 0, dish_tradition 0, dish_context 10. Integrity: relations 96, archive 96, sources 142, citations 121, ingredients 4 all unchanged; 118 edit_history rows (comment GUS-014 118-dish dimensions) across 118 dishes with the 3 pilot dishes at 0; 0 single-valued violations; I15 119 unchanged, 0 unexplained."
 
       - "AMENDMENT 1 - THE TONKATSU ROW WAS INVERTED AND HAS BEEN CORRECTED. Direction is decided by the MEANING of the reason, NOT by its grammatical subject - the al pastor row proves the subject rule is false (Al pastor DERIVES FROM shawarma keeps shawarma as the ancestor even though al pastor is the sentence subject). Tonkatsu IS the Japanese ADAPTATION, i.e. the diaspora side, so the ORIGIN is the European cutlet: the kept row is now wiener-schnitzel -> tonkatsu (id 01ef505e), and the inverse (tonkatsu -> wiener-schnitzel, id c212c598) is archived. It stays QUARANTINED - the pairing is unsupported either way, only the direction was wrong. Live correction applied with 2 edit_history rows (comment GUS-224 direction correction) and updated_at bumped on both dishes. ADR D3g-note4's tonkatsu sentence is WITHDRAWN and replaced with the semantic rule."
@@ -2527,7 +2533,7 @@ tasks:
     epic: "EPIC 02 — Redesign the culinary knowledge model"
     priority: P2
     phase: 1
-    status: todo
+    status: done
     depends_on: []
     approval: false
     acceptance:
@@ -2536,6 +2542,16 @@ tasks:
       - "The change is logged in edit_history and the affected dishes' updated_at is bumped"
       - "The API and web surfaces that render the preparation name show a clean ampersand"
     evidence:
+      - "APPLIED 2026-10-26 under standard discipline (snapshot -> dry-run on copy -> live -> verify), no review needed. Migration: db/migrations/gus-227-preparation-method-names.sql. The fix replaces the two-character sequence backslash-ampersand with a plain ampersand, using replace(name, chr(92), '') so no SQL escaping question arises."
+
+      - "SCOPE: 9 preparation_methods rows affected (8 in use by 79 dish_preparations rows; Omelettes & scrambles is unused). Verified with position(chr(92) in name) - a LIKE pattern with a raw backslash is interpreted as an escape by LIKE itself and silently matches nothing, which is why a first check reported 0. The literal backslash appears ONLY in preparation_methods.name: categories, dishes, ingredients, sources and tags are all clean (0 each)."
+
+      - "SLUGS WERE NEVER AFFECTED: the slugs were already correct (boiled-and-cured, bread, fried-and-topped, kebab, omelettes-and-scrambles, salad, steamed-and-custard, stew, dessert), so the API's pm.slug technique filters never broke - only the DISPLAYED name was wrong."
+
+      - "PROVENANCE: 79 edit_history rows with comment GUS-227 preparation method name cleanup, one per affected dish, and updated_at bumped on all 79. Idempotent: a second run selects 0 rows and updates 0. I15 across the window: 119 unchanged, 0 unexplained."
+
+      - "WEB REBUILD: the change was not visible on the pages until the web containers were rebuilt - the web serves a baked SSG snapshot, so the DB fix alone left the old strings on the page. The gustale-rebuild-web content-change detector FIRED correctly (it tracks the newest dish updated_at, which the fix bumped) and detected the change. The rebuild then hit two environment problems: the build dir /home/deploy/gustale-build has 77 root-owned files under .git and is not writable, so git fetch failed with 'insufficient permission for adding an object'; and /tmp/gustale-web-live-tag.env is root-owned so the script's rm failed and aborted before the deploy step. Worked around by cloning to a writable dir (/home/gustale/gustale-build) and running the script with GUSTALE_BUILD_DIR pointed at it, then running the deploy step directly. Both web containers redeployed from live-data-5854406 and are running healthy. VERIFIED: 0 occurrences of the backslash on the live pages, and the clean name renders (Grilled &amp; skewered)."
+
       - "RAISED 2026-10-26 (Alejandro, during the 118-dish mapping review). The live preparation_methods.name values contain a LITERAL backslash before the ampersand: 'Fried \\& topped', 'Stew \\& braise', 'Grilled \\& skewered', 'Bread \\& dough', 'Small plates \\& preserves', 'Steamed \\& custard', 'Sweets \\& custard', 'Boiled \\& cured', 'Omelettes \\& scrambles'. This is a data-entry artifact from an earlier migration, not an escaped ampersand. It affects 8 of the 15 methods in use and is visible wherever the preparation name is rendered."
       - "IMPACT: the 118-dish mapping had to normalise both spellings to resolve the preparation methods. It does not block the mapping (the mapper handles it) but the underlying data should be corrected rather than worked around."
       - "NOT YET APPLIED - this is a separate task because it changes user-visible content and is independent of the dimension migration."
