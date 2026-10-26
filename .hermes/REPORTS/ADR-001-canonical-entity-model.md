@@ -305,15 +305,62 @@ Consequences for the live data:
 
 > **Note on `skewering`:** Alejandro added `skewering` to `dish_technique` as an instruction inside the D4 message (it is a gerund, and `tacos-al-pastor` / `sate-lilit` / `satay` are skewered). It is **not** a separate numbered decision and carries no separate approval.
 
+### D5 — Pilot = all 3 reference dishes; baseline verified by content, not `editCount`
+
+**Pilot scope: all 3** (`rendang`, `chicken-tikka-masala`, `tacos-al-pastor`).
+
+**`editCount` is NOT a valid provenance signal** — verified in the code 2026-10-26:
+
+| write handler | bumps `editCount` | bumps `updatedAt` |
+|---|---|---|
+| `POST /api/dishes` (create) | no | no |
+| `PATCH /api/dishes/:slug` | **yes** | yes |
+| `POST /api/dishes/:slug/publish` | no | yes |
+| `DELETE /api/dishes/:slug` (archive) | no | yes |
+| `POST /api/dishes/:slug/variants` | no | no |
+| `PATCH /api/dishes/:slug/variants/:variantId` | no | yes |
+| `DELETE /api/dishes/:slug/variants/:variantId` | no | no |
+| `POST /api/admin/dishes/:slug/sources` | no | no |
+| `PATCH /api/admin/dishes/:slug/sources/:citationId` | no | no |
+| `DELETE /api/admin/dishes/:slug/sources/:citationId` | no | no |
+| `POST /api/dishes/:slug/media` | no | no |
+| `DELETE /api/dishes/:slug/media/:attachmentId` | no | no |
+
+**1 of 12 write handlers bumps `editCount`.** Adding a source, attaching a cover, creating a variant — all silent. So `editCount: 0` does **not** mean "never edited", and `updatedAt` is not a complete signal either.
+
+**The authoritative provenance is `edit_history`** (`edit_history` rows carry `action`, `created_at`, `comment`, `userId`, `diff`). Baseline determined from it, 2026-10-26:
+
+| dish | `edit_history` rows | last edit | verdict |
+|---|---|---|---|
+| `rendang` | **0** | — | never edited since creation |
+| `tacos-al-pastor` | **0** | — | never edited since creation |
+| `chicken-tikka-masala` | **2** | 2026-10-16 16:18:52 | both are "singleton-category merge" edits |
+
+**Both CTM edits predate the ADR** (2026-10-16 vs. the ADR drafted 2026-10-25, decided 2026-10-26) by nine days, and **neither is an ADR-001 edit** — no Q1–Q4 decision touched CTM. Its current state is therefore a valid baseline.
+
+**Baseline by content (2026-10-26), which is what the migration must reproduce-plus-transform:**
+
+| dish | categories today | longDescription | ingredients | sources | media |
+|---|---|---|---|---|---|
+| `rendang` | `indonesian-cuisine`, `stew`, `curry`, `main-course` | empty | 0 | 1 (Wikipedia) | 1 cover |
+| `chicken-tikka-masala` | `curry`, `main-course` | empty | 0 | 1 (Wikipedia) | 0 |
+| `tacos-al-pastor` | `mexican-cuisine`, `main-course`, `street-snack` | empty | 0 | 1 (Wikipedia) | 0 |
+
+**`stew` is still on rendang** — confirmed live today. The D3 reclassification (drop `stew`, family `curry`, technique `braising`) is still to be applied.
+
 ### Pilot conditions (Alejandro, 2026-10-26) — binding on the first migration
 
-1. **Start from an untouched dish.** `rendang` was edited live in Q3, so it must be migrated from a pre-Q3 snapshot, or swapped for an untouched dish.
-   *Verified against the live API 2026-10-26:*
-   - `rendang` — `editCount: 0`, `updatedAt == createdAt == 2026-06-25T13:57:50Z` → **untouched**
-   - `tacos-al-pastor` — `editCount: 0`, `updatedAt == createdAt == 2026-07-25T02:31:36Z` → **untouched**
-   - `chicken-tikka-masala` — `editCount: 2`, updated 2026-10-16T16:18:52Z → **edited live; needs a pre-Q3 snapshot or a swap**
+1. **Baseline = state before any ADR-001 edit, verified by content** (see table above), not by `editCount`.
 2. **Write the exact expected end state per dish (all 7 dimensions) as a pass/fail spec BEFORE running the migration.**
 3. **Snapshot + rollback before the pilot.** The full 118-dish run happens **only after Alejandro's explicit go.**
+
+### D5b — `tacos-al-pastor` technique = `spit-roasting`
+
+`spit-roasting` is added to `dish_technique`. It is more precise than `skewering` for this dish: the meat is cooked on a **vertical spit** (al pastor), which is a different technique from horizontal skewering (satay, sate lilit).
+
+`dish_technique` gerunds now: **stewing, braising, simmering, grilling, skewering, spit-roasting**, plus the existing baking / frying / roasting.
+
+**Consequence:** `tacos-al-pastor` → `technique = spit-roasting`; `sate-lilit` and `satay` → `technique = skewering`.
 
 ### Question list is frozen
 
@@ -331,7 +378,8 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D2 | 2026-10-26 | `street-snack` splits | `dish_course = snack` + `dish_context = street-food`; `dish_context` values: `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market` |
 | D3 | 2026-10-26 | Noun/gerund rule | family = nouns, technique = gerunds. `kebab` + `curry` removed from `dish_technique` (they are families). `stew` stays a `dish_family`. Rendang → family `curry`, technique `braising` (dry braise), `stew` tag dropped |
 | D4 | 2026-10-26 | Description stays authored; claims anchor it | Each factual sentence carries claim-ID anchors. Validation fails on anchors to unpublished/retracted/missing claims. Unanchored sentences allowed but flagged `unevidenced`. Evidence coverage = anchored-sentence ratio. Live edits fine. |
-| — | 2026-10-26 | `dish_technique` gains `skewering` (instruction inside D4, not a separate decision) | `tacos-al-pastor` → technique `skewering` (was `kebab`); `sate-lilit`, `satay` likewise |
+| D5 | 2026-10-26 | Pilot = all 3; baseline by content, `editCount` invalidated as a provenance signal | `edit_history` is authoritative. Baseline table recorded. `stew` still live on rendang |
+| D5b | 2026-10-26 | `dish_technique` gains `spit-roasting` | `tacos-al-pastor` → technique `spit-roasting` (vertical spit, not horizontal skewer); `sate-lilit`, `satay` → `skewering` |
 
 ### Live-data consequences of D1–D5 (to apply in the migration)
 
