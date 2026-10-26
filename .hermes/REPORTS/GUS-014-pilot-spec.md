@@ -186,7 +186,7 @@ Every value used in §3 appears in §1. Verified mechanically before the pilot r
 
 | # | gate | state |
 |---|---|---|
-| V1 | A script validates every value in §3 against §1 and exits non-zero on any unknown value | **to write** |
+| V1 | A script validates every value in §3 against §1 and exits non-zero on any unknown value | ✅ **done** — `scripts/hermes/validate-pilot-spec.py`, passing (exit 0, 21/21 cells) |
 | V2 | The exact expected end state for all 3 dishes is written down (this document) | ✅ done |
 | V3 | A **snapshot** of the pre-pilot DB state for the 3 pilot dishes (plus the 118-dish comparison baseline) exists and is restorable | **to create** |
 | V4 | A **rollback** path is written and **test** (not just assumed) | **to write + test** |
