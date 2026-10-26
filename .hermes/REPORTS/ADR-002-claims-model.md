@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 DECIDED, Q2 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 and Q2 DECIDED, Q3 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -130,7 +130,46 @@ statement = (subject, predicate, value)
 
 ---
 
-### Q2 — Does a statement carry readable text, or is the text generated from its parts?
+### ✅ Q2 — DECIDED (Alejandro, 2026-10-26): readings are display-only, template-defaulted, and version-bound
+
+**A statement stores NO authoritative text.** What a reader sees is a **reading**, and readings exist only for claim display.
+
+```
+statement_readings (
+  statement_id uuid -> statements,
+  locale text,
+  kind         enum('template','editorial') NOT NULL,
+  text         text,
+  -- the statement version this reading was written against
+  statement_version int,
+  statement_hash   text,
+  status       enum('confirmed','stale','draft') NOT NULL DEFAULT 'draft',
+  ...
+)
+```
+
+**The decision, as amended:**
+
+| # | rule |
+|---|---|
+| **1** | **Default reading = a deterministic template per predicate per locale.** Fallback when no template exists: **`subject · predicate · value`** |
+| **2** | **Editorial readings store the statement version/hash.** On statement change → the reading becomes **`stale`**, is **hidden**, and the **template reading is shown** until the editorial reading is re-confirmed |
+| **3** | **Reading kinds = `template` \| `editorial` only.** A **bot-drafted reading stays `draft`** — **not displayed** until a human confirms it |
+| **4** | **Scope: readings are for claim display only** (evidence panel / editor). **Never a substitute for the D4 authored description** |
+
+**What rule 1 buys.** A template is a *function*, so it cannot drift from the statement — there is nothing stored to drift. The fallback (`subject · predicate · value`) guarantees a reading exists for **every** statement and **every** locale, even where no template has been written. So "the reader always sees something" is a property of the model, not a workflow that can be forgotten.
+
+**What rule 2 buys.** A statement's value or qualifiers can change while an editorial reading still shows the old wording. Storing the version/hash on the reading makes staleness **detectable** rather than invisible; the rule is then *"a stale reading is hidden and the template is shown"* — never *"a stale reading is shown next to the new statement"*. The editorial reading comes back only when a human **re-confirms** it against the new version.
+
+**What rule 3 buys.** An agent may *draft* a reading, but it may not publish one — this is the same boundary as GUS-026 §10 (an agent may not move a claim to `published`). The `draft` kind-state is where bot output waits. **There is no `bot` reading kind**: an agent-drafted reading is an `editorial` reading in `draft` state, so there is exactly one way for a human-authored reading to exist and one way for it to be live.
+
+**What rule 4 buys.** The D4 authored description is a *separate artifact* with its own anchors and its own coverage metric. Readings are a rendering convenience **inside the claim display**. If readings were allowed to substitute for descriptions, the authored prose would be replaced by generated text, and D4's whole premise — that the description is authored and the claims are the evidence — would invert. **A fact that exists only in a reading does not exist in the model.**
+
+**One sub-question decided by following Q1 (not asked):** the `statement_version`/`statement_hash` pair is belt-and-braces — the version for cheap comparison, the hash for the case where two edits produce the same version number across a restore.
+
+---
+
+### Q2 (original) — Does a statement carry readable text, or is the text generated from its parts?
 
 **Decision:** whether a statement has a `text` column, and if so, whether that text is authoritative.
 
@@ -172,7 +211,64 @@ statement_readings (        -- optional, editorial, non-authoritative
 
 ---
 
-### Q3 — What is the subject of a claim, and how is it typed?
+### Q3 — What is the subject of a statement, and how is it typed?
+
+**Decision:** how a statement points at the thing it is about.
+
+**This is the first question that decides the shape of the foreign keys**, so it is worth grounding in what the catalog already has.
+
+**What exists to point at (measured live, 2026-10-26):**
+
+| table | rows | notes |
+|---|---|---|
+| `dishes` | 122 (121 published) | — |
+| `geo_entities` | **36** | all `entity_type='country'`; **`wikidata_id` is present as a column but 0 rows populate it** |
+| `food_regions` | **0** | the region table is empty |
+| `dish_families` | 25 | |
+| `dish_cuisines` | 21 | |
+| `dish_courses` | 8 | |
+| `dish_techniques` | 25 | |
+| `dish_traditions` | 36 | |
+| `dish_contexts` | 5 | |
+| `ingredient_categories` | 53 | |
+| `ingredients` | — | the dish↔ingredient link (`dish_ingredients`) has only **4 rows** |
+
+**And what does *not* exist yet:** there is no `technique` entity table distinct from the `dish_techniques` **vocabulary**, no `tradition` entity table distinct from `dish_traditions`, and no place table beyond `geo_entities` (countries only). `dish_ingredients` is nearly empty, so ingredients barely exist as addressable things yet.
+
+**That last point matters for the decision.** The dimension tables (`dish_techniques`, `dish_traditions`, `dish_contexts`) are **vocabularies** — controlled value lists. The *entities* those values refer to (a technique as a thing in the world, a tradition as a cultural practice, a place) are a different kind of thing, and mostly do not exist yet.
+
+**Recommendation: a typed subject reference with a closed subject-type set, where each subject type names the table it points into — and the subject-type set is decided by what the model can actually reference today, not by what might be needed later.**
+
+```
+statement_subjects (
+  subject_type enum('dish','ingredient','place','region',
+                    'technique','tradition','cuisine','family','relation') NOT NULL,
+  subject_id   uuid NOT NULL
+)
+```
+
+with a per-type foreign key, validated by trigger. The alternative is a single nullable FK per type on the statement row, which is faster to query and makes "a statement has exactly one subject" a schema fact.
+
+**Reason for a closed set with real FKs, not a string:** a claim about the Glasgow origin is about a **dish**; a claim about "coconut milk is used in…" is about an **ingredient**; a claim about "coriander is native to…" is about a **place**. If the subject were a string, the statement could not be joined to anything, and coverage-by-dish — the metric ADR-001 promised — could not be computed. It would be the same failure as `citations.claim_text`, one level up.
+
+**The tension I want surfaced, because it is the real design question here:**
+
+The dimension tables are **vocabularies**, and so are the *qualifier* values (place, period, variant, occasion). A statement's subject and its qualifiers therefore draw on **different kinds** of table: the subject is an **entity** (a specific dish, a specific place), while a qualifier's `place` is a **reference to a place entity** and its `occasion` is a **vocabulary value** (`dish_contexts`). If `place` appears in two places in the model with two different types, the schema gets confusing fast.
+
+**So the question splits in two, and this question is about the first half:**
+
+**(a) the subject** — always an **entity**: a dish, an ingredient, a specific place. Never a vocabulary value.
+**(b) the qualifiers** — a mix: `place` is an **entity** reference (a place), `variant` may be an **entity** (a specific dish variant) or a vocabulary value, `occasion` is a **vocabulary** value, `period` is a **typed literal** (a date range).
+
+**My recommendation for (a):** the subject is an entity, typed by a closed `subject_type` set, with real FKs. **The subject set starts with what the catalog can actually reference** — `dish` and `place` are the two that exist richly today; `ingredient` exists as a table with almost no links; `technique`, `tradition`, `cuisine`, `family`, `region` would point at the **vocabulary tables** until real entity tables exist.
+
+**The cost of that last point, stated plainly:** pointing `subject_type='technique'` at `dish_techniques` makes the subject a *vocabulary value*, which contradicts (a). The honest options are (i) accept the conflation now and split later, (ii) create real entity tables for technique and tradition now, which is a much larger piece of work than ADR-002 needs to be, or (iii) restrict the subject set to `dish` and `place` for the pilot and widen it when the entity tables exist.
+
+**I recommend (iii) for the pilot**, and (ii) as a separate piece of work when the recipe and tradition subtrees are built — because a statement whose subject is a vocabulary value cannot carry per-entity claims (a claim about *this* technique's history, not about the word "braising").
+
+---
+
+### Q3 (original) — What is the subject of a claim, and how is it typed?
 
 **Decision:** how a claim points at the thing it is about.
 
@@ -347,7 +443,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q2 is open** — with one amendment to carry forward: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
+**Q3 is open** — the subject model. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
 
 
 ---
@@ -367,8 +463,8 @@ These are decisions I will make by following the existing policy, and flag rathe
 | ADR-002 section | depends on |
 |---|---|
 | Q1 claim identity | ADR-001 D6 (one assertable fact) — **DECIDED**: the Wikidata-model statement (S-P-V + qualifiers + references), controlled predicates, typed values, free text only as a marked exception |
-| Q2 text | ADR-001 D6b (coverage counts sentences) |
-| Q3 subject | ADR-001 §2.1 entity graph |
+| Q2 readings | ADR-001 D6b (coverage counts sentences) — **DECIDED**: no authoritative text on the statement; template default per predicate per locale with a `subject · predicate · value` fallback; editorial readings carry the statement version/hash and go `stale` + hidden on change; kinds `template`/`editorial` only; bot drafts stay `draft` and undisplayed; readings are display-only and never a substitute for the D4 authored description |
+| Q3 subject | ADR-001 §2.1 entity graph — **the subject is an ENTITY (dish/ingredient/place), never a vocabulary value**; qualifiers mix entity refs (place, variant) with vocabulary values (occasion) and typed literals (period). The subject set should be limited to what the catalog can actually reference: `dish` and `place` exist richly today, while technique/tradition/cuisine/family would point at VOCABULARY tables until real entity tables exist |
 | Q4 predicate | ADR-001 §2.4 sketch |
 | Q5 objects | ADR-001 D6 worked example (6 claims for rendang) |
 | Q6 sources | GUS-026 §3 source classes |
