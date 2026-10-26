@@ -271,6 +271,14 @@ tasks:
       - "The ADR is checked against the three reference dishes (rendang, chicken-tikka-masala, tacos-al-pastor)"
       - "Open questions are listed for Alejandro's decision"
     evidence:
+      - "ADR-002 Q3 DECIDED 2026-10-26 (Alejandro, option (iii)): the subject is an ENTITY, never a vocabulary value; for the pilot the subject set is DISH + PLACE only, and real technique/tradition entity tables are separate work (GUS-233). AMENDMENT 1 - places need a hierarchy country > region > city BEFORE the pilot, via parent_id; the good news is geo_entities ALREADY HAS parent_id (unused - all 36 rows are entity_type='country' with no parent), so this is not a schema change but using an existing column plus seeding the levels. entity_type becomes country | region | city. Seed ONLY the pilot places: countries Indonesia, United Kingdom, India, Mexico (all 4 exist); regions West Sumatra (parent Indonesia), Scotland (parent United Kingdom), Punjab (parent India); cities Glasgow (parent Scotland), Delhi (parent Punjab), Mexico City + Puebla (parent Mexico). MINANGKABU IS A TRADITION VALUE, NOT A PLACE - it is already in dish_traditions (36 rows) and must not be seeded into geo_entities."
+
+      - "ADR-002 Q3 AMENDMENT 2 - dimension and relation rows get a nullable statement_id pointing at the supporting statement. THE ROW IS THE INDEX, THE STATEMENT IS THE EVIDENCE: a dimension row answers 'what is this dish's family?' and must stay fast and denormalised; the statement answers 'why do we believe that, and on whose authority?' and carries predicate, qualifiers, sources, class and status. The FK lives on the row because 91 dishes have a family assignment and NO statement - the statement is added later as evidence accumulates, and one statement can support several dimension rows simultaneously. A consistency check flags rows whose statement is missing, retracted (status needs_revision/disputed) or contradicting (claim_class disputed/unsupported); statement_id IS NULL is flagged UNEVIDENCED - not an error, but the honest state of a value someone typed. This is what makes the coverage number meaningful: a value with no statement is typed, a value with a documented statement is a fact, and today the two are indistinguishable."
+
+      - "ADR-002 Q3 AMENDMENT 3 - geo_entities.wikidata_id population is separate work (GUS-232): the column exists and 0 of 36 rows populate it, and a wrong Q-id is worse than a null one, so the pilot's place rows carry a NULL wikidata_id until that task lands. The pilot place hierarchy decision: Mexico stays a country with Mexico City and Puebla as cities directly beneath it - the hierarchy must allow a city to hang off a country, so no placeholder region is invented for Mexico."
+
+      - "ADR-002 Q4 DRAFTED 2026-10-26: the predicate vocabulary. The pilot's 3 dishes need 9 distinct predicates - originated_in, is_a, contains_ingredient, cooked_by, served_as, has_duration for rendang/CTM/tacos, plus the 4 origin predicates GUS-026 already assumes (originated_in, originated_at, created_by, named_after). Recommendation: a 'predicates' TABLE rather than an enum, because the per-predicate VALUE SHAPE is metadata the schema must enforce - originated_in must take a place, is_a a vocabulary value, contains_ingredient an ingredient, cooked_by a technique, has_duration a duration literal - and a table puts that rule in the data where a review can see it, whereas an enum pushes it into application code where it drifts. Seeded with exactly what the pilot needs plus the origin predicates GUS-026's Wikipedia rule names (a rule referencing a non-existent predicate is unenforceable). Two open points flagged: whether the taxonomic predicate is_a should require a statement at all (recommend yes), and whether coconut milk's 'medium' role is a separate predicate or a qualifier on contains_ingredient (recommend a qualifier - 'medium' is a role an ingredient plays, not a distinct kind of thing, and a separate predicate would let a dish have both a medium and no ingredients without contradiction."
+
       - "ADR-002 Q2 DECIDED 2026-10-26 (Alejandro). A statement stores NO authoritative text; readings exist only for claim display. (1) The default reading is a DETERMINISTIC template per predicate per locale, with a fallback of 'subject . predicate . value' when no template exists - so a reading exists for every statement in every locale by construction. (2) Editorial readings store the statement version/hash; on a statement change the reading becomes STALE, is HIDDEN, and the template is shown until a human re-confirms it. (3) Reading kinds are 'template' and 'editorial' only; a bot-drafted reading stays 'draft' and is NOT DISPLAYED until a human confirms it - there is no 'bot' kind, so an agent draft is an editorial reading in draft state. (4) SCOPE: readings are for claim display (evidence panel / editor) ONLY, never a substitute for the D4 authored description. A fact that exists only in a reading does not exist in the model."
 
       - "ADR-002 Q3 DRAFTED 2026-10-26: the subject model. Grounded in what the catalog can actually reference (measured live): geo_entities 36 rows, all entity_type='country', with a wikidata_id COLUMN but 0 rows populating it; food_regions EMPTY; dish_ingredients only 4 rows; the dimension tables are VOCABULARIES (dish_families 25, dish_cuisines 21, dish_courses 8, dish_techniques 25, dish_traditions 36, dish_contexts 5, ingredient_categories 53) rather than entity tables. The recommendation: the SUBJECT is always an ENTITY (dish / ingredient / a specific place) and never a vocabulary value, while the QUALIFIERS mix entity references (place, variant) with vocabulary values (occasion) and typed literals (period). For the pilot the subject set should be limited to what exists richly today - dish and place - because a statement whose subject is a vocabulary value cannot carry per-entity claims, and real technique/tradition entity tables belong with the recipe and tradition subtrees rather than inside ADR-002."
@@ -2660,3 +2668,39 @@ tasks:
       - "THE EXPOSURE WAS ONLY IN THE METRICS: my own denominators counted all 122 dish rows, so coverage read as '114 of 119' when the real population is 118 (121 published minus the 3 pilot dishes) and the real figure is 114 of 118. The fixture has ZERO dimension rows - it only ever inflated the denominator, which is exactly the kind of silent error that is invisible in the output and obvious in the arithmetic."
       - "FIXED 2026-10-26: the mapper and the mapper regression test now compute their population from dishes.status='published'. The corrected population is 122 rows = 121 published (3 of them the pilot) + 1 archived fixture; the mapper's 118 = published minus the 3 pilot dishes; technique coverage 114 of 118."
       - "REMAINING WORK: mark the fixture explicitly (a slug prefix, a flag column, or a fixture table) rather than relying on it being archived; archive it out of the active catalog; and add a standing check that no non-published dish can enter a metric population."
+
+  - id: GUS-232
+    title: "Populate geo_entities.wikidata_id"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P2
+    phase: 1
+    status: todo
+    depends_on: []
+    approval: false
+    acceptance:
+      - "Every geo_entities row that has a Wikidata equivalent carries its Q-id"
+      - "The Q-ids are verified against Wikidata, not guessed from the name"
+      - "A record is kept of the source and date of each lookup"
+      - "The pilot's place rows carry a wikidata_id once this task lands"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro, during the ADR-002 Q3 review). geo_entities HAS a wikidata_id column and 0 of its 36 rows populate it. It was not part of the ADR-002 pilot because it is a population task, not a schema task, and a wrong Q-id is worse than a null one."
+      - "WHY IT MATTERS NOW: ADR-002 Q1 adopted the Wikidata model for statements, and a statement about a place would ideally reference the place's Q-id so it can be matched against Wikidata directly. Until the column is populated, that matching is manual."
+      - "NOTE: this is deliberately separate from the pilot. The pilot's place rows will carry a NULL wikidata_id until it lands."
+  - id: GUS-233
+    title: "Create real entity tables for technique and tradition"
+    epic: "EPIC 02 — Redesign the culinary knowledge model"
+    priority: P1
+    phase: 1
+    status: todo
+    depends_on: [GUS-014]
+    approval: true
+    acceptance:
+      - "A technique ENTITY table exists, distinct from the dish_techniques vocabulary"
+      - "A tradition ENTITY table exists, distinct from the dish_traditions vocabulary"
+      - "ADR-002's subject_type set can be widened to include them"
+      - "A statement can then carry a per-entity claim (the history of THIS technique, not of the word)"
+    evidence:
+      - "RAISED 2026-10-26 (Alejandro, during the ADR-002 Q3 review). ADR-002 Q3 was decided as option (iii): the pilot's subject set is dish + place ONLY, and real technique/tradition entity tables are SEPARATE WORK, to be done alongside the recipe and tradition subtrees rather than inside ADR-002."
+      - "WHY IT CANNOT BE FUDGED: a statement whose subject is a VOCABULARY value cannot carry per-entity claims. A claim about the history of THIS braising technique is not the same claim as one about the word 'braising'. Pointing subject_type='technique' at dish_techniques would conflate them and make the entity tables a later refactor rather than a later addition."
+      - "WHY IT IS SEPARATE WORK: technique and tradition entities are places to hang history, provenance, regional variation and community practice. That is the same shape of work as the recipes subtree (GUS-015/016) and the tradition work, and doing it inside the claims ADR would couple two independent subtrees."
+      - "BLOCKED BY: the recipe and tradition subtree design, and by GUS-027/028 (a statement about a technique needs the claims model to exist)."

@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 and Q2 DECIDED, Q3 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1, Q2 and Q3 DECIDED, Q4 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -211,7 +211,66 @@ statement_readings (        -- optional, editorial, non-authoritative
 
 ---
 
-### Q3 — What is the subject of a statement, and how is it typed?
+### ✅ Q3 — DECIDED (Alejandro, 2026-10-26): subjects are `dish` and `place` for the pilot; places get a hierarchy first
+
+**The subject of a statement is an ENTITY — never a vocabulary value.** For the pilot the subject set is **restricted to `dish` and `place`**, because those are the two the catalog can reference richly today. Real `technique` / `tradition` **entity** tables are **separate work**, to be done alongside the recipe and tradition subtrees — not inside ADR-002.
+
+**Why (iii) and not (i):** a statement whose subject is a vocabulary value cannot carry per-entity claims. A claim about *this* technique's history is not the same claim as one about the word "braising". Pointing `subject_type='technique'` at `dish_techniques` would conflate the two, and would make the entity tables a later refactor rather than a later addition.
+
+#### Amendment 1 — places need a hierarchy, seeded with the pilot places only
+
+**A place must have a hierarchy before the pilot:** **country > region > city**, via `parent_id`.
+
+**The good news, measured live:** `geo_entities` **already has `parent_id`** — the column exists and is simply unused. All 36 current rows are `entity_type='country'` with no parent. So this is not a schema change; it is **using a column that is already there**, plus seeding the levels.
+
+**The `entity_type` vocabulary therefore becomes:** `country` · `region` · `city` (today it holds only `country`).
+
+**Seed only the pilot places** — nothing wider:
+
+| level | places |
+|---|---|
+| country | `Indonesia` *(exists)* · `United Kingdom` *(exists)* · `India` *(exists)* · `Mexico` *(exists)* |
+| region | `West Sumatra` (parent: Indonesia) · `Scotland` (parent: United Kingdom) · `Punjab` (parent: India) · `Mexico` *(is the country; the region needs a name — see the open question below)* |
+| city | `Glasgow` (parent: Scotland) · `Delhi` (parent: Punjab) · `Mexico City` (parent: Mexico) · `Puebla` (parent: Mexico) |
+
+**`Minangkabau` is a TRADITION value, not a place.** It is already in `dish_traditions` (36 rows) and is where `rendang`'s tradition belongs. It must **not** be seeded into `geo_entities` — a tradition is a cultural identity, not a location, and ADR-001 D3j's scope rules keep them apart.
+
+#### Amendment 2 — dimension and relation rows carry a `statement_id`; the row is an index, the statement is the evidence
+
+**Every dimension assignment row and every relation row gains a nullable `statement_id`** pointing at the statement that supports it.
+
+```
+ALTER TABLE dish_dish_families      ADD COLUMN statement_id uuid REFERENCES statements(id);
+ALTER TABLE dish_dish_cuisines      ADD COLUMN statement_id uuid REFERENCES statements(id);
+... every dish_dish_* join, and dish_relations ...
+```
+
+**The principle: the row is the INDEX, the statement is the EVIDENCE.**
+
+A dimension row answers *"what is this dish's family?"* — it is a lookup row, and it must stay fast and denormalised. The statement answers *"why do we believe that, and on whose authority?"* — it carries the predicate, the qualifiers, the sources, the class and the status.
+
+**Why the FK is on the dimension row rather than the other way round:** 91 dishes have a family assignment and no statement; the statement is the thing that is *added later*, as evidence accumulates. A statement can support many dimension rows (one claim can be the evidence for a family, a course and a context simultaneously), so the FK belongs on the row.
+
+**A consistency check flags rows whose statement is missing, retracted, or contradicting:**
+
+| condition | flagged as |
+|---|---|
+| `statement_id` points at a row that no longer exists | **missing** |
+| the statement's status is `needs_revision` / `disputed` | **retracted** |
+| the statement's `claim_class` is `disputed` or `unsupported` | **contradicting** |
+| `statement_id IS NULL` | **unevidenced** — *not* an error; it is the honest state of the 91 rows that have a value but no evidence yet |
+
+**This is what makes the coverage number meaningful.** A dimension value with no statement is a value someone typed. A dimension value with a statement pointing at a `documented` claim backed by an S1–S5 source is a fact. The two are currently indistinguishable — and the whole point of ADR-002 is to distinguish them.
+
+#### Amendment 3 — `geo_entities.wikidata_id` population is separate work
+
+The column exists and **0 of 36 rows populate it**. Populating it is a **backlog item**, not part of the pilot — and the pilot's place rows will carry a null `wikidata_id` until then.
+
+**Open question this raises, which I will decide rather than ask:** *Mexico* is currently a **country**. The pilot needs *Mexico City* and *Puebla* as cities **under** Mexico. Is *Mexico* the country (with Mexico City and Puebla beneath it), and the region the pilot names is the country? I will read it as: `Mexico` = country; `Mexico City` and `Puebla` = cities with `parent_id = Mexico`. The region level for Mexico is therefore **empty** — and that is fine, because the hierarchy must allow a city to hang directly off a country. No placeholder region is invented.
+
+---
+
+### Q3 (original) — What is the subject of a statement, and how is it typed?
 
 **Decision:** how a statement points at the thing it is about.
 
@@ -290,7 +349,70 @@ with a foreign key per type, or a `subject_ref` that carries the type + id and i
 
 ---
 
-### Q4 — What is the predicate vocabulary, and is it closed?
+### ✅ Q4 — DRAFTED (pending your answer)
+
+**Decision:** whether `predicate` is a controlled vocabulary, and what it contains.
+
+**Q1 already decided the shape:** predicates come from a controlled vocabulary, taken **verbatim**, and a new predicate is added **only by explicit decision**. This question decides *the vocabulary itself* — which predicates exist, and what shape the vocabulary table has.
+
+**What the pilot's claims actually need.** The GUS-026 §8.2 priority order and ADR-001 D6's worked example give the ground truth for the 3 reference dishes:
+
+| dish | the claims it needs | the predicate each requires |
+|---|---|---|
+| `rendang` | origin (West Sumatra) · family (curry) · protein (beef) · technique (braising) · medium (coconut milk) · duration (hours) | `originated_in` · `is_a` · `contains_ingredient` · `cooked_by` · `has_duration` · `cooked_for` |
+| `chicken-tikka-masala` | origin — **competing** Glasgow vs the subcontinent · protein (chicken) · technique (grilling + simmering) · course (restaurant) | `originated_in` ×2 competing · `contains_ingredient` · `cooked_by` ×2 · `served_as` |
+| `tacos-al-pastor` | origin (Mexico/Puebla) · family (taco) · technique (spit-roasting) · context (street food) · derived-from (shawarma) | `originated_in` · `is_a` · `cooked_by` · `served_as` · `derived_from` |
+
+**That is 9 distinct predicates for 3 dishes** — a telling number. It is also close to what GUS-026 §3.1's origin-predicate rule already names: `originated_in` / `originated_at` / `created_by` / `named_after`.
+
+**Recommendation: a `predicates` vocabulary table, seeded with the pilot's needs plus the 3 origin-predicate variants GUS-026 already assumes, and nothing else.**
+
+```
+predicates (
+  id            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug          text NOT NULL UNIQUE,     -- 'originated_in', 'contains_ingredient'
+  name          text NOT NULL,
+  -- the value shape this predicate accepts
+  value_kind    enum('entity','vocabulary','literal','time') NOT NULL,
+  value_type    text,                     -- for entity values: which entity type
+  description   text,
+  created_at    timestamptz NOT NULL DEFAULT now()
+)
+```
+
+**Reason a table rather than an enum.** The predicate's **shape** is metadata the schema must enforce: `originated_in` must take a **place**; `is_a` must take a **vocabulary value** (a family, a cuisine); `contains_ingredient` must take an **ingredient**; `cooked_by` must take a **technique**; `has_duration` must take a **duration literal**. If the predicate table carries `value_kind` and `value_type`, validation enforces those rules **from data** rather than from code that special-cases each predicate.
+
+**Reason the vocabulary starts small.** A predicate no statement uses is dead weight — and every unused predicate is a place a future author will reach for *instead of* an existing one, widening the vocabulary without a decision. Growing it **by explicit decision** (per Q1) is the discipline; seeding only what the pilot needs makes the discipline enforceable rather than aspirational.
+
+**The seed list, and why each is there:**
+
+| predicate | value_kind | value_type | needed by |
+|---|---|---|---|
+| `originated_in` | entity | `place` | rendang, CTM (×2 competing), tacos |
+| `originated_at` | literal | `time` | GUS-026's origin-predicate set |
+| `created_by` | entity | `dish` | GUS-026's origin-predicate set |
+| `named_after` | entity | `place` | GUS-026's origin-predicate set |
+| `is_a` | vocabulary | `family` or `cuisine` | rendang (curry), tacos (taco) |
+| `contains_ingredient` | entity | `ingredient` | rendang (beef), CTM (chicken) |
+| `cooked_by` | vocabulary | `technique` | rendang, CTM (×2), tacos |
+| `served_as` | vocabulary | `dish_context` | CTM, tacos |
+| `has_duration` | literal | `time` | rendang (hours) |
+
+**The alternatives, and I think they are weaker:**
+
+**Alternative A — a free-text `predicate` column.** Easiest to write statements in, and a scholar's exact phrasing survives. But coverage-by-predicate and the GUS-026 origin-predicate rule both need a closed set to be checkable — with free text, *"originated in"* vs *"originates from"* vs *"was created in"* would be **three predicates**, and the Wikipedia rule would silently never fire.
+
+**Alternative B — a closed SQL enum on the statement table.** Cheaper than a table, and the database enforces membership. But the per-predicate **value shape** cannot be expressed, so the `originated_in`-must-take-a-place rule has to live in application code — and code is where it drifts. The table form puts the rule in the data, where a review can see it.
+
+**What I will decide rather than ask:** the 4 origin predicates from GUS-026 (`originated_in`, `originated_at`, `created_by`, `named_after`) are seeded **even though the pilot only uses one**, because GUS-026's Wikipedia rule *names* them and a rule that references a non-existent predicate is unenforceable. The other five (`is_a`, `contains_ingredient`, `cooked_by`, `served_as`, `has_duration`) are the pilot's actual needs.
+
+**One naming note I want to flag rather than bury:** `is_a` is a *taxonomic* predicate; the others are *factual*. That distinction is real — `is_a` is true by definition of the taxonomy, whereas `contains_ingredient` is a claim about the world that needs evidence. **Should `is_a` require a statement at all?** My recommendation is **yes**, because "rendang is a curry" is still a claim (about the taxonomy being right), and a statement with a `scholarly_interpretation` class can say so explicitly. But it is a defensible exception, and I will raise it if the pilot shows the taxonomic statements adding no value.
+
+**One gap this table exposes:** the pilot needs a predicate for *coconut milk* — the D6 worked example calls it the "medium". Is that `contains_ingredient` (coconut milk is an ingredient) or a separate `has_medium` predicate? I recommend **`contains_ingredient`** — "medium" is a role an ingredient plays, not a distinct kind of thing, and a separate predicate would let a dish have both a medium and no ingredients without contradiction. If Alejandro wants the role recorded explicitly, that is a **qualifier** on `contains_ingredient`, not a new predicate.
+
+---
+
+### Q4 (original) — What are the predicate vocabulary, and is it closed?
 
 **Decision:** whether `predicate` is a controlled vocabulary or free text.
 
@@ -443,7 +565,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q3 is open** — the subject model. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
+**Q4 is open** — the predicate vocabulary. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
 
 
 ---
@@ -464,7 +586,7 @@ These are decisions I will make by following the existing policy, and flag rathe
 |---|---|
 | Q1 claim identity | ADR-001 D6 (one assertable fact) — **DECIDED**: the Wikidata-model statement (S-P-V + qualifiers + references), controlled predicates, typed values, free text only as a marked exception |
 | Q2 readings | ADR-001 D6b (coverage counts sentences) — **DECIDED**: no authoritative text on the statement; template default per predicate per locale with a `subject · predicate · value` fallback; editorial readings carry the statement version/hash and go `stale` + hidden on change; kinds `template`/`editorial` only; bot drafts stay `draft` and undisplayed; readings are display-only and never a substitute for the D4 authored description |
-| Q3 subject | ADR-001 §2.1 entity graph — **the subject is an ENTITY (dish/ingredient/place), never a vocabulary value**; qualifiers mix entity refs (place, variant) with vocabulary values (occasion) and typed literals (period). The subject set should be limited to what the catalog can actually reference: `dish` and `place` exist richly today, while technique/tradition/cuisine/family would point at VOCABULARY tables until real entity tables exist |
+| Q3 subject | ADR-001 §2.1 entity graph — **DECIDED**: the subject is an ENTITY, never a vocabulary value; for the pilot the subject set is **dish + place** only, and real technique/tradition entity tables are separate work. Places get a **country > region > city** hierarchy via the existing `geo_entities.parent_id` (already present, unused), seeded with **only the pilot places**; `Minangkabau` is a **tradition** value, not a place. Dimension and relation rows gain a **nullable `statement_id`**: the row is the index, the statement is the evidence, with a consistency check flagging rows whose statement is missing / retracted / contradicting. `geo_entities.wikidata_id` population is backlogged |
 | Q4 predicate | ADR-001 §2.4 sketch |
 | Q5 objects | ADR-001 D6 worked example (6 claims for rendang) |
 | Q6 sources | GUS-026 §3 source classes |
