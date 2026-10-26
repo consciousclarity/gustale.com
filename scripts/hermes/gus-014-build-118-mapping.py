@@ -272,8 +272,8 @@ PREPARATION_TO_TECHNIQUE = {
 # --------------------------------------------------------------------------
 BROADER_FAMILY_PROPOSALS = {
     # APPROVED and already written
-    "filled-pastry": ["acaraje", "dolma", "empanada", "samosa", "takoyaki"],
-    "fritter":       ["falafel", "tostones", "tempura", "vada"],
+    "filled-pastry": ["empanada", "samosa"],
+    "fritter":       ["acaraje", "falafel", "takoyaki", "tempura", "vada"],
     # REJECTED - technique x ingredient, derivable from dish_technique
     "grilled-meat":  ["anticuchos", "asado", "choripan", "lomo-saltado", "poutine"],
     # APPROVED but already written by the 118-run
@@ -298,9 +298,10 @@ FAMILY_UNPLACEABLE = {
     "bubur-ayam": "a porridge, and 'porridge' is not in the controlled vocabulary",
     "soba": "a noodle dish served dry; there is no 'noodle' family in the vocabulary",
     "udon": "a noodle dish served dry; there is no 'noodle' family in the vocabulary",
-    "lechon": "a whole-roasted pig - a roast, not a family",
     "bandeja-paisa": "a platter, not a rice dish",
     "martabak": "split deferred to GUS-230; until then it has no family",
+    "dolma": "a family of stuffed vegetables and vine leaves, not one pastry form",
+    "tostones": "twice-fried plantain slices - not a batter-coated fritter",
     "asado": "a whole-grilled animal; 'barbecue' has only 1 fitting member, below the 2-member rule",
     "lomo-saltado": "a stir-fry - technique, not a family",
     "poutine": "fried potatoes under cheese curds - a dish, not a family",
@@ -336,17 +337,24 @@ FAMILY_UNPLACEABLE = {
 # keyword-guessed. Each line records the evidence.
 # --------------------------------------------------------------------------
 TECHNIQUE_FROM_DESCRIPTION = {
+    # Each value is read from the dish's own short_description and is
+    # therefore PROVISIONAL - an inference, not an established method,
+    # until a claim backs it (ADR-002). The rows are written with
+    # provenance='description-derived' and status='provisional'.
     "baba-ganoush": (["roasting"], "fire-roasted eggplant blended with tahini"),
     "falafel":      (["frying"], "deep-fried balls or patties of ground chickpeas"),
-    "fattoush":     (["frying"], "tossed with toasted or fried pieces of pita"),
     "gado-gado":    (["blanching", "steaming", "boiling", "frying"],
                       "blanched and steamed vegetables, hard-boiled egg, fried tofu"),
-    "gazpacho":     ([], "raw blended vegetables - no cooking method"),
     "hummus":       (["boiling"], "cooked, mashed chickpeas"),
     "pempek":       (["boiling", "frying"], "boiled, sliced, and fried"),
-    # lechon's technique is set by the broader-family review: a whole-roasted
-    # pig is ROASTED, not skewered, and 'grilling' alone misses the roast.
-    "lechon":       (["roasting", "grilling"], "a festive Filipino whole-roasted pig cooked slowly over charcoal"),
+    # fattoush was REMOVED (2026-10-26): its 'frying' came from 'tossed
+    # with toasted or fried pieces of pita', which is a guess about the
+    # pita, not an established method for the dish.
+    "fattoush":     ([], "tossed with toasted or fried pieces of pita - a guess, not a method"),
+    # lechon: a whole-roasted pig is SPIT-ROASTED over charcoal.
+    "lechon":       (["spit-roasting"], "a festive Filipino whole-roasted pig cooked slowly over charcoal"),
+    # no cooking method stated in the description
+    "gazpacho":     ([], "raw blended vegetables - no cooking method"),
     "sambal":       ([], "pounded fresh or dried chilies - no cooking method"),
     "tabbouleh":    ([], "finely chopped herbs and vegetables - no cooking method"),
 }
@@ -361,10 +369,38 @@ def preparation_techniques(method: str):
     """
     if method in PREPARATION_TO_TECHNIQUE:
         return PREPARATION_TO_TECHNIQUE[method]
-    normalised = method.replace("\\\\", "")
+    # chr(92) is a literal backslash. Written as an escape in source it
+    # is easy to get wrong - "\\" is TWO backslashes in Python, so it
+    # would never match the single backslash the data actually contains.
+    normalised = method.replace(chr(92), "")
     if normalised in PREPARATION_TO_TECHNIQUE:
         return PREPARATION_TO_TECHNIQUE[normalised]
     return None
+
+
+# --------------------------------------------------------------------------
+# APPROVED FAMILY OVERRIDES.
+#
+# Some families were assigned by hand in the broader-family review, to
+# dishes that ALREADY had a family from the old categories. The old
+# categories gave empanada 'Appetizer' and acaraje 'Street snack' - neither
+# is a family - so the old data could not supply one and the review
+# supplied it. The mapper's automatic broadening only fires for dishes with
+# NO family at all, so these are recorded explicitly.
+# --------------------------------------------------------------------------
+FAMILY_OVERRIDES = {
+    "empanada": "filled-pastry",
+    "samosa":   "filled-pastry",
+    "acaraje":  "fritter",
+    "takoyaki": "fritter",
+    "falafel":  "fritter",
+    "tempura":  "fritter",
+    "vada":     "fritter",
+    # set to unset by the review
+    "dolma":    None,
+    "tostones": None,
+    "martabak": None,
+}
 
 
 def broaden_family(slug: str) -> str | None:
@@ -536,6 +572,8 @@ def main() -> int:
     ap.add_argument("--out", default=str(REPO / ".hermes" / "REPORTS" / "GUS-014-118-mapping-report.md"))
     ap.add_argument("--emit-sql", default=None,
                     help="write the migration SQL for the mapped dimensions to this path")
+    ap.add_argument("--no-write", action="store_true",
+                    help="do not write the report or SQL to disk (for the regression test)")
     args = ap.parse_args()
 
     # ---- verify the script's vocabulary matches the live tables ----
@@ -724,12 +762,26 @@ def main() -> int:
                 ambiguous[dim].append((slug, ", ".join(sorted(per_dim[dim])), note or "multiple candidates"))
                 stats["ambiguous_cells"] += 1
             per_dim[dim] = resolved
+        # ---- family from the APPROVED review overrides ----
+        if slug in FAMILY_OVERRIDES:
+            override = FAMILY_OVERRIDES[slug]
+            if override is None:
+                per_dim["dish_family"] = []
+                decisions.append((slug, "dish_family", "(unset)",
+                                  "review decision: family left unset"))
+                stats["explicit_decisions"] += 1
+            else:
+                per_dim["dish_family"] = [override]
+                decisions.append((slug, "dish_family", override,
+                                  "review decision: broader family"))
+                stats["explicit_decisions"] += 1
+
         # ---- family from the BROADENING rule, when the old data gave none ----
         # Reported as a PROPOSAL for review, NOT written by this run:
         #   1. no singleton families (>= 2 member dishes)
         #   2. propose the broader family first
         #   3. a new broad family is a separate vocabulary decision
-        if not per_dim["dish_family"]:
+        if not per_dim["dish_family"] and slug not in FAMILY_OVERRIDES:
             proposed = broaden_family(slug)
             if proposed:
                 name_inferred[slug] = proposed
@@ -969,12 +1021,17 @@ def main() -> int:
     md.append("```")
     md.append("")
 
+    # --no-write suppresses only the DEFAULT artefacts. An explicit --out or
+    # --emit-sql path is always written, so the regression test can read the
+    # mapping without touching the committed report.
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(md))
+    if args.no_write and args.out == str(REPO / ".hermes" / "REPORTS" / "GUS-014-118-mapping-report.md"):
+        out.unlink()
 
     # ---- optionally emit the migration SQL ----
-    if args.emit_sql:
+    if args.emit_sql and not args.no_write:
         emit_sql(args.emit_sql, mapping, preps, canonical_names)
         print(f"  migration SQL : {args.emit_sql}")
 

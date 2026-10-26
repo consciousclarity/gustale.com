@@ -16,10 +16,10 @@
 
 | dimension | dishes with ≥1 value | dishes unset |
 |---|---|---|
-| `dish_family` | 87 | 31 |
+| `dish_family` | 93 | 25 |
 | `dish_cuisine` | 100 | 18 |
 | `dish_course` | 113 | 5 |
-| `dish_technique` | 115 | 3 |
+| `dish_technique` | 114 | 4 |
 | `ingredient_category` | 0 | 118 |
 | `dish_tradition` | 0 | 118 |
 | `dish_context` | 10 | 108 |
@@ -55,11 +55,21 @@ These four cells were ambiguous under the automatic rules and were **decided by 
 
 | dish | dimension | value | why |
 |---|---|---|---|
+| `acaraje` | `dish_family` | `fritter` | review decision: broader family |
 | `chole-bhature` | `dish_family` | `curry` | old categories gave bread and curry; decided: curry |
+| `dolma` | `dish_family` | `(unset)` | review decision: family left unset |
 | `doner-kebab` | `dish_family` | `kebab` | old categories gave kebab and sandwich; decided: kebab (the sandwich is a serving form, not a family) |
+| `empanada` | `dish_family` | `filled-pastry` | review decision: broader family |
+| `falafel` | `dish_family` | `fritter` | review decision: broader family |
 | `gazpacho` | `dish_family` | `soup` | gazpacho is a soup family; its course is appetizer |
 | `gazpacho` | `dish_course` | `appetizer` | gazpacho is a soup family; its course is appetizer |
 | `khao-soi` | `dish_family` | `noodle-soup` | old categories gave curry and noodle-soup; decided: noodle-soup |
+| `martabak` | `dish_family` | `(unset)` | review decision: family left unset |
+| `samosa` | `dish_family` | `filled-pastry` | review decision: broader family |
+| `takoyaki` | `dish_family` | `fritter` | review decision: broader family |
+| `tempura` | `dish_family` | `fritter` | review decision: broader family |
+| `tostones` | `dish_family` | `(unset)` | review decision: family left unset |
+| `vada` | `dish_family` | `fritter` | review decision: broader family |
 
 ## 4. Resolved ties (the generic fallback losing to a specific value)
 
@@ -86,7 +96,7 @@ _None._
 
 ## 5b. Broader families proposed for the dishes with no family (PROPOSALS, not written)
 
-**31 dishes carry no family-ish old category.** The rule applied:
+**25 dishes carry no family-ish old category.** The rule applied:
 
 1. **No singleton families.** A proposed family must have **>= 2 member dishes** in the catalog - a family with one member is a dish, not a family.
 2. **Propose the broader family first** (asado -> `grilled-meat`, empanada -> `filled-pastry`, falafel -> `fritter`) rather than the dish's own name.
@@ -96,18 +106,9 @@ These are **proposals for review**. They are NOT written by this run: the three 
 
 | dish | proposed broader family | in vocab? |
 |---|---|---|
-| `acaraje` | `filled-pastry` | yes |
 | `asado` | `grilled-meat` | **no - new, needs a vocabulary decision** |
-| `dolma` | `filled-pastry` | yes |
-| `empanada` | `filled-pastry` | yes |
-| `falafel` | `fritter` | yes |
 | `lomo-saltado` | `grilled-meat` | **no - new, needs a vocabulary decision** |
 | `poutine` | `grilled-meat` | **no - new, needs a vocabulary decision** |
-| `samosa` | `filled-pastry` | yes |
-| `takoyaki` | `filled-pastry` | yes |
-| `tempura` | `fritter` | yes |
-| `tostones` | `fritter` | yes |
-| `vada` | `fritter` | yes |
 
 ### Member counts (the no-singleton evidence)
 
@@ -116,8 +117,8 @@ These are **proposals for review**. They are NOT written by this run: the three 
 | `bread` | 3 | yes |
 | `curry` | 3 | yes |
 | `dumpling` | 3 | yes |
-| `filled-pastry` | 5 | yes |
-| `fritter` | 4 | yes |
+| `filled-pastry` | 2 | yes |
+| `fritter` | 5 | yes |
 | `grilled-meat` | 5 | **no** |
 | `kebab` | 3 | yes |
 | `noodle-soup` | 4 | yes |
@@ -138,7 +139,6 @@ These are **proposals for review**. They are NOT written by this run: the three 
 | `halo-halo` | a single halo-halo dish - would be a singleton family |
 | `kibbeh` | a single kibbeh dish - would be a singleton family |
 | `kung-pao-chicken` | a single kung pao dish - would be a singleton family |
-| `lechon` | a whole-roasted pig - a roast, not a family |
 | `menemen` | a single menemen dish - would be a singleton family |
 | `peking-duck` | a single peking duck dish - would be a singleton family |
 | `shakshuka` | a single shakshuka dish - would be a singleton family |
@@ -151,10 +151,14 @@ These are **proposals for review**. They are NOT written by this run: the three 
 
 | dish | canonical name | old categories |
 |---|---|---|
+| `dolma` | Dolma | `Appetizer`, `Main course`, `Turkish cuisine` |
 | `humita` | Humita | `Appetizer`, `Argentine cuisine`, `Main course` |
 | `ikan-bakar` | Ikan bakar | `Indonesian cuisine`, `Main course` |
+| `lechon` | Lechon | `Filipino cuisine`, `Main course` |
+| `martabak` | Martabak | `Indonesian cuisine`, `Pancake`, `Street snack` |
 | `pempek` | Pempek | `Appetizer`, `Indonesian cuisine`, `Main course` |
 | `tonkatsu` | Tonkatsu | `Japanese cuisine`, `Main course` |
+| `tostones` | Tostones | `Appetizer` |
 
 ## 6. Per-dish mapping
 
@@ -164,7 +168,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `acaraje`
 
 - **old categories:** `Appetizer`, `Street snack`
-- **`dish_family`:** —
+- **`dish_family`:** `fritter`
 - **`dish_cuisine`:** —
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -538,7 +542,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `empanada`
 
 - **old categories:** `Appetizer`, `Argentine cuisine`, `Main course`
-- **`dish_family`:** —
+- **`dish_family`:** `filled-pastry`
 - **`dish_cuisine`:** `argentine`
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -549,7 +553,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `falafel`
 
 - **old categories:** `Appetizer`, `Israeli cuisine`, `Main course`
-- **`dish_family`:** —
+- **`dish_family`:** `fritter`
 - **`dish_cuisine`:** `israeli`
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -563,7 +567,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** `salad`
 - **`dish_cuisine`:** `lebanese`
 - **`dish_course`:** `appetizer`
-- **`dish_technique`:** `frying`
+- **`dish_technique`:** —
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -849,7 +853,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 - **`dish_family`:** —
 - **`dish_cuisine`:** `filipino`
 - **`dish_course`:** `main-course`
-- **`dish_technique`:** `grilling`, `roasting`
+- **`dish_technique`:** `spit-roasting`
 - **`ingredient_category`:** —
 - **`dish_tradition`:** —
 - **`dish_context`:** —
@@ -901,7 +905,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `martabak`
 
 - **old categories:** `Indonesian cuisine`, `Pancake`, `Street snack`
-- **`dish_family`:** `pancake`
+- **`dish_family`:** —
 - **`dish_cuisine`:** `indonesian`
 - **`dish_course`:** —
 - **`dish_technique`:** `baking`
@@ -1187,7 +1191,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `samosa`
 
 - **old categories:** `Appetizer`, `Indian cuisine`, `Street snack`
-- **`dish_family`:** —
+- **`dish_family`:** `filled-pastry`
 - **`dish_cuisine`:** `indian`
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -1308,7 +1312,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `takoyaki`
 
 - **old categories:** `Appetizer`, `Japanese cuisine`, `Street snack`
-- **`dish_family`:** —
+- **`dish_family`:** `fritter`
 - **`dish_cuisine`:** `japanese`
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -1341,7 +1345,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `tempura`
 
 - **old categories:** `Appetizer`, `Japanese cuisine`, `Main course`
-- **`dish_family`:** —
+- **`dish_family`:** `fritter`
 - **`dish_cuisine`:** `japanese`
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -1407,7 +1411,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
 ### `vada`
 
 - **old categories:** `Appetizer`, `South Indian cuisine`, `Street snack`
-- **`dish_family`:** —
+- **`dish_family`:** `fritter`
 - **`dish_cuisine`:** `south-indian`
 - **`dish_course`:** `appetizer`
 - **`dish_technique`:** `frying`
@@ -1471,7 +1475,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
       "appetizer"
     ],
     "dish_cuisine": [],
-    "dish_family": [],
+    "dish_family": [
+      "fritter"
+    ],
     "dish_technique": [
       "frying"
     ],
@@ -2045,7 +2051,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "argentine"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "filled-pastry"
+    ],
     "dish_technique": [
       "frying"
     ],
@@ -2060,7 +2068,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "israeli"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "fritter"
+    ],
     "dish_technique": [
       "frying"
     ],
@@ -2078,9 +2088,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_family": [
       "salad"
     ],
-    "dish_technique": [
-      "frying"
-    ],
+    "dish_technique": [],
     "dish_tradition": [],
     "ingredient_category": []
   },
@@ -2515,8 +2523,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     ],
     "dish_family": [],
     "dish_technique": [
-      "roasting",
-      "grilling"
+      "spit-roasting"
     ],
     "dish_tradition": [],
     "ingredient_category": []
@@ -2597,9 +2604,7 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "indonesian"
     ],
-    "dish_family": [
-      "pancake"
-    ],
+    "dish_family": [],
     "dish_technique": [
       "baking"
     ],
@@ -3035,7 +3040,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "indian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "filled-pastry"
+    ],
     "dish_technique": [
       "frying"
     ],
@@ -3223,7 +3230,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "japanese"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "fritter"
+    ],
     "dish_technique": [
       "frying"
     ],
@@ -3268,7 +3277,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "japanese"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "fritter"
+    ],
     "dish_technique": [
       "frying"
     ],
@@ -3364,7 +3375,9 @@ Each row: the dish's old categories → its proposed value(s) in each of the 7 d
     "dish_cuisine": [
       "south-indian"
     ],
-    "dish_family": [],
+    "dish_family": [
+      "fritter"
+    ],
     "dish_technique": [
       "frying"
     ],

@@ -204,7 +204,8 @@ INSERT INTO dish_contexts (slug, name) VALUES ('restaurant', 'Restaurant') ON CO
 INSERT INTO dish_contexts (slug, name) VALUES ('street-food', 'Street Food') ON CONFLICT (slug) DO NOTHING;
 
 -- ---- 2. assign dimensions ----
--- ---- dish_family (87 values across 87 dishes) ----
+-- ---- dish_family (93 values across 93 dishes) ----
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'acaraje' AND v.slug = 'fritter' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'adobo-filipino' AND v.slug = 'stew' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'aloo-gobi' AND v.slug = 'curry' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'anticuchos' AND v.slug = 'kebab' ON CONFLICT DO NOTHING;
@@ -232,6 +233,8 @@ INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'doner-kebab' AND v.slug = 'kebab' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'doro-wat' AND v.slug = 'stew' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'dosa' AND v.slug = 'pancake' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'empanada' AND v.slug = 'filled-pastry' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'falafel' AND v.slug = 'fritter' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'fattoush' AND v.slug = 'salad' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'feijoada' AND v.slug = 'stew' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'focaccia' AND v.slug = 'bread' ON CONFLICT DO NOTHING;
@@ -256,7 +259,6 @@ INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'mansaf' AND v.slug = 'stew' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'manti' AND v.slug = 'dumpling' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'mapo-tofu' AND v.slug = 'stew' ON CONFLICT DO NOTHING;
-INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'martabak' AND v.slug = 'pancake' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'masala-dosa' AND v.slug = 'pancake' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'mole-poblano' AND v.slug = 'sauce' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'momo' AND v.slug = 'dumpling' ON CONFLICT DO NOTHING;
@@ -278,6 +280,7 @@ INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'rawon' AND v.slug = 'soup' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'risotto-alla-milanese' AND v.slug = 'rice-dish' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'sambal' AND v.slug = 'sauce' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'samosa' AND v.slug = 'filled-pastry' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'satay' AND v.slug = 'kebab' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'sate-lilit' AND v.slug = 'kebab' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'shawarma' AND v.slug = 'sandwich' ON CONFLICT DO NOTHING;
@@ -286,8 +289,11 @@ INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'soto-ayam' AND v.slug = 'soup' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'tabbouleh' AND v.slug = 'salad' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'tagine-moroccan' AND v.slug = 'stew' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'takoyaki' AND v.slug = 'fritter' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'tempura' AND v.slug = 'fritter' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'tom-yum' AND v.slug = 'soup' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'udon' AND v.slug = 'noodle-soup' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'vada' AND v.slug = 'fritter' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'vindaloo' AND v.slug = 'curry' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'wiener-schnitzel' AND v.slug = 'breaded-cutlet' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_families (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_families v WHERE d.slug = 'xiaolongbao' AND v.slug = 'dumpling' ON CONFLICT DO NOTHING;
@@ -510,7 +516,7 @@ INSERT INTO dish_dish_courses (dish_id, value_id) SELECT d.id, v.id FROM dishes 
 INSERT INTO dish_dish_courses (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_courses v WHERE d.slug = 'wiener-schnitzel' AND v.slug = 'main-course' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_courses (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_courses v WHERE d.slug = 'xiaolongbao' AND v.slug = 'appetizer' ON CONFLICT DO NOTHING;
 
--- ---- dish_technique (177 values across 115 dishes) ----
+-- ---- dish_technique (175 values across 114 dishes) ----
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'acaraje' AND v.slug = 'frying' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'adobo-filipino' AND v.slug = 'stewing' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'adobo-filipino' AND v.slug = 'braising' ON CONFLICT DO NOTHING;
@@ -563,7 +569,6 @@ INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dish
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'dosa' AND v.slug = 'frying' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'empanada' AND v.slug = 'frying' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'falafel' AND v.slug = 'frying' ON CONFLICT DO NOTHING;
-INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'fattoush' AND v.slug = 'frying' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'feijoada' AND v.slug = 'stewing' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'feijoada' AND v.slug = 'braising' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'focaccia' AND v.slug = 'baking' ON CONFLICT DO NOTHING;
@@ -606,8 +611,7 @@ INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dish
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'kung-pao-chicken' AND v.slug = 'frying' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'laksa' AND v.slug = 'boiling' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'laksa' AND v.slug = 'simmering' ON CONFLICT DO NOTHING;
-INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'lechon' AND v.slug = 'roasting' ON CONFLICT DO NOTHING;
-INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'lechon' AND v.slug = 'grilling' ON CONFLICT DO NOTHING;
+INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'lechon' AND v.slug = 'spit-roasting' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'lomo-saltado' AND v.slug = 'stir-frying' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'lomo-saltado' AND v.slug = 'steaming' ON CONFLICT DO NOTHING;
 INSERT INTO dish_dish_techniques (dish_id, value_id) SELECT d.id, v.id FROM dishes d, dish_techniques v WHERE d.slug = 'mansaf' AND v.slug = 'stewing' ON CONFLICT DO NOTHING;
