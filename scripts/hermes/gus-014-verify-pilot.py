@@ -169,6 +169,12 @@ def main() -> int:
         WHERE d.slug='tacos-al-pastor' AND v.slug='kebab';""").strip()
     check("I5", kebab_fam == "0", f"kebab family rows: {kebab_fam}")
 
+    # GUS-224 Option B (2026-10-26): dish_relations holds ONE directed row
+    # per relation. The pilot originally wrote a bidirectional pair; Option B
+    # collapsed it to the single reason-matching row
+    # (shawarma -> tacos-al-pastor) and archived the reverse. A directional
+    # type's inverse is deliberately NOT a valid assertion, so exactly one
+    # row must exist.
     rels = psql(args.db, """
         SELECT f.slug || ' -> ' || t.slug || ' | ' || dr.relation_type
              || ' | ' || dr.strength || ' | ' || coalesce(dr.reason,'')
@@ -179,20 +185,17 @@ def main() -> int:
            OR (f.slug='shawarma' AND t.slug='tacos-al-pastor')
         ORDER BY f.slug;""")
     rel_lines = [r for r in rels.splitlines() if r.strip()]
-    check("I6", len(rel_lines) == 2, f"relation rows: {len(rel_lines)} (expect 2)")
+    check("I6", len(rel_lines) == 1, f"relation rows: {len(rel_lines)} (expect 1 — one directed row per relation)")
     for line in rel_lines:
         print(f"   {line}")
-    # direction: source = ancestor -> 'shawarma -> tacos-al-pastor' must exist
+    # direction: source = ancestor -> 'shawarma -> tacos-al-pastor' must be the row
     dir_ok = any(l.startswith("shawarma -> tacos-al-pastor") and "| ancestor |" in l
                  for l in rel_lines)
-    check("I6", dir_ok, "source=ancestor row (shawarma -> tacos-al-pastor) present")
-    rev_ok = any(l.startswith("tacos-al-pastor -> shawarma") and "| ancestor |" in l
-                 for l in rel_lines)
-    check("I6", rev_ok, "reverse row (tacos-al-pastor -> shawarma) present")
-    # both rows carry the SAME reason string
-    reasons = {l.split(" | ", 3)[-1] for l in rel_lines}
-    check("I6", len(reasons) == 1, f"both rows carry the same reason: {reasons}")
-    # both rows have strength 4
+    check("I6", dir_ok, "the row is shawarma -> tacos-al-pastor (source = ancestor)")
+    # the reverse row must NOT be present (that would be the contradiction)
+    rev_bad = any(l.startswith("tacos-al-pastor -> shawarma") for l in rel_lines)
+    check("I6", not rev_bad, "the contradicting reverse row is NOT present")
+    # strength 4
     strengths = {l.split(" | ")[2].strip() for l in rel_lines}
     check("I6", strengths == {"4"}, f"strengths: {strengths}")
 

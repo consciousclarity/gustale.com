@@ -186,7 +186,7 @@ The evidence, read from the live rows' own `reason` text:
 
 `from_dish_id` is always the **subject** of the relation and `to_dish_id` the **object** — the same convention as `family` (`chicken-tikka-masala → biryani-hyderabadi`, *"Both pillars of…"*).
 
-### The relation rows the pilot writes — TWO, not one
+### The relation row the pilot writes — ONE (was two; collapsed by GUS-224 Option B)
 
 **Every relation in the live table is stored bidirectionally.** Verified across all 190 rows:
 
@@ -204,13 +204,15 @@ The evidence, read from the live rows' own `reason` text:
 
 The pilot therefore writes **two rows**:
 
-| column | row 1 | row 2 |
-|---|---|---|
-| `from_dish_id` | **`shawarma`** (the ancestor) | `tacos-al-pastor` |
-| `to_dish_id` | `tacos-al-pastor` | **`shawarma`** |
-| `relation_type` | `ancestor` | `ancestor` |
-| `reason` | *"Al pastor derives from Levantine shawarma, adapted in Mexico with achiote and a vertical spit"* | same reason (the live reverse rows carry the identical reason) |
-| `strength` | `4` | `4` |
+| column | value |
+|---|---|
+| `from_dish_id` | **`shawarma`** (the ancestor) |
+| `to_dish_id` | `tacos-al-pastor` |
+| `relation_type` | `ancestor` |
+| `reason` | *"Al pastor derives from Levantine shawarma, adapted in Mexico with achiote and a vertical spit"* |
+| `strength` | `4` |
+
+**Originally TWO rows (both directions), now ONE.** The pilot wrote a bidirectional pair because that was the catalog's storage pattern. The GUS-224 audit showed that pattern asserts a contradiction for a *directional* type (`ancestor`): `shawarma → tacos` claims shawarma is the ancestor, and `tacos → shawarma` claims the opposite. Option B collapsed the pair to the single reason-matching row and archived the reverse to `dish_relations_archive` (original id preserved).
 
 > The live reverse rows carry the **same `reason` string** as their forward pair (e.g. both `bacalhau-a-bras → vindaloo` and `vindaloo → bacalhau-a-bras` carry *"Portuguese carne de vinha d'alhos is the direct ancestor of vindaloo"*). The pilot copies that pattern exactly.
 >
@@ -255,7 +257,7 @@ The pilot therefore writes **two rows**:
 > **`ingredient_category` is now populated for all three dishes** (from the D6 claims, per Alejandro's amendment 2026-10-26). It was previously `unset` because the dishes have zero *ingredient rows* in the live DB — but the dimension is filled from **claims**, not from ingredient rows, so the claims supply it directly. This is why rendang now has **7 of 7** dimensions assigned and **no** `unset` cells.
 >
 > **The two kinds of `unset` are different and must not be conflated:** CTM's `dish_cuisine` is unset because of an **unresolved dispute** (the Glasgow question — the migration must not resolve it), and the two remaining `dish_tradition` cells are unset because **no tradition is evidenced** for those dishes. A migration that treats "unset" as "use a default" would silently resolve the Glasgow dispute.
-| relations written | 0 | 0 | **2** (bidirectional `ancestor` pair with `shawarma`, strength 4) |
+| relations written | 0 | 0 | **1** (`ancestor`, `shawarma` as the ancestor, strength 4 — one directed row per Option B) |
 | claims required (not dimension values) | 6 (D6: origin, family, protein, technique, medium, duration) — of which the **dry-braise qualifier** is one | 2 (disputed origin) + protein/dairy claims feeding `ingredient_category` | 1 (pork protein claim) |
 | **claims total across pilot** | **6** | **4** | **1** → **11 claims** |
 | **evidence coverage** | **0%** | **0%** | **0%** |
@@ -299,7 +301,7 @@ Rendang's short description is **verbatim the D6 worked example** — the senten
 | I3 | No cell contains free text, a parenthetical, or a modifier | pass |
 | I4 | `rendang` no longer carries `stew` | pass |
 | I5 | `tacos-al-pastor` family is `taco`, and no `kebab` family row | pass |
-| I6 | `tacos-al-pastor` has exactly **2** `dish_relations` rows forming a bidirectional `ancestor` pair with `shawarma`: `shawarma → tacos-al-pastor` and `tacos-al-pastor → shawarma`, both `strength = 4`, both carrying the same `reason`. **Source = ancestor.** This matches all 95 existing relation pairs in the catalog, every one of which is bidirectionally paired | pass |
+| I6 | `tacos-al-pastor` has exactly **1** `dish_relations` row: `shawarma → tacos-al-pastor`, `relation_type = ancestor`, `strength = 4`. **Source = ancestor.** *(Updated 2026-10-26: GUS-224 Option B collapsed the bidirectionally-stored pair to ONE directed row — the inverse is derived in the view for symmetric types only, and deliberately NOT emitted for a directional type. The pilot wrote the pair; Option B removed the duplicate.)* | pass |
 | I7 | `chicken-tikka-masala` `dish_cuisine` is **unset** — no cuisine value written, no "winner" implied | pass |
 | I8 | `chicken-tikka-masala` technique has exactly 2 values: `grilling`, `simmering` | pass |
 | I9 | `rendang` context has exactly 3 values: `home`, `festival/ceremonial`, `restaurant` | pass |
@@ -396,9 +398,11 @@ Without this, I15 would fail on every run and the check would have to be weakene
 | rollback | V4 re-verified post-migration — still PASS |
 | live API | `api.gustale.com/health` 200 · `gustale.com/dishes` 200 · `/api/dishes/rendang` 200 |
 
-**Dimension values written: 23** (rendang 10 · CTM 7 · tacos 6), plus 2 relation rows and 4 `edit_history` rows.
+**Dimension values written: 23** (rendang 10 · CTM 7 · tacos 6), plus 1 relation row and 4 `edit_history` rows.
 
-**Dishes touched: 4** — the 3 pilot dishes, plus `shawarma` as the ancestor side of the relation pair (see the I15 note above).
+**Updated 2026-10-26 (GUS-224 Option B):** the relation pair was collapsed to **one directed row** (`shawarma → tacos-al-pastor`); the reverse row was archived to `dish_relations_archive` with its original id. `dish_relations` now holds 96 rows (one per relation) instead of 192. The API's relations route reads the derived view, which emits the inverse for symmetric types only.
+
+**Dishes touched: 4** — the 3 pilot dishes, plus `shawarma` as the ancestor side of the relation (see the I15 note above).
 
 ### Check results
 
@@ -410,7 +414,7 @@ Without this, I15 would fail on every run and the check would have to be weakene
 | I3 — spec ↔ DB agreement (independent re-read) | ✅ |
 | I4 — `rendang` no longer carries `stew` | ✅ |
 | I5 — `tacos-al-pastor` family is `taco`; no `kebab` family row | ✅ |
-| I6 — bidirectional `ancestor` pair with `shawarma`, source = ancestor, same reason, strength 4 | ✅ |
+| I6 — one directed `ancestor` row `shawarma → tacos-al-pastor`, source = ancestor, strength 4 (Option B collapsed the pair) | ✅ |
 | I7 — `chicken-tikka-masala` cuisine **unset** (Glasgow dispute not resolved) | ✅ |
 | I8 — CTM has exactly 2 techniques (`grilling`, `simmering`) | ✅ |
 | I9 — `rendang` has exactly 3 contexts (`home`, `festival/ceremonial`, `restaurant`) | ✅ |
