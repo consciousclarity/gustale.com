@@ -433,6 +433,24 @@ An earlier draft of this ADR asserted the opposite (descendant → ancestor) and
 
 **Rule:** a new `relation_type` is added only by an explicit decision, never opportunistically — free text plus a fresh type per use is how a vocabulary rots.
 
+#### D3g note (2026-10-26, GUS-224 audit) — the convention is writer intent, and its content is unverified
+
+Two limitations of the direction convention, recorded so they are not mistaken for stronger guarantees than they are:
+
+**(1) The convention is taken from WRITER INTENT, not from verified content.** The `from_dish_id` = ancestor reading is inferred from the *reason text the original writer chose* — *"…is the direct ancestor of vindaloo"* — and from the fact that all 192 live rows are bidirectionally paired with an identical `reason` on both sides. It is **not** derived from an independent source, because **`dish_relations` has no source column and there are 0 relation-level citations**. The direction convention is therefore a **reading of intent**, which is the best available signal and is corroborated by the pilot's own relation (shawarma → tacos-al-pastor), but it is not an evidenced fact.
+
+**(2) The `bacalhau-a-bras → vindaloo` content is UNVERIFIED, and on audit it is likely wrong.** This was flagged by Alejandro at the GUS-224 kickoff and the audit (2026-10-26) confirmed the concern and went further:
+
+- The **vindaloo ← carne de vinha d'alhos** derivation is well sourced (Wikipedia *Vindaloo*, a Good Article citing Collingham's *Curry: The Food That Took Over the World*, BBC Food, and others; and *Carne de vinha d'alhos*, citing Condé Nast Traveller, *The Hindu*, Visit Madeira).
+- But **`carne de vinha d'alhos` is pork in garlic wine vinegar** — and **`bacalhau à brás` is salt cod**. They are unrelated dishes.
+- The reason text names the *correct* ancestor; the relation is wired to the *wrong* dish.
+
+**Consequence for D3g:** the pilot's own relation (`shawarma → tacos-al-pastor`) is **independently corroborated** — Wikipedia *Al pastor*: *"The method of preparing and cooking al pastor is based on the lamb shawarma brought by Lebanese immigrants to the region"* and *"The Levantine version, called shawarma, was brought to Mexico in the late 19th and early 20th centuries."* So the pilot does not rest on the unverified precedent; it stands on its own evidence.
+
+**But the convention itself must not be treated as verified.** Two of the other three `ancestor`/`diaspora` pairs were found **likely wrong** on audit (see GUS-224). The direction convention is applied because it is the writer's evident intent and the only self-consistent reading of the data — not because the underlying claims have been verified.
+
+**Recorded as GUS-224:** the audit of all 96 relation pairs, and the recommendation to move to a single directed row with a derived inverse, a `relation_type` CHECK constraint, and a source/claim link on `dish_relations`.
+
 ### D3h — `ingredient_category` stores leaves only; parents are derived
 
 A dish's `ingredient_category` assignment stores **leaf values only**. Parent categories are **derived at query time** and are never written.
@@ -617,6 +635,7 @@ Every decision that changes the model, in order, with the date it was taken. Thi
 | D6 | 2026-10-26 | Claim granularity = one assertable fact | A fact = one subject–predicate–value statement independently supportable/contradictable by one source. `rendang` = 6 claims (origin, family, protein, technique, medium, duration) |
 | D6b | 2026-10-26 | Coverage + corroboration are separate metrics | A sentence is evidenced only if ALL its facts are anchored; partial anchoring is marked `partial` and counts as unevidenced. Coverage = fully-evidenced sentences / factual sentences. Corroboration = claims with ≥2 independent sources (separate metric) |
 | D3g | 2026-10-26 | Relation types use the existing vocabulary; **source = ancestor** | `dish_relations.relation_type` is free text, but the pilot uses `ancestor`, not a new `derived-from`. **Direction: `from_dish_id` is the ANCESTOR** (`bacalhau-a-bras → vindaloo`, *"…is the direct ancestor of vindaloo"*). Every relation in the catalog is stored BIDIRECTIONALLY (190 rows = 95 pairs, zero unpaired), so the pilot writes a pair: `shawarma → tacos-al-pastor` and the reverse, same `reason`, strength 4. An earlier draft asserting "descendant → ancestor" was wrong and is corrected here |
+| D3g-note | 2026-10-26 | Direction convention is writer intent; content unverified | The `from_dish_id` = ancestor reading is inferred from the original writer's reason text and the universal bidirectional pairing — NOT from an independent source, because `dish_relations` has no source column and there are 0 relation-level citations. The `bacalhau-a-bras → vindaloo` content is **unverified and on audit likely wrong**: the vindaloo ← *carne de vinha d'alhos* derivation is well sourced, but *carne de vinha d'alhos* is PORK in garlic wine vinegar while *bacalhau à brás* is SALT COD — unrelated. The pilot's own relation is independently corroborated by Wikipedia *Al pastor*. Full audit: GUS-224 |
 | D3h | 2026-10-26 | `ingredient_category` stores LEAVES only | Parents are derived at query time, never stored. `red-meat`, `white-meat`, `produce` are parents of `beef`/`pork`/`game`/`offal`, `chicken`/`poultry`/`fish`/`shellfish`/`seafood`, and `vegetable`/`fruit`/`herb`/`nut`/`seed`/`legume` respectively. Storing both a leaf and its parent double-counts. Pilot: rendang `beef`+`coconut`, CTM `chicken`+`dairy`, tacos `pork` — no parents. `dairy` is a leaf in the pilot (the claim says "dairy base") |
 | D4a | 2026-10-26 | Claims anchor to `short_description`, not `long_description` | Live schema has both columns. `short_description` is populated for all 3 pilot dishes (149–206 chars) and is the prose the claims attach to; `long_description` is empty for all 3 (and 100 of 122 catalog-wide). Rendang's short description is verbatim the D6 6-claim worked example. **Coverage is therefore measurable: expected `0%` (no claims exist yet), not `null`** — consistent with GUS-011's catalog-wide Wikipedia-only finding |
 | D7 | 2026-10-26 | `dish_context` = multi-valued, flat 5 values, no qualifiers | `street-food`, `home`, `festival/ceremonial`, `restaurant`, `market`. `market` ≠ `street-food` (pasar purchase vs. stall/cart; `jajan pasar` carries both). No qualifier mechanism |
