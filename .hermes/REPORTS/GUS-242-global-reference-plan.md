@@ -224,8 +224,10 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 | pool | size | what it needs |
 |---|---|---|
 | **A — typed, locatable** | **1,565** (article + country + dish-subclass type) | import as-is; the type is already decided |
-| **B — untyped but on Wikidata** | **394** (article, no type either way) | a type must be assigned — the classification task |
-| **C — article but not a Wikidata dish** | the rest of the ~9,236 | discovery + classification, highest cost |
+| **B — untyped but on Wikidata** | **394** (article, no type either way) | **the classification workload** — classified from article text, so `article-derived` + `provisional` |
+| **C — article but not a Wikidata dish** | **excluded** | **not a workload.** Mostly not dishes at all (ingredients, drinks, lists, chefs, restaurants). Needs an is-it-a-dish filter, and is **out of the catalogue estimates entirely** |
+
+**The estimates above are pools A and B only.** Pool C is excluded from every size figure, because counting it would inflate both the pipeline and the classification workload with things that are not dishes.
 
 **And the distinct `P279` classes in use rose from 524 to 787** on the subclass path — the raw material for the family vocabulary is **50% larger** than I reported.
 
@@ -313,18 +315,54 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 
 ## Order of work
 
-| # | step | size | depends on |
-|---|---|---|---|
-| 1 | **schema prep**: unique constraints on `geo_entities` (wikidata_id, iso_code); `unset_reason` already live | — | — |
-| 2 | **places tier 1**: 249 countries from Wikidata P297 + P17 + Q-id | 249 rows | 1 |
-| 3 | **places tier 2**: first-level regions from P300/P131 + P150 | ~3,590 rows | 1, 2 |
-| 4 | **cuisines**: ~200 national values from Wikipedia's 191 + the extras | ~200 rows | — |
-| 5 | **traditions**: one research pass → Tier-2 list | 400–600 rows | 4 |
-| 6 | **vocabularies**: family / technique / ingredient designed once, cross-checked against FoodOn + Wikidata P279 | ~120–180 / ~60–90 / ~250–400 | — |
-| 7 | **pipeline**: the discovery → classify → enter loop, in tranches of 10 | unbounded | 2–6 |
-| 8 | **review tiers**: automated checks (live) + the human sample protocol | — | 7 |
+**Three phases, as sequenced by Alejandro (2026-10-27).**
 
-**Steps 1–6 are reference data and can be done before the claims model.** Step 7 needs the claims model for `statement_id` to be meaningful — but the *pipeline* can be built against `statement_id IS NULL` (unevidenced) and switch to evidenced rows once GUS-027/028 lands.
+### Phase 1 — GUS-242: schema prep + the global reference seed
+
+**Standard discipline throughout: snapshot → dry-run on a copy → live → verify, with a backup before the live step.**
+
+**Step 1a (schema prep) is DONE and applied live** — `db/migrations/gus-242-schema-prep.sql`:
+
+| change | detail |
+|---|---|
+| `geo_entities` | **UNIQUE (wikidata_id)** and **UNIQUE (iso_code)** — added conditionally, after a pre-check that raises if either key already has duplicates |
+| `dish_families` | **`parent_id`** + a trigger rejecting a self-parent (the one cycle a plain FK cannot catch) |
+| `dish_traditions` | **`definition`** and **`source`** columns (decision 4) |
+| `dish_techniques`, `ingredient_categories` | **`foodon_id`** cross-reference, unique where present |
+| `dish_cuisine_translations` | new table — the localised display label, `UNIQUE (cuisine_id, language)`, with the English name staying on `dish_cuisines.name` |
+| `provenance` | gains **`article-derived`**, and a `BEFORE INSERT OR UPDATE` trigger on all seven dimension tables enforces **`article-derived` ⇒ `status='provisional'`** |
+
+**The dry-run found three real bugs**, all fixed before the live step:
+1. **The self-parent was allowed** — `dish_families` accepted a row whose `parent_id` was itself, which would make every descendant walk loop forever. Caught by a test, now a trigger.
+2. **The migration was not idempotent** — `ALTER TABLE … ADD CONSTRAINT` has no `IF NOT EXISTS` in Postgres, so the second run failed. The constraints are now added conditionally.
+3. **A guard block checked for a constraint that does not exist** — the provenance/status columns are plain text with no CHECK, so the *allowed values* are verified and the *pairing rule* is enforced by a trigger instead.
+
+**One test was vacuous and was rewritten**: the duplicate-`wikidata_id` test passed only because **no row had a `wikidata_id` yet**, so nothing could collide. The same applies to the provenance test — after GUS-241's backfill, **every** empty cell is recorded as unset, so there is no truly empty cell to write into; the coexistence trigger correctly rejects the insert. Both tests were re-run with real setups.
+
+**Live verification** (independent queries, not the migration's own report): catalogue unchanged (122 rows, 121 published, 1 archived); the GUS-231 state check still `missing_both=0, has_both=0`; per-dimension counts unchanged; and the pairing rule **rejects `article-derived` + `active` on live**.
+
+**Nothing is populated yet.** Steps 1b–1f follow.
+
+| # | step | size | notes |
+|---|---|---|---|
+| 1a | **schema prep**: `UNIQUE (wikidata_id)` + `UNIQUE (iso_code)` on `geo_entities`; `parent_id` on `dish_families`; `foodon_id` cross-reference columns; `dish_cuisine_translations`; `definition` + `source` on `dish_traditions`; `article-derived` in the `provenance` domain with its CHECK constraint | — | **must land before the seed** — the unique constraints are what stop the seed duplicating |
+| 1b | **places tier 1**: 249 countries | 249 rows | from Wikidata P297 + P17 + Q-id; ISO code is the key |
+| 1c | **places tier 2**: ~3,590 first-level regions | ~3,590 rows | from P300/P131 + P150 |
+| 1d | **all national cuisines** | ~200 rows | one per country, bare demonym slug |
+| 1e | **traditions**: one research pass → 400–600 values, each with a definition + source | 400–600 rows | |
+| 1f | **vocabularies**: family (120–180, with `parent_id` hierarchy) / technique (~60–90) / ingredient (~250–400) | — | cross-checked against FoodOn + Wikidata P279, **identifiers only** — our own labels and definitions |
+
+### Phase 2 — ADR-002 Q11–Q13 and the pilot
+
+The claims model, the pilot's end-to-end run, and the remaining ADR questions.
+
+### Phase 3 — pool A import
+
+**Pool A (1,565) is imported into the claims model ONLY after Phase 2 completes.** In tranches of **10**, with the **10% random sample per batch** plus **100% of disputed** reviewed by hand.
+
+**Pool B (394)** — the classification workload — runs alongside pool A, classified from article text and therefore `article-derived` + `provisional`.
+
+**Pool C is excluded.**
 
 ---
 
@@ -351,6 +389,18 @@ Measured against the live schema, 2026-10-27 — these are the changes decisions
 | **`article-derived`** | **read from a source article's text** | **always `provisional`** |
 
 **And a constraint worth writing down, because it is a rule the database can enforce:** `article-derived` ⇒ `status='provisional'`. That is a CHECK constraint, not a convention — and it is the same shape as the trigger that already stops a value and an unset coexisting.
+
+---
+
+## Corrections recorded
+
+**The assertion was proven on a 1-off case, not on the original bug state.** The revert test removed **one** tradition assignment (`couscous` → `maghrebi`) and produced `4/116`; the original bug had **three** missing (`couscous`, `momo`, `tostones`) and produced `2/118`. **Recorded accurately: the assertion is proven on a 1-off case.** The 1-off case is the stronger test of the *mechanism* — a single missing VALUES row is the smallest possible defect and the assertion caught it — but it is not a reproduction of the original state, and the record should not imply that it was.
+
+**Pool C is not a classification problem — it is a filtering problem.** Pool C (Wikipedia articles reached by category traversal) is **mostly not dishes**: ingredients, drinks, lists of dishes, chefs, restaurants, cookery books. **It needs an is-it-a-dish filter, not classification.** Therefore **pool C is excluded from the catalogue estimates entirely** — it is neither a pipeline population nor a classification workload. It would have inflated every size figure in this plan, and it is out of scope.
+
+**Pool B (394) IS the article-derived population.** The 394 dishes with a Wikipedia article and no type either way are exactly the population that gets classified from article text — so pool B is what `article-derived` + `provisional` is for. **Pool B is the classification workload; pool C is not a workload at all.**
+
+**The cuisine slugs are already bare demonyms — nothing to migrate.** Checked before acting: `dish_cuisines` stores `slug = 'austrian'`, `name = 'Austrian'` — and **0 of the 35 rows have a name ending in " cuisine"**. "Austrian cuisine" was only the *Wikipedia source form* and the `description` prose; the stored name was always the bare demonym. **So decision 3 needs no data migration** — only the `dish_cuisine_translations` table for other locales.
 
 ---
 
