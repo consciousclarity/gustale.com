@@ -181,22 +181,53 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
    (S6 = discovery)        (dimensions)     (unevidenced)            (S1–S5)
 ```
 
-**Measured discovery pool**
+### Discovery pool, measured — and the direct-`P31` count was wrong
+
+**The first count used `wdt:P31 = dish` and was 3,318. The subclass path `wdt:P31/wdt:P279* dish` gives 8,110.** Alejandro was right that most dishes are instances of *soup* / *dumpling* / *curry* and so on, not of "dish" itself. **Every figure below uses the subclass path.**
+
+| population | direct `P31` | **`P31/P279*`** | delta |
+|---|---|---|---|
+| dishes (all) | 3,318 | **8,110** | +4,792 |
+| …with country of origin (P495) | 2,168 | **4,192** | +2,024 |
+| …with P17 or P495 | 3,192 | **7,413** | +4,221 |
+| …with a cuisine (P2012) | 1,213 | **1,723** | +510 |
+| …with an English Wikipedia article | 1,127 | **2,168** | +1,041 |
+| …with a Wikipedia article AND country | 895 | **1,633** | +738 |
+| …with a Wikipedia article AND ≥1 reference | 862 | **1,475** | +613 |
+| …with any P279 subclass | 1,917 | **3,111** | +1,194 |
+
+**And the "untyped" claim was also wrong.** A dish is typed by **`P31` pointing at a dish subclass** — "soup", "dumpling", "curry" — and a `P279` link is a *different* thing (a taxonomic parent). Measured:
 
 | | count |
 |---|---|
-| Wikidata items with P31 = dish (Q746549) | **3,318** |
-| — including subclasses (P31/P279*) | **8,110** |
-| all subclasses of dish (P279*) | **13,274** |
-| dishes with P495 (country of origin) | **2,168** (65%) |
-| dishes with P17 **or** P495 | **3,192** (96%) |
-| dishes with P2012 (cuisine) | **1,213** (37%) |
-| dishes with an English Wikipedia article | **1,127** |
-| dishes with **P495 + P279 + English Wikipedia article** | **901** |
-| Wikipedia dish articles under the 191 national-cuisine categories | **~9,236** |
-| Wikidata P279 subclasses in use (the family vocabulary's raw material) | **524 distinct** |
+| dishes (subclass path) | 8,110 |
+| …whose `P31` target is a **dish subclass** | **8,164** |
+| …that have a `P279` | 3,111 |
+| …with **neither** a dish-subclass `P31` nor a `P279` | **1,595** |
+| dishes with a Wikipedia article | 2,168 |
+| …of which typed via a dish-subclass `P31` | **1,985 (92%)** |
+| …of which typed via `P279` | 1,488 |
+| …of which typed **neither** way | **394 (18%)** |
+| …with a Wikipedia article, country of origin, and a dish-subclass `P31` | **1,565** |
 
-**Top dish countries by P495:** Indonesia 523 · Spain 82 · Nigeria 76 · Italy 40 · Japan 23 · Algeria 17 · Mexico 13 · France 12 · United States 11 · Taiwan 11 · Germany 10 · Brazil 10 · Senegal 10 · Belgium 9 · China 8.
+**So the earlier flag was materially wrong.** The claim "~8,000 Wikipedia dish articles have no Wikidata type" was based on the direct-`P31` count and on treating `P279` as the type signal. **The real numbers:**
+
+- **~9,236** Wikipedia dish articles under the 191 national-cuisine categories (measured separately)
+- **2,168** of them are Wikidata dishes on the subclass path
+- **1,985 of those are typed** (92% — via `P31` to a dish subclass)
+- **1,565** have a Wikipedia article, a country of origin, *and* a dish-subclass type
+
+**The genuinely untyped pool is ~394 dishes, not ~8,000.** The remaining gap between 9,236 and 2,168 is Wikipedia articles that are **not Wikidata dishes at all** — they are articles without a `P31`/`P279` path to "dish". Those are a *different* population: they need a type assigned, which is a classification task, not a discovery task.
+
+**Two pools, not one:**
+
+| pool | size | what it needs |
+|---|---|---|
+| **A — typed, locatable** | **1,565** (article + country + dish-subclass type) | import as-is; the type is already decided |
+| **B — untyped but on Wikidata** | **394** (article, no type either way) | a type must be assigned — the classification task |
+| **C — article but not a Wikidata dish** | the rest of the ~9,236 | discovery + classification, highest cost |
+
+**And the distinct `P279` classes in use rose from 524 to 787** on the subclass path — the raw material for the family vocabulary is **50% larger** than I reported.
 
 **SPARQL endpoint performance (measured):** aggregate counts completed in **0.2–2.2 s**; a P31/P279* closure in 1.1 s. **A bare unindexed `COUNT { ?x ?p ?o }` timed out at 60 s** — always constrain on `wdt:P31`/`wdt:P279` first. **Polite-pool etiquette:** descriptive UA with contact info, one query at a time per client, stay under ~60 s runtime, avoid peak hours. Observed fast times mean the endpoint was **not under load**, so these are best-case.
 
@@ -297,13 +328,80 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 
 ---
 
-## Decisions I need from you
+## Schema work the decisions require (nothing applied yet)
 
-1. **ISO data: do you accept the Wikidata route (CC0, no licence issue) over vendoring the ISO files (LGPL package, no rights in the standard)?** My recommendation: **Wikidata.**
-2. **~3,590 first-level regions is a lot of rows for a reference site.** Do you want all of them, or only the regions that a dish actually cites (seeded on demand, like cities)? The former is "global from day one"; the latter is much smaller. **This is the one place where "seed the whole world" and "practical" genuinely conflict.**
-3. **Cuisine naming**: bare demonym (`Indonesian`, matching the 21 existing) or Wikipedia's form (`Indonesian cuisine`)? I recommend **bare demonym**.
-4. **Traditions: how deep?** My estimate is 400–600 top-level. Do you want a bigger, more granular list (the full 1,265 Wikidata set, with sub-regional values) or the leaner curated 400–600?
-5. **Family vocabulary: ~120–180 proposed.** Is that the right order of magnitude, or do you want it smaller (a deliberately tight ~60–80) so that every family is unambiguously useful?
-6. **Human review throughput** — you asked for realistic numbers and I don't have measured ones. **But the reference-quality baseline now measured above gives a proxy for the sample size the protocol needs**: with ~895 importable dishes, a **10% random sample is ~90 dishes**, and at a hypothetical 20 dishes/hour that is under a day of work per tranche. **The protocol is specified and implementable now; the throughput number is the only thing that would change how large the sample should be.** Do you want me to do a dedicated research pass (Wikidata quality reports, Wikipedia citation-needed statistics) to source a real number, or proceed with the protocol as written and the sample size set by judgement?
+Measured against the live schema, 2026-10-27 — these are the changes decisions 1, 3 and 5 need, and none of them has been applied.
 
-**One thing I want to flag as a risk, not a question:** with ~9,236 Wikipedia dish articles and only ~1,000 reachable through Wikidata's typed pipeline, **the discovery pool and the classification effort are not the same size.** Roughly 8,000 Wikipedia dish articles have no Wikidata type. Classifying those means the agent proposes dimensions from the article's own text, which is exactly the `description-derived` provenance case — defensible, but it is inference, and the `status='provisional'` marker on the dimension row is where that honesty lives. **If we want provenance to mean something, `description-derived` should be the majority provenance, not a minority.**
+| table | has today | needs |
+|---|---|---|
+| `dish_families` | `id, slug, name, description, created_at` — **no `parent_id`** | **`parent_id`** (decision 5's hierarchy), and a `foodon_id` cross-reference column |
+| `dish_cuisines` | `id, slug, name, description, created_at` — no `parent_id` | a **`dish_cuisine_translations`** table (decision 3's localised display label — the schema already has this pattern for `categories`, `ingredients`, `preparation_methods`) |
+| `dish_traditions` | `id, slug, name, description, created_at` | the **definition + source** columns decision 4 requires per value |
+| `dish_techniques` | `id, slug, name, description, created_at` | a `foodon_id` cross-reference column |
+| `ingredient_categories` | `id, slug, name, parent_id, description` — **already has `parent_id`** | a `foodon_id` cross-reference column |
+| `geo_entities` | `id, iso_code, name, local_name, entity_type, parent_id, centroid, population, area_km2, wikidata_id, created_at` | **UNIQUE (wikidata_id)** and **UNIQUE (iso_code)** — decision 1 makes both the key, and without them a 3,590-row seed repeats the GUS-238 duplicate-URLs lesson |
+| `dish_dish_*` | `provenance` + `status` added by GUS-241 | `provenance` gains **`article-derived`**, which must always pair with `status='provisional'` |
+
+**The `provenance` domain, as decided:**
+
+| value | meaning | paired status |
+|---|---|---|
+| `preparation` | the catalogue's own recorded method or value | `active` |
+| `description-derived` | read from the dish's own `short_description` | `active` or `provisional` |
+| **`article-derived`** | **read from a source article's text** | **always `provisional`** |
+
+**And a constraint worth writing down, because it is a rule the database can enforce:** `article-derived` ⇒ `status='provisional'`. That is a CHECK constraint, not a convention — and it is the same shape as the trigger that already stops a value and an unset coexisting.
+
+---
+
+## Decisions — ALL SIX TAKEN (Alejandro, 2026-10-27)
+
+| # | decision | consequence for the plan |
+|---|---|---|
+| **1** | **Wikidata route, with ISO codes as the keys** (P297 / P300) | seed places from Wikidata (CC0), never from the ISO data files (licensed). `geo_entities.iso_code` holds the ISO code as the **key**; `wikidata_id` holds the Q-id. Both get UNIQUE constraints. |
+| **2** | **all ~3,590 first-level regions now; cities on demand** | step 3 of the order of work is a 3,590-row seed. `geo_entities.entity_type` takes `country` / `region` / `city` — the tier 3 stays `city` and is seeded when a researched dish needs one. |
+| **3** | **slug = bare demonym; display label localised** | `dish_cuisines.slug` = `indonesian`, `portuguese`, `puerto-rican`; the **display name** comes from a localised label table (the schema already has `*_translations` for `categories`, `ingredients`, `preparation_methods` — the same pattern applies). Wikipedia's `"Indonesian cuisine"` is the **source list**, not the stored form. |
+| **4** | **traditions 400–600, researched, each with a definition + source; extend by decision** | the research pass must produce a **definition and a source per value**, not just a name. Extension is by explicit decision, like every other vocabulary. |
+| **5** | **families 120–180 with a `parent_id` hierarchy** | `dish_families` gains `parent_id` — so `stew` → `soup` → `noodle-soup` can nest, and `stuffed-vegetable` can sit under a broader form. This is the hierarchy ADR-001 D3i was already gesturing at. |
+| **6** | **no research pass: 10% sample per batch + 100% of disputed; Alejandro measures his review time on batch 1 and we adjust** | the sample size is **adaptive**, not fixed in advance. Batch 1's measured review time sets the rate for every batch after it. |
+
+**The review protocol, now fixed:**
+
+| tier | what | how much |
+|---|---|---|
+| automated | every dish, every batch | the GUS-231 state check, the coexistence trigger, the provenance/status domain check, the expected-vs-actual assertion block |
+| human, judgement | **100% of disputed** dimensions | every `dish_dimension_unset.reason = 'disputed'` — the catalogue must take a position or explicitly take none |
+| human, sampling | **10% random per batch** | catches the dimension that is *assigned but wrong*, which no automated check can see |
+
+**Batch 1's measured review time is the input to every later batch's sample size.** That is the adaptation mechanism, and it means decision 6 is answered by *doing* batch 1, not by more research.
+
+---
+
+## Licensing — the rule, and what it means concretely
+
+**FoodOn is CC BY-SA; Wikipedia text is CC BY-SA. Store external identifiers as CROSS-REFERENCES only, and write our own labels and definitions.**
+
+| we store | we do NOT store |
+|---|---|
+| `foodon_id` — a `FOODON_0012345` cross-reference | FoodOn's `rdfs:label` text |
+| `wikidata_id` — a `Q123456` cross-reference | Wikipedia's article prose |
+| `iso_code` — the ISO code as a key | the ISO file's rows |
+| **our own label and definition, written by us** | any imported description |
+
+**Why this is the right rule and not a technicality.** The cross-reference is a *pointer*: it says "there is an authoritative term for this concept, identified as FOODON_0012345." The label and definition are *ours*, which is what the catalogue actually publishes. That keeps the licences where they belong — the identifiers are facts, and facts are not copyrightable — while the prose is unambiguously our own.
+
+**Practical effect on the vocabulary work:** the family/technique/ingredient cross-check against FoodOn tells us *which concepts exist* and *how they relate*; the labels and definitions we publish are written from scratch. Same for Wikipedia: the article is the discovery source and the excerpt source (Q7's `claim_citations` already stores the **verbatim excerpt** with attribution, which is a quotation, not a copy).
+
+**And it extends to the catalogue's own content:** every dish description is written in our own words — never copied from Wikipedia. That was already the project rule (the content rules in `SHARED_STATE.md`); this makes it explicit for the reference vocabularies too.
+
+**One thing I want to flag as a risk, not a question — and it is now much smaller than I said.** My earlier flag was "~8,000 Wikipedia dish articles have no Wikidata type, so classifying them is inference". **That was based on the direct-`P31` count and on treating `P279` as the type signal, and it was wrong.** On the subclass path, **92% of Wikipedia-linked dishes are typed** via `P31` to a dish subclass, and the genuinely untyped pool is **~394**, not ~8,000.
+
+**So the risk is restated accurately:** the inference-heavy population is **pool C** — Wikipedia articles that are not Wikidata dishes at all (the gap between 9,236 and 2,168). Those need a type *and* a place assigned. **If `description-derived` is to be the majority provenance, pool C is where it happens** — and that is a deliberate choice, not a defect, provided the `status='provisional'` marker says so.
+
+**Provenance, as decided:** article-text classification is **`article-derived` + provisional** — **distinct from `description-derived`**. That is a third value, and it is the right one: a classification inferred from a *source article's* text is a weaker inference than one read from the *catalogue's own description*, and the two must not be conflated in a column that has to say how a value was established. The vocabulary becomes:
+
+| `provenance` | meaning |
+|---|---|
+| `preparation` | the catalogue's own recorded method or value — a stated fact |
+| `description-derived` | read from the dish's own `short_description` |
+| **`article-derived`** | **read from a source article's text — always paired with `status='provisional'`** |
