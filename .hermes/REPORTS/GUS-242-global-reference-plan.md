@@ -127,8 +127,12 @@ With the wrong ids, every count returns 0 and looks like "no data". The subagent
 **Suggested source set for the Tier-2 research (none fully counted yet):**
 - the **1,265 Wikidata Q1778821** items — the ceiling, and the best single source
 - English Wikipedia's **`Category:Cuisine by region`** and the by-axis branches
-- **UNESCO intangible heritage** food inscriptions — not counted; a separate pass over `ich.unesco.org`
+- **UNESCO intangible heritage** food inscriptions — see the measured figure below
 - the existing **36** `dish_traditions` values, which already include Minangkabau, Levantine, Maghrebi, Cantonese-adjacent and ethnic values
+
+**UNESCO intangible heritage — measured, and it is smaller than expected.** The English Wikipedia hub article *"Lists of Intangible Cultural Heritage elements"* states directly: **"All lists combined totalled 676 elements, corresponding to 140 countries as of April 2023"**, with the Urgent Safeguarding List at **35 elements** and the 2001–2005 "Proclaimed Masterpieces" at **90**.
+
+So the entire UNESCO intangible-heritage corpus is **676 elements across 140 countries**. Even if *every* food-related inscription were a tradition value, the UNESCO list could not be the source for a 400–600-value tradition vocabulary — **it is a supplement, not a backbone.** (The food subset was not counted: UNESCO's own site loads its list over an AJAX endpoint whose parameter set could not be determined from the page source, and Wikidata models the corpus thinly — only **117 items** carry `P31 = intangible cultural heritage` (Q59544) and only **4** of those match a food keyword in their label. The 676 figure above is from the Wikipedia hub article and is the reliable one.)
 
 **This is the item with the most genuine research in it, and it is the one I would most want your steer on** — see "decisions I need" below.
 
@@ -136,17 +140,9 @@ With the wrong ids, every count returns 0 and looks like "no data". The subagent
 
 ## (4) FAMILY / TECHNIQUE / INGREDIENT — design once, cross-check against FoodOn
 
-**FoodOn, measured:**
+**FoodOn:** release **2026-09-20**, **45,594** `owl:Class` declarations, **29,175** with an English label, **food material 20,148** descendants, **food product 12,342** descendants, licence **CC BY-SA 2.5** (from the ontology's own `dcterms:rightsHolder`). Download: `purl.obolibrary.org/obo/foodon.owl` — **40,779,019 bytes**. Note the **lowercase** URL; `FOODON` uppercase is **404**.
 
-| | |
-|---|---|
-| release | **2026-09-20** (version string `2026-02-02`) |
-| **owl:Class declarations** | **45,594** |
-| classes with an English label | **29,175** |
-| `food material` branch | **20,148** descendants |
-| `food product` branch | **12,342** descendants |
-| licence | **CC BY-SA 2.5** (from the ontology's own `dcterms:rightsHolder`) |
-| download | `purl.obolibrary.org/obo/foodon.owl` — **40,779,019 bytes**. Note the **lowercase** URL; `FOODON` uppercase is **404**. |
+**LanguaL:** FoodOn's own homepage states it "was based largely on LanguaL, a descriptive food indexing system that has **14 facets**", and positions FoodOn as a superset ("gone one step further than LanguaL"). **LanguaL's own term count was not verified** — the Wikidata-side measurement was attempted and returned nothing usable, so it is left open rather than guessed.
 
 **What FoodOn is good for, and what it is not:**
 
@@ -204,7 +200,18 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 
 **SPARQL endpoint performance (measured):** aggregate counts completed in **0.2–2.2 s**; a P31/P279* closure in 1.1 s. **A bare unindexed `COUNT { ?x ?p ?o }` timed out at 60 s** — always constrain on `wdt:P31`/`wdt:P279` first. **Polite-pool etiquette:** descriptive UA with contact info, one query at a time per client, stay under ~60 s runtime, avoid peak hours. Observed fast times mean the endpoint was **not under load**, so these are best-case.
 
-**So the pipeline's realistic throughput is ~1,100–9,000 candidate dishes** depending on whether Wikipedia articles alone are enough or Wikidata's unlinked items are included too.
+**Wikimedia Commons image coverage** (measured 2026-10-27, via the Commons API):
+
+| category | subcategories | files (first page) |
+|---|---|---|
+| `Category:Food` | **93** | 142 |
+| `Category:Cuisine` | **18** | 108 |
+| `Category:Dishes` | 2 | 3 |
+| `Category:Foods` | 0 | — |
+
+**The file counts above are one API page each, not totals** — the category tree is deep (93 subcategories under `Category:Food` alone) and a full recursive count was not run. What the shape tells us: **Commons' food imagery is organised by ingredient and by category, not by dish**, and the top-level categories are thin on files while the mass sits in the subcategories. **Practical consequence:** an image pipeline cannot assume a per-dish Commons file exists, and the existing GUS-153 work (110 dishes still without covers) is the live measure of that gap. Commons is a *discovery* source for images under the same S6 rule as Wikipedia text, not a guarantee of coverage.
+
+**So the discovery pipeline's realistic throughput is ~1,100–9,000 candidate dishes** depending on whether Wikipedia articles alone are enough or Wikidata's unlinked items are included too.
 
 **What "enter classified but unevidenced" means operationally**
 
@@ -224,17 +231,52 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 
 ## (6) REVIEW TIERS — automated on every dish, human on disputed + samples
 
-**Measured: the automated tier is already measurable.** The GUS-231 check (every published dish × 7 dimensions has exactly one state) is a **single query** and currently passes with `missing_both=0, has_both=0`. The pre-flight assertion block in the GUS-241 migration is a second automated tier.
+**The automated tier is already measurable and working.** The GUS-231 check (every published dish × 7 dimensions has exactly one state) is a **single query** and currently passes with `missing_both=0, has_both=0`. The pre-flight assertion block in the GUS-241 migration is a second automated tier — and it caught a real bug that no amount of eyeballing would have, because the expected counts were written down inline.
 
-**Not yet researched (I did not get to it):**
-- Wikidata reference-quality distributions, and the existing Scholia / Wikidata quality-report dashboards
-- Wikipedia "citation needed" dynamics at scale
-- **a realistic human-review throughput (dishes/hour)** — I have no measured basis for a number and will not invent one
-- the standard sampling-based QA pattern for large dataset curation (the ANSI/ASQ Z1.4 acceptance-sampling standard is the usual reference, but I have not read it against this case)
+### The reference-quality baseline (measured 2026-10-27) — this is what the tiers have to cope with
 
-**What I can say from the work just done:** the automated tier is cheap and effective — the GUS-241 assertions caught a real bug that no amount of eyeballing would have, because the expected counts were written down inline. **The human tier should therefore be reserved for the cases where judgement is genuinely required: disputed dimensions, and a random sample for drift detection.**
+| population | total | with ≥1 reference | with none |
+|---|---|---|---|
+| all Wikidata dishes (P31=dish) | **3,318** | **1,569** (47%) | 1,749 (53%) |
+| …with an English Wikipedia article | **1,127** | **862** (76%) | **265** (24%) |
+| …with a reference on the P31 statement | | **122** (11%) | |
+| …with a reference on the country-of-origin (P495) | | **569** (50%) | |
+| **the importable pool**: Wikipedia article **and** country of origin | **895** | **686** (77%) | 209 (23%) |
 
-**A specific risk the sample tier should watch:** a dish whose dimension is *assigned* but *wrong* passes every automated check. That is the failure mode a sample is for.
+**Three things this says, and they shape the review protocol.**
+
+**First: a Wikipedia article is a strong filter.** Of the 1,127 dishes with an English article, **76% already carry a Wikidata reference** — against **47%** for dishes generally. The article is doing most of the quality work.
+
+**Second: the reference sits on the origin claim, not on the type.** For the Wikipedia-linked set, **569 have a reference on the country-of-origin statement** but only **122 have one on the "is a dish" statement**. That is exactly the shape of the problem: *what kind of thing is this* is nearly self-evident, while *where does it come from* is the contested part. **It also means the GUS-026 §3.1 rule — an origin claim needs a non-Wikipedia source — is the rule that carries the weight, and everything else is comparatively cheap.**
+
+**Third: roughly a quarter of the pool arrives unreferenced.** 209 of 895 importable dishes have no Wikidata reference at all. Under the new direction those enter the catalogue **classified but unevidenced** — which is precisely the state they are already in on Wikidata, so the catalogue's honest labelling is not a downgrade of the source data, it is a faithful rendering of it.
+
+### What the automated tier checks (all measurable, all cheap)
+
+| check | cost | catches |
+|---|---|---|
+| every published dish × 7 dimensions has exactly one state | 1 query | a dimension with neither a value nor an unset |
+| a value and an unset never coexist for the same (dish, dimension) | trigger, always on | a contradictory pair |
+| every dimension row's `provenance`/`status` are in the allowed set | 1 query | an unlabelled inference |
+| every dish with a dimension row has a source-backed or unset-with-reason dimension | 1 query | silent evidence gaps |
+| expected-vs-actual counts on every bulk write | assertion block | a 0-row insert that should have matched |
+
+### What the human tier is for — and what it is not for
+
+**Reserved for the cases where judgement is genuinely required:**
+1. **Disputed dimensions** — `dish_dimension_unset.reason = 'disputed'`. Every one needs a human to decide which position the catalogue takes, or explicitly to take none.
+2. **A random sample of the rest**, for drift detection.
+
+**Not for:** reading every dish to check it. The automated tier catches structural defects comprehensively, and a reference-free dish is *not* a defect — it is correctly labelled.
+
+**The specific failure a sample must catch:** a dimension that is **assigned but wrong** passes every automated check. A sample is the only instrument for it. This is the single strongest argument for keeping a human tier at all, and it argues for it being small and random rather than large and targeted.
+
+### Still not researched — and deliberately not guessed
+
+- **A realistic human-review throughput (dishes/hour).** I have no measured basis for a number. The subagent also reached its iteration budget before this. **The ANSI/ASQ Z1.4 acceptance-sampling standard** is the usual reference for the *sampling pattern* (it defines AQL-based acceptance sampling for inspecting lots) but it does not tell us how fast a person reviews a dish, and I have not read it against this case. **I will not put a number in the plan that I cannot source.**
+- **Wikipedia's "citation needed" dynamics at scale**, and the existing **Scholia / Wikidata quality-report dashboards** — named as sources, not measured.
+
+**Consequence for the plan:** the review *protocol* is specified above and is complete enough to implement. The review *throughput* — which determines how large a sample is affordable, and therefore the confidence interval of the sample — is the one open number. **That is why it is decision 6 in the list below.**
 
 ---
 
@@ -262,6 +304,6 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 3. **Cuisine naming**: bare demonym (`Indonesian`, matching the 21 existing) or Wikipedia's form (`Indonesian cuisine`)? I recommend **bare demonym**.
 4. **Traditions: how deep?** My estimate is 400–600 top-level. Do you want a bigger, more granular list (the full 1,265 Wikidata set, with sub-regional values) or the leaner curated 400–600?
 5. **Family vocabulary: ~120–180 proposed.** Is that the right order of magnitude, or do you want it smaller (a deliberately tight ~60–80) so that every family is unambiguously useful?
-6. **Human review throughput** — you asked for realistic numbers and I don't have measured ones. Do you want me to do a dedicated research pass (Wikidata quality reports, Wikipedia citation-needed statistics) before I propose the review protocol, or should I propose the protocol with the numbers left explicitly open?
+6. **Human review throughput** — you asked for realistic numbers and I don't have measured ones. **But the reference-quality baseline now measured above gives a proxy for the sample size the protocol needs**: with ~895 importable dishes, a **10% random sample is ~90 dishes**, and at a hypothetical 20 dishes/hour that is under a day of work per tranche. **The protocol is specified and implementable now; the throughput number is the only thing that would change how large the sample should be.** Do you want me to do a dedicated research pass (Wikidata quality reports, Wikipedia citation-needed statistics) to source a real number, or proceed with the protocol as written and the sample size set by judgement?
 
 **One thing I want to flag as a risk, not a question:** with ~9,236 Wikipedia dish articles and only ~1,000 reachable through Wikidata's typed pipeline, **the discovery pool and the classification effort are not the same size.** Roughly 8,000 Wikipedia dish articles have no Wikidata type. Classifying those means the agent proposes dimensions from the article's own text, which is exactly the `description-derived` provenance case — defensible, but it is inference, and the `status='provisional'` marker on the dimension row is where that honesty lives. **If we want provenance to mean something, `description-derived` should be the majority provenance, not a minority.**
