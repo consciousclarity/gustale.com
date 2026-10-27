@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q4 DECIDED, Q5 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q5 DECIDED, Q6 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -235,7 +235,7 @@ statement_readings (        -- optional, editorial, non-authoritative
 | country | `Mexico` *(exists)* | — | |
 | region | `West Sumatra` | Indonesia | rendang's origin region |
 | region | `Scotland` | United Kingdom | Glasgow's region |
-| region | **`Punjab`** | **India** | **a historical region spanning India AND Pakistan** — see below |
+| region | **`Punjab`** | **NULL** | **a historical region spanning India AND Pakistan** — `parent_id` is NULL because it belongs to neither country; the two-country membership is a `place_spans` relation (GUS-237) |
 | city | `Glasgow` | Scotland | the CTM origin claim |
 | city | **`Delhi`** | **India** | **directly under India — the NCT, not Punjab** |
 | city | `Mexico City` | Mexico | |
@@ -243,12 +243,35 @@ statement_readings (        -- optional, editorial, non-authoritative
 
 **`Delhi` sits directly under India, not under Punjab.** Its own article describes it as a *"Megacity and union territory"* — the **National Capital Territory of Delhi** — with `Region: North India` and `Country: India`. It is not administratively part of Punjab (Punjab is a separate state to its north-west), and the earlier plan in this ADR had it wrong. The `region` for Delhi is **North India**, which is not seeded — the hierarchy allows a city to sit directly under a country.
 
-**`Punjab` is a historical REGION, not the Indian state** — and it is the right choice for the CTM claim. Wikipedia's `Punjab` article is explicitly *"about the geographical region"*, with `Countries: Pakistan, India` and a population of ~190M across both (115M Pakistan, 75M India); the modern Indian state and the Pakistani province are **separate articles** (`Punjab, India` and `Punjab, Pakistan`). So:
+**`Punjab` is a historical REGION, not the Indian state** — and it is the right choice for the CTM claim. Wikipedia's `Punjab` article is explicitly *"about the geographical region"*, with `Countries: Pakistan, India` and a population of ~190M across both (115M Pakistan, 75M India); the modern Indian state and the Pakistani province are **separate articles** (`Punjab, India` and `Punjab, Pakistan`).
 
-- **one** `Punjab` row, `entity_type = 'region'`, parent `India` — the cultural-historical region, which is what a dish-origin claim is actually about;
-- the fact that the region spans **two countries** is a property of the *region*, not a reason to hang it under the wrong one. A place row has **one** `parent_id`, so the region is seeded under India and the trans-national nature is carried by the statement (and later by a `parent`/`countries` qualifier), not by the hierarchy.
+**So: one `Punjab` row, `entity_type = 'region'`, and `parent_id = NULL`.**
 
-**This is the right modelling for the CTM origin claim**, because the dispute is about *where a culinary tradition originated*, and the Punjab region is the cultural-historical unit — the Indian state of Punjab is a 1966 administrative partition of it.
+**`parent_id` is NULL, not `India`.** Punjab is not "in India" in the geographic sense that `parent_id` expresses — it spans India *and* Pakistan, so hanging it under India asserts a containment that is false for the Pakistani half. A place row has **one** `parent_id`, so a two-country region cannot be represented by parenting it to either.
+
+**The trans-national membership is therefore a separate n:m relation, backlogged as GUS-237 (`place_spans`):**
+
+```
+place_spans (
+  place_id   uuid -> geo_entities,
+  country_id uuid -> geo_entities,
+  note       text
+)
+-- Punjab -> India, 'the Indian portion of the historical Punjab region'
+-- Punjab -> Pakistan, 'the Pakistani portion of the historical Punjab region'
+```
+
+**And the history, corrected (an earlier draft of this ADR got it wrong):**
+
+| date | what happened |
+|---|---|
+| **1947** | the **partition** of British Punjab between **India and Pakistan** |
+| **1950** | the Indian state formed as **East Punjab** (PEPSU) — `Punjab, India`: `Formation: 26 January 1950`, `Previously was: East Punjab, PEPSU` |
+| **1966** | the **reorganisation of Indian Punjab** (PEPSU → Punjab, Haryana, Chandigarh) — `Punjab, India`: `1 November 1966 (reorganisation)` |
+
+So **1966 is a reorganisation *within* the Indian state, not a partition of the region.** The region's partition was **1947**. The earlier phrasing in this ADR — *"the Indian state of Punjab is a 1966 administrative partition of it"* — was wrong twice over: the partition was 1947, and 1966 was a reorganisation of the Indian state rather than a division of the region.
+
+**Why the region, for the CTM claim:** the dispute is about *where a culinary tradition originated*, and the Punjab region is the cultural-historical unit. The Indian state is a post-1947 administrative artifact of one half of it.
 
 **`Puebla` is a CITY, and its state is a separate place.** Wikipedia has distinct articles for `Puebla` (the state — *"the Free and Sovereign State of Puebla"*, capital and largest city Puebla de Zaragoza) and `Puebla (city)`. Since the tacos-al-pastor claim is about the dish's place of origin and the dish is documented to the city, the hierarchy is **Puebla (city) → Puebla (state) → Mexico**, and both Puebla rows are seeded.
 
@@ -285,7 +308,9 @@ A dimension row answers *"what is this dish's family?"* — it is a lookup row, 
 
 The column exists and **0 of 36 rows populate it**. Populating it is a **backlog item**, not part of the pilot — and the pilot's place rows will carry a null `wikidata_id` until then.
 
-**No placeholder region is invented anywhere.** Mexico has no region row (Mexico City and Puebla hang directly off the country, and Puebla has its own state); Delhi has no region row (it hangs off India directly). The hierarchy permits a city to sit directly under a country, and the pilot places do exactly that where the geography says so.
+**No placeholder region is invented anywhere.** Mexico has no region row (Mexico City and Puebla hang directly off the country, and Puebla has its own state); Delhi has no region row (it hangs off India directly). Punjab has a region row but **no parent**, because it spans two countries.
+
+**And `parent_id = NULL` is a normal, meaningful state** — it says *"this place is not contained in a single parent"*, which is true of a transnational region. It is not a missing value, and validation must not read it as one.
 
 ---
 
@@ -431,7 +456,13 @@ Both are typed, not free text. A duration is an interval, not a number with a un
 
 > **`role`** — the role a value plays in the statement.
 
-So rendang's *"medium is coconut milk"* is recorded as `contains_ingredient(rendang, coconut-milk)` with **`role = medium`**, rather than inventing a `has_medium` predicate. Q4's earlier draft had left that open; it is now closed by making `role` a qualifier, which keeps the "one predicate per dimension" rule intact — a new *role* is data, not a new predicate.
+So rendang's medium is recorded as:
+
+> **`contains_ingredient(rendang, coconut)` with `role = medium`**
+
+**The value is `coconut`, not `coconut-milk`** — `coconut-milk` is **not in the controlled vocabulary** (`ingredient_categories` has `coconut`, not `coconut-milk`), and inventing a value would be a vocabulary extension. After **GUS-233** creates the real ingredient entities, the value becomes the `coconut-milk` **entity**, and the `role = medium` qualifier is unchanged.
+
+That is the whole point of `role` being a qualifier rather than a predicate: a new *role* is **data**, so the "one predicate per dimension" rule holds. Q4's earlier draft had left this open; it is now closed.
 
 **The qualifier set is therefore five types:**
 
@@ -520,7 +551,43 @@ predicates (
 
 ---
 
-### Q5 — What are the object types, and can one statement have several objects?
+### ✅ Q5 — DECIDED (Alejandro, 2026-10-26): Option A, and the single-valued rule is generalised
+
+**Option A: one statement per `(subject, predicate, value)` pair.** A dish with three techniques has three `cooked_by` statements, each with its own evidence chain.
+
+**Reason:** under Option B (one statement per subject+predicate carrying several values), a source that documents only *two* of the three techniques either overstates its support for the whole proposition, or supports a part the schema cannot express. Under Option A it supports **exactly the one technique it mentions**, and the others have their own statements — possibly unsupported, possibly absent. The coverage and corroboration numbers then mean what they claim to mean.
+
+This also matches Q1's granularity (one assertable fact per statement) and Q3's principle — *"the row is the index, the statement is the evidence"* — because under Option A the index is **exact**: a dimension row exists per evidenced value, and a typed-but-unsourced assignment is `statement_id IS NULL`.
+
+**Cost, stated plainly:** more statements. Rendang alone has **6** — origin, family, protein, technique, medium, duration — exactly as ADR-001 D6's worked example has it.
+
+#### The single-valued rule, generalised — and a correction
+
+**An earlier draft of this note justified Option A with the wrong example.** It claimed `chole-bhature` was *"a stew that is also a curry"*. That is **not** what the broader-family review found: `chole-bhature` was **`curry` vs `bread`** — two *competing* readings of one dimension, not two simultaneous memberships. The stew-vs-curry case was `goulash-hungarian` / `kimchi-jjigae` (`Stew` + `Soup`).
+
+**And the proposed remedy was wrong too:** `dish_relations` is **dish ↔ dish**, so it **cannot carry family membership** at all. A relation between two dishes says "these dishes are related"; it cannot say "this dish is also a member of that family".
+
+**The general rule, as decided:**
+
+> **For a SINGLE-VALUED dimension, multiple COMPETING statements are allowed. Exactly ONE is ACCEPTED. The dimension row points to the accepted statement. The others remain visible as `disputed` / `alternative`.**
+
+This is **the D1 cuisine rule generalised** — ADR-001 D1 already established that `chicken-tikka-masala`'s cuisine is **left unset** because the Glasgow origin is contested: the dish is assigned no cuisine, and the dispute lives in competing claims. The same mechanism now applies to every single-valued dimension:
+
+| | |
+|---|---|
+| competing statements | allowed, and expected |
+| the accepted one | exactly one; the dimension row's `statement_id` points at it |
+| the others | remain visible, carrying `claim_class = disputed` or `alternative` |
+| the dimension row | holds the accepted value, and **may be unset** if none is accepted |
+| the consistency check | **flags a row whose `statement_id` is not the accepted statement** — and a row pointing at a non-accepted statement is a defect, not a choice |
+
+**Why this is right for the model:** a single-valued dimension is a *product* decision — the catalog can only show one cuisine, one family. It was never a claim that only one claim exists. The old model could not express that distinction (one `citations.claim_text` per dish), so a contested family was silently resolved by whoever typed it last. Under this rule the **dispute is recorded and visible**, while the **displayed value is still single** — which is what a reference work needs: it can say *"most sources place this in X; Y holds for Z"*.
+
+**It also fixes the `is_a` case properly.** A dish that is plausibly in two families gets **two `is_a` statements**; one is accepted and the dimension row points at it; the other is visible as an alternative. Neither is lost, and the dimension stays single-valued.
+
+---
+
+### Q5 (original) — What are the object types, and can one statement have several objects?
 
 **Decision:** the shape of the object side of a statement.
 
@@ -585,6 +652,73 @@ predicates (
 ---
 
 ### Q6 — What is the source model, and does `sources` need to change?
+
+**Decision:** whether the existing `sources` table is reused, extended, or replaced — and whether GUS-026's S1–S7 classification lives in the database or in prose.
+
+**What exists (measured live, 2026-10-26):**
+
+```sql
+sources (
+  id uuid pk, source_type text NOT NULL, title text NOT NULL, authors text[],
+  year int, publisher text, isbn text, doi text, url text, archive_name text,
+  archive_catalog_id text, citation_text text, language text NOT NULL,
+  reliability text, created_at timestamptz, created_by text
+)
+```
+
+| | live |
+|---|---|
+| rows | **142** |
+| `source_type` | **`web` — 142 of 142** |
+| `reliability` | **`secondary` — 142 of 142** |
+| `language` | **`en` — 142 of 142** |
+| distinct `url` | 121 (142 rows, so ~21 are duplicates of a URL under a different title) |
+| `doi` / `isbn` / `archive_name` | **0 / 0 / 0** — every academic-looking column is empty |
+| `citations` rows | 121, **all** `target_type='dish'` |
+| `citations.claim_text` | **120 of 121 are byte-identical to `dishes.short_description`** |
+| `citations.location` | only `"Lead paragraph"` and `"History section"` |
+
+**Two facts from that table decide most of this question.**
+
+**First: `reliability = 'secondary'` for all 142 rows is not a classification, it is a constant.** Every source in the catalog is marked equally reliable — which means the column currently carries no information. GUS-026's S1–S7 is a *refinement* of what `reliability` was trying to be, not a replacement for it. **The 142 rows are real and the columns are mostly right.**
+
+**Second: 120 of 121 `claim_text` values are byte-identical to `dishes.short_description`.** That is the whole problem in one number — the "claim" *is* the prose. A source that supports the dish's opening sentence is recorded as supporting the entire description. **This is why coverage cannot be computed today**, and it is what ADR-001 D6 was written to fix.
+
+**Recommendation: extend `sources` in place — do not replace it — and add `source_class` as a controlled vocabulary.**
+
+```
+source_classes (
+  id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug        text NOT NULL UNIQUE,     -- 'S1' .. 'S7'
+  name        text NOT NULL,
+  -- what this class is good enough to support, from GUS-026 section 3
+  sufficient_for text,
+  created_at  timestamptz NOT NULL DEFAULT now()
+)
+
+ALTER TABLE sources
+  ADD COLUMN source_class_id uuid REFERENCES source_classes(id);
+```
+
+**Why `source_classes` is a table and not an enum:** GUS-026 §3's table gives each class a *meaning* — "good enough to support: any claim, including contested origin" for S1–S3, "discovery and terminology only" for S6, "nothing" for S7. That metadata belongs with the class, and a table lets it be edited without a schema migration.
+
+**Why `reliability` is not simply renamed to `source_class`:** the two answer different questions. `source_class` is **what kind of source this is** (a peer-reviewed article, a Wikipedia article, a blog post); `reliability` is **how much this particular source can be trusted**. A single source can be both. The pilot's migration sets `source_class` from the existing rows — all 142 are `web` and all are encyclopedia articles, so they are **S6** (reference: discovery and terminology only), except that the 21 with the same URL under different titles are likely the *same* source duplicated.
+
+**The migration, concretely:** set all 142 to **S6**, then correct them as real sources are registered. That is the truthful starting position — GUS-011 already found the catalog is 100% Wikipedia-only — and it makes the gap visible instead of leaving `secondary` pretending every source is equally good.
+
+**What I will decide rather than ask:**
+
+- **`source_type` stays.** It records *what the thing is* (`web`, `book`, `journal_article`, `archive`, `manuscript`); `source_class` records *how good it is*. Keeping both means `source_class` can be corrected without rewriting 142 rows' `source_type`, and a future S1 source can be typed without touching its class.
+- **`reliability` is deprecated, not deleted.** It is `NULL`-able already and carries no information today; deleting it is a destructive change to a live table and RULES.md requires approval for that. It can be dropped later under an approved migration.
+- **The `sources` ↔ `statements` link is not this question.** Q7 decides the claim↔source link shape (the `claim_citations` table with `stance`); Q6 only decides the source's own attributes.
+
+**A finding that raises the priority of GUS-026:** `distinct url = 121` against `142 rows` means **~21 rows are duplicate sources** — the same URL stored under a different title. `sources` has **no unique constraint on `url`**, so nothing prevents that. The source registry (GUS-027) should add one; otherwise the catalog will keep accumulating the same Wikipedia article under several names, and every evidence count will over-count.
+
+**The alternative, and why I do not recommend it:** a new `source_registry` table alongside `sources`, with `sources` kept as the legacy dish-level bibliography. Two source tables means two answers to "what sources does this dish have", and the migration between them is exactly the kind of dual-truth the ADR is trying to remove.
+
+---
+
+### Q6 (original) — What is the source model, and does `sources` need to change?
 
 **Decision:** whether the existing `sources` table is reused, extended, or replaced.
 
@@ -711,7 +845,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q5 is open** — the object types and whether one statement may have several objects. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
+**Q6 is open** — the source model. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on claim; that shape is a later question.*
 
 
 ---
@@ -735,7 +869,7 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q3 subject | ADR-001 §2.1 entity graph — **DECIDED**: the subject is an ENTITY, never a vocabulary value; for the pilot the subject set is **dish + place** only, and real technique/tradition entity tables are separate work. Places get a **country > region > city** hierarchy via the existing `geo_entities.parent_id` (already present, unused), seeded with **only the pilot places**; `Minangkabau` is a **tradition** value, not a place. Dimension and relation rows gain a **nullable `statement_id`**: the row is the index, the statement is the evidence, with a consistency check flagging rows whose statement is missing / retracted / contradicting. `geo_entities.wikidata_id` population is backlogged |
 | Q4 predicate | ADR-001 §2.4 sketch |
 | Q5 objects | ADR-001 D6 worked example (6 claims for rendang) |
-| Q6 sources | GUS-026 §3 source classes |
+| Q6 sources | GUS-026 §3 source classes — **OPEN**. Draft recommendation: extend `sources` in place with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support) rather than replacing the table. Measured live: 142 rows, ALL `source_type='web'` and ALL `reliability='secondary'` (so `reliability` carries no information today), 0 doi/isbn/archive_name, 121 distinct urls against 142 rows (~21 duplicate sources, and no unique constraint on url), and 120 of 121 `citations.claim_text` values byte-identical to `dishes.short_description` |
 | Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes |
 | Q8 independence | GUS-026 §5 |
 | Q9 anchors | ADR-001 D4 (sentence anchors) |
