@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q9 DECIDED, Q10 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q10 DECIDED, Q11 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -1213,11 +1213,11 @@ Each fixture is a `(input, expected_splits)` pair. **The same splitter implement
 
 **The live catalog has none of these cases today** — measured: 0 decimals, 0 initials (`A.`), 0 abbreviations (`Inc`/`Ltd`/`St`/`Dr`/`Mr`/`vs`/`etc`) in either description column. **That is a property of today's data, not a guarantee**, which is exactly why the rule carries an escape hatch and the fixtures exist.
 
-#### Amendment 2 — flags 1–5 accepted; flags 6 and 7 recorded here
+#### Amendment 2 — the validity axis (Alejandro's amendment) and canonical-by-definition (Alejandro's amendment)
 
-The earlier draft said "seven findings" but listed five. The two missing ones are recorded now, so the count matches the content.
+**These two were Alejandro's amendments, not findings from my draft — the draft listed five.** The draft's count was five, and the two items below were added by Alejandro's review. The ADR records them here with their origin stated, so the history is not misread.
 
-**Flag 6 — the validity axis has its own enum, on the anchor.**
+**Amendment 2a — the validity axis has its own enum, on the anchor.**
 
 `sentence_claims.status` carries the *validity* of each anchor, kept separate from `anchor_status`'s *coverage*:
 
@@ -1235,7 +1235,7 @@ enum('ok','missing','retracted','unpublished','contradicting')
 
 **A sentence's `anchor_status` is `full` only if every one of its anchors is `ok`.** A sentence can be `full` in coverage and still fail D4's check — which is exactly why the two axes are separate. The vocabulary is Q3's, reused.
 
-**Flag 7 — the `dishes` columns are canonical by definition; `dish_translations` is non-canonical.**
+**Amendment 2b — the `dishes` columns are canonical by definition; `dish_translations` is non-canonical.**
 
 There is **no locale column to add**, and none is needed:
 
@@ -1245,12 +1245,54 @@ There is **no locale column to add**, and none is needed:
 
 This retires the GUS-226 dependency for Q9: **GUS-226's scope decision is no longer blocking**, because the canonical source of sentences is settled by definition.
 
-#### Amendment 3 — flags 2, 3, 4 accepted as stated
+#### Amendment 3 — the draft's five findings, as accepted
 
-- **Flag 2 (many-to-many) → GUS-225.** One sentence → many statements, and one statement → many sentences (the same fact may be asserted in both `short` and `long`). Confirmed by measurement: **rendang's single sentence asserts 7+ facts** (origin, family, protein, technique, medium, aromatics, duration), so D6's "6 claims for rendang" is an undercount. **Raised as GUS-225.**
-- **Flag 3 (canonical locale) → resolved above** by the canonical-by-definition rule.
-- **Flag 4 (the `test-dish-7c` fixture) → GUS-231.** The fixture is already `dishes.status='archived'`, and the `dishes.status` CHECK constraint restricts the value to `draft`/`published`/`archived`. **The `sentence_managed` flag and any population run are gated on `status='published'`**, which excludes the fixture by construction — no special-case list needed. GUS-231's standing check ("no non-published dish can enter a metric population") covers the same ground.
-- **Flag 5 (the splitter escape hatch) → accepted**, and is now Amendment 1's rule plus fixtures.
+The draft listed **five** findings. All five are accepted as stated:
+
+- **Draft finding 1 (the validity axis) → Amendment 2a.** One sentence → many statements, and one statement → many sentences (the same fact may be asserted in both `short` and `long`). Confirmed by measurement: **rendang's single sentence asserts 7+ facts** (origin, family, protein, technique, medium, aromatics, duration), so D6's "6 claims for rendang" is an undercount. **Raised as GUS-225.**
+- **Draft finding 2 (canonical locale) → resolved by Amendment 2b** — canonical by definition, no locale column needed.
+- **Draft finding 3 (the `test-dish-7c` fixture) → GUS-231.** The fixture is already `dishes.status='archived'`, and the `dishes.status` CHECK constraint restricts the value to `draft`/`published`/`archived`. **The `sentence_managed` flag and any population run are gated on `status='published'`**, which excludes the fixture by construction — no special-case list needed. GUS-231's standing check ("no non-published dish can enter a metric population") covers the same ground.
+- **Draft finding 4 (the splitter escape hatch) → accepted**, and is now Amendment 1's rule plus fixtures.
+- **Draft finding 5 (the many-to-many anchor relation) → GUS-225**, as above.
+
+#### Amendment 3a — `sentence_managed` changes are logged; unsetting the flag is gated
+
+**Two amendments to Amendment 5, both from Alejandro's review.**
+
+**(a) Every `sentence_managed` change is logged in `edit_history`.** The flag is a **write-path control**, not a cosmetic attribute — it decides whether a column may be written directly. A change to it must be auditable, and `edit_history` is already the project's provenance signal (`target_type='dish'`, `target_id`, `action`, `diff` jsonb, `comment`). The GUS-014 pilot migration shows the established pattern — one `edit_history` row per changed dish, `action='update'`, with a `diff` describing the operation and a `comment` naming it.
+
+The trigger writes the row itself, in the same transaction as the flag change, so the log cannot be skipped by a caller that forgets to log.
+
+**(b) Unsetting the flag must re-sync the sentence table, or the change is rejected.** **This is the bypass the amendment closes.** If `sentence_managed` can be set to `false` without anything reconciling the sentences, then the trigger is disabled *and* the table and the column can be out of sync — the flag becomes an escape hatch rather than a guarantee. Two acceptable behaviours, and **one of them must hold**:
+
+- **re-sync on unset** — unsetting the flag re-renders `short_description` from `description_sentences` (or re-populates the sentences from the column), so the two are consistent at the moment the flag is dropped; or
+- **reject the unset** — the flag may only be cleared once the sentence table and the column are already consistent, and the trigger **verifies** that consistency and raises if it does not hold.
+
+**The second is the stronger choice** and is what the ADR records, because the first can silently overwrite an edited column with a stale reconstruction — losing prose. **Verify-then-clear** preserves both properties: the flag cannot be used to smuggle in a desynced state, and it cannot destroy content.
+
+**So the trigger has two duties on the flag transition**, not one:
+
+| transition | duty |
+|---|---|
+| `false → true` | log to `edit_history`; the dish's sentences must exist and be consistent, or the change is rejected |
+| `true → false` | log to `edit_history`; the sentence table and the column must be consistent, or the change is rejected |
+
+**Consistency means the concat check passes** — the reconstructed string equals the live column. So the trigger calls the same check the migration and the verifier use. **One definition of consistency, used by all three.**
+
+#### Amendment 3b — the API change lands BEFORE the trigger
+
+**The `dishes-write.ts` change is deployed before the trigger is applied.** This is an ordering constraint, and it is not optional.
+
+If the trigger is applied first, every `PATCH /api/dishes/:slug` that sets `shortDescription` on a flagged dish **fails** — the route still writes the column directly, so the trigger rejects it and the API returns an error for a request that used to succeed. That is a user-visible regression on the pilot dishes, caused entirely by ordering.
+
+**So the sequence is:**
+
+1. **Ship the API change** — the PATCH path writes through the sentence table for flagged dishes (and keeps the direct write for unflagged ones).
+2. **Then apply the migration** — the `sentence_managed` column, the trigger, and the `edit_history` logging.
+
+**Both steps are in the same PR or in two ordered PRs — but the trigger's migration must not be merged before the API change is live.** The migration is a schema change to a live table and needs approval under RULES.md; the API change is code and does not. **The code lands first, and that is also the cheaper order**, because a code change that breaks nothing can be reverted without a migration.
+
+**One consequence worth stating:** after the trigger is live, a `PATCH` that sets `shortDescription` on a flagged dish returns an error rather than silently desyncing. That is the intended behaviour — a loud failure instead of a quiet one — and it should be covered by an API test.
 
 #### Amendment 4 — population scope: the 3 pilot dishes only; `long` is moot
 
@@ -1321,7 +1363,160 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 ---
 
-### Q10 — Does a claim belong to a dish, to a description, or to both?
+### ✅ Q10 — DECIDED (Alejandro, 2026-10-27): statements are independent entities with no owner column
+
+**A statement is an independent entity. It has no owner, no `dish_id`, and no owner FK.** The subject reference is the only link from a statement to the world.
+
+```
+statements (
+  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  -- the SUBJECT of the statement (an entity reference, per Q3)
+  subject_type enum('dish','place') NOT NULL,     -- pilot scope
+  subject_id   uuid NOT NULL,
+  predicate_id uuid NOT NULL REFERENCES predicates(id),
+  -- the VALUE
+  value_type   text NOT NULL,        -- 'entity' | 'vocabulary' | 'literal'
+  value_ref    uuid,                 -- entity / vocabulary reference
+  value_literal text,                -- typed literal (with its literal type)
+  -- qualifiers, per Q1/Q4
+  qualifiers   jsonb NOT NULL DEFAULT '{}',
+  -- class + status, per GUS-026
+  claim_class  enum('documented','scholarly_interpretation','oral_tradition',
+                    'disputed','hypothesis','unsupported') NOT NULL,
+  status       enum('draft','research_pending','under_review','verified',
+                    'published','disputed','needs_revision') NOT NULL DEFAULT 'draft',
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  -- ONE FACT IS ONE STATEMENT
+  UNIQUE (subject_type, subject_id, predicate_id, value_type, value_ref, value_literal, qualifier_hash)
+)
+```
+
+#### Amendment 1 — no owner column; "a dish's statements" is a query on the subject
+
+**There is no `owner_id`, no `dish_id`, and no owning-dish FK on `statements`.** The subject FK is the only link.
+
+**"This dish's statements" is a query:**
+
+```sql
+SELECT * FROM statements
+WHERE subject_type = 'dish' AND subject_id = $1;
+```
+
+**Why there is no owner column.** The whole reason to share a statement is that the *same fact* can be asserted by several dishes. "Rendang uses coconut milk" and "nasi lemak uses coconut milk" are **one fact about one ingredient** — and if each dish owned a statement, they would be two statements with two evidence chains, so corroboration across the catalog would be invisible and the research effort would be duplicated per dish. An owner column would make that duplication the schema's default rather than an accident.
+
+**The cost, stated plainly.** A statement's subject is a *single* entity, so a statement cannot natively be "about two dishes". When a fact genuinely spans dishes — "both of these are traditionally cooked with coconut milk" — that is **two statements** (one per subject) sharing evidence, or a statement about the *ingredient* if one exists. **The model expresses shared facts by sharing the subject, not by widening the subject.**
+
+**How a dish's statements are reached, and how they are NOT.** The subject gives the *direct* statements: the facts asserted **about that dish**. But a dish's description also asserts facts about **other** entities — a `tacos-al-pastor` sentence may assert something about **Puebla**, and that statement's subject is `place`, not `dish`. So:
+
+- **"Statements about this dish"** = `WHERE subject_type='dish' AND subject_id = <dish>` — the direct, owned-by-subject set.
+- **"Statements this dish's text asserts"** = join through `description_sentences` → `sentence_claims` — a *different* set, which includes statements about other subjects.
+
+**These two sets are not the same, and conflating them is the failure this amendment prevents.** See Amendment 2.
+
+#### Amendment 2 — a sentence may anchor a statement about a different subject; dish coverage is over its own sentences
+
+**A sentence is a place where a fact is asserted; the sentence's dish and the statement's subject are independent.**
+
+`tacos-al-pastor`'s sentence *"Mexican tacos of marinated pork cooked on a vertical spit…"* may anchor a statement whose subject is **`place` → Puebla** (the origin) as well as statements whose subject is **`dish` → tacos-al-pastor** (the technique). **That is correct and required**, because the sentence is where the claim is made, and the claim is about whatever the claim is about.
+
+**So: a dish's coverage is computed over its own sentences, regardless of what subject the anchored statements have.**
+
+```
+coverage(dish) = anchored sentences of this dish / total sentences of this dish
+```
+
+**Not** "statements whose subject is this dish" — that would measure the wrong thing. A dish's description is a piece of prose, and the question D4b asks is *"is every fact asserted in this prose anchored?"* — which is a question about **the prose**, not about the subject distribution of what it asserts.
+
+**Why this matters concretely.** The tacos-al-pastor pilot would otherwise score **0% coverage** under the subject-restricted reading: its sentences assert facts about Puebla, about the dish, and about shawarma — very few statements have the tacos as their subject. Under the correct reading, coverage asks *"is each sentence anchored to a statement that supports it?"*, which is what a reader wants to know and what D4b means.
+
+**The corollary, and it is the important one: a statement's evidence is shared, but a statement's *anchor* is per-sentence.** The same statement about "coconut milk" can be anchored in rendang's sentence and in nasi lemak's sentence, with one evidence chain (Q8's corroboration) and two anchors (Q9). **Evidence is per-statement; anchoring is per-sentence.** Conflating those would either duplicate evidence chains or lose anchors.
+
+#### Amendment 3 — dedupe: the same fact is the same statement
+
+**One fact is one statement.** Two rows asserting the same fact would split the evidence chain, and a claim corroborated by two sources would look like two uncorroborated claims.
+
+**The unique key is `(subject, predicate, value, canonical qualifier hash)`.**
+
+| part | why it is in the key |
+|---|---|
+| `subject_type`, `subject_id` | the fact is about something |
+| `predicate_id` | the fact is a relation |
+| `value_type`, `value_ref`, `value_literal` | the fact has a value |
+| **`qualifier_hash`** | the fact is scoped — same relation, same value, different scope = different fact |
+
+**The qualifier hash is the interesting part.** Q1 gave statements qualifiers (`place`, `period`, `variant`, `occasion`, `role`), and two statements that differ in any qualifier assert **different facts** — the Glasgow case is exactly this: *"CTM originated in Glasgow" scoped by one `period`* and *"CTM originated in the subcontinent" scoped by the same `period`* are competing statements about one proposition but **not the same statement**.
+
+So the qualifiers are part of the identity. **They are stored in one `jsonb` column and hashed for the unique key.**
+
+**Why a hash and not the jsonb itself.** A `jsonb` column can be indexed directly in Postgres — `UNIQUE (…, qualifiers)` works, because jsonb has a well-defined equality. **But jsonb equality is key-order-independent and whitespace-insensitive, which is what makes it usable here — a qualifier set written in a different order is the same qualifier set.** The hash is the *implementation* choice that keeps the key a fixed-width scalar, so the index is compact and the comparison is a single integer rather than a jsonb comparison on every insert.
+
+**The hash must be CANONICAL.** It is not a hash of arbitrary JSON bytes — it is a hash of the **normalised** qualifier set: keys sorted, values in their canonical form, absent qualifiers omitted rather than stored as null. Two writers producing the same qualifier set in different orders must produce the same hash, or the dedupe silently fails and the evidence splits — which is the exact failure this key exists to prevent.
+
+**And the hash is a key, not a storage format.** The qualifiers themselves stay in the `jsonb` column, readable and queryable; the hash column exists only to make the uniqueness check cheap and stable. **A hash collision would merge two different facts**, so the hash must be wide enough that collision is not a practical concern (a truncated hash is not acceptable here).
+
+**What this means in practice:** inserting the same fact twice is **not an error the caller has to handle** — it is a constraint violation that says *"this fact already exists; attach your evidence to the existing statement."* That is the intended workflow: **find-or-create the statement, then add the citation to it.**
+
+#### Amendment 4 — no cascade deletes; retraction is a status change
+
+**No cascade delete from `description_sentences` or `dishes` reaches a statement, and no statement is ever hard-deleted.**
+
+**Retraction is a status change.** GUS-026 §6's states include `needs_revision` and `disputed` — and the status vocabulary exists precisely so that a retracted statement is **marked, not removed**. Q3's consistency check already reads this: a dimension row whose statement is `needs_revision`/`disputed` is flagged **retracted**.
+
+**Why this matters for the evidence model.** A statement carries its evidence chain (Q7's `claim_citations`, with excerpts, revision ids and retrieval timestamps). **If a statement were deleted, its evidence would be deleted with it** — and that evidence is the most expensive thing in the catalog to produce. **Deletion would make the research unrepeatable.** A retracted statement keeps its evidence, keeps its anchors, and keeps its place in the history — so a reader can see what was once claimed, on whose authority, and why it was withdrawn.
+
+**What "no cascade deletes" means concretely:**
+
+- `description_sentences` → `sentence_claims` **cascades** (an anchor to a deleted sentence is meaningless — this is the one cascade, and it is a *link* deletion, not an *evidence* deletion).
+- `statements` → `claim_citations` **does not cascade**. A statement is retracted, not deleted.
+- `dishes` → `description_sentences` **does not cascade**. A dish that is deleted or archived leaves its sentences; and the sentences are what the statements are anchored to.
+- `statements` → **nothing cascades out of it.**
+
+**One thing that does cascade, and it is not a deletion of content:** `sentence_claims.status` is updated to `missing` when the statement is deleted, per Amendment 2b's vocabulary. So a dangling anchor is *marked*, not silently left.
+
+**And the dish itself.** `dishes.status='archived'` is the existing mechanism (GUS-231), not a delete. The catalog archives; it does not delete.
+
+#### The consistency check, now that ownership is settled
+
+**A dimension row's `statement_id` must reference a statement whose subject is that dish.**
+
+```sql
+-- every dimension row's statement must be about THAT dish
+SELECT dr.*, s.subject_id
+FROM dish_dish_families dr
+JOIN statements s ON s.id = dr.statement_id
+WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
+```
+
+**Why this check exists, and what it catches.** Q3 gave every dimension row a nullable `statement_id` pointing at the statement that supports it — *"the row is the index, the statement is the evidence."* With ownership settled (no owner column, subject is the only link), **the subject and the row's dish must agree**, or the index points at the wrong evidence.
+
+**It catches three real defects:**
+
+| defect | what it looks like |
+|---|---|
+| **wrong-subject anchor** | a family row for `rendang` pointing at a statement about `West Sumatra` — the index says "rendang is a curry" and the statement says something else |
+| **cross-dish mis-assignment** | a cuisine row for dish A pointing at a statement about dish B |
+| **the Puebla case, correctly** | a `tacos-al-pastor` **sentence** anchoring a statement about **Puebla** is **CORRECT** and must NOT be flagged — because the check applies to **dimension rows**, not to sentences |
+
+**That last row is the whole point.** The sentence↔statement relation is deliberately allowed to cross subjects (Amendment 2). The dimension-row↔statement relation is **not** — a dimension row asserts something *about that dish*, so its statement must be about that dish.
+
+**A dimension row with `statement_id IS NULL` is NOT a violation.** It is the **unevidenced** state (Q3): a value someone typed, with no evidence yet. **91 dishes have a family assignment and no statement** — that is the honest state of the catalog, not an error, and the check must not report it as one.
+
+#### What is settled by this decision, and what it defers
+
+**Settled:** statements are independent entities with **no owner column**; the subject FK is the only link; a sentence may anchor a statement about **any** subject; dish coverage is computed over **its own sentences**; one fact is one statement, keyed by `(subject, predicate, value, canonical qualifier hash)`; **no cascade deletes** out of statements — retraction is a status change; and a dimension row's statement must have that dish as its subject.
+
+**Deferred, and named rather than glossed:**
+
+| # | deferred | why |
+|---|---|---|
+| 1 | the exact canonicalisation of the qualifier set (key order, absent-vs-null, value normalisation) | a data-format decision, but one where a wrong choice **silently breaks dedupe** — so it belongs with the first implementation, reviewed against real qualifier sets, not decided in the abstract |
+| 2 | whether the qualifier hash column is stored or computed | a generated column keeps it impossible to desync from the qualifiers; that is the safer choice and is flagged for the implementation |
+| 3 | whether `subject_type='place'` statements can be dimension-row targets | Amendment 2 says sentences may anchor them; dimension rows may not — that is settled. Whether a *place* dimension row ever points at a place statement is a Q11+ question |
+
+---
+
+### Q10 (original) — Does a claim belong to a dish, to a description, or to both?
 
 **Decision:** where a claim's ownership lives.
 
@@ -1375,7 +1570,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q10 is open** — ownership: whether a claim belongs to a dish, to a description, or to both — and whether claims are independent entities linked by a join, or owned by the dish they are about.
+**Q11 is open** — the migration path for the existing 121 dish-level citations: what happens to them now that statements are independent entities with no owner, and what the 3 pilot dishes actually get.
 
 
 ---
@@ -1402,8 +1597,8 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q6 sources | GUS-026 §3 source classes — **DECIDED**: extend `sources` IN PLACE with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support). **Classification is by URL domain, each domain individually — never a blanket rule.** Measured: ALL 142 rows are `en.wikipedia.org` → all **S6**; there is no other domain to classify, so the catalog has no source diversity at all. Caveat recorded: `*.wikipedia.org` must be split by PATH, since a `/wiki/File:...` or a `wikidata.org/wiki/Q...` URL is not a Wikipedia article. **Dedupe BEFORE the pilot** (GUS-238): 21 redundant rows across 12 normalised URLs; 21 rows carry zero citations, 20 in duplicate groups and 1 unique-URL orphan (Tajine - a different defect, an unused source); only 1 group has more than one cited row (Moussaka, 3 dishes sharing one article); 'pho' has 2 rows, neither cited. Normalise URL, id map, re-point citations, ARCHIVE merged rows, unique constraint on normalised_url. `source_type` stays; `reliability` deprecated not deleted |
 | Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes — **DECIDED** (Alejandro, 2026-10-27): a `claim_citations` table, one row per **(statement, source, revision, locator)** — `UNIQUE NULLS NOT DISTINCT` (Postgres 16, verified live: NULL-revision duplicates rejected, re-reads and multiple passages accepted). Carries `stance` (supports/refutes/context), `locator`, `excerpt`, `revision_id` (Wikipedia revid) and **one** timestamp `retrieved_at timestamptz` (`accessed_at` dropped). **`stance='context'` counts as NEITHER support nor refutation** — excluded from coverage AND from corroboration; a context-only statement is `unsupported`, not `disputed`; a `refutes` link does not make a statement evidenced. **Excerpt = the minimal passage carrying the fact (1–2 sentences), quoted verbatim, and VALIDATED as a substring of the stated revision's text**; public display requires attribution (Wikipedia CC BY-SA). **Migration OVERRIDDEN: only the 3 pilot dishes migrate**, as `stance='supports'` with excerpts fetched + `revision_id` recorded (a re-reading, recorded as such), **verification state `unverified` until reviewed** (GUS-026 §10 — the agent cannot publish); **the other 118 stay in the archived `citations` table until their statements exist, and NO statements are created to receive them** |
 | Q8 independence | GUS-026 §5 — **DECIDED** (Alejandro, 2026-10-27): independence is **STORED**, not computed, at **two levels** — `source_derivations` (whole-source derivation: mirrors, translations, editions, reprints) and `citation_independence` (per-citation, claim-specific judgement). **Tri-state: `independent` / `derived` / `unassessed`, with NO DEFAULT** — "no derivation recorded = independent" is rejected, so an unassessed pair contributes zero and an incomplete assessment understates rather than inflates. **Corroboration counts only `supports` links from class-sufficient sources, and S6 NEVER COUNTS** — so the pilot's corroboration is **0 by policy** (all 142 catalog sources are en.wikipedia.org → S6), and **no Wikipedia derivation work is needed**. Level 1 is a hard block checked first. **The pilot must exercise the path**: one rendang origin statement with 2 real non-Wikipedia sources (S1–S5, explicitly assessed `independent`), plus a **derived-pair negative case built in the TEST DB, not live**. **Workload policy CLOSED (Alejandro, 2026-10-27): `citation_independence` rows are written ONLY for class-sufficient `supports` pairs on the same statement; no row = `unassessed`, which contributes zero** — the table is not populated exhaustively, and absence of a row is not evidence of independence |
-| Q9 anchors | ADR-001 D4 (sentence anchors) — **DECIDED** (Alejandro, 2026-10-27): a **structured sentence table**, not inline markers (markers would leak into the public column and break translations; offsets break on edit). `description_sentences` (dish_id, field `short`/`long`, locale, position, text, `anchor_status` full/partial/none) + `sentence_claims` (sentence_id → statement_id, **status** ok/missing/retracted/unpublished/contradicting). `short_description` rendered from the sentences with an **exact** concatenation check; a sentence edit marks its anchors `needs_review` (Q2's stale mechanism); anchors on the **canonical** text only. **(1) THE CONCAT CHECK IS A GATE, NOT A BOUNDARY TEST** — a zero-width split rejoins exactly *by construction*, so it proves table↔column agreement and nothing about boundaries. Boundaries are proven by a **FIXTURE SET** (quotes, decimals, abbreviations, initials, ellipses) with expected splits, plus **human review of the pilot sentences**; **one splitter implementation** serves both population and check. The rule: a terminator that is not in a quoted span, not between digits, not part of an abbreviation/initial, not part of an ellipsis, and is followed by whitespace. **(2) VALIDITY IS ITS OWN AXIS** on `sentence_claims.status` (ok/missing/retracted/unpublished/contradicting), separate from `anchor_status`'s coverage — a sentence is `full` only if every anchor is `ok`; `unpublished` is the agent boundary (GUS-026 §10) in anchor form. **(3) CANONICAL BY DEFINITION** — the `dishes` columns ARE the canonical text; no locale column is needed; `dish_translations` is non-canonical and its 121 `en` rows are byte-identical duplicates of `short_description`, so translations are NOT a source of sentences (else every fact is anchored twice) — **archiving the 121 duplicates is backlogged**; this retires GUS-226 as a blocker for Q9. **(4) FIXTURE EXCLUDED BY GUS-231** — `dishes.status` CHECK restricts to draft/published/archived and the fixture is `archived`, so gating population on `status='published'` excludes it by construction. **(5) MANY-TO-MANY** confirmed — rendang's single sentence asserts **7+ facts**, confirming **GUS-225's undercount**. **(6) POPULATION = 3 PILOT DISHES ONLY**; `long` is **moot** (measured: all 3 pilot `long_description` are empty) and that gap is recorded — the `long` path (166 sentences, 1–12 per dish) is untested by the pilot, so the `field` enum must not be narrowed to `'short'`. **(7) `sentence_managed` FLAG + TRIGGER** — `ALTER TABLE dishes ADD COLUMN sentence_managed boolean NOT NULL DEFAULT false`, with a `BEFORE UPDATE` trigger rejecting a changed `short_description` when the flag is set; same pattern the project already uses in `db/migrations/gus-224-relations-option-b.sql`. **Why:** the concat check only *detects* divergence; a direct `PATCH` to `/api/dishes/:slug` (which sets `shortDescription` in `apps/api/src/routes/dishes-write.ts`) would silently desync. **Consequences:** the PATCH path must write through the sentence table for flagged dishes, and the flag keeps the trigger narrow (only the 3 pilot dishes are flagged; the other 118 keep free-text edits; `long_description` and all other columns stay writable) |
-| Q10 ownership | ADR-001 §2.2 (`dish_claims`) |
+| Q9 anchors | ADR-001 D4 (sentence anchors) — **DECIDED** (Alejandro, 2026-10-27): a **structured sentence table**, not inline markers (markers would leak into the public column and break translations; offsets break on edit). `description_sentences` (dish_id, field `short`/`long`, locale, position, text, `anchor_status` full/partial/none) + `sentence_claims` (sentence_id → statement_id, **status** ok/missing/retracted/unpublished/contradicting). `short_description` rendered from the sentences with an **exact** concatenation check; a sentence edit marks its anchors `needs_review` (Q2's stale mechanism); anchors on the **canonical** text only. **(1) THE CONCAT CHECK IS A GATE, NOT A BOUNDARY TEST** — a zero-width split rejoins exactly *by construction*, so it proves table↔column agreement and nothing about boundaries. Boundaries are proven by a **FIXTURE SET** (quotes, decimals, abbreviations, initials, ellipses) with expected splits, plus **human review of the pilot sentences**; **one splitter implementation** serves both population and check. The rule: a terminator that is not in a quoted span, not between digits, not part of an abbreviation/initial, not part of an ellipsis, and is followed by whitespace. **(2) VALIDITY IS ITS OWN AXIS** on `sentence_claims.status` (ok/missing/retracted/unpublished/contradicting), separate from `anchor_status`'s coverage — a sentence is `full` only if every anchor is `ok`; `unpublished` is the agent boundary (GUS-026 §10) in anchor form. **(3) CANONICAL BY DEFINITION** — the `dishes` columns ARE the canonical text; no locale column is needed; `dish_translations` is non-canonical and its 121 `en` rows are byte-identical duplicates of `short_description`, so translations are NOT a source of sentences (else every fact is anchored twice) — **archiving the 121 duplicates is backlogged**; this retires GUS-226 as a blocker for Q9. **(4) FIXTURE EXCLUDED BY GUS-231** — `dishes.status` CHECK restricts to draft/published/archived and the fixture is `archived`, so gating population on `status='published'` excludes it by construction. **(5) MANY-TO-MANY** confirmed — rendang's single sentence asserts **7+ facts**, confirming **GUS-225's undercount**. **(6) POPULATION = 3 PILOT DISHES ONLY**; `long` is **moot** (measured: all 3 pilot `long_description` are empty) and that gap is recorded — the `long` path (166 sentences, 1–12 per dish) is untested by the pilot, so the `field` enum must not be narrowed to `'short'`. **(7) `sentence_managed` FLAG + TRIGGER** — `ALTER TABLE dishes ADD COLUMN sentence_managed boolean NOT NULL DEFAULT false`, with a `BEFORE UPDATE` trigger rejecting a changed `short_description` when the flag is set; same pattern the project already uses in `db/migrations/gus-224-relations-option-b.sql`. **Why:** the concat check only *detects* divergence; a direct `PATCH` to `/api/dishes/:slug` (which sets `shortDescription` in `apps/api/src/routes/dishes-write.ts`) would silently desync. **Consequences:** the PATCH path must write through the sentence table for flagged dishes, and the flag keeps the trigger narrow (only the 3 pilot dishes are flagged; the other 118 keep free-text edits; `long_description` and all other columns stay writable). **(3a) FLAG CHANGES ARE LOGGED AND UNSETTING IS GATED** — every `sentence_managed` change is logged in `edit_history` (`target_type='dish'`, `action='update'`, `diff` jsonb, `comment` — the GUS-014 pilot's established pattern), written by the trigger in the same transaction so it cannot be skipped. **Unsetting the flag must re-sync or be REJECTED**, because otherwise the flag is a bypass: it would disable the trigger *and* leave the table and column desynced. **The stronger choice is recorded — VERIFY-THEN-CLEAR** (re-sync on unset can silently overwrite an edited column with a stale reconstruction and lose prose; verify-then-clear preserves both properties). So the trigger has two duties: `false→true` logs and requires the sentences to exist and be consistent; `true→false` logs and requires consistency, else it raises. **Consistency = the concat check passes** — one definition, used by the trigger, the migration and the verifier. **(3b) THE API CHANGE LANDS BEFORE THE TRIGGER** — if the trigger is applied first, every `PATCH /api/dishes/:slug` setting `shortDescription` on a flagged dish **fails** (the route still writes the column directly), a user-visible regression caused purely by ordering. Sequence: (1) ship the API change; (2) then the migration (which needs approval under RULES.md). The code lands first because it is the cheaper order to revert. After the trigger is live, such a PATCH returns an error instead of silently desyncing — intended, and covered by an API test |
+| Q10 ownership | ADR-001 §2.2 (`dish_claims`) — **DECIDED** (Alejandro, 2026-10-27): statements are **INDEPENDENT ENTITIES with NO owner column** — no `owner_id`, no `dish_id`, no owner FK; the **subject FK is the only link**. "A dish's statements" = `WHERE subject_type='dish' AND subject_id = $1`. **Why:** an owner column makes evidence duplication the schema's default — "rendang uses coconut milk" and "nasi lemak uses coconut milk" are ONE fact about one ingredient, and per-dish ownership would hide cross-dish corroboration and duplicate the research. **Cost stated:** a statement's subject is a single entity, so a genuinely multi-dish fact is two statements sharing evidence (the model shares by sharing the subject, not by widening it). **(2) A SENTENCE MAY ANCHOR A STATEMENT ABOUT A DIFFERENT SUBJECT** — a `tacos-al-pastor` sentence may anchor a statement about **Puebla** (`subject_type='place'`); that is correct, because the sentence is where the claim is made and the claim is about what it is about. **DISH COVERAGE IS COMPUTED OVER ITS OWN SENTENCES, regardless of statement subject** — `coverage(dish) = anchored sentences / total sentences`. Not "statements whose subject is this dish": that would score tacos-al-pastor **0%** while D4b actually asks *"is every fact asserted in this prose anchored?"* — a question about the prose, not the subject distribution. **Corollary: evidence is per-statement, anchoring is per-sentence** — one statement can be anchored in two dishes' sentences with one evidence chain and two anchors. **(3) DEDUPE: ONE FACT IS ONE STATEMENT**, unique on `(subject_type, subject_id, predicate_id, value_type, value_ref, value_literal, qualifier_hash)` — otherwise a claim corroborated by two sources looks like two uncorroborated claims and the evidence splits. The **canonical qualifier hash** is in the key because scope is part of the fact's identity (Glasgow vs the subcontinent are competing statements, not one). Measured on live Postgres: jsonb equality is **key-order-independent and whitespace-insensitive but absent ≠ null** — so absent qualifiers must be **omitted, not stored as null**, or the hash diverges and dedupe silently fails. The qualifiers stay readable in `jsonb`; the hash is a key, not a storage format, and must be wide enough that a collision is not practical. Workflow: **find-or-create the statement, then attach the citation** — a duplicate insert is the constraint saying the fact exists. **(4) NO CASCADE DELETES** out of statements and **retraction is a status change** (`needs_revision`/`disputed`) — deleting a statement would delete its evidence chain, which is the most expensive thing in the catalog to produce and would make the research unrepeatable. Concretely: `description_sentences` → `sentence_claims` cascades (a link deletion, not an evidence deletion); `statements` → `claim_citations` does NOT cascade; `dishes` → `description_sentences` does NOT cascade; a dangling anchor is **marked** `missing`, not silently left. `dishes.status='archived'` is the existing non-delete mechanism (GUS-231). **THE CONSISTENCY CHECK: a dimension row's `statement_id` must reference a statement whose subject is that dish** — catches wrong-subject anchors and cross-dish mis-assignment. Crucially the **Puebla case is correctly NOT flagged**: the sentence↔statement relation is deliberately allowed to cross subjects, but the dimension-row↔statement relation is not, because a dimension row asserts something *about that dish*. A dimension row with `statement_id IS NULL` is **NOT a violation** — it is the honest **unevidenced** state (91 dishes have a family and no statement). Deferred: the exact qualifier canonicalisation (a wrong choice silently breaks dedupe — belongs with the first implementation), whether the hash is stored or generated (generated is safer — it cannot desync), and whether place statements can ever be dimension-row targets |
 | Q11 migration | GUS-011 (121 Wikipedia-only) |
 | Q12 lifecycle | GUS-026 §6, §10 |
 | Q13 API | ADR-001 §4 (sequencing) |
