@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q6 DECIDED, Q7 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q7 DECIDED, Q8 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -784,7 +784,127 @@ Measured live 2026-10-26: **all 142 sources are `en.wikipedia.org`.** There are 
 
 ---
 
-### Q7 — What does an evidence link carry?
+### ✅ Q7 — DECIDED (Alejandro, 2026-10-27): the evidence link carries the passage, the anchor, and the stance
+
+**The evidence link is one row per (statement, source, revision, locator).** It carries the verbatim excerpt, the retrieval anchor, and a stance that separates support from refutation from context.
+
+```
+claim_citations (
+  id            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  statement_id  uuid NOT NULL REFERENCES statements(id),
+  source_id     uuid NOT NULL REFERENCES sources(id),
+  stance        enum('supports','refutes','context') NOT NULL,
+  -- WHERE in the source the passage sits
+  locator       text,        -- 'section 3', 'para 2', 'p. 42', 'Lead paragraph'
+  -- the EXACT text that supports the statement, quoted verbatim
+  excerpt       text,
+  -- the retrieval anchor: which VERSION of the document was read
+  revision_id   text,        -- Wikipedia revid (e.g. '1381860136'); null for non-versioned sources
+  -- WHEN the passage was read (the single timestamp)
+  retrieved_at  timestamptz NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  -- multiple passages from one source on one revision are distinct rows;
+  -- the same passage re-read on a different revision is a NEW row (history kept)
+  UNIQUE NULLS NOT DISTINCT (statement_id, source_id, revision_id, locator)
+)
+```
+
+#### Amendment 1 — the uniqueness key is (statement, source, revision, locator)
+
+**`UNIQUE NULLS NOT DISTINCT (statement_id, source_id, revision_id, locator)`.**
+
+The draft's `UNIQUE (statement_id, source_id, stance)` is replaced. The old key says a statement can cite a given source exactly once — which forbids **two passages from the same article** (a common and legitimate case: one paragraph for the origin, another for the technique), and forbids **the same passage being re-read on a later revision** (which is how drift is detected).
+
+The new key says: a *passage at a locator, read at a revision*, is one thing. Multiple passages per source are allowed. A re-read on a new revision is a **new row**, and the old row is kept — so the history of what the article said, and when it was read, survives.
+
+**Why `revision_id` is in the key even though it is nullable.** For a non-versioned source (a printed book, a PDF), `revision_id` is NULL. In Postgres, NULL never equals NULL in a unique index, so multiple NULL-revision rows for the same (statement, source, locator) would **all** be permitted — the key would silently not apply to exactly the case it needs to.
+
+**The fix is `UNIQUE NULLS NOT DISTINCT`,** which treats NULL values as equal for uniqueness purposes. It is available from Postgres 15, and this project runs **Postgres 16** (verified live: `shared-postgres` is `postgis/postgis:16-3.4`, reporting `server_version` **16.4**; the devcontainer uses the same `16-3.4` image). So no expression index or `COALESCE` wrapper is needed — the constraint is written directly on the columns.
+
+**Verified on the live server before recording it** (a temporary table with this exact constraint, exercising all three cases):
+
+| case | rows | expected | result |
+|---|---|---|---|
+| same (statement, source, **NULL** revision, locator) | duplicate | **rejected** | ✅ rejected with `unique_violation` |
+| same (statement, source, locator), **different revision** | 100 → 200 | **accepted** | ✅ accepted — history kept |
+| same (statement, source, revision), **different locator** | `para 2` → `para 5` | **accepted** | ✅ accepted — two passages from one article |
+
+The first row is the case a plain `UNIQUE` would have got wrong: under a plain unique index the two NULL-revision rows would both have been accepted, and a non-versioned source could accumulate unlimited duplicates for the same locator.
+
+**The chosen form is `UNIQUE NULLS NOT DISTINCT (statement_id, source_id, revision_id, locator)`**, so a non-versioned source is keyed by (statement, source, NULL, locator) and cannot accumulate duplicate rows for the same locator. The `stance` column is **not** in the key: the same passage read on the same revision is one row, and it holds one stance. A source that both supports and refutes a statement uses two different locators (or two different revisions), which is exactly the situation where two rows are correct.
+
+**The history rule, stated plainly:** the old `citations` table is not dropped, but the new table does not overwrite history either. When an article is re-read and its text has changed, the **new row is added** and the **old row is retained** — with its own `revision_id` and its own `retrieved_at`. A reader asking "what did the article say when we cited it?" gets the old row; a reader asking "is this still supported?" gets the new one.
+
+#### Amendment 2 — one timestamp: `retrieved_at timestamptz`
+
+**`accessed_at` is dropped.** The draft carried both `retrieved_at date` and `accessed_at timestamptz`, which is two columns for one event, with two types (`date` vs `timestamptz`) and two names for the same meaning.
+
+**One column: `retrieved_at timestamptz NOT NULL`.** It answers *"when was this passage read from this revision"* — which is the only temporal fact the model needs. `accessed_at` was never a separate event; it was the same read, recorded twice with different granularity.
+
+**Why `timestamptz` and not `date`.** The draft's `retrieved_at date` would record 2026-10-27 and lose the time of day. A revision read at 09:14 and a re-read at 16:40 on the same day would be indistinguishable — and "was this re-read after the article changed?" is exactly the question the revision id alone cannot answer. `timestamptz` also resolves the timezone question once, at the column, instead of per-writer.
+
+**`retrieved_at` is NOT NULL** because an evidence link without a retrieval time is an unread citation — the defect the whole table exists to fix. For a migrated legacy row this is the reason the migration must *re-read* rather than copy (Amendment 5).
+
+#### Amendment 3 — `stance = 'context'` counts as neither support nor refutation
+
+**`stance='context'` is a third thing, and it counts for nothing.** It is excluded from coverage and from corroboration.
+
+This is recorded as a rule, not left to each consumer's judgement, because the opposite — letting a context passage inflate a corroboration count — is the exact failure GUS-026 §5 warns about (*"quantity is not independence"*). A passage that merely mentions the topic in passing is not a second source agreeing with the first.
+
+**What `context` is FOR.** It records that the source was read, that it discusses the subject, and that it did **not** settle the proposition. That is genuinely useful information: it is why the proposition is `research_pending` rather than `unsupported`, and it is the honest record of a lead that did not pan out.
+
+**The two consequences, stated explicitly:**
+
+| metric | `supports` | `refutes` | `context` |
+|---|---|---|---|
+| **coverage** (is this fact evidenced?) | counts | does not count | **does not count** |
+| **corroboration** (do ≥2 independent sources agree?) | counts | — | **does not count** |
+
+**A `context`-only statement is `unsupported`, not `disputed`.** `disputed` means sources *conflict* — that requires at least one `refutes`. A statement with only `context` links has no position taken by anyone, so it is unevidenced. (The distinction matters: `disputed` triggers the competing-statements machinery from Q5; `unsupported` does not.)
+
+**A `refutes` link does not make a statement evidenced.** Refutation is not support. A statement whose only links are `refutes` is `unsupported` — and in the CTM case it is the *other* statement in the competing pair that holds the support.
+
+**This is a decision that changes a number, so it is recorded in the ADR rather than left to the metric code:** the corroboration rule is *count ≥2 independent `supports` links on one statement*.
+
+#### Amendment 4 — the excerpt is minimal, quoted verbatim, attribution-bearing, and validated
+
+**The excerpt is the minimal passage that carries the fact — 1–2 sentences — and it is quoted verbatim.** Not a paragraph, not a summary, not a paraphrase.
+
+**The excerpt must be a substring of the stated revision's text.** This is enforceable: for a Wikipedia source with `revision_id = R`, the text of revision `R` is fetchable (`https://en.wikipedia.org/w/index.php?oldid=R&action=raw`), so the check is a substring test against that exact text. The excerpt is validated at write time.
+
+**Why this is a rule and not a convention.** An excerpt that is a paraphrase is a second, unauditable claim about the source — it is the `citations.claim_text` failure one level down. An excerpt that is not a substring of the stated revision is either mis-transcribed or comes from a different revision than the one recorded, and both make the citation a lie. The substring rule makes the excerpt *checkable*, which is the entire point of the column.
+
+**Why minimal (1–2 sentences).** A longer quote makes the excerpt unusable in the evidence panel — it does not show the reader what supports the fact. Minimality is what keeps the excerpt doing the job of *showing the support*, and it is what makes the excerpt vs. locator split meaningful: the locator says *where*, the excerpt says *what*.
+
+**Public display requires attribution.** Where an excerpt is displayed publicly, the source and the license must be shown with it. All current sources are Wikipedia (CC BY-SA 4.0), so the attribution requirement is: **Wikipedia excerpt, with attribution, under CC BY-SA.** The attribution and license live on the `sources` row (`reliability` is being deprecated under Q6, but `source_type`/license metadata stays).
+
+**A note on what this does NOT do:** a CC BY-SA excerpt displayed on the site is a share-alike obligation on that excerpt, not on the whole work. This ADR records the attribution requirement and defers the license-text and attribution-block implementation detail to the API/UI task (GUS-028) — but it records the requirement now, because it changes what the excerpt column is *for*.
+
+#### Amendment 5 — the migration is overridden: 3 pilot dishes only, the other 118 stay archived
+
+**The draft's recommendation to migrate all 121 citations with excerpts fetched is overridden. The migration covers only the 3 pilot dishes.**
+
+| | |
+|---|---|
+| **Migrate now** | the 3 pilot dishes only — `rendang`, `chicken-tikka-masala`, `tacos-al-pastor` |
+| **Migrated as** | `stance = 'supports'` — with `excerpt` fetched from the source's current text, `revision_id` recorded, `retrieved_at` = the read time |
+| **Verification state** | **`unverified` until reviewed** — the agent cannot publish (GUS-026 §10) |
+| **The other 118** | stay in the **archived `citations` table** until their statements exist |
+| **Forbidden** | **no statements are created in order to receive them** |
+
+**The last line is the point.** The temptation with 118 orphaned citations is to create 118 statements so the citations have somewhere to live. That is forbidden, and it is forbidden because it does the exact thing this ADR exists to prevent: it manufactures claims to fit the evidence rather than deriving claims from the evidence. A statement created for a citation is a statement whose granularity was decided by whatever prose happened to be in `citations.claim_text` — which is the old model, restated. **Statements are derived from the research; the citations attach to statements that exist.**
+
+**The migration is a RE-READING, recorded as such.** The pilot citations' excerpts are fetched from the source's current text at the cited locator, and the `revision_id` of the revision actually read is recorded. This is honest about what it is — the passage as it stands on a specific, recorded revision — rather than pretending it was captured at the original citation time.
+
+**The migrated rows are `unverified` until reviewed.** GUS-026 §10 is explicit that an agent may not move a claim to `verified` and may not publish. The pilot's migration is performed by an agent, so the result is `unverified`: the rows exist, the excerpts are real and checkable, but **no pilot statement is published by this ADR**. A human reviews the 3 pilot dishes and moves them. This is the same boundary Q2 already established for readings (a bot-drafted reading stays `draft`).
+
+**The other 118 remain in `citations`, untouched and unarchived-by-migration.** The `citations` table stays as a live table holding 118 rows that the new model does not yet cover. That is the honest state: the catalog's evidence for those dishes is a lead, not a checkable citation, until someone does the work.
+
+**One consequence worth stating:** the pilot's corroboration number will be computed over 3 dishes with agent-performed re-readings, while 118 dishes have no statement at all. **Any coverage percentage computed across the whole catalog in this state is meaningless** — it is 3/N of a curated pilot against an empty remainder. The pilot's numbers are a **validation of the model**, not a measurement of the catalog, and must be labelled as such wherever they are reported.
+
+---
+
+### Q7 (original) — What does an evidence link carry?
 
 **Decision:** the shape of the claim↔source link, and what it must record for a citation to be checkable.
 
@@ -961,7 +1081,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q7 is open** — the evidence link: `stance`, the locator, the exact passage, and the retrieval anchor (Wikipedia revision id, or a retrieval date for sources that are not versioned).
+**Q8 is open** — independence: how "independent" is determined (stored `source_derivations` vs computed at query time), and what the pilot's corroboration number means when every source is a Wikipedia page.
 
 
 ---
@@ -986,7 +1106,7 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q4 predicate | ADR-001 §2.4 sketch |
 | Q5 objects | ADR-001 D6 worked example (6 claims for rendang) |
 | Q6 sources | GUS-026 §3 source classes — **DECIDED**: extend `sources` IN PLACE with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support). **Classification is by URL domain, each domain individually — never a blanket rule.** Measured: ALL 142 rows are `en.wikipedia.org` → all **S6**; there is no other domain to classify, so the catalog has no source diversity at all. Caveat recorded: `*.wikipedia.org` must be split by PATH, since a `/wiki/File:...` or a `wikidata.org/wiki/Q...` URL is not a Wikipedia article. **Dedupe BEFORE the pilot** (GUS-238): 21 redundant rows across 12 normalised URLs; 21 rows carry zero citations, 20 in duplicate groups and 1 unique-URL orphan (Tajine - a different defect, an unused source); only 1 group has more than one cited row (Moussaka, 3 dishes sharing one article); 'pho' has 2 rows, neither cited. Normalise URL, id map, re-point citations, ARCHIVE merged rows, unique constraint on normalised_url. `source_type` stays; `reliability` deprecated not deleted |
-| Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes — **OPEN**. Draft: a `claim_citations` table (statement_id, source_id, stance supports/refutes/context, locator, excerpt, **revision_id**, retrieved_at). The evidence link must carry the **Wikipedia revision id** (verified live: `Rendang` revid=1381860136, timestamp 2026-10-25T07:01:26Z, and `?oldid=<revid>` is a permanent permalink) **or a retrieval date for sources that are not versioned** — because a Wikipedia article cited today is a different document from the one cited in March, and without the revision id the citation silently drifts to whatever the article says now |
+| Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes — **DECIDED** (Alejandro, 2026-10-27): a `claim_citations` table, one row per **(statement, source, revision, locator)** — `UNIQUE NULLS NOT DISTINCT` (Postgres 16, verified live: NULL-revision duplicates rejected, re-reads and multiple passages accepted). Carries `stance` (supports/refutes/context), `locator`, `excerpt`, `revision_id` (Wikipedia revid) and **one** timestamp `retrieved_at timestamptz` (`accessed_at` dropped). **`stance='context'` counts as NEITHER support nor refutation** — excluded from coverage AND from corroboration; a context-only statement is `unsupported`, not `disputed`; a `refutes` link does not make a statement evidenced. **Excerpt = the minimal passage carrying the fact (1–2 sentences), quoted verbatim, and VALIDATED as a substring of the stated revision's text**; public display requires attribution (Wikipedia CC BY-SA). **Migration OVERRIDDEN: only the 3 pilot dishes migrate**, as `stance='supports'` with excerpts fetched + `revision_id` recorded (a re-reading, recorded as such), **verification state `unverified` until reviewed** (GUS-026 §10 — the agent cannot publish); **the other 118 stay in the archived `citations` table until their statements exist, and NO statements are created to receive them** |
 | Q8 independence | GUS-026 §5 |
 | Q9 anchors | ADR-001 D4 (sentence anchors) |
 | Q10 ownership | ADR-001 §2.2 (`dish_claims`) |
