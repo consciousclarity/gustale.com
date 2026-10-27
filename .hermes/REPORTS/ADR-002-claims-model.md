@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q10 DECIDED, Q11 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q11 DECIDED, Q12 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -1579,7 +1579,7 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 | contexts | 5 |
 | ingredient categories | 53 |
 
-**The binding constraint is the cuisine vocabulary: 21 values for 36 origin countries.** And the consequence is already visible in the live catalog — **19 of 121 published dishes have no `dish_cuisines` row at all**, across **16 countries with zero dishes carrying a cuisine**:
+**The binding constraint is the cuisine vocabulary: 21 values for 36 origin countries.** And the consequence is already visible in the live catalog — **19 published dishes have no `dish_cuisines` row**, across **18 countries with zero dishes carrying a cuisine**. **Of those 19, eighteen are gaps and one is a deliberate unset** (`chicken-tikka-masala`, the Glasgow dispute — ADR-001 D1), so the gap count is **18**:
 
 | | dishes with no cuisine |
 |---|---|
@@ -1620,15 +1620,72 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 
 **What this means for catalog growth, stated as a constraint rather than a worry:**
 
-- **The cuisine vocabulary must grow to cover the countries the catalog spans.** 21 values cannot express 36 origins, and the 19 uncovered dishes are the visible cost. The Q6 rule — *each domain classified individually, never a blanket rule* — applies here too: a new cuisine value is a **vocabulary extension by explicit decision** (Q1's rule: new predicates/values only by decision), not a data-entry convenience.
-- **The course vocabulary (8 values) is the dimension most likely to break first.** `Appetizer, Breakfast, Condiment, Dessert, Drink, Main course, Side, Snack` has no slot for dishes that are **dish+drink hybrids**, **breakfast dishes eaten as street food**, or **dishes whose course depends on the meal** — all of which exist in the world's food cultures and all of which are exactly what "unexpected locations" produce.
-- **No dish currently has its `canonical_name` equal to a family name except `moussaka-greek`.** So there is **no precedent** for the awkward case. Adding 50 dishes from unfamiliar locations *will* create that precedent — so the rule for it has to be written down, not improvised 50 times.
+- **The cuisine vocabulary must grow to cover the countries the catalog spans.** 21 values cannot express 36 origins, and the 18 gaps are the visible cost. The Q6 rule — *each domain classified individually, never a blanket rule* — applies here too: a new cuisine value is a **vocabulary extension by explicit decision** (Q1's rule: new predicates/values only by decision), not a data-entry convenience.
+- **The COURSE vocabulary does not break.** A dish that is eaten at breakfast *and* bought as street food is **`course` + `context`** — ADR-001 D2 made `dish_context` a separate, multi-valued dimension for exactly this, so the two facts live in two dimensions rather than fighting over one cell. A dish whose course depends on the meal is recorded as its **primary role** (ADR-001 D3f: *"dish_course = the dish's PRIMARY meal role; secondary/situational uses go to dish_context"*). **So the course vocabulary absorbs unfamiliar dishes unchanged.** This corrects an earlier worry in this ADR that the 8 course values "break first" — they do not.
+- **A dish name never becomes a family unless the family has ≥2 member dishes.** The rule, stated: **if only one dish in the catalog would carry a family value, that value is not a family — it is a description.** This is the rule that stops `moussaka-greek` from becoming the family "Moussaka", and it is what makes the family vocabulary safe to extend: a new family value is only admitted once a second dish genuinely belongs to it. (Today exactly **one** dish has its `canonical_name` equal to a family name — `moussaka-greek` — so there is **no precedent** for the awkward case, and 50 new dishes will create it. The ≥2 rule is what makes that safe.)
 
 **What this does NOT change about the ADR's decisions.** It does not reopen Q4's one-predicate-per-dimension rule: a new *predicate* still requires a decision, and a new *value* in an existing dimension is the normal extension path (Q4: "the vocabulary grows deliberately"). It does not reopen Q5's single-valued rule. **It adds a requirement the model already implies but has never had to satisfy at scale: the vocabularies must be complete enough that no dish needs a bad fit.**
 
-**And it sharpens the GUS-231 link.** GUS-231 excludes non-published dishes from metric populations. A dish with **no cuisine row** is in the same category — a row that exists in the catalog but is missing a dimension — and today it *does* enter the denominator silently. **A standing check for "every published dish has all seven dimension rows" belongs with GUS-231's standing check**, because it is the same defect: a population that includes rows the metric does not measure.
+**And it sharpens the GUS-231 link.** GUS-231 excludes non-published dishes from metric populations. A dish with a missing dimension row is in the same category — a row that exists in the catalog but is missing a dimension the metric measures — and today it *does* enter the denominator silently. **A standing check belongs with GUS-231's standing check**, because it is the same defect: a population that includes rows the metric does not measure.
+
+**But the check is NOT "every published dish has all seven dimension rows" — that would contradict ADR-001.** The correct rule is the pilot spec's own (D3e):
+
+> **Every dimension is either ASSIGNED a controlled-vocabulary value, or EXPLICITLY UNSET with a reason.**
+
+The reasons are `disputed` · `no_evidence` · `not_applicable`. **An unset dimension is a recorded decision, not a gap.** ADR-001 D1 already established the precedent: **`chicken-tikka-masala`'s cuisine is deliberately unset** because the Glasgow origin is contested — and that is *correct*, not a defect. A check that demanded all seven rows would flag the single most deliberate editorial decision in the catalog as an error.
+
+**So the standing check is: "every published dish has a recorded state for every dimension — assigned, or unset with a reason."** A dimension with *neither* is the defect. The schema must therefore be able to record the reason, which means the unset reason needs somewhere to live — a nullable `unset_reason` column on the dimension join tables, or an equivalent mechanism. **That is a schema change, and it is part of this work rather than an afterthought**, because without it "explicit unset with a reason" is unfalsifiable.
+
+**Which of the 19 cuisine-less dishes are unset-by-decision and which are gaps.** Measured: **19 published dishes have no `dish_cuisines` row**, across 18 countries:
+
+| country | dishes | status |
+|---|---|---|
+| Brazil | `acaraje`, `feijoada` | **gap** — no cuisine value exists for Brazil |
+| India | `vindaloo` | **gap** — `Indian`/`South Indian` exist; `vindaloo` is unassigned (ADR-001's 13 broader-family proposals are still open) |
+| Thailand | `khao-soi` | **gap** — `Thai` exists |
+| Austria | `wiener-schnitzel` | **gap** — no Austrian value |
+| Canada | `poutine` | **gap** — no Canadian value |
+| Greece | `moussaka-greek` | **gap** — no Greek value |
+| Hungary | `goulash-hungarian` | **gap** — no Hungarian value |
+| Jordan | `mansaf` | **gap** — no Jordanian value |
+| Morocco | `tagine-moroccan` | **gap** — no Moroccan value |
+| Nepal | `momo` | **gap** — no Nepalese value |
+| Nigeria | `jollof-rice` | **gap** — no Nigerian value |
+| Poland | `pierogi` | **gap** — no Polish value |
+| Portugal | `bacalhau-a-bras` | **gap** — no Portuguese value |
+| Puerto Rico | `tostones` | **gap** — no Puerto Rican value |
+| Tunisia | `couscous` | **gap** — no Tunisian value |
+| Ukraine | `borscht` | **gap** — no Ukrainian value |
+| United States | `hamburger-american` | **gap** — no American value |
+| **United Kingdom** | **`chicken-tikka-masala`** | **UNSET BY DECISION — the Glasgow dispute (ADR-001 D1). Not a gap.** |
+
+**So: 18 gaps and 1 deliberate unset.** `chicken-tikka-masala` is counted in the 19 by a *row-absence* query, but it is not a gap — it is the catalog's clearest example of an unset dimension being the correct editorial state, and under the national-cuisine convention below it is **also** the dish whose cuisine would be `disputed` between British and Indian.
 
 **The catalog-growth task itself is backlogged as GUS-241**, not done here — it is content work with 50 researched dishes, each needing a place, a description written in the catalogue's own words, a source, and a vocabulary decision where nothing fits.
+
+#### The cuisine convention — NATIONAL, with regional traditions in `dish_tradition`
+
+**`dish_cuisine` is national. Regional and transnational traditions belong in `dish_tradition`, not in `dish_cuisine`.**
+
+| kind of tradition | where it goes | example |
+|---|---|---|
+| national cuisine | `dish_cuisine` | `Indonesian`, `Mexican`, `Italian` |
+| regional / sub-national tradition | **`dish_tradition`** | `Minangkabau` (rendang), `Levantine`, `Maghrebi`, `Central European` |
+| transnational dish | **`dish_cuisine` unset (`disputed`) + `dish_tradition`** | a dish claimed by two nations |
+
+**This is exactly the shape the catalog already uses for rendang: `cuisine = indonesian` + `tradition = minangkabau`.** The convention generalises an existing, working pattern rather than inventing one — and it means the pilot's place plan (Q3) is unaffected, because `Minangkabau` was already correctly a **tradition value, not a place**.
+
+**Why this is the right split.** A cuisine answers *"which national food culture is this dish part of?"* — a single answer, and the catalog's `dish_cuisines` is single-valued (`UNIQUE (dish_id)`). A tradition answers *"which regional, ethnic or religious community's version is this?"* — and that is inherently multi-answerable (`rendang` is Minangkabau *and* Sundanese *and* Indonesian-national *and* Eid-associated; `dish_traditions` is already multi-valued with 36 values including exactly these). **The two dimensions have different cardinalities, and the schema already encodes that.** Putting `Levantine` in `dish_cuisines` would force it to be single-valued when it is not.
+
+**The consequences, stated:**
+
+- **New national cuisine values are added individually, by decision.** Not a blanket rule per country — Q6's rule applies: each value classified on its own merits. `Puerto Rico` gets **its own value** (it is a nation in its own culinary frame, and collapsing it into "American" would erase a distinct food culture — which is also why `United States` cannot simply absorb it).
+- **A transnational dish gets `dish_cuisine` unset with reason `disputed`, plus a `dish_tradition`.** That is the `chicken-tikka-masala` case exactly: cuisine unset (disputed), tradition `Glasgow Muslim` + `British National` — both of which **already exist** in `dish_traditions`.
+- **This closes the ADR-001 §4 follow-up** on national-vs-regional cuisines, which was recorded there as an open follow-up with four questions and a note that "the pilot uses the flat vocabulary, Minangkabau specificity is carried by origin(place) and claims, NOT by inventing a cuisine row." **The flat vocabulary was the pilot's expedient; this decision replaces it with a rule.**
+
+**What this does to the 18 gaps.** Under the national convention, each of the 18 needs a national cuisine value that does not yet exist: `Austrian`, `Brazilian`, `Canadian`, `Greek`, `Hungarian`, `Jordanian`, `Moroccan`, `Nepalese`, `Nigerian`, `Polish`, `Portuguese`, `Puerto Rican`, `Tunisian`, `Ukrainian`, `American`, plus filling `vindaloo` and `khao-soi` from the existing `Indian`/`Thai` values. **That is 15 new national cuisine values plus 2 assignments** — each one a decision, per Q1's "the vocabulary grows deliberately."
+
+**And it does NOT require a new dimension, a new predicate, or a schema change to the taxonomy.** The values go in the existing `dish_cuisines` table; the traditions already exist. **This is a vocabulary extension, not a model change** — which is why it can be done now, before the claims model lands.
 
 #### What is settled by this decision, and what it defers
 
@@ -1656,7 +1713,90 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 
 ---
 
-### Q11 — What happens to the existing 121 dish-level citations?
+### ✅ Q11 — DECIDED (Alejandro, 2026-10-27): the 118 get no statements until research supplies a source
+
+**Option (iii): neither (i) nor (ii).** The 118 published dishes outside the pilot get **no statements** until research supplies a real source for the facts being asserted. Their dimension rows stay `statement_id IS NULL` — **the `unevidenced` state (Q3)**, which is honest and not an error.
+
+**No country-level statements are derived from `origin_location` or from existing dimension rows.** A geocode is not a citation.
+
+**Places are seeded on demand, per researched dish** — not speculatively for all 36 countries.
+
+#### The decision, and why (iii) is the only one of the three that is honest
+
+The two rejected options were:
+
+| option | what it does | why it fails |
+|---|---|---|
+| **(i) mechanically derive 118 country-level statements** | turn each dish's `origin_geo_id` into an `originated_in` statement | **it manufactures claims from a geocode.** `dishes.origin_location` is a `geometry` column holding WKB hex; the country came from a *map*, not from a *source*. A statement whose evidence is "we looked up the coordinates" is a statement with no evidence — and it would be **indistinguishable in the database from a researched one**, because the schema cannot tell them apart. |
+| **(ii) research all 118 properly now** | do the full job | it needs a place hierarchy for 36 countries and a real non-Wikipedia source per dish — and it would land **before** the model that records any of it exists. The research would have nowhere to go. |
+
+**(iii) is the only option that keeps the evidence model meaningful.** Under (i), the catalog would show 118 "evidenced" claims whose provenance is a lat/long pair — and because `claim_citations` (Q7) is where the truth about a citation lives, those statements would have **no citations at all**, which in the model is precisely `unsupported`. **Option (i) would create 118 rows that the model itself classifies as unevidenced, while looking evidenced in the dimension tables.** That is the "two truths" failure ADR-002 exists to remove, arrived at through the back door.
+
+**And it makes the metric honest rather than flattering.** With (iii), the catalog's coverage is **0% outside the 3 pilot dishes** — a true number. With (i), it would be a large number resting on nothing.
+
+#### The migration shape
+
+| | the 3 pilot dishes | the other 118 |
+|---|---|---|
+| statements | created, from research | **none** |
+| `claim_citations` | Q7's rules — `supports`, excerpt fetched, `revision_id` recorded | none |
+| dimension rows | `statement_id` set to the supporting statement | **`statement_id IS NULL` = `unevidenced`** |
+| `description_sentences` | populated, `field='short'` | not populated (Q9's scope) |
+| verification state | `unverified` until reviewed (GUS-026 §10) | n/a |
+| `citations` (old table) | re-pointed | **stay archived** (Q7) |
+
+**The `statement_id IS NULL` state is the whole mechanism.** Q3 already defined it: *"a dimension row with `statement_id IS NULL` is unevidenced — not an error; it is the honest state of the 91 rows that have a value but no evidence yet."* Those 91 rows exist today. **Under (iii) the number grows to every dimension row of the 118 — and the meaning does not change: a value someone typed, awaiting evidence.** The coverage metric then reports the truth: those facts are asserted but not yet evidenced.
+
+**One consequence to state plainly: the catalog's headline coverage number goes to zero.** Today the catalog's dimension rows carry no `statement_id` at all, so coverage is *undefined* (Q7's note: "any catalog-wide coverage percentage in this state is meaningful only over the 3 pilot dishes"). Under (iii) it becomes **defined and near-zero** — which is a better state, because a defined 0% can be read as "not yet researched" rather than "not measured". **The 118 do not get worse; they get correctly labelled.**
+
+#### The rules that make (iii) safe
+
+**1. No statement is created without a source.** The trigger for creating a statement is *research*, not *a dimension row that needs one*. Concretely: a statement exists when a person or an agent has **fetched a source that says the thing**, recorded the excerpt, the revision id and the retrieval timestamp (Q7), and classified the source's class (Q6).
+
+**2. No derivation from `origin_location`.** The geometry is a point derived from a geocode. It may be used to *suggest* a place to research; it may never be the *evidence* for one. **The place entity comes from the source's text.**
+
+**3. No derivation from an existing dimension row.** A row saying `dish_family = curry` is a value someone typed (or a value a migration copied). Turning it into a statement would launder a **typed value into an evidenced claim** — the exact failure Q3 named when it made the row the *index* and the statement the *evidence*. The row is not evidence of itself.
+
+**4. Places are seeded on demand, per researched dish.** Not a speculative hierarchy for 36 countries. The pilot seeded 11 places because the pilot's 3 dishes needed them; the next dish's research seeds the place *it* needs, with its own source. **This is what stops the model from acquiring a 36-country place hierarchy of unverifiable rows** — which is exactly the `food_regions` = 0 / `geo_entities` = 36-countries-only state the catalog is in, and which the geography audit showed to be *thin* rather than wrong.
+
+**5. The `citations` table keeps the 118 archived.** Q7 decided the old table is archived rather than dropped, because `citations.target_type/target_id` is a dish-level link the new model does not replace. Under (iii) the 118's archived rows are the **record that research is outstanding** — and when one of those dishes is researched, its old citation is either re-read (Q7's re-reading, with a fresh revision id) or superseded. **The archive is a work queue, not a graveyard.**
+
+#### What "research supplies a source" means operationally
+
+**The bar is Q6's class sufficiency plus GUS-026 §3.1's Wikipedia rule, and it is per-claim, not per-dish:**
+
+- A **non-origin** claim (a technique, an ingredient, a course) can be evidenced by a class-sufficient source — S1–S5, and S6 may accompany but not stand alone.
+- An **origin** claim (`originated_in` / `originated_at` / `created_by` / `named_after`) with `claim_class` `documented` or `disputed` needs **≥1 S1, S2, S3 or S5 source**. Wikipedia may accompany it; it may not be the only one.
+- A transnational dish's origin is `disputed` — so it needs sources **for each competing position**, not one source that mentions the dispute.
+
+**So the research bar for a dish is not "find a Wikipedia article" — it already has one.** Every one of the 121 dishes has exactly one Wikipedia citation (GUS-011). **The bar is finding the second, non-Wikipedia source that the policy requires** — which is exactly the work Q8's Amendment 4 specifies for the pilot's rendang origin claim: *2 real non-Wikipedia sources, S1–S5, explicitly assessed independent.*
+
+**And a dish that cannot be researched to that bar stays unevidenced.** That is the honest end state, and it is permanent for some dishes — no rule says every dish must eventually be corroborated, and GUS-026 §6's `unsupported` class exists precisely so that a dish can be in the catalog with an honest, unevidenced dimension.
+
+#### The order of work, as sequenced
+
+1. **(a) Fix the cuisine gaps now — dimensions only.** 15 new national cuisine values + 2 assignments (per the convention above), and the `unset_reason` mechanism so "explicit unset with a reason" is recorded rather than implied. **No statements, no citations, no claims** — this is dimension data only, and it does not wait for the claims model.
+2. **(b) Finish ADR-002 and run the pilot** — the 3 pilot dishes end to end, producing the model's validation numbers.
+3. **(c) The 50 new dishes are seeded directly into the claims model, never the old one.** Each new dish arrives with its place, its description, its dimensions **and its source**, in one operation — not created in the legacy shape and back-filled later. **And each new dish needs ≥1 non-Wikipedia source for its origin claim** — which is a stronger bar than the catalog's existing dishes meet, and deliberately so: the new content should not repeat the defect the old content has.
+
+**Why (c) is seeded into the claims model and not the old one.** Because the old model *cannot* express the new content honestly: `citations.claim_text` is a whole description (120 of 121), so a new dish seeded the old way would arrive with the same over-broad proposition the ADR exists to dissolve. **The 50 dishes are the first content that starts life in the new model.** That also means they set the precedent for how the 118 will eventually be researched — and Q11's (iii) says the 118 wait for research, not for a back-fill.
+
+#### What is settled by this decision, and what it defers
+
+**Settled:** the 118 get no statements until research supplies a source; their dimension rows stay `statement_id IS NULL` = `unevidenced`; **no country-level statements are derived from `origin_location` or from existing dimension rows**; places are seeded on demand per researched dish; the `citations` archive is the record of outstanding research; the work order is (a) cuisine gaps → (b) ADR-002 + pilot → (c) the 50 new dishes seeded into the claims model with ≥1 non-Wikipedia source each.
+
+**Deferred, and named rather than glossed:**
+
+| # | deferred | why |
+|---|---|---|
+| 1 | the **order of the 118** when research does start | it should follow the same bar (per-claim class sufficiency), but which dish gets researched first is a work-planning decision, not a model one |
+| 2 | whether a dish that cannot be researched to the bar is **hidden** from public views or shown with an honest "unevidenced" badge | GUS-026 §6's `unsupported` class implies the latter is available, but the *display* decision is a Q13 question |
+| 3 | the exact **`unset_reason` mechanism** (column on the join tables vs. a separate table) | a schema choice with a real constraint — the reason must be queryable per (dish, dimension) and must not be able to conflict with an assigned value |
+| 4 | whether `dish_tradition`'s multi-value is enough for the **transnational** case, or whether a transnational dish needs *competing* traditions with an accepted one (Q5's generalised rule) | Q5's rule is written for single-valued dimensions; `dish_tradition` is multi-valued, so the rules differ |
+
+---
+
+### Q11 (original) — What happens to the existing 121 dish-level citations?
 
 **Decision:** the migration path for the current data.
 
@@ -1698,7 +1838,7 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q11 is open** — the migration path for the existing 121 dish-level citations: what happens to them now that statements are independent entities with no owner, and what the 3 pilot dishes actually get.
+**Q12 is open** — the verification lifecycle: which state a statement moves through, and who moves it. GUS-026 §6 already names the seven states, so the open part is the **gates** (what must be true to move between them) and the **agent boundary** — GUS-026 §10 says an agent may not move a claim to `verified`, and Q2 and Q7 have both leaned on that.
 
 
 ---
@@ -1727,6 +1867,6 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q8 independence | GUS-026 §5 — **DECIDED** (Alejandro, 2026-10-27): independence is **STORED**, not computed, at **two levels** — `source_derivations` (whole-source derivation: mirrors, translations, editions, reprints) and `citation_independence` (per-citation, claim-specific judgement). **Tri-state: `independent` / `derived` / `unassessed`, with NO DEFAULT** — "no derivation recorded = independent" is rejected, so an unassessed pair contributes zero and an incomplete assessment understates rather than inflates. **Corroboration counts only `supports` links from class-sufficient sources, and S6 NEVER COUNTS** — so the pilot's corroboration is **0 by policy** (all 142 catalog sources are en.wikipedia.org → S6), and **no Wikipedia derivation work is needed**. Level 1 is a hard block checked first. **The pilot must exercise the path**: one rendang origin statement with 2 real non-Wikipedia sources (S1–S5, explicitly assessed `independent`), plus a **derived-pair negative case built in the TEST DB, not live**. **Workload policy CLOSED (Alejandro, 2026-10-27): `citation_independence` rows are written ONLY for class-sufficient `supports` pairs on the same statement; no row = `unassessed`, which contributes zero** — the table is not populated exhaustively, and absence of a row is not evidence of independence |
 | Q9 anchors | ADR-001 D4 (sentence anchors) — **DECIDED** (Alejandro, 2026-10-27): a **structured sentence table**, not inline markers (markers would leak into the public column and break translations; offsets break on edit). `description_sentences` (dish_id, field `short`/`long`, locale, position, text, `anchor_status` full/partial/none) + `sentence_claims` (sentence_id → statement_id, **status** ok/missing/retracted/unpublished/contradicting). `short_description` rendered from the sentences with an **exact** concatenation check; a sentence edit marks its anchors `needs_review` (Q2's stale mechanism); anchors on the **canonical** text only. **(1) THE CONCAT CHECK IS A GATE, NOT A BOUNDARY TEST** — a zero-width split rejoins exactly *by construction*, so it proves table↔column agreement and nothing about boundaries. Boundaries are proven by a **FIXTURE SET** (quotes, decimals, abbreviations, initials, ellipses) with expected splits, plus **human review of the pilot sentences**; **one splitter implementation** serves both population and check. The rule: a terminator that is not in a quoted span, not between digits, not part of an abbreviation/initial, not part of an ellipsis, and is followed by whitespace. **(2) VALIDITY IS ITS OWN AXIS** on `sentence_claims.status` (ok/missing/retracted/unpublished/contradicting), separate from `anchor_status`'s coverage — a sentence is `full` only if every anchor is `ok`; `unpublished` is the agent boundary (GUS-026 §10) in anchor form. **(3) CANONICAL BY DEFINITION** — the `dishes` columns ARE the canonical text; no locale column is needed; `dish_translations` is non-canonical and its 121 `en` rows are byte-identical duplicates of `short_description`, so translations are NOT a source of sentences (else every fact is anchored twice) — **archiving the 121 duplicates is backlogged**; this retires GUS-226 as a blocker for Q9. **(4) FIXTURE EXCLUDED BY GUS-231** — `dishes.status` CHECK restricts to draft/published/archived and the fixture is `archived`, so gating population on `status='published'` excludes it by construction. **(5) MANY-TO-MANY** confirmed — rendang's single sentence asserts **7+ facts**, confirming **GUS-225's undercount**. **(6) POPULATION = 3 PILOT DISHES ONLY**; `long` is **moot** (measured: all 3 pilot `long_description` are empty) and that gap is recorded — the `long` path (166 sentences, 1–12 per dish) is untested by the pilot, so the `field` enum must not be narrowed to `'short'`. **(7) `sentence_managed` FLAG + TRIGGER** — `ALTER TABLE dishes ADD COLUMN sentence_managed boolean NOT NULL DEFAULT false`, with a `BEFORE UPDATE` trigger rejecting a changed `short_description` when the flag is set; same pattern the project already uses in `db/migrations/gus-224-relations-option-b.sql`. **Why:** the concat check only *detects* divergence; a direct `PATCH` to `/api/dishes/:slug` (which sets `shortDescription` in `apps/api/src/routes/dishes-write.ts`) would silently desync. **Consequences:** the PATCH path must write through the sentence table for flagged dishes, and the flag keeps the trigger narrow (only the 3 pilot dishes are flagged; the other 118 keep free-text edits; `long_description` and all other columns stay writable). **(3a) FLAG CHANGES ARE LOGGED AND UNSETTING IS GATED** — every `sentence_managed` change is logged in `edit_history` (`target_type='dish'`, `action='update'`, `diff` jsonb, `comment` — the GUS-014 pilot's established pattern), written by the trigger in the same transaction so it cannot be skipped. **Unsetting the flag must re-sync or be REJECTED**, because otherwise the flag is a bypass: it would disable the trigger *and* leave the table and column desynced. **The stronger choice is recorded — VERIFY-THEN-CLEAR** (re-sync on unset can silently overwrite an edited column with a stale reconstruction and lose prose; verify-then-clear preserves both properties). So the trigger has two duties: `false→true` logs and requires the sentences to exist and be consistent; `true→false` logs and requires consistency, else it raises. **Consistency = the concat check passes** — one definition, used by the trigger, the migration and the verifier. **(3b) THE API CHANGE LANDS BEFORE THE TRIGGER** — if the trigger is applied first, every `PATCH /api/dishes/:slug` setting `shortDescription` on a flagged dish **fails** (the route still writes the column directly), a user-visible regression caused purely by ordering. Sequence: (1) ship the API change; (2) then the migration (which needs approval under RULES.md). The code lands first because it is the cheaper order to revert. After the trigger is live, such a PATCH returns an error instead of silently desyncing — intended, and covered by an API test |
 | Q10 ownership | ADR-001 §2.2 (`dish_claims`) — **DECIDED** (Alejandro, 2026-10-27): statements are **INDEPENDENT ENTITIES with NO owner column** — no `owner_id`, no `dish_id`, no owner FK; the **subject FK is the only link**. "A dish's statements" = `WHERE subject_type='dish' AND subject_id = $1`. **Why:** an owner column makes evidence duplication the schema's default — "rendang uses coconut milk" and "nasi lemak uses coconut milk" are ONE fact about one ingredient, and per-dish ownership would hide cross-dish corroboration and duplicate the research. **Cost stated:** a statement's subject is a single entity, so a genuinely multi-dish fact is two statements sharing evidence (the model shares by sharing the subject, not by widening it). **(2) A SENTENCE MAY ANCHOR A STATEMENT ABOUT A DIFFERENT SUBJECT** — a `tacos-al-pastor` sentence may anchor a statement about **Puebla** (`subject_type='place'`); that is correct, because the sentence is where the claim is made and the claim is about what it is about. **DISH COVERAGE IS COMPUTED OVER ITS OWN SENTENCES, regardless of statement subject** — `coverage(dish) = anchored sentences / total sentences`. Not "statements whose subject is this dish": that would score tacos-al-pastor **0%** while D4b actually asks *"is every fact asserted in this prose anchored?"* — a question about the prose, not the subject distribution. **Corollary: evidence is per-statement, anchoring is per-sentence** — one statement can be anchored in two dishes' sentences with one evidence chain and two anchors. **(3) DEDUPE: ONE FACT IS ONE STATEMENT**, unique on `(subject_type, subject_id, predicate_id, value_type, value_ref, value_literal, qualifier_hash)` — otherwise a claim corroborated by two sources looks like two uncorroborated claims and the evidence splits. The **canonical qualifier hash** is in the key because scope is part of the fact's identity (Glasgow vs the subcontinent are competing statements, not one). Measured on live Postgres: jsonb equality is **key-order-independent and whitespace-insensitive but absent ≠ null** — so absent qualifiers must be **omitted, not stored as null**, or the hash diverges and dedupe silently fails. The qualifiers stay readable in `jsonb`; the hash is a key, not a storage format, and must be wide enough that a collision is not practical. Workflow: **find-or-create the statement, then attach the citation** — a duplicate insert is the constraint saying the fact exists. **(4) NO CASCADE DELETES** out of statements and **retraction is a status change** (`needs_revision`/`disputed`) — deleting a statement would delete its evidence chain, which is the most expensive thing in the catalog to produce and would make the research unrepeatable. Concretely: `description_sentences` → `sentence_claims` cascades (a link deletion, not an evidence deletion); `statements` → `claim_citations` does NOT cascade; `dishes` → `description_sentences` does NOT cascade; a dangling anchor is **marked** `missing`, not silently left. `dishes.status='archived'` is the existing non-delete mechanism (GUS-231). **THE CONSISTENCY CHECK: a dimension row's `statement_id` must reference a statement whose subject is that dish** — catches wrong-subject anchors and cross-dish mis-assignment. Crucially the **Puebla case is correctly NOT flagged**: the sentence↔statement relation is deliberately allowed to cross subjects, but the dimension-row↔statement relation is not, because a dimension row asserts something *about that dish*. A dimension row with `statement_id IS NULL` is **NOT a violation** — it is the honest **unevidenced** state (91 dishes have a family and no statement). Deferred: the exact qualifier canonicalisation (a wrong choice silently breaks dedupe — belongs with the first implementation), whether the hash is stored or generated (generated is safer — it cannot desync), and whether place statements can ever be dimension-row targets |
-| Q11 migration | GUS-011 (121 Wikipedia-only) |
+| Q11 migration | GUS-011 (121 Wikipedia-only) — **DECIDED** (Alejandro, 2026-10-27): **OPTION (iii) — neither (i) nor (ii).** The **118 published dishes outside the pilot get NO statements until research supplies a real source**; their dimension rows stay **`statement_id IS NULL` = `unevidenced`** (Q3's honest state). **NO COUNTRY-LEVEL STATEMENTS ARE DERIVED FROM `origin_location` OR FROM EXISTING DIMENSION ROWS — a geocode is not a citation.** **PLACES ARE SEEDED ON DEMAND, PER RESEARCHED DISH**, not speculatively for all 36 countries. Why (i) fails: it manufactures claims from a geocode — `origin_location` is a `geometry` column holding WKB hex, the country came from a *map* not a *source*, and the resulting rows would be **indistinguishable in the database from researched ones** while having **no `claim_citations` at all** — which in the model is precisely `unsupported`. That is the "two truths" failure ADR-002 exists to remove, arrived at through the back door. Why (ii) fails: it needs a place hierarchy for 36 countries plus a non-Wikipedia source per dish, and would land **before** the model that records any of it exists. The 118's archived `citations` rows remain **the record that research is outstanding** — the archive is a work queue, not a graveyard. CONSEQUENCE STATED PLAINLY: the catalog's headline coverage becomes **defined and near-zero** (today it is undefined) — a defined 0% reads as "not yet researched" rather than "not measured"; the 118 do not get worse, they get correctly labelled. THE RESEARCH BAR IS PER-CLAIM, NOT PER-DISH: a non-origin claim needs a class-sufficient source (S1–S5; S6 may accompany but not stand alone); an **origin** claim with `claim_class` `documented`/`disputed` needs **≥1 S1/S2/S3/S5 source** (GUS-026 §3.1) and a transnational dish's origin needs sources **for each competing position**; a dish that cannot be researched to that bar stays unevidenced **permanently** — GUS-026 §6's `unsupported` class exists for exactly that. ORDER OF WORK: **(a)** fix the cuisine gaps now — dimensions only, no statements/citations/claims, so it does not wait for the claims model; **(b)** finish ADR-002 and run the pilot; **(c)** the 50 new dishes are **seeded directly into the claims model, never the old one** — each arriving with place, description, dimensions AND source in one operation, each needing **≥1 non-Wikipedia source for its origin claim** (a stronger bar than the existing 121 meet, deliberately). Why (c) is not seeded the old way: the old model cannot express the content honestly (`citations.claim_text` is a whole description, 120 of 121), so a new dish seeded the old way arrives with the over-broad proposition the ADR exists to dissolve — **the 50 dishes are the first content that starts life in the new model**. Deferred: the order of the 118; whether an unresearchable dish is hidden or badged (a Q13 display question); the exact `unset_reason` mechanism (a schema choice — the reason must be queryable per (dish, dimension) and unable to conflict with an assigned value); and whether `dish_tradition`'s multi-value suffices for the transnational case (Q5's generalised rule is written for single-valued dimensions) |
 | Q12 lifecycle | GUS-026 §6, §10 |
 | Q13 API | ADR-001 §4 (sequencing) |
