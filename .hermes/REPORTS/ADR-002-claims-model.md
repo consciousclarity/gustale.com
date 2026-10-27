@@ -1502,6 +1502,69 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 
 **A dimension row with `statement_id IS NULL` is NOT a violation.** It is the **unevidenced** state (Q3): a value someone typed, with no evidence yet. **91 dishes have a family assignment and no statement** — that is the honest state of the catalog, not an error, and the check must not report it as one.
 
+#### The catalog's breadth — measured, because the pilot is 3 dishes out of 121
+
+**The pilot is 3 of 121 published dishes. The other 118 are not a homogeneous remainder — they are a catalog spanning 36 countries.** Measured read-only on 2026-10-27:
+
+| | measured |
+|---|---|
+| published dishes | **121** (+1 archived fixture) |
+| **distinct origin countries** | **36** |
+| dishes with a citation | **121 of 121** (every published dish) |
+| distinct sources cited | 121 |
+| `food_regions` rows | **0** — the region table is empty |
+| `dish_locations` rows | **0** |
+| `geo_entities` | 36, **all `entity_type='country'`**, 0 with a parent, 0 with `wikidata_id` |
+
+**Distribution by origin country:**
+
+| country | dishes | | country | dishes |
+|---|---|---|---|---|
+| Indonesia | 16 | | Mexico | 4 |
+| India | 11 | | Israel | 3 |
+| Japan | 10 | | Thailand | 3 |
+| China | 9 | | South Korea | 3 |
+| Lebanon | 8 | | Spain, Brazil, Singapore, Ethiopia, Colombia, France, Vietnam | 2 each |
+| Turkey | 7 | | Puerto Rico, Ukraine, Morocco, Nigeria, US, Portugal, Canada, Austria, Nepal, Poland, Jordan, **UK**, Hungary, Tunisia, Greece | 1 each |
+| Philippines, Italy | 5 each | | | |
+| Argentina, Peru | 4 each | | | |
+
+**Dimension coverage across all 121 published dishes:**
+
+| dimension | dishes covered |
+|---|---|
+| technique | 117 |
+| cuisine | 102 |
+| family | 92 |
+| `long_description` | 21 |
+| context | 13 |
+| ingredient category | **3** |
+| tradition | **1** |
+
+**Two things this makes visible that the pilot framing hid.**
+
+**First, the three pilot dishes are not a neutral sample — they are outliers in three specific ways.** Measured for the pilot dishes:
+
+| dish | origin | techniques | cuisines | families | origin date |
+|---|---|---|---|---|---|
+| `rendang` | Indonesia | 1 | 1 | 1 | — |
+| `tacos-al-pastor` | Mexico | 1 | 1 | 1 | — |
+| `chicken-tikka-masala` | United Kingdom | 2 | **0** | 1 | 1960–1970 |
+
+- **Two of the three carry no `origin_date`** — and only **8 of 121** catalog-wide have one. So the pilot exercises the `originated_at` predicate **twice out of 121 dishes**.
+- **`chicken-tikka-masala` has zero cuisine rows** — it is the Glasgow-dispute dish, deliberately left unset (ADR-001 D1). That is a *deliberate* pilot choice and it is exactly the case where the single-valued/competing-statement machinery is needed, so it is the right choice — but it means the pilot's cuisine coverage is 1 of 2 pilot dishes, not 2 of 2.
+- **The pilot's three countries (Indonesia, Mexico, UK) are 3 of the 36.** Indonesia is the single largest cluster at 16 dishes; the pilot touches 1 of those 16.
+
+**Second, the geographic model is far thinner than the catalog.** The pilot's place plan (Q3) seeds `Indonesia`, `Mexico`, `United Kingdom`, `India`, `West Sumatra`, `Scotland`, `Punjab`, `Glasgow`, `Delhi`, `Mexico City`, `Puebla` — **11 places**. But the catalog's 121 dishes are attributed to **36 countries**, and `geo_entities` holds **36 country rows and nothing else**: no regions, no cities, no hierarchy.
+
+**So `originated_in` — the predicate the Wikipedia rule (GUS-026 §3.1) is written about, and the one that needs a non-S6 source — has a country-level target for all 121 dishes but a place hierarchy for only the 3 pilot dishes' countries.** Every non-pilot dish's origin statement would have to point at a bare country row.
+
+**Why this is recorded here rather than in Q11's answer.** Q11 is the migration question, and the migration's *scope* depends on this. It is a measurement, not a decision — and it is the kind of thing that is easy to lose when three decisions in a row have said "the 3 pilot dishes."
+
+**What it does NOT change.** Q7, Q8 and Q9's population scope all say the **3 pilot dishes**, and that is not in question: the pilot validates the *model*, and 3 dishes with a real dispute, a real origin date and a real cross-subject anchor (Puebla) is the right test set. **What it changes is what Q11 must decide:** whether the other 118 ever get statements, and if so, at what place granularity — because a country-only `originated_in` is a much weaker claim than a city-level one, and the pilot's place hierarchy was built for exactly that reason.
+
+**One data-shape note, recorded because it would bite the implementation:** `dishes.origin_location` is a **`geometry` column holding WKB hex**, not a text place name — and 121 of 121 have it populated, while only 8 have an `origin_date`. So "the dish's location" in the data today is a **point**, and "the dish's place" in the model is a **referenced entity**. Any migration that derives a place from `origin_location` is deriving it from a point, which is a *geocode*, not a citation — and the place entity must come from the source, not the geometry.
+
 #### What is settled by this decision, and what it defers
 
 **Settled:** statements are independent entities with **no owner column**; the subject FK is the only link; a sentence may anchor a statement about **any** subject; dish coverage is computed over **its own sentences**; one fact is one statement, keyed by `(subject, predicate, value, canonical qualifier hash)`; **no cascade deletes** out of statements — retraction is a status change; and a dimension row's statement must have that dish as its subject.
