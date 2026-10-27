@@ -1565,6 +1565,71 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 
 **One data-shape note, recorded because it would bite the implementation:** `dishes.origin_location` is a **`geometry` column holding WKB hex**, not a text place name — and 121 of 121 have it populated, while only 8 have an `origin_date`. So "the dish's location" in the data today is a **point**, and "the dish's place" in the model is a **referenced entity**. Any migration that derives a place from `origin_location` is deriving it from a point, which is a *geocode*, not a citation — and the place entity must come from the source, not the geometry.
 
+#### The taxonomy's capacity limit — measured, because the catalog is about to grow
+
+**Adding dishes from unfamiliar locations is a requirement on the VOCABULARIES, not only on the data.** Measured read-only on 2026-10-27, against the 7 dimension vocabularies:
+
+| vocabulary | size |
+|---|---|
+| families | 25 |
+| cuisines | **21** |
+| courses | **8** |
+| techniques | 25 |
+| traditions | 36 |
+| contexts | 5 |
+| ingredient categories | 53 |
+
+**The binding constraint is the cuisine vocabulary: 21 values for 36 origin countries.** And the consequence is already visible in the live catalog — **19 of 121 published dishes have no `dish_cuisines` row at all**, across **16 countries with zero dishes carrying a cuisine**:
+
+| | dishes with no cuisine |
+|---|---|
+| Brazil | `acaraje`, `feijoada` |
+| Austria | `wiener-schnitzel` |
+| Canada | `poutine` |
+| Greece | `moussaka-greek` |
+| Hungary | `goulash-hungarian` |
+| Jordan | `mansaf` |
+| Morocco | `tagine-moroccan` |
+| Nepal | `momo` |
+| Nigeria | `jollof-rice` |
+| Poland | `pierogi` |
+| Portugal | `bacalhau-a-bras` |
+| Puerto Rico | `tostones` |
+| Thailand | `khao-soi` |
+| Tunisia | `couscous` |
+| Ukraine | `borscht` |
+| United Kingdom | `chicken-tikka-masala` |
+| United States | `hamburger-american` |
+| + 1 Indian, 1 Thai dish | |
+
+**Every one of those 19 has a family and a course — but no cuisine.** So the rule *"every dish must have a category that fits well"* is **currently false for 19 of 121 dishes**, before a single new dish is added. That is the honest baseline, and it is the thing the requirement is actually pointing at.
+
+**And three of the seven dimensions are single-valued by schema constraint** — verified from `pg_constraint`:
+
+| dimension | constraint | single- or multi-valued |
+|---|---|---|
+| `dish_dish_courses` | `UNIQUE (dish_id)` | **single** |
+| `dish_dish_cuisines` | `UNIQUE (dish_id)` | **single** |
+| `dish_dish_families` | `UNIQUE (dish_id)` | **single** |
+| `dish_dish_contexts` | `UNIQUE (dish_id, value_id)` | multi |
+| `dish_dish_techniques` | `UNIQUE (dish_id, value_id)` | multi |
+| `dish_dish_traditions` | `UNIQUE (dish_id, value_id)` | multi |
+| `dish_dish_ingredient_categories` | `UNIQUE (dish_id, value_id)` | multi |
+
+**This is why "every dish must have a category that fits well" is a hard requirement and not a nice-to-have.** A single-valued dimension **cannot** hold a dish that belongs to two families — and ADR-002 Q5 already found that case in the catalog (`chole-bhature` was `curry` vs `bread`, `goulash-hungarian`/`kimchi-jjigae` were `stew` + `soup`). The schema's answer is Q5's generalised rule: competing statements, one accepted, the dimension row points at the accepted one. **So a dish that genuinely straddles two categories is representable — but the *dimension row* still shows one value, and the other lives in a competing statement.** That is a deliberate design, and it means the "fits well" requirement is satisfied by the *evidence*, not by a second value in the row.
+
+**What this means for catalog growth, stated as a constraint rather than a worry:**
+
+- **The cuisine vocabulary must grow to cover the countries the catalog spans.** 21 values cannot express 36 origins, and the 19 uncovered dishes are the visible cost. The Q6 rule — *each domain classified individually, never a blanket rule* — applies here too: a new cuisine value is a **vocabulary extension by explicit decision** (Q1's rule: new predicates/values only by decision), not a data-entry convenience.
+- **The course vocabulary (8 values) is the dimension most likely to break first.** `Appetizer, Breakfast, Condiment, Dessert, Drink, Main course, Side, Snack` has no slot for dishes that are **dish+drink hybrids**, **breakfast dishes eaten as street food**, or **dishes whose course depends on the meal** — all of which exist in the world's food cultures and all of which are exactly what "unexpected locations" produce.
+- **No dish currently has its `canonical_name` equal to a family name except `moussaka-greek`.** So there is **no precedent** for the awkward case. Adding 50 dishes from unfamiliar locations *will* create that precedent — so the rule for it has to be written down, not improvised 50 times.
+
+**What this does NOT change about the ADR's decisions.** It does not reopen Q4's one-predicate-per-dimension rule: a new *predicate* still requires a decision, and a new *value* in an existing dimension is the normal extension path (Q4: "the vocabulary grows deliberately"). It does not reopen Q5's single-valued rule. **It adds a requirement the model already implies but has never had to satisfy at scale: the vocabularies must be complete enough that no dish needs a bad fit.**
+
+**And it sharpens the GUS-231 link.** GUS-231 excludes non-published dishes from metric populations. A dish with **no cuisine row** is in the same category — a row that exists in the catalog but is missing a dimension — and today it *does* enter the denominator silently. **A standing check for "every published dish has all seven dimension rows" belongs with GUS-231's standing check**, because it is the same defect: a population that includes rows the metric does not measure.
+
+**The catalog-growth task itself is backlogged as GUS-241**, not done here — it is content work with 50 researched dishes, each needing a place, a description written in the catalogue's own words, a source, and a vocabulary decision where nothing fits.
+
 #### What is settled by this decision, and what it defers
 
 **Settled:** statements are independent entities with **no owner column**; the subject FK is the only link; a sentence may anchor a statement about **any** subject; dish coverage is computed over **its own sentences**; one fact is one statement, keyed by `(subject, predicate, value, canonical qualifier hash)`; **no cascade deletes** out of statements — retraction is a status change; and a dimension row's statement must have that dish as its subject.
