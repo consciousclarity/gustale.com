@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q7 DECIDED, Q8 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q8 DECIDED, Q9 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -993,7 +993,138 @@ claim_citations (
 
 ---
 
-### Q8 — What does "independent" mean operationally, and is it stored or computed?
+### ✅ Q8 — DECIDED (Alejandro, 2026-10-27): independence is STORED, tri-state, and counted on class sufficiency
+
+**Independence is a recorded editorial judgement, not a computed heuristic.** It is stored at two levels, it is tri-state, and it only counts when a source's class is sufficient for the claim.
+
+```
+-- Postgres has no inline enum on a column, so each enum needs a NAMED type.
+CREATE TYPE independence_relation AS ENUM ('independent','derived','unassessed');
+CREATE TYPE derivation_relation   AS ENUM ('mirror','translation','edition','reprint','other');
+
+-- LEVEL 1: whole-source derivation (mirrors, translations, editions)
+source_derivations (
+  id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  source_id            uuid NOT NULL REFERENCES sources(id),
+  derives_from_source_id uuid NOT NULL REFERENCES sources(id),
+  -- the kind of derivation
+  relation_type        derivation_relation NOT NULL,
+  note                 text,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  UNIQUE NULLS NOT DISTINCT (source_id, derives_from_source_id, relation_type)
+)
+
+-- LEVEL 2: per-citation, claim-specific independence judgement
+citation_independence (
+  id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  statement_id         uuid NOT NULL REFERENCES statements(id),
+  source_id            uuid NOT NULL REFERENCES sources(id),
+  compared_source_id   uuid NOT NULL REFERENCES sources(id),
+  -- the recorded judgement about THIS PAIR, for THIS claim
+  relation             independence_relation NOT NULL,
+  note                 text,
+  assessed_by          text,
+  assessed_at          timestamptz NOT NULL DEFAULT now(),
+  UNIQUE NULLS NOT DISTINCT (statement_id, source_id, compared_source_id)
+)
+```
+
+**Verified on the live server before recording it** (Postgres 16.4, a temporary table carrying the level-2 constraint and the named enum type):
+
+| case | expected | result |
+|---|---|---|
+| same pair assessed twice with different verdicts | **rejected** | ✅ rejected with `unique_violation` — one judgement per (statement, source, compared_source) |
+| same pair, **different statement**, different verdict | **accepted** | ✅ accepted — level 2 is per claim |
+| `unassessed` storable as an explicit state | **accepted** | ✅ accepted — it is a real state, not NULL and not a default |
+| counting only `relation='independent'` | **1** | ✅ tally `independent=1 derived=1 unassessed=1` — `derived` and `unassessed` excluded |
+
+#### Amendment 1 — corroboration counts only class-sufficient `supports` links; S6 never counts
+
+**A corroborating source must be a class that is sufficient for the claim, and S6 never is.** The corroboration rule is therefore:
+
+> **Corroborated = ≥2 `supports` links on the statement, from sources whose `source_class` is sufficient for that claim's predicate and claim_class, counted pairwise as independent under Amendment 2.**
+
+This is the conjunction of two rules already in GUS-026, made into one check:
+
+| rule | source |
+|---|---|
+| **Class sufficiency** — S6 is *"discovery and terminology only"*; S7 is *"nothing"* | GUS-026 §3 |
+| **The Wikipedia rule** — a `documented`/`disputed` origin claim needs ≥1 S1/S2/S3/S5 source; S6 may accompany but not stand alone | GUS-026 §3.1 |
+| **Quantity is not independence** — *"five websites repeating the same unsourced assertion is one assertion"* | GUS-026 §5 |
+
+**The pilot's corroboration is therefore 0, by policy.** All 142 catalog sources are `en.wikipedia.org` → **S6** → they are sufficient for nothing and count toward nothing. This is not a gap to be closed by recording Wikipedia derivations; it is the policy working. **No Wikipedia derivation work is needed**, and none is queued.
+
+**This makes the pilot's number truthful rather than flattering.** The alternative — counting Wikipedia articles as corroboration for one another — would have produced a non-zero number that meant *"Wikipedia's article agrees with itself"*, which is the exact thing GUS-026 §5 forbids.
+
+**One consequence that has to be stated plainly:** with S6 counting for nothing, **the pilot cannot demonstrate a corroborated claim at all using catalog sources.** Corroboration can only be demonstrated with sources that do not exist yet — which is exactly why Amendment 4 requires the pilot to acquire real non-Wikipedia sources rather than measure the number.
+
+#### Amendment 2 — independence is tri-state, and there is NO default
+
+```
+relation enum('independent','derived','unassessed')
+```
+
+**Three states, and only one of them counts:**
+
+| relation | counts toward corroboration? | meaning |
+|---|---|---|
+| `independent` | **YES** | explicitly assessed: neither source derives from the other |
+| `derived` | **NO** | explicitly assessed: one derives from the other for this claim |
+| `unassessed` | **NO** | not yet judged — **not a synonym for independent** |
+
+**The draft's default is rejected: "no derivation recorded = independent" is not permitted.** The draft proposed *"a source with no derivation is independent of every other source"* — that default is what made the draft's own conclusion inevitable (corroboration 0 across a catalog with no derivations, but 1 for any two Wikipedia pages that happened not to link each other). It also encodes an **absence of evidence as evidence of absence**, which is the same error the rest of this ADR exists to remove.
+
+**Why the tri-state matters more than it looks.** The distinction between `unassessed` and `independent` is the difference between *"we checked and they are independent"* and *"we never checked"*. Collapsing them into a boolean would let an unexamined pair accumulate corroboration credit simply by being present. **A pair that has not been assessed contributes zero.** So an incomplete assessment produces an *understated* number, never an inflated one — which is the safe direction to err in.
+
+**The practical consequence for the pilot:** the corroboration number is not "how many sources agree" but "how many pairs have been **explicitly judged** independent, among sources whose class suffices." Both conditions must hold.
+
+#### Amendment 3 — two levels: source-level derivation and per-citation judgement
+
+**Level 1 — `source_derivations`: whole-source derivation.** Two *sources* are the same document: a translation of another, a reprint of an edition, a mirror. This is a property of the sources themselves and holds for every claim both cite.
+
+**Level 2 — `citation_independence`: per-citation, claim-specific judgement.** Two sources can be entirely distinct documents and still not be independent *for one particular claim* — a book may quote a specific passage from a newspaper for a specific fact while being an otherwise independent source for everything else. That judgement is per (statement, source pair), because it is per claim.
+
+**Why both levels and not just one:**
+
+| | level 1 (`source_derivations`) | level 2 (`citation_independence`) |
+|---|---|---|
+| scope | the source as a document | the claim |
+| example | an English translation of a Dutch original | a book quoting a newspaper for one fact |
+| holds for | every claim both sources cite | that one statement only |
+| determined by | document identity | editorial judgement |
+| effect | the pair never counts | the pair does not count for that statement |
+
+**Level 1 is a hard block, and it is checked first.** If two sources are in a `source_derivations` chain, they are the same source and the pair is `derived` for every claim — no per-citation judgement can override that, because a translation of a source cannot independently corroborate it. The `citation_independence` row for such a pair would be `derived`, recorded once and applied everywhere.
+
+**Level 2 is where the real editorial work lives**, and it is where the tri-state lives too. Level 1 alone would answer *"are these the same document?"*; level 2 answers *"are these independent **for this fact**?"* — which is GUS-026 §5's actual test.
+
+#### Amendment 4 — the pilot must exercise the path, including a derived-pair negative case
+
+**The pilot must not merely measure the number — it must demonstrate that the mechanism works, in both directions.**
+
+**The positive case, in the pilot's 3 dishes:**
+
+> **One rendang statement (the origin claim) carries 2 real, non-Wikipedia sources.** Both are fetched and recorded with excerpts and revision anchors (Q7), both are classified **S1–S5** (so they are class-sufficient, per Amendment 1), and the pair is **explicitly assessed `independent`** (per Amendment 2).
+
+**The negative case:**
+
+> **A `derived` pair is constructed and verified to NOT corroborate.** If the two rendang sources turn out to share an upstream reference, the pair is assessed `derived` and the statement does not corroborate. The derived-pair case is built **in the test database, not live** — it is a fixture that proves the `derived` path returns 0 corroboration credit.
+
+**Why the negative case must be built, not just specified.** A check that has only ever seen `independent` has not been shown to *reject* anything. The `derived` path is the one that has to be right — it is the path that stops a claim being published on the strength of one source twice. Building it in the test DB means the live pilot's 3 dishes carry only real, assessed judgements.
+
+**And the pilot's own number is 0 until the non-Wikipedia sources exist.** Amendment 1 says S6 counts for nothing; so the pilot's Wikipedia-sourced statements corroborate at **0**, correctly. The pilot's *corroboration* number becomes non-zero only once Amendment 4's non-Wikipedia sources are in place and assessed independent.
+
+#### What is decided here and what is not
+
+**Decided:** independence is stored (not computed); tri-state with no default; two levels (source-level derivation + per-citation judgement); corroboration requires class-sufficient `supports` links **and** explicitly-assessed independent pairs; the pilot exercises a positive independent case and a negative derived case, the negative one in the test DB.
+
+**Not decided here, and flagged rather than asked:** whether `citation_independence` rows are written for **every** pair of sources on a statement, or only for pairs that a reviewer is asked to adjudicate. The first is exhaustive and expensive; the second is a workflow choice. **This ADR records that the row is per (statement, source pair) and that an unassessed pair counts as zero** — the workload policy is GUS-029's to set when the pilot shows what the work actually costs.
+
+**Also flagged:** `source_derivations.relation_type` includes `mirror`, `translation`, `edition`, `reprint` — the document-identity relations. `other` is present so an unusual case is recordable rather than forced into a wrong bucket, and `note` carries the explanation.
+
+---
+
+### Q8 (original) — What does "independent" mean operationally, and is it stored or computed?
 
 **Decision:** how source independence is determined.
 
@@ -1081,7 +1212,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q8 is open** — independence: how "independent" is determined (stored `source_derivations` vs computed at query time), and what the pilot's corroboration number means when every source is a Wikipedia page.
+**Q9 is open** — the anchor: how a description sentence is tied to the claims that state it (an inline marker in the prose, or a structured sentence table).
 
 
 ---
@@ -1107,7 +1238,7 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q5 objects | ADR-001 D6 worked example (6 claims for rendang) |
 | Q6 sources | GUS-026 §3 source classes — **DECIDED**: extend `sources` IN PLACE with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support). **Classification is by URL domain, each domain individually — never a blanket rule.** Measured: ALL 142 rows are `en.wikipedia.org` → all **S6**; there is no other domain to classify, so the catalog has no source diversity at all. Caveat recorded: `*.wikipedia.org` must be split by PATH, since a `/wiki/File:...` or a `wikidata.org/wiki/Q...` URL is not a Wikipedia article. **Dedupe BEFORE the pilot** (GUS-238): 21 redundant rows across 12 normalised URLs; 21 rows carry zero citations, 20 in duplicate groups and 1 unique-URL orphan (Tajine - a different defect, an unused source); only 1 group has more than one cited row (Moussaka, 3 dishes sharing one article); 'pho' has 2 rows, neither cited. Normalise URL, id map, re-point citations, ARCHIVE merged rows, unique constraint on normalised_url. `source_type` stays; `reliability` deprecated not deleted |
 | Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes — **DECIDED** (Alejandro, 2026-10-27): a `claim_citations` table, one row per **(statement, source, revision, locator)** — `UNIQUE NULLS NOT DISTINCT` (Postgres 16, verified live: NULL-revision duplicates rejected, re-reads and multiple passages accepted). Carries `stance` (supports/refutes/context), `locator`, `excerpt`, `revision_id` (Wikipedia revid) and **one** timestamp `retrieved_at timestamptz` (`accessed_at` dropped). **`stance='context'` counts as NEITHER support nor refutation** — excluded from coverage AND from corroboration; a context-only statement is `unsupported`, not `disputed`; a `refutes` link does not make a statement evidenced. **Excerpt = the minimal passage carrying the fact (1–2 sentences), quoted verbatim, and VALIDATED as a substring of the stated revision's text**; public display requires attribution (Wikipedia CC BY-SA). **Migration OVERRIDDEN: only the 3 pilot dishes migrate**, as `stance='supports'` with excerpts fetched + `revision_id` recorded (a re-reading, recorded as such), **verification state `unverified` until reviewed** (GUS-026 §10 — the agent cannot publish); **the other 118 stay in the archived `citations` table until their statements exist, and NO statements are created to receive them** |
-| Q8 independence | GUS-026 §5 |
+| Q8 independence | GUS-026 §5 — **DECIDED** (Alejandro, 2026-10-27): independence is **STORED**, not computed, at **two levels** — `source_derivations` (whole-source derivation: mirrors, translations, editions, reprints) and `citation_independence` (per-citation, claim-specific judgement). **Tri-state: `independent` / `derived` / `unassessed`, with NO DEFAULT** — "no derivation recorded = independent" is rejected, so an unassessed pair contributes zero and an incomplete assessment understates rather than inflates. **Corroboration counts only `supports` links from class-sufficient sources, and S6 NEVER COUNTS** — so the pilot's corroboration is **0 by policy** (all 142 catalog sources are en.wikipedia.org → S6), and **no Wikipedia derivation work is needed**. Level 1 is a hard block checked first. **The pilot must exercise the path**: one rendang origin statement with 2 real non-Wikipedia sources (S1–S5, explicitly assessed `independent`), plus a **derived-pair negative case built in the TEST DB, not live**. Flagged, not decided: whether `citation_independence` rows are written for every source pair or only adjudicated ones — GUS-029's to set |
 | Q9 anchors | ADR-001 D4 (sentence anchors) |
 | Q10 ownership | ADR-001 §2.2 (`dish_claims`) |
 | Q11 migration | GUS-011 (121 Wikipedia-only) |
