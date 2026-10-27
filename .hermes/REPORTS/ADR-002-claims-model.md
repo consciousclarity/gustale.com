@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q8 DECIDED, Q9 DRAFTED (awaiting Alejandro). Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q9 DECIDED, Q10 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -1142,9 +1142,9 @@ relation enum('independent','derived','unassessed')
 
 ---
 
-### 🟡 Q9 — DRAFTED (Alejandro's position, 2026-10-27): a structured sentence table, not inline markers
+### ✅ Q9 — DECIDED (Alejandro, 2026-10-27): a structured sentence table, a boundary-tested splitter, and a managed-write gate
 
-**Alejandro's position, recorded as the draft's basis: a structured sentence table.** Not inline markers — because they would leak into the public column and break translations, and offsets break on edit.
+**The anchor is a structured sentence table.** Not inline markers — because they would leak into the public column and break translations, and offsets break on edit.
 
 ```
 description_sentences (
@@ -1166,107 +1166,138 @@ description_sentences (
 sentence_claims (
   sentence_id   uuid NOT NULL REFERENCES description_sentences(id) ON DELETE CASCADE,
   statement_id  uuid NOT NULL REFERENCES statements(id),
+  -- the VALIDITY of this anchor (Q9 flag 1)
+  status        enum('ok','missing','retracted','unpublished','contradicting')
+                NOT NULL DEFAULT 'ok',
+  note          text,
   PRIMARY KEY (sentence_id, statement_id)
 )
 ```
 
-**The transition check:** `short_description` is rendered from the sentences, and the concatenation must equal the live column **exactly**.
+**The rules:**
 
-**A sentence text edit sets its anchors to `needs_review`** — the same stale mechanism Q2 established for readings.
+| # | rule |
+|---|---|
+| 1 | `short_description` is rendered from the sentences; the concatenation must equal the live column **exactly** |
+| 2 | a sentence text edit sets its anchors to `needs_review` — Q2's stale mechanism |
+| 3 | anchors are recorded on the **canonical** text only (the `dishes` columns) |
+| 4 | the splitter is **a rule plus a fixture set**, with **one implementation** used for both population and the check |
+| 5 | a `sentence_managed` flag plus a **trigger** rejects direct `short_description` writes for flagged dishes |
 
-**Anchors are recorded on the canonical locale only** (GUS-226).
+#### Amendment 1 — the concat check is the gate; a boundary fixture set proves the boundaries
 
----
+**The round-trip proves nothing about boundaries.** A zero-width split rejoins exactly *by construction* — it never removes a character, so it reconstructs the input whether the boundaries are right or wrong. It is a **table↔column consistency gate**, not a boundary test, and the ADR now says so.
 
-#### What the live data says about this design
+**So the check has two parts, and they are different instruments:**
 
-**Measured read-only against live `gustale` on 2026-10-27** (SELECT only; no schema was created or altered — per Alejandro's instruction, schema experiments belong on a copy/test DB).
-
-**The transition check is feasible — and the exact splitter had to be found the hard way.**
-
-Your check — *concatenation == live column, exact* — **holds for 122 of 122 `short_description` rows** with the right splitter. Getting there took four attempts, because two obvious regexes fail:
-
-| splitter | round-trip | counts CTM correctly? | verdict |
-|---|---|---|---|
-| `regexp_split_to_array(text, '\.')` + rejoin `' '` | 121/122 | no | drops the terminator, cannot reconstruct |
-| `regexp_split_to_array(text, '(?<=[.!?])(\s+)')` + rejoin `''` | **95/122** | ✅ (2) | `regexp_split_to_array` **drops a captured group at the end of the string** — the final separator is lost |
-| `regexp_split_to_array(text, '(\s+)(?<=[.!?])')` + rejoin `''` | 122/122 | ❌ (**1**) | the lookbehind is evaluated *after* the whitespace, so it only matches whitespace *followed* by a terminator — it never splits |
-| **`regexp_split_to_array(text, '(?<=[.!?])(?=\s)')` + rejoin `''`** | **122/122** | ✅ (2) | **chosen** |
-
-**The chosen splitter is a zero-width lookahead.** `(?<=[.!?])(?=\s)` consumes **no characters** — it asserts "a terminator is behind me" and "whitespace is ahead of me", and splits at that point. The whitespace is therefore never removed, so it stays inside the parts and rejoins byte-exactly. This is the only form that satisfies **both** halves of your requirement simultaneously: exact reconstruction *and* correct sentence boundaries.
-
-**Verified on both columns:**
-
-| column | rows | exact round-trip | sentences |
-|---|---|---|---|
-| `short_description` | 122 | **122 / 122** | 149 total (95 dishes × 1, **27 dishes × 2**) |
-| `long_description` | 22 | **22 / 22** | 166 total (1–12 per dish) |
-
-**Total anchorable sentences across the catalog: 315** (149 short + 166 long).
-
-**The `long_description` column is where a naive transition check would have failed.** 12 of its 22 populated rows contain a blank-line paragraph break. A splitter that normalises whitespace collapses those newlines and the round-trip fails by 1–3 characters per row. The chosen zero-width splitter preserves them exactly, so the same check works for both columns.
-
-#### Flag 1 — `anchor_status` needs a third state beyond full/partial/none
-
-Your three values are `full` / `partial` / `none`, which describe **how much of a sentence is anchored**. But there is a fourth situation the data forces into view, and it is not one of the three:
-
-> **A sentence whose facts are all anchored, but whose anchors point at statements that are `disputed`, `needs_revision`, or unpublished.** ADR-001 D4 already decided that validation **fails** when a sentence is anchored to a missing, retracted or unpublished claim.
-
-`full`/`partial`/`none` describe *coverage*; D4's check is about *validity*. A sentence can be `full` and still be invalid — every one of its claims is anchored, but one of those claims was retracted, so the sentence must not display as evidenced.
-
-**Recommendation:** keep `anchor_status` exactly as you specified it (it is the right axis), and carry the *validity* axis on the `sentence_claims` side — a per-anchor status — so the two are not conflated. The consistency check from Q3 already defines the vocabulary: **missing** (statement gone), **retracted** (`needs_revision`/`disputed`), **contradicting** (`claim_class` in `disputed`/`unsupported`), **unevidenced** (`statement_id IS NULL`). Flagging this rather than silently widening your enum.
-
-#### Flag 2 — a sentence is not a fact, and the anchor model must allow many-to-many
-
-This is the thing the live data makes sharpest, and it is a constraint on `sentence_claims`, not a change to your design.
-
-**The 27 two-sentence `short_description` rows prove that sentence ≠ claim.** But the harder case is the reverse: **one sentence asserting several separable facts.**
-
-`chicken-tikka-masala`'s first sentence — *"A dish of roasted marinated chicken chunks (chicken tikka) in a spiced, creamy tomato sauce."* — asserts at least three facts: it is a dish; the protein is chicken; the technique involves roasting. And `rendang`'s single sentence asserts: origin (West Sumatra), family (dry curry), protein (beef), technique (slow-cooked), medium (coconut milk), aromatics (the paste), and duration (hours) — **which is GUS-225's undercount, confirmed: the D6 worked example's "6 claims for rendang" is 7+.**
-
-**So the relationship is genuinely many-to-many**, and `sentence_claims` as a join table handles it correctly:
-
-- **one sentence → many statements** (rendang: 1 sentence, 7 statements), and
-- **one statement → many sentences** (the same fact may be asserted in both a short and a long description).
-
-The second direction is the one to be careful about. `sentence_claims` is keyed on `sentence_id`, so the same statement can legitimately appear against several sentences — including a `short` sentence and a `long` sentence for the same dish. That is correct, and it is why `field` exists in `description_sentences`: coverage is computed per field, and a fact anchored in `long` but not `short` is a real and reportable gap.
-
-#### Flag 3 — the `locale` column has no current data to hang anchors on, and one row is an orphan
-
-**Measured:** `dish_translations` has **121 rows, all `language='en'`**, and `description` is **byte-identical to `dishes.short_description` in all 121 rows** (0 nulls, 0 differences). So the "translations" table currently holds **an exact duplicate of the canonical English text** — not a translation.
-
-Three consequences:
-
-1. **`locale='en'` sentences are the canonical sentences.** The `en` translation rows are redundant copies of `short_description`; they are a *rendering* of the canonical prose, which is exactly GUS-226's reasoning for excluding translations from coverage. **Anchors live on the canonical `dishes` text, and `dish_translations` is not a source of sentences** — otherwise every fact is anchored twice and coverage double-counts.
-2. **There is no `canonical_locale` concept in the schema today.** `dishes` has no locale column; `dish_translations.language` is a free-text column with one value. GUS-226 is still `status: todo`. So "canonical locale only" is currently unambiguous in practice (everything is `en`) but **has no column to point at** — it needs one before `locale` in `description_sentences` means anything enforceable. **Recommend `description_sentences.locale` be populated from `dish_translations.language` (or a new `dishes.canonical_locale`), and that GUS-226 land first** so the canonical locale is decided, not assumed.
-3. **The language values are not BCP-47-normalised.** The column is free text; only `en` exists. When a second locale arrives, `en-GB` vs `en` vs `english` becomes a real risk. Worth a CHECK or a lookup table now rather than a cleanup later.
-
-#### Flag 4 — one dish is an archived test fixture and will break a strict transition check
-
-`test-dish-7c` is the known archived fixture (it 404s publicly and was excluded from metrics). Its `short_description` is **"Updated via PATCH — phase 7c is alive"** — **no terminal punctuation**, so it is 1 sentence with an unterminated tail, and it has **no `dish_translations` row** (the only dish without one).
-
-It still round-trips exactly (a 1-element split is trivially exact), so it does **not** break the transition check. But it will appear in any `description_sentences` population and must be **excluded explicitly** — as it already is from metric denominators.
-
-#### Flag 5 — the quoted material in `long_description` needs a splitter rule
-
-11 of the 22 populated `long_description` rows contain a quoted passage of 10+ characters (e.g. `"Babi" means pig and "panggang" means grilled`). A naive split on `.` would break a quote that contains a full stop.
-
-The chosen splitter is safe against this **only because** it splits on a terminator *followed by whitespace*, and the catalog has **no decimals, no initials (`A.`), and no abbreviations** (`Inc`, `Ltd`, `St`, `Dr`, `Mr`, `vs`, `etc`) in either column — checked and confirmed 0. **This is a property of today's data, not a guarantee.** The splitter must therefore be specified as *a rule with an escape hatch*, not as a regex constant: **a sentence terminator inside a quoted span does not end a sentence.** When the content workstream brings richer prose, the splitter needs quote awareness. This is flagged as a **requirement on the implementation**, and it is the one place where the "exact round-trip" check would still pass while the *sentence boundaries* were wrong.
-
-#### What is settled by the decision, and what remains open
-
-**Settled by your position:** a structured sentence table (`description_sentences` + `sentence_claims`); no inline markers in the public column; `short_description` rendered from the sentences with an exact concatenation check; a sentence text edit marks its anchors `needs_review` (Q2's stale mechanism); anchors recorded on the canonical locale only (GUS-226).
-
-**Left open in this draft, and flagged rather than asked:**
-
-| # | open | why it is not mine to close |
+| instrument | what it proves | what it cannot prove |
 |---|---|---|
-| 1 | the per-anchor **validity** axis (Flag 1) | a schema change to your `anchor_status` enum; D4's check needs a home |
-| 2 | whether `long_description` sentences are populated in the same migration as `short` | GUS-226's scope decision |
-| 3 | whether `description_sentences` is populated for **all 122** dishes or only the 3 pilot dishes | Q7's migration precedent (3 pilot dishes only) argues for the pilot; GUS-226's scope argues for all |
-| 4 | the **canonical locale column** and BCP-47 enforcement (Flag 3) | GUS-226 is `todo` and undecided |
+| **concat check** | the sentence table and the live column agree, byte-for-byte | that the sentences are the right *sentences* |
+| **boundary fixture set** | the splitter puts boundaries in the right places | nothing about table/column agreement |
 
-**One recommendation I will make rather than ask:** the `position` column should be **dense and 1-based per (dish, field, locale)**, and the transition check should compare the **reconstructed string against the live column** — which is what makes it a real gate rather than a spot-check. Reconstructing and comparing is what proves the table and the column agree; checking a sample does not.
+**The fixture set** covers the five cases the live catalog happens not to contain today:
+
+| case | example | why |
+|---|---|---|
+| **quotes** | `"Babi" means pig and "panggang" means grilled` | a terminator inside a quoted span must not end a sentence |
+| **decimals** | `Simmered for 1.5 hours at 90 C` | `.` between digits is not a sentence boundary |
+| **abbreviations** | `St. Louis`, `Inc.`, `Ltd.`, `Dr.`, `Mr.`, `vs.`, `etc.` | a terminator after an abbreviation is not a boundary |
+| **initials** | `J. R. R. Tolkien`, `A. USDA grade` | a single capital + `.` is not a boundary |
+| **ellipses** | `The dish is... contested.` | `...` is not a terminator |
+
+Each fixture is a `(input, expected_splits)` pair. **The same splitter implementation serves both the population run and the check** — one implementation, so the check cannot pass against a different splitter than the one that wrote the rows.
+
+**And the fixtures do not replace human review of the pilot sentences.** The fixture set proves the rule is implemented correctly on the cases it names; it cannot prove the rule is *right*. The pilot's 3 dishes are therefore **read by a human** and their boundaries confirmed — the fixtures narrow the review to a known set of risks, they do not replace it.
+
+**The rule, stated as a rule rather than a regex.** A sentence ends at a terminator (`.` `!` `?`) that is (a) not inside a quoted span, (b) not between digits, (c) not part of an abbreviation or initial, and (d) not part of an ellipsis; and that is followed by whitespace.
+
+**The live catalog has none of these cases today** — measured: 0 decimals, 0 initials (`A.`), 0 abbreviations (`Inc`/`Ltd`/`St`/`Dr`/`Mr`/`vs`/`etc`) in either description column. **That is a property of today's data, not a guarantee**, which is exactly why the rule carries an escape hatch and the fixtures exist.
+
+#### Amendment 2 — flags 1–5 accepted; flags 6 and 7 recorded here
+
+The earlier draft said "seven findings" but listed five. The two missing ones are recorded now, so the count matches the content.
+
+**Flag 6 — the validity axis has its own enum, on the anchor.**
+
+`sentence_claims.status` carries the *validity* of each anchor, kept separate from `anchor_status`'s *coverage*:
+
+```
+enum('ok','missing','retracted','unpublished','contradicting')
+```
+
+| value | meaning |
+|---|---|
+| `ok` | the statement exists, is published, and is not contradicted |
+| `missing` | the statement no longer exists |
+| `retracted` | the statement's status is `needs_revision` or `disputed` |
+| `unpublished` | the statement is not `published` — **the agent boundary (GUS-026 §10) in anchor form** |
+| `contradicting` | the statement's `claim_class` is `disputed` or `unsupported` |
+
+**A sentence's `anchor_status` is `full` only if every one of its anchors is `ok`.** A sentence can be `full` in coverage and still fail D4's check — which is exactly why the two axes are separate. The vocabulary is Q3's, reused.
+
+**Flag 7 — the `dishes` columns are canonical by definition; `dish_translations` is non-canonical.**
+
+There is **no locale column to add**, and none is needed:
+
+- **The canonical text IS `dishes.short_description` / `dishes.long_description`.** `description_sentences.locale` is populated with the catalog's canonical locale value (currently `en`), and `dish_translations` is by definition **non-canonical** — it holds renderings, not assertions.
+- **So `dish_translations` is not a source of sentences.** Its 121 `en` rows are byte-identical duplicates of `short_description` (measured: 121/121 identical, 0 nulls, 0 differences). Anchoring against them would anchor every fact twice and double-count coverage.
+- **The 121 duplicate `en` translation rows are backlogged for archiving.** They are not translations; they are copies. Archiving them is separate work, recorded as a backlog item rather than done under this ADR.
+
+This retires the GUS-226 dependency for Q9: **GUS-226's scope decision is no longer blocking**, because the canonical source of sentences is settled by definition.
+
+#### Amendment 3 — flags 2, 3, 4 accepted as stated
+
+- **Flag 2 (many-to-many) → GUS-225.** One sentence → many statements, and one statement → many sentences (the same fact may be asserted in both `short` and `long`). Confirmed by measurement: **rendang's single sentence asserts 7+ facts** (origin, family, protein, technique, medium, aromatics, duration), so D6's "6 claims for rendang" is an undercount. **Raised as GUS-225.**
+- **Flag 3 (canonical locale) → resolved above** by the canonical-by-definition rule.
+- **Flag 4 (the `test-dish-7c` fixture) → GUS-231.** The fixture is already `dishes.status='archived'`, and the `dishes.status` CHECK constraint restricts the value to `draft`/`published`/`archived`. **The `sentence_managed` flag and any population run are gated on `status='published'`**, which excludes the fixture by construction — no special-case list needed. GUS-231's standing check ("no non-published dish can enter a metric population") covers the same ground.
+- **Flag 5 (the splitter escape hatch) → accepted**, and is now Amendment 1's rule plus fixtures.
+
+#### Amendment 4 — population scope: the 3 pilot dishes only; `long` is moot
+
+**`description_sentences` is populated for the 3 pilot dishes only** — `rendang`, `chicken-tikka-masala`, `tacos-al-pastor` — following Q7's migration precedent.
+
+**`long` is moot for the pilot, because it is empty.** Measured: all 3 pilot dishes have `long_description` **NULL/empty** (`long_len = 0` for each). So the pilot populates `field='short'` only, and the `long` path is untested by the pilot.
+
+**That is recorded rather than hidden, because it is a real gap in the pilot's coverage of the model.** The `long` path — 166 sentences across 22 published dishes, 1–12 per dish — will be exercised when the content workstream populates `long_description`. **The splitter rule and the fixtures must cover it before then**, and the `field` enum must not be narrowed to `'short'` on the strength of a pilot that could not test it.
+
+#### Amendment 5 — `sentence_managed` flag and the trigger that rejects direct writes
+
+**A `sentence_managed` flag on the dish marks "this dish's description is managed by the sentence table."** When it is set, **a direct write to `short_description` is rejected by a trigger.**
+
+```
+ALTER TABLE dishes ADD COLUMN sentence_managed boolean NOT NULL DEFAULT false;
+
+CREATE OR REPLACE FUNCTION guard_managed_description() RETURNS trigger AS $$
+BEGIN
+  IF NEW.sentence_managed
+     AND NEW.short_description IS DISTINCT FROM OLD.short_description THEN
+    RAISE EXCEPTION
+      'dish % has sentence_managed=true: short_description is owned by description_sentences; edit the sentences instead',
+      NEW.slug
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_guard_managed_description
+  BEFORE UPDATE ON dishes
+  FOR EACH ROW EXECUTE FUNCTION guard_managed_description();
+```
+
+**Why this is necessary, stated plainly.** The concat check (§ rule 1) is only a *detection* mechanism — it can tell you the table and the column have diverged, but it cannot stop the divergence. **A `PATCH` to `/api/dishes/:slug` that sets `shortDescription` would silently desync the two**, and the desync would not surface until the next check. The trigger makes the managed column **unwritable except through the sentence table**, so the check becomes a backstop rather than the primary defence.
+
+**This is the same trigger-based enforcement pattern the project already uses** — `db/migrations/gus-224-relations-option-b.sql` uses `CREATE OR REPLACE FUNCTION ... RETURNS trigger` plus `CREATE TRIGGER` for relation-direction and relation-type enforcement. The pattern is established, not new.
+
+**Two consequences that must be decided together, not separately:**
+
+1. **The API's PATCH path must write through the sentence table for flagged dishes**, or it will start erroring. The PATCH route (`apps/api/src/routes/dishes-write.ts`) sets `shortDescription` directly today. So for a `sentence_managed` dish, the write must be expressed as *sentence edits*, and the trigger becomes the enforcement point for the route's contract rather than an obstacle.
+2. **The flag is what makes the trigger narrow.** Without it, the trigger would reject every description write in the catalog — including the 118 dishes whose descriptions are not sentence-managed and are edited as free text today. **Only the 3 pilot dishes get `sentence_managed = true` initially.**
+
+**The flag is not a lock on the whole row.** `long_description`, `canonical_name`, and every other column remain freely writable; the trigger guards `short_description` only, and only where the flag is set.
+
+#### One decision made rather than asked
+
+**`position` is dense and 1-based per `(dish, field, locale)`.** Gaps would make "the first sentence" ambiguous and would let a sentence be inserted without renumbering. And **the check reconstructs the string and compares it to the live column** — reconstructing and comparing is what makes it a gate; a spot-check is not.
 
 ---
 
@@ -1344,7 +1375,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q9 is DRAFTED and awaiting your answer** — the anchor: a **structured sentence table** (`description_sentences` + `sentence_claims`), no inline markers, `short_description` rendered from the sentences with an **exact** concatenation check, a sentence edit marking its anchors `needs_review`, anchors on the canonical locale only (GUS-226). The draft is grounded in live measurements and carries **7 flagged findings** — chiefly that the exact-concatenation check is feasible but only with a specific splitter, that `anchor_status` describes coverage while ADR-001 D4's check is about validity, that the anchor relationship is genuinely many-to-many (confirming GUS-225's rendang undercount), and that `dish_translations` currently holds a byte-identical duplicate of the canonical English text rather than translations.
+**Q10 is open** — ownership: whether a claim belongs to a dish, to a description, or to both — and whether claims are independent entities linked by a join, or owned by the dish they are about.
 
 
 ---
@@ -1371,7 +1402,7 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q6 sources | GUS-026 §3 source classes — **DECIDED**: extend `sources` IN PLACE with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support). **Classification is by URL domain, each domain individually — never a blanket rule.** Measured: ALL 142 rows are `en.wikipedia.org` → all **S6**; there is no other domain to classify, so the catalog has no source diversity at all. Caveat recorded: `*.wikipedia.org` must be split by PATH, since a `/wiki/File:...` or a `wikidata.org/wiki/Q...` URL is not a Wikipedia article. **Dedupe BEFORE the pilot** (GUS-238): 21 redundant rows across 12 normalised URLs; 21 rows carry zero citations, 20 in duplicate groups and 1 unique-URL orphan (Tajine - a different defect, an unused source); only 1 group has more than one cited row (Moussaka, 3 dishes sharing one article); 'pho' has 2 rows, neither cited. Normalise URL, id map, re-point citations, ARCHIVE merged rows, unique constraint on normalised_url. `source_type` stays; `reliability` deprecated not deleted |
 | Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes — **DECIDED** (Alejandro, 2026-10-27): a `claim_citations` table, one row per **(statement, source, revision, locator)** — `UNIQUE NULLS NOT DISTINCT` (Postgres 16, verified live: NULL-revision duplicates rejected, re-reads and multiple passages accepted). Carries `stance` (supports/refutes/context), `locator`, `excerpt`, `revision_id` (Wikipedia revid) and **one** timestamp `retrieved_at timestamptz` (`accessed_at` dropped). **`stance='context'` counts as NEITHER support nor refutation** — excluded from coverage AND from corroboration; a context-only statement is `unsupported`, not `disputed`; a `refutes` link does not make a statement evidenced. **Excerpt = the minimal passage carrying the fact (1–2 sentences), quoted verbatim, and VALIDATED as a substring of the stated revision's text**; public display requires attribution (Wikipedia CC BY-SA). **Migration OVERRIDDEN: only the 3 pilot dishes migrate**, as `stance='supports'` with excerpts fetched + `revision_id` recorded (a re-reading, recorded as such), **verification state `unverified` until reviewed** (GUS-026 §10 — the agent cannot publish); **the other 118 stay in the archived `citations` table until their statements exist, and NO statements are created to receive them** |
 | Q8 independence | GUS-026 §5 — **DECIDED** (Alejandro, 2026-10-27): independence is **STORED**, not computed, at **two levels** — `source_derivations` (whole-source derivation: mirrors, translations, editions, reprints) and `citation_independence` (per-citation, claim-specific judgement). **Tri-state: `independent` / `derived` / `unassessed`, with NO DEFAULT** — "no derivation recorded = independent" is rejected, so an unassessed pair contributes zero and an incomplete assessment understates rather than inflates. **Corroboration counts only `supports` links from class-sufficient sources, and S6 NEVER COUNTS** — so the pilot's corroboration is **0 by policy** (all 142 catalog sources are en.wikipedia.org → S6), and **no Wikipedia derivation work is needed**. Level 1 is a hard block checked first. **The pilot must exercise the path**: one rendang origin statement with 2 real non-Wikipedia sources (S1–S5, explicitly assessed `independent`), plus a **derived-pair negative case built in the TEST DB, not live**. **Workload policy CLOSED (Alejandro, 2026-10-27): `citation_independence` rows are written ONLY for class-sufficient `supports` pairs on the same statement; no row = `unassessed`, which contributes zero** — the table is not populated exhaustively, and absence of a row is not evidence of independence |
-| Q9 anchors | ADR-001 D4 (sentence anchors) — **DRAFTED** (Alejandro's position, 2026-10-27, awaiting answer): a **structured sentence table**, not inline markers (markers would leak into the public column and break translations; offsets break on edit). `description_sentences` (dish_id, field `short`/`long`, locale, position, text, `anchor_status` full/partial/none) + `sentence_claims` (sentence_id → statement_id). `short_description` rendered from the sentences with an **exact** concatenation check; a sentence edit marks its anchors `needs_review` (Q2's stale mechanism); anchors on the **canonical locale only** (GUS-226). **MEASURED LIVE (read-only):** the exact check is feasible — `short_description` **122/122** and `long_description` **22/22** round-trip exactly, **315 anchorable sentences** total (149 short: 95 dishes × 1, 27 × 2; 166 long: 1–12 per dish) — but ONLY with the zero-width-lookahead splitter `(?<=[.!?])(?=\s)`; two obvious regexes fail (95/122 because `regexp_split_to_array` drops a captured group at the end of the string; and a `(\s+)`-first variant silently counts CTM as 1 sentence). **7 FINDINGS FLAGGED:** (1) `anchor_status` describes coverage but ADR-001 D4's check is about *validity* — a sentence can be `full` and still invalid; recommend the validity axis on the `sentence_claims` side using Q3's vocabulary (missing/retracted/contradicting/unevidenced). (2) The anchor relation is genuinely **many-to-many** — one sentence → many statements AND one statement → many sentences (a fact may be asserted in both short and long); rendang's single sentence asserts **7+ facts**, confirming **GUS-225's undercount**. (3) `dish_translations` holds **121 rows all `language='en'`** whose `description` is **byte-identical** to `dishes.short_description` — an exact duplicate, not a translation; anchors live on the canonical `dishes` text and translations are not a source of sentences (else every fact is anchored twice). There is also **no `canonical_locale` column** anywhere and GUS-226 is still `todo` — so GUS-226 should land first; language values are not BCP-47-normalised. (4) `test-dish-7c` (archived fixture) has no terminal punctuation and no translation row — round-trips fine but must be excluded explicitly. (5) 11 of 22 `long_description`s contain a 10+ char quote; the catalog has 0 decimals/0 initials/0 abbreviations **today**, so the splitter must be a **rule with an escape hatch** (a terminator inside a quoted span does not end a sentence) — this is the one place the round-trip check passes while the boundaries are wrong. Open, flagged not asked: the validity axis; whether `long` sentences populate in the same migration as `short`; whether the table is populated for all 122 dishes or only the 3 pilot dishes; and the canonical-locale column |
+| Q9 anchors | ADR-001 D4 (sentence anchors) — **DECIDED** (Alejandro, 2026-10-27): a **structured sentence table**, not inline markers (markers would leak into the public column and break translations; offsets break on edit). `description_sentences` (dish_id, field `short`/`long`, locale, position, text, `anchor_status` full/partial/none) + `sentence_claims` (sentence_id → statement_id, **status** ok/missing/retracted/unpublished/contradicting). `short_description` rendered from the sentences with an **exact** concatenation check; a sentence edit marks its anchors `needs_review` (Q2's stale mechanism); anchors on the **canonical** text only. **(1) THE CONCAT CHECK IS A GATE, NOT A BOUNDARY TEST** — a zero-width split rejoins exactly *by construction*, so it proves table↔column agreement and nothing about boundaries. Boundaries are proven by a **FIXTURE SET** (quotes, decimals, abbreviations, initials, ellipses) with expected splits, plus **human review of the pilot sentences**; **one splitter implementation** serves both population and check. The rule: a terminator that is not in a quoted span, not between digits, not part of an abbreviation/initial, not part of an ellipsis, and is followed by whitespace. **(2) VALIDITY IS ITS OWN AXIS** on `sentence_claims.status` (ok/missing/retracted/unpublished/contradicting), separate from `anchor_status`'s coverage — a sentence is `full` only if every anchor is `ok`; `unpublished` is the agent boundary (GUS-026 §10) in anchor form. **(3) CANONICAL BY DEFINITION** — the `dishes` columns ARE the canonical text; no locale column is needed; `dish_translations` is non-canonical and its 121 `en` rows are byte-identical duplicates of `short_description`, so translations are NOT a source of sentences (else every fact is anchored twice) — **archiving the 121 duplicates is backlogged**; this retires GUS-226 as a blocker for Q9. **(4) FIXTURE EXCLUDED BY GUS-231** — `dishes.status` CHECK restricts to draft/published/archived and the fixture is `archived`, so gating population on `status='published'` excludes it by construction. **(5) MANY-TO-MANY** confirmed — rendang's single sentence asserts **7+ facts**, confirming **GUS-225's undercount**. **(6) POPULATION = 3 PILOT DISHES ONLY**; `long` is **moot** (measured: all 3 pilot `long_description` are empty) and that gap is recorded — the `long` path (166 sentences, 1–12 per dish) is untested by the pilot, so the `field` enum must not be narrowed to `'short'`. **(7) `sentence_managed` FLAG + TRIGGER** — `ALTER TABLE dishes ADD COLUMN sentence_managed boolean NOT NULL DEFAULT false`, with a `BEFORE UPDATE` trigger rejecting a changed `short_description` when the flag is set; same pattern the project already uses in `db/migrations/gus-224-relations-option-b.sql`. **Why:** the concat check only *detects* divergence; a direct `PATCH` to `/api/dishes/:slug` (which sets `shortDescription` in `apps/api/src/routes/dishes-write.ts`) would silently desync. **Consequences:** the PATCH path must write through the sentence table for flagged dishes, and the flag keeps the trigger narrow (only the 3 pilot dishes are flagged; the other 118 keep free-text edits; `long_description` and all other columns stay writable) |
 | Q10 ownership | ADR-001 §2.2 (`dish_claims`) |
 | Q11 migration | GUS-011 (121 Wikipedia-only) |
 | Q12 lifecycle | GUS-026 §6, §10 |
