@@ -1737,7 +1737,40 @@ dish_dimension_unset (
 - **A transnational dish gets `dish_cuisine` unset with reason `disputed`, plus a `dish_tradition`.** That is the `chicken-tikka-masala` case exactly: cuisine unset (disputed), tradition `Glasgow Muslim` + `British National` — both of which **already exist** in `dish_traditions`.
 - **This closes the ADR-001 §4 follow-up** on national-vs-regional cuisines, which was recorded there as an open follow-up with four questions and a note that "the pilot uses the flat vocabulary, Minangkabau specificity is carried by origin(place) and claims, NOT by inventing a cuisine row." **The flat vocabulary was the pilot's expedient; this decision replaces it with a rule.**
 
-**The 18 gaps, resolved.** **15 new national values + 2 assignments from existing values + 1 deliberate unset.** The 15 are reviewed as one batch with 15 individual lines (recorded in the GUS-241 evidence), each checked against the national rule.
+#### The 15 cuisine lines, with the approved changes
+
+**One batch, 15 individual lines — each checked against the national rule.** Four lines changed:
+
+| line | as decided | the change |
+|---|---|---|
+| **Jordanian** | `mansaf` = **jordanian + levantine** | the shared Levantine heritage rides in `dish_tradition`, where `Levantine` **already exists** |
+| **Moroccan** | `tagine` = **moroccan + maghrebi** | same shape; `Maghrebi` **already exists** |
+| **Tunisian** | **NOT CREATED** | `couscous` moved to unset(disputed), so Tunisian would have **0 members** — and a value with no members is not a value |
+| **Nepalese** | `momo` = **unset(disputed) + tibetan** | the **value** `Nepalese` is not created; `momo`'s cuisine is contested |
+| **Puerto Rican** | `tostones` = **unset(disputed) + caribbean** | the **value** `Puerto Rican` is not created; `tostones`'s cuisine is contested |
+| **Ukrainian** | `borscht` = **ukrainian**, *provisional pending a non-Wikipedia source* | the value is created; the dish's assignment is marked provisional |
+| **American** | national value, **approved** | the earlier "needs a second look" flag is closed — it is a national value |
+
+**The four disputed cells, each with its evidence** (verified against the sources, not assumed):
+
+| dish | dimension | reason | evidence |
+|---|---|---|---|
+| `chicken-tikka-masala` | cuisine | `disputed` | Glasgow (British) vs the subcontinent (Indian) — ADR-001 D1 |
+| `couscous` | cuisine | `disputed` | **UNESCO joint inscription, 2020: Algeria, Mauritania, Morocco AND Tunisia** — *"a staple food throughout the Maghrebi cuisines of Algeria, Tunisia, Mauritania, Morocco, and Libya"*, and *"In December 2020, Algeria, Mauritania, Morocco, and Tunisia obtained official recognition…"* — **the CTM case exactly** |
+| `momo` | cuisine | `disputed` | *"a type of steamed, filled dumpling in **Nepalese and Tibetan** cuisine"* — two cuisines, one dish |
+| `tostones` | cuisine | `disputed` | *"commonly found in **Latin American cuisine and Caribbean cuisine**"* — Puerto Rico vs the wider Caribbean |
+
+**Two new `dish_tradition` values are needed** — `Levantine` and `Maghrebi` already exist, but **`Tibetan` and `Caribbean` do not**. Both are required by the approved lines (`momo` → Tibetan, `tostones` → Caribbean).
+
+**The seafood hierarchy, exactly as specified:**
+
+```
+Seafood                      (exists, root — becomes the parent)
+├── Fish                     (exists — re-parented)
+├── Octopus                  (NEW — a mollusc, so directly under Seafood)
+└── Shellfish                (exists — re-parented)
+    └── Shrimp               (NEW — a crustacean, so under Shellfish)
+```
 
 **And it does NOT require a new dimension, a new predicate, or a schema change to the taxonomy.** The values go in the existing `dish_cuisines` table; the traditions already exist. **This is a vocabulary extension, not a model change** — which is why it can be done now, before the claims model lands.
 
