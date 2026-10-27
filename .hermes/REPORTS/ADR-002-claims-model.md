@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1, Q2 and Q3 DECIDED, Q4 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q4 DECIDED, Q5 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -225,13 +225,32 @@ statement_readings (        -- optional, editorial, non-authoritative
 
 **The `entity_type` vocabulary therefore becomes:** `country` · `region` · `city` (today it holds only `country`).
 
-**Seed only the pilot places** — nothing wider:
+**Seed only the pilot places** — nothing wider. **Corrected 2026-10-26 after source review of each place's own article:**
 
-| level | places |
-|---|---|
-| country | `Indonesia` *(exists)* · `United Kingdom` *(exists)* · `India` *(exists)* · `Mexico` *(exists)* |
-| region | `West Sumatra` (parent: Indonesia) · `Scotland` (parent: United Kingdom) · `Punjab` (parent: India) · `Mexico` *(is the country; the region needs a name — see the open question below)* |
-| city | `Glasgow` (parent: Scotland) · `Delhi` (parent: Punjab) · `Mexico City` (parent: Mexico) · `Puebla` (parent: Mexico) |
+| level | place | parent | note |
+|---|---|---|---|
+| country | `Indonesia` *(exists)* | — | |
+| country | `United Kingdom` *(exists)* | — | |
+| country | `India` *(exists)* | — | |
+| country | `Mexico` *(exists)* | — | |
+| region | `West Sumatra` | Indonesia | rendang's origin region |
+| region | `Scotland` | United Kingdom | Glasgow's region |
+| region | **`Punjab`** | **India** | **a historical region spanning India AND Pakistan** — see below |
+| city | `Glasgow` | Scotland | the CTM origin claim |
+| city | **`Delhi`** | **India** | **directly under India — the NCT, not Punjab** |
+| city | `Mexico City` | Mexico | |
+| city | **`Puebla`** | **`Puebla` (state)** | **city → state → Mexico** |
+
+**`Delhi` sits directly under India, not under Punjab.** Its own article describes it as a *"Megacity and union territory"* — the **National Capital Territory of Delhi** — with `Region: North India` and `Country: India`. It is not administratively part of Punjab (Punjab is a separate state to its north-west), and the earlier plan in this ADR had it wrong. The `region` for Delhi is **North India**, which is not seeded — the hierarchy allows a city to sit directly under a country.
+
+**`Punjab` is a historical REGION, not the Indian state** — and it is the right choice for the CTM claim. Wikipedia's `Punjab` article is explicitly *"about the geographical region"*, with `Countries: Pakistan, India` and a population of ~190M across both (115M Pakistan, 75M India); the modern Indian state and the Pakistani province are **separate articles** (`Punjab, India` and `Punjab, Pakistan`). So:
+
+- **one** `Punjab` row, `entity_type = 'region'`, parent `India` — the cultural-historical region, which is what a dish-origin claim is actually about;
+- the fact that the region spans **two countries** is a property of the *region*, not a reason to hang it under the wrong one. A place row has **one** `parent_id`, so the region is seeded under India and the trans-national nature is carried by the statement (and later by a `parent`/`countries` qualifier), not by the hierarchy.
+
+**This is the right modelling for the CTM origin claim**, because the dispute is about *where a culinary tradition originated*, and the Punjab region is the cultural-historical unit — the Indian state of Punjab is a 1966 administrative partition of it.
+
+**`Puebla` is a CITY, and its state is a separate place.** Wikipedia has distinct articles for `Puebla` (the state — *"the Free and Sovereign State of Puebla"*, capital and largest city Puebla de Zaragoza) and `Puebla (city)`. Since the tacos-al-pastor claim is about the dish's place of origin and the dish is documented to the city, the hierarchy is **Puebla (city) → Puebla (state) → Mexico**, and both Puebla rows are seeded.
 
 **`Minangkabau` is a TRADITION value, not a place.** It is already in `dish_traditions` (36 rows) and is where `rendang`'s tradition belongs. It must **not** be seeded into `geo_entities` — a tradition is a cultural identity, not a location, and ADR-001 D3j's scope rules keep them apart.
 
@@ -266,7 +285,7 @@ A dimension row answers *"what is this dish's family?"* — it is a lookup row, 
 
 The column exists and **0 of 36 rows populate it**. Populating it is a **backlog item**, not part of the pilot — and the pilot's place rows will carry a null `wikidata_id` until then.
 
-**Open question this raises, which I will decide rather than ask:** *Mexico* is currently a **country**. The pilot needs *Mexico City* and *Puebla* as cities **under** Mexico. Is *Mexico* the country (with Mexico City and Puebla beneath it), and the region the pilot names is the country? I will read it as: `Mexico` = country; `Mexico City` and `Puebla` = cities with `parent_id = Mexico`. The region level for Mexico is therefore **empty** — and that is fine, because the hierarchy must allow a city to hang directly off a country. No placeholder region is invented.
+**No placeholder region is invented anywhere.** Mexico has no region row (Mexico City and Puebla hang directly off the country, and Puebla has its own state); Delhi has no region row (it hangs off India directly). The hierarchy permits a city to sit directly under a country, and the pilot places do exactly that where the geography says so.
 
 ---
 
@@ -349,7 +368,84 @@ with a foreign key per type, or a `subject_ref` that carries the type + id and i
 
 ---
 
-### ✅ Q4 — DRAFTED (pending your answer)
+### ✅ Q4 — DECIDED (Alejandro, 2026-10-26): exactly one predicate per dimension
+
+**The predicate vocabulary is a TABLE, and there is exactly ONE predicate per dimension.** That is the organizing principle: a dimension has one predicate, and every statement about that dimension uses it.
+
+```
+predicates (
+  id            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug          text NOT NULL UNIQUE,
+  name          text NOT NULL,
+  value_kind    enum('entity','vocabulary','literal') NOT NULL,
+  value_type    text,          -- for entity/vocabulary: which table
+  description   text,
+  created_at    timestamptz NOT NULL DEFAULT now()
+)
+```
+
+**The seven predicates — one per dimension:**
+
+| dimension | predicate | value_kind | value_type |
+|---|---|---|---|
+| `dish_family` | **`is_a`** | vocabulary | `dish_families` |
+| `dish_cuisine` | **`belongs_to_cuisine`** | vocabulary | `dish_cuisines` |
+| `dish_course` | **`served_as_course`** | vocabulary | `dish_courses` |
+| `dish_technique` | **`cooked_by`** | vocabulary | `dish_techniques` |
+| `ingredient_category` | **`contains_ingredient`** | vocabulary | `ingredient_categories` *(pilot)* |
+| `dish_tradition` | **`part_of_tradition`** | vocabulary | `dish_traditions` |
+| `dish_context` | **`eaten_in_context`** | vocabulary | `dish_contexts` |
+
+**`is_a` no longer covers cuisine** — `belongs_to_cuisine` does that, on its own. **And the course and tradition predicates, which the earlier draft was missing, are now present:** `served_as_course` and `part_of_tradition`. That is the point of the "one predicate per dimension" rule: the vocabulary is *derived from the seven dimensions*, not assembled opportunistically. Any dimension without a predicate is a gap in the vocabulary, and visible as one.
+
+#### Amendment 1 — `contains_ingredient` points at the vocabulary for the pilot
+
+For the pilot, `contains_ingredient`'s value is a **vocabulary reference to `ingredient_categories`** — the controlled list, not a specific ingredient entity. After **GUS-233** (real entity tables), the same predicate points at an `ingredients` entity.
+
+**Reason this is the right order:** the catalog's `dish_ingredients` table has **4 rows catalog-wide**. Ingredient *entities* barely exist, so pointing a statement at one would be pointing at almost nothing. The vocabulary (`ingredient_categories`, 53 rows) is real and populated, so the pilot can make evidenced ingredient claims immediately, and the entity link becomes a *widen the target* change rather than a rewrite.
+
+#### Amendment 2 — `created_by` takes a typed literal `person_name` (a marked exception); a person entity is backlogged
+
+`created_by`'s value is a **typed literal** of kind `person_name` — a **marked exception** under Q1's free-text rule, because a name is not an entity the catalog has.
+
+A **person entity table is backlogged** (GUS-236). When it exists, `created_by` becomes an entity reference like every other predicate, and the literal form becomes the fallback for unattributable creators.
+
+#### Amendment 3 — the literal types are pinned
+
+| predicate | literal type | meaning |
+|---|---|---|
+| `originated_at` | **date / period** | a point in time, or a span |
+| `has_duration` | **duration** | a length of time |
+
+Both are typed, not free text. A duration is an interval, not a number with a unit in a string — so the literal type carries the unit.
+
+#### Flags — `is_a` statements are SUPPORTED, not REQUIRED
+
+**`is_a` statements are supported but not required.** A statement's support comes from its citations, not from the predicate's presence: an `is_a` statement with a good S1–S5 source is published; a dimension row with `statement_id IS NULL` is simply **unevidenced** (the Q3 consistency check), and that is the honest state of a taxonomic assignment nobody has sourced.
+
+**Why this is the rule, and not the opposite:** `is_a` is a *taxonomic* predicate, true by definition of the taxonomy — it asserts the dish sits in that family, and it needs a source only in so far as the source places the dish there. Making it mandatory would mean every one of the 91 dishes with a family but no statement fails a check, and the model would report a wall of errors that says nothing true. Making it optional but *supported* means: **if you have a source that places the dish in the family, record the statement; if you do not, the dimension row stands unevidenced and the coverage number is honest about it.**
+
+#### Amendment 4 — a fifth qualifier type: `role`
+
+`Medium` is a **role**, not a kind of thing. Q1's qualifiers were `place`, `period`, `variant`, `occasion`; a fifth is added:
+
+> **`role`** — the role a value plays in the statement.
+
+So rendang's *"medium is coconut milk"* is recorded as `contains_ingredient(rendang, coconut-milk)` with **`role = medium`**, rather than inventing a `has_medium` predicate. Q4's earlier draft had left that open; it is now closed by making `role` a qualifier, which keeps the "one predicate per dimension" rule intact — a new *role* is data, not a new predicate.
+
+**The qualifier set is therefore five types:**
+
+| qualifier | kind | example |
+|---|---|---|
+| `place` | entity ref | the region a statement is scoped to |
+| `period` | typed literal (date/period) | when the statement held |
+| `variant` | entity ref or vocabulary value | which variant of the dish |
+| `occasion` | vocabulary value | when/where it is eaten |
+| **`role`** | vocabulary value | the role a value plays (`medium`, `protein`, `base`, `accompaniment`) |
+
+---
+
+### Q4 (original) — DRAFTED (superseded by the decision above)
 
 **Decision:** whether `predicate` is a controlled vocabulary, and what it contains.
 
@@ -424,7 +520,57 @@ predicates (
 
 ---
 
-### Q5 — What are the object types, and can one claim have several objects?
+### Q5 — What are the object types, and can one statement have several objects?
+
+**Decision:** the shape of the object side of a statement.
+
+**Q1 already settled the object side's *typing*: a value is either an **entity reference** or a **typed literal**, with free text only as a marked exception.** And Q4 has now settled the *vocabulary* of predicates. What remains is the **shape** of the value storage, and it turns out to be a narrower question than it first appears.
+
+**Here is what Q4's decision already implies**, which narrows this question a great deal:
+
+| predicate | value kind | what the value points at |
+|---|---|---|
+| `is_a` | vocabulary | `dish_families` |
+| `belongs_to_cuisine` | vocabulary | `dish_cuisines` |
+| `served_as_course` | vocabulary | `dish_courses` |
+| `cooked_by` | vocabulary | `dish_techniques` |
+| `contains_ingredient` | vocabulary (pilot) | `ingredient_categories` |
+| `part_of_tradition` | vocabulary | `dish_traditions` |
+| `eaten_in_context` | vocabulary | `dish_contexts` |
+| `originated_in` | entity | a `geo_entities` place |
+| `originated_at` | literal | date / period |
+| `created_by` | literal | `person_name` (marked exception) |
+| `has_duration` | literal | duration |
+
+**Six of the seven dimension predicates take a VOCABULARY value, and every dimension is multi-valued except the three single-valued ones** (ADR-001 D7b: `dish_family`, `dish_cuisine`, `dish_course`).
+
+**That produces the real question, and it is not "several objects per statement" — it is:**
+
+> **How does a multi-valued dimension relate to the statements that evidence it?**
+
+**Option A — one statement per (subject, predicate, value) pair.** A dish with three techniques has three `cooked_by` statements, each with its own evidence chain. The dimension row is then *derived* from the statements rather than being a separate thing.
+
+**Option B — one statement per (subject, predicate), with several values.** A dish with three techniques has **one** `cooked_by` statement carrying three values, and one evidence chain covering all three.
+
+**These are not equivalent, and the difference is whether partial evidence is visible.**
+
+**My recommendation: Option A — one statement per (subject, predicate, value).**
+
+**Reason, and it is the same reason as Q1's claim granularity:** under Option B, a source that documents only *two* of the three techniques either supports the whole statement (which overstates the evidence) or supports a part of it (which the schema cannot express). Under Option A, that source supports exactly the one technique it mentions, and the other two techniques have their own statements — possibly unsupported, possibly none. The coverage and corroboration numbers then mean what they claim to mean.
+
+**The cost, stated plainly:** Option A produces more statements (rendang alone would have 6 — origin, family, protein, technique, medium, duration — exactly as ADR-001 D6's worked example has it), and a statement's *reading* is a single proposition, so `cooked_by(rendang, braising)` reads "Rendang is cooked by braising" — which is correct and grammatical.
+
+**The dimension rows then become an index of the statements** — which is precisely the model Q3's amendment 2 already established: *"the row is the index, the statement is the evidence."* Under Option A the index is exact: `dish_dish_techniques` holds one row per evidenced technique, and a technique with no statement is simply absent (or present with `statement_id IS NULL` for a typed-but-unsourced assignment).
+
+**One thing Option A forces into the open, and I will decide rather than ask:** `is_a` is single-valued but the *vocabulary* is not — so a statement `is_a(dish, curry)` names one family, and the dimension row can hold exactly one. But a dish can plausibly be in two families (a stew that is also a curry — `chole-bhature` was exactly this case in the broader-family review). Under Option A, that is **two `is_a` statements**, and the dimension row can only carry one.
+
+**My recommendation: `dish_family` stays single-valued** (ADR-001 D7b), and a second family is expressed as a **second `is_a` statement** plus a `dish_relations` row, not as a second dimension value. The taxonomy's single-valuedness is a product decision that this ADR implements rather than reopens — but the *statement* can record the second membership, so the evidence is not lost even though the dimension cannot express it.
+
+**A third option, which I think is weaker:** keep a single `is_a` statement with multiple values for the multi-valued dimensions and a separate predicate for the single-valued ones. That reintroduces the Q1 problem — a proposition about a set, whose evidence is hard to attribute.
+
+---
+
+### Q5 (original) — What are the object types, and can one claim have several objects?
 
 **Decision:** the shape of the object side.
 
@@ -565,7 +711,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q4 is open** — the predicate vocabulary. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
+**Q5 is open** — the object types and whether one statement may have several objects. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on the claim; that shape is a later question.*
 
 
 ---
