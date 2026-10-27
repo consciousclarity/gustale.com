@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q5 DECIDED, Q6 open. Nothing implemented. No schema change.**
+**Status:** 🟡 **DRAFT — Q1 to Q6 DECIDED, Q7 open. Nothing implemented. No schema change.**
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -263,15 +263,13 @@ place_spans (
 
 **And the history, corrected (an earlier draft of this ADR got it wrong):**
 
-| date | what happened |
-|---|---|
-| **1947** | the **partition** of British Punjab between **India and Pakistan** |
-| **1950** | the Indian state formed as **East Punjab** (PEPSU) — `Punjab, India`: `Formation: 26 January 1950`, `Previously was: East Punjab, PEPSU` |
-| **1966** | the **reorganisation of Indian Punjab** (PEPSU → Punjab, Haryana, Chandigarh) — `Punjab, India`: `1 November 1966 (reorganisation)` |
+**All this decision needs is one distinction:**
 
-So **1966 is a reorganisation *within* the Indian state, not a partition of the region.** The region's partition was **1947**. The earlier phrasing in this ADR — *"the Indian state of Punjab is a 1966 administrative partition of it"* — was wrong twice over: the partition was 1947, and 1966 was a reorganisation of the Indian state rather than a division of the region.
+> **A historical region is not a modern state.**
 
-**Why the region, for the CTM claim:** the dispute is about *where a culinary tradition originated*, and the Punjab region is the cultural-historical unit. The Indian state is a post-1947 administrative artifact of one half of it.
+That is why `Punjab` is seeded as a `region` with `parent_id = NULL` rather than as the Indian state. **The partition and reorganisation history is deliberately not recorded here.** An earlier draft of this ADR carried a chronology of it; that chronology was wrong, and it is not needed to make the modelling decision. The region's history belongs in the encyclopedia article for Punjab itself, sourced and written like any other content — not in a schema ADR, where it would be unsourced prose.
+
+**Why the region, for the CTM claim:** the dispute is about *where a culinary tradition originated*, and the Punjab region is the cultural-historical unit. A modern state boundary is a partition of that region, and the CTM origin claim is about the tradition, not the administration.
 
 **`Puebla` is a CITY, and its state is a separate place.** Wikipedia has distinct articles for `Puebla` (the state — *"the Free and Sovereign State of Puebla"*, capital and largest city Puebla de Zaragoza) and `Puebla (city)`. Since the tacos-al-pastor claim is about the dish's place of origin and the dish is documented to the city, the hierarchy is **Puebla (city) → Puebla (state) → Mexico**, and both Puebla rows are seeded.
 
@@ -704,7 +702,61 @@ ALTER TABLE sources
 
 **Why `reliability` is not simply renamed to `source_class`:** the two answer different questions. `source_class` is **what kind of source this is** (a peer-reviewed article, a Wikipedia article, a blog post); `reliability` is **how much this particular source can be trusted**. A single source can be both. The pilot's migration sets `source_class` from the existing rows — all 142 are `web` and all are encyclopedia articles, so they are **S6** (reference: discovery and terminology only), except that the 21 with the same URL under different titles are likely the *same* source duplicated.
 
-**The migration, concretely:** set all 142 to **S6**, then correct them as real sources are registered. That is the truthful starting position — GUS-011 already found the catalog is 100% Wikipedia-only — and it makes the gap visible instead of leaving `secondary` pretending every source is equally good.
+#### Amendment 1 — classify by URL domain, individually
+
+**Classification is by the source's actual URL domain, and each domain is classified on its own merits — never a blanket rule.**
+
+Measured live 2026-10-26: **all 142 sources are `en.wikipedia.org`.** There are **no other domains at all** — no other site, no other wiki, no journal, no archive. So the domain rule resolves to:
+
+| domain | rows | class | why |
+|---|---|---|---|
+| `*.wikipedia.org` | **142** (all of them) | **S6** | reference: discovery and terminology only — GUS-026 §3 |
+
+**And there is nothing to classify individually beyond that**, because every other domain has zero rows. That is worth stating plainly rather than dressing up: **the catalog has no source diversity to classify.** The rule is recorded so that the *first* non-Wikipedia source is classified individually rather than swept into a blanket assumption, and so that a future `*.wikipedia.org` is treated the same as today's.
+
+**The one caveat the domain rule cannot catch:** `*.wikipedia.org` covers the whole Wikimedia family, so a *Wikimedia Commons* file URL or a *Wikidata* item URL would also match the domain but is **not** a Wikipedia article. Those must be classified by **path**, not domain — `/wiki/<article>` is S6; a `/wiki/File:…` or a `wikidata.org/wiki/Q…` URL is a different thing and needs its own class. No such rows exist today.
+
+#### Amendment 2 — dedupe before the pilot
+
+**21 of the 142 source rows are redundant.** Measured live: **121 distinct URLs across 142 rows**, and after normalisation there are **12 URLs carrying more than one row** — 21 redundant rows in total.
+
+| normalised URL | rows | citations on the group | orphaned rows |
+|---|---|---|---|
+| `en.wikipedia.org/wiki/bánh_mì` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/ceviche` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/chicken_tikka_masala` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/falafel` | 2 | 1 | 1 |
+| `en.wikipedia.org/wiki/hamburger` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/jollof_rice` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/moussaka` | 3 | **3** | 0 |
+| `en.wikipedia.org/wiki/pho` | 2 | **0** | 2 |
+| `en.wikipedia.org/wiki/pizza_margherita` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/poutine` | 2 | 1 | 1 |
+| `en.wikipedia.org/wiki/sushi` | 3 | 1 | 2 |
+| `en.wikipedia.org/wiki/vindaloo` | 3 | 1 | 2 |
+
+**Referenced vs orphaned — the answer Alejandro asked for:**
+
+- **21 orphaned source rows** carry **zero** citations. **20 of them** are in a duplicate group; **1** (`Tajine`, `https://en.wikipedia.org/wiki/Tajine`) has a unique URL and is orphaned on its own.
+- **Only 1 group has more than one *cited* row**: `Moussaka`, where all three rows are cited — `Moussaka` (id `00000000…`), `Levantine Moussaka` (id `5efafd8e…`) and `Musakka` (id `6b806037…`), one citation each. **These are three different dishes sharing one Wikipedia article**, so the three source rows are not duplicates of each other in meaning — but they *are* the same URL, and the same URL cannot be three sources.
+- **`pho` is the interesting case**: two rows, **neither cited** — a group with **zero** citations, so it is entirely redundant.
+- The `Tajine` row is orphaned with a unique URL — that one is a **source that exists but was never used**, which is a different defect from duplication.
+
+**So the deduplication is 21 redundant rows, of which 20 are safe to merge (orphaned duplicates) and 1 (`Tajine`) is an unused unique source that should be kept but flagged, not merged.**
+
+**The deduplication procedure, before the pilot:**
+
+1. **Normalise the URL** — lowercase host, strip `m.` / `en.m.` prefixes, decode percent-encoding, collapse duplicate slashes, strip a trailing slash, drop the fragment, and normalise the `/wiki/<Title>` path case. Store the normalised form in a new **`sources.normalised_url`** column.
+2. **Build an id map** — for each normalised URL, choose a **surviving row** (the cited one, or the oldest) and map every other row's id to it.
+3. **Re-point the references** — every `citations.source_id` pointing at a merged row is updated to the surviving id.
+4. **Archive the merged rows** — moved to a `sources_merged` (or archived) table with the surviving id recorded, so the merge is reversible and auditable. **Not hard-deleted.**
+5. **Add a unique constraint on `sources.normalised_url`** — so the catalog cannot accumulate the same article under several names again.
+
+**Why this must happen BEFORE the pilot, and not during it:** the pilot's whole point is to produce a **corroboration** number. With 21 duplicate rows, a claim cited by two rows pointing at the same Wikipedia article would count as **two sources** — and GUS-026 §5 is explicit that *"quantity is not independence"*. **A duplicate URL is the same source twice.** Deduplicating first is what makes the number mean anything.
+
+**This is a destructive-ish change and therefore needs approval** (RULES.md §Approval: *"bulk-delete/overwrite data"*). Step 4 archives rather than deletes, which keeps it out of that category — but it is still a bulk data change and is queued for Alejandro's go, not done here.
+
+**The `Tajine` row is a separate finding worth recording:** a source that was registered and never cited. Under the new model, a source with no citations is not a source *of anything* — it is a lead, not evidence. GUS-027's registry should distinguish **registered sources** from **cited sources**, so that an unused lead is visible as such rather than looking like evidence with zero support.
 
 **What I will decide rather than ask:**
 
@@ -732,7 +784,71 @@ ALTER TABLE sources
 
 ---
 
-### Q7 — How is a claim linked to a source, and what does a citation row carry?
+### Q7 — What does an evidence link carry?
+
+**Decision:** the shape of the claim↔source link, and what it must record for a citation to be checkable.
+
+**Q1 has already settled the division of labour:** *the exact source passage and locator live on the **evidence link**, not on the claim.* This question decides that link's shape.
+
+**What the current `citations` table does** (measured live): `id`, `source_id`, `target_type`, `target_id`, `claim_text`, `location`, `added_by`, `added_at`. It has **121 rows, all `target_type='dish'`**, and the `location` values are only `"Lead paragraph"` and `"History section"`.
+
+**Recommendation: a `claim_citations` table — one row per (statement, source) pair — carrying `stance`, the locator, the exact passage, AND the retrieval anchor.**
+
+```
+claim_citations (
+  id            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  statement_id  uuid NOT NULL REFERENCES statements(id),
+  source_id     uuid NOT NULL REFERENCES sources(id),
+  stance        enum('supports','refutes','context') NOT NULL,
+  -- WHERE in the source the passage sits
+  locator       text,        -- 'section 3', 'para 2', 'p. 42', 'Lead paragraph'
+  -- the EXACT text that supports the statement, quoted verbatim
+  excerpt       text,
+  -- the retrieval anchor
+  revision_id   text,        -- Wikipedia revid (e.g. '1381860136'); null for non-versioned sources
+  retrieved_at  date,        -- when the passage was read
+  accessed_at   timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (statement_id, source_id, stance)
+)
+```
+
+**Why `stance` is not optional.** It is what makes a **dispute** representable. The Glasgow case is one proposition — *"chicken tikka masala originated in Glasgow"* — with one supporting chain and one refuting chain. Without `stance`, both would be indistinguishable "citations", and the model could not say *this source disagrees with that one*. ADR-001 §2.4 already sketches `supports enum('supports','refutes','context')`.
+
+**Why the passage AND the locator AND the revision id are all needed.** Each covers a different failure:
+
+| | without it |
+|---|---|
+| **`excerpt`** (the verbatim passage) | a citation says *"supported"* but nobody can see what the source actually said. The reader cannot check the claim, and a future editor cannot detect that the source has been edited under it. |
+| **`locator`** (where in the source) | the passage is quoted but not located, so it cannot be re-found and re-checked. A whole-article quote is not evidence. |
+| **`revision_id`** | the source is mutable. A Wikipedia article cited on 26 October is a *different document* from the one cited in March. Without the revision id, the citation silently drifts to whatever the article says today — the link still resolves, the claim it was supposed to support may no longer appear in it. |
+
+**The revision id is available and cheap.** The MediaWiki API returns it directly — verified live: for `Rendang`, `revid=1381860136`, `timestamp=2026-10-25T07:01:26Z` — and `https://en.wikipedia.org/w/index.php?oldid=<revid>` is a **permanent permalink** to that exact revision.
+
+**So the evidence link must carry the Wikipedia revision id, or a retrieval date for sources that are not versioned.** For a non-versioned source (a printed book, a PDF), `revision_id` is null and `retrieved_at` is the anchor instead — the source is fixed, so the retrieval date records *when it was read*, which is the only temporal fact available.
+
+**Both together, because they answer different questions:**
+
+| | answers |
+|---|---|
+| `revision_id` | **which version of the document** the passage was read from |
+| `retrieved_at` | **when** the passage was read |
+
+For a Wikipedia article, `revision_id` is the stronger anchor and `retrieved_at` still matters — the revision might have been read on a later date than it was created. For a fixed source, only `retrieved_at` is available.
+
+**What the existing 121 citations become.** They have a `location` ("Lead paragraph" / "History section") but **no excerpt, no revision id, and no retrieval date** — and their `claim_text` is the whole `short_description` (120 of 121), which is the thing being fixed.
+
+**My recommendation: they are migrated as `stance='supports'` rows with the locator preserved and `excerpt` / `revision_id` / `retrieved_at` NULL, marked as `migrated_legacy`.** They are then **enriched** as each reference dish is re-researched (GUS-028's work). A citation without an excerpt is not fully checkable, but it is a real pointer to a real source at a real location, and discarding it would lose the only evidence the catalog has.
+
+**The alternative, and it is stronger in one respect:** migrate them as `stance='supports'` **with the excerpt populated from the source's current text at the cited locator** — which can be fetched mechanically, because the locator is a section name. That produces checkable citations immediately, at the cost of the excerpt being the text *today* rather than the text *at the time of the original citation* — which is a real difference, and is exactly what the missing revision id was hiding.
+
+**My recommendation: migrate with the excerpt fetched, AND record the revision id of the revision that was read.** That makes the migrated citation honest about what it is — the passage as it stands on a specific, recorded revision — rather than pretending it was captured in March. It is a **re-reading**, recorded as such, not a reconstruction of a reading that never happened.
+
+**One thing I will decide rather than ask:** the old `citations` table is **not** dropped in this migration. It is emptied by re-pointing its rows and then **archived** — because `citations.target_type/target_id` is a **dish-level** link that the new model does not replace, and three dishes' articles point at it. Dropping a live table with 121 rows needs approval under RULES.md, and there is no reason to do it before the new path is proven.
+
+---
+
+### Q7 (original) — How is a claim linked to a source, and what does a citation row carry?
 
 **Decision:** the shape of the claim↔source link.
 
@@ -845,7 +961,7 @@ and in the description, a stable anchor per sentence, e.g. `[c:7f3a…]` or a st
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q6 is open** — the source model. Note the amendment Q1 introduced that shapes it: *the exact source passage and locator live on the evidence link, not on claim; that shape is a later question.*
+**Q7 is open** — the evidence link: `stance`, the locator, the exact passage, and the retrieval anchor (Wikipedia revision id, or a retrieval date for sources that are not versioned).
 
 
 ---
@@ -869,8 +985,8 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q3 subject | ADR-001 §2.1 entity graph — **DECIDED**: the subject is an ENTITY, never a vocabulary value; for the pilot the subject set is **dish + place** only, and real technique/tradition entity tables are separate work. Places get a **country > region > city** hierarchy via the existing `geo_entities.parent_id` (already present, unused), seeded with **only the pilot places**; `Minangkabau` is a **tradition** value, not a place. Dimension and relation rows gain a **nullable `statement_id`**: the row is the index, the statement is the evidence, with a consistency check flagging rows whose statement is missing / retracted / contradicting. `geo_entities.wikidata_id` population is backlogged |
 | Q4 predicate | ADR-001 §2.4 sketch |
 | Q5 objects | ADR-001 D6 worked example (6 claims for rendang) |
-| Q6 sources | GUS-026 §3 source classes — **OPEN**. Draft recommendation: extend `sources` in place with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support) rather than replacing the table. Measured live: 142 rows, ALL `source_type='web'` and ALL `reliability='secondary'` (so `reliability` carries no information today), 0 doi/isbn/archive_name, 121 distinct urls against 142 rows (~21 duplicate sources, and no unique constraint on url), and 120 of 121 `citations.claim_text` values byte-identical to `dishes.short_description` |
-| Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes |
+| Q6 sources | GUS-026 §3 source classes — **DECIDED**: extend `sources` IN PLACE with a `source_classes` lookup table (S1-S7, each carrying what it is good enough to support). **Classification is by URL domain, each domain individually — never a blanket rule.** Measured: ALL 142 rows are `en.wikipedia.org` → all **S6**; there is no other domain to classify, so the catalog has no source diversity at all. Caveat recorded: `*.wikipedia.org` must be split by PATH, since a `/wiki/File:...` or a `wikidata.org/wiki/Q...` URL is not a Wikipedia article. **Dedupe BEFORE the pilot** (GUS-238): 21 redundant rows across 12 normalised URLs; 21 rows carry zero citations, 20 in duplicate groups and 1 unique-URL orphan (Tajine - a different defect, an unused source); only 1 group has more than one cited row (Moussaka, 3 dishes sharing one article); 'pho' has 2 rows, neither cited. Normalise URL, id map, re-point citations, ARCHIVE merged rows, unique constraint on normalised_url. `source_type` stays; `reliability` deprecated not deleted |
+| Q7 claim↔source | ADR-001 §2.4 `citations` sketch; GUS-026 §4 disputes — **OPEN**. Draft: a `claim_citations` table (statement_id, source_id, stance supports/refutes/context, locator, excerpt, **revision_id**, retrieved_at). The evidence link must carry the **Wikipedia revision id** (verified live: `Rendang` revid=1381860136, timestamp 2026-10-25T07:01:26Z, and `?oldid=<revid>` is a permanent permalink) **or a retrieval date for sources that are not versioned** — because a Wikipedia article cited today is a different document from the one cited in March, and without the revision id the citation silently drifts to whatever the article says now |
 | Q8 independence | GUS-026 §5 |
 | Q9 anchors | ADR-001 D4 (sentence anchors) |
 | Q10 ownership | ADR-001 §2.2 (`dish_claims`) |
