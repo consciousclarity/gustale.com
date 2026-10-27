@@ -1584,6 +1584,8 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 | | dishes with no cuisine |
 |---|---|
 | Brazil | `acaraje`, `feijoada` |
+| India | `vindaloo` |
+| Thailand | `khao-soi` |
 | Austria | `wiener-schnitzel` |
 | Canada | `poutine` |
 | Greece | `moussaka-greek` |
@@ -1595,14 +1597,12 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 | Poland | `pierogi` |
 | Portugal | `bacalhau-a-bras` |
 | Puerto Rico | `tostones` |
-| Thailand | `khao-soi` |
 | Tunisia | `couscous` |
 | Ukraine | `borscht` |
-| United Kingdom | `chicken-tikka-masala` |
 | United States | `hamburger-american` |
-| + 1 Indian, 1 Thai dish | |
+| **United Kingdom** | **`chicken-tikka-masala`** — **UNSET BY DECISION, not a gap** |
 
-**Every one of those 19 has a family and a course — but no cuisine.** So the rule *"every dish must have a category that fits well"* is **currently false for 19 of 121 dishes**, before a single new dish is added. That is the honest baseline, and it is the thing the requirement is actually pointing at.
+**So: 18 gaps and 1 deliberate unset.** `chicken-tikka-masala` is counted in the 19 by a *row-absence* query, but it is not a gap — it is the catalog's clearest example of an unset dimension being the correct editorial state, and under the national-cuisine convention below it is **also** the dish whose cuisine would be `disputed` between British and Indian.
 
 **And three of the seven dimensions are single-valued by schema constraint** — verified from `pg_constraint`:
 
@@ -1618,50 +1618,104 @@ WHERE s.subject_type <> 'dish' OR s.subject_id <> dr.dish_id;
 
 **This is why "every dish must have a category that fits well" is a hard requirement and not a nice-to-have.** A single-valued dimension **cannot** hold a dish that belongs to two families — and ADR-002 Q5 already found that case in the catalog (`chole-bhature` was `curry` vs `bread`, `goulash-hungarian`/`kimchi-jjigae` were `stew` + `soup`). The schema's answer is Q5's generalised rule: competing statements, one accepted, the dimension row points at the accepted one. **So a dish that genuinely straddles two categories is representable — but the *dimension row* still shows one value, and the other lives in a competing statement.** That is a deliberate design, and it means the "fits well" requirement is satisfied by the *evidence*, not by a second value in the row.
 
-**What this means for catalog growth, stated as a constraint rather than a worry:**
+#### The taxonomy extension decisions — 2026-10-27
 
-- **The cuisine vocabulary must grow to cover the countries the catalog spans.** 21 values cannot express 36 origins, and the 18 gaps are the visible cost. The Q6 rule — *each domain classified individually, never a blanket rule* — applies here too: a new cuisine value is a **vocabulary extension by explicit decision** (Q1's rule: new predicates/values only by decision), not a data-entry convenience.
-- **The COURSE vocabulary does not break.** A dish that is eaten at breakfast *and* bought as street food is **`course` + `context`** — ADR-001 D2 made `dish_context` a separate, multi-valued dimension for exactly this, so the two facts live in two dimensions rather than fighting over one cell. A dish whose course depends on the meal is recorded as its **primary role** (ADR-001 D3f: *"dish_course = the dish's PRIMARY meal role; secondary/situational uses go to dish_context"*). **So the course vocabulary absorbs unfamiliar dishes unchanged.** This corrects an earlier worry in this ADR that the 8 course values "break first" — they do not.
-- **A dish name never becomes a family unless the family has ≥2 member dishes.** The rule, stated: **if only one dish in the catalog would carry a family value, that value is not a family — it is a description.** This is the rule that stops `moussaka-greek` from becoming the family "Moussaka", and it is what makes the family vocabulary safe to extend: a new family value is only admitted once a second dish genuinely belongs to it. (Today exactly **one** dish has its `canonical_name` equal to a family name — `moussaka-greek` — so there is **no precedent** for the awkward case, and 50 new dishes will create it. The ≥2 rule is what makes that safe.)
+**Decided by Alejandro, against the 50-dish candidate shortlist.** These are *vocabulary extensions*, each admitted because the shortlist produced enough members to satisfy the ≥2 rule.
 
-**What this does NOT change about the ADR's decisions.** It does not reopen Q4's one-predicate-per-dimension rule: a new *predicate* still requires a decision, and a new *value* in an existing dimension is the normal extension path (Q4: "the vocabulary grows deliberately"). It does not reopen Q5's single-valued rule. **It adds a requirement the model already implies but has never had to satisfy at scale: the vocabularies must be complete enough that no dish needs a bad fit.**
+**Three new `dish_family` values admitted:**
 
-**And it sharpens the GUS-231 link.** GUS-231 excludes non-published dishes from metric populations. A dish with a missing dimension row is in the same category — a row that exists in the catalog but is missing a dimension the metric measures — and today it *does* enter the denominator silently. **A standing check belongs with GUS-231's standing check**, because it is the same defect: a population that includes rows the metric does not measure.
-
-**But the check is NOT "every published dish has all seven dimension rows" — that would contradict ADR-001.** The correct rule is the pilot spec's own (D3e):
-
-> **Every dimension is either ASSIGNED a controlled-vocabulary value, or EXPLICITLY UNSET with a reason.**
-
-The reasons are `disputed` · `no_evidence` · `not_applicable`. **An unset dimension is a recorded decision, not a gap.** ADR-001 D1 already established the precedent: **`chicken-tikka-masala`'s cuisine is deliberately unset** because the Glasgow origin is contested — and that is *correct*, not a defect. A check that demanded all seven rows would flag the single most deliberate editorial decision in the catalog as an error.
-
-**So the standing check is: "every published dish has a recorded state for every dimension — assigned, or unset with a reason."** A dimension with *neither* is the defect. The schema must therefore be able to record the reason, which means the unset reason needs somewhere to live — a nullable `unset_reason` column on the dimension join tables, or an equivalent mechanism. **That is a schema change, and it is part of this work rather than an afterthought**, because without it "explicit unset with a reason" is unfalsifiable.
-
-**Which of the 19 cuisine-less dishes are unset-by-decision and which are gaps.** Measured: **19 published dishes have no `dish_cuisines` row**, across 18 countries:
-
-| country | dishes | status |
+| new family | members | why they are one family |
 |---|---|---|
-| Brazil | `acaraje`, `feijoada` | **gap** — no cuisine value exists for Brazil |
-| India | `vindaloo` | **gap** — `Indian`/`South Indian` exist; `vindaloo` is unassigned (ADR-001's 13 broader-family proposals are still open) |
-| Thailand | `khao-soi` | **gap** — `Thai` exists |
-| Austria | `wiener-schnitzel` | **gap** — no Austrian value |
-| Canada | `poutine` | **gap** — no Canadian value |
-| Greece | `moussaka-greek` | **gap** — no Greek value |
-| Hungary | `goulash-hungarian` | **gap** — no Hungarian value |
-| Jordan | `mansaf` | **gap** — no Jordanian value |
-| Morocco | `tagine-moroccan` | **gap** — no Moroccan value |
-| Nepal | `momo` | **gap** — no Nepalese value |
-| Nigeria | `jollof-rice` | **gap** — no Nigerian value |
-| Poland | `pierogi` | **gap** — no Polish value |
-| Portugal | `bacalhau-a-bras` | **gap** — no Portuguese value |
-| Puerto Rico | `tostones` | **gap** — no Puerto Rican value |
-| Tunisia | `couscous` | **gap** — no Tunisian value |
-| Ukraine | `borscht` | **gap** — no Ukrainian value |
-| United States | `hamburger-american` | **gap** — no American value |
-| **United Kingdom** | **`chicken-tikka-masala`** | **UNSET BY DECISION — the Glasgow dispute (ADR-001 D1). Not a gap.** |
+| **`stiff-porridge`** | `fufu`, `ugali`, `tô`, `dhindo`, `ambuyat` | a stiff, sliceable or cake-like starch — poured, pounded or steamed to a firm texture and eaten with a soup or sauce |
+| **`porridge`** | `ogi`, `canjica`, + `bubur-ayam` | a soft, pourable grain porridge |
+| **`stuffed-vegetable`** | `levengi`, `rocoto relleno`, + `dolma` | a vegetable or leaf stuffed with a filling |
 
-**So: 18 gaps and 1 deliberate unset.** `chicken-tikka-masala` is counted in the 19 by a *row-absence* query, but it is not a gap — it is the catalog's clearest example of an unset dimension being the correct editorial state, and under the national-cuisine convention below it is **also** the dish whose cuisine would be `disputed` between British and Indian.
+**`stiff-porridge` vs `porridge` is a texture distinction, and that is what makes them two families rather than one.** A stiff porridge holds a shape and is eaten in pieces with a stew; a soft porridge is spooned. The distinction is the same kind of decision ADR-001 D3i made for `stew` vs `soup` (precedence, recorded provisionally) — and it means both values need their precedence rule stated, or the two will collide.
 
-**The catalog-growth task itself is backlogged as GUS-241**, not done here — it is content work with 50 researched dishes, each needing a place, a description written in the catalogue's own words, a source, and a vocabulary decision where nothing fits.
+**Three new `dish_technique` values admitted:**
+
+| new technique | members |
+|---|---|
+| **`pit-roasting`** | `umu`, `pachamanca`, `curanto` — dishes whose *method is the vessel* |
+| **`fermenting`** | `injera`, `lahpet`, `ogi`, `skyr`, `mishti doi`, `kiviak`, `hákarl` |
+| **`curing`** | `kilishi`, `chicharrón`, `chhurpi`, `kiviak`, `hákarl`, `svíð` |
+
+**`pit-roasting` is the technique the "vessel is the dish" cases need.** `umu` (Samoa/Pacific) is the earth oven itself, `pachamanca` (Peru) is an earth-oven pit, `curanto` (Chile) is a stone-heated pit. **All three are the same technique, and none of them is `Roasting`** — an oven or a grill is a different thing from a pit filled with hot stones. `Roasting` and `Spit-roasting` already exist and neither covers them.
+
+**Three `ingredient_category` values — and a finding.** `offal`, `leafy-greens` and `seafood` **already exist** in the live vocabulary (`ingredient_categories` has 53 rows including all three, plus `Fish` and `Shellfish`). **So this is a USE decision, not a creation** — the values were there and unused; the decision is to actually apply them. That is worth recording plainly, because the audit's framing ("admit ingredient values") implied three new rows that were not needed.
+
+**`seafood` as a parent requires a hierarchy change.** Measured: `Seafood`, `Fish` and `Shellfish` are all **roots** (`parent_id IS NULL`), and the only existing parent/child pairs are `Coconut`→`Produce`, `Beef`/`Pork`→`Red meat`, `Chicken`→`White meat`. To make `seafood` a parent leaving `shrimp`, `octopus`, `fish`:
+
+```
+UPDATE ingredient_categories SET parent_id = <Seafood> WHERE name = 'Fish';
+UPDATE ingredient_categories SET parent_id = <Seafood> WHERE name = 'Shellfish';
+INSERT INTO ingredient_categories (slug, name, parent_id) VALUES ('shrimp', 'Shrimp', <Seafood>);
+INSERT INTO ingredient_categories (slug, name, parent_id) VALUES ('octopus', 'Octopus', <Seafood>);
+```
+
+**`Shrimp` and `Octopus` do not exist today** — verified against the live 53-row vocabulary. And note that `ingredient_categories.parent_id` already exists, so **this is using a column that is already there**, exactly as Q3 did with `geo_entities.parent_id`.
+
+**Four rejected families — and where their dishes go instead.** The rejections are recorded with their re-routing, because *why* a family was refused is the part that stops the same proposal returning:
+
+| rejected family | why refused | where the dishes go |
+|---|---|---|
+| **leaf-stew** | the leaf is an *ingredient*, not the dish's form | family **`stew`** + ingredient **`leafy-greens`**: `romazava`, `matapa`, `muamba` |
+| **offal** | the animal part is an *ingredient*; the form is already covered | `khash`, `paya` → **`soup`**; `nihari`, `tripas à moda do Porto` → **`stew`**; `anticucho` → **`kebab`** — all + ingredient **`offal`** |
+| **seafood** | same reason as offal | `bobó de camarão`, `polvo à lagareiro` → **`stew`** + ingredient **`seafood`** |
+| **raw/preserved** | it is a *technique*, not a form | the `fermenting` / `curing` techniques carry it: `kitfo`, `kokoda`, `hákarl`, `svíð`, `chhurpi` |
+
+**Two dishes still need a separate call, as flagged:** `svíð` (cured lamb) and `chhurpi` (dried yak cheese) have an ingredient and a technique but **no family yet** — because a cured or dried food is a *state*, not a *form*, and there is no family for that. **They are not in the first 50 until that call is made.**
+
+**Three removals from the shortlist, for stated reasons:**
+
+| dish | reason |
+|---|---|
+| `pulaka` | **a crop (taro), not a dish** — dropped unless a specific dish is named |
+| `murtabak` / `mutabbaq` | **the diaspora case** — `martabak` is currently ONE row in the catalogue and the split into `martabak-manis`/`martabak-telur` is **GUS-230's** to make. Seeding a third spelling here would duplicate an existing decision. **Off the list.** |
+| drinks (`chicha de jora`) | **a drink, not eaten as food** — out of scope unless eaten as food, so moved to reserve |
+
+**The ten non-English-article dishes go to RESERVE FOR TRANCHE 1** — not dropped. They need a non-English Wikipedia title with the citation language recorded, and the tranche-1 batch is where that source-hunting happens anyway.
+
+**And the course vocabulary does not break.** A dish that is eaten at breakfast *and* bought as street food is **`course` + `context`** — ADR-001 D2 made `dish_context` a separate, multi-valued dimension for exactly this. A dish whose course depends on the meal is recorded as its **primary role** (ADR-001 D3f). **So the course vocabulary absorbs unfamiliar dishes unchanged.** This corrects an earlier worry in this ADR that the 8 course values "break first" — they do not.
+
+**And a dish name never becomes a family unless the family has ≥2 member dishes.** If only one dish in the catalog would carry a family value, that value is not a family — it is a description. This is the rule that stops `moussaka-greek` from becoming the family "Moussaka", and it is what makes the family vocabulary safe to extend: a new family value is only admitted once a second dish genuinely belongs to it. **Every one of the three families admitted above has ≥3 members, so all three clear the rule comfortably.**
+
+#### The `unset_reason` mechanism — a separate table, not a column
+
+**An unset dimension is a recorded decision, not a gap** (D3e), and for that to be falsifiable the reason needs somewhere to live. **The mechanism is a separate table**, not a nullable column on the seven join tables:
+
+```
+dish_dimension_unset (
+  id            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  dish_id       uuid NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
+  -- which dimension is unset
+  dimension     enum('family','cuisine','course','technique',
+                     'ingredient_category','tradition','context') NOT NULL,
+  -- why it is unset
+  reason        enum('disputed','no_evidence','not_applicable') NOT NULL,
+  note          text,
+  -- the statement that will eventually evidence it (NULL until researched)
+  statement_id  uuid REFERENCES statements(id),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE NULLS NOT DISTINCT (dish_id, dimension)
+)
+```
+
+**Why a separate table rather than a column on each join table.** A column would have to be added to **seven** tables, and would have to be nullable and reason-typed in each — seven copies of the same vocabulary, seven places for the "value and unset never coexist" rule to live, and seven places for a CHECK constraint to be forgotten. One table means **one** enum, **one** uniqueness constraint, and **one** trigger.
+
+**The trigger: a value and an unset never coexist.** The rule is about a *(dish, dimension)* pair having exactly one of two states, and the two states live in different tables — so the trigger has to fire on **both**:
+
+| table | trigger | rejects |
+|---|---|---|
+| `dish_dish_*` (all 7) | `AFTER INSERT OR UPDATE` | inserting a value for a (dish, dimension) that has an `unset` row |
+| `dish_dimension_unset` | `AFTER INSERT OR UPDATE` | inserting an unset for a (dish, dimension) that has a value row |
+
+**Both directions are needed**, because a one-sided trigger would leave a hole: the value could be inserted first and the unset second, and the unset would land. **A pair with both is unreachable, not merely discouraged.**
+
+**The GUS-231 check becomes exactly expressible:** *every published dish × 7 dimensions has exactly one of {a value row, an unset row}.* That is a single query over two tables with a `FULL OUTER JOIN`, and it fails loudly on a dimension with **neither** — which is the actual defect.
+
+**One property of this design worth stating:** the `statement_id` column on `dish_dimension_unset` is **nullable and NULL until researched** — so an unset dimension can carry the statement that will eventually resolve it, and the model's own Q10 rule (statements are independent entities, the subject is the only link) is respected: **the unset row points at a statement about that dish**, and the consistency check applies as it does to a value row.
 
 #### The cuisine convention — NATIONAL, with regional traditions in `dish_tradition`
 
@@ -1683,7 +1737,7 @@ The reasons are `disputed` · `no_evidence` · `not_applicable`. **An unset dime
 - **A transnational dish gets `dish_cuisine` unset with reason `disputed`, plus a `dish_tradition`.** That is the `chicken-tikka-masala` case exactly: cuisine unset (disputed), tradition `Glasgow Muslim` + `British National` — both of which **already exist** in `dish_traditions`.
 - **This closes the ADR-001 §4 follow-up** on national-vs-regional cuisines, which was recorded there as an open follow-up with four questions and a note that "the pilot uses the flat vocabulary, Minangkabau specificity is carried by origin(place) and claims, NOT by inventing a cuisine row." **The flat vocabulary was the pilot's expedient; this decision replaces it with a rule.**
 
-**What this does to the 18 gaps.** Under the national convention, each of the 18 needs a national cuisine value that does not yet exist: `Austrian`, `Brazilian`, `Canadian`, `Greek`, `Hungarian`, `Jordanian`, `Moroccan`, `Nepalese`, `Nigerian`, `Polish`, `Portuguese`, `Puerto Rican`, `Tunisian`, `Ukrainian`, `American`, plus filling `vindaloo` and `khao-soi` from the existing `Indian`/`Thai` values. **That is 15 new national cuisine values plus 2 assignments** — each one a decision, per Q1's "the vocabulary grows deliberately."
+**The 18 gaps, resolved.** **15 new national values + 2 assignments from existing values + 1 deliberate unset.** The 15 are reviewed as one batch with 15 individual lines (recorded in the GUS-241 evidence), each checked against the national rule.
 
 **And it does NOT require a new dimension, a new predicate, or a schema change to the taxonomy.** The values go in the existing `dish_cuisines` table; the traditions already exist. **This is a vocabulary extension, not a model change** — which is why it can be done now, before the claims model lands.
 
