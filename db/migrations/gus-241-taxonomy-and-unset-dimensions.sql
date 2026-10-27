@@ -16,6 +16,36 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------
+-- 0. PRE-FLIGHT ASSERTIONS.
+--
+-- Every insert below that is EXPECTED to match rows is guarded: if it
+-- inserts 0 rows when more were expected, that is a FAIL and the
+-- migration aborts. This is the check that caught the tradition bug:
+-- three tradition assignments (couscous, momo, tostones) were missing
+-- from the VALUES list, the insert silently reported '0 rows', and the
+-- tradition count came out 118 instead of 115.
+--
+-- The technique: a temp table of (label, expected_count) is populated as
+-- each insert runs, and the final assertion compares each expected count
+-- with the actual row count that resulted.
+-- ---------------------------------------------------------------------
+
+CREATE TEMP TABLE _g241_expected (
+  label text PRIMARY KEY,
+  expected int NOT NULL,
+  actual int NOT NULL DEFAULT 0
+) ON COMMIT DROP;
+
+-- Helper: the number of rows a given slug set currently has in a table.
+CREATE OR REPLACE FUNCTION _g241_count(p_slug text) RETURNS int AS $$
+DECLARE n int;
+BEGIN
+  SELECT count(*) INTO n FROM dishes d
+  WHERE d.slug = p_slug AND d.status = 'published';
+  RETURN n;
+END $$ LANGUAGE plpgsql;
+
+-- ---------------------------------------------------------------------
 -- 1. VOCABULARY
 -- ---------------------------------------------------------------------
 
@@ -100,6 +130,68 @@ UPDATE ingredient_categories c
 -- ---------------------------------------------------------------------
 -- 2. dish_dimension_unset + the both-directions trigger
 -- ---------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------
+-- 1g. provenance + status on ALL SEVEN dimension join tables.
+--
+-- The same narrow pair already on dish_dish_techniques (added by
+-- GUS-014's broadened-family-corrections migration):
+--   provenance : how the value was established
+--                'preparation' | 'description-derived'
+--   status     : 'active' | 'provisional'
+--                provisional = inferred rather than evidenced, pending a claim
+--
+-- This is what lets borscht carry status='provisional' pending a
+-- non-Wikipedia source, and it is what makes a dimension row's own
+-- confidence legible without opening the claims model.
+--
+-- dish_dish_techniques already has both columns, so it is skipped.
+-- ---------------------------------------------------------------------
+
+DO $$
+DECLARE
+  t text;
+  missing text[] := ARRAY[]::text[];
+BEGIN
+  FOREACH t IN ARRAY ARRAY['dish_dish_families','dish_dish_cuisines',
+                           'dish_dish_courses','dish_dish_techniques',
+                           'dish_dish_ingredient_categories',
+                           'dish_dish_traditions','dish_dish_contexts']
+  LOOP
+    EXECUTE format('ALTER TABLE %I
+                      ADD COLUMN IF NOT EXISTS provenance text NOT NULL DEFAULT ''preparation'',
+                      ADD COLUMN IF NOT EXISTS status      text NOT NULL DEFAULT ''active''', t);
+  END LOOP;
+
+  -- Verify all seven have both columns, and report any that do not.
+  FOREACH t IN ARRAY ARRAY['dish_dish_families','dish_dish_cuisines',
+                           'dish_dish_courses','dish_dish_techniques',
+                           'dish_dish_ingredient_categories',
+                           'dish_dish_traditions','dish_dish_contexts']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema='public' AND table_name=t
+        AND column_name='provenance' AND is_nullable='NO'
+    ) OR NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema='public' AND table_name=t
+        AND column_name='status' AND is_nullable='NO'
+    ) THEN
+      missing := missing || t;
+    END IF;
+  END LOOP;
+
+  IF array_length(missing, 1) IS NOT NULL THEN
+    RAISE EXCEPTION 'provenance/status missing on: %', array_to_string(missing, ', ');
+  END IF;
+  RAISE NOTICE 'provenance + status present on all 7 dimension tables';
+END $$;
+
+COMMENT ON COLUMN dish_dish_families.provenance IS
+  'How the value was established: preparation (the catalog''s own recorded method) | description-derived (read from the dish short_description)';
+COMMENT ON COLUMN dish_dish_families.status IS
+  'active | provisional - a value inferred rather than evidenced, pending a claim';
 
 -- The statements table does not exist yet - the claims model (GUS-027/028)
 -- has not landed. The FK is added only if the table is present, so this
@@ -242,14 +334,39 @@ CREATE TRIGGER trg_ddu_guard_unset
 -- ---------------------------------------------------------------------
 
 -- 3a. The traditions the approved cuisine lines carry.
+--     BOTH KINDS OF LINE:
+--       - a cuisine AND a tradition: mansaf (jordanian + levantine),
+--         tagine-moroccan (moroccan + maghrebi)
+--       - an unset cuisine AND a tradition: couscous (unset disputed +
+--         maghrebi), momo (unset disputed + tibetan), tostones (unset
+--         disputed + caribbean)
+--     All five are here. An unset cuisine does NOT mean the dish has no
+--     tradition — the tradition is precisely what survives the dispute.
+--
+--     EXPECTED 5 ROWS. This is the assertion that would have caught the
+--     bug: the three disputed dishes were missing from this VALUES list,
+--     the insert reported '0 rows', and nothing failed.
 INSERT INTO dish_dish_traditions (dish_id, value_id)
 SELECT d.id, t.id
 FROM dishes d
-JOIN (VALUES ('mansaf','levantine'), ('tagine-moroccan','maghrebi')) AS v(slug, trad_slug)
+JOIN (VALUES
+  ('mansaf',          'levantine'),
+  ('tagine-moroccan', 'maghrebi'),
+  ('couscous',        'maghrebi'),
+  ('momo',            'tibetan'),
+  ('tostones',        'caribbean')
+) AS v(slug, trad_slug)
   ON v.slug = d.slug
 JOIN dish_traditions t ON t.slug = v.trad_slug
 WHERE d.status = 'published'
   AND NOT EXISTS (SELECT 1 FROM dish_dish_traditions x WHERE x.dish_id = d.id AND x.value_id = t.id);
+
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('tradition assignments', 5,
+        (SELECT count(*) FROM dish_dish_traditions x
+          JOIN dishes d ON d.id = x.dish_id
+          JOIN dish_traditions t ON t.id = x.value_id
+         WHERE t.slug IN ('levantine','maghrebi','tibetan','caribbean')));
 
 -- 3b. The cuisine rows for the non-disputed gaps.
 INSERT INTO dish_dish_cuisines (dish_id, value_id, is_primary)
@@ -277,6 +394,61 @@ WHERE d.status = 'published'
   AND NOT EXISTS (SELECT 1 FROM dish_dish_cuisines x WHERE x.dish_id = d.id)
   AND NOT EXISTS (SELECT 1 FROM dish_dimension_unset u
                    WHERE u.dish_id = d.id AND u.dimension = 'cuisine');
+
+-- EXPECTED 15 cuisine assignments (13 new values + vindaloo + khao-soi).
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('cuisine assignments', 15,
+        (SELECT count(*) FROM dish_dish_cuisines x
+          JOIN dishes d ON d.id = x.dish_id
+          JOIN dish_cuisines c ON c.id = x.value_id
+         WHERE c.slug IN ('austrian','brazilian','canadian','greek','hungarian',
+                          'jordanian','moroccan','nigerian','polish','portuguese',
+                          'ukrainian','american','indian','thai')
+           AND d.slug IN ('wiener-schnitzel','acaraje','feijoada','poutine',
+                          'moussaka-greek','goulash-hungarian','mansaf',
+                          'tagine-moroccan','jollof-rice','pierogi',
+                          'bacalhau-a-bras','borscht','hamburger-american',
+                          'vindaloo','khao-soi')));
+
+-- EXPECTED 2 new traditions (tibetan, caribbean).
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('new tradition values', 2,
+        (SELECT count(*) FROM dish_traditions WHERE slug IN ('tibetan','caribbean')));
+
+-- EXPECTED 2 new ingredient values (shrimp, octopus).
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('new ingredient values', 2,
+        (SELECT count(*) FROM ingredient_categories WHERE slug IN ('shrimp','octopus')));
+
+-- ---------------------------------------------------------------------
+-- 3c. borscht's cuisine is PROVISIONAL, pending a non-Wikipedia source.
+-- The assignment is made now, but the row says so.
+-- ---------------------------------------------------------------------
+UPDATE dish_dish_cuisines x
+   SET status = 'provisional'
+  FROM dishes d, dish_cuisines c
+ WHERE x.dish_id = d.id AND x.value_id = c.id
+   AND d.slug = 'borscht' AND c.slug = 'ukrainian'
+   AND x.status <> 'provisional';
+
+-- EXPECTED 1 provisional cuisine row (borscht).
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('provisional cuisine rows', 1,
+        (SELECT count(*) FROM dish_dish_cuisines x
+          JOIN dishes d ON d.id = x.dish_id
+          JOIN dish_cuisines c ON c.id = x.value_id
+         WHERE d.slug = 'borscht' AND c.slug = 'ukrainian' AND x.status = 'provisional'));
+
+-- EXPECTED 7 dimension tables carrying provenance + status.
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('dimension tables with provenance+status', 7,
+        (SELECT count(DISTINCT table_name) FROM information_schema.columns
+          WHERE table_schema='public'
+            AND table_name IN ('dish_dish_families','dish_dish_cuisines',
+                               'dish_dish_courses','dish_dish_techniques',
+                               'dish_dish_ingredient_categories',
+                               'dish_dish_traditions','dish_dish_contexts')
+            AND column_name IN ('provenance','status')));
 
 -- ---------------------------------------------------------------------
 -- 4. BACKFILL every empty dimension cell.
@@ -334,8 +506,50 @@ WHERE NOT EXISTS (
                    WHERE u.dish_id = pub.id AND u.dimension = alldim.dim);
 
 -- ---------------------------------------------------------------------
--- 5. REPORT
+-- 5. ASSERTIONS AND REPORT
+--
+-- The pre-flight assertions. ANY row where expected <> actual is a FAIL
+-- and the whole migration rolls back. This is the check that would have
+-- caught the missing tradition assignments: the insert reported '0 rows'
+-- and the tradition count came out 118 instead of 115, with no error.
 -- ---------------------------------------------------------------------
+
+-- EXPECTED 4 disputed unset rows. Checked HERE, after the backfill,
+-- because the backfill is what creates them.
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('disputed unset rows', 4,
+        (SELECT count(*) FROM dish_dimension_unset u
+          JOIN dishes d ON d.id = u.dish_id
+         WHERE u.reason = 'disputed' AND u.dimension = 'cuisine'
+           AND d.slug IN ('chicken-tikka-masala','couscous','momo','tostones')));
+
+-- EXPECTED 115 tradition gaps (121 published dishes - 6 with a tradition).
+-- The 6 are: rendang (minangkabau), mansaf (levantine), tagine-moroccan
+-- (maghrebi), couscous (maghrebi), momo (tibetan), tostones (caribbean).
+INSERT INTO _g241_expected (label, expected, actual)
+VALUES ('tradition unset cells', 115,
+        (SELECT count(*) FROM dish_dimension_unset u
+          JOIN dishes d ON d.id = u.dish_id
+         WHERE u.dimension = 'tradition' AND d.status = 'published'));
+
+DO $$
+DECLARE
+  bad int;
+  detail text;
+BEGIN
+  SELECT count(*) INTO bad FROM _g241_expected WHERE expected <> actual;
+  IF bad > 0 THEN
+    SELECT string_agg(format('%s: expected %s, got %s', label, expected, actual), E'\n  ')
+      INTO detail FROM _g241_expected WHERE expected <> actual;
+    RAISE EXCEPTION E'GUS-241 PRE-FLIGHT ASSERTION FAILED (% rows):\n  %', bad, detail;
+  END IF;
+  RAISE NOTICE 'all pre-flight assertions passed (% checks)', (SELECT count(*) FROM _g241_expected);
+END $$;
+
+\echo ''
+\echo '=== pre-flight assertions ==='
+SELECT label, expected, actual, CASE WHEN expected = actual THEN 'PASS' ELSE 'FAIL' END AS result
+FROM _g241_expected ORDER BY label;
 
 \echo ''
 \echo '=== per-reason counts (the dry-run report) ==='
