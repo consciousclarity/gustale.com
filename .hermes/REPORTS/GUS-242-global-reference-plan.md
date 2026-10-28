@@ -341,6 +341,31 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 
 **Live verification** (independent queries, not the migration's own report): catalogue unchanged (122 rows, 121 published, 1 archived); the GUS-231 state check still `missing_both=0, has_both=0`; per-dimension counts unchanged; and the pairing rule **rejects `article-derived` + `active` on live**.
 
+**Step 1c (the first-level region tier) is DONE and applied live** — `db/migrations/gus-242-seed-regions.sql`:
+
+The dataset is fetched and reconciled. **ISO 3166-2 first-level divisions: 3,590.** With Wikidata `P300` cross-references:
+
+| | count |
+|---|---|
+| ISO 3166-2 first-level divisions | **3,590** |
+| …with a Wikidata item | **3,574** (99.6%) |
+| …with **no** Wikidata item | **16** |
+| Wikidata `P300` codes NOT in ISO first-level | 1,787 — of which **1,367 are ISO second-level** (real places, just deeper) and 420 are in no ISO list |
+| `P300` codes with >1 distinct Wikidata item | 96, of which **65 are ISO first-level** |
+
+**The 65 duplicated first-level codes are ALL resolved by rule, none by hand** — and the rules are worth recording because they are general:
+1. **A superseded entity loses.** A `former municipality of Latvia` is not what a current ISO code refers to. (36 Latvian codes, plus Morocco's `Oriental`.)
+2. **The broader administrative level wins.** `region of X` beats `district of X` — a first-level division *is* the country's top-level unit. (Côte d'Ivoire's Zanzan, DR Congo's Kasaï-Central.)
+3. **An administrative unit beats a physical feature.** `TV-NIT` is the **Niutao Island Council**, not the island. (GB counties beat the cities of the same name; `AD-07` is the parish, not the capital.)
+
+**One genuine decision is pending: 26 places are BOTH an ISO 3166-1 country and an ISO 3166-2 region.** Hong Kong is `HK` (country) and `CN-HK` (China's subdivision list); Puerto Rico is `PR` and `US-PR`; same for Guadeloupe, Réunion, Åland, Guam, Macao, Curaçao, Aruba and 18 more. **One place, one `wikidata_id` — so the two cannot both be cross-referenced rows.** The `UNIQUE (wikidata_id)` constraint added in step 1a caught this, which is the constraint doing its job.
+
+**Option B was taken** (two rows; the region row gets a NULL `wikidata_id`): **no schema change**, 3,544 regions keep a Q-id, 46 do not (26 dual-coded + 20 with no Wikidata item at all), and every region stays addressable by its ISO 3166-2 code.
+
+**Live verification:** 3,590 regions, 3,544 with a Q-id, **all 3,590 with a parent country**, 0 duplicate ISO codes, 0 duplicate Q-ids, 0 regions whose parent is not a country; 3,207 with a population; dishes unchanged at 122 with 0 orphan geo links. **geo_entities is now 3,849 rows** (259 countries + 3,590 regions).
+
+**Nothing else collides** — checked explicitly: 0 country-vs-country Q-id duplicates, 0 region-vs-region duplicates. **Option B is recommended**: it needs no schema change, and it keeps the honest distinction the project already prizes (a null Q-id is better than a wrong one).
+
 **Step 1b (the country tier) is DONE and applied live** — `db/migrations/gus-242-seed-countries.sql`:
 
 | | measured on live |
