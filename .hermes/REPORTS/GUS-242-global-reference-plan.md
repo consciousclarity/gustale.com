@@ -341,12 +341,29 @@ Wikidata / Wikipedia  ──▶  classify  ──▶  enter the catalogue  ─�
 
 **Live verification** (independent queries, not the migration's own report): catalogue unchanged (122 rows, 121 published, 1 archived); the GUS-231 state check still `missing_both=0, has_both=0`; per-dimension counts unchanged; and the pairing rule **rejects `article-derived` + `active` on live**.
 
-**Nothing is populated yet.** Steps 1b–1f follow.
+**Step 1b (the country tier) is DONE and applied live** — `db/migrations/gus-242-seed-countries.sql`:
+
+| | measured on live |
+|---|---|
+| `geo_entities` rows | **259** (was 36) |
+| all `entity_type='country'` | 259 |
+| with a `wikidata_id` | **259** |
+| with a `local_name` | **0** — deprecated, NULL throughout |
+| duplicate ISO codes | **0** |
+| dishes / geo links / orphans | 122 / 121 / **0** |
+
+**The 36 pre-existing rows kept their own ids and their own names** — the seed is additive, and only filled their `wikidata_id`.
+
+**Two duplicate ISO codes needed a rule.** `AQ` maps to two Wikidata items (Antarctica `Q51`, and the *Antarctic Treaty area* `Q10372207` — a disputed territory) and `CY` to two (Cyprus `Q229` and the *island* `Q644636`). The disambiguator is `P31`: **sovereign state / country** over island, **continent / region** over disputed territory. Both drops are recorded.
+
+**The dry-run on the copy caught two more real bugs**: the row id was generated as the *string* `'gen_random_uuid()'` cast to uuid (now a deterministic `uuid_generate_v5` over the Q-id, so the same country always gets the same id and the seed is reproducible), and the `wikidata_id` UPDATE was matched on the row id, which **missed the 36 pre-existing rows** because they carry their own ids — now matched on the ISO code.
+
+**Still to land: the per-language names.** `geo_entity_names` exists and is empty; the 259 countries' official-language names (P37) are being fetched against the API's rate limit and land as a follow-on migration. **159 distinct official-language codes** are in use across the catalogue, and 275 distinct language items were resolved.
 
 | # | step | size | notes |
-|---|---|---|---|
-| 1a | **schema prep**: `UNIQUE (wikidata_id)` + `UNIQUE (iso_code)` on `geo_entities`; `parent_id` on `dish_families`; `foodon_id` cross-reference columns; `dish_cuisine_translations`; `definition` + `source` on `dish_traditions`; `article-derived` in the `provenance` domain with its CHECK constraint | — | **must land before the seed** — the unique constraints are what stop the seed duplicating |
-| 1b | **places tier 1**: 249 countries | 249 rows | from Wikidata P297 + P17 + Q-id; ISO code is the key |
+|---|---|---|
+| 1a | **schema prep** | — | **DONE** — applied live |
+| 1b | **places tier 1**: 259 countries | **DONE** | 259 rows applied live: the ISO code is the key, the Q-id the cross-reference, `local_name` deprecated to NULL, names per official language in `geo_entity_names` (fetching, lands next) |
 | 1c | **places tier 2**: ~3,590 first-level regions | ~3,590 rows | from P300/P131 + P150 |
 | 1d | **all national cuisines** | ~200 rows | one per country, bare demonym slug |
 | 1e | **traditions**: one research pass → 400–600 values, each with a definition + source | 400–600 rows | |
