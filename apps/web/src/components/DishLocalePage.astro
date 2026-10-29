@@ -1,12 +1,16 @@
 ---
-import { getDishDetail, getDishJourney } from "../../../lib/api";
+import Layout from "../layouts/Layout.astro";
+import { getDishDetail, getDishJourney } from "../lib/api";
 import {
   type CoreLocale,
   dishUrl,
   hreflangAlternates,
   SITE_LOCALES,
-} from "../../../lib/locales";
-import type { DishDetailResponse } from "../../../types/dish";
+} from "../lib/locales";
+import type { DishDetailResponse } from "../types/dish";
+import { DishDetail } from "./DishDetail";
+import { EditDishButton } from "./EditDishButton";
+import { RelatedDishes } from "./RelatedDishes";
 
 export interface Props {
   slug: string;
@@ -34,12 +38,12 @@ if (notFound) {
 }
 
 // ── The journey beats ──────────────────────────────────────────────────
-let _journeyBeats: DishDetailResponse extends never ? never : any[] = [];
-let _journeyLineages: any[] = [];
+let journeyBeats: DishDetailResponse extends never ? never : any[] = [];
+let journeyLineages: any[] = [];
 try {
   const j = await getDishJourney(slug);
-  _journeyBeats = (j as any)?.beats ?? [];
-  _journeyLineages = (j as any)?.lineages ?? [];
+  journeyBeats = (j as any)?.beats ?? [];
+  journeyLineages = (j as any)?.lineages ?? [];
 } catch {
   // The journey is optional — a dish without one still renders.
 }
@@ -49,27 +53,27 @@ try {
 // The hreflang set is the locales the site ships pages for, not the
 // locales the dish happens to have a name in. A dish with a Tagalog
 // name but no Tagalog page would advertise a URL that 404s.
-const _alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
+const alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
 
 // ── The English-fallback notice ────────────────────────────────────────
 //
 // The API reports the locale it served alongside the one that was
 // asked for. When they differ, this page has no translation and is
 // showing English — and the ADR says to SAY SO, not to swap silently.
-const _servedEnglish =
+const servedEnglish =
   data !== null && data.requestedLocale !== data.locale && data.locale === "en";
 
 // ── SEO ────────────────────────────────────────────────────────────────
-const _seoTitle = data?.dish
+const seoTitle = data?.dish
   ? `${data.dish.name} — Gustale`
   : "Dish not found — Gustale";
-const _seoDescription =
+const seoDescription =
   data?.dish?.description ??
   data?.dish?.shortDescription ??
   "A digital culinary archive.";
 
 // The language switcher: the same dish in every locale the site ships.
-const _localeUrls = Object.fromEntries(
+const localeUrls = Object.fromEntries(
   SITE_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
 );
 ---

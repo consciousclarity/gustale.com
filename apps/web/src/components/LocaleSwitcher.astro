@@ -9,7 +9,11 @@
  * So this is a plain list of links to the same page in every locale.
  * It never redirects and it never hides anything.
  */
-import { type CoreLocale, SITE_LOCALES } from "../lib/locales";
+import {
+  type CoreLocale,
+  LOCALE_NAMES,
+  SITE_LOCALES,
+} from "../lib/locales";
 
 export interface Props {
   /** The locale of the current page. */
@@ -21,7 +25,7 @@ export interface Props {
 }
 
 const { current, urls, suggested = null } = Astro.props;
-const _others = SITE_LOCALES.filter((l) => l !== current);
+const others = SITE_LOCALES.filter((l) => l !== current);
 ---
 
 <nav class="gst-locales" aria-label="Language">

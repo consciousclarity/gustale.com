@@ -175,3 +175,21 @@ export function suggestLocale(
   }
   return null;
 }
+
+/**
+ * The origin the site is served from.
+ *
+ * PUBLIC_SITE_ORIGIN is set in CI. The fallback is derived from the
+ * build domain, so a local build still produces working hreflang URLs.
+ *
+ * It lives HERE, in a module, rather than in a page's frontmatter: an
+ * Astro page compiles its frontmatter into a module where a `const`
+ * declared in the same file is NOT visible to the exported
+ * `getStaticPaths` at the moment Astro calls it. A plain import is.
+ */
+export function siteOrigin(): string {
+  const explicit = import.meta.env.PUBLIC_SITE_ORIGIN;
+  if (explicit) return explicit;
+  const domain = import.meta.env.PUBLIC_DOMAIN ?? "recipes";
+  return domain === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+}

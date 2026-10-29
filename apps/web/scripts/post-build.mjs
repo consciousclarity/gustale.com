@@ -267,8 +267,8 @@ console.log("[post-build] generating the per-locale sitemaps");
 try {
   const { execFileSync } = await import("node:child_process");
   execFileSync(
-    "python3",
-    ["scripts/generate_sitemaps.py", "--dist", DIST, "--domain", DOMAIN],
+    "node",
+    ["scripts/generate_sitemaps.mjs", "--dist", DIST, "--domain", DOMAIN],
     { cwd: repoRoot, stdio: "inherit" },
   );
 } catch (err) {
