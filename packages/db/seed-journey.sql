@@ -37,6 +37,9 @@ BEGIN
     SELECT id INTO spain_id FROM geo_entities WHERE iso_code = 'ES' LIMIT 1;
   END IF;
 
+  -- CI runs both seed files in ONE psql session, so a temp table
+  -- from the other file may already exist. Drop first.
+  DROP TABLE IF EXISTS _seed_geo_ids;
   CREATE TEMP TABLE _seed_geo_ids (iso_code text PRIMARY KEY, id uuid);
   INSERT INTO _seed_geo_ids (iso_code, id) VALUES
     ('IN', india_id),

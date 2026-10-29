@@ -47,6 +47,9 @@ BEGIN
   END IF;
 
   -- Store it so the dish insert can reference it.
+  -- CI runs both seed files in ONE psql session, so a temp table
+  -- from the other file may already exist. Drop first.
+  DROP TABLE IF EXISTS _seed_geo_ids;
   CREATE TEMP TABLE _seed_geo_ids (iso_code text PRIMARY KEY, id uuid);
   INSERT INTO _seed_geo_ids (iso_code, id) VALUES ('GR', greece_id)
     ON CONFLICT (iso_code) DO UPDATE SET id = EXCLUDED.id;
