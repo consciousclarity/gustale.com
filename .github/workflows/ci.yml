@@ -258,6 +258,7 @@ jobs:
             db/migrations/0023_adr003_dish_names.sql
             db/migrations/0024_adr003_dish_names_data.sql
             db/migrations/0025_adr002_description_sentences.sql
+            db/migrations/0026_adr003_sentence_translations.sql
           )
           for f in "${data_migrations[@]}"; do
             if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
@@ -267,6 +268,20 @@ jobs:
             echo "Applying $f"
             PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
           done
+
+      # The API imports the schema tables from @gustale/db, which
+      # resolves to packages/db/dist — the BUILT output, not the
+      # source. A schema addition is therefore not complete until the
+      # db package is rebuilt: the tests read a stale dist and every
+      # route that touches a new table fails with
+      #
+      #   TypeError: Cannot read properties of undefined
+      #   (reading 'Symbol(drizzle:Columns)')
+      #
+      # The lint job typechecks the db package, but `tsc --noEmit` does
+      # not EMIT — so it does not refresh the dist the tests read.
+      - name: Build db package
+        run: pnpm --filter @gustale/db run build
 
       - name: Run vitest
         working-directory: apps/api
