@@ -44,6 +44,7 @@ DATA_MIGRATIONS=(
   db/migrations/0022_adr003_vocabulary_labels.sql
   db/migrations/0023_adr003_dish_names.sql
   db/migrations/0024_adr003_dish_names_data.sql
+  db/migrations/0025_adr002_description_sentences.sql
 )
 
 run_pg() {
@@ -94,6 +95,26 @@ run_pg -c "
   union all select 'countries', count(*)::text from geo_entities where entity_type='country'
   union all select 'geo_entities', count(*)::text from geo_entities;
 "
+
+# ── The sentence layer's own checks ─────────────────────────────────────
+#
+# ADR-002 Q9 requires TWO instruments: the boundary fixture set (the
+# splitter puts boundaries in the right places) and the concat check
+# (the sentence table and the live column agree byte-for-byte).
+#
+# The CI seed is smaller than live, so the population runs against
+# whatever the seed produced. The fixture set is checked FIRST — it
+# does not depend on the data at all.
+echo ""
+echo "--- the sentence boundary fixture set"
+python3 scripts/split_sentences.py --check || { echo "FAILED: the boundary fixtures"; fail=1; }
+[ $fail -eq 0 ] || exit 1
+
+echo "--- the sentence population (against the CI seed)"
+python3 scripts/populate_description_sentences.py --apply --db "$DB" >/tmp/sent_pop.log 2>&1 \
+  || { echo "FAILED: the sentence population"; tail -12 /tmp/sent_pop.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'sentences' /tmp/sent_pop.log | head -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then
