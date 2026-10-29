@@ -7,6 +7,7 @@ import {
   dishIngredients,
   dishJourneyBeats,
   dishLineages,
+  dishNames,
   dishPreparations,
   dishRelations,
   dishRelationsPublic,
@@ -431,6 +432,24 @@ export function registerDishRoutes(app: FastifyInstance): void {
       translations.find((t) => t.language === "en") ??
       null;
 
+    // ADR-003 layer 2 — the dish's names.
+    //
+    // The PRIMARY name for the requested locale is the canonical name
+    // for that locale, so it wins over the legacy dish_translations
+    // name, which ADR-002 deprecates in favour of this table.
+    //
+    // All the names come back too, not just the primary: a dish can
+    // have several names in one language (an endonym and a
+    // romanization), and the UI shows the alternatives.
+    const names = await db
+      .select()
+      .from(dishNames)
+      .where(eq(dishNames.dishId, dishRow.id));
+
+    const namesForLocale = names.filter((n) => n.language === locale);
+    const primaryName =
+      namesForLocale.find((n) => n.isPrimary) ?? namesForLocale[0] ?? null;
+
     // Variants
     const variants = await db
       .select()
@@ -775,7 +794,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
     return {
       dish: {
         ...dishRow,
-        name: translation?.name ?? dishRow.canonicalName,
+        name: primaryName?.name ?? translation?.name ?? dishRow.canonicalName,
         description: translation?.description ?? dishRow.shortDescription,
         createdBy,
         lastEditedBy,
@@ -787,6 +806,19 @@ export function registerDishRoutes(app: FastifyInstance): void {
       tags: dishTagRows,
       dimensions,
       unsetDimensions,
+      // Every name the dish has, in every language, with its kind and
+      // script. The client picks the one to show; the API has already
+      // chosen the primary for the requested locale.
+      names: names.map((n) => ({
+        language: n.language,
+        script: n.script,
+        name: n.name,
+        kind: n.kind,
+        isPrimary: n.isPrimary,
+      })),
+      // The languages the dish has a name in, so the UI can offer a
+      // language switcher.
+      availableNameLanguages: [...new Set(names.map((n) => n.language))].sort(),
       preparations: dishPreps.map((p) => ({
         id: p.id,
         methodId: p.methodId,
