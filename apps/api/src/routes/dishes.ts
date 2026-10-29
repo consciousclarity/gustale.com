@@ -14,7 +14,6 @@ import {
   dishRelations,
   dishRelationsPublic,
   dishTags,
-  dishTranslations,
   dishVariants,
   geoEntities,
   ingredients,
@@ -423,17 +422,6 @@ export function registerDishRoutes(app: FastifyInstance): void {
     // Fire-and-forget: bump view count after the read.
     bumpViewCount(dishRow.id);
 
-    // Translations (try requested language, then any)
-    const translations = await db
-      .select()
-      .from(dishTranslations)
-      .where(eq(dishTranslations.dishId, dishRow.id));
-
-    const translation =
-      translations.find((t) => t.language === language) ??
-      translations.find((t) => t.language === "en") ??
-      null;
-
     // ADR-003 layer 2 — the dish's names.
     //
     // The PRIMARY name for the requested locale is the canonical name
@@ -447,6 +435,10 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .select()
       .from(dishNames)
       .where(eq(dishNames.dishId, dishRow.id));
+
+    // The languages the dish has a name in. Computed ONCE and used
+    // for both `availableNameLanguages` and `availableLanguages`.
+    const nameLanguages = [...new Set(names.map((n) => n.language))].sort();
 
     const namesForLocale = names.filter((n) => n.language === locale);
     const primaryName =
@@ -868,10 +860,16 @@ export function registerDishRoutes(app: FastifyInstance): void {
     }
 
     const shortSentences = proseSentences.filter((x) => x.field === "short");
+    //
+    // GUS-239: the legacy `dish_translations.description` fallback is
+    // gone. The sentences ARE the description — and they were already
+    // byte-identical to it: all 121 published dishes had a legacy
+    // description that was exactly the concatenation of their 'short'
+    // sentences. Verified before the fallback was removed, not after.
     const proseDescription =
       shortSentences.length > 0
         ? shortSentences.map((x) => x.text).join("")
-        : (translation?.description ?? dishRow.shortDescription);
+        : dishRow.shortDescription;
 
     const unsetDimensions = (
       unsetRows as unknown as Array<{ dimension: string; reason: string }>
@@ -880,7 +878,10 @@ export function registerDishRoutes(app: FastifyInstance): void {
     return {
       dish: {
         ...dishRow,
-        name: primaryName?.name ?? translation?.name ?? dishRow.canonicalName,
+        // GUS-239: the legacy `dish_translations.name` fallback is
+        // gone. `dish_names` is the name source, and every published
+        // dish has at least one row in it.
+        name: primaryName?.name ?? dishRow.canonicalName,
         description: proseDescription,
         // ADR-003 layer 3b — the sentence-level prose.
         descriptionSentences: proseSentences,
@@ -909,7 +910,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       })),
       // The languages the dish has a name in, so the UI can offer a
       // language switcher.
-      availableNameLanguages: [...new Set(names.map((n) => n.language))].sort(),
+      availableNameLanguages: nameLanguages,
       preparations: dishPreps.map((p) => ({
         id: p.id,
         methodId: p.methodId,
@@ -923,7 +924,12 @@ export function registerDishRoutes(app: FastifyInstance): void {
       sources: dishCitations,
       media: shapedMedia,
       coverImage: shapedCoverImage,
-      availableLanguages: translations.map((t) => t.language),
+      // GUS-239: the legacy table's language list is gone. The
+      // languages a dish has are the languages its NAMES are in —
+      // which is the same list as `availableNameLanguages` above.
+      // The key is kept because it is part of the published API
+      // contract; the value is now derived from the same source.
+      availableLanguages: nameLanguages,
       // The locale actually served for the vocabulary labels, and the
       // one that was asked for. When they differ, the client shows the
       // English-fallback notice.

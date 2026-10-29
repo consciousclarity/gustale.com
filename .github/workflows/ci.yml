@@ -281,6 +281,12 @@ jobs:
           db/migrations/0030_adr003_clear_test_residue.sql
           db/migrations/0031_pool_a_review_sample.sql
           )
+          # 0032 is NOT in this list. It asserts that every published
+          # dish has a 'short' description sentence, which is only true
+          # once the sentences exist — so it runs after the sentence
+          # population below. In the list it failed with "3 published
+          # dishes have no short description sentence": correct
+          # behaviour, wrong moment.
           for f in "${data_migrations[@]}"; do
             if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
               echo "Missing committed migration $f" >&2
@@ -303,6 +309,22 @@ jobs:
       # not EMIT — so it does not refresh the dist the tests read.
       - name: Build db package
         run: pnpm --filter @gustale/db run build
+
+      # The GUS-239 archive.
+      #
+      # It is run here, after the sentence population, because it
+      # asserts the sentence coverage the API now depends on. The
+      # population is idempotent-by-assertion: it refuses to append to
+      # a table that already holds rows, so this is safe to re-run.
+      - name: Populate the description sentences
+        working-directory: .
+        run: |
+          python3 scripts/populate_description_sentences.py --apply --db gustale
+
+      - name: Apply the GUS-239 archive
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0032_gus239_archive_dish_translations.sql
 
       - name: Run vitest
         working-directory: apps/api

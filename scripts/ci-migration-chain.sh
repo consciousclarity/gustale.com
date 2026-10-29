@@ -53,6 +53,14 @@ DATA_MIGRATIONS=(
   db/migrations/0031_pool_a_review_sample.sql
 )
 
+# 0032 is run SEPARATELY, after the sentence population below, because
+# it asserts that every published dish has a 'short' description
+# sentence — which is only true once the sentences exist. Running it
+# inside the migration list made it fail in CI with "3 published
+# dishes have no short description sentence": correct behaviour, wrong
+# moment.
+MIGRATION_0032=db/migrations/0032_gus239_archive_dish_translations.sql
+
 run_pg() {
   docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
 }
@@ -121,6 +129,12 @@ python3 scripts/populate_description_sentences.py --apply --db "$DB" >/tmp/sent_
   || { echo "FAILED: the sentence population"; tail -12 /tmp/sent_pop.log; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'sentences' /tmp/sent_pop.log | head -2 || true
+
+echo ""
+echo "--- the GUS-239 archive (after the sentences exist)"
+run_pg -f - < "$MIGRATION_0032" >/tmp/m0032.log 2>&1 || { echo "FAILED: 0032"; tail -12 /tmp/m0032.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0032.log | head -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then

@@ -161,13 +161,17 @@ async function main(): Promise<void> {
       sql`UPDATE dishes SET origin_location = ST_SetSRID(ST_MakePoint(23.7275, 37.9838), 4326) WHERE id = ${dishId}::uuid`,
     );
 
-    // 7. Translations
-    await db.insert(schema.dishTranslations).values({
+    // 7. The English name — ADR-003 layer 2's `dish_names`.
+    //    GUS-239: the legacy `dish_translations` write is gone. The
+    //    description is carried by `description_sentences`, which
+    //    `populate_description_sentences.py` derives from the dish's
+    //    own `short_description`.
+    await db.insert(schema.dishNames).values({
       dishId,
       language: "en",
       name: "Moussaka",
-      description:
-        "The Greek national casserole of eggplant, meat, and béchamel.",
+      kind: "endonym",
+      isPrimary: true,
     });
 
     // 8. Categories link
@@ -483,12 +487,21 @@ async function seedEncyclopedia(
       sql`UPDATE dishes SET origin_location = ST_SetSRID(ST_MakePoint(${d.lng}, ${d.lat}), 4326) WHERE id = ${dishId}::uuid`,
     );
 
-    // English translation
-    await db.insert(schema.dishTranslations).values({
+    // The English name — ADR-003 layer 2's `dish_names`.
+    //
+    // GUS-239: this used to write to the legacy `dish_translations`
+    // table, whose name and description were the fallback for the
+    // API's dish read. The API now reads `dish_names` and
+    // `description_sentences` instead, and the legacy table is
+    // archived. The description is no longer stored here at all: the
+    // sentences carry it, and `populate_description_sentences.py`
+    // derives them from `short_description`.
+    await db.insert(schema.dishNames).values({
       dishId,
       language: "en",
       name: d.canonicalName,
-      description: d.shortDescription,
+      kind: "endonym",
+      isPrimary: true,
     });
 
     // Category links: 1 cuisine + N dish-types. Use the primary flag on cuisine.

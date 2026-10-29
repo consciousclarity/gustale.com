@@ -383,8 +383,16 @@ export const dishes = pgTable(
   }),
 );
 
-export const dishTranslations = pgTable(
-  "dish_translations",
+// GUS-239 (2026-10-29): the legacy `dish_translations` table is
+// ARCHIVED — renamed to `dish_translations_archived`, with every row
+// preserved. It is not in the schema because nothing reads it any
+// more: the API serves the names from `dish_names` and the prose from
+// `description_sentences`.
+//
+// The table still EXISTS in the database. The rename is what takes it
+// out of the live schema; dropping it was explicitly not approved.
+export const dishTranslationsArchived = pgTable(
+  "dish_translations_archived",
   {
     // Surrogate PK for Directus (ADR-002 Phase 2b). Natural key retained.
     id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
