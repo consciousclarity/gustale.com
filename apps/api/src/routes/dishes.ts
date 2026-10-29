@@ -38,6 +38,10 @@ import {
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { httpError } from "../errors.js";
+import {
+  fetchVocabularyLabels,
+  resolveLocale,
+} from "../lib/vocabulary-labels.js";
 import { mediaPublicUrl } from "./media.js";
 
 const listQuerySchema = z.object({
@@ -389,6 +393,11 @@ export function registerDishRoutes(app: FastifyInstance): void {
     const { slug } = slugParamSchema.parse(request.params);
     const query = request.query as { language?: string };
     const language = query.language ?? "en";
+    // The locale for the vocabulary labels. `language` is what the
+    // caller asked for; `locale` is the one we can actually serve, and
+    // it falls back to English - the ADR's "English fallback with
+    // notice", which the client shows when `locale` is not `language`.
+    const locale = resolveLocale(language);
 
     const dish = await db
       .select()
@@ -671,6 +680,98 @@ export function registerDishRoutes(app: FastifyInstance): void {
     const lastEditedBy =
       editors.find((u) => u.id === dishRow.lastEditedBy) ?? null;
 
+    // -----------------------------------------------------------------
+    // The vocabulary dimensions, with their translated labels.
+    //
+    // ADR-003 layer 1: every controlled-vocabulary label is translated
+    // once per locale, so a dish page shows its dimension names in the
+    // reader's language. The English label lives in the dimension's own
+    // table; the translation lives in vocabulary_labels.
+    //
+    // The six dimension join tables share a shape (dish_id, value_id,
+    // is_primary, status), so they are read as one query rather than
+    // six.
+    // -----------------------------------------------------------------
+    const dimensionRows = await db.execute(sql`
+      SELECT 'family'::text              AS vocabulary, f.id AS value_id, f.slug, f.name,
+             true AS is_primary
+        FROM dish_dish_families j
+        JOIN dish_families f ON f.id = j.value_id
+       WHERE j.dish_id = ${dishRow.id} AND j.status = 'active'
+      UNION ALL
+      SELECT 'cuisine'::text             , c.id, c.slug, c.name, j.is_primary
+        FROM dish_dish_cuisines j
+        JOIN dish_cuisines c ON c.id = j.value_id
+       WHERE j.dish_id = ${dishRow.id} AND j.status = 'active'
+      UNION ALL
+      SELECT 'technique'::text           , t.id, t.slug, t.name, true
+        FROM dish_dish_techniques j
+        JOIN dish_techniques t ON t.id = j.value_id
+       WHERE j.dish_id = ${dishRow.id} AND j.status = 'active'
+      UNION ALL
+      SELECT 'tradition'::text           , t.id, t.slug, t.name, true
+        FROM dish_dish_traditions j
+        JOIN dish_traditions t ON t.id = j.value_id
+       WHERE j.dish_id = ${dishRow.id} AND j.status = 'active'
+      UNION ALL
+      SELECT 'context'::text             , c.id, c.slug, c.name, true
+        FROM dish_dish_contexts j
+        JOIN dish_contexts c ON c.id = j.value_id
+       WHERE j.dish_id = ${dishRow.id} AND j.status = 'active'
+      UNION ALL
+      SELECT 'ingredient_category'::text , i.id, i.slug, i.name, true
+        FROM dish_dish_ingredient_categories j
+        JOIN ingredient_categories i ON i.id = j.value_id
+       WHERE j.dish_id = ${dishRow.id} AND j.status = 'active'
+      ORDER BY vocabulary, slug
+    `);
+
+    const dimensionRowsRaw = dimensionRows as unknown as Array<{
+      vocabulary: string;
+      value_id: string;
+      slug: string;
+      name: string;
+      is_primary: boolean;
+    }>;
+
+    // One label query per vocabulary, in the requested locale. The
+    // English label is the dimension's own name, so a missing
+    // translation falls back to it.
+    const dimensionsByVocabulary = new Map<string, typeof dimensionRowsRaw>();
+    for (const row of dimensionRowsRaw) {
+      const list = dimensionsByVocabulary.get(row.vocabulary) ?? [];
+      list.push(row);
+      dimensionsByVocabulary.set(row.vocabulary, list);
+    }
+
+    const dimensionLabels = new Map<string, Map<string, string>>();
+    for (const [vocabulary, rows] of dimensionsByVocabulary) {
+      const labels = await fetchVocabularyLabels(
+        vocabulary,
+        rows.map((r) => r.value_id),
+        locale,
+      );
+      dimensionLabels.set(vocabulary, labels);
+    }
+
+    const dimensions = dimensionRowsRaw.map((row) => ({
+      vocabulary: row.vocabulary,
+      valueId: row.value_id,
+      slug: row.slug,
+      name: dimensionLabels.get(row.vocabulary)?.get(row.value_id) ?? row.name,
+      isPrimary: row.is_primary,
+    }));
+
+    // The dimensions that are explicitly unset, so the UI can say
+    // "no evidence" rather than showing nothing.
+    const unsetRows = await db.execute(sql`
+      SELECT dimension, reason FROM dish_dimension_unset
+       WHERE dish_id = ${dishRow.id}
+    `);
+    const unsetDimensions = (
+      unsetRows as unknown as Array<{ dimension: string; reason: string }>
+    ).map((r) => ({ dimension: r.dimension, reason: r.reason }));
+
     return {
       dish: {
         ...dishRow,
@@ -684,6 +785,8 @@ export function registerDishRoutes(app: FastifyInstance): void {
       ingredients: dishIngs,
       categories: dishCats,
       tags: dishTagRows,
+      dimensions,
+      unsetDimensions,
       preparations: dishPreps.map((p) => ({
         id: p.id,
         methodId: p.methodId,
@@ -698,6 +801,11 @@ export function registerDishRoutes(app: FastifyInstance): void {
       media: shapedMedia,
       coverImage: shapedCoverImage,
       availableLanguages: translations.map((t) => t.language),
+      // The locale actually served for the vocabulary labels, and the
+      // one that was asked for. When they differ, the client shows the
+      // English-fallback notice.
+      locale,
+      requestedLocale: language,
     };
   });
 

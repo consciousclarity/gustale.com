@@ -403,6 +403,56 @@ export const dishTranslations = pgTable(
   }),
 );
 
+// ADR-003 layer 1 — the vocabulary labels.
+//
+// Every controlled-vocabulary label (families, cuisines, techniques,
+// ingredients, traditions, contexts, predicates, places) is translated
+// ONCE per locale, not per use. That makes every dish page
+// multilingual in structure without touching dish content.
+//
+// The English label stays in each vocabulary's own base table, so this
+// table holds only non-English locales. `language` rather than
+// `locale` to match dishTranslations and the other translation tables;
+// locale variants are valid BCP-47 ('es-MX', 'zh-Hans').
+//
+// `vocabulary` names the controlled vocabulary the label belongs to:
+// family | technique | tradition | cuisine | context |
+// ingredient_category | place | predicate | ingredient | category |
+// preparation_method
+//
+// `is_primary` marks the one label to show when a value has several in
+// one language (an endonym and a romanization, say).
+export const vocabularyLabels = pgTable(
+  "vocabulary_labels",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    vocabulary: text("vocabulary").notNull(),
+    valueId: uuid("value_id").notNull(),
+    language: text("language").notNull(),
+    name: text("name").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    // 'wikidata' | 'project' | 'machine'
+    source: text("source"),
+    // the Wikidata QID the label came from, so it can be re-checked
+    sourceRef: text("source_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    naturalKey: unique("vocabulary_labels_unique").on(
+      t.vocabulary,
+      t.valueId,
+      t.language,
+    ),
+    vocabLangIdx: index("vocabulary_labels_vocab_lang_idx").on(
+      t.vocabulary,
+      t.language,
+    ),
+    valueIdx: index("vocabulary_labels_value_idx").on(t.valueId),
+  }),
+);
+
 // DEPRECATED — do not insert new rows. Regional variants are full `dishes`
 // rows linked by `dish_relations` with relationType "regional-cousin"
 // (see DISH_RELATIONS in seed-data.ts). Table retained until a dedicated
