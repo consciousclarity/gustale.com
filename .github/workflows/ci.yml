@@ -389,6 +389,29 @@ jobs:
       timeout-minutes: 15
       needs: [build, build-web]  # api + both web variants must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # The workflow-level concurrency uses cancel-in-progress: true, which
+      # is right for the build/test jobs — a cancelled run costs nothing.
+      #
+      # It is WRONG for the deploy. Cancelling the GitHub job does NOT stop
+      # the VPS-side script: appleboy/ssh-action has already handed the
+      # script to a remote shell, and that shell keeps going. So a cancelled
+      # deploy leaves the VPS mid-swap — API replaced, web containers not —
+      # while the NEXT run starts a second, concurrent deploy against the
+      # same three containers.
+      #
+      # The two interleaved swaps are what "Real verify" check 2 catches
+      # (a container left on the previous SHA). The deploy log comment in
+      # this file already warned about the same hazard for the shared
+      # /tmp log.
+      #
+      # So: the deploy gets its OWN concurrency group, with
+      # cancel-in-progress: false. A new push QUEUES behind the running
+      # deploy rather than cancelling it. The deploy is idempotent and
+      # quick, and a queued deploy is strictly better than two interleaved
+      # ones.
+      concurrency:
+        group: deploy-hostinger
+        cancel-in-progress: false
       env:
         # Define on the runner so the action can read them. The action's
         # `envs:` (under `with:`) is the allow-list forwarded to the remote
@@ -432,6 +455,35 @@ jobs:
               _DEPLOY_EXIT=0
               trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ] && [ "$_DEPLOY_EXIT" = "0" ]; then _DEPLOY_EXIT=$rc; echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; fi' ERR
               trap 'echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "$_DEPLOY_EXIT"' EXIT
+
+              # --- Deploy lock ------------------------------------------------
+              # A VPS-side lock, so that two deploys can never interleave
+              # their container swaps.
+              #
+              # The GitHub-side concurrency group (deploy-hostinger,
+              # cancel-in-progress: false) prevents a new run from
+              # starting while another is queued — but it CANNOT stop a
+              # deploy whose GitHub job was already cancelled, because
+              # appleboy/ssh-action hands the script to a remote shell
+              # that keeps running after the job is killed.
+              #
+              # Two interleaved deploys are exactly what breaks the
+              # "Real verify" image check: one run swaps the API, the
+              # other swaps the web containers, and each run then finds
+              # a container on the OTHER run's SHA.
+              #
+              # flock with a timeout: a deploy waits up to 15 minutes for
+              # the previous one to finish, and fails loudly rather than
+              # proceeding into a concurrent swap.
+              DEPLOY_LOCK="/tmp/gustale-deploy.lock"
+              exec 9>"$DEPLOY_LOCK"
+              echo "--- Acquiring the deploy lock ($DEPLOY_LOCK) ---"
+              if ! flock -w 900 9; then
+                echo "::error::Could not acquire the deploy lock in 900s - another deploy is still running. Aborting without touching the containers."
+                echo "DEPLOY_FAILED_AT=deploy lock timeout" >> "$DEPLOY_LOG"
+                exit 1
+              fi
+              echo "--- Deploy lock acquired ---"
 
               # deploy_container must be DEFINED BEFORE FIRST USE.
               # PR #79's script called it at "Step 3" ~80 lines before the
@@ -710,6 +762,18 @@ jobs:
               EXPECTED_API="gustale-api:${SHA}"  # full SHA
               EXPECTED_RECIPES="gustale-web-recipes:live-data-${SHORT_SHA}"
               EXPECTED_GEO="gustale-web-geo:live-data-${SHORT_SHA}"
+
+              # Diagnostic dump first: if a container is on the wrong SHA,
+              # the operator needs to see WHAT it is actually running and
+              # what else is on the box, not just a mismatch line. This is
+              # the difference between a 30-second diagnosis and a
+              # 30-minute guess.
+              echo "--- container/image inventory ---"
+              docker ps -a --format '  {{.Names}}\t{{.Image}}\t{{.Status}}' 2>&1 || true
+              echo "--- gustale-* images present locally ---"
+              docker images --format '  {{.Repository}}:{{.Tag}}\t{{.CreatedSince}}' 2>&1 \
+                | grep -E 'gustale-(api|web)' || echo "  (none)"
+
               for ENTRY in "gustale-api:${EXPECTED_API}" "gustale-web-recipes:${EXPECTED_RECIPES}" "gustale-web-geo:${EXPECTED_GEO}"; do
                 NAME="${ENTRY%%:*}"
                 EXPECT_SUFFIX="${ENTRY#*:}"
@@ -725,6 +789,9 @@ jobs:
                     ;;
                   *)
                     echo "::error::$NAME: image=$IMAGE  expected suffix '$EXPECT_SUFFIX'"
+                    echo "::error::$NAME expected tag: $EXPECT_SUFFIX"
+                    echo "::error::$NAME actual   tag: ${IMAGE##*:}"
+                    echo "::error::$NAME actual  image: $IMAGE"
                     FAILED=1
                     ;;
                 esac
