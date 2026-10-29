@@ -30,7 +30,7 @@
  *         <dist>/sitemap-<locale>.xml
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 // The locales that get a sitemap. English is the base, at the root.
@@ -173,20 +173,50 @@ async function main() {
 
   // The robots.txt points at the index, so a crawler finds the locale
   // sitemaps without guessing.
+  //
+  // It is WRITTEN here, not merely amended. The previous version only
+  // appended a Sitemap: line to an existing robots.txt, and caught the
+  // "no such file" case with an empty catch block — so when there was
+  // no robots.txt, nothing happened and the site shipped WITHOUT one.
+  // A missing robots.txt on a public site is not a neutral absence:
+  // the 404 page was served in its place, so a crawler read a page of
+  // HTML where it expected rules, and never found the sitemap pointer.
+  //
+  // It is written here rather than in apps/web/public/ because there is
+  // ONE web app and TWO builds (geo and recipes), and the two
+  // properties have different authoring surfaces to disallow.
   const robotsPath = join(dist, "robots.txt");
-  try {
-    const existing = await readFile(robotsPath, "utf-8");
-    if (!existing.includes("Sitemap:")) {
-      await writeFile(
-        robotsPath,
-        `${existing.trimEnd()}\n\nSitemap: ${origin}/sitemap.xml\n`,
-        "utf-8",
-      );
-      console.log("[sitemap] added the Sitemap line to robots.txt");
-    }
-  } catch {
-    // No robots.txt — nothing to update.
-  }
+  const disallowed =
+    domain === "geo"
+      ? ["/admin", "/login", "/api/"]
+      : [
+          "/dishes/new",
+          "/dishes/*/edit",
+          "/admin",
+          "/login",
+          "/api/",
+          "/ingredients",
+        ];
+
+  const robots = [
+    `# Gustale — ${domain === "geo" ? "Atlas (gustale.com)" : "Recipes (gustale.recipes)"}`,
+    "#",
+    "# The archive is public and meant to be read and indexed. The",
+    "# authoring surfaces are not: they are behind an account, and a",
+    "# crawler that submits them wastes the site's crawl budget on",
+    "# forms that always answer the same way.",
+    "",
+    "User-agent: *",
+    "Allow: /",
+    ...disallowed.map((path) => `Disallow: ${path}`),
+    "",
+    "# Sitemap: the index, which points at one sitemap per locale.",
+    `Sitemap: ${origin}/sitemap.xml`,
+    "",
+  ].join("\n");
+
+  await writeFile(robotsPath, robots, "utf-8");
+  console.log(`[sitemap] wrote robots.txt (${disallowed.length} disallowed paths)`);
 }
 
 main().catch((err) => {

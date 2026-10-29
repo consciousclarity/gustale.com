@@ -586,6 +586,45 @@ check(
   isPrimaryNavActive("/dishes", "/dishes/vindaloo/", "recipes") === true,
 );
 
+// ─── The crawl signals ─────────────────────────────────────────────────
+//
+// A missing robots.txt is not a neutral absence: the 404 page is
+// served in its place, so a crawler reads a page of HTML where it
+// expected rules, and never finds the sitemap pointer.
+//
+// The sitemap index is checked too, because the robots.txt points at
+// it — a robots.txt that names a sitemap which is not there is a
+// pointer to nothing.
+//
+// These checks are here so the absence cannot come back silently. The
+// first version of the robots.txt handling appended a Sitemap: line to
+// an EXISTING robots.txt and caught the missing-file case with an empty
+// catch block, so the site shipped with no robots.txt at all and
+// nothing said so.
+const origin = DOMAIN === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+const robotsPath = join(DIST, "robots.txt");
+const sitemapIndexPath = join(DIST, "sitemap.xml");
+
+let robotsBody = "";
+try {
+  robotsBody = await readFile(robotsPath, "utf-8");
+} catch {
+  robotsBody = "";
+}
+
+check("robots.txt exists", robotsBody.length > 0, robotsPath);
+check(
+  "robots.txt is not the 404 page",
+  !robotsBody.trimStart().startsWith("<"),
+  "a crawler reads HTML where it expects rules",
+);
+check(
+  "robots.txt points at the sitemap index",
+  robotsBody.includes(`Sitemap: ${origin}/sitemap.xml`),
+  `Sitemap: ${origin}/sitemap.xml`,
+);
+check("the sitemap index exists", await exists(sitemapIndexPath), sitemapIndexPath);
+
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(
   `\n[validate-build] domain=${DOMAIN} — ${passes.length} passed, ${failures.length} failed`,

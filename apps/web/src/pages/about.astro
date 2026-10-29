@@ -1,6 +1,11 @@
 ---
 import Breadcrumbs from "../components/Breadcrumbs.astro";
 import Layout from "../layouts/Layout.astro";
+// The world map lives on the ATLAS property (gustale.com). This page
+// is built for gustale.recipes, where /map does not exist — so a
+// relative /map link is a 404. The link is absolute, to the property
+// that has the page.
+import { atlasUrl } from "../lib/domain";
 ---
 
 <Layout title="About — gustale.recipes">
@@ -41,7 +46,7 @@ import Layout from "../layouts/Layout.astro";
     <p class="mb-4">
       Gustale is built on a Fastify + PostgreSQL/PostGIS backend, an Astro +
       React front-end, and a Wikipedia-style moderation pipeline. The
-      <a href="/map" class="about-page a" style="color: var(--accent)">world map</a> uses MapLibre GL with the globe projection; dish
+      <a href={atlasUrl("/map")} class="about-page a" style="color: var(--accent)">world map</a> uses MapLibre GL with the globe projection; dish
       pages render each origin geographically so you can see at a glance where a
       dish belongs. Media (photos, scans of historical sources) is served from an
       S3-compatible store so the archive can grow without bloating the database.

@@ -23,6 +23,33 @@ export interface Props {
    * The URL of this page in each locale, for the language switcher.
    */
   localeUrls?: Record<string, string>;
+  /**
+   * The canonical URL of this page — the absolute URL of THIS page,
+   * in THIS locale.
+   *
+   * WHY IT IS SELF-REFERENTIAL AND NOT THE ENGLISH ONE
+   *
+   * A canonical tag says "this is the authoritative copy of this
+   * content". On a site with ten locales of the same dish, the
+   * English URL is NOT the authoritative copy of the Spanish page —
+   * they are different pages, in different languages, and a search
+   * engine should show the Spanish one to a Spanish reader.
+   *
+   * Pointing every locale's canonical at the English URL would tell
+   * the engine that the nine translations are duplicates of the
+   * English one, and it would then fold them out of the index. The
+   * hreflang alternates would then be pointing at pages the engine
+   * has been told not to index, which defeats the whole multilingual
+   * structure.
+   *
+   * So: each page's canonical is itself. The alternates say "there
+   * are these other versions"; the canonical says "this one is me".
+   *
+   * It is omitted entirely when the page has no absolute URL, rather
+   * than emitted with an empty href — an empty canonical is worse
+   * than none, because it is an instruction, not a description.
+   */
+  canonicalUrl?: string;
 }
 
 const {
@@ -31,9 +58,54 @@ const {
   locale = "en",
   alternates = [],
   localeUrls = {},
+  canonicalUrl: canonicalProp,
 } = Astro.props;
 const isGeo = isGeoDomain();
 const rtl = isRtl(locale);
+
+// The canonical, when the page does not name one.
+//
+// It DEFAULTS to this page's own absolute URL — self-referential —
+// rather than being left off.
+//
+// WHY NOT LEAVE IT OFF
+//
+// The site has ten locales of every dish. Without a canonical, the
+// nine translations of a dish are nine candidate URLs for the same
+// content, and a search engine has to guess which one the query
+// meant. With a self-referential canonical, each locale says "this
+// one is me" and the hreflang alternates say "these are the other
+// versions" — which is the pair a search engine needs to serve the
+// Spanish page to a Spanish reader.
+//
+// WHY NOT THE ENGLISH URL
+//
+// The English URL is not the authoritative copy of the Spanish page.
+// They are different pages in different languages. Pointing every
+// locale at the English one tells the engine the translations are
+// duplicates, and it folds them out of the index.
+//
+// The 404 page is the exception: it has no canonical, because it is
+// not a page that should be in an index at all. A 404 that declares
+// itself canonical asks to be indexed.
+const siteOrigin =
+  import.meta.env.PUBLIC_SITE_ORIGIN ??
+  (import.meta.env.PUBLIC_DOMAIN === "geo"
+    ? "https://gustale.com"
+    : "https://gustale.recipes");
+
+// The 404 page. It is detected from the PAGE, not the URL: Astro
+// serves it for any missing path, so the pathname at build time is
+// "/404" but at request time it is whatever the reader asked for.
+// The build-time check is what matters here — the 404 page is built
+// once, and its canonical is decided then.
+const isNotFound =
+  Astro.props.isNotFound === true ||
+  Astro.url.pathname === "/404" ||
+  Astro.url.pathname === "/404/";
+const canonicalUrl =
+  canonicalProp ??
+  (isNotFound ? undefined : `${siteOrigin}${Astro.url.pathname.replace(/\/+$/, "") || "/"}`);
 ---
 
 <!doctype html>
@@ -49,6 +121,11 @@ const rtl = isRtl(locale);
       alternates.map((a) => (
         <link rel="alternate" hreflang={a.hreflang} href={a.href} />
       ))
+    }
+    {
+      canonicalUrl && (
+        <link rel="canonical" href={canonicalUrl} />
+      )
     }
   </head>
   <body class="gst">
