@@ -2,6 +2,8 @@ import {
   categories,
   citations,
   db,
+  descriptionSentences,
+  descriptionSentenceTranslations,
   dishCategories,
   dishes,
   dishIngredients,
@@ -787,6 +789,90 @@ export function registerDishRoutes(app: FastifyInstance): void {
       SELECT dimension, reason FROM dish_dimension_unset
        WHERE dish_id = ${dishRow.id}
     `);
+    // ADR-003 layer 3b — the prose.
+    //
+    // The description is stored as SENTENCES, and each sentence is
+    // translated individually. The English sentence is canonical; the
+    // translation references it, so it inherits the source's claim
+    // anchors without copying them.
+    //
+    // The response carries BOTH:
+    //   - `description`, the text to render (the translation, or the
+    //     English sentence when there is no translation, or the whole
+    //     English description when the sentences are not available);
+    //   - `descriptionSentences`, the sentence list, so a client can
+    //     show which part is machine-translated and which is
+    //     reviewed.
+    //
+    // `machineTranslated` is true when any sentence being shown is
+    // not reviewed — the ADR's "machine-translated" badge.
+    const englishSentences = await db
+      .select()
+      .from(descriptionSentences)
+      .where(
+        and(
+          eq(descriptionSentences.dishId, dishRow.id),
+          eq(descriptionSentences.locale, "en"),
+        ),
+      )
+      .orderBy(
+        asc(descriptionSentences.field),
+        asc(descriptionSentences.position),
+      );
+
+    const sentenceTranslations = await db
+      .select()
+      .from(descriptionSentenceTranslations)
+      .where(
+        and(
+          eq(
+            descriptionSentenceTranslations.locale,
+            locale === "en" ? "en" : locale,
+          ),
+        ),
+      );
+
+    const translationBySentence = new Map(
+      sentenceTranslations.map((t) => [t.sourceSentenceId, t]),
+    );
+
+    const proseSentences: Array<{
+      id: string;
+      field: "short" | "long";
+      position: number;
+      text: string;
+      status: "draft" | "machine" | "reviewed";
+      isStale: boolean;
+      machineTranslated: boolean;
+    }> = [];
+
+    for (const sentence of englishSentences) {
+      const translation = translationBySentence.get(sentence.id);
+      const useTranslation =
+        translation !== undefined && locale !== "en" && !translation.isStale;
+
+      proseSentences.push({
+        id: sentence.id,
+        field: sentence.field as "short" | "long",
+        position: sentence.position,
+        text: useTranslation ? translation.text : sentence.text,
+        status: (useTranslation ? translation.status : "reviewed") as
+          | "draft"
+          | "machine"
+          | "reviewed",
+        isStale: translation?.isStale ?? false,
+        // The badge: anything that is not reviewed is machine
+        // translated, from the reader's point of view.
+        machineTranslated: useTranslation && translation.status !== "reviewed",
+      });
+    }
+
+    const shortSentences = proseSentences.filter((x) => x.field === "short");
+    const proseDescription =
+      shortSentences.length > 0
+        ? shortSentences.map((x) => x.text).join("")
+        : (translation?.description ?? dishRow.shortDescription);
+
     const unsetDimensions = (
       unsetRows as unknown as Array<{ dimension: string; reason: string }>
     ).map((r) => ({ dimension: r.dimension, reason: r.reason }));
@@ -795,7 +881,12 @@ export function registerDishRoutes(app: FastifyInstance): void {
       dish: {
         ...dishRow,
         name: primaryName?.name ?? translation?.name ?? dishRow.canonicalName,
-        description: translation?.description ?? dishRow.shortDescription,
+        description: proseDescription,
+        // ADR-003 layer 3b — the sentence-level prose.
+        descriptionSentences: proseSentences,
+        // The ADR's badge: the prose is machine-translated unless
+        // every sentence being shown has been reviewed.
+        machineTranslated: proseSentences.some((x) => x.machineTranslated),
         createdBy,
         lastEditedBy,
       },

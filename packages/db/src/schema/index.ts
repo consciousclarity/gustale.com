@@ -420,6 +420,102 @@ export const dishTranslations = pgTable(
 // script may genuinely be unknown.
 //
 // `kind` is constrained: 'endonym' | 'exonym' | 'romanization'.
+// ADR-003 layer 3b — the description sentences, and their
+// translations.
+//
+// The English description is stored as a LIST of sentences, and each
+// sentence is translated individually. The translation REFERENCES the
+// English sentence, so it inherits the source's claim anchors instead
+// of copying them — the anchor text stays English, because it is a
+// verbatim excerpt of the source.
+//
+// `sourceHash` is the hash of the ENGLISH SOURCE SENTENCE, so a
+// change to that sentence invalidates exactly that translation and
+// leaves the others alone.
+//
+// `status` is the machine: draft -> machine -> reviewed. `isStale` is
+// an OVERLAY, not a status: a stale reviewed translation is still
+// reviewed, it is just flagged as needing re-translation.
+export const descriptionSentences = pgTable(
+  "description_sentences",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    field: text("field").notNull(),
+    locale: text("locale").notNull().default("en"),
+    position: integer("position").notNull(),
+    text: text("text").notNull(),
+    sourceSentenceId: uuid("source_sentence_id"),
+    anchorStatus: text("anchor_status").notNull().default("none"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    naturalKey: unique("description_sentences_unique").on(
+      t.dishId,
+      t.field,
+      t.locale,
+      t.position,
+    ),
+    dishIdx: index("description_sentences_dish_idx").on(
+      t.dishId,
+      t.field,
+      t.locale,
+      t.position,
+    ),
+  }),
+);
+
+export const descriptionSentenceTranslations = pgTable(
+  "description_sentence_translations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    sourceSentenceId: uuid("source_sentence_id")
+      .notNull()
+      .references(() => descriptionSentences.id, { onDelete: "cascade" }),
+    locale: text("locale").notNull(),
+    text: text("text").notNull(),
+    sourceHash: text("source_hash").notNull(),
+    status: text("status").notNull().default("draft"),
+    isStale: boolean("is_stale").notNull().default(false),
+    translator: text("translator"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    proposedText: text("proposed_text"),
+    proposedBy: text("proposed_by"),
+    proposedAt: timestamp("proposed_at", { withTimezone: true }),
+    proposalStatus: text("proposal_status"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    naturalKey: unique("description_sentence_translations_unique").on(
+      t.sourceSentenceId,
+      t.locale,
+    ),
+    sourceIdx: index("description_sentence_translations_source_idx").on(
+      t.sourceSentenceId,
+    ),
+    localeIdx: index("description_sentence_translations_locale_idx").on(
+      t.locale,
+    ),
+    staleIdx: index("description_sentence_translations_stale_idx").on(
+      t.isStale,
+      t.locale,
+    ),
+  }),
+);
+
 export const dishNames = pgTable(
   "dish_names",
   {
