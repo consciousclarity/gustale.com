@@ -38,6 +38,25 @@ export interface DishCardProps {
   href: string;
   status?: string;
   viewCount?: number;
+  /**
+   * The heading level for the dish's name.
+   *
+   * WHY THIS IS A PROP
+   *
+   * A card title is a heading, and a heading has a LEVEL that has to
+   * fit the document it is in. It used to be hardcoded to <h3>, which
+   * is right when the cards sit under an <h2> — and wrong when they
+   * sit directly under the page's <h1>, because that skips a level.
+   *
+   * A skipped level is not a cosmetic problem. A screen-reader user
+   * navigating by heading sees a list that jumps from the page title
+   * straight past a level, and the structure they are reading is no
+   * longer the structure of the document.
+   *
+   * The default stays <h3>, because that is the level the card was
+   * written for. The caller passes the level that matches ITS page.
+   */
+  headingLevel?: "h2" | "h3" | "h4";
 }
 
 export function DishCard({
@@ -46,13 +65,15 @@ export function DishCard({
   href,
   status,
   viewCount,
+  headingLevel = "h3",
 }: DishCardProps) {
+  const Heading = headingLevel;
   return (
     <Card className="transition hover:border-emerald-300 hover:shadow-md">
       <a href={href} className="block">
-        <h3 className="text-lg font-semibold text-slate-900 hover:text-emerald-700">
+        <Heading className="text-lg font-semibold text-slate-900 hover:text-emerald-700">
           {title}
-        </h3>
+        </Heading>
         {description && (
           <p className="mt-1 line-clamp-3 text-sm text-slate-600">
             {description}

@@ -26,9 +26,9 @@ body {
   --sub: #6b6052;
   --line: rgba(33, 28, 22, 0.14);
   --line-strong: rgba(33, 28, 22, 0.28);
-  --accent: #b8552f;
+  --accent: #b04e29; /* darkened for WCAG AA on the cream background — see global.css */
   --accent-ink: #fbefe6;
-  --accent-soft: rgba(184, 85, 47, 0.1);
+  --accent-soft: rgba(176, 78, 41, 0.1);
   --display: "Instrument Serif", Georgia, serif;
   --radius: 6px;
   --radius-lg: 10px;

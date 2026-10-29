@@ -336,10 +336,10 @@ export function DishMap({ origin, dishName }: DishMapProps) {
           <p>
             <strong className="text-slate-700">{origin.name}</strong>
             {origin.isoCode && (
-              <span className="ml-1 text-slate-400">({origin.isoCode})</span>
+              <span className="ml-1 text-slate-600">({origin.isoCode})</span>
             )}
             <br />
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-600">
               No coordinates recorded for this origin.
             </span>
           </p>
@@ -456,7 +456,7 @@ function buildPopupHTML(origin: DishOrigin, dishName: string): string {
   }
   if (origin.isoCode) {
     rows.push(
-      `<span style="color:#94a3b8;margin-left:4px;">(${safe(origin.isoCode)})</span>`,
+      `<span style="color:#64748b;margin-left:4px;">(${safe(origin.isoCode)})</span>`,
     );
   }
   // dishCountAtOrigin: live from the API if a fetch is already in flight

@@ -466,6 +466,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
                 href={`/dishes/${d.slug}`}
                 status={d.status}
                 viewCount={d.viewCount}
+                headingLevel="h2"
               />
             </li>
           ))}

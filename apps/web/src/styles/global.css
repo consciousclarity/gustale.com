@@ -62,10 +62,18 @@
   --sub: #6b6052; /* warm grey — secondary text */
   --line: rgba(33, 28, 22, 0.14);
   --line-strong: rgba(33, 28, 22, 0.28);
-  --accent: #b8552f; /* terracotta — primary accent */
+  --accent: #b04e29; /* terracotta — primary accent
+     Darkened from #b8552f on 2026-10-30. The old value passed on
+     white (4.80:1) but FAILED on the warm cream background
+     (#f6f1e7) at 4.26:1, and the accent-ink on the accent was
+     4.25:1 — both below the 4.5 WCAG AA threshold. #b04e29 is the
+     nearest darker terracotta that passes on all three public
+     backgrounds (white 5.29, cream 4.70, card 4.99) and fixes the
+     accent-ink contrast as well (4.69). The admin panel's dark
+     theme has its own accent (#d06c42) and already passed. */
   --accent-dark: #94391e; /* hover state for accent */
   --accent-ink: #fbefe6; /* text on top of accent */
-  --accent-soft: rgba(184, 85, 47, 0.1);
+  --accent-soft: rgba(176, 78, 41, 0.1);
   --display: "Instrument Serif", Georgia, serif;
   --body: "Work Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", monospace;
@@ -840,10 +848,16 @@ h4 {
 }
 .about-page a {
   color: var(--accent);
-  text-decoration: none;
-}
-.about-page a:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* A link inside a paragraph must be distinguishable WITHOUT relying
+   on colour alone (WCAG 1.4.1). The underline was only there on
+   hover, so a reader who did not hover could not tell a link from
+   the text around it. The hover state now thickens it rather than
+   adding it. */
+.about-page a:hover {
+  text-decoration-thickness: 2px;
 }
 .about-page .about-foot {
   margin-top: 64px;
@@ -1709,7 +1723,10 @@ h4 {
 .band p {
   font-size: 17px;
   line-height: 1.55;
-  opacity: 0.9;
+  /* No opacity. The band is --accent-ink on --accent, which is 4.69:1.
+     At 0.9 the dimmed text fell under the 4.5 threshold. The band is
+     already a high-contrast block; the paragraph is distinguished by
+     its size and line-height, not by being faded. */
   margin: 0;
   max-width: 380px;
 }
@@ -1733,7 +1750,10 @@ h4 {
 .band-cta small {
   font-family: var(--mono);
   font-size: 12px;
-  opacity: 0.85;
+  /* No opacity. The band is --accent-ink on --accent (4.69:1); at
+     0.85 this line fell to about 3.6:1, under the 4.5 threshold for
+     12px text. The mono face already sets it apart from the prose
+     beside it. */
 }
 
 /* ============================================================
@@ -1867,7 +1887,7 @@ h4 {
   background:
     radial-gradient(
       120% 80% at 70% 20%,
-      rgba(184, 85, 47, 0.28),
+      rgba(176, 78, 41, 0.28),
       transparent 55%
     ),
     linear-gradient(160deg, #3a2e24 0%, #1f1814 55%, #2c211a 100%);
@@ -1955,7 +1975,11 @@ h4 {
 }
 .dish-cover-hero__license {
   letter-spacing: 0.04em;
-  opacity: 0.85;
+  /* No opacity. The caption is --sub on the page background, and at
+     0.85 the licence line fell to about 4.0:1 — under the 4.5
+     threshold for 12px text. --sub at full strength is 5.5-6.1:1.
+     The licence is already separated from the credit by the mono
+     face and the letter-spacing. */
 }
 
 .dish-origin-band {
@@ -2335,7 +2359,11 @@ h4 {
   font-family: var(--mono);
   font-size: 11px;
   background: var(--accent-soft);
-  color: var(--accent);
+  /* --ink, not --accent. The accent on the accent-tinted pill was
+     4.13-4.60:1 depending on the page background — under the 4.5
+     threshold on two of the three. --ink on the same pill is
+     13-15:1. The pill keeps its terracotta tint; the text is dark. */
+  color: var(--ink);
   padding: 3px 9px;
   border-radius: 999px;
 }
@@ -2355,7 +2383,8 @@ h4 {
 }
 .dish-page .dish-foot .muted {
   color: var(--sub);
-  opacity: 0.8;
+  /* No opacity. At 0.8 the secondary text fell to 3.6-3.9:1, below
+     the 4.5 threshold. --sub at full strength is 5.5-6.1:1. */
 }
 
 /* Secondary gallery — quiet, no card chrome */
@@ -2394,7 +2423,7 @@ h4 {
   aspect-ratio: 4 / 5;
   object-fit: cover;
   background:
-    linear-gradient(160deg, rgba(184, 85, 47, 0.12), transparent 60%), #e8dfd0;
+    linear-gradient(160deg, rgba(176, 78, 41, 0.12), transparent 60%), #e8dfd0;
 }
 .dish-gallery__note {
   margin: var(--space-4) 0 0;
@@ -3842,7 +3871,7 @@ h4 {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(184, 85, 47, 0.08);
+  background: rgba(176, 78, 41, 0.08);
   color: var(--accent-dark);
 }
 .lin-card__conf--documented {
@@ -3854,7 +3883,7 @@ h4 {
   color: #4a5635;
 }
 .lin-card__conf--possible {
-  background: rgba(184, 85, 47, 0.08);
+  background: rgba(176, 78, 41, 0.08);
   color: var(--accent-dark);
 }
 .lin-card__conf--uncertain {
@@ -3919,7 +3948,7 @@ h4 {
   font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--accent-dark);
-  background: rgba(184, 85, 47, 0.1);
+  background: rgba(176, 78, 41, 0.1);
   border-radius: 999px;
 }
 .lin-pill--ghost {
@@ -4045,7 +4074,7 @@ h4 {
   font-size: 10.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  background: rgba(184, 85, 47, 0.1);
+  background: rgba(176, 78, 41, 0.1);
   color: var(--accent-dark);
 }
 .ld-conf--documented {
@@ -4057,7 +4086,7 @@ h4 {
   color: #4a5635;
 }
 .ld-conf--possible {
-  background: rgba(184, 85, 47, 0.08);
+  background: rgba(176, 78, 41, 0.08);
   color: var(--accent-dark);
 }
 .ld-conf--uncertain {
@@ -4326,7 +4355,7 @@ h4 {
 }
 .gs-form:focus-within {
   border-color: var(--accent, #b8552f);
-  box-shadow: 0 0 0 3px var(--accent-soft, rgba(184, 85, 47, 0.1));
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(176, 78, 41, 0.1));
 }
 .gs-container.gs-drawer .gs-form {
   height: 44px;
@@ -4461,7 +4490,7 @@ h4 {
 }
 .gs-hit--active,
 .gs-hit:hover {
-  background: var(--accent-soft, rgba(184, 85, 47, 0.1));
+  background: var(--accent-soft, rgba(176, 78, 41, 0.1));
   border-left-color: var(--accent, #b8552f);
 }
 .gs-hit-name {
@@ -5096,7 +5125,7 @@ body.nav-panel-open {
 .dj .ld-conf--possible {
   background: transparent;
   color: var(--accent-dark);
-  border: 1px solid rgba(184, 85, 47, 0.45);
+  border: 1px solid rgba(176, 78, 41, 0.45);
 }
 .dj .ld-conf--parallel_evolution {
   background: rgba(33, 28, 22, 0.06);
