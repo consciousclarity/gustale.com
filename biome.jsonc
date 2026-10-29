@@ -11,7 +11,8 @@
       "!**/dist",
       "!**/.astro",
       "!**/graphify-out",
-      "!packages/db/drizzle"
+      "!packages/db/drizzle",
+      "!data"
     ]
   },
   "formatter": {
