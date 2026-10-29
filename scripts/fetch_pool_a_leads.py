@@ -37,6 +37,41 @@ USER_AGENT = "gustale-reference-work/1.0 (https://gustale.com)"
 
 
 def fetch_lead(title: str) -> str | None:
+    """The lead of a Wikipedia article, or None.
+
+    THE REST SUMMARY ENDPOINT IS NOT ALWAYS ENOUGH
+
+    The REST summary endpoint (rest_v1/page/summary) returns a SHORT
+    summary, and for some articles that summary is degenerate — for
+    "Braaibroodjie" it returns the single character "'" with the
+    description "South African cuisine". The article itself is fine.
+
+    A one-character lead is not a lead. If it reached the similarity
+    check, the check would compare the site's description against "'"
+    and find it 100% different — which would mark a copied description
+    as ORIGINAL. That is the worst possible failure for this check: it
+    would wave through exactly the descriptions it exists to catch.
+
+    So a degenerate extract is not accepted. The action API is asked
+    for the full intro instead, which returns the real lead.
+    """
+    extract = _summary_extract(title)
+    if extract and _is_degenerate(extract):
+        extract = _action_extract(title)
+    return extract
+
+
+def _is_degenerate(extract: str) -> bool:
+    """An extract too short or too broken to be a lead."""
+    stripped = extract.strip()
+    if len(stripped) < 40:
+        return True
+    # Mostly punctuation and quotes — the shape of a broken extract.
+    letters = sum(1 for ch in stripped if ch.isalnum())
+    return letters < len(stripped) * 0.3
+
+
+def _summary_extract(title: str) -> str | None:
     url = (
         "https://en.wikipedia.org/api/rest_v1/page/summary/"
         + urllib.parse.quote(title.replace(" ", "_"))
@@ -49,6 +84,31 @@ def fetch_lead(title: str) -> str | None:
         return None
     extract = payload.get("extract")
     return extract.strip() if extract else None
+
+
+def _action_extract(title: str) -> str | None:
+    """The full intro, from the action API.
+
+    The REST summary endpoint truncates; this one does not. It is the
+    fallback for the articles whose summary is degenerate.
+    """
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=query&prop=extracts"
+        "&exintro=1&explaintext=1&format=json&redirects=1&titles="
+        + urllib.parse.quote(title.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return None
+    pages = payload.get("query", {}).get("pages", {})
+    for page in pages.values():
+        extract = page.get("extract")
+        if extract:
+            return extract.strip()
+    return None
 
 
 def main() -> int:
