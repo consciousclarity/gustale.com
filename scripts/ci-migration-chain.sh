@@ -50,6 +50,7 @@ DATA_MIGRATIONS=(
   db/migrations/0028_adr003_translation_cleanup.sql
   db/migrations/0029_adr003_cjk_script_cleanup.sql
   db/migrations/0030_adr003_clear_test_residue.sql
+  db/migrations/0031_pool_a_review_sample.sql
 )
 
 run_pg() {

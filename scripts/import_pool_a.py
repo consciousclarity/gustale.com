@@ -290,6 +290,7 @@ def import_batch(
     skipped = 0
     for_review = 0
     statements_made = 0
+    sampled: list[tuple[str, str]] = []  # (statement_id, dish_id)
 
     for i, row in enumerate(rows):
         qid = row["qid"]
@@ -350,6 +351,18 @@ def import_batch(
         # citations. This is the classified-but-unevidenced state.
         if result.get("statement_id"):
             statements_made += 1
+            if i in sampled_idx:
+                sampled.append((result["statement_id"], result["dish_id"]))
+
+    # RECORD THE SAMPLE.
+    #
+    # The 10% that goes to hand review has to be RECORDED, not merely
+    # counted — otherwise the review queue holds every
+    # research_pending statement, and a queue of 1,381 items is not
+    # reviewable. The sample is deterministic (every Nth row), so
+    # re-importing a batch does not reshuffle which ten need review.
+    if sampled and not dry_run:
+        record_sample(number, sampled)
 
     print(f"    the statements made: {statements_made}")
     return {
@@ -357,6 +370,33 @@ def import_batch(
         "skipped": skipped,
         "for_review": for_review,
     }
+
+
+def record_sample(
+    batch_number: int, sampled: list[tuple[str, str]]
+) -> None:
+    """Record which 10% of this batch goes to hand review.
+
+    The sample is written to pool_a_review_samples, which is what the
+    review queue view reads. The unsampled 90% are NOT written there,
+    so they do not appear in the queue — but they remain
+    research_pending and still need research. The review gates THOSE
+    statements, not the dishes.
+    """
+    values = ",\n  ".join(
+        f"({batch_number}, {position}, '{statement_id}', '{dish_id}', 'en')"
+        for position, (statement_id, dish_id) in enumerate(sampled, start=1)
+    )
+    sql = f"""
+    insert into pool_a_review_samples
+      (batch_number, position_in_batch, statement_id, dish_id, locale)
+    values
+      {values}
+    on conflict (batch_number, position_in_batch) do nothing;
+    """
+    db(sql)
+    print(f"    the sample recorded: {len(sampled)} statements "
+          f"(batch {batch_number})")
 
 
 def sql_literal(value: str) -> str:
