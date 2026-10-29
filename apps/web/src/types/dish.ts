@@ -218,4 +218,48 @@ export interface DishDetailResponse {
   media: DishMediaAttachment[];
   coverImage: DishMediaAttachment | null;
   availableLanguages: string[];
+
+  // ADR-003 layer 1 — the vocabulary dimensions, with their labels
+  // translated into the requested locale. The English label is the
+  // dimension's own name, and is the fallback.
+  dimensions: DishDimension[];
+  // The dimensions that are explicitly unset, so the page can say
+  // "no evidence" rather than showing nothing.
+  unsetDimensions: DishUnsetDimension[];
+
+  // ADR-003 layer 2 — the dish's names.
+  names: DishName[];
+  // The languages the dish has a name in, for the language switcher.
+  availableNameLanguages: string[];
+
+  // The locale actually served, and the one that was asked for. When
+  // they differ, the page shows the English-fallback notice.
+  locale: string;
+  requestedLocale: string;
+}
+
+/** A vocabulary dimension of a dish: family, cuisine, technique, etc. */
+export interface DishDimension {
+  vocabulary: string;
+  valueId: string;
+  slug: string;
+  name: string;
+  isPrimary: boolean;
+}
+
+/** A dimension that is explicitly unset, with the reason. */
+export interface DishUnsetDimension {
+  dimension: string;
+  reason: string;
+}
+
+/** One of a dish's names, in one language. */
+export interface DishName {
+  language: string;
+  /** The ISO 15924 script code: Latn, Cyrl, Arab, Hans, Hant, Jpan, Deva. */
+  script: string | null;
+  name: string;
+  /** 'endonym' | 'exonym' | 'romanization' */
+  kind: string;
+  isPrimary: boolean;
 }

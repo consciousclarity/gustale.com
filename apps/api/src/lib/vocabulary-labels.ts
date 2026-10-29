@@ -34,18 +34,38 @@ export const SUPPORTED_LOCALES = CORE_LOCALES;
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
+/**
+ * A BCP-47 language tag: two or three letters, then optional
+ * subtags.
+ *
+ * The ADR says the core set is "a floor, not a ceiling: the per-dish
+ * language rule can add locales the core set omits." The dish names
+ * already prove it - a dish has a name in Tagalog, Vietnamese, Korean,
+ * Greek, Thai and more, and a request for those must be served.
+ *
+ * So a locale is valid if it is well-formed BCP-47, not only if it is
+ * in the core list. The core list is what the site guarantees to have
+ * labels for; anything else falls back per-value, and the API reports
+ * the locale it served so the client can show the notice.
+ */
+const BCP47 = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+
 export function isSupportedLocale(value: string): value is Locale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(value);
+}
+
+export function isValidLocale(value: string): boolean {
+  return BCP47.test(value);
 }
 
 /**
  * Pick the best locale for a request.
  *
- * The requested language wins if it is supported. Otherwise the base
+ * The requested language wins if it is well-formed. Otherwise the base
  * "en" is used, and the caller shows the fallback notice.
  */
-export function resolveLocale(requested?: string): Locale {
-  if (requested && isSupportedLocale(requested)) return requested;
+export function resolveLocale(requested?: string): string {
+  if (requested && isValidLocale(requested)) return requested;
   return "en";
 }
 
