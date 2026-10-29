@@ -65,6 +65,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -125,12 +126,18 @@ def db_rows(sql: str) -> list[dict]:
     return []
 
 
-def fetch_lead(qid: str, title: str) -> str | None:
+def fetch_extract(qid: str, title: str) -> str | None:
     """The English lead of a Wikipedia article, via the REST summary API.
 
-    The lead is the dish's description. It is a DESCRIPTION of the
+    The lead is the dish's DESCRIPTION. It is a description of the
     dish, not evidence for any claim about it — which is exactly why
     the dish enters classified-but-unevidenced.
+
+    It is ALSO the dish's PROSE, and prose is what ADR-003 layer 3
+    translates. So it is split into the short and long fields the
+    same way the 121 existing dishes are split, and it is populated
+    into description_sentences so the translation layer has
+    something to work with.
     """
     url = (
         "https://en.wikipedia.org/api/rest_v1/page/summary/"
@@ -145,8 +152,43 @@ def fetch_lead(qid: str, title: str) -> str | None:
     extract = payload.get("extract")
     if not extract:
         return None
-    # The summary extract sometimes carries a parenthetical; keep it.
     return extract.strip()
+
+
+def split_description(extract: str) -> tuple[str, str]:
+    """Split the lead into (short, long), the way the existing 121 are.
+
+    The existing dishes have a short_description averaging 156
+    characters (max 255) and a long_description averaging 1,153. The
+    REST summary extract is usually one or two sentences — which
+    belongs in the SHORT field, because that is what the dish card
+    shows.
+
+    So: the first sentence is the short description. If there is more
+    than one sentence, the rest is the long description. If the
+    extract is one sentence and it is longer than 255 characters, it
+    is trimmed to the nearest clause boundary — because the card
+    shows a short description, and 1,183 characters is not one.
+    """
+    sentences = re.split(r"(?<=[.!?])\s+", extract.strip())
+    sentences = [s for s in sentences if s]
+    if not sentences:
+        return "", ""
+
+    first = sentences[0]
+    rest = " ".join(sentences[1:]).strip()
+
+    if len(first) > 255:
+        # Trim to the nearest clause boundary within the limit.
+        cut = first[:255]
+        for marker in (", ", "; ", " — ", " and ", " with "):
+            pos = cut.rfind(marker)
+            if pos > 120:
+                cut = cut[:pos]
+                break
+        first = cut.rstrip(" ,;") + "."
+
+    return first, rest
 
 
 def slugify(text: str) -> str:
@@ -276,17 +318,22 @@ def import_batch(
                 for_review += 1
             continue
 
-        # The description — the English article's lead.
-        description = None
+        # The description — the English article's lead, split into
+        # the short and long fields the way the existing 121 are.
+        short_description = ""
+        long_description = ""
         if not skip_leads:
-            description = fetch_lead(qid, row.get("article") or label)
+            extract = fetch_extract(qid, row.get("article") or label)
             time.sleep(0.15)
+            if extract:
+                short_description, long_description = split_description(extract)
 
         # The dish, classified but unevidenced.
         result = insert_dish(
             slug=slug,
             name=label,
-            description=description,
+            short_description=short_description,
+            long_description=long_description,
             country_qid=country_qid,
             provenance="wikidata-derived",
             status="draft",
@@ -320,7 +367,8 @@ def sql_literal(value: str) -> str:
 def insert_dish(
     slug: str,
     name: str,
-    description: str | None,
+    short_description: str,
+    long_description: str,
     country_qid: str | None,
     provenance: str,
     status: str,
@@ -361,13 +409,15 @@ def insert_dish(
     sql = f"""
     begin;
     insert into dishes
-      (id, slug, canonical_name, short_description, status,
-       origin_geo_id, created_by, created_at, updated_at)
+      (id, slug, canonical_name, short_description, long_description,
+       status, origin_geo_id, created_by, sentence_managed, created_at,
+       updated_at)
     values
       ('{dish_id}', {sql_literal(slug)}, {sql_literal(name)},
-       {sql_literal(description or '')}, '{status}',
+       {sql_literal(short_description)}, {sql_literal(long_description)},
+       '{status}',
        {f"'{geo_id}'" if geo_id else "null"},
-       {sql_literal(provenance)}, now(), now());
+       {sql_literal(provenance)}, false, now(), now());
     """
 
     if geo_id:
