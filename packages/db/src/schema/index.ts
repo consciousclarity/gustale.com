@@ -487,139 +487,121 @@ export const descriptionSentences = pgTable(
 // The status column is the Q12 lifecycle. It may only be changed
 // through statement_set_status(), which checks the gates — the
 // database refuses a direct UPDATE.
-export const predicates = pgTable(
-  "predicates",
-  {
-    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-    slug: text("slug").notNull().unique(),
-    name: text("name").notNull(),
-    valueKind: text("value_kind").notNull(),
-    valueType: text("value_type"),
-    description: text("description"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const predicates = pgTable("predicates", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  valueKind: text("value_kind").notNull(),
+  valueType: text("value_type"),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
-export const statements = pgTable(
-  "statements",
-  {
-    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-    subjectType: text("subject_type").notNull(),
-    subjectId: uuid("subject_id").notNull(),
-    predicateId: uuid("predicate_id")
-      .notNull()
-      .references(() => predicates.id),
-    valueType: text("value_type").notNull(),
-    valueRef: uuid("value_ref"),
-    valueLiteral: text("value_literal"),
-    valueLiteralType: text("value_literal_type"),
-    qualifiers: jsonb("qualifiers").notNull().default(sql`'{}'::jsonb`),
-    claimClass: text("claim_class").notNull(),
-    // The Q12 lifecycle: draft → research_pending → under_review →
-    // verified → published, with disputed and needs_revision branches.
-    // A direct UPDATE is refused by the database.
-    status: text("status").notNull().default("draft"),
-    // Q8: independence is STORED, tri-state, and never defaulted.
-    // NULL means "not assessed", which is NOT the same as "single".
-    independence: text("independence"),
-    independenceCheckedAt: timestamp("independence_checked_at", {
-      withTimezone: true,
-    }),
-    verifiedBy: text("verified_by"),
-    verifiedAt: timestamp("verified_at", { withTimezone: true }),
-    publishedBy: text("published_by"),
-    publishedAt: timestamp("published_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const statements = pgTable("statements", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  subjectType: text("subject_type").notNull(),
+  subjectId: uuid("subject_id").notNull(),
+  predicateId: uuid("predicate_id")
+    .notNull()
+    .references(() => predicates.id),
+  valueType: text("value_type").notNull(),
+  valueRef: uuid("value_ref"),
+  valueLiteral: text("value_literal"),
+  valueLiteralType: text("value_literal_type"),
+  qualifiers: jsonb("qualifiers").notNull().default(sql`'{}'::jsonb`),
+  claimClass: text("claim_class").notNull(),
+  // The Q12 lifecycle: draft → research_pending → under_review →
+  // verified → published, with disputed and needs_revision branches.
+  // A direct UPDATE is refused by the database.
+  status: text("status").notNull().default("draft"),
+  // Q8: independence is STORED, tri-state, and never defaulted.
+  // NULL means "not assessed", which is NOT the same as "single".
+  independence: text("independence"),
+  independenceCheckedAt: timestamp("independence_checked_at", {
+    withTimezone: true,
+  }),
+  verifiedBy: text("verified_by"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  publishedBy: text("published_by"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
-export const statementReadings = pgTable(
-  "statement_readings",
-  {
-    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-    statementId: uuid("statement_id")
-      .notNull()
-      .references(() => statements.id, { onDelete: "cascade" }),
-    text: text("text").notNull(),
-    locale: text("locale").notNull().default("en"),
-    // 'plain' = generated from the structure; 'editorial' = hand-written.
-    kind: text("kind").notNull().default("plain"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const statementReadings = pgTable("statement_readings", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  statementId: uuid("statement_id")
+    .notNull()
+    .references(() => statements.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  locale: text("locale").notNull().default("en"),
+  // 'plain' = generated from the structure; 'editorial' = hand-written.
+  kind: text("kind").notNull().default("plain"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
-export const claimCitations = pgTable(
-  "claim_citations",
-  {
-    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-    statementId: uuid("statement_id")
-      .notNull()
-      .references(() => statements.id, { onDelete: "cascade" }),
-    sourceId: uuid("source_id")
-      .notNull()
-      .references(() => sources.id),
-    // 'supports' | 'refutes' | 'context'. 'context' counts as NEITHER
-    // support nor refutation.
-    stance: text("stance").notNull(),
-    locator: text("locator"),
-    excerpt: text("excerpt"),
-    revisionId: text("revision_id"),
-    retrievedAt: timestamp("retrieved_at", { withTimezone: true }).notNull(),
-    excerptValidated: boolean("excerpt_validated").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const claimCitations = pgTable("claim_citations", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  statementId: uuid("statement_id")
+    .notNull()
+    .references(() => statements.id, { onDelete: "cascade" }),
+  sourceId: uuid("source_id")
+    .notNull()
+    .references(() => sources.id),
+  // 'supports' | 'refutes' | 'context'. 'context' counts as NEITHER
+  // support nor refutation.
+  stance: text("stance").notNull(),
+  locator: text("locator"),
+  excerpt: text("excerpt"),
+  revisionId: text("revision_id"),
+  retrievedAt: timestamp("retrieved_at", { withTimezone: true }).notNull(),
+  excerptValidated: boolean("excerpt_validated").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
-export const sentenceClaims = pgTable(
-  "sentence_claims",
-  {
-    sentenceId: uuid("sentence_id")
-      .notNull()
-      .references(() => descriptionSentences.id, { onDelete: "cascade" }),
-    statementId: uuid("statement_id")
-      .notNull()
-      .references(() => statements.id, { onDelete: "cascade" }),
-    isPrimary: boolean("is_primary").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const sentenceClaims = pgTable("sentence_claims", {
+  sentenceId: uuid("sentence_id")
+    .notNull()
+    .references(() => descriptionSentences.id, { onDelete: "cascade" }),
+  statementId: uuid("statement_id")
+    .notNull()
+    .references(() => statements.id, { onDelete: "cascade" }),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
-export const statementStatusLog = pgTable(
-  "statement_status_log",
-  {
-    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-    statementId: uuid("statement_id")
-      .notNull()
-      .references(() => statements.id, { onDelete: "cascade" }),
-    fromStatus: text("from_status"),
-    toStatus: text("to_status").notNull(),
-    actor: text("actor").notNull(),
-    gateOk: boolean("gate_ok").notNull().default(true),
-    note: text("note"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-);
+export const statementStatusLog = pgTable("statement_status_log", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  statementId: uuid("statement_id")
+    .notNull()
+    .references(() => statements.id, { onDelete: "cascade" }),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actor: text("actor").notNull(),
+  gateOk: boolean("gate_ok").notNull().default(true),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const descriptionSentenceTranslations = pgTable(
   "description_sentence_translations",

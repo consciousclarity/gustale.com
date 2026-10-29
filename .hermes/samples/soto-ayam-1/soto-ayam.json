@@ -1,0 +1,59 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "soto ayam, Indonesian chicken soup. The defining visual: a wide ceramic bowl filled with a clear, golden-yellow chicken broth (from turmeric), with visible threads of egg yolk, sliced scallion, and fried shallots floating on the surface. Submerged and visible: shredded poached chicken, glass vermicelli noodles (soun), bean sprouts, slices of tomato, a wedge of lime, and a hard-boiled egg cut in half. Crispy krupuk (shrimp crackers) standing up at the edge of the bowl. Sambal on a small saucer on the side. A small dish of steamed rice (nasi putih) on the side. Authentic Indonesian ceramic. Teak wood table. Steam visible rising from the bowl. Natural window light from the left, soft shadow on the right. 3/4 angle, shallow depth of field, magazine editorial food photography. Photorealistic. No text. No logos. No people. No hands. No cutlery distortion. No fusion garnishes. No melted or floating objects. No white china plate. Realistic portion, single serving.",
+  "seed": null,
+  "width": 1536,
+  "height": 1024,
+  "files": [
+    "soto-ayam-1.jpg",
+    "soto-ayam-2.jpg",
+    "soto-ayam-3.jpg",
+    "soto-ayam-4.jpg"
+  ],
+  "web": [
+    {
+      "file": "soto-ayam-1-1536w.webp",
+      "width": 1536,
+      "kb": 104
+    },
+    {
+      "file": "soto-ayam-1-800w.webp",
+      "width": 800,
+      "kb": 40
+    },
+    {
+      "file": "soto-ayam-2-1536w.webp",
+      "width": 1536,
+      "kb": 117
+    },
+    {
+      "file": "soto-ayam-2-800w.webp",
+      "width": 800,
+      "kb": 46
+    },
+    {
+      "file": "soto-ayam-3-1536w.webp",
+      "width": 1536,
+      "kb": 118
+    },
+    {
+      "file": "soto-ayam-3-800w.webp",
+      "width": 800,
+      "kb": 44
+    },
+    {
+      "file": "soto-ayam-4-1536w.webp",
+      "width": 1536,
+      "kb": 113
+    },
+    {
+      "file": "soto-ayam-4-800w.webp",
+      "width": 800,
+      "kb": 43
+    }
+  ],
+  "trace_id": "07228990362702ddfb5dba1e48e55351",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T11:06:18+00:00"
+}

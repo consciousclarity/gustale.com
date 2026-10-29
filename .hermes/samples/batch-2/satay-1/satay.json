@@ -1,0 +1,59 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "Candid documentary photo of a real serving of sate madura (Madura-style satay) as eaten at a street-side sate stall in Surabaya: a small fan of five or six thin bamboo skewers threaded with small cubes of moist grilled chicken, with parallel dark char marks from the charcoal grill, glossy with a thin layer of kecap manis glaze. A small pool of dark-brown peanut sauce (kacang) in a small bowl on the side, sprinkled with fried shallots (bawang goreng). A few cubes of lontong (compressed rice cake) on the plate. Served on a chipped plain white plate with a banana leaf underneath, on a worn wooden or formica street-stall table, a small saucer of sambal kecap and a glass of warm jasmine tea softly out of focus behind. Soft natural daylight mixed with the warm glow of the charcoal grill, viewed from about 40 degrees above, 35mm lens, moderate depth of field. Everyday unstyled plating, slightly messy edges with peanut sauce drips, true-to-life colours, realistic textures. No food styling, no microgreens, no fusion garnishes, no Western plates, no studio lighting, no text, no logos, no people, no hands.",
+  "seed": null,
+  "width": 1536,
+  "height": 1024,
+  "files": [
+    "satay-1.jpg",
+    "satay-2.jpg",
+    "satay-3.jpg",
+    "satay-4.jpg"
+  ],
+  "web": [
+    {
+      "file": "satay-1-1536w.webp",
+      "width": 1536,
+      "kb": 76
+    },
+    {
+      "file": "satay-1-800w.webp",
+      "width": 800,
+      "kb": 30
+    },
+    {
+      "file": "satay-2-1536w.webp",
+      "width": 1536,
+      "kb": 88
+    },
+    {
+      "file": "satay-2-800w.webp",
+      "width": 800,
+      "kb": 35
+    },
+    {
+      "file": "satay-3-1536w.webp",
+      "width": 1536,
+      "kb": 82
+    },
+    {
+      "file": "satay-3-800w.webp",
+      "width": 800,
+      "kb": 33
+    },
+    {
+      "file": "satay-4-1536w.webp",
+      "width": 1536,
+      "kb": 86
+    },
+    {
+      "file": "satay-4-800w.webp",
+      "width": 800,
+      "kb": 35
+    }
+  ],
+  "trace_id": "072290eae64a8205c3fe7088a7db3bea",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T11:37:49+00:00"
+}
