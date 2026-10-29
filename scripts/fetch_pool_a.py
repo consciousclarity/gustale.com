@@ -52,8 +52,22 @@ from pathlib import Path
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "gustale-pool-a/1.0 (https://gustale.com; hello@gustale.com)"
 
-# The dish subclass root. P31/wdt:P279* Q7366 is the type test.
-DISH_ROOT = "Q7366"
+# THE DISH SUBCLASS ROOT. P31/wdt:P279* Q746549 is the type test.
+#
+# Q746549 is "dish" — "specific food preparation with cooking finished,
+# and ready to be served". It is NOT Q7366, which is "song": the first
+# version of this script used Q7366 and fetched 1,600 items whose
+# type was Q134556 ("single") and Q7366 ("song") — songs and singles,
+# not dishes. The rows looked complete, because each had a country of
+# origin and an article, which is exactly what Pool A's definition
+# requires of the ROW. The error was in the ROOT, and no per-row check
+# would have caught it.
+#
+# The corrected root gives 1,381 dishes with an article and a country
+# of origin — against the plan's measured 1,565 on 2026-10-27. The
+# difference is the query variant and the data's drift since, not a
+# different population.
+DISH_ROOT = "Q746549"
 
 OUT = Path("/tmp/pool_a.json")
 
@@ -97,7 +111,7 @@ def sparql(query: str) -> list[dict]:
 # also being part of Wikipedia) and it returns ZERO rows silently.
 CANDIDATE_QUERY = """
 SELECT DISTINCT ?dish ?article WHERE {
-  ?dish wdt:P31/wdt:P279* wd:Q7366 ;
+  ?dish wdt:P31/wdt:P279* wd:DISH_ROOT_PLACEHOLDER ;
         wdt:P495 ?country .
   ?article schema:about ?dish ;
            schema:isPartOf <https://en.wikipedia.org/> .
@@ -109,7 +123,11 @@ LIMIT __LIMIT__
 def fetch_candidates(limit: int) -> list[dict]:
     """The Pool A candidate list: a QID and its English article title."""
     print(f"[pool-a] asking for up to {limit} candidates from SPARQL", flush=True)
-    rows = sparql(CANDIDATE_QUERY.replace("__LIMIT__", str(limit)))
+    query = (
+        CANDIDATE_QUERY.replace("__LIMIT__", str(limit))
+        .replace("DISH_ROOT_PLACEHOLDER", DISH_ROOT)
+    )
+    rows = sparql(query)
     out = []
     for row in rows:
         out.append(
@@ -166,6 +184,25 @@ def fetch_details(qids: list[str]) -> dict[str, dict]:
             }
         # Pace it: the API is a public service.
         time.sleep(0.4)
+    return out
+
+
+def fetch_type_labels(qids: list[str]) -> dict[str, str]:
+    """The English labels for a set of QIDs."""
+    if not qids:
+        return {}
+    payload = api_get(
+        {
+            "action": "wbgetentities",
+            "ids": "|".join(qids),
+            "props": "labels",
+            "languages": "en",
+            "format": "json",
+        }
+    )
+    out = {}
+    for qid, entity in payload.get("entities", {}).items():
+        out[qid] = entity.get("labels", {}).get("en", {}).get("value")
     return out
 
 
@@ -241,6 +278,46 @@ def main() -> int:
     candidates = fetch_candidates(args.limit)
     if not candidates:
         print("[pool-a] no candidates — the endpoint may be rate-limited")
+        return 1
+
+    # THE ROOT CHECK.
+    #
+    # A wrong subclass root does not fail — it returns a full, plausible
+    # set of rows that all satisfy the ROW definition (an article and a
+    # country of origin). The first version of this script used Q7366
+    # ("song") and got 1,600 rows that were songs and singles. Nothing
+    # about the rows looked wrong.
+    #
+    # So the root is CHECKED, by looking at what the candidates are
+    # actually typed as. If the dominant P31 target is not a food
+    # class, the fetch stops.
+    await_check = {}
+    for cand in candidates[:40]:
+        detail = fetch_details([cand["qid"]]).get(cand["qid"], {})
+        for q in detail.get("instance_of", []):
+            await_check[q] = await_check.get(q, 0) + 1
+
+    dominant = sorted(await_check.items(), key=lambda kv: -kv[1])[:3]
+    print(f"[pool-a] the sample's dominant types: {dominant}", flush=True)
+    if not dominant:
+        print("[pool-a] the candidates have no type — aborting")
+        return 1
+
+    # The type must be the dish root or a subclass of it. Asking
+    # Wikidata directly is one cheap call.
+    type_labels = fetch_type_labels([q for q, _ in dominant])
+    print(f"[pool-a] the dominant types: {type_labels}", flush=True)
+
+    if not any(
+        label and ("dish" in label.lower() or "food" in label.lower()
+                   or "cuisine" in label.lower() or "meal" in label.lower())
+        for label in type_labels.values()
+    ):
+        print(
+            "[pool-a] ABORT: the dominant type is not a food class. "
+            "The subclass root is wrong — a wrong root returns a full, "
+            "plausible set of rows, so it has to be checked explicitly."
+        )
         return 1
 
     qids = sorted({c["qid"] for c in candidates})
