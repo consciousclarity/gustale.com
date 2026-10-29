@@ -44,6 +44,21 @@ import time
 import urllib.error
 import urllib.request
 
+# A CITATION LINE — "[Source: Wikipedia — Aloo gobhi, accessed ...]".
+#
+# These are METADATA, not prose. They name a source, a title and a
+# date, and they are the same in every language: the source is the
+# English Wikipedia article whatever locale the reader is in.
+#
+# Translating them produces a shorter, mangled version — "Fuente:
+# Wikipedia — Aloo gobhi..." — which then trips the output check, and
+# which is wrong anyway: the citation points at the English source.
+#
+# So they are SKIPPED, not translated. The English citation is shown
+# in every locale, and that is correct.
+CITATION_PREFIX = "[Source:"
+
+
 # The nine non-English core locales.
 LOCALES = ["es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"]
 
@@ -105,18 +120,38 @@ def load_token() -> str:
 
 
 def translate(token: str, sentence: str, locale: str) -> str:
-    """Translate one sentence. Returns the translation, or raises."""
+    """Translate one sentence. Returns the translation, or raises.
+
+    The token budget has to cover the model's REASONING as well as
+    the answer. The reasoning comes back as a `thinking` block, and
+    when it takes the whole allowance the call returns no text at
+    all, with `stop_reason: max_tokens`.
+
+    So the budget is generous, and a call that comes back empty is
+    RETRIED with a larger one. Retrying is safe: the call is
+    idempotent and a failed call wrote nothing.
+    """
     language = LOCALE_NAMES[locale]
+    last_error = ""
+
+    for attempt, budget in enumerate((4000, 8000, 16000), start=1):
+        translated = _translate_once(token, sentence, language, budget)
+        if translated:
+            return translated
+        last_error = "the model returned no text"
+        print(f"    (retrying with {budget} tokens, attempt {attempt})")
+
+    raise RuntimeError(last_error)
+
+
+def _translate_once(
+    token: str, sentence: str, language: str, max_tokens: int
+) -> str:
+    """One translation call. Returns the text, or "" if there was none."""
     body = json.dumps(
         {
             "model": MODEL,
-            # The budget has to cover the model's REASONING as well
-            # as the answer. With 1000 tokens the reasoning took the
-            # whole allowance on a long sentence and the call came
-            # back with no translation at all — the reasoning is
-            # returned as a `thinking` block, and `stop_reason` was
-            # `max_tokens`.
-            "max_tokens": 4000,
+            "max_tokens": max_tokens,
             "system": SYSTEM_PROMPT.format(language=language),
             "messages": [{"role": "user", "content": sentence}],
         }
@@ -130,7 +165,7 @@ def translate(token: str, sentence: str, locale: str) -> str:
             "anthropic-version": "2023-06-01",
         },
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
+    with urllib.request.urlopen(request, timeout=180) as response:
         payload = json.loads(response.read())
 
     # The response may carry a `thinking` block before the answer.
@@ -140,10 +175,7 @@ def translate(token: str, sentence: str, locale: str) -> str:
         for block in payload.get("content", [])
         if block.get("type") == "text"
     ]
-    translated = "\n".join(text_parts).strip()
-    if not translated:
-        raise RuntimeError(f"the model returned no text: {payload}")
-    return translated
+    return "\n".join(text_parts).strip()
 
 
 # ── The output check ────────────────────────────────────────────────────
@@ -358,8 +390,18 @@ def main() -> int:
     failures = []
     rejected = []
     total = 0
+    # The citation lines are not translated. See CITATION_PREFIX.
+    translatable = [
+        r for r in sentences if not r["text"].lstrip().startswith(CITATION_PREFIX)
+    ]
+    skipped = len(sentences) - len(translatable)
+    print(
+        f"[translate] {len(translatable)} sentences to translate; "
+        f"{skipped} citation lines skipped"
+    )
+
     for locale in locales:
-        for index, row in enumerate(sentences, start=1):
+        for index, row in enumerate(translatable, start=1):
             try:
                 translated = translate(token, row["text"], locale)
                 problem = check_translation(row["text"], translated, locale)
@@ -379,7 +421,7 @@ def main() -> int:
                 failures.append((locale, row["slug"], str(exc)[:200]))
                 print(f"  FAILED {locale} {row['slug']}: {str(exc)[:160]}")
             if index % 20 == 0:
-                print(f"  {locale}: {index}/{len(sentences)}")
+                print(f"  {locale}: {index}/{len(translatable)}")
             # A small pause, so the API is not hammered.
             time.sleep(0.25)
 
