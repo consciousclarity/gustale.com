@@ -26,6 +26,7 @@ import { registerLineageRoutes } from "./routes/lineages.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerSearchRoutes } from "./routes/search.js";
 import { registerTaxonomyRoutes } from "./routes/taxonomy.js";
+import { registerTranslationReviewRoutes } from "./routes/translation-review.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -88,6 +89,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerHealthRoutes(app);
   registerDishRoutes(app);
   registerDishWriteRoutes(app);
+  registerTranslationReviewRoutes(app);
   registerAdminDishRoutes(app);
   registerTaxonomyRoutes(app);
   registerLineageRoutes(app);
