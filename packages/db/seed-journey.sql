@@ -6,11 +6,43 @@
 
 BEGIN;
 
-INSERT INTO geo_entities (id, name, iso_code, entity_type)
-VALUES
-  ('00000000-0000-0000-0000-000000000011'::uuid, 'India', 'IN', 'country'),
-  ('00000000-0000-0000-0000-000000000012'::uuid, 'Spain', 'ES', 'country')
-ON CONFLICT (id) DO NOTHING;
+-- India and Spain. `ON CONFLICT (id)` was not enough: the GUS-242
+-- country seed creates its own rows for these two with DIFFERENT ids
+-- (deterministic from the Wikidata Q-id), so both rows landed and
+-- `geo_entities` ended up with a duplicate `iso_code` -- which then
+-- blocked db/migrations/gus-242-schema-prep.sql from adding the unique
+-- constraint on iso_code.
+--
+-- So: skip when a row for these iso_codes already exists, whatever its
+-- id. See the same fix in packages/db/seed-moussaka.sql.
+-- So: reuse the rows that are already there, whatever their ids, and
+-- resolve the ids into a table so the dish inserts below can use them.
+DO $$
+DECLARE india_id uuid; spain_id uuid;
+BEGIN
+  SELECT id INTO india_id FROM geo_entities WHERE iso_code = 'IN' LIMIT 1;
+  SELECT id INTO spain_id FROM geo_entities WHERE iso_code = 'ES' LIMIT 1;
+
+  IF india_id IS NULL THEN
+    INSERT INTO geo_entities (id, name, iso_code, entity_type)
+    VALUES ('00000000-0000-0000-0000-000000000011'::uuid, 'India', 'IN', 'country')
+    ON CONFLICT (id) DO NOTHING;
+    SELECT id INTO india_id FROM geo_entities WHERE iso_code = 'IN' LIMIT 1;
+  END IF;
+
+  IF spain_id IS NULL THEN
+    INSERT INTO geo_entities (id, name, iso_code, entity_type)
+    VALUES ('00000000-0000-0000-0000-000000000012'::uuid, 'Spain', 'ES', 'country')
+    ON CONFLICT (id) DO NOTHING;
+    SELECT id INTO spain_id FROM geo_entities WHERE iso_code = 'ES' LIMIT 1;
+  END IF;
+
+  CREATE TEMP TABLE _seed_geo_ids (iso_code text PRIMARY KEY, id uuid);
+  INSERT INTO _seed_geo_ids (iso_code, id) VALUES
+    ('IN', india_id),
+    ('ES', spain_id)
+    ON CONFLICT (iso_code) DO UPDATE SET id = EXCLUDED.id;
+END $$;
 
 INSERT INTO dishes (
   id, slug, canonical_name, short_description, long_description,
@@ -23,7 +55,7 @@ VALUES (
   'A Goan curry of Portuguese origin.',
   'CI fixture dish for journey beat tests.',
   'published',
-  '00000000-0000-0000-0000-000000000011'::uuid,
+  (SELECT id FROM _seed_geo_ids WHERE iso_code = 'IN'),
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000001'
 )
@@ -40,7 +72,7 @@ VALUES (
   'A cold Andalusian vegetable soup.',
   'CI fixture dish with an empty journey.',
   'published',
-  '00000000-0000-0000-0000-000000000012'::uuid,
+  (SELECT id FROM _seed_geo_ids WHERE iso_code = 'ES'),
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000001'
 )

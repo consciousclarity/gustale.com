@@ -165,16 +165,62 @@ jobs:
           # drizzle journal — same pattern as nightly (PR #39). The journal is
           # drifted (orphans / dual 0005 / missing 0007); journal-only apply
           # would skip tables CI tests need (e.g. dish_journey_beats).
+          #
+          # TWO chains, and they are INTERLEAVED:
+          #
+          #   packages/db/drizzle/*.sql — the drizzle-kit chain. 0000 creates
+          #     the base 33 tables and 0004 creates `dish_relations`.
+          #   db/migrations/*.sql       — the GUS-xxx chain. These CREATE the
+          #     vocabulary tables that 0000 does NOT create (dish_families,
+          #     dish_cuisines, dish_traditions, dish_techniques,
+          #     dish_contexts), add the `definition`/`source` columns to
+          #     dish_traditions, and seed the GUS-242 reference data.
+          #
+          # Neither chain alone works, and a fixed alphabetical order does
+          # not either: gus-014-pilot-dimensions needs `dishes` (from 0000)
+          # AND `dish_relations` (from 0004).
+          #
+          # The order below was found empirically by
+          # scripts/find_migration_order.py, which applies the files to a
+          # fresh database and reports any that cannot be placed.
           set -euo pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
             -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
-          mapfile -t files < <(git ls-files 'packages/db/drizzle/*.sql' | LC_ALL=C sort)
-          if [ "${#files[@]}" -eq 0 ]; then
+
+          mapfile -t drizzle_files < <(git ls-files 'packages/db/drizzle/*.sql' | LC_ALL=C sort)
+          if [ "${#drizzle_files[@]}" -eq 0 ]; then
             echo "No committed packages/db/drizzle/*.sql migrations found" >&2
             exit 1
           fi
-          for f in "${files[@]}"; do
+          for f in "${drizzle_files[@]}"; do
+            echo "Applying $f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+          # The GUS-xxx chain, in dependency order. See the list in
+          # scripts/find_migration_order.py — it is the same order.
+          #
+          # The GUS-242 data migrations (0015-0019) run AFTER the seed
+          # steps below, because they act on the seeded catalog.
+          gus_files=(
+            db/migrations/gus-014-pilot-dimensions.sql
+            db/migrations/gus-014-technique-fallback.sql
+            db/migrations/gus-224-relations-option-b.sql
+            db/migrations/gus-227-preparation-method-names.sql
+            db/migrations/gus-242-seed-countries.sql
+            db/migrations/gus-242-seed-country-names.sql
+            db/migrations/gus-242-seed-cuisines.sql
+            db/migrations/gus-242-seed-regions.sql
+            db/migrations/gus-014-118-dimensions.sql
+            db/migrations/gus-014-broadened-families.sql
+            db/migrations/gus-014-broadened-family-corrections.sql
+          )
+          for f in "${gus_files[@]}"; do
+            if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              echo "Missing committed migration $f" >&2
+              exit 1
+            fi
             echo "Applying $f"
             PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
           done
@@ -184,6 +230,37 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f packages/db/seed-moussaka.sql \
             -f packages/db/seed-journey.sql
+
+      - name: Apply the GUS-242 data migrations
+        run: |
+          # These act on the seeded catalog, so they run AFTER the seed.
+          # Each one guards itself on the presence of the data it acts on
+          # and skips cleanly when that data is absent — which is the
+          # case for the smaller ephemeral seed CI builds. See the CI
+          # GUARD block at the top of each file.
+          #
+          # gus-241 and gus-242-schema-prep come first here: 241 adds the
+          # `provenance` column that schema-prep's check reads, and
+          # schema-prep adds the `definition`/`source` columns on
+          # dish_traditions that the 0016 and 0019 migrations write.
+          set -euo pipefail
+          data_migrations=(
+            db/migrations/gus-241-taxonomy-and-unset-dimensions.sql
+            db/migrations/gus-242-schema-prep.sql
+            db/migrations/0015_gus242_resync.sql
+            db/migrations/0016_gus242_cuisines.sql
+            db/migrations/0017_gus242_cuisine_corrections.sql
+            db/migrations/0018_gus242_vocab_1f.sql
+            db/migrations/0019_gus242_traditions_1e.sql
+          )
+          for f in "${data_migrations[@]}"; do
+            if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              echo "Missing committed migration $f" >&2
+              exit 1
+            fi
+            echo "Applying $f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
+          done
 
       - name: Run vitest
         working-directory: apps/api

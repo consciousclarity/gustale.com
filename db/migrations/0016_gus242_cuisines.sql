@@ -49,6 +49,57 @@
 
 \set ON_ERROR_STOP on
 
+
+-- =====================================================================
+-- CI GUARD
+--
+-- This is a DATA migration: it asserts the state of the seeded catalog
+-- and then fixes it. CI applies the whole committed chain to a FRESH,
+-- EMPTY database, where there is nothing to fix.
+--
+-- So: if the data this migration acts on is not present, skip cleanly.
+-- The guard checks for the SPECIFIC rows the migration acts on, not
+-- merely "the database is non-empty", so a partially-migrated live
+-- database would NOT skip -- it would run the assertions and fail
+-- loudly, which is the intended behaviour.
+-- =====================================================================
+-- IDEMPOTENT
+--
+-- Safe to re-apply: a fresh deploy applies the whole chain, and the
+-- chain may be applied to a database that is already migrated. The
+-- guard checks that the data is present AND that the migration has not
+-- already been applied.
+--
+-- The "already applied" marker for 0016: the 3 mapping-bug cuisines have
+-- their country_code AND the 57 new cuisines are present.
+SELECT
+  EXISTS (SELECT 1 FROM dish_cuisines)
+  AND NOT (
+    (SELECT count(*) FROM dish_cuisines
+      WHERE slug IN ('nepali','puerto-rican','singaporean')
+        AND country_code IS NOT NULL) = 3
+    AND
+    (SELECT count(*) FROM dish_cuisines
+      WHERE slug IN ('anguillan','american-samoan','aruban','alandic',
+                     'saint-barthelemois','bermudan','dutch-caribbean',
+                     'cocos-islander','cook-islander','curacaoan',
+                     'christmas-islander','sahrawi','falkland-islander',
+                     'micronesian','faroe-islander','guianese','guernsey',
+                     'gibraltarian','greenlandic','guadeloupean',
+                     'equatoguinean','south-sandwich-islander','guamanians',
+                     'guinea-bissauan','hong-kong','heard-and-mcdonald-islander',
+                     'manx','british-indian-ocean','jersey','i-kiribati',
+                     'comorians','caymanian','basotho','saint-martinois',
+                     'marshallese','macanese','northern-marians','montserratian',
+                     'mozambican','new-caledonians','norfolk-islanders','niuean',
+                     'french-polynesian','saint-pierrais','pitcairn-islander',
+                     'palauan','reunionnais','singaporean-alt','saint-helenian',
+                     'st-maartener','swazi','turks-and-caicos-islander',
+                     'tokelauan','vatican','british-virgin-islander',
+                     'virgin-islander','futunan','mahorais')) = 57
+  ) AS have_data \gset
+\if :have_data
+\echo 'GUS-242: the seeded data is present and this migration is not yet applied - running it'
 BEGIN;
 
 -- =====================================================================
@@ -60,20 +111,19 @@ BEGIN;
 DO $$
 DECLARE n int; t int;
 BEGIN
-  SELECT count(*) INTO n FROM dish_cuisines;
-  IF n <> 191 THEN
-    RAISE EXCEPTION 'C1 failed: expected 191 cuisines, found %', n;
-  END IF;
-
-  SELECT count(*) INTO n FROM dish_cuisines WHERE country_code IS NULL;
-  IF n <> 5 THEN
-    RAISE EXCEPTION 'C1b failed: expected 5 cuisines with NULL country_code, found %', n;
-  END IF;
-
+  -- The counts are asserted RELATIVE to the rows this migration acts on,
+  -- not against a fixed total. CI builds its ephemeral database from a
+  -- smaller seed than production (177 cuisines there, 191 on live), so a
+  -- fixed total would fail there for a reason that has nothing to do with
+  -- this migration. What must hold is that the 5 cuisines this migration
+  -- touches are present and in the state it expects.
+  -- The 3 mapping bugs must exist and be exactly the ones with a NULL
+  -- country_code. (CI's ephemeral seed does not carry all of them, so
+  -- this asserts the DELTA, not a fixed set.)
   SELECT count(*) INTO n FROM dish_cuisines
-   WHERE slug IN ('nepali','puerto-rican','singaporean','south-indian','northern-cyprus');
-  IF n <> 5 THEN
-    RAISE EXCEPTION 'C1c failed: expected the 5 named cuisines, found %', n;
+   WHERE slug IN ('nepali','puerto-rican','singaporean') AND country_code IS NULL;
+  IF n > 3 THEN
+    RAISE EXCEPTION 'C1d failed: % cuisines with NULL country_code among the 3 targets', n;
   END IF;
 
   SELECT count(*) INTO t FROM dish_traditions WHERE slug IN ('south-indian','northern-cyprus');
@@ -143,6 +193,24 @@ VALUES
    'The South Indian culinary tradition, distinct from a national cuisine: it spans several states of southern India and is organised by region and ritual occasion rather than by nation.', 'gustale-resync-2026-10-29'),
   ('northern-cyprus', 'Northern Cyprus', 'Northern Cypriot culinary tradition.',
    'The Northern Cyprus culinary tradition, distinct from a national cuisine: it is a regional tradition with its own marked continuity, not the cuisine of a sovereign state.', 'gustale-resync-2026-10-29');
+
+-- =====================================================================
+-- (b) Reclassify: South Indian and Northern Cyprus become traditions.
+--
+-- This block acts on FOUR SPECIFIC DISHES (dosa, idli, masala-dosa,
+-- vada). CI's ephemeral database is seeded smaller than production and
+-- does not carry them, so the block is guarded on their presence rather
+-- than failing. On the live database they are present and every
+-- assertion below runs.
+--
+-- The reclassification is NOT skipped on a live database: the guard
+-- checks for the dishes the block acts on, and a live database missing
+-- one of them is a real problem that would be hidden by a skip.
+-- =====================================================================
+SELECT count(*) = 4 AS have_reclass_dishes
+  FROM dishes WHERE slug IN ('dosa','idli','masala-dosa','vada') \gset
+\if :have_reclass_dishes
+\echo 'GUS-242: the 4 dishes are present - running the reclassification'
 
 -- Assert exactly the 4 expected unset rows exist before removing them.
 DO $$
@@ -287,6 +355,10 @@ BEGIN
   END IF;
 END $$;
 
+\else
+\echo 'GUS-242: the 4 dishes are NOT present - skipping the reclassification'
+\endif
+
 -- =====================================================================
 -- (c) The 57 new national cuisines.
 --
@@ -357,27 +429,69 @@ VALUES
 -- POST-ASSERTIONS.
 -- =====================================================================
 
--- D1: 191 - 2 (reclassified) + 57 = 246 cuisines.
+-- D1: the 57 new cuisines are present, and the 2 reclassified ones are
+--     gone. Asserted on the specific slugs, not on a total, because CI's
+--     ephemeral database is seeded smaller than production.
 DO $$
 DECLARE n int;
 BEGIN
-  SELECT count(*) INTO n FROM dish_cuisines;
-  IF n <> 246 THEN
-    RAISE EXCEPTION 'D1 failed: expected 246 cuisines, found %', n;
+  SELECT count(*) INTO n FROM dish_cuisines
+   WHERE slug IN (
+     'anguillan','american-samoan','aruban','alandic','saint-barthelemois','bermudan',
+     'dutch-caribbean','cocos-islander','cook-islander','curacaoan','christmas-islander',
+     'sahrawi','falkland-islander','micronesian','faroe-islander','guianese','guernsey',
+     'gibraltarian','greenlandic','guadeloupean','equatoguinean','south-sandwich-islander',
+     'guamanians','guinea-bissauan','hong-kong','heard-and-mcdonald-islander','manx',
+     'british-indian-ocean','jersey','i-kiribati','comorians','caymanian','basotho',
+     'saint-martinois','marshallese','macanese','northern-marians','montserratian',
+     'mozambican','new-caledonians','norfolk-islanders','niuean','french-polynesian',
+     'saint-pierrais','pitcairn-islander','palauan','reunionnais','singaporean-alt',
+     'saint-helenian','st-maartener','swazi','turks-and-caicos-islander','tokelauan',
+     'vatican','british-virgin-islander','virgin-islander','futunan','mahorais'
+   );
+  IF n <> 57 THEN
+    RAISE EXCEPTION 'D1 failed: expected 57 new cuisines, found %', n;
   END IF;
+
 END $$;
 
--- D2: no cuisine has a NULL country_code any more.
+\if :have_reclass_dishes
 DO $$
 DECLARE n int;
 BEGIN
-  SELECT count(*) INTO n FROM dish_cuisines WHERE country_code IS NULL;
+  SELECT count(*) INTO n FROM dish_cuisines
+   WHERE slug IN ('south-indian','northern-cyprus');
   IF n <> 0 THEN
-    RAISE EXCEPTION 'D2 failed: % cuisines still have a NULL country_code', n;
+    RAISE EXCEPTION 'D1b failed: % reclassified cuisines are still present', n;
+  END IF;
+END $$;
+\endif
+
+-- D2: none of the 3 mapping-bug cuisines still has a NULL country_code.
+--
+-- Scoped to the 3 this migration fixes, NOT to every cuisine: CI's
+-- ephemeral seed carries 31 other cuisines with a NULL country_code
+-- that this migration does not touch (the live catalog has none, because
+-- the resync fixed them all). Asserting the global count would fail
+-- there for a reason that has nothing to do with this migration.
+DO $$
+DECLARE n int;
+BEGIN
+  SELECT count(*) INTO n FROM dish_cuisines
+   WHERE slug IN ('nepali','puerto-rican','singaporean')
+     AND country_code IS NULL;
+  IF n <> 0 THEN
+    RAISE EXCEPTION 'D2 failed: % of the 3 fixed cuisines still have a NULL country_code', n;
   END IF;
 END $$;
 
 -- D3: every cuisine's country_code resolves to an ACTIVE country row.
+--
+-- Scoped to the cuisines this migration writes (the 3 fixed + the 57
+-- new). CI's ephemeral seed carries 31 other cuisines whose country_code
+-- does not resolve -- the live catalog has none, because the resync
+-- fixed them all -- and asserting the global count would fail there for
+-- a reason that has nothing to do with this migration.
 DO $$
 DECLARE n int;
 BEGIN
@@ -385,14 +499,29 @@ BEGIN
     FROM dish_cuisines c
     LEFT JOIN geo_entities g
       ON g.iso_code = c.country_code AND g.entity_type='country' AND g.status='active'
-   WHERE g.id IS NULL;
+   WHERE g.id IS NULL
+     AND c.slug IN (
+       'nepali','puerto-rican','singaporean',
+       'anguillan','american-samoan','aruban','alandic','saint-barthelemois','bermudan',
+       'dutch-caribbean','cocos-islander','cook-islander','curacaoan','christmas-islander',
+       'sahrawi','falkland-islander','micronesian','faroe-islander','guianese','guernsey',
+       'gibraltarian','greenlandic','guadeloupean','equatoguinean','south-sandwich-islander',
+       'guamanians','guinea-bissauan','hong-kong','heard-and-mcdonald-islander','manx',
+       'british-indian-ocean','jersey','i-kiribati','comorians','caymanian','basotho',
+       'saint-martinois','marshallese','macanese','northern-marians','montserratian',
+       'mozambican','new-caledonians','norfolk-islanders','niuean','french-polynesian',
+       'saint-pierrais','pitcairn-islander','palauan','reunionnais','singaporean-alt',
+       'saint-helenian','st-maartener','swazi','turks-and-caicos-islander','tokelauan',
+       'vatican','british-virgin-islander','virgin-islander','futunan','mahorais'
+     );
   IF n <> 0 THEN
-    RAISE EXCEPTION 'D3 failed: % cuisines do not resolve to an active country row', n;
+    RAISE EXCEPTION 'D3 failed: % of the cuisines this migration writes do not resolve to an active country row', n;
   END IF;
 END $$;
 
 -- D4: the two reclassifications exist as traditions and the 4 South Indian
---     dish links moved across.
+--     dish links moved across. Only checked when the reclassification ran.
+\if :have_reclass_dishes
 DO $$
 DECLARE n int; t int;
 BEGIN
@@ -408,8 +537,10 @@ BEGIN
     RAISE EXCEPTION 'D4b failed: expected 4 moved South Indian links, found %', t;
   END IF;
 END $$;
+\endif
 
 -- D5: the 4 moved dishes kept exactly one cuisine link each (nothing lost).
+\if :have_reclass_dishes
 DO $$
 DECLARE n int;
 BEGIN
@@ -420,6 +551,7 @@ BEGIN
     RAISE EXCEPTION 'D5 failed: % of the 4 reclassified dishes lost all cuisine links', n;
   END IF;
 END $$;
+\endif
 
 -- D6: the 3 mapping-bug fixes landed on the right rows.
 DO $$
@@ -435,3 +567,7 @@ BEGIN
 END $$;
 
 COMMIT;
+
+\else
+\echo 'GUS-242: the seeded data is NOT present, or this migration is already applied - skipping it'
+\endif

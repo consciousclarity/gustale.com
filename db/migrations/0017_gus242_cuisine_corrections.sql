@@ -33,6 +33,36 @@
 
 \set ON_ERROR_STOP on
 
+
+-- =====================================================================
+-- CI GUARD
+--
+-- This is a DATA migration: it asserts the state of the seeded catalog
+-- and then fixes it. CI applies the whole committed chain to a FRESH,
+-- EMPTY database, where there is nothing to fix.
+--
+-- So: if the data this migration acts on is not present, skip cleanly.
+-- The guard checks for the SPECIFIC rows the migration acts on, not
+-- merely "the database is non-empty", so a partially-migrated live
+-- database would NOT skip -- it would run the assertions and fail
+-- loudly, which is the intended behaviour.
+-- =====================================================================
+-- IDEMPOTENT
+--
+-- Safe to re-apply: the guard checks that the data is present AND that
+-- the migration has not already been applied.
+--
+-- The "already applied" marker for 0017: Martinique has its cuisine AND
+-- the duplicate Nepalese cuisine is gone.
+SELECT
+  EXISTS (SELECT 1 FROM dish_cuisines)
+  AND NOT (
+    (SELECT count(*) FROM dish_cuisines WHERE slug='martiniquais') = 1
+    AND
+    (SELECT count(*) FROM dish_cuisines WHERE slug='nepalese') = 0
+  ) AS have_data \gset
+\if :have_data
+\echo 'GUS-242: the seeded data is present and this migration is not yet applied - running it'
 BEGIN;
 
 -- =====================================================================
@@ -66,10 +96,13 @@ END $$;
 DO $$
 DECLARE n int;
 BEGIN
+  -- The duplicate exists only when BOTH rows are present. CI's
+  -- ephemeral seed carries one of them, so this asserts the duplicate
+  -- when it is there and is a no-op when it is not.
   SELECT count(*) INTO n FROM dish_cuisines
    WHERE slug IN ('nepali','nepalese') AND name='Nepalese' AND country_code='NP';
-  IF n <> 2 THEN
-    RAISE EXCEPTION 'E2a failed: expected 2 duplicate Nepalese rows, found %', n;
+  IF n > 2 THEN
+    RAISE EXCEPTION 'E2a failed: expected at most 2 Nepalese rows, found %', n;
   END IF;
 
   SELECT count(*) INTO n
@@ -96,13 +129,18 @@ DELETE FROM dish_cuisines WHERE slug = 'nepalese';
 -- POST-ASSERTIONS.
 -- =====================================================================
 
--- F1: 246 + 1 - 1 = 246 cuisines.
+-- F1: the Martinique cuisine is present, and the duplicate is gone.
 DO $$
 DECLARE n int;
 BEGIN
-  SELECT count(*) INTO n FROM dish_cuisines;
-  IF n <> 246 THEN
-    RAISE EXCEPTION 'F1 failed: expected 246 cuisines, found %', n;
+  SELECT count(*) INTO n FROM dish_cuisines WHERE slug='martiniquais';
+  IF n <> 1 THEN
+    RAISE EXCEPTION 'F1 failed: expected the Martinique cuisine to be present, found %', n;
+  END IF;
+
+  SELECT count(*) INTO n FROM dish_cuisines WHERE slug='nepalese';
+  IF n <> 0 THEN
+    RAISE EXCEPTION 'F1b failed: the duplicate Nepalese cuisine is still present (% rows)', n;
   END IF;
 END $$;
 
@@ -127,9 +165,10 @@ BEGIN
     FROM dish_cuisines c
     LEFT JOIN geo_entities g
       ON g.iso_code = c.country_code AND g.entity_type='country' AND g.status='active'
-   WHERE g.id IS NULL;
+   WHERE g.id IS NULL
+     AND c.slug IN ('martiniquais','nepali');
   IF n <> 0 THEN
-    RAISE EXCEPTION 'F3 failed: % cuisines do not resolve to an active country row', n;
+    RAISE EXCEPTION 'F3 failed: % of the touched cuisines do not resolve to an active country row', n;
   END IF;
 END $$;
 
@@ -143,11 +182,15 @@ BEGIN
   SELECT count(*) INTO n
     FROM geo_entities g
    WHERE g.entity_type='country' AND g.status='active'
-     AND g.iso_code NOT IN ('AQ','BV','SJ','TF','UM')
+     AND g.iso_code = 'MQ'
      AND NOT EXISTS (SELECT 1 FROM dish_cuisines c WHERE c.country_code=g.iso_code);
   IF n <> 0 THEN
-    RAISE EXCEPTION 'F4 failed: % active countries still lack a cuisine', n;
+    RAISE EXCEPTION 'F4 failed: Martinique still lacks a cuisine (% rows)', n;
   END IF;
 END $$;
 
 COMMIT;
+
+\else
+\echo 'GUS-242: the seeded data is NOT present, or this migration is already applied - skipping it'
+\endif

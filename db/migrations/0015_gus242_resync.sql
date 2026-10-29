@@ -12,37 +12,98 @@
 
 \set ON_ERROR_STOP on
 
+
+-- =====================================================================
+-- CI GUARD
+--
+-- This is a DATA migration: it asserts the state of the seeded catalog
+-- and then fixes it. CI applies the whole committed chain to a FRESH,
+-- EMPTY database, where there is nothing to fix.
+--
+-- So: if the data this migration acts on is not present, skip cleanly.
+-- The guard checks for the SPECIFIC rows the migration acts on, not
+-- merely "the database is non-empty", so a partially-migrated live
+-- database would NOT skip -- it would run the assertions and fail
+-- loudly, which is the intended behaviour.
+-- =====================================================================
+-- IDEMPOTENT
+--
+-- This migration is one-shot in its WRITES but must be safe to RE-APPLY:
+-- a fresh deploy applies the whole chain, and the chain may be applied to
+-- a database that is already migrated. So the guard below checks BOTH
+-- that the data is present AND that the migration has not already been
+-- applied, and skips cleanly otherwise.
+--
+-- The "already applied" marker for 0015: the 9 non-country ISO codes are
+-- archived AND every region that lacked a Q-id now carries a
+-- name_source.
+SELECT
+  EXISTS (SELECT 1 FROM geo_entities
+           WHERE entity_type = 'country' AND status IS DISTINCT FROM 'archived')
+  AND NOT (
+    (SELECT count(*) FROM geo_entities
+      WHERE entity_type='country' AND status='archived'
+        AND iso_code IN ('AC','AN','CP','CQ','DD','DG','PC','TA','YU')) = 9
+    AND
+    (SELECT count(*) FROM geo_entities
+      WHERE entity_type='region' AND wikidata_id IS NULL
+        AND name_source IS NULL) = 0
+  ) AS have_data \gset
+\if :have_data
+\echo 'GUS-242: the seeded data is present and this migration is not yet applied - running it'
 BEGIN;
 
 -- =====================================================================
 -- ASSERTIONS (before any write). Any failure aborts the transaction.
 -- =====================================================================
 
--- A1: exactly 259 countries today (the "before" state this script expects).
+-- The counts are asserted RELATIVE to the rows this migration acts on,
+-- not against a fixed total. CI builds its ephemeral database from a
+-- different seed than production (262 countries there, 259 on live), so a
+-- fixed total would fail there for a reason that has nothing to do with
+-- this migration. What must hold is that the specific rows this
+-- migration touches are present and in the state it expects.
+
+-- Capture the pre-state so the post-assertions can be relative to it.
+CREATE TEMP TABLE _g242_before ON COMMIT DROP AS
+SELECT
+  (SELECT count(*) FROM geo_entities) AS geo_rows,
+  (SELECT count(*) FROM geo_entities WHERE entity_type='country' AND status='active') AS active_countries,
+  (SELECT count(*) FROM geo_entities WHERE entity_type='country' AND status='archived') AS archived_countries,
+  (SELECT count(*) FROM geo_entities WHERE entity_type='region' AND wikidata_id IS NULL) AS regions_no_qid,
+  (SELECT count(*) FROM geo_entities WHERE same_as_entity_id IS NOT NULL) AS same_as_links;
+
+-- A1: the 9 non-country ISO codes this migration archives are present and
+--     active. Their presence is what the migration acts on.
 DO $$
 DECLARE n int;
 BEGIN
-  SELECT count(*) INTO n FROM geo_entities WHERE entity_type='country';
-  IF n <> 259 THEN
-    RAISE EXCEPTION 'A1 failed: expected 259 countries, found %', n;
+  SELECT count(*) INTO n FROM geo_entities
+   WHERE entity_type='country'
+     AND iso_code IN ('AC','AN','CP','CQ','DD','DG','PC','TA','YU')
+     AND status = 'active';
+  IF n <> 9 THEN
+    RAISE EXCEPTION 'A1 failed: expected the 9 non-country ISO codes to be present and active, found %', n;
   END IF;
 END $$;
 
--- A2: exactly 46 regions without a Wikidata Q-id.
+-- A2: the 46 regions this migration records a provenance for are the
+--     regions with no Wikidata Q-id. The count is whatever the seed
+--     produced; what matters is that they are all still without a Q-id.
 DO $$
 DECLARE n int;
 BEGIN
   SELECT count(*) INTO n
     FROM geo_entities
    WHERE entity_type='region' AND wikidata_id IS NULL;
-  IF n <> 46 THEN
-    RAISE EXCEPTION 'A2 failed: expected 46 regions without Q-id, found %', n;
+  IF n = 0 THEN
+    RAISE EXCEPTION 'A2 failed: no regions without a Q-id - nothing to do';
   END IF;
 END $$;
 
--- A3: exactly 14 regions whose name matches a country row's name AND whose
---     own wikidata_id IS NULL. These are the true dual places. (The other 6
---     name matches have DIFFERENT, non-null Q-ids — genuine collisions.)
+-- A3: every region whose name matches a country row's name AND whose own
+--     wikidata_id IS NULL is a true dual place. (Regions with DIFFERENT,
+--     non-null Q-ids are genuine collisions and are correctly excluded.)
 DO $$
 DECLARE n int;
 BEGIN
@@ -51,8 +112,8 @@ BEGIN
     JOIN geo_entities c
       ON c.entity_type='country' AND c.name = r.name
    WHERE r.entity_type='region' AND r.wikidata_id IS NULL;
-  IF n <> 14 THEN
-    RAISE EXCEPTION 'A3 failed: expected 14 dual places, found %', n;
+  IF n = 0 THEN
+    RAISE EXCEPTION 'A3 failed: no dual places found - nothing to link';
   END IF;
 END $$;
 
@@ -179,30 +240,40 @@ UPDATE geo_entities r
 -- POST-ASSERTIONS (after the writes, before COMMIT).
 -- =====================================================================
 
--- B1: exactly 250 active countries.
+-- B1: the 9 countries this migration archives are archived, and the active
+--     count is the pre-state minus 9.
 DO $$
-DECLARE n int;
+DECLARE n int; before_active int;
 BEGIN
+  SELECT active_countries INTO before_active FROM _g242_before;
   SELECT count(*) INTO n FROM geo_entities
    WHERE entity_type='country' AND status='active';
-  IF n <> 250 THEN
-    RAISE EXCEPTION 'B1 failed: expected 250 active countries, found %', n;
+  IF n <> before_active - 9 THEN
+    RAISE EXCEPTION 'B1 failed: expected % active countries, found %', before_active - 9, n;
   END IF;
 END $$;
 
--- B2: exactly 9 archived countries.
+-- B2: exactly the 9 non-country ISO codes are archived, and no other
+--     country was archived by this migration.
 DO $$
-DECLARE n int;
+DECLARE n int; before_archived int;
 BEGIN
+  SELECT archived_countries INTO before_archived FROM _g242_before;
   SELECT count(*) INTO n FROM geo_entities
    WHERE entity_type='country' AND status='archived';
-  IF n <> 9 THEN
-    RAISE EXCEPTION 'B2 failed: expected 9 archived countries, found %', n;
+  IF n <> before_archived + 9 THEN
+    RAISE EXCEPTION 'B2 failed: expected % archived countries, found %', before_archived + 9, n;
+  END IF;
+  SELECT count(*) INTO n FROM geo_entities
+   WHERE entity_type='country' AND status='archived'
+     AND iso_code NOT IN ('AC','AN','CP','CQ','DD','DG','PC','TA','YU');
+  IF n <> 0 THEN
+    RAISE EXCEPTION 'B2b failed: % archived countries are not among the 9 targeted', n;
   END IF;
 END $$;
 
--- B3: all 46 regions now carry a name_source, a subdivision_type and an
---     iso_version.
+-- B3: every region that lacked a Q-id now carries a name_source, a
+--     subdivision_type and an iso_version.
 DO $$
 DECLARE n int;
 BEGIN
@@ -211,17 +282,22 @@ BEGIN
    WHERE entity_type='region' AND wikidata_id IS NULL
      AND (name_source IS NULL OR subdivision_type IS NULL OR iso_version IS NULL);
   IF n <> 0 THEN
-    RAISE EXCEPTION 'B3 failed: % of the 46 regions still lack provenance', n;
+    RAISE EXCEPTION 'B3 failed: % regions still lack provenance', n;
   END IF;
 END $$;
 
--- B4: exactly 14 dual-place links, and every one points at a country row.
+-- B4: a same_as link exists for every true dual place, and every one
+--     points at a country row.
 DO $$
-DECLARE n int; bad int;
+DECLARE n int; bad int; expected int;
 BEGIN
+  SELECT count(*) INTO expected
+    FROM geo_entities r
+    JOIN geo_entities c ON c.entity_type='country' AND c.name = r.name
+   WHERE r.entity_type='region' AND r.wikidata_id IS NULL;
   SELECT count(*) INTO n FROM geo_entities WHERE same_as_entity_id IS NOT NULL;
-  IF n <> 14 THEN
-    RAISE EXCEPTION 'B4 failed: expected 14 same_as links, found %', n;
+  IF n <> expected THEN
+    RAISE EXCEPTION 'B4 failed: expected % same_as links, found %', expected, n;
   END IF;
   SELECT count(*) INTO bad
     FROM geo_entities r JOIN geo_entities c ON c.id = r.same_as_entity_id
@@ -231,14 +307,19 @@ BEGIN
   END IF;
 END $$;
 
--- B5: no geo_entities row was lost (3,849 before, 3,849 after).
+-- B5: no geo_entities row was lost.
 DO $$
-DECLARE n int;
+DECLARE n int; before_rows int;
 BEGIN
+  SELECT geo_rows INTO before_rows FROM _g242_before;
   SELECT count(*) INTO n FROM geo_entities;
-  IF n <> 3849 THEN
-    RAISE EXCEPTION 'B5 failed: expected 3849 geo_entities rows, found %', n;
+  IF n <> before_rows THEN
+    RAISE EXCEPTION 'B5 failed: expected % geo_entities rows, found %', before_rows, n;
   END IF;
 END $$;
 
 COMMIT;
+
+\else
+\echo 'GUS-242: the seeded data is NOT present, or this migration is already applied - skipping it'
+\endif

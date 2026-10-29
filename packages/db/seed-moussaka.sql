@@ -22,9 +22,35 @@ INSERT INTO preparation_methods (slug, name, category) VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- Geo: Greece
-INSERT INTO geo_entities (id, name, iso_code, entity_type)
-VALUES ('00000000-0000-0000-0000-000000000010'::uuid, 'Greece', 'GR', 'country')
-ON CONFLICT (id) DO NOTHING;
+-- Greece. The `ON CONFLICT (id)` was not enough: the GUS-242 country
+-- seed creates its own Greece row with a DIFFERENT id (deterministic
+-- from the Wikidata Q-id), so both rows landed and `geo_entities` ended
+-- up with a duplicate `iso_code` -- which then blocked
+-- db/migrations/gus-242-schema-prep.sql from adding the unique
+-- constraint on iso_code.
+--
+-- So: reuse the row that is already there, whatever its id. The dishes
+-- below reference Greece by id, so the id has to be resolved AFTER the
+-- insert rather than hard-coded.
+--
+-- The id is resolved into a variable so the dish inserts can use it.
+DO $$
+DECLARE greece_id uuid;
+BEGIN
+  SELECT id INTO greece_id FROM geo_entities WHERE iso_code = 'GR' LIMIT 1;
+
+  IF greece_id IS NULL THEN
+    INSERT INTO geo_entities (id, name, iso_code, entity_type)
+    VALUES ('00000000-0000-0000-0000-000000000010'::uuid, 'Greece', 'GR', 'country')
+    ON CONFLICT (id) DO NOTHING;
+    SELECT id INTO greece_id FROM geo_entities WHERE iso_code = 'GR' LIMIT 1;
+  END IF;
+
+  -- Store it so the dish insert can reference it.
+  CREATE TEMP TABLE _seed_geo_ids (iso_code text PRIMARY KEY, id uuid);
+  INSERT INTO _seed_geo_ids (iso_code, id) VALUES ('GR', greece_id)
+    ON CONFLICT (iso_code) DO UPDATE SET id = EXCLUDED.id;
+END $$;
 
 -- Ingredients
 INSERT INTO ingredients (slug, canonical_name, status, created_by) VALUES
@@ -47,7 +73,7 @@ SELECT
   'A layered casserole of eggplant, minced meat, and béchamel sauce, baked until golden. The national dish of Greece.',
   'Greek moussaka combines fried or roasted eggplant layers with a spiced meat sauce (lamb or beef) and a thick, cheese-topped béchamel. The dish is baked until the top turns golden brown. Regional variants exist across the Balkans, Levant, and Egypt.',
   'published',
-  '00000000-0000-0000-0000-000000000010'::uuid,
+  (SELECT id FROM _seed_geo_ids WHERE iso_code = 'GR'),
   1920, 1950,
   '00000000-0000-0000-0000-000000000001'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid
