@@ -41,6 +41,7 @@ DATA_MIGRATIONS=(
   db/migrations/0019_gus242_traditions_1e.sql
   db/migrations/0020_gus242_ingredient_categories.sql
   db/migrations/0021_adr003_vocabulary_labels.sql
+  db/migrations/0022_adr003_vocabulary_labels.sql
 )
 
 run_pg() {

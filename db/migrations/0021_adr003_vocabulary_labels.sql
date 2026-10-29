@@ -88,20 +88,50 @@ ALTER TABLE dish_contexts          ADD COLUMN IF NOT EXISTS wikidata_id text;
 ALTER TABLE ingredient_categories  ADD COLUMN IF NOT EXISTS wikidata_id text;
 ALTER TABLE relation_types         ADD COLUMN IF NOT EXISTS wikidata_id text;
 
--- One QID per row, where there is one.
-CREATE UNIQUE INDEX IF NOT EXISTS dish_families_wikidata_id_key
+-- A QID may be shared. The vocabularies contain near-synonym pairs
+-- that Wikidata models as ONE item:
+--
+--   biscuit / cookie          Q13266
+--   dessert / pudding         Q182940
+--   chilling / freezing       Q95598885
+--   grilling / roasting       Q264619
+--   broth / stock             Q275068
+--   aceh / acehnese cuisine   Q12480249
+--
+-- Those are distinct values in the project's vocabulary - a dish can
+-- be a "biscuit" and not a "cookie" - and each needs its own label
+-- row. dish_traditions already worked this way: its `source` column
+-- holds shared QIDs for eight such pairs. So the index is NOT unique.
+--
+-- A unique index here would refuse a correct vocabulary, and the
+-- first dry-run proved it: it rejected the very first duplicate it
+-- found, which was the correct data.
+--
+-- Migration 0021 was FIRST applied with unique indexes on these
+-- columns, before the shared-QID case was understood. A later dry-run
+-- of the label load refused the very first correct duplicate it
+-- found, so the unique indexes are dropped here in their favour.
+DROP INDEX IF EXISTS dish_families_wikidata_id_key;
+DROP INDEX IF EXISTS dish_techniques_wikidata_id_key;
+DROP INDEX IF EXISTS dish_traditions_wikidata_id_key;
+DROP INDEX IF EXISTS dish_cuisines_wikidata_id_key;
+DROP INDEX IF EXISTS dish_contexts_wikidata_id_key;
+DROP INDEX IF EXISTS ingredient_categories_wikidata_id_key;
+DROP INDEX IF EXISTS relation_types_wikidata_id_key;
+
+CREATE INDEX IF NOT EXISTS dish_families_wikidata_id_idx
   ON dish_families (wikidata_id) WHERE wikidata_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS dish_techniques_wikidata_id_key
+CREATE INDEX IF NOT EXISTS dish_techniques_wikidata_id_idx
   ON dish_techniques (wikidata_id) WHERE wikidata_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS dish_traditions_wikidata_id_key
+CREATE INDEX IF NOT EXISTS dish_traditions_wikidata_id_idx
   ON dish_traditions (wikidata_id) WHERE wikidata_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS dish_cuisines_wikidata_id_key
+CREATE INDEX IF NOT EXISTS dish_cuisines_wikidata_id_idx
   ON dish_cuisines (wikidata_id) WHERE wikidata_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS dish_contexts_wikidata_id_key
+CREATE INDEX IF NOT EXISTS dish_contexts_wikidata_id_idx
   ON dish_contexts (wikidata_id) WHERE wikidata_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS ingredient_categories_wikidata_id_key
+CREATE INDEX IF NOT EXISTS ingredient_categories_wikidata_id_idx
   ON ingredient_categories (wikidata_id) WHERE wikidata_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS relation_types_wikidata_id_key
+CREATE INDEX IF NOT EXISTS relation_types_wikidata_id_idx
   ON relation_types (wikidata_id) WHERE wikidata_id IS NOT NULL;
 
 -- =====================================================================
