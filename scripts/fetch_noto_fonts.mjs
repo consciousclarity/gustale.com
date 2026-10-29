@@ -1,0 +1,175 @@
+#!/usr/bin/env node
+/**
+ * Fetch the self-hosted Noto fonts the ADR-003 locales need.
+ *
+ * The ADR says: "Fonts — **Noto** — Noto Sans / Noto Serif for Latin,
+ * plus the Noto family for CJK (`Noto Sans SC/JP`), Arabic (`Noto Naskh
+ * Arabic`) and Devanagari (`Noto Sans Devanagari`). Self-hosted, subset
+ * per locale."
+ *
+ * Self-hosted means the files are fetched at BUILD time from the Google
+ * Fonts CSS API, which serves each family already subset by
+ * unicode-range, and the woff2 files are written into
+ * apps/web/public/fonts/noto/. The @font-face rules then point at the
+ * local files.
+ *
+ * WHY THE GOOGLE FONTS CSS API rather than the Noto release files:
+ * the release files are the FULL font, tens of megabytes for CJK. The
+ * CSS API serves the SAME fonts already split into unicode-range
+ * subsets, so a browser downloads only the ranges it needs. That is
+ * what "subset per locale" means in practice.
+ *
+ * WHY NODE AND NOT PYTHON: this runs inside the web Docker image,
+ * which is `node:22-slim` and has no Python. The first attempt used a
+ * Python script and the build failed with exit code 127 — "python3:
+ * not found".
+ *
+ * THE FILES ARE NOT COMMITTED. They are fetched by the build.
+ * Committing a hundred megabytes of CJK woff2 to a public repository
+ * would be indefensible; fetching them is a normal build step. The
+ * @font-face rules in noto.css ARE committed.
+ *
+ * Output: apps/web/public/fonts/noto/*.woff2
+ *         apps/web/src/styles/noto.css
+ */
+
+import { access, mkdir, readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+// The browser UA the Google Fonts CSS API requires. Without it the
+// API serves the legacy CSS, which points at .ttf rather than .woff2.
+const UA =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+
+const FONT_DIR = "apps/web/public/fonts/noto";
+const CSS_OUT = "apps/web/src/styles/noto.css";
+
+// The family, the CSS query, and what the family is for.
+const FAMILIES = [
+  [
+    "Noto Sans",
+    "Noto+Sans:wght@400;500;600;700",
+    "Latin — the base face for en, es, de, fr, pt, id",
+  ],
+  ["Noto Serif", "Noto+Serif:wght@400;600", "Latin display face"],
+  ["Noto Sans SC", "Noto+Sans+SC:wght@400;500;700", "Chinese — zh"],
+  ["Noto Sans JP", "Noto+Sans+JP:wght@400;500;700", "Japanese — ja"],
+  [
+    "Noto Naskh Arabic",
+    "Noto+Naskh+Arabic:wght@400;500;700",
+    "Arabic — ar (RTL)",
+  ],
+  [
+    "Noto Sans Devanagari",
+    "Noto+Sans+Devanagari:wght@400;500;700",
+    "Devanagari — hi",
+  ],
+];
+
+async function exists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchText(url) {
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`${res.status} for ${url}`);
+  return res.text();
+}
+
+async function fetchBinary(url) {
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`${res.status} for ${url}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+async function main() {
+  await mkdir(FONT_DIR, { recursive: true });
+
+  const rules = [];
+  for (const [family, query, note] of FAMILIES) {
+    const url = `https://fonts.googleapis.com/css2?family=${query}&display=swap`;
+    let css;
+    try {
+      css = await fetchText(url);
+    } catch (err) {
+      console.error(
+        `[fonts] could not fetch the CSS for ${family}: ${err.message}`,
+      );
+      process.exit(1);
+    }
+
+    // Each @font-face block, with the unicode-range that IS the subset.
+    const faces = css.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+    let kept = 0;
+    for (const face of faces) {
+      const src = face.match(/url\((https:\/\/[^)]+\.woff2)\)/);
+      if (!src) continue;
+      const weight =
+        (face.match(/font-weight:\s*([^;]+);/) ?? [])[1]?.trim() ?? "400";
+      const style =
+        (face.match(/font-style:\s*([^;]+);/) ?? [])[1]?.trim() ?? "normal";
+      const range = (face.match(/unicode-range:\s*([^;]+);/) ?? [])[1]?.trim();
+
+      const local = `${family.toLowerCase().replace(/ /g, "-")}-${weight}-${kept}.woff2`;
+      const target = join(FONT_DIR, local);
+      if (!(await exists(target))) {
+        try {
+          await writeFile(target, await fetchBinary(src[1]));
+        } catch (err) {
+          console.error(`[fonts] could not fetch ${src[1]}: ${err.message}`);
+          process.exit(1);
+        }
+      }
+
+      rules.push(
+        "@font-face {\n" +
+          `  font-family: '${family}';\n` +
+          `  font-style: ${style};\n` +
+          `  font-weight: ${weight};\n` +
+          "  font-display: swap;\n" +
+          `  src: url('/fonts/noto/${local}') format('woff2');\n` +
+          (range ? `  unicode-range: ${range};\n` : "") +
+          "}",
+      );
+      kept++;
+    }
+    console.log(`[fonts] ${family}: ${kept} faces  (${note})`);
+  }
+
+  const header = `/* ADR-003 — the self-hosted Noto faces.
+ *
+ * Generated by scripts/fetch_noto_fonts.mjs. Do not hand-edit.
+ *
+ * The ADR: "Fonts — Noto — Noto Sans / Noto Serif for Latin, plus the
+ * Noto family for CJK (Noto Sans SC/JP), Arabic (Noto Naskh
+ * Arabic) and Devanagari (Noto Sans Devanagari). Self-hosted, subset
+ * per locale."
+ *
+ * Each face keeps the unicode-range the Google Fonts CSS API gave it,
+ * so a browser downloads only the ranges it needs. That is what
+ * "subset per locale" means in practice: a Latin page never pulls the
+ * CJK files, and an Arabic page never pulls the Devanagari ones.
+ *
+ * The woff2 files are fetched at BUILD time and are NOT committed —
+ * the CJK faces alone would add a hundred megabytes to the
+ * repository.
+ */
+
+`;
+  await writeFile(CSS_OUT, header + rules.join("\n") + "\n");
+
+  const files = await readdir(FONT_DIR);
+  console.log(`[fonts] -> ${CSS_OUT} (${rules.length} faces)`);
+  console.log(`[fonts] -> ${FONT_DIR} (${files.length} files)`);
+}
+
+main().catch((err) => {
+  console.error("[fonts] FAILED:", err);
+  process.exit(1);
+});

@@ -105,7 +105,7 @@ RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 #
 # The fetch is cached in the layer: it only runs again when the script
 # changes.
-RUN python3 scripts/fetch_noto_fonts.py
+RUN node scripts/fetch_noto_fonts.mjs
 
 # NOTE: The API health check (wait-for-api.mjs) runs inside this RUN
 # against a local mock API on port 8742. We start the mock in the
