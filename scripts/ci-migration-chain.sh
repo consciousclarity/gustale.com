@@ -45,6 +45,7 @@ DATA_MIGRATIONS=(
   db/migrations/0023_adr003_dish_names.sql
   db/migrations/0024_adr003_dish_names_data.sql
   db/migrations/0025_adr002_description_sentences.sql
+  db/migrations/0026_adr003_sentence_translations.sql
 )
 
 run_pg() {

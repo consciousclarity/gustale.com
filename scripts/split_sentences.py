@@ -66,9 +66,33 @@ ELLIPSIS = re.compile(r"\.{2,}")
 # A decimal: a period between two digits.
 DECIMAL = re.compile(r"\d\.\d")
 
-# A QUOTED SPAN. Double quotes, single quotes and the typographic
-# variants. The span may not contain an escaped quote.
-QUOTED = re.compile(r"[\"“”'‘’](?:[^\"“”'‘’\\]|\\.)*[\"“”'‘’]")
+# A QUOTED SPAN.
+#
+# The opening and closing quote must MATCH. An earlier version used a
+# single character class for both ends, which meant a straight quote
+# could close a curly one — and, worse, that the regex would match
+# from the FIRST quote in the text to the LAST, swallowing every
+# sentence boundary between them.
+#
+# That is not hypothetical: one live description contains "aloo-gobi"
+# and every period after it was treated as being inside a quoted
+# span, so the whole description became ONE sentence.
+#
+# So each quote style is matched to itself, and a span cannot contain
+# its own opening quote.
+QUOTED = re.compile(
+    r'"(?:[^"\\]|\\.)*"'          # straight double quotes
+    r"|“(?:[^“”\\]|\\.)*”"      # curly double quotes
+    r"|‘(?:[^‘’\\]|\\.)*’"      # curly single quotes
+    # A STRAIGHT SINGLE QUOTE must OPEN a word — it must be
+    # preceded by whitespace or an opening bracket.
+    #
+    # Without that condition, the apostrophe in "dish's" opens a
+    # quoted span that runs to the next apostrophe in the text, which
+    # swallowed over a thousand characters of a live description and
+    # turned the whole thing into one sentence.
+    r"|(?:(?<=\s)|(?<=[\[(]))'(?:[^'\\]|\\.)*'"
+)
 
 
 def _quoted_spans(text: str) -> list[tuple[int, int]]:

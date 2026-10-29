@@ -119,3 +119,7 @@ docs/session-handoff.md
 # megabytes, and they are fetched at build time by
 # scripts/fetch_noto_fonts.py.
 apps/web/public/fonts/noto/
+
+# Python bytecode
+__pycache__/
+*.pyc
