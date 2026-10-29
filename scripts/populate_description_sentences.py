@@ -27,6 +27,7 @@ Usage:  python3 scripts/populate_description_sentences.py --apply
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -36,6 +37,58 @@ from split_sentences import split_sentences  # noqa: E402
 
 FIELDS = (("short_description", "short"), ("long_description", "long"))
 
+
+def psql_command(db: str) -> list[str]:
+    """The psql invocation for this environment.
+
+    THREE environments, one script:
+
+    - The live host: the `shared-postgres` container, reached with
+      `docker exec`. The password lives in the deployment file and
+      `scripts/dbq.sh` carries it.
+    - The CI runner: Postgres is a service on 127.0.0.1 with
+      PGPASSWORD=gustale, and there is NO container. `docker exec`
+      fails there.
+    - A scratch database on the host: the container, but the database
+      is not `gustale`, so it is read as the postgres superuser.
+
+    The probe is whether the container is there at all, because that
+    is the difference that actually breaks.
+    """
+    if shutil.which("docker") and _has_container():
+        return [
+            "docker", "exec", "-u", "postgres", "-i", "shared-postgres",
+            "psql", "-U", "postgres", "-d", db,
+            "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
+        ]
+    # No container: a direct psql. The CI runner has Postgres as a
+    # service, and psql on PATH with PGPASSWORD in the environment.
+    #
+    # The binary is looked for in the usual places rather than
+    # assumed to be on PATH: on a Debian image the client is
+    # /usr/bin/psql, but on some it is under
+    # /usr/lib/postgresql/<version>/bin, and a script that only
+    # tries PATH fails on the second one.
+    psql = shutil.which("psql")
+    if not psql:
+        import glob
+        candidates = sorted(glob.glob("/usr/lib/postgresql/*/bin/psql"))
+        psql = candidates[-1] if candidates else "psql"
+    return [
+        psql, "-h", "127.0.0.1", "-U", "gustale", "-d", db,
+        "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
+    ]
+
+
+def _has_container() -> bool:
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "shared-postgres"],
+            capture_output=True, text=True, timeout=20,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 def fetch_descriptions(db: str = "gustale") -> list[dict]:
     sql = """
@@ -54,37 +107,12 @@ def fetch_descriptions(db: str = "gustale") -> list[dict]:
     #
     # Either way the database named by `db` is the one that is read,
     # and the WRITE in main() targets the same one.
-    if db == "gustale":
-        out = subprocess.run(
-            ["bash", "scripts/dbq.sh", sql],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    else:
-        out = subprocess.run(
-            [
-                "docker",
-                "exec",
-                "-u",
-                "postgres",
-                "-i",
-                "shared-postgres",
-                "psql",
-                "-U",
-                "postgres",
-                "-d",
-                db,
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-X",
-                "-tAc",
-                sql,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
+    out = subprocess.run(
+        psql_command(db) + [sql],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
     for line in out.splitlines():
         line = line.strip()
         if line.startswith("[{"):
@@ -299,24 +327,14 @@ def main() -> int:
         print("[populate] re-run with --apply to write it")
         return 0
 
+    # The write uses the same environment probe as the read, so the
+    # script writes to the same database it read from.
+    write_cmd = psql_command(args.db)
+    # psql_command ends with -tAc (the read form). For the write it
+    # must be -f - (read the SQL from stdin).
+    write_cmd = [a for a in write_cmd if a != "-tAc"] + ["-f", "-"]
     result = subprocess.run(
-        [
-            "docker",
-            "exec",
-            "-u",
-            "postgres",
-            "-i",
-            "shared-postgres",
-            "psql",
-            "-U",
-            "postgres",
-            "-d",
-            args.db,
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-f",
-            "-",
-        ],
+        write_cmd,
         input=sql,
         capture_output=True,
         text=True,

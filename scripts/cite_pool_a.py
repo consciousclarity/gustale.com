@@ -72,10 +72,22 @@ def db(sql: str) -> str:
 
 def db_rows(sql: str) -> list[dict]:
     out = db("select coalesce(json_agg(row_to_json(t)), '[]'::json) from (" + sql + ") t")
-    for line in out.splitlines():
-        line = line.strip()
-        if line.startswith("[{"):
-            return json.loads(line)
+    # psql WRAPS a long value across several lines, so the JSON does
+    # not arrive as one line. The whole output is stripped of the
+    # psql furniture and the first JSON array is extracted from it.
+    text = out.strip()
+    start = text.find("[{")
+    if start == -1:
+        return []
+    # The array runs to its matching close bracket.
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                return json.loads(text[start : i + 1])
     return []
 
 

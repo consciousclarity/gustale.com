@@ -56,7 +56,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-POOL_FILE = REPO / "data" / "pool_a.json"
+LEADS_FILE = REPO / "data" / "pool_a_leads.json"
 
 # The threshold above which a description is treated as too close to
 # the source to publish without a rewrite.
@@ -117,16 +117,33 @@ def overlap(a: str, b: str) -> tuple[float, float]:
 
 
 def db_rows(sql: str) -> list[dict]:
+    """The rows of a query, as dicts.
+
+    The query is WRAPPED in a json_agg here, so every caller passes a
+    plain SELECT and gets structured rows back. psql WRAPS a long
+    value across several lines, so the JSON does not arrive as one
+    line — the whole output is scanned for the first JSON array
+    instead.
+    """
     out = subprocess.run(
-        ["bash", str(REPO / "scripts" / "dbq.sh"), sql],
+        ["bash", str(REPO / "scripts" / "dbq.sh"),
+         "select coalesce(json_agg(row_to_json(t)), '[]'::json) from (" + sql + ") t"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    for line in out.splitlines():
-        line = line.strip()
-        if line.startswith("[{"):
-            return json.loads(line)
+    text = out.strip()
+    start = text.find("[{")
+    if start == -1:
+        return []
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                return json.loads(text[start : i + 1])
     return []
 
 
@@ -137,7 +154,13 @@ def main() -> int:
     parser.add_argument("--sort", default="desc")
     args = parser.parse_args()
 
-    pool = {r.get("slug"): r for r in json.loads(POOL_FILE.read_text())}
+    # The LEADS are keyed by slug, and they are what is compared. The
+    # pool file has no slug key — the slug is derived from the article
+    # title by the import's own slugify — so it is not used as the
+    # lookup here. Deriving it again here would be a second
+    # implementation of a rule that already has one, and a mismatch
+    # would silently compare the wrong lead against the wrong dish.
+    leads = json.loads(LEADS_FILE.read_text())
 
     dishes = db_rows(
         """
@@ -152,10 +175,7 @@ def main() -> int:
 
     rows = []
     for dish in dishes:
-        pool_row = pool.get(dish["slug"])
-        if not pool_row:
-            continue
-        lead = pool_row.get("lead") or pool_row.get("extract") or ""
+        lead = leads.get(dish["slug"]) or ""
         if not lead:
             continue
         # The site's own wording is the short + long description.
