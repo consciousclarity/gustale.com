@@ -223,6 +223,33 @@ def _translate_once(
 #   | a word glued to the next one | "simplementeDesigna"
 #   | the instruction words        | the model copied the prompt
 #
+# THE LENGTH FLOOR IS PER-LOCALE, AND IT HAS TO BE.
+#
+# A single global floor is wrong, because the ratio is a property of
+# the LANGUAGES, not of the model. Measured on the real translations:
+#
+#   fr, de, es, pt, id   the ratio runs 0.9 – 1.4
+#   zh, ja              the ratio runs 0.33 – 0.65
+#
+# Chinese compresses hard because it carries more meaning per
+# character than English does. These are COMPLETE and CORRECT
+# translations of English sentences of 148 and 188 characters, at 58
+# and 64 Chinese characters — ratios of 0.39 and 0.34:
+#
+#   菲律宾阿多博（adobo）是一种将肉、海鲜或蔬菜用醋、酱油、大蒜、
+#   月桂叶和黑胡椒炖煮，直至滋味浓郁、口感鲜嫩的菜肴。
+#
+# A global floor of 0.45 rejected both. The floor is now per-locale,
+# and the CJK floor is set at 0.25 — below the shortest legitimate
+# Chinese seen (0.33) and above the band where a real truncation
+# lands (a truncated Chinese sentence comes back as a fragment of a
+# few characters, a ratio near 0.05).
+LENGTH_RATIO_FLOOR = {
+    "zh": 0.25,
+    "ja": 0.25,
+}
+DEFAULT_LENGTH_RATIO_FLOOR = 0.45
+
 INSTRUCTION_WORDS = {
     "translate", "translation", "output", "only", "sentence",
     "keep", "rules", "note", "notes", "english", "original",
@@ -275,11 +302,12 @@ def check_translation(source: str, translated: str, locale: str) -> str | None:
     src_len = len(source.strip())
     if src_len:
         ratio = len(stripped) / src_len
-        if ratio < 0.45:
+        floor = LENGTH_RATIO_FLOOR.get(locale, DEFAULT_LENGTH_RATIO_FLOOR)
+        if ratio < floor:
             return (
                 f"the translation is too short to be complete "
                 f"({len(stripped)} chars for a {src_len}-char source, "
-                f"ratio {ratio:.2f})"
+                f"ratio {ratio:.2f}, floor {floor:.2f})"
             )
         if ratio > 3.0:
             return (
