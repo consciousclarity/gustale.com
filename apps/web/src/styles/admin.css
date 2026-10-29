@@ -1031,3 +1031,196 @@ a.adm-health__card:hover {
     animation: none;
   }
 }
+
+/* ============================================================
+   ADR-003 layer 4 — the translation review surface
+   ============================================================ */
+
+.a-tr {
+  --a-tr-gap: 1rem;
+  --a-tr-border: var(--a-line, #e6e3dd);
+  --a-tr-muted: var(--a-muted, #6b6b6b);
+}
+
+.a-tr__summary {
+  margin: 0 0 0.75rem;
+  color: var(--a-tr-muted);
+  font-size: 0.9rem;
+}
+
+.a-tr__error {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #c0392b;
+  border-radius: 6px;
+  background: #fdf0ee;
+  color: #8a2618;
+  font-size: 0.9rem;
+}
+
+.a-tr__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.a-tr__tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.a-tr__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--a-tr-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.a-tr__tab:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.a-tr__tab.is-active {
+  border-color: currentColor;
+  font-weight: 600;
+}
+
+.a-tr__count {
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: currentColor;
+  color: var(--a-bg, #fff);
+  font-size: 0.75rem;
+  line-height: 1.35rem;
+  text-align: center;
+}
+
+.a-tr__locale select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--a-tr-border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.a-tr__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--a-tr-gap);
+}
+
+.a-tr__empty {
+  margin: 0;
+  padding: 1.5rem 0;
+  color: var(--a-tr-muted);
+  text-align: center;
+}
+
+.a-tr__row {
+  border: 1px solid var(--a-tr-border);
+  border-radius: 8px;
+  padding: 0.85rem 1rem 1rem;
+  background: var(--a-panel, #fff);
+}
+
+.a-tr__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.a-tr__locale-tag {
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.a-tr__dish {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.a-tr__dish:hover {
+  text-decoration: underline;
+}
+
+.a-tr__where {
+  color: var(--a-tr-muted);
+  font-size: 0.82rem;
+}
+
+.a-tr__badge {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid #b07d1a;
+  border-radius: 999px;
+  color: #8a5f10;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.a-tr__badge--stale {
+  border-color: #b0553a;
+  color: #8f3f27;
+}
+
+.a-tr__badge--resolved {
+  border-color: var(--a-tr-border);
+  color: var(--a-tr-muted);
+}
+
+.a-tr__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .a-tr__pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+.a-tr__label {
+  margin: 0 0 0.25rem;
+  color: var(--a-tr-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.a-tr__source,
+.a-tr__text {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.a-tr__source {
+  color: var(--a-tr-muted);
+  font-style: italic;
+}
+
+.a-tr__text--proposed {
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid #2e7d52;
+  background: rgba(46, 125, 82, 0.06);
+}

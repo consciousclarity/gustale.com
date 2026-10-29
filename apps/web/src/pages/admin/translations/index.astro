@@ -1,0 +1,33 @@
+---
+import { AdminTranslationReview } from "../../../components/admin/AdminTranslationReview";
+/**
+ * /admin/translations — the ADR-003 layer 4 review surface.
+ *
+ * The React island fetches the review queue, the stale queue and the
+ * proposals from the API on the client, because the admin API is
+ * deliberately NOT reachable from the public hosts (Caddy answers
+ * /api/admin/* with a 404). The page itself ships as static.
+ *
+ * The API requires a session; the island sends the browser's cookies.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout
+  title="Admin · Translations — Gustale"
+  pageTitle="Translations"
+  active="translations"
+  crumbs={[{ href: '/admin', label: 'Admin' }, { label: 'Translations' }]}
+  description="Review the machine-translated dish descriptions"
+>
+  <header class="a-pagehead">
+    <h1 class="a-pagehead__title">Translations</h1>
+    <p class="a-pagehead__sub">
+      The machine-translated dish descriptions, beside their English
+      source. A proposed correction becomes the reviewed text once a
+      moderator accepts it.
+    </p>
+  </header>
+
+  <AdminTranslationReview client:load />
+</AdminLayout>
