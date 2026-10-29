@@ -51,6 +51,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
+// The repo root, so the sitemap generator can be run from the build.
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 
 // Floor: we have 31 seeded dishes. Anything <20 is almost certainly
@@ -248,6 +250,34 @@ for (const e of rootEntries) {
     console.log(`[post-build] pruned empty dir ${e.name}/`);
     removed++;
   }
+}
+
+// ─── ADR-003: the per-locale sitemaps ─────────────────────────────────
+//
+// The ADR: "Sitemap — Per-locale sitemap, referenced from sitemap.xml
+// by index."
+//
+// The sitemaps are generated from the BUILD OUTPUT rather than from
+// the database, so they list exactly the pages that exist. A sitemap
+// with a 404 in it is worse than no sitemap.
+//
+// The generator is a Python script at the repo root; it is run from
+// here so it runs for every domain variant.
+console.log("[post-build] generating the per-locale sitemaps");
+try {
+  const { execFileSync } = await import("node:child_process");
+  execFileSync(
+    "python3",
+    ["scripts/generate_sitemaps.py", "--dist", DIST, "--domain", DOMAIN],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+} catch (err) {
+  // A missing sitemap must not fail the whole build — the site still
+  // works without it. It is logged loudly so it is noticed.
+  console.error(
+    "[post-build] sitemap generation FAILED — the build will ship without a sitemap:",
+    err.message,
+  );
 }
 
 console.log(`[post-build] domain=${DOMAIN}, removed ${removed} paths`);

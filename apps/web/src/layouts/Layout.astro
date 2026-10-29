@@ -1,20 +1,43 @@
 ---
 import "../styles/global.css";
+import { LocaleSuggestion } from "../components/LocaleSuggestion";
+import LocaleSwitcher from "../components/LocaleSwitcher.astro";
 import Nav from "../components/Nav.astro";
 import { isGeoDomain } from "../lib/domain";
+import { type CoreLocale, isRtl } from "../lib/locales";
 
 export interface Props {
   title: string;
   description?: string;
+  /**
+   * The locale of this page. It sets `lang` and `dir` on the <html>
+   * element, and picks the right Noto font stack.
+   */
+  locale?: CoreLocale;
+  /**
+   * The `hreflang` alternates for this page. Reciprocal, plus
+   * `x-default` pointing at the English URL.
+   */
+  alternates?: Array<{ hreflang: string; href: string }>;
+  /**
+   * The URL of this page in each locale, for the language switcher.
+   */
+  localeUrls?: Record<string, string>;
 }
 
-const { title, description = "Gustale — a digital culinary archive." } =
-  Astro.props;
+const {
+  title,
+  description = "Gustale — a digital culinary archive.",
+  locale = "en",
+  alternates = [],
+  localeUrls = {},
+} = Astro.props;
 const isGeo = isGeoDomain();
+const rtl = isRtl(locale);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={locale} dir={rtl ? "rtl" : "ltr"}>
   <head>
     <meta charset="utf-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -22,9 +45,26 @@ const isGeo = isGeoDomain();
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <title>{title}</title>
+    {
+      alternates.map((a) => (
+        <link rel="alternate" hreflang={a.hreflang} href={a.href} />
+      ))
+    }
   </head>
   <body class="gst">
     <Nav />
+
+    {
+      Object.keys(localeUrls).length > 0 && (
+        <div class="wrap gst-locale-suggest-wrap">
+          <LocaleSuggestion
+            client:load
+            current={locale}
+            urls={localeUrls}
+          />
+        </div>
+      )
+    }
 
     <main>
       <slot />
@@ -34,6 +74,16 @@ const isGeo = isGeoDomain();
       <div class="wrap">
         <div>
           <div class="fm">Gustale</div>
+          {
+            Object.keys(localeUrls).length > 0 && (
+              <div class="foot-locales">
+                <LocaleSwitcher
+                  current={locale}
+                  urls={localeUrls}
+                />
+              </div>
+            )
+          }
           <div class="fcap">
             <a href="https://gustale.com/" class="foot-domain" data-active={isGeo ? 'true' : undefined} aria-current={isGeo ? 'page' : undefined}>Atlas</a>
             <span class="foot-sep">·</span>

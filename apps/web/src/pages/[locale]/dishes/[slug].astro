@@ -1,0 +1,80 @@
+---
+/**
+ * ADR-003 — the locale dish route: `/{locale}/dishes/{slug}`.
+ *
+ * The slug is STABLE: it never changes with the locale. The page
+ * fetches the dish in the requested locale, so the names, the
+ * vocabulary labels and the prose all come back in that language.
+ *
+ * ENGLISH IS AT THE ROOT, not under /en. `gustale.com/dishes/<slug>`
+ * is the canonical URL; this route serves the other locales. So the
+ * route only generates the non-English locales.
+ */
+import DishLocalePage from "../../../dishes/_locale-page.astro";
+import { isSiteLocale, SITE_LOCALES, type CoreLocale } from "../../../lib/locales";
+
+export async function getStaticPaths() {
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    return [];
+  }
+
+  try {
+    const allSlugs: string[] = [];
+    const PAGE_SIZE = 100;
+    for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
+      const res = await fetch(
+        `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
+      );
+      if (!res.ok) throw new Error(`List fetch returned ${res.status}`);
+      const json = (await res.json()) as {
+        dishes: Array<{ slug: string }>;
+      };
+      allSlugs.push(...json.dishes.map((d) => d.slug));
+      if (json.dishes.length < PAGE_SIZE) break;
+    }
+
+    const locales = SITE_LOCALES.filter((l) => l !== "en");
+    const paths: Array<{
+      params: { locale: string; slug: string };
+      props: { slug: string; locale: CoreLocale; origin: string };
+    }> = [];
+
+    for (const locale of locales) {
+      for (const slug of allSlugs) {
+        paths.push({
+          params: { locale, slug },
+          props: { slug, locale, origin: siteOrigin() },
+        });
+      }
+    }
+    return paths;
+  } catch (err) {
+    console.error("[getStaticPaths] locale dish list fetch failed:", err);
+    return [];
+  }
+}
+
+/**
+ * The origin the site is served from.
+ *
+ * PUBLIC_SITE_ORIGIN is set in CI. The fallback is derived from the
+ * build domain, so a local build still produces working hreflang URLs.
+ */
+function siteOrigin(): string {
+  const explicit = import.meta.env.PUBLIC_SITE_ORIGIN;
+  if (explicit) return explicit;
+  const domain = import.meta.env.PUBLIC_DOMAIN ?? "recipes";
+  return domain === "geo"
+    ? "https://gustale.com"
+    : "https://gustale.recipes";
+}
+
+const { slug, locale, origin } = Astro.props as {
+  slug: string;
+  locale: CoreLocale;
+  origin: string;
+};
+---
+
+<DishLocalePage slug={slug} locale={locale} origin={origin} />

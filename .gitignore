@@ -111,3 +111,11 @@ apps/api/deploy/
 # session is frozen or reset. It contains live conversation excerpts and
 # internal paths — this repo is PUBLIC, so it must stay local.
 docs/session-handoff.md
+
+# ADR-003 — the self-hosted Noto faces.
+#
+# The @font-face rules (apps/web/src/styles/noto.css) ARE committed,
+# but the woff2 files are not: the CJK faces alone are tens of
+# megabytes, and they are fetched at build time by
+# scripts/fetch_noto_fonts.py.
+apps/web/public/fonts/noto/

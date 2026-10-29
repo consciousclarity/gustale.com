@@ -1,0 +1,46 @@
+---
+/**
+ * ADR-003 — the language switcher.
+ *
+ * The ADR: "Browser language — **Suggest, not force.** A locale chooser
+ * or a banner offers the detected locale; the page renders in English
+ * unless the user chooses. No automatic redirect that hides content."
+ *
+ * So this is a plain list of links to the same page in every locale.
+ * It never redirects and it never hides anything.
+ */
+import { type CoreLocale, LOCALE_NAMES, SITE_LOCALES } from "../lib/locales";
+
+export interface Props {
+  /** The locale of the current page. */
+  current: CoreLocale;
+  /** The URL of this page in each locale. */
+  urls: Record<string, string>;
+  /** The locale the browser asked for, when it differs from `current`. */
+  suggested?: CoreLocale | null;
+}
+
+const { current, urls, suggested = null } = Astro.props;
+const others = SITE_LOCALES.filter((l) => l !== current);
+---
+
+<nav class="gst-locales" aria-label="Language">
+  <span class="gst-locales__current" aria-current="true">
+    {LOCALE_NAMES[current] ?? current}
+  </span>
+  {
+    suggested && suggested !== current && (
+      <a class="gst-locales__suggested" href={urls[suggested]}>
+        {LOCALE_NAMES[suggested] ?? suggested}
+      </a>
+    )
+  }
+  <span class="gst-locales__sep" aria-hidden="true">·</span>
+  {
+    others.map((locale) => (
+      <a class="gst-locales__link" href={urls[locale]} lang={locale}>
+        {LOCALE_NAMES[locale] ?? locale}
+      </a>
+    ))
+  }
+</nav>

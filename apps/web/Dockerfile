@@ -93,6 +93,20 @@ COPY . .
 # failing and re-running the whole pipeline.
 RUN rm -rf /app/apps/web/dist /app/apps/web/.astro
 
+# ADR-003 — fetch the self-hosted Noto faces.
+#
+# The @font-face rules are committed (apps/web/src/styles/noto.css) but
+# the woff2 files are not: the CJK faces alone are tens of megabytes,
+# and committing them to a public repository would be indefensible.
+#
+# The Google Fonts CSS API serves each family already split into
+# unicode-range subsets, so this is the "subset per locale" the ADR
+# asks for — a Latin page never pulls the CJK files.
+#
+# The fetch is cached in the layer: it only runs again when the script
+# changes.
+RUN python3 scripts/fetch_noto_fonts.py
+
 # NOTE: The API health check (wait-for-api.mjs) runs inside this RUN
 # against a local mock API on port 8742. We start the mock in the
 # background, wait for it to become reachable, run the Astro build,

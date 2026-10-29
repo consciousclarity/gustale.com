@@ -1,0 +1,151 @@
+---
+/**
+ * ADR-003 — the locale-aware dish page.
+ *
+ * The ADR's URL shape is `/{locale}/dishes/{slug}`, with the slug
+ * STABLE: it does not change with locale. Transliteration is a display
+ * concern, never a URL concern.
+ *
+ * ENGLISH IS AT THE ROOT. `gustale.com/dishes/masala-dosa` is the
+ * canonical URL and keeps the SEO value; the other locales live under
+ * their prefix. That keeps the existing 121 dish URLs unchanged, which
+ * is what "stable slugs" is really about.
+ *
+ * The page is built from the API, which already accepts `?language=`
+ * and reports the locale it served alongside the one requested — so
+ * the English-fallback notice can be shown when a page has no
+ * translation.
+ */
+import DishDetail from "../../../components/DishDetail";
+import { RelatedDishes } from "../../../components/RelatedDishes";
+import { EditDishButton } from "../../../components/EditDishButton";
+import Layout from "../../../layouts/Layout.astro";
+import { getDishDetail, getDishJourney } from "../../../lib/api";
+import {
+  dishUrl,
+  hreflangAlternates,
+  isSiteLocale,
+  SITE_LOCALES,
+  type CoreLocale,
+} from "../../../lib/locales";
+import type { DishDetailResponse } from "../../../types/dish";
+
+export interface Props {
+  slug: string;
+  locale: CoreLocale;
+  /** The origin the site is served from, for the hreflang URLs. */
+  origin: string;
+}
+
+const { slug, locale, origin } = Astro.props;
+
+// ── The dish, in this locale ──────────────────────────────────────────
+let data: DishDetailResponse | null = null;
+let notFound = false;
+
+try {
+  data = await getDishDetail(slug, { language: locale });
+} catch (err) {
+  console.error(`[dish/${locale}] fetch failed:`, err);
+  notFound = true;
+}
+
+if (!data && !notFound) notFound = true;
+if (notFound) {
+  Astro.response.status = 404;
+}
+
+// ── The journey beats ──────────────────────────────────────────────────
+let journeyBeats: DishDetailResponse extends never ? never : any[] = [];
+let journeyLineages: any[] = [];
+try {
+  const j = await getDishJourney(slug);
+  journeyBeats = (j as any)?.beats ?? [];
+  journeyLineages = (j as any)?.lineages ?? [];
+} catch {
+  // The journey is optional — a dish without one still renders.
+}
+
+// ── The locales this dish actually has content in ─────────────────────
+//
+// The hreflang set is the locales the site ships pages for, not the
+// locales the dish happens to have a name in. A dish with a Tagalog
+// name but no Tagalog page would advertise a URL that 404s.
+const alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
+
+// ── The English-fallback notice ────────────────────────────────────────
+//
+// The API reports the locale it served alongside the one that was
+// asked for. When they differ, this page has no translation and is
+// showing English — and the ADR says to SAY SO, not to swap silently.
+const servedEnglish =
+  data !== null &&
+  data.requestedLocale !== data.locale &&
+  data.locale === "en";
+
+// ── SEO ────────────────────────────────────────────────────────────────
+const seoTitle = data?.dish
+  ? `${data.dish.name} — Gustale`
+  : "Dish not found — Gustale";
+const seoDescription =
+  data?.dish?.description ??
+  data?.dish?.shortDescription ??
+  "A digital culinary archive.";
+
+// The language switcher: the same dish in every locale the site ships.
+const localeUrls = Object.fromEntries(
+  SITE_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
+);
+---
+
+<Layout
+  title={seoTitle}
+  description={seoDescription}
+  locale={locale}
+  alternates={alternates}
+  localeUrls={localeUrls}
+>
+  {data ? (
+    <>
+      {servedEnglish && (
+        <div class="gst-locale-notice" role="status">
+          <span class="gst-locale-notice__text">
+            This page is not yet available in your language, so it is
+            shown in English.
+          </span>
+          <a class="gst-locale-notice__link" href={localeUrls[locale]}>
+            View other languages
+          </a>
+        </div>
+      )}
+
+      <DishDetail
+        dish={data.dish}
+        origin={data.origin}
+        variants={data.variants}
+        ingredients={data.ingredients}
+        categories={data.categories}
+        tags={data.tags}
+        preparations={data.preparations}
+        sources={data.sources}
+        media={data.media}
+        journeyBeats={journeyBeats}
+        journeyLineages={journeyLineages}
+        client:load
+      />
+
+      <RelatedDishes slug={data.dish.slug} client:visible />
+
+      <div class="gst-dish-actions">
+        <EditDishButton slug={data.dish.slug} client:load />
+      </div>
+    </>
+  ) : (
+    <>
+      <h1 class="page-header">Dish not found</h1>
+      <p class="gst-muted">
+        We couldn't find a dish called <strong>{slug}</strong>.
+      </p>
+    </>
+  )}
+</Layout>
