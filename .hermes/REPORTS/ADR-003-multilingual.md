@@ -32,9 +32,21 @@ The nine locales are being translated. The translations are
 machine-produced, so they carry `status = 'machine'` and the badge;
 a human correction promotes them to `reviewed`.
 
-The review and moderation SURFACE — the admin view where a moderator
-sees the machine translations, accepts or rejects a correction, and
-the stale queue — is the last piece, and is not yet built.
+**Layer 4 (the review and moderation surface) is DONE** — deployed
+live 2026-10-29. Seven routes: the review queue, the stale queue, the
+proposals, the summary, propose, resolve (accept or reject), and mark
+as reviewed. A contributor proposes; a moderator accepts; an accepted
+proposal becomes the reviewed text, enforced by the DATABASE rather
+than by the route. See
+`.hermes/REPORTS/ADR-003-layer4-review-moderation.md`.
+
+The admin API is deliberately **not** reachable from the public hosts —
+Caddy answers `/api/admin/*` with a 404 on every one of them. The
+routes are live and gated (the internal port answers 401).
+
+**What is not built:** the admin SCREENS that use these routes, and the
+scheduled re-translation job for the stale queue. The translator is a
+script, not a job.
 
 **Scope:** gustale.com and gustale.recipes. Same API, same data.
 
