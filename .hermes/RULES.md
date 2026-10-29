@@ -57,13 +57,17 @@ rule in ADR-001/ADR-002 or the decision log.
 Before reporting anything as done, check it against the **live DB and git** — not against the intent to do it.
 
 ### 5. Priority list (current)
-1. **Resync fixes:** 250 countries · region name sources · cuisines from the country list · dual-place `same_as` link. Start with the **read-only audit**, then straight into the fixes.
-2. **1f vocabularies** with the stress-set decisions; **1e traditions in parallel**.
-3. **ADR-002 Q12–Q13** — decide them (decided-by: hermes), then run the pilot.
+1. ~~**Resync fixes**~~ — **DONE 2026-10-29.** 250 active countries · 46 regions with provenance · 14 dual-place `same_as` links · 246 cuisines (0 null `country_code`, 0 duplicate names). Migrations 0014–0017. See `.hermes/REPORTS/GUS-242-resync-fixes-1-2-3-applied.md`.
+2. ~~**1f vocabularies**~~ — **DONE 2026-10-29.** 196 families (4 levels deep), 65 techniques, 31 contexts. Migration 0018. See `.hermes/REPORTS/GUS-242-1f-vocabulary-spec.md`.
+   ~~**1e traditions**~~ — **DONE 2026-10-29.** 433 traditions, every one with a definition and a source. Migration 0019. See `.hermes/REPORTS/GUS-242-1e-traditions-spec.md`.
+3. ~~**ADR-002 Q12–Q13**~~ — **DONE 2026-10-29.** Both decided (`decided-by: hermes`, reasons recorded in ADR-002 §Q12/§Q13).
+   ~~**The pilot**~~ — **ALREADY PASSED 2026-10-26** (51/51 checks, applied live). Re-verified against live on 2026-10-29: `scripts/hermes/gus-014-verify-pilot.py --db gustale` → **PASS 51 / FAIL 0**, exit 0. See `.hermes/REPORTS/GUS-014-pilot-spec.md` §8.
 4. **Pool A import** into the claims model — batches of 100, with a **10% sample in a review queue that does not block**.
 5. **Site quality** on gustale.com and gustale.recipes — images, performance, SEO, accessibility, multilingual, broken links.
-6. **Remaining backlog.**
+6. **Remaining backlog** — including the 1f remainder: ingredient categories 55 → 250–400 (FoodOn-derived).
 7. **ADR-003 multilingual** (decided 2026-10-29) — three layers, in order: **vocabulary labels → `dish_names` → routing/UI → sentence translation → review**. Applies to gustale.com and gustale.recipes. See `.hermes/REPORTS/ADR-003-multilingual.md`. Start step 1 (vocabulary labels) as soon as priorities 1–2 are done; no confirmation needed.
+
+> **Note on CI.** CI was failing on every run from 2026-10-26 until 2026-10-29 because the workflow applied only `packages/db/drizzle/*.sql` while the repo has **two interleaved migration chains**; `db/migrations/` creates the vocabulary tables and the GUS-242 reference data. Fixed in `e4ec32f` — see `.hermes/REPORTS/GUS-242-1e-traditions-spec.md` §"CI" for the full account.
 
 ### 6. Command approvals
 If Hermes asks Alejandro to approve a routine command, **do not change the setting yourself.** Report once which existing setting would allow it, and let Alejandro decide.
