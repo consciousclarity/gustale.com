@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# Read-only psql against the live gustale database.
+# psql against the gustale database.
 #
-# Usage:  ./dbq.sh "SELECT ..."
-#         ./dbq.sh -c "SELECT ..."      (same thing)
+# Usage:
+#   ./dbq.sh "SELECT ..."                 — run one read-only query
+#   ./dbq.sh -c "SELECT ..."             — the same
+#   ./dbq.sh -v NAME=value -v N2=v2 "SELECT :'NAME'"   — with variables
+#
+# The variables use psql's own `:'name'` quoting, so a value that
+# contains an apostrophe, a dollar sign or a newline is passed
+# SAFELY — psql quotes and escapes it. That is the only safe way to
+# put a translated sentence into an UPDATE.
 #
 # The password is read from the file and passed via PGPASSWORD on the
-# environment of the psql child process. It is never echoed, never stored in
-# the repo, and never printed.
+# environment of the psql child process. It is never echoed, never
+# stored in the repo, and never printed.
 set -euo pipefail
 
 DB_PASSWORD_FILE="/home/deploy/gustale.com/.db-password"
@@ -21,19 +28,61 @@ if [[ ! -r "$DB_PASSWORD_FILE" ]]; then
 fi
 
 export PGPASSWORD
-PGPASSWORD="$(cat "$DB_PASSWORD_FILE")"
+# The file holds `GUSTALE_DB_PASSWORD=<value>`. Take only the VALUE —
+# sending the whole line would send "GUSTALE_DB_PASSWORD=..." as the
+# password.
+_pw_raw="$(cat "$DB_PASSWORD_FILE")"
+if [[ "$_pw_raw" == *"="* ]]; then
+  PGPASSWORD="${_pw_raw#*=}"
+else
+  PGPASSWORD="$_pw_raw"
+fi
+unset _pw_raw
 
-# Usage:  ./dbq.sh "SELECT ..."
-#
-# The query is always passed with -c so psql never mistakes it for one of
-# its own options.
-QUERY="${1:-}"
+# Parse the flags. -c is accepted for compatibility and ignored — the
+# query always goes to psql with -c, so psql never mistakes it for
+# one of its own options.
+VARS=()
+QUERY=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c)
+      shift
+      ;;
+    -v)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: -v needs a NAME=value argument" >&2
+        exit 2
+      fi
+      VARS+=("-v" "$2")
+      shift 2
+      ;;
+    --)
+      shift
+      QUERY="$*"
+      break
+      ;;
+    *)
+      QUERY="$1"
+      shift
+      ;;
+  esac
+done
+
 if [[ -z "$QUERY" ]]; then
-  echo "usage: dbq.sh \"<sql>\"" >&2
+  echo "usage: dbq.sh [-v NAME=value] \"<sql>\"" >&2
   exit 2
 fi
 
-exec docker exec -e PGPASSWORD="$PGPASSWORD" -i shared-postgres \
+# The query goes through STDIN, not -c. psql only interpolates its
+# :'name' variables in script input — with -c, the variables are
+# passed but NOT substituted. So a value containing an apostrophe
+# would be injected as raw SQL.
+# The query goes through STDIN, not -c. psql only interpolates its
+# :'name' variables in script input — with -c, the variables are
+# passed but NOT substituted. So a value containing an apostrophe
+# would be injected as raw SQL.
+printf '%s\n' "$QUERY" | docker exec -e PGPASSWORD="$PGPASSWORD" -i shared-postgres \
   psql -v ON_ERROR_STOP=1 -X \
-       -U "$DB_USER" -d "$DB_NAME" -h 127.0.0.1 -p 5432 \
-       -c "$QUERY"
+       "${VARS[@]+"${VARS[@]}"}" \
+       -U "$DB_USER" -d "$DB_NAME" -h 127.0.0.1 -p 5432
