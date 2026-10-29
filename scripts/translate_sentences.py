@@ -244,9 +244,33 @@ def _translate_once(
 # Chinese seen (0.33) and above the band where a real truncation
 # lands (a truncated Chinese sentence comes back as a fragment of a
 # few characters, a ratio near 0.05).
+# THE FLOORS, FROM THE MEASURED DISTRIBUTION.
+#
+# The measured minimum over the accepted translations, per locale:
+#
+#   zh   min 0.248   p2 0.254   median 0.322   max 0.739
+#   ja   min 0.255   p2 0.295   median 0.473   max 1.411
+#   ar   min 0.634   p2 0.705   median 0.919   max 1.869
+#   hi   min 0.756   p2 0.759   median 1.030   max 1.556
+#
+# The CJK floors are set BELOW the measured minimum, with a little
+# room, because a floor AT the minimum rejects the next good value
+# the moment it arrives. The first CJK floor was 0.25 — which is
+# exactly the Chinese measured minimum — and it rejected a
+# PERFECTLY GOOD translation:
+#
+#   日式薄皮煎饺，以猪肉、白菜、韭菜和姜为馅，一面煎至金黄，再蒸至熟透。
+#
+# 34 characters for a 149-character English source, a ratio of 0.23,
+# and a complete and accurate translation of the whole sentence. The
+# floor is now 0.20 for Chinese and 0.22 for Japanese.
+#
+# The Latin-script floor stays at 0.45: the measured minimum for
+# fr/de/es/pt/id is 0.9, so 0.45 is comfortably below any real
+# value and comfortably above a truncation.
 LENGTH_RATIO_FLOOR = {
-    "zh": 0.25,
-    "ja": 0.25,
+    "zh": 0.20,
+    "ja": 0.22,
 }
 DEFAULT_LENGTH_RATIO_FLOOR = 0.45
 
@@ -327,6 +351,100 @@ def check_translation(source: str, translated: str, locale: str) -> str | None:
     # no space. That does not occur in a normal sentence.
     if re.search(r"[a-zà-öø-ÿ]{3}[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]{2,}", stripped):
         return "the translation has a glued word (missing space)"
+
+    # THE SCRIPT CHECK — for the CJK locales.
+    #
+    # A model can lose the script mid-generation and produce text that
+    # LOOKS like the target language while carrying English (or
+    # another Latin-script language) straight through. One real
+    # example passed every other check:
+    #
+    #   マrtle bariumは（アパムンバリクをUTRANCE）、チョコレート、チーズ、
+    #   または砂糖を Wrap った厚い甘い Implicit
+    #
+    # It has 27 kana and 4 kanji — so it reads as Japanese — but it
+    # also carries 29 Latin characters, including the English words
+    # 'barium', 'UTRANCE', 'Wrap' and 'Implicit' and the stray
+    # English word 'Implicit' at the end. The length ratio was fine
+    # (0.55), the glued-word check did not fire, and it was WRITTEN
+    # TO THE CATALOGUE.
+    #
+    # The tell is the RATIO of Latin characters inside CJK text. A
+    # Japanese or Chinese sentence that legitimately contains a Latin
+    # word — a brand name, a chemical name — has a few Latin
+    # characters, not a third of the string.
+    if locale in ("ja", "zh"):
+        latin = len(re.findall(r"[A-Za-z]", stripped))
+        latin_ratio = latin / max(1, len(stripped))
+        if latin > 6 and latin_ratio > 0.12:
+            # The Latin text must be WORDS, not debris. A legitimate
+            # Chinese or Japanese sentence keeps the original dish
+            # name in Latin — 'Babi guling', 'Bakso', 'Martabak
+            # manis', 'Chole-bhature', 'carne de vinha d'alhos' — and
+            # those are whole words.
+            #
+            # The corruption is different: the model degenerates into
+            # FRAGMENTS and SENTENCES in another language —
+            # 'アルー・フルコーピPID Extremely dry and cumin-r',
+            # 'ラテンアメリカCITrackの鶏肉とrizzue.sofrito',
+            # 'インドESO語では'. Those are not dish names; they are
+            # the model losing the thread.
+            #
+            # So the test is not the RATIO of Latin characters — 43
+            # legitimate Chinese rows have a high ratio because a
+            # Chinese sentence often KEEPS the dish name in Latin. The
+            # test is whether the Latin run contains a REAL WORD from
+            # the source, or whether it is debris.
+            latin_words = re.findall(r"[A-Za-z]{2,}", stripped)
+            source_words = set(w.lower().strip(".,") for w in source.split())
+
+            # (a) An ALLCAPS run of four or more letters. A dish name
+            # is never shouted. This is the clearest tell:
+            # 'UTRANCE', 'ESO', 'PID', 'ENGLISH_ID',
+            # 'PIN_POLICY_SERVING_PREFERENCE'.
+            allcaps = [w for w in latin_words if w.isupper() and len(w) > 3]
+
+            # (b) A word that is neither in the source nor a
+            # capitalised proper noun of twenty characters or fewer.
+            debris = []
+            for word in latin_words:
+                low = word.lower()
+                if low in source_words:
+                    continue
+                if word[:1].isupper() and len(word) <= 20:
+                    continue
+                debris.append(word)
+
+            # (c) A RUN of three or more Latin words that contains an
+            # ordinary English function word. A proper name is one or
+            # two words — 'Martabak manis', 'ras el hanout' — or it is
+            # a name with no function words in it, like 'carne de
+            # vinha d'alhos'. An English PHRASE that has fallen into
+            # the sentence contains 'with', 'and', 'are', 'served',
+            # 'staple', 'across'.
+            english_run = False
+            for m in re.finditer(
+                r"[A-Za-z]{2,}[ ][A-Za-z]{2,}[ ][A-Za-z]{2,}", stripped
+            ):
+                if re.search(
+                    r"(?:^| )(with|and|are|is|was|the|of|in|for|to|a|an|"
+                    r"that|this|served|staple|considered|across|generally|"
+                    r"often|used|made|from|as|its|their)( |$)",
+                    m.group(0),
+                    re.IGNORECASE,
+                ):
+                    english_run = True
+                    break
+
+            # (d) A long token on its own.
+            long_token = [w for w in debris if len(w) > 12]
+
+            if allcaps or english_run or long_token:
+                return (
+                    f"the translation has Latin debris in it "
+                    f"({(allcaps or debris or long_token)[:3]}) — the "
+                    f"model lost the script mid-generation"
+                )
 
     # The instruction words, if they leaked into the output.
     for word in INSTRUCTION_WORDS:

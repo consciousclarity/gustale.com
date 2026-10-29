@@ -48,6 +48,7 @@ DATA_MIGRATIONS=(
   db/migrations/0026_adr003_sentence_translations.sql
   db/migrations/0027_adr002_claims_model.sql
   db/migrations/0028_adr003_translation_cleanup.sql
+  db/migrations/0029_adr003_cjk_script_cleanup.sql
 )
 
 run_pg() {
