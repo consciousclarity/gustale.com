@@ -403,6 +403,53 @@ export const dishTranslations = pgTable(
   }),
 );
 
+// ADR-003 layer 2 — the dish names.
+//
+// A dish can have several names in one language (an endonym, an
+// exonym, a romanization) and one canonical name per language. The
+// dishes table's canonical_name cannot express that, so this table
+// holds the rest.
+//
+// The English name stays in dishes.canonical_name, so this table holds
+// only the other languages.
+//
+// `script` is the ISO 15924 code (Latn, Cyrl, Arab, Hans, Hant, Jpan,
+// Deva). It is stored explicitly because it drives font selection and
+// romanization detection, and because a dish may be spelled in
+// several scripts across languages. It is nullable because a name's
+// script may genuinely be unknown.
+//
+// `kind` is constrained: 'endonym' | 'exonym' | 'romanization'.
+export const dishNames = pgTable(
+  "dish_names",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    script: text("script"),
+    name: text("name").notNull(),
+    kind: text("kind").notNull().default("endonym"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    source: text("source"),
+    sourceRef: text("source_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    naturalKey: unique("dish_names_unique").on(
+      t.dishId,
+      t.language,
+      t.script,
+      t.name,
+    ),
+    dishLangIdx: index("dish_names_dish_lang_idx").on(t.dishId, t.language),
+    langIdx: index("dish_names_lang_idx").on(t.language),
+  }),
+);
+
 // ADR-003 layer 1 — the vocabulary labels.
 //
 // Every controlled-vocabulary label (families, cuisines, techniques,
