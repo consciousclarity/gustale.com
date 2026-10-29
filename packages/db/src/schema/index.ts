@@ -116,6 +116,24 @@ export const geoEntities = pgTable(
     population: integer("population"),
     areaKm2: text("area_km2"),
     wikidataId: text("wikidata_id"),
+    // --- GUS-242 resync (migration 0014) -------------------------------
+    // 'active' | 'archived'. Archiving keeps the row resolvable, which a
+    // `same_as_entity_id` link may need (AC and TA are both extras and
+    // country twins).
+    status: text("status").notNull().default("active"),
+    // Where `name` came from. Required for rows with no Wikidata Q-id.
+    nameSource: text("name_source"),
+    // The ISO 3166-2 subdivision level.
+    subdivisionType: text("subdivision_type"),
+    // The ISO 3166 edition the code and name came from.
+    isoVersion: text("iso_version"),
+    // Wikidata P576 — date of dissolution. NULL = in existence.
+    dissolved: timestamp("dissolved", { mode: "date" }),
+    // Dual place (Option B): the country row that is the SAME real place
+    // as this region row.
+    sameAsEntityId: uuid("same_as_entity_id").references((): any => geoEntities.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -123,6 +141,8 @@ export const geoEntities = pgTable(
   (t) => ({
     parentIdx: index("geo_entities_parent_id_idx").on(t.parentId),
     entityTypeIdx: index("geo_entities_entity_type_idx").on(t.entityType),
+    statusIdx: index("geo_entities_status_idx").on(t.status),
+    sameAsIdx: index("geo_entities_same_as_entity_id_idx").on(t.sameAsEntityId),
     // DB invariant (0009): null ok; otherwise WGS84 lon/lat in range.
     centroidBoundsCheck: check(
       "geo_entities_centroid_bounds_check",
@@ -131,6 +151,11 @@ export const geoEntities = pgTable(
         AND ST_Y(${t.centroid}::geometry) >= -90 AND ST_Y(${t.centroid}::geometry) <= 90
         AND ST_SRID(${t.centroid}::geometry) = 4326
       )`,
+    ),
+    // An entity cannot be the same_as entity as itself.
+    sameAsNotSelfCheck: check(
+      "geo_entities_same_as_not_self_check",
+      sql`${t.sameAsEntityId} IS NULL OR ${t.sameAsEntityId} <> ${t.id}`,
     ),
   }),
 );
