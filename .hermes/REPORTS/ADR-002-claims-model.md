@@ -1,6 +1,6 @@
 # ADR-002 — The claims model
 
-**Status:** 🟡 **DRAFT — Q1 to Q11 DECIDED, Q12 open. Nothing implemented. No schema change.**
+**Status:** 🟢 **Q1 to Q13 ALL DECIDED. Nothing implemented yet — no schema change.** Q12 and Q13 decided by hermes on 2026-10-29 (Q12 by delegation from Alejandro via RULES.md §2; Q13 the same). The next step is the **pilot**: the schema, then the 3 pilot dishes (`rendang`, `chicken-tikka-masala`, `tacos-al-pastor`) per the GUS-014 pass/fail spec.
 **Date:** 2026-10-26 · **Task:** GUS-027 (source registry) + GUS-028 (claim-level citations)
 **Related:** ADR-001 (canonical entity model), GUS-026 (editorial evidence policy — *draft, still awaiting Alejandro's decisions*)
 
@@ -1877,7 +1877,7 @@ The two rejected options were:
 | # | deferred | why |
 |---|---|---|
 | 1 | the **order of the 118** when research does start | it should follow the same bar (per-claim class sufficiency), but which dish gets researched first is a work-planning decision, not a model one |
-| 2 | whether a dish that cannot be researched to the bar is **hidden** from public views or shown with an honest "unevidenced" badge | GUS-026 §6's `unsupported` class implies the latter is available, but the *display* decision is a Q13 question |
+| 2 | whether a dish that cannot be researched to the bar is **hidden** from public views or shown with an honest "unevidenced" badge | GUS-026 §6's `unsupported` class implies the latter is available, and Q13 has now decided the **read** boundary is open — a degraded or unsupported claim is visible with its state, never hidden. The remaining choice is whether an **unresearched** dish (no statement at all) shows a badge or nothing; deferred with Q13's coverage-badge item, on the same reasoning: a badge reading 0% across 118 dishes is noise until the number is meaningful |
 | 3 | the exact **`unset_reason` mechanism** (column on the join tables vs. a separate table) | a schema choice with a real constraint — the reason must be queryable per (dish, dimension) and must not be able to conflict with an assigned value |
 | 4 | whether `dish_tradition`'s multi-value is enough for the **transnational** case, or whether a transnational dish needs *competing* traditions with an accepted one (Q5's generalised rule) | Q5's rule is written for single-valued dimensions; `dish_tradition` is multi-valued, so the rules differ |
 
@@ -1897,27 +1897,124 @@ The two rejected options were:
 
 ---
 
-### Q12 — What is the claim's verification lifecycle, and who moves it?
+### ✅ Q12 — DECIDED (hermes, 2026-10-29): GUS-026 §6's seven states, with explicit gates and a hard agent boundary
 
-**Decision:** the state machine and its gates.
+**Decision:** adopt GUS-026 §6's states **exactly** — `draft` → `research_pending` → `under_review` → `verified` → `published`, with `disputed` and `needs_revision` branches. GUS-026 is already a written policy; ADR-002 implements it rather than proposing a parallel lifecycle. The states map cleanly onto the API: a reader sees `published`, an editor sees `under_review`.
 
-**Recommendation: adopt GUS-026 §6's states exactly** — `draft` → `research_pending` → `under_review` → `verified` → `published`, with `disputed` and `needs_revision` branches — and make **publication a gate, not a status**: a claim is publishable only when its `claim_class` meets that class's minimum evidence bar **and** its citations meet the independence rule.
+#### The gates
 
-**Reason:** GUS-026 has already been written as a policy; ADR-002 should implement it rather than propose a parallel lifecycle. The states map cleanly onto the API (a reader sees `published`; an editor sees `under_review`).
+| transition | gate (what must be true) |
+|---|---|
+| `draft` → `research_pending` | the statement exists with a subject, a predicate and a typed value; the claim's `claim_class` is set. **No evidence required yet** — the state means "we have decided this is worth researching" |
+| `research_pending` → `under_review` | at least one `claim_citations` row exists, fetched, with `revision_id` or `retrieved_at` recorded, and its `excerpt` **validated as a substring of the stated revision's text** (Q7's rule) |
+| `under_review` → `verified` | the claim's `claim_class` meets **that class's minimum evidence bar** (GUS-026 §4) AND the citations meet the **independence rule** (GUS-026 §5) AND the `stance='supports'` links are from **class-sufficient** sources for the class |
+| `verified` → `published` | the statement's `description_sentences` anchors are all `ok` (Q9's `sentence_claims.status`), and the statement is attached to the dish's dimension rows where it is the dimension's evidence |
+| any → `disputed` | the sources **conflict**: ≥2 **independent** S1–S3 sources representing **opposing positions**, each with `stance` `supports` and `refutes` recorded |
+| `published` → `needs_revision` | the evidence has degraded: a source has gone dead, been retracted, or a re-read contradicts the excerpt. **The state is the anti-rot mechanism** — a published claim whose source disappears must be visible as degraded, not silently retained |
+| `needs_revision` → `published` | the evidence has been re-established and re-verified. **Re-publishing is a human action**, exactly as first publication is |
 
-**The open sub-question: who moves a claim between states?** A `published` claim is a published claim, so the transition to `published` should be a **human action**, not an agent action (GUS-026 §10 restricts what an agent may do). An agent may move a claim to `research_pending` or `under_review`, and may flag `needs_revision`; it may not publish.
+**Publication is a GATE, not a status.** A claim is publishable only when its `claim_class` meets that class's bar **and** its citations meet the independence rule. The `published` state records that the gate was passed; it does not itself confer the property.
+
+#### The agent boundary (GUS-026 §10), made mechanical
+
+| | an agent may | an agent may NOT |
+|---|---|---|
+| `draft` → `research_pending` | ✅ | — |
+| `research_pending` → `under_review` | ✅ — it may fetch, record URL + access date + locator, and propose the class | — |
+| `under_review` → `verified` | ❌ | **verification state changes are human-only** |
+| `verified` → `published` | ❌ | **an agent may not publish** |
+| any → `disputed` | ✅ — it may classify a claim as `disputed` when the sources conflict | — |
+| any → `needs_revision` | ✅ — it may flag a claim that fails the policy's bar | — |
+| `needs_revision` → `published` | ❌ | re-publication is human-only |
+| any | ✅ it may cite a source **it has fetched**, and may record the URL + access date + locator | ❌ it may **not** cite a source it has not fetched, ❌ may not infer a date, person or place that no source states, ❌ may not set `kitchen-tested`, ❌ may not publish an `unsupported` or `hypothesis` claim, ❌ may not present an S6 source as the evidence for an R2 origin claim |
+
+**The rule that makes the boundary mechanical rather than advisory:** the `verified` and `published` transitions are **not writable by the agent's own credentials**. Concretely, `claim_citations`/statement status writes are separated from the agent's write path — the agent can create a citation and propose a statement, but the transition to `verified` requires the **reviewer's** write path, and `published` requires the **publisher's**. **decided-by: hermes** — a boundary enforced only by a written rule is a boundary that gets crossed under pressure; a boundary enforced by *which credential can write the row* is not. The implementation vehicle (a distinct role, a DB-level guard, or a moderator-only route) is an implementation detail, but the **separation must be real**.
+
+#### Two things this decision settles that were open
+
+- **A `documented` claim may rest on a single source**; a `disputed` claim requires ≥2 **independent** S1–S3 sources on opposing sides. The pilot's own corroboration is therefore **0 by policy** — all 142 catalog sources are `en.wikipedia.org` → S6 (Q6) — and **no Wikipedia derivation work is needed** (Q8).
+- **The seven states are the only states.** `unverified` is **not** a state; Q7's migration wording ("verification state `unverified` until reviewed") means **`research_pending`**. A claim with no evidence is `research_pending`; a claim whose class is `unsupported` is `unsupported` — which is a **`claim_class`**, not a verification state. Keeping those two axes separate is what stops "no evidence" from reading as "not yet checked".
 
 ---
 
-### Q13 — What are the performance and API consequences?
+### ✅ Q13 — DECIDED (hermes, 2026-10-29): no read-path change in the pilot; claims on a new endpoint
 
-**Decision:** whether ADR-002 changes any read path.
+**Decision:** the pilot changes **no existing read path**. The 3 pilot dishes (`rendang`, `chicken-tikka-masala`, `tacos-al-pastor`) get claims, anchors and provenance; the existing `GET /api/dishes/:slug` payload is **byte-identical** to what it is today. Claims are exposed through a **new** endpoint, `GET /api/dishes/:slug/claims`, so the pilot can be verified without touching what readers see.
 
-**Recommendation: **no read-path change in the pilot.** The 3 reference dishes get claims, anchors and provenance; the existing `/api/dishes/:slug` payload is unchanged. Claims are exposed through a **new** endpoint (`/api/dishes/:slug/claims`) so the pilot can be verified without touching what readers see.
+**Reason:** ADR-002 changes the *meaning* of the data, not its presentation. The pilot's job is to prove the model; proving it does not require every consumer to move at once. The existing payload is already a stable public contract with its own consumers (`apps/web`, `apps/recipes`), and coupling it to a model that has not been through a pilot would make the pilot's own failures the production site's failures.
 
-**Reason:** ADR-002 changes the meaning of the data, not its presentation. The pilot's job is to prove the model; proving it does not require every consumer to move at once.
+#### The new endpoint's shape
 
-**Alternative: expose claims inline in the dish payload from the start.** Fewer round trips; but it couples the public API to a model that has not been through a pilot yet.
+```
+GET /api/dishes/:slug/claims
+```
+
+It returns the **statements anchored in that dish's sentences**, with their evidence and their verification state:
+
+```jsonc
+{
+  "dish": "rendang",
+  "coverage": {
+    "anchoredSentences": 3,
+    "totalSentences": 3,
+    "percent": 100
+  },
+  "statements": [
+    {
+      "id": "…",
+      "subject": { "type": "dish", "id": "…", "label": "Rendang" },
+      "predicate": { "id": "…", "slug": "originated_in", "label": "originated in" },
+      "value": { "type": "place", "id": "…", "label": "Minangkabau" },
+      "qualifiers": { "period": { "start": null, "end": null } },
+      "claimClass": "documented",
+      "verificationState": "published",
+      "readings": [
+        { "locale": "en", "kind": "template", "text": "Rendang is a Minangkabau dish." }
+      ],
+      "citations": [
+        {
+          "source": { "id": "…", "url": "…", "title": "…", "sourceClass": "S2" },
+          "stance": "supports",
+          "locator": "§Origins",
+          "excerpt": "…",
+          "revisionId": "123456",
+          "retrievedAt": "2026-10-29T…Z",
+          "independence": "independent"
+        }
+      ],
+      "anchors": [
+        { "sentenceId": "…", "position": 0, "status": "ok" }
+      ]
+    }
+  ]
+}
+```
+
+**Coverage is computed over the dish's own sentences** (Q10): `coverage(dish) = anchored sentences / total sentences`. It is **not** "statements whose subject is this dish" — that would score `tacos-al-pastor` 0% while the question D4b asks is *"is every fact asserted in this prose anchored?"*, a question about the prose. A sentence may anchor a statement about a **different subject** (the Puebla case), and the coverage figure must still count it.
+
+#### Why the endpoint is separate, concretely
+
+- **The payload changes shape.** The existing `GET /api/dishes/:slug` returns `sources: dishCitations` — a flat list of the old citations. The claims endpoint returns **statements with their evidence, state and anchors**. Putting that inline would mean changing the shape of an existing field, not just adding one, and every consumer of `sources` would need to move.
+- **The two answer different questions.** The existing payload answers *"what does this dish say and what was cited when it was written?"*. The claims endpoint answers *"what does this dish assert, what is the evidence for each assertion, and how much of the prose is anchored?"* — the second is an **editor's** and a **researcher's** question, and it is answerable only for the pilot dishes.
+- **It is the pilot's oracle.** Q7 and Q9 both need a way to check the model without an editor UI. A read-only endpoint that returns the statements, their evidence and the coverage figure *is* that oracle, and it doubles as the thing a moderator would use.
+
+#### The consequences, stated plainly
+
+| | |
+|---|---|
+| **`GET /api/dishes/:slug`** | **unchanged.** No new field, no changed field, no changed shape. |
+| **`GET /api/dishes/:slug/claims`** | new, read-only, public. For the 3 pilot dishes it returns statements; for the other 118 it returns an **empty statement list with `coverage` 0%** — which is the honest answer (Q11's "defined and near-zero", not "not measured"). |
+| **`GET /api/dishes`** (list) | unchanged. The list payload is not extended with claims. |
+| **Performance** | The claims endpoint does **not** join the claims model into the dish payload, so **the existing read path's query plan is unchanged**. The claims endpoint itself is a separate, heavier query — but it is only reached by a reader who asks for evidence, and only the 3 pilot dishes have any. |
+| **Write paths** | unchanged by this decision. Q9's own decision already sequences the API change (write through the sentence table) **before** the trigger, and that is unaffected here. |
+
+**decided-by: hermes** — the endpoint is **public and read-only**, not editor-only. Reason: a reference work's whole value is that its evidence is inspectable by the reader, and an evidence model that only its authors can see is not a reference work. The **write** boundary is strict (Q12: only a reviewer may move a claim to `verified`, only a publisher may publish) — but the **read** boundary is open. A claim whose state is `draft`, `research_pending` or `under_review` is **not** returned by the public endpoint; `verified`, `published`, `disputed` and `needs_revision` are, each with its state visible, because a reader who can see a claim should be able to see that it is disputed or degraded.
+
+#### What is deferred
+
+- Whether the 118 non-pilot dishes eventually get a `coverage` figure that is not 0% (that is the research backlog, Q11).
+- Whether `GET /api/dishes/:slug` should eventually embed a **coverage badge** (a single number) even though it embeds no claims. **decided-by: hermes** — deferred until the number is meaningful, because a badge reading 0% on 118 dishes is noise, not information, and it would draw attention to a number that says "not yet researched" rather than anything about the food.
+- The exact `needs_revision` display: whether a degraded claim shows a notice on the dish page, in the claims endpoint only, or both.
 
 ---
 
@@ -1925,7 +2022,7 @@ The two rejected options were:
 
 Same as ADR-001: I propose, you answer **ok** to accept or override. **Q1 is answered** (see above); the list is frozen from here.
 
-**Q12 is open** — the verification lifecycle: which state a statement moves through, and who moves it. GUS-026 §6 already names the seven states, so the open part is the **gates** (what must be true to move between them) and the **agent boundary** — GUS-026 §10 says an agent may not move a claim to `verified`, and Q2 and Q7 have both leaned on that.
+**Q12 and Q13 are decided** (hermes, 2026-10-29) — see the Q12 and Q13 sections above. The list is now closed: Q1 to Q13 all have answers. The next step is the **pilot**.
 
 
 ---
@@ -1955,5 +2052,5 @@ These are decisions I will make by following the existing policy, and flag rathe
 | Q9 anchors | ADR-001 D4 (sentence anchors) — **DECIDED** (Alejandro, 2026-10-27): a **structured sentence table**, not inline markers (markers would leak into the public column and break translations; offsets break on edit). `description_sentences` (dish_id, field `short`/`long`, locale, position, text, `anchor_status` full/partial/none) + `sentence_claims` (sentence_id → statement_id, **status** ok/missing/retracted/unpublished/contradicting). `short_description` rendered from the sentences with an **exact** concatenation check; a sentence edit marks its anchors `needs_review` (Q2's stale mechanism); anchors on the **canonical** text only. **(1) THE CONCAT CHECK IS A GATE, NOT A BOUNDARY TEST** — a zero-width split rejoins exactly *by construction*, so it proves table↔column agreement and nothing about boundaries. Boundaries are proven by a **FIXTURE SET** (quotes, decimals, abbreviations, initials, ellipses) with expected splits, plus **human review of the pilot sentences**; **one splitter implementation** serves both population and check. The rule: a terminator that is not in a quoted span, not between digits, not part of an abbreviation/initial, not part of an ellipsis, and is followed by whitespace. **(2) VALIDITY IS ITS OWN AXIS** on `sentence_claims.status` (ok/missing/retracted/unpublished/contradicting), separate from `anchor_status`'s coverage — a sentence is `full` only if every anchor is `ok`; `unpublished` is the agent boundary (GUS-026 §10) in anchor form. **(3) CANONICAL BY DEFINITION** — the `dishes` columns ARE the canonical text; no locale column is needed; `dish_translations` is non-canonical and its 121 `en` rows are byte-identical duplicates of `short_description`, so translations are NOT a source of sentences (else every fact is anchored twice) — **archiving the 121 duplicates is backlogged**; this retires GUS-226 as a blocker for Q9. **(4) FIXTURE EXCLUDED BY GUS-231** — `dishes.status` CHECK restricts to draft/published/archived and the fixture is `archived`, so gating population on `status='published'` excludes it by construction. **(5) MANY-TO-MANY** confirmed — rendang's single sentence asserts **7+ facts**, confirming **GUS-225's undercount**. **(6) POPULATION = 3 PILOT DISHES ONLY**; `long` is **moot** (measured: all 3 pilot `long_description` are empty) and that gap is recorded — the `long` path (166 sentences, 1–12 per dish) is untested by the pilot, so the `field` enum must not be narrowed to `'short'`. **(7) `sentence_managed` FLAG + TRIGGER** — `ALTER TABLE dishes ADD COLUMN sentence_managed boolean NOT NULL DEFAULT false`, with a `BEFORE UPDATE` trigger rejecting a changed `short_description` when the flag is set; same pattern the project already uses in `db/migrations/gus-224-relations-option-b.sql`. **Why:** the concat check only *detects* divergence; a direct `PATCH` to `/api/dishes/:slug` (which sets `shortDescription` in `apps/api/src/routes/dishes-write.ts`) would silently desync. **Consequences:** the PATCH path must write through the sentence table for flagged dishes, and the flag keeps the trigger narrow (only the 3 pilot dishes are flagged; the other 118 keep free-text edits; `long_description` and all other columns stay writable). **(3a) FLAG CHANGES ARE LOGGED AND UNSETTING IS GATED** — every `sentence_managed` change is logged in `edit_history` (`target_type='dish'`, `action='update'`, `diff` jsonb, `comment` — the GUS-014 pilot's established pattern), written by the trigger in the same transaction so it cannot be skipped. **Unsetting the flag must re-sync or be REJECTED**, because otherwise the flag is a bypass: it would disable the trigger *and* leave the table and column desynced. **The stronger choice is recorded — VERIFY-THEN-CLEAR** (re-sync on unset can silently overwrite an edited column with a stale reconstruction and lose prose; verify-then-clear preserves both properties). So the trigger has two duties: `false→true` logs and requires the sentences to exist and be consistent; `true→false` logs and requires consistency, else it raises. **Consistency = the concat check passes** — one definition, used by the trigger, the migration and the verifier. **(3b) THE API CHANGE LANDS BEFORE THE TRIGGER** — if the trigger is applied first, every `PATCH /api/dishes/:slug` setting `shortDescription` on a flagged dish **fails** (the route still writes the column directly), a user-visible regression caused purely by ordering. Sequence: (1) ship the API change; (2) then the migration (which needs approval under RULES.md). The code lands first because it is the cheaper order to revert. After the trigger is live, such a PATCH returns an error instead of silently desyncing — intended, and covered by an API test |
 | Q10 ownership | ADR-001 §2.2 (`dish_claims`) — **DECIDED** (Alejandro, 2026-10-27): statements are **INDEPENDENT ENTITIES with NO owner column** — no `owner_id`, no `dish_id`, no owner FK; the **subject FK is the only link**. "A dish's statements" = `WHERE subject_type='dish' AND subject_id = $1`. **Why:** an owner column makes evidence duplication the schema's default — "rendang uses coconut milk" and "nasi lemak uses coconut milk" are ONE fact about one ingredient, and per-dish ownership would hide cross-dish corroboration and duplicate the research. **Cost stated:** a statement's subject is a single entity, so a genuinely multi-dish fact is two statements sharing evidence (the model shares by sharing the subject, not by widening it). **(2) A SENTENCE MAY ANCHOR A STATEMENT ABOUT A DIFFERENT SUBJECT** — a `tacos-al-pastor` sentence may anchor a statement about **Puebla** (`subject_type='place'`); that is correct, because the sentence is where the claim is made and the claim is about what it is about. **DISH COVERAGE IS COMPUTED OVER ITS OWN SENTENCES, regardless of statement subject** — `coverage(dish) = anchored sentences / total sentences`. Not "statements whose subject is this dish": that would score tacos-al-pastor **0%** while D4b actually asks *"is every fact asserted in this prose anchored?"* — a question about the prose, not the subject distribution. **Corollary: evidence is per-statement, anchoring is per-sentence** — one statement can be anchored in two dishes' sentences with one evidence chain and two anchors. **(3) DEDUPE: ONE FACT IS ONE STATEMENT**, unique on `(subject_type, subject_id, predicate_id, value_type, value_ref, value_literal, qualifier_hash)` — otherwise a claim corroborated by two sources looks like two uncorroborated claims and the evidence splits. The **canonical qualifier hash** is in the key because scope is part of the fact's identity (Glasgow vs the subcontinent are competing statements, not one). Measured on live Postgres: jsonb equality is **key-order-independent and whitespace-insensitive but absent ≠ null** — so absent qualifiers must be **omitted, not stored as null**, or the hash diverges and dedupe silently fails. The qualifiers stay readable in `jsonb`; the hash is a key, not a storage format, and must be wide enough that a collision is not practical. Workflow: **find-or-create the statement, then attach the citation** — a duplicate insert is the constraint saying the fact exists. **(4) NO CASCADE DELETES** out of statements and **retraction is a status change** (`needs_revision`/`disputed`) — deleting a statement would delete its evidence chain, which is the most expensive thing in the catalog to produce and would make the research unrepeatable. Concretely: `description_sentences` → `sentence_claims` cascades (a link deletion, not an evidence deletion); `statements` → `claim_citations` does NOT cascade; `dishes` → `description_sentences` does NOT cascade; a dangling anchor is **marked** `missing`, not silently left. `dishes.status='archived'` is the existing non-delete mechanism (GUS-231). **THE CONSISTENCY CHECK: a dimension row's `statement_id` must reference a statement whose subject is that dish** — catches wrong-subject anchors and cross-dish mis-assignment. Crucially the **Puebla case is correctly NOT flagged**: the sentence↔statement relation is deliberately allowed to cross subjects, but the dimension-row↔statement relation is not, because a dimension row asserts something *about that dish*. A dimension row with `statement_id IS NULL` is **NOT a violation** — it is the honest **unevidenced** state (91 dishes have a family and no statement). Deferred: the exact qualifier canonicalisation (a wrong choice silently breaks dedupe — belongs with the first implementation), whether the hash is stored or generated (generated is safer — it cannot desync), and whether place statements can ever be dimension-row targets |
 | Q11 migration | GUS-011 (121 Wikipedia-only) — **DECIDED** (Alejandro, 2026-10-27): **OPTION (iii) — neither (i) nor (ii).** The **118 published dishes outside the pilot get NO statements until research supplies a real source**; their dimension rows stay **`statement_id IS NULL` = `unevidenced`** (Q3's honest state). **NO COUNTRY-LEVEL STATEMENTS ARE DERIVED FROM `origin_location` OR FROM EXISTING DIMENSION ROWS — a geocode is not a citation.** **PLACES ARE SEEDED ON DEMAND, PER RESEARCHED DISH**, not speculatively for all 36 countries. Why (i) fails: it manufactures claims from a geocode — `origin_location` is a `geometry` column holding WKB hex, the country came from a *map* not a *source*, and the resulting rows would be **indistinguishable in the database from researched ones** while having **no `claim_citations` at all** — which in the model is precisely `unsupported`. That is the "two truths" failure ADR-002 exists to remove, arrived at through the back door. Why (ii) fails: it needs a place hierarchy for 36 countries plus a non-Wikipedia source per dish, and would land **before** the model that records any of it exists. The 118's archived `citations` rows remain **the record that research is outstanding** — the archive is a work queue, not a graveyard. CONSEQUENCE STATED PLAINLY: the catalog's headline coverage becomes **defined and near-zero** (today it is undefined) — a defined 0% reads as "not yet researched" rather than "not measured"; the 118 do not get worse, they get correctly labelled. THE RESEARCH BAR IS PER-CLAIM, NOT PER-DISH: a non-origin claim needs a class-sufficient source (S1–S5; S6 may accompany but not stand alone); an **origin** claim with `claim_class` `documented`/`disputed` needs **≥1 S1/S2/S3/S5 source** (GUS-026 §3.1) and a transnational dish's origin needs sources **for each competing position**; a dish that cannot be researched to that bar stays unevidenced **permanently** — GUS-026 §6's `unsupported` class exists for exactly that. ORDER OF WORK: **(a)** fix the cuisine gaps now — dimensions only, no statements/citations/claims, so it does not wait for the claims model; **(b)** finish ADR-002 and run the pilot; **(c)** the 50 new dishes are **seeded directly into the claims model, never the old one** — each arriving with place, description, dimensions AND source in one operation, each needing **≥1 non-Wikipedia source for its origin claim** (a stronger bar than the existing 121 meet, deliberately). Why (c) is not seeded the old way: the old model cannot express the content honestly (`citations.claim_text` is a whole description, 120 of 121), so a new dish seeded the old way arrives with the over-broad proposition the ADR exists to dissolve — **the 50 dishes are the first content that starts life in the new model**. Deferred: the order of the 118; whether an unresearchable dish is hidden or badged (a Q13 display question); the exact `unset_reason` mechanism (a schema choice — the reason must be queryable per (dish, dimension) and unable to conflict with an assigned value); and whether `dish_tradition`'s multi-value suffices for the transnational case (Q5's generalised rule is written for single-valued dimensions) |
-| Q12 lifecycle | GUS-026 §6, §10 |
-| Q13 API | ADR-001 §4 (sequencing) |
+| Q12 lifecycle | GUS-026 §6, §10 — **DECIDED (hermes, 2026-10-29)**: GUS-026 §6's seven states **exactly** (`draft` → `research_pending` → `under_review` → `verified` → `published`, with `disputed` and `needs_revision` branches). **Publication is a GATE, not a status** — a claim is publishable only when its `claim_class` meets that class's minimum evidence bar AND its citations meet the independence rule. **The gates are explicit:** `draft`→`research_pending` needs a subject, predicate, typed value and a set class, no evidence; `research_pending`→`under_review` needs ≥1 fetched citation with a **validated** excerpt (substring of the stated revision) and `revision_id`/`retrieved_at`; `under_review`→`verified` needs the class's evidence bar AND the independence rule AND class-sufficient `supports` links; `verified`→`published` needs every anchor `ok` and the statement attached to its dimension rows; any→`disputed` needs ≥2 **independent** S1–S3 sources on **opposing** positions; `published`→`needs_revision` is the anti-rot trigger (dead link, retraction, contradicting re-read) and re-publishing is human-only. **The agent boundary is MECHANICAL, not advisory:** an agent may propose, fetch, cite what it fetched, classify `disputed`, and flag `needs_revision`; it may NOT move a claim to `verified` or `published`, may not set `kitchen-tested`, may not cite a source it has not fetched, may not publish an `unsupported`/`hypothesis` claim, may not offer an S6 source as the evidence for an R2 origin claim, and may not infer a date, person or place no source states. **decided-by: hermes** — the `verified` and `published` transitions must be unwritable by the agent's own credentials: a boundary enforced only by a written rule is a boundary that gets crossed under pressure, and a boundary enforced by *which credential can write the row* is not. The implementation vehicle is an implementation detail; the separation must be REAL. Also settles: a `documented` claim may rest on a single source; `disputed` needs ≥2 independent S1–S3 sources on opposing sides; the pilot's corroboration is therefore **0 by policy** (all 142 catalog sources are S6) and no Wikipedia derivation work is needed; `unverified` is **not** a state (Q7's "unverified" means `research_pending`); verification state and `claim_class` are **separate axes**, so "no evidence" never reads as "not yet checked" |
+| Q13 API | ADR-001 §4 (sequencing) — **DECIDED (hermes, 2026-10-29)**: **no read-path change in the pilot.** `GET /api/dishes/:slug` stays **byte-identical** — no new field, no changed field, no changed shape; the dish list endpoint is unchanged; the existing read path's query plan is unchanged because the claims model is not joined into it. Claims are exposed on a **new, public, read-only** `GET /api/dishes/:slug/claims`, returning the statements anchored in that dish's sentences with their evidence, `claim_class`, verification state, readings and anchors, plus a `coverage` figure. For the 118 non-pilot dishes it returns an **empty statement list with coverage 0%** — the honest answer per Q11 ("defined and near-zero", not "not measured"). **Why separate:** the existing payload's `sources` field is the old flat citation list and answers *"what was cited when this was written?"*; the claims endpoint answers *"what does this dish assert, what is the evidence for each assertion, and how much of the prose is anchored?"* — an editor's and researcher's question. Putting it inline would change the shape of an existing field and force every consumer of `sources` to move, coupling the public API to a model that has not been through a pilot. **Why public and read-only, not editor-only:** a reference work's value is that its evidence is inspectable by the reader; an evidence model only its authors can see is not a reference work. The **write** boundary stays strict (Q12), the **read** boundary is open — `draft`/`research_pending`/`under_review` are not returned, `verified`/`published`/`disputed`/`needs_revision` are, each with its state visible, because a reader who can see a claim should see that it is disputed or degraded. **The endpoint IS the pilot's oracle** — Q7 and Q9 both need a way to check the model without an editor UI. Deferred: whether the dish payload should eventually embed a single coverage **badge** (decided: deferred until the number is meaningful — a badge reading 0% on 118 dishes is noise); the exact `needs_revision` display treatment |
