@@ -105,7 +105,9 @@ const isNotFound =
   Astro.url.pathname === "/404/";
 const canonicalUrl =
   canonicalProp ??
-  (isNotFound ? undefined : `${siteOrigin}${Astro.url.pathname.replace(/\/+$/, "") || "/"}`);
+  (isNotFound
+    ? undefined
+    : `${siteOrigin}${Astro.url.pathname.replace(/\/+$/, "") || "/"}`);
 ---
 
 <!doctype html>

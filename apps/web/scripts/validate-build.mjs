@@ -601,7 +601,8 @@ check(
 // an EXISTING robots.txt and caught the missing-file case with an empty
 // catch block, so the site shipped with no robots.txt at all and
 // nothing said so.
-const origin = DOMAIN === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+const origin =
+  DOMAIN === "geo" ? "https://gustale.com" : "https://gustale.recipes";
 const robotsPath = join(DIST, "robots.txt");
 const sitemapIndexPath = join(DIST, "sitemap.xml");
 
@@ -623,7 +624,11 @@ check(
   robotsBody.includes(`Sitemap: ${origin}/sitemap.xml`),
   `Sitemap: ${origin}/sitemap.xml`,
 );
-check("the sitemap index exists", await exists(sitemapIndexPath), sitemapIndexPath);
+check(
+  "the sitemap index exists",
+  await exists(sitemapIndexPath),
+  sitemapIndexPath,
+);
 
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(

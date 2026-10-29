@@ -216,7 +216,9 @@ async function main() {
   ].join("\n");
 
   await writeFile(robotsPath, robots, "utf-8");
-  console.log(`[sitemap] wrote robots.txt (${disallowed.length} disallowed paths)`);
+  console.log(
+    `[sitemap] wrote robots.txt (${disallowed.length} disallowed paths)`,
+  );
 }
 
 main().catch((err) => {

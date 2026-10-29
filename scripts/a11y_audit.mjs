@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * The accessibility and performance audit.
  *
@@ -35,9 +36,9 @@
  * The output is a JSON report and a human summary.
  */
 
-import { chromium } from "playwright";
-import { writeFile, mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { chromium } from "playwright";
 
 const require = createRequire(import.meta.url);
 
@@ -51,8 +52,16 @@ const PAGES = [
   { name: "dish-list", url: "/dishes/", template: "dish-list" },
   { name: "dish-en", url: "/dishes/nasi-goreng", template: "dish" },
   { name: "dish-es", url: "/es/dishes/nasi-goreng", template: "dish-locale" },
-  { name: "dish-ar", url: "/ar/dishes/nasi-goreng", template: "dish-locale-rtl" },
-  { name: "dish-ja", url: "/ja/dishes/nasi-goreng", template: "dish-locale-cjk" },
+  {
+    name: "dish-ar",
+    url: "/ar/dishes/nasi-goreng",
+    template: "dish-locale-rtl",
+  },
+  {
+    name: "dish-ja",
+    url: "/ja/dishes/nasi-goreng",
+    template: "dish-locale-cjk",
+  },
   { name: "regions", url: "/regions", template: "regions" },
   { name: "families", url: "/families", template: "families" },
   { name: "family", url: "/family/noodle", template: "family" },
@@ -93,7 +102,10 @@ async function runAxe(page) {
       return { error: "axe-core is not present on the page" };
     }
     const result = await window.axe.run(document, {
-      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+      runOnly: {
+        type: "tag",
+        values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+      },
     });
     return {
       violations: result.violations.map((v) => ({
@@ -119,7 +131,9 @@ async function runChecks(page) {
     // Every image must have an alt attribute — and a MEANINGFUL one.
     const images = Array.from(document.querySelectorAll("img"));
     result.images = images.length;
-    result.images_without_alt = images.filter((i) => !i.hasAttribute("alt")).length;
+    result.images_without_alt = images.filter(
+      (i) => !i.hasAttribute("alt"),
+    ).length;
     result.images_with_empty_alt = images.filter(
       (i) => i.hasAttribute("alt") && i.getAttribute("alt").trim() === "",
     ).length;
@@ -129,7 +143,8 @@ async function runChecks(page) {
     result.links = links.length;
     result.links_without_a_name = links.filter((a) => {
       const text = (a.textContent || "").trim();
-      const label = a.getAttribute("aria-label") || a.getAttribute("title") || "";
+      const label =
+        a.getAttribute("aria-label") || a.getAttribute("title") || "";
       const image = a.querySelector("img");
       const imageAlt = image ? image.getAttribute("alt") || "" : "";
       return text === "" && label === "" && imageAlt === "";
@@ -140,7 +155,8 @@ async function runChecks(page) {
     result.buttons = buttons.length;
     result.buttons_without_a_name = buttons.filter((b) => {
       const text = (b.textContent || "").trim();
-      const label = b.getAttribute("aria-label") || b.getAttribute("title") || "";
+      const label =
+        b.getAttribute("aria-label") || b.getAttribute("title") || "";
       return text === "" && label === "";
     }).length;
 
@@ -152,16 +168,15 @@ async function runChecks(page) {
     result.form_controls_without_a_label = controls.filter((el) => {
       if (el.getAttribute("aria-label")) return false;
       if (el.getAttribute("aria-labelledby")) return false;
-      if (el.id && document.querySelector(`label[for="${el.id}"]`)) return false;
+      if (el.id && document.querySelector(`label[for="${el.id}"]`))
+        return false;
       if (el.closest("label")) return false;
       return true;
     }).length;
 
     // The heading order. A skipped level is a real screen-reader
     // problem: it means the reader's heading list has a gap.
-    const headings = Array.from(
-      document.querySelectorAll("h1,h2,h3,h4,h5,h6"),
-    );
+    const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6"));
     result.headings = headings.length;
     let skips = 0;
     let previous = 0;
@@ -216,7 +231,9 @@ async function runChecks(page) {
       return { r: 255, g: 255, b: 255 };
     };
     const seen = new Set();
-    for (const el of document.querySelectorAll("p,span,a,li,h1,h2,h3,h4,button,label,td,th")) {
+    for (const el of document.querySelectorAll(
+      "p,span,a,li,h1,h2,h3,h4,button,label,td,th",
+    )) {
       const text = (el.textContent || "").trim();
       if (!text || el.children.length > 0) continue;
       const style = getComputedStyle(el);
@@ -330,7 +347,8 @@ async function main() {
     form_controls: total("form_controls"),
     form_controls_without_a_label: total("form_controls_without_a_label"),
     heading_level_skips: total("heading_level_skips"),
-    pages_blocking_zoom: report.pages.filter((p) => p.checks?.blocks_zoom).length,
+    pages_blocking_zoom: report.pages.filter((p) => p.checks?.blocks_zoom)
+      .length,
     pages_with_a_console_error: report.pages.filter(
       (p) => (p.console_errors?.length ?? 0) > 0,
     ).length,
