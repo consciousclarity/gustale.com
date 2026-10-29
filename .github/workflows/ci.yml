@@ -89,7 +89,23 @@ jobs:
         # made the previous stub gate silently invisible for months.
 
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
-        run: python3 scripts/validate-backlog.py .hermes/BACKLOG.yaml
+        # The backlog lives on the private/state branch, NOT on main —
+        # .hermes/ was untracked from main on 2026-10-29 because it
+        # holds agent-shared state and the operations notes, and a
+        # public repository is not the place for it. So on main the file
+        # is usually ABSENT from the checkout, and this check has
+        # nothing to validate.
+        #
+        # It must not fail when the file is missing: a missing file is
+        # the normal state, not a broken backlog. It must still fail
+        # when the file IS present and malformed, because that is the
+        # bug this check exists to catch.
+        run: |
+          if [ -f .hermes/BACKLOG.yaml ]; then
+            python3 scripts/validate-backlog.py .hermes/BACKLOG.yaml
+          else
+            echo "::notice::.hermes/BACKLOG.yaml is not in this checkout (it lives on private/state) — nothing to validate"
+          fi
         # PyYAML silently keeps the last value when a key is duplicated at
         # the same indentation. That bit us 2026-10-17: `status: todo` from
         # the original template survived behind a later `status: done`,
