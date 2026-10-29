@@ -203,7 +203,13 @@ def main():
         A(f"-- resolve the {vocab} labels against {table}")
         A("INSERT INTO vocabulary_labels")
         A("  (vocabulary, value_id, language, name, is_primary, source, source_ref)")
-        A(f"SELECT s.vocabulary, t.id, s.language, s.name, false, s.source, s.source_ref")
+        # is_primary: these are the Wikidata label for the value in
+        # that language — the canonical one, the one the page should
+        # show. There is exactly ONE label per (value, language) in
+        # this table, so it is primary. It was hardcoded false, which
+        # left all 35,871 rows claiming to be a secondary label of
+        # nothing.
+        A(f"SELECT s.vocabulary, t.id, s.language, s.name, true, s.source, s.source_ref")
         A("  FROM _vocab_label_stage s")
         A(f"  JOIN {table} t ON t.{keycol} = s.value_key"
           + (f" AND {extra}" if extra else ""))
