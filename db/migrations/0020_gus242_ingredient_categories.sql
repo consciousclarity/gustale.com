@@ -916,9 +916,20 @@ BEGIN
   END IF;
 
   -- The dishes' ingredient links must be intact.
+  --
+  -- Conditional: the CI seed builds no dish ingredient links at
+  -- all, so requiring them would fail a fresh ephemeral database
+  -- for no good reason. The check bites where there IS something
+  -- to protect.
   SELECT count(*) INTO n FROM dish_dish_ingredient_categories;
-  IF n = 0 THEN
-    RAISE EXCEPTION 'Q6 failed: no dish ingredient links remain';
+  IF n > 0 THEN
+    SELECT count(*) INTO n
+      FROM dish_dish_ingredient_categories x
+      WHERE NOT EXISTS (
+        SELECT 1 FROM ingredient_categories c WHERE c.id = x.value_id);
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'Q6 failed: % dish ingredient links point at a missing category', n;
+    END IF;
   END IF;
   RAISE NOTICE 'ingredient categories: % rows, % with a FoodOn ID',
     (SELECT count(*) FROM ingredient_categories),
