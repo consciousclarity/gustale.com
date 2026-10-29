@@ -40,6 +40,19 @@ step "the extensions"
 run_pg -c 'CREATE EXTENSION IF NOT EXISTS postgis;' \
        -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' >/dev/null || fail=1
 
+# The CI runner creates the database as the gustale user, so gustale
+# OWNS the tables. Here the database is created by the postgres
+# superuser, so gustale has no grants — and every test query fails
+# with "permission denied for table categories", which looks like a
+# test failure and is not one.
+step "the grants"
+run_pg -c "GRANT ALL ON SCHEMA public TO gustale;" \
+       -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
+       -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" \
+       -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO gustale;" \
+       -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO gustale;" \
+       >/dev/null || fail=1
+
 step "the drizzle chain"
 mapfile -t drizzle_files < <(cd "$(dirname "$0")/.." && git ls-files 'packages/db/drizzle/*.sql' | LC_ALL=C sort)
 for f in "${drizzle_files[@]}"; do
@@ -98,6 +111,11 @@ for f in "${data_migrations[@]}"; do
   fi
 done
 
+step "the grants, again (the migrations and the seed created tables)"
+run_pg -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
+       -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" \
+       >/dev/null || fail=1
+
 step "the state before the population"
 echo "  the dishes:            $(run_pg -tAc 'select count(*) from dishes;' 2>&1|tail -1)"
 echo "  the sentences:         $(run_pg -tAc 'select count(*) from description_sentences;' 2>&1|tail -1)"
@@ -110,6 +128,10 @@ python3 "$(dirname "$0")/populate_description_sentences.py" --apply --db "$DB" 2
 step "the GUS-239 archive"
 run_pg -f - < "$(dirname "$0")/../db/migrations/0032_gus239_archive_dish_translations.sql" 2>&1 | grep -E 'NOTICE|ERROR' | head -3
 [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "  FAILED: 0032"; fail=1; }
+
+step "the GUS-239 English names"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0033_gus239_english_names.sql" 2>&1 | grep -E 'NOTICE|ERROR' | head -3
+run_pg -f - < "$(dirname "$0")/../db/migrations/0033_gus239_english_names.sql" >/dev/null 2>&1 || { echo "  FAILED: 0033"; fail=1; }
 
 echo ""
 if [ $fail -eq 0 ]; then

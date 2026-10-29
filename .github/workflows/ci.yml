@@ -326,6 +326,15 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0032_gus239_archive_dish_translations.sql
 
+      # The English name for every dish that lacks one in dish_names.
+      # It must run after the archive: the archive's assertion is about
+      # the coverage the API now depends on, and the English name is
+      # part of that coverage.
+      - name: Apply the GUS-239 English names
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0033_gus239_english_names.sql
+
       - name: Run vitest
         working-directory: apps/api
         run: pnpm test -- --reporter=verbose

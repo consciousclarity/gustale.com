@@ -60,6 +60,7 @@ DATA_MIGRATIONS=(
 # dishes have no short description sentence": correct behaviour, wrong
 # moment.
 MIGRATION_0032=db/migrations/0032_gus239_archive_dish_translations.sql
+MIGRATION_0033=db/migrations/0033_gus239_english_names.sql
 
 run_pg() {
   docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
@@ -135,6 +136,15 @@ echo "--- the GUS-239 archive (after the sentences exist)"
 run_pg -f - < "$MIGRATION_0032" >/tmp/m0032.log 2>&1 || { echo "FAILED: 0032"; tail -12 /tmp/m0032.log; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0032.log | head -2 || true
+
+# 0033 adds the English name to dish_names for every dish that lacks
+# one. It must run AFTER the archive, because the archive's assertion
+# is about the coverage the API now depends on, and the English name
+# is part of that coverage.
+echo "--- the GUS-239 English names"
+run_pg -f - < "$MIGRATION_0033" >/tmp/m0033.log 2>&1 || { echo "FAILED: 0033"; tail -12 /tmp/m0033.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0033.log | head -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then
