@@ -9,10 +9,17 @@
 - **Layer 2 — `dish_names`:** 1,373 names across 121 dishes and 37
   languages. See `.hermes/REPORTS/ADR-003-layer2-dish-names.md`.
 
-**Layer 3 (prose) and the routing/UI are not yet implemented.** The
-API is ready for them: it accepts `?language=`, resolves it to any
-valid BCP-47 locale, and reports the locale it served alongside the
-one requested so the client can show the English-fallback notice.
+**Layer 3a (routing and the locale UI) is DONE** — deployed live
+2026-10-29. 1,089 locale pages (121 dishes × 9 locales), reciprocal
+hreflang on every page, 10 per-locale sitemaps plus an index, the
+browser-language suggestion (never forced), the English-fallback
+notice, RTL, and 747 self-hosted Noto faces. See
+`.hermes/REPORTS/ADR-003-layer3a-routing-ui.md`.
+
+**Layer 3b (the prose) is not yet implemented.** The API is ready for
+it: it accepts `?language=`, resolves it to any valid BCP-47 locale,
+and reports the locale it served alongside the one requested so the
+client can show the English-fallback notice.
 
 **Scope:** gustale.com and gustale.recipes. Same API, same data.
 
