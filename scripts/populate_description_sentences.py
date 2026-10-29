@@ -30,6 +30,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
@@ -54,6 +55,12 @@ def psql_command(db: str) -> list[str]:
 
     The probe is whether the container is there at all, because that
     is the difference that actually breaks.
+
+    When there is no container, the client is found in the usual
+    places rather than assumed to be on PATH: on a Debian image the
+    client is /usr/bin/psql, but on some it is under
+    /usr/lib/postgresql/<version>/bin, and a script that only tries
+    PATH fails on the second one.
     """
     if shutil.which("docker") and _has_container():
         return [
@@ -61,14 +68,6 @@ def psql_command(db: str) -> list[str]:
             "psql", "-U", "postgres", "-d", db,
             "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
         ]
-    # No container: a direct psql. The CI runner has Postgres as a
-    # service, and psql on PATH with PGPASSWORD in the environment.
-    #
-    # The binary is looked for in the usual places rather than
-    # assumed to be on PATH: on a Debian image the client is
-    # /usr/bin/psql, but on some it is under
-    # /usr/lib/postgresql/<version>/bin, and a script that only
-    # tries PATH fails on the second one.
     psql = shutil.which("psql")
     if not psql:
         import glob
@@ -78,6 +77,57 @@ def psql_command(db: str) -> list[str]:
         psql, "-h", "127.0.0.1", "-U", "gustale", "-d", db,
         "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
     ]
+
+
+def psql_env(db: str) -> dict[str, str]:
+    """The environment for the psql call.
+
+    THE PASSWORD IS NOT INHERITED.
+
+    The CI workflow sets `PGPASSWORD=gustale` INLINE, on each psql
+    command, not as a job-level env. So a script that shells out to
+    psql inherits an environment with NO password, and the connection
+    fails with "fe_sendauth: no password supplied" — which looks
+    nothing like the failure it is, and nothing like the guard
+    firing.
+
+    So the password is supplied HERE, from the same place the CI
+    workflow takes it, when the environment does not already carry
+    one.
+    """
+    env = dict(os.environ)
+    if env.get("PGPASSWORD"):
+        return env
+    # The live host's password comes from the deployment file; the CI
+    # runner's is the standard 'gustale'.
+    password = None
+    deployment = Path("/home/deploy/gustale.com/.db-password")
+    if deployment.exists():
+        raw = deployment.read_text().strip()
+        if "=" in raw:
+            password = raw.split("=", 1)[1].strip().strip("\"'")
+    env["PGPASSWORD"] = password or "gustale"
+    return env
+
+
+def can_connect(db: str) -> bool:
+    """Whether the population can reach the database AT ALL.
+
+    The refusal "description_sentences already holds N rows" is the
+    GUARD working. But in CI it was reported as a step failure, and
+    the first thing to rule out is that the script could not connect
+    in the first place — a different failure that looks the same in
+    a log.
+    """
+    try:
+        result = subprocess.run(
+            psql_command(db) + ["select 1;"],
+            capture_output=True, text=True, timeout=30,
+            env=psql_env(db),
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 def _has_container() -> bool:
@@ -112,6 +162,7 @@ def fetch_descriptions(db: str = "gustale") -> list[dict]:
         capture_output=True,
         text=True,
         check=True,
+        env=psql_env(db),
     ).stdout
     for line in out.splitlines():
         line = line.strip()
@@ -307,6 +358,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if not can_connect(args.db):
+        print(f"[populate] CANNOT REACH the database {args.db}.")
+        print(f"[populate] the command would be: {' '.join(psql_command(args.db))}")
+        print("[populate] on the CI runner this means the Postgres service is "
+              "not up, or PGPASSWORD is not in the environment.")
+        return 1
+
     dishes = fetch_descriptions(args.db)
     print(f"[populate] {len(dishes)} published dishes in {args.db}")
 
@@ -338,6 +396,7 @@ def main() -> int:
         input=sql,
         capture_output=True,
         text=True,
+        env=psql_env(args.db),
     )
     print(result.stdout[-2500:])
     if result.returncode != 0:
