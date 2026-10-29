@@ -53,7 +53,12 @@ UA = "gustale-reference-seed/1.0 (https://gustale.com)"
 VOCABULARIES = {
     "country": ("", ["Q3624078", "Q6256", "Q515"]),
     "region": ("", ["Q56061", "Q15042037", "Q3957"]),
-    "cuisine": (" cuisine", ["Q1968435", "Q1718821", "Q4189165"]),
+    # 'cuisine by ethnic group' (Q18291645) and 'cuisine by humans'
+    # (Q33115883) are the classes on the newer cuisine items - for
+    # instance 'Basotho cuisine' (Q134961316). Without them the
+    # matching rejected items that were exactly right.
+    "cuisine": (" cuisine", ["Q1968435", "Q1718821", "Q4189165",
+                             "Q18291645", "Q33115883"]),
     "family": ("", ["Q746549", "Q2095", "Q1968435", "Q2424752"]),
     # 'food preparation technique' (Q1039303) is the class the cooking
     # techniques actually use. The first attempt used
@@ -63,7 +68,7 @@ VOCABULARIES = {
     # 'process' - not 'cooking technique'. Q38695 'cooking' and
     # Q2695280 'technique' are kept as siblings.
     "technique": ("", ["Q1039303", "Q10843872", "Q38695", "Q2695280"]),
-    "tradition": (" cuisine", ["Q1968435", "Q1718821"]),
+    "tradition": (" cuisine", ["Q1968435", "Q1718821", "Q18291645"]),
     # A context is a course of a meal, an occasion, or an eating
     # situation. 'appetizer' (Q1628963) and 'meal' (Q6460735) are the
     # useful anchors.
@@ -183,12 +188,27 @@ def main():
     resolved = {}
     stats = {"accepted": 0, "rejected": 0, "no_match": 0}
 
+    # RESUME: if a previous run already resolved some values, keep
+    # them and only try the ones still missing. The first run's
+    # classes were too narrow, so retrying just the misses is much
+    # cheaper than re-resolving everything.
+    previous = {}
+    if OUT_PATH.exists():
+        try:
+            previous = json.loads(OUT_PATH.read_text())
+        except Exception:
+            previous = {}
+
     for vocab, items in values.items():
         suffix, allowed = VOCABULARIES.get(vocab, ("", []))
         out = {}
+        prev = previous.get(vocab, {})
         for item in items:
             if item["qid"]:
                 out[item["key"]] = item["qid"]
+                continue
+            if item["key"] in prev:
+                out[item["key"]] = prev[item["key"]]
                 continue
             want = normalize(item["name"])
             candidates = search_for(f"{item['name']}{suffix}")
@@ -212,7 +232,9 @@ def main():
             else:
                 stats["no_match"] += 1
         resolved[vocab] = out
-        print(f"  {vocab}: {len(out)}/{len(items)} with a QID")
+        kept = sum(1 for k in out if k in prev)
+        print(f"  {vocab}: {len(out)}/{len(items)} with a QID "
+              f"({kept} carried over from the previous run)")
 
     OUT_PATH.write_text(json.dumps(resolved, indent=1, ensure_ascii=False))
     print(f"\nstats: {stats}")
