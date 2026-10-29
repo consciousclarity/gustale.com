@@ -131,9 +131,12 @@ export const geoEntities = pgTable(
     dissolved: timestamp("dissolved", { mode: "date" }),
     // Dual place (Option B): the country row that is the SAME real place
     // as this region row.
-    sameAsEntityId: uuid("same_as_entity_id").references((): any => geoEntities.id, {
-      onDelete: "set null",
-    }),
+    sameAsEntityId: uuid("same_as_entity_id").references(
+      (): any => geoEntities.id,
+      {
+        onDelete: "set null",
+      },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
