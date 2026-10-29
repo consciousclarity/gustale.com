@@ -1,11 +1,18 @@
 # ADR-003 — Multilingual
 
 **Status:** 🟢 **DECIDED (Alejandro, 2026-10-29).** Three layers.
-**Layer 1 is DONE** — applied live and deployed 2026-10-29. See
-`.hermes/REPORTS/ADR-003-layer1-vocabulary-labels.md` for the as-built
-report: 35,871 labels across 9 vocabularies and 9 locales, served by
-the live API.
-**Layers 2 and 3 are not yet implemented.**
+**Layers 1 and 2 are DONE** — applied live and deployed 2026-10-29.
+
+- **Layer 1 — vocabulary labels:** 35,871 labels across 9 vocabularies
+  and 9 locales. See
+  `.hermes/REPORTS/ADR-003-layer1-vocabulary-labels.md`.
+- **Layer 2 — `dish_names`:** 1,373 names across 121 dishes and 37
+  languages. See `.hermes/REPORTS/ADR-003-layer2-dish-names.md`.
+
+**Layer 3 (prose) and the routing/UI are not yet implemented.** The
+API is ready for them: it accepts `?language=`, resolves it to any
+valid BCP-47 locale, and reports the locale it served alongside the
+one requested so the client can show the English-fallback notice.
 
 **Scope:** gustale.com and gustale.recipes. Same API, same data.
 
@@ -119,7 +126,7 @@ So:
 |---|---|---|---|
 | `dish_translations` | existing | dish × language (name, description) | **kept**, used for the description overview; `name` deprecated in favour of `dish_names` |
 | `vocabulary_labels` | 1 | vocabulary × value × language | **new — DONE** (35,871 rows, live) |
-| `dish_names` | 2 | dish × language × name-kind | **new** |
+| `dish_names` | 2 | dish × language × name-kind | **new — DONE** (1,373 rows, live) |
 | `description_sentence_translations` | 3 | source sentence × language | **new** |
 
 **Open dependency (recorded, not blocking):** the instruction says *"Reuse `dish_translations` (after GUS-239 archive)"*. **GUS-239 does not exist** in `.hermes/BACKLOG.yaml` or anywhere in `.hermes/` — there is no archive step to wait for, and `dish_translations` currently holds the live English descriptions for all 121 dishes. The decision above is therefore made on the schema's merits rather than on a GUS-239 dependency. If a GUS-239 archive task is later created and does archive `dish_translations`, this decision stands: the prose layer needs its own sentence-level table either way.
@@ -155,6 +162,20 @@ So:
   is honest; a wrong one is not, and a wrong QID would put a wrong
   label in every locale at once. Those values keep their English label
   and fall back, which is the ADR's own fallback behaviour.
+- **decided-by: hermes (2026-10-29) — `dish_names.script` is
+  nullable.** The ADR lists it as a plain column. A name whose script
+  is genuinely unknown should say so rather than guess. Every name we
+  have does carry one, but the column must not force a lie.
+- **decided-by: hermes (2026-10-29) — `dish_names.kind` is a CHECK
+  constraint**, not a free text column, so a bad kind cannot be
+  written.
+- **decided-by: hermes (2026-10-29) — the API accepts any valid
+  BCP-47 locale, not only the core ten.** The ADR says the core set
+  is "a floor, not a ceiling", and the dish names prove it: a dish
+  has a name in Tagalog, Vietnamese, Korean, Greek, Thai and more.
+  The core list is what the site guarantees labels for; anything else
+  falls back per-value, and the API reports the locale it served so
+  the client can show the notice.
 
 
 - **decided-by: hermes** — the three-layer split, the locale core set, and the order of work. All from the instruction.
