@@ -16,10 +16,25 @@ browser-language suggestion (never forced), the English-fallback
 notice, RTL, and 747 self-hosted Noto faces. See
 `.hermes/REPORTS/ADR-003-layer3a-routing-ui.md`.
 
-**Layer 3b (the prose) is not yet implemented.** The API is ready for
-it: it accepts `?language=`, resolves it to any valid BCP-47 locale,
-and reports the locale it served alongside the one requested so the
-client can show the English-fallback notice.
+**Layer 3b (the prose) is DONE.** The English descriptions are stored
+as **313 sentences** (ADR-002 Q9's structured sentence table), each is
+translated individually, and the translation **references** its English
+source — so it inherits the source's claim anchors instead of copying
+them. The **source hash** is of the English *sentence*, so editing one
+sentence invalidates exactly that translation and leaves the other 312
+alone. `stale` is an **overlay flag**, not a status: a stale reviewed
+translation is still reviewed. Contributor corrections go through the
+moderation path, and an accepted correction becomes the reviewed text.
+The API serves the prose with the **"machine-translated"** badge. See
+`.hermes/REPORTS/ADR-003-layer3b-prose.md`.
+
+The nine locales are being translated. The translations are
+machine-produced, so they carry `status = 'machine'` and the badge;
+a human correction promotes them to `reviewed`.
+
+The review and moderation SURFACE — the admin view where a moderator
+sees the machine translations, accepts or rejects a correction, and
+the stale queue — is the last piece, and is not yet built.
 
 **Scope:** gustale.com and gustale.recipes. Same API, same data.
 
