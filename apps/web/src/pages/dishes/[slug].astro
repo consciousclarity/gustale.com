@@ -9,11 +9,7 @@ import { EditDishButton } from "../../components/EditDishButton";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../lib/api";
-import {
-  dishUrl,
-  hreflangAlternates,
-  SITE_LOCALES,
-} from "../../lib/locales";
+import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
 import type { DishDetailResponse } from "../../types/dish";
 
 // MapLibre control + popup CSS — required by <DishMap> and journey path map.
@@ -141,9 +137,7 @@ const localeUrls = Object.fromEntries(
 // The English page IS the English one, so it never shows the
 // fallback notice. The notice belongs to the locale pages.
 const servedEnglish =
-  data !== null &&
-  data.requestedLocale !== data.locale &&
-  data.locale === "en";
+  data !== null && data.requestedLocale !== data.locale && data.locale === "en";
 ---
 
 <Layout

@@ -244,17 +244,16 @@ def main():
     # class. The FoodOn class row carries the FoodOn ID; the project's
     # category carries the project's label and slug. That is exactly
     # the "identifiers only, our own labels" split the plan asks for.
+    #
+    # A SLUG COLLISION is the interesting case: the project already has
+    # a 'vinegar', and FoodOn also has a class called 'vinegar'. One row
+    # must win, and it must be the PROJECT's — the dishes reference it.
+    # So the FoodOn class row is dropped and its FoodOn ID is moved onto
+    # the project row, which then carries the ID itself.
     mapping = json.loads(MAP_PATH.read_text()) if MAP_PATH.exists() else {}
     existing = live_slugs()
-    mapped, unmapped = 0, []
+    mapped, unmapped, collided = 0, [], []
     for slug in sorted(existing):
-        if slug in seen_slugs:
-            # The slug collided with a FoodOn-derived row (e.g. 'bread'
-            # is both). Keep the project's row and move the FoodOn
-            # classification onto it.
-            row = next(r for r in rows if r["slug"] == slug)
-            row.setdefault("origin", "project")
-            continue
         foodon_id = mapping.get(slug)
         parent_slug = None
         if foodon_id:
@@ -265,10 +264,34 @@ def main():
             mapped += 1
         else:
             unmapped.append(slug)
+
+        if slug in seen_slugs:
+            # The slug collides with a FoodOn-derived row. The project
+            # row wins; the FoodOn class row is removed and its ID is
+            # transferred onto the project row.
+            collided.append(slug)
+            row = next(r for r in rows if r["slug"] == slug)
+            transferred_id = row.get("foodon_id")
+            row["foodon_id"] = foodon_id or transferred_id
+            row["parent_slug"] = parent_slug
+            row["parent_foodon_id"] = foodon_id
+            row["origin"] = "project+foodon"
+            row["is_parent"] = False
+            foodon_used.discard(transferred_id)
+            rows.remove(row)
+            seen_slugs.discard(slug)
+            if row["foodon_id"]:
+                foodon_used.add(row["foodon_id"])
+            add(slug, slug.replace("-", " ").title(), row["foodon_id"],
+                parent_slug, foodon_id, origin="project+foodon")
+            continue
+
         add(slug, slug.replace("-", " ").title(), None, parent_slug,
             foodon_id, origin="project")
 
     print(f"existing categories: {len(existing)} preserved ({mapped} with a FoodOn parent)")
+    if collided:
+        print(f"  slug collisions resolved in favour of the project row: {', '.join(collided)}")
     if unmapped:
         print(f"  without a FoodOn parent ({len(unmapped)}): {', '.join(unmapped)}")
 

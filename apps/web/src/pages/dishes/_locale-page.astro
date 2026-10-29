@@ -1,32 +1,10 @@
 ---
-/**
- * ADR-003 — the locale-aware dish page.
- *
- * The ADR's URL shape is `/{locale}/dishes/{slug}`, with the slug
- * STABLE: it does not change with locale. Transliteration is a display
- * concern, never a URL concern.
- *
- * ENGLISH IS AT THE ROOT. `gustale.com/dishes/masala-dosa` is the
- * canonical URL and keeps the SEO value; the other locales live under
- * their prefix. That keeps the existing 121 dish URLs unchanged, which
- * is what "stable slugs" is really about.
- *
- * The page is built from the API, which already accepts `?language=`
- * and reports the locale it served alongside the one requested — so
- * the English-fallback notice can be shown when a page has no
- * translation.
- */
-import DishDetail from "../../../components/DishDetail";
-import { RelatedDishes } from "../../../components/RelatedDishes";
-import { EditDishButton } from "../../../components/EditDishButton";
-import Layout from "../../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../../lib/api";
 import {
+  type CoreLocale,
   dishUrl,
   hreflangAlternates,
-  isSiteLocale,
   SITE_LOCALES,
-  type CoreLocale,
 } from "../../../lib/locales";
 import type { DishDetailResponse } from "../../../types/dish";
 
@@ -56,12 +34,12 @@ if (notFound) {
 }
 
 // ── The journey beats ──────────────────────────────────────────────────
-let journeyBeats: DishDetailResponse extends never ? never : any[] = [];
-let journeyLineages: any[] = [];
+let _journeyBeats: DishDetailResponse extends never ? never : any[] = [];
+let _journeyLineages: any[] = [];
 try {
   const j = await getDishJourney(slug);
-  journeyBeats = (j as any)?.beats ?? [];
-  journeyLineages = (j as any)?.lineages ?? [];
+  _journeyBeats = (j as any)?.beats ?? [];
+  _journeyLineages = (j as any)?.lineages ?? [];
 } catch {
   // The journey is optional — a dish without one still renders.
 }
@@ -71,29 +49,27 @@ try {
 // The hreflang set is the locales the site ships pages for, not the
 // locales the dish happens to have a name in. A dish with a Tagalog
 // name but no Tagalog page would advertise a URL that 404s.
-const alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
+const _alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
 
 // ── The English-fallback notice ────────────────────────────────────────
 //
 // The API reports the locale it served alongside the one that was
 // asked for. When they differ, this page has no translation and is
 // showing English — and the ADR says to SAY SO, not to swap silently.
-const servedEnglish =
-  data !== null &&
-  data.requestedLocale !== data.locale &&
-  data.locale === "en";
+const _servedEnglish =
+  data !== null && data.requestedLocale !== data.locale && data.locale === "en";
 
 // ── SEO ────────────────────────────────────────────────────────────────
-const seoTitle = data?.dish
+const _seoTitle = data?.dish
   ? `${data.dish.name} — Gustale`
   : "Dish not found — Gustale";
-const seoDescription =
+const _seoDescription =
   data?.dish?.description ??
   data?.dish?.shortDescription ??
   "A digital culinary archive.";
 
 // The language switcher: the same dish in every locale the site ships.
-const localeUrls = Object.fromEntries(
+const _localeUrls = Object.fromEntries(
   SITE_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
 );
 ---
