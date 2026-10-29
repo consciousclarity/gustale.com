@@ -134,6 +134,76 @@ jobs:
           path: apps/api/coverage/
           retention-days: 30
 
+  # ─── Re-translate the stale translations ─────────────────────────────
+  #
+  # ADR-003 layer 3b: "store the source hash → stale + auto-retranslate
+  # on change". The DATABASE marks a translation stale when its English
+  # source sentence changes. This job does the re-translation.
+  #
+  # It runs on the VPS, over SSH, because that is where the live
+  # database is. The script is in the VPS's git checkout, so the job
+  # updates the checkout and runs it there.
+  #
+  # The MiniMax OAuth token is a repository secret. It is NOT put on
+  # the VPS permanently — it is passed for this one command and the
+  # remote shell unsets it.
+  retranslate-stale:
+    name: Re-translate stale sentences
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # A failure here is NOT a failure of the nightly — a stale
+    # translation is a content issue, not a broken build. The job
+    # reports and the nightly continues.
+    continue-on-error: true
+
+    steps:
+      - name: Re-translate on the VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          command_timeout: 40m
+          envs: GUSTALE_DB_PASSWORD,MINIMAX_OAUTH_MAX_TOKEN
+          script: |
+            set -euo pipefail
+            BUILD_DIR="${{ vars.GUSTALE_BUILD_DIR || '/home/deploy/gustale-build' }}"
+            SHA="${{ github.sha }}"
+
+            if [ ! -d "$BUILD_DIR/.git" ]; then
+              echo "::error::no git checkout at $BUILD_DIR"
+              exit 1
+            fi
+
+            git config --global --add safe.directory "$BUILD_DIR" 2>/dev/null || true
+            git -C "$BUILD_DIR" fetch --no-tags --depth=50 origin "$SHA"
+            git -C "$BUILD_DIR" checkout --quiet --force "$SHA"
+
+            cd "$BUILD_DIR"
+
+            # The password file may not be readable by this user; the
+            # secret is in the environment, and dbq.sh prefers it.
+            export GUSTALE_DB_PASSWORD
+
+            python3 scripts/retranslate_stale.py
+
+            unset MINIMAX_OAUTH_MAX_TOKEN
+
+      - name: Report
+        if: always()
+        run: |
+          if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] || [ -z "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
+            echo "::notice::Telegram secrets not set — skipping the notification"
+            exit 0
+          fi
+          MSG="Nightly re-translation — ${{ job.status }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \\
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \\
+            -d parse_mode="Markdown" \\
+            -d disable_web_page_preview=true \\
+            --data-urlencode "text=${MSG}" \\
+            --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
+
   # ─── Production image build verification ────────────────────────────
   build-prod:
     name: Build production image

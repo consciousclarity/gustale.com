@@ -16,28 +16,35 @@
 # stored in the repo, and never printed.
 set -euo pipefail
 
-DB_PASSWORD_FILE="/home/deploy/gustale.com/.db-password"
+# The password comes from the environment when it is set (the VPS, and
+# the GitHub Actions job that SSHes in), and from the local file
+# otherwise. The file is only readable by the deploy user locally.
+DB_PASSWORD_FILE="${GUSTALE_DB_PASSWORD_FILE:-/home/deploy/gustale.com/.db-password}"
 DB_NAME="${GUSTALE_DB_NAME:-gustale}"
 DB_USER="${GUSTALE_DB_USER:-gustale}"
 DB_HOST="${GUSTALE_DB_HOST:-127.0.0.1}"
 DB_PORT="${GUSTALE_DB_PORT:-5432}"
 
-if [[ ! -r "$DB_PASSWORD_FILE" ]]; then
-  echo "ERROR: cannot read $DB_PASSWORD_FILE" >&2
+export PGPASSWORD
+if [[ -n "${GUSTALE_DB_PASSWORD:-}" ]]; then
+  # From the environment. Use it as-is.
+  PGPASSWORD="$GUSTALE_DB_PASSWORD"
+elif [[ -r "$DB_PASSWORD_FILE" ]]; then
+  # The file holds `GUSTALE_DB_PASSWORD=<value>`. Take only the VALUE —
+  # sending the whole line would send "GUSTALE_DB_PASSWORD=..." as the
+  # password.
+  _pw_raw="$(cat "$DB_PASSWORD_FILE")"
+  if [[ "$_pw_raw" == *"="* ]]; then
+    PGPASSWORD="${_pw_raw#*=}"
+  else
+    PGPASSWORD="$_pw_raw"
+  fi
+  unset _pw_raw
+else
+  echo "ERROR: no database password. Set GUSTALE_DB_PASSWORD, or make" >&2
+  echo "       $DB_PASSWORD_FILE readable." >&2
   exit 1
 fi
-
-export PGPASSWORD
-# The file holds `GUSTALE_DB_PASSWORD=<value>`. Take only the VALUE —
-# sending the whole line would send "GUSTALE_DB_PASSWORD=..." as the
-# password.
-_pw_raw="$(cat "$DB_PASSWORD_FILE")"
-if [[ "$_pw_raw" == *"="* ]]; then
-  PGPASSWORD="${_pw_raw#*=}"
-else
-  PGPASSWORD="$_pw_raw"
-fi
-unset _pw_raw
 
 # Parse the flags. -c is accepted for compatibility and ignored — the
 # query always goes to psql with -c, so psql never mistakes it for
