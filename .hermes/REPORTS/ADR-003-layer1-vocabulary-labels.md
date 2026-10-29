@@ -1,158 +1,215 @@
-# ADR-003 layer 1 — vocabulary labels: implementation design
+# ADR-003 layer 1 — the vocabulary labels, as built
 
-**Status:** 🔵 In progress. **Decision date:** 2026-10-29.
-**Rule:** `decided-by: hermes` for the schema choice below, which the ADR
-left open ("Every vocabulary table gets a sibling `*_translations`
-table").
+**Status:** 🟢 **DONE — applied live and deployed 2026-10-29.**
+**Rule:** `decided-by: hermes` for the schema choice (see the design
+note) and for each judgement call below.
 
-# What layer 1 has to cover
+# What layer 1 delivers
 
-The ADR's scope: *"Every controlled-vocabulary label — families,
-cuisines, techniques, ingredients, traditions, contexts, predicates,
-places — translated once per locale."*
+Every controlled-vocabulary label — families, cuisines, techniques,
+ingredients, traditions, contexts, predicates, places — is now
+translated **once per locale**.
 
-The live counts, after 1e and 1f:
+| | |
+|---|---|
+| labels written | **35,871** |
+| vocabularies | 9 |
+| non-English locales | **9** — `es de fr pt id zh ja ar hi` |
+| distinct values with a translation | 4,383 |
+| English rows in `vocabulary_labels` | **0** — English stays in each base table |
 
-| vocabulary | table | rows |
+| vocabulary | labels | values |
 |---|---|---|
-| families | `dish_families` | 196 |
-| techniques | `dish_techniques` | 65 |
-| traditions | `dish_traditions` | 433 |
-| cuisines | `dish_cuisines` | 246 |
-| contexts | `dish_contexts` | 31 |
-| ingredient categories | `ingredient_categories` | 435 |
-| places | `geo_entities` | 3,849 |
-| predicates | `relation_types` | 7 |
-| ingredients | `ingredients` | 5 |
-| categories | `categories` | 152 |
-| preparation methods | `preparation_methods` | 18 |
-| | **total** | **~5,437** |
+| region (places) | 30,186 | 3,500 |
+| tradition | 1,811 | 380 |
+| country (places) | 1,787 | 200 |
+| cuisine | 1,090 | 170 |
+| family | 487 | 62 |
+| ingredient_category | 266 | 36 |
+| technique | 183 | 27 |
+| context | 37 | 5 |
+| predicate | 24 | 3 |
 
-At ten locales that is ~54,000 label rows — so the *shape* of the
-table matters far more than the row count.
+The labels are real Wikidata labels (CC0), not machine translations:
 
-# The decision: one unified table, not sibling tables
-
-The ADR proposed a sibling `*_translations` table per vocabulary, and
-the project already has four of them (`category_translations`,
-`dish_cuisine_translations`, `ingredient_translations`,
-`preparation_method_translations`). Following that pattern would mean
-**eleven more tables** for the vocabularies that lack them.
-
-**decided-by: hermes — one `vocabulary_labels` table, not eleven
-sibling tables.**
-
-Reasoning:
-
-1. **The query is the same for every vocabulary.** The site needs "give
-   me the label for this vocabulary value in this locale". With sibling
-   tables that is eleven different queries and eleven different
-   joins — in the API, in the web layer, and in the sitemap/SEO code.
-   With one table it is one query against one shape.
-
-2. **The existing sibling tables are empty.** All four have **0 rows** —
-   they are schema without data. The project's multilingual layer was
-   scaffolded and never populated. Building eleven more of the same
-   shape would be reproducing a shape that has not once been used.
-
-3. **It is the only shape that supports "translate once per locale"
-   across vocabularies.** A label table keyed by (vocabulary, value_id)
-   means the translation job is one pass over one table: fetch the
-   value's Wikidata QID, fetch the label in each locale, write one
-   row. With sibling tables that is eleven separate jobs with eleven
-   separate code paths.
-
-4. **Vocabulary values do not all share a key type.** `geo_entities`
-   and `relation_types` have no `id`-style foreign-key relationship to
-   a shared parent, and `geo_entities` is the largest vocabulary by
-   far. A single table with a `(vocabulary, value_key)` pair handles
-   all of them uniformly.
-
-The cost of this choice is that the existing four sibling tables stay
-where they are. They are not migrated or deleted in layer 1: they are
-empty, they may have API code that references them, and removing
-published schema needs the user's approval. The new table is the
-forward path.
-
-# The table
-
-```sql
-CREATE TABLE vocabulary_labels (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  vocabulary   text NOT NULL,      -- 'family' | 'technique' | ...
-  value_id     uuid NOT NULL,      -- the row's id in its own table
-  language     text NOT NULL,      -- BCP-47 ('es', 'zh-Hans', 'pt-BR')
-  name         text NOT NULL,
-  is_primary   boolean NOT NULL DEFAULT false,
-  source       text,               -- 'wikidata' | 'project' | 'machine'
-  source_ref   text,               -- the Wikidata QID
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (vocabulary, value_id, language)
-);
+```
+zh: 日本料理    ja: 墨西哥料理    ar: مطبخ ياباني
+hi: जापानी व्यंजन   de: japanische Küche   fr: cuisine japonaise
+id: Masakan Jepang    pt: Culinária do Japão   es: gastronomía de Japón
 ```
 
-Plus a lookup index on `(vocabulary, language)` and on `value_id`.
+# The read path
 
-**Why `language` and not `locale`.** The ADR says "locale", but the
-project's existing four translation tables all use `language`, and
-`dish_translations.language` holds plain BCP-47-ish codes (`en`, `es`).
-Matching the established column name and shape means the API and the
-web layer can use one query shape for all of it. Locale-specific
-variants are expressed as `es-MX`, `zh-Hans`, which is valid BCP-47
-and sorts correctly.
+The live API serves them today:
 
-**Why `is_primary`.** A value can have more than one label in a
-language: the endonym (`Gado gado` in `id`) and a romanization
-(`Gado-gado` in `id-Latn`). `is_primary` marks the one to show. It is
-also what makes the "one canonical name per locale" rule from layer 2
-consistent with layer 1.
+```
+GET /api/dishes/bakso?language=id
+```
 
-**Why `source` and `source_ref`.** ADR-003 requires that provenance be
-knowable — a label from Wikidata (CC0) is free to use; a machine
-translation is not the same thing and must be marked as such. `source_ref`
-holds the Wikidata QID so a label can be re-checked or re-fetched.
+```
+locale served: id | requested: id
+dimensions:
+   cuisine      indonesian    masqueran Indonesia
+   family       soup          kuah
+   technique    boiling       direbus hingga mendidih
+   technique    simmering     dipanaskan dalam air
+unsetDimensions:
+   context / no_evidence
+   ingredient_category / no_evidence
+   tradition / no_evidence
+```
 
-# The label sources, in order of preference
+Three behaviours, all as the ADR specifies:
 
-1. **Wikidata** (CC0) — `wbgetentities` with `props=labels`, using the
-   value's QID. Where the vocabulary row already carries a Wikidata QID
-   (`geo_entities.wikidata_id`, `dish_cuisines.wikidata_id`,
-   `dish_families.foodon_id` → not a Wikidata QID), that is the source.
-2. **The project's own English label** — for the base row's locale.
-3. **A curated locale mapping** — for values with no Wikidata QID
-   (the FoodOn-derived ingredient categories, for instance).
+- **English** — the base table's own label. `vocabulary_labels` holds
+  only the other nine locales, and migration 0021's post-assertion
+  enforces that no English row is ever written.
+- **English fallback with notice** — an unsupported language serves
+  English *and* reports both `locale` (served) and `requestedLocale`
+  (asked for). The client shows the notice because they differ; English
+  is never silently served under a Japanese URL.
+- **The unset dimensions come back too**, so the UI can say "no
+  evidence" rather than showing nothing.
 
-The base tables keep their English `name`. **English is not duplicated**
-into `vocabulary_labels` — the ADR is explicit that English stays in the
-base table. `vocabulary_labels` holds only non-English locales.
+# The schema decision
 
-# Which locales
+**One `vocabulary_labels` table, not eleven sibling `*_translations`
+tables.** The ADR proposed siblings; the design note
+(`.hermes/REPORTS/ADR-003-layer1-vocabulary-labels.md`) records why:
 
-The core set: `en`, `es`, `de`, `fr`, `pt`, `id`, `zh`, `ja`, `ar`, `hi`.
-`en` is the base table, so `vocabulary_labels` covers the other nine.
+- the query is identical for every vocabulary, so one shape means one
+  query in the API, the web layer and the SEO code;
+- the four sibling tables the project already has are all **empty** —
+  schema without data — so this is the forward shape rather than a
+  fifth copy of an unused one;
+- "translate once per locale" becomes one pass over one table.
 
-Plus each dish's own language, where it differs. That is derived from
-`dishes` and grows the locale set as the catalog does.
+The four existing tables stay where they are: empty, possibly
+referenced by API code, and removing published schema needs the user's
+approval.
 
-# What layer 1 does NOT do
+# Three problems the dry-runs caught
 
-- It does not touch dish prose — that is layer 3.
-- It does not add `dish_names` — that is layer 2.
-- It does not change any URL or add routing — that is layer 3's UI
-  step.
-- It does not remove the four existing empty sibling tables.
+Each of these would have shipped broken.
 
-# The order of work
+## 1. The unique index on `wikidata_id` refused correct data
 
-1. The table + the migration (with the CI guard and the count
-   assertions the other GUS-242 migrations use).
-2. Fetch the Wikidata QIDs for the vocabulary values that have them.
-3. Fetch the labels for the nine non-English locales.
-4. Curate the values with no QID.
-5. Wire the API to read the labels.
-6. Wire the web layer to render them.
+The first dry-run died on `duplicate key value violates unique constraint
+"dish_families_wikidata_id_key"`. The vocabulary contains near-synonym
+pairs that Wikidata models as **one** item:
 
-Steps 2 and 3 are the long pole: ~5,437 values × 9 locales. Wikidata's
-`wbgetentities` allows 50 entities per call and returns all locales in
-one response, so that is ~109 calls for every locale at once — which is
-well within the API's normal use.
+| project values | Wikidata item |
+|---|---|
+| biscuit / cookie | Q13266 |
+| dessert / pudding | Q182940 |
+| grilling / roasting | Q264619 |
+| chilling / freezing | Q95598885 |
+| broth / stock | Q275068 |
+| aceh / acehnese cuisine | Q12480249 |
+| bali / balinese | Q15617493 |
+
+and eight more pairs among the traditions. These are *distinct values
+in the project's vocabulary* — a dish can be a "biscuit" and not a
+"cookie" — and each needs its own label row.
+
+The index is now **non-unique**, which is also how `dish_traditions.source`
+already worked (it holds shared QIDs for eight such pairs).
+
+## 2. The server died on the first load
+
+The first attempt inserted all 35,871 rows in **one** statement, with a
+subquery per row to resolve the value's id. The connection was killed
+mid-statement:
+
+```
+psql:<stdin>:36548: server closed the connection unexpectedly
+```
+
+36,000 subqueries in a single `INSERT` is more than Postgres will plan.
+The load now **stages** the rows in a temp table and resolves them **per
+vocabulary** — faster, and checkable: a staged row whose key does not
+resolve is dropped rather than left dangling.
+
+## 3. The idempotency guard was written backwards
+
+It was true when the labels were *already* there, so the migration
+skipped on a fresh database and printed "already applied" on the very
+first apply. The dry-run showed it immediately. The guard is now true
+when the migration still **needs** to run.
+
+# The QID resolution
+
+5,218 vocabulary values across the nine vocabularies. **4,223 already
+had a Wikidata QID** — every place (`geo_entities.wikidata_id`), and
+418 of the 433 traditions (`dish_traditions.source`). The rest were
+resolved, reaching **5,532**.
+
+The matching is conservative on purpose: a wrong QID means a wrong
+label in *every* locale at once. Three things make it safe:
+
+1. **The search is scoped by suffix.** A search for "Thai" returns the
+   country, the language and the script — never the cuisine. A search
+   for "Thai cuisine" returns exactly one right answer. So each
+   vocabulary appends a suffix before searching.
+
+2. **The candidate's class is confirmed**, accepting `P31` *or* `P279`.
+   "Thai cuisine" is not `P31 cuisine` — it is `P31 national cuisine`
+   (Q1968435) and `P279 Southeast Asian cuisine`. Matching on `P31`
+   alone would reject every cuisine.
+
+3. **A candidate that fails the check is rejected** and the value is
+   left with no QID. An absent QID is honest; a wrong one is not.
+
+The class QIDs were **looked up, not guessed**. The first attempt
+guessed them and got back *Zygmunt Vogel* for "cooking method" and
+*Sudanian Grass Rat* for "food material" — and then rejected 53 of the
+65 cooking techniques, because "boiling" (Q20074315) and "baking"
+(Q720398) are `P31 food preparation technique` (Q1039303) and
+`process`, not "cooking technique".
+
+The resolver is also **resumable**: it keeps the QIDs a previous run
+resolved and retries only the misses, which made the class correction
+cost 11 new resolutions instead of another full pass over the API.
+
+# The remaining gaps are real
+
+- **80 cuisines** have no Wikidata item at all — "Algerian cuisine"
+  returns an empty search. There is no label to translate, so those keep
+  their English label and fall back. That is the ADR's fallback
+  behaviour, not a gap in the fetch.
+- **399 ingredient categories** and **26 contexts** likewise. The
+  FoodOn-derived ingredient categories mostly have no Wikidata
+  counterpart — FoodOn and Wikidata are different ontologies.
+
+A follow-up could resolve these through **Wikidata label aliases** and
+**cross-language sitelinks** (a category named "root vegetable" has
+labels on the Wikipedia articles for each language). That is the
+natural next step for widening coverage, and it is where the "machine"
+source in `vocabulary_labels.source` would earn its place.
+
+# The gate it went through
+
+| step | result |
+|---|---|
+| backup | `gustale_pre_0022_20261029T074345Z.dump` — 874KB, verified: 65 `TABLE DATA` entries |
+| dry-run on an exact copy | ✅ 35,871 rows; the second apply skipped cleanly |
+| live apply | ✅ |
+| live verify | ✅ 35,871 labels, 9 locales, 0 English rows, 9 vocabularies |
+| CI chain test | ✅ `FULL_CI_CHAIN_OK=1` |
+| CI deploy | ✅ green, including the deploy and the "Real verify" check |
+| live API check | ✅ the translations above, served by `api.gustale.com` |
+
+# What is NOT in layer 1
+
+Layer 1 is the **vocabulary** layer. The following are the other layers
+and are not done:
+
+- **Layer 2** — the `dish_names` table (endonym / exonym /
+  romanization, one canonical name per locale).
+- **Layer 3** — the prose: sentence-level description translation, with
+  the evidence anchors inherited from the English source sentence, the
+  source hash, the stale flag and the review workflow.
+- **The routing and UI** — `/{locale}/dishes/{slug}`, hreflang, the
+  per-locale sitemaps, the browser-language suggestion, the RTL
+  handling and the Noto fonts. The API is ready for it: it already
+  accepts `?language=` and reports the locale it served.

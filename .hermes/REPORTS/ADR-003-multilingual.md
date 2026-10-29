@@ -1,6 +1,11 @@
 # ADR-003 — Multilingual
 
-**Status:** 🟢 **DECIDED (Alejandro, 2026-10-29).** Three layers. Not yet implemented.
+**Status:** 🟢 **DECIDED (Alejandro, 2026-10-29).** Three layers.
+**Layer 1 is DONE** — applied live and deployed 2026-10-29. See
+`.hermes/REPORTS/ADR-003-layer1-vocabulary-labels.md` for the as-built
+report: 35,871 labels across 9 vocabularies and 9 locales, served by
+the live API.
+**Layers 2 and 3 are not yet implemented.**
 
 **Scope:** gustale.com and gustale.recipes. Same API, same data.
 
@@ -113,6 +118,7 @@ So:
 | Table | Layer | Grain | Status |
 |---|---|---|---|
 | `dish_translations` | existing | dish × language (name, description) | **kept**, used for the description overview; `name` deprecated in favour of `dish_names` |
+| `vocabulary_labels` | 1 | vocabulary × value × language | **new — DONE** (35,871 rows, live) |
 | `dish_names` | 2 | dish × language × name-kind | **new** |
 | `description_sentence_translations` | 3 | source sentence × language | **new** |
 
@@ -127,6 +133,29 @@ So:
 5. **Review last** — the moderation surface only becomes useful once there is machine-translated content to correct.
 
 ## 7. Decisions recorded
+
+- **decided-by: hermes (2026-10-29) — layer 1 uses ONE
+  `vocabulary_labels` table, not eleven sibling `*_translations`
+  tables.** The query is identical for every vocabulary, so one shape
+  means one query in the API, the web layer and the SEO code; the four
+  sibling tables the project already has are all empty, so this is the
+  forward shape rather than a fifth copy of an unused one; and
+  "translate once per locale" becomes one pass over one table. The
+  four existing tables are left in place — removing published schema
+  needs the user's approval.
+- **decided-by: hermes (2026-10-29) — the `wikidata_id` columns are
+  NOT unique.** The vocabularies contain near-synonym pairs that
+  Wikidata models as one item (biscuit/cookie, dessert/pudding,
+  grilling/roasting, broth/stock, and eight pairs among the
+  traditions). Each is a distinct value in the project's vocabulary and
+  each needs its own label row. This is also how `dish_traditions.source`
+  already worked.
+- **decided-by: hermes (2026-10-29) — a vocabulary value with no
+  confident Wikidata match gets NO label and no QID.** An absent label
+  is honest; a wrong one is not, and a wrong QID would put a wrong
+  label in every locale at once. Those values keep their English label
+  and fall back, which is the ADR's own fallback behaviour.
+
 
 - **decided-by: hermes** — the three-layer split, the locale core set, and the order of work. All from the instruction.
 - **decided-by: hermes** — `description_sentence_translations` over reusing `dish_translations`, for the schema reasons in §5.
