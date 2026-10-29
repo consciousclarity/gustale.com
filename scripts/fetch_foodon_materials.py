@@ -26,6 +26,7 @@ ROOT = "FOODON_00002403"  # "food material"
 RDF = "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}"
 OWL_NS = "{http://www.w3.org/2002/07/owl#}"
 RDFS = "{http://www.w3.org/2000/01/rdf-schema#}"
+XMLNS = "{http://www.w3.org/XML/1998/namespace}"
 
 # Only keep terms that are useful as an ingredient category: a named
 # food material at a usable granularity. The whole branch has tens of
@@ -84,8 +85,10 @@ def main():
                     target = local_name(child.get(RDF + "about"))
                 if target and target.startswith("FOODON_"):
                     parents.setdefault(curie, []).append(target)
-            elif tag == IAO_DEF:
+            elif tag == RDFS + "comment" and child.get(XMLNS + "lang") in (None, "en"):
                 definitions[curie] = child.text
+            elif tag == IAO_DEF:
+                definitions.setdefault(curie, child.text)
         elem.clear()
 
     print(f"parsed {len(labels)} FoodOn classes", file=sys.stderr)
