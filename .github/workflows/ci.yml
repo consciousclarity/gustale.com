@@ -444,7 +444,29 @@ jobs:
               SHA="${{ github.sha }}"
               SHORT_SHA="${SHA:0:7}"
               TAG="live-data-${SHORT_SHA}"
-              TAG_FILE="/tmp/gustale-web-live-tag.env"
+              # The tag file MUST be a per-run mktemp path, and it MUST be
+              # passed to build-web-live.sh via GUSTALE_WEB_LIVE_TAG_FILE.
+              #
+              # GUS-229 (commit e454a7f) changed build-web-live.sh to make
+              # its own mktemp tag file, because the fixed path was a
+              # single point of failure (a root-owned leftover made the
+              # final 'rm -f' fail under 'set -e' and aborted the deploy
+              # before the swap). But the deploy here still pointed at the
+              # OLD FIXED PATH and never handed the path to the script.
+              #
+              # So the script wrote the correct tag to its own mktemp
+              # file, and the deploy then 'source'd the stale fixed path —
+              # a leftover from 2026-10-26. The deploy then looked for an
+              # image tagged with that stale SHA, which does not exist,
+              # and aborted with "Image ... not present locally" BEFORE
+              # swapping any container. The site stayed on the 2026-10-26
+              # images ever since.
+              #
+              # Per-run mktemp + explicitly passing the path keeps both
+              # properties: no fixed path to collide on, and the deploy
+              # reads exactly what the script wrote.
+              TAG_FILE="$(mktemp /tmp/gustale-web-live-tag.XXXXXX.env)"
+              export GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE"
               # Per-run log file: include the run ID so concurrent deploys
               # (rare but possible) don't trample each other, and so a
               # failed run's log is preserved for the verify step. NEVER
@@ -630,7 +652,7 @@ jobs:
               # actually uses; we just tag it with the live-data-* name
               # so the verify step's `docker image inspect` resolves.
               echo "--- Running build-web-live.sh at SHA=$SHA from $BUILD_DIR (against new API, no push) ---"
-              ( cd "$BUILD_DIR" && GUSTALE_NO_PUSH=1 ./scripts/hermes/build-web-live.sh "$SHA" ) || {
+              ( cd "$BUILD_DIR" && GUSTALE_NO_PUSH=1 GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" ./scripts/hermes/build-web-live.sh "$SHA" ) || {
                 echo "::error::build-web-live.sh failed; gustale-api already swapped (rollback path needed) — see DEPLOY_LOG"
                 echo "DEPLOY_FAILED_AT=build-web-live" >> "$DEPLOY_LOG"
                 exit 1
@@ -641,6 +663,18 @@ jobs:
               source "$TAG_FILE"
               : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
               : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
+
+              # The tag the script wrote MUST be the tag this run asked
+              # for. A mismatch means the deploy read a stale file, which
+              # is exactly the failure this whole change exists to
+              # prevent — so fail loudly rather than swapping containers
+              # against the wrong image.
+              if [ "${TAG:-}" != "live-data-${SHORT_SHA}" ]; then
+                echo "::error::Tag mismatch: build-web-live.sh wrote TAG='${TAG:-}' but this run expected 'live-data-${SHORT_SHA}'. Aborting before any container swap."
+                echo "DEPLOY_FAILED_AT=tag mismatch (got '${TAG:-}', expected 'live-data-${SHORT_SHA}')" >> "$DEPLOY_LOG"
+                exit 1
+              fi
+              echo "--- Tag confirmed: $TAG ---"
               WEB_RECIPES_IMAGE="$IMAGE_RECIPES"
               WEB_GEO_IMAGE="$IMAGE_GEO"
 
