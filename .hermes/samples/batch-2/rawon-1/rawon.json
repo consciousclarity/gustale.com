@@ -1,0 +1,59 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "Candid documentary photo of a real serving of rawon as eaten at a small warung in Surabaya, East Java: a wide ceramic bowl filled with a very dark, almost black-purple broth (coloured by the kluwek nut), with a thin layer of oil droplets on the surface. Visible in the bowl: chunks of tender beef shank, blanched bean sprouts (tauge), and a hard-boiled egg cut in half showing the yellow yolk. A small saucer of sambal terasi on the side. Two or three krupuk standing at the edge of the bowl. A small dish of steamed white rice. Served on a worn wooden or formica warung table, a glass of iced tea and other warung tables softly out of focus behind. Soft natural daylight from the open shopfront, viewed from about 40 degrees above, 35mm lens, moderate depth of field. Everyday unstyled serving, slightly messy edges, true-to-life colours, realistic textures. The defining feature is the BLACK-PURPLE colour of the broth, not brown, not red. No food styling, no microgreens, no Western serveware, no studio lighting, no text, no logos, no people, no hands.",
+  "seed": null,
+  "width": 1536,
+  "height": 1024,
+  "files": [
+    "rawon-1.jpg",
+    "rawon-2.jpg",
+    "rawon-3.jpg",
+    "rawon-4.jpg"
+  ],
+  "web": [
+    {
+      "file": "rawon-1-1536w.webp",
+      "width": 1536,
+      "kb": 114
+    },
+    {
+      "file": "rawon-1-800w.webp",
+      "width": 800,
+      "kb": 43
+    },
+    {
+      "file": "rawon-2-1536w.webp",
+      "width": 1536,
+      "kb": 96
+    },
+    {
+      "file": "rawon-2-800w.webp",
+      "width": 800,
+      "kb": 38
+    },
+    {
+      "file": "rawon-3-1536w.webp",
+      "width": 1536,
+      "kb": 96
+    },
+    {
+      "file": "rawon-3-800w.webp",
+      "width": 800,
+      "kb": 35
+    },
+    {
+      "file": "rawon-4-1536w.webp",
+      "width": 1536,
+      "kb": 96
+    },
+    {
+      "file": "rawon-4-800w.webp",
+      "width": 800,
+      "kb": 36
+    }
+  ],
+  "trace_id": "0722906836c90a88d85f5c6991f61509",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T11:35:33+00:00"
+}

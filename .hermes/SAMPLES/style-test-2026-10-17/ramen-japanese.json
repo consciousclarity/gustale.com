@@ -1,0 +1,48 @@
+{
+  "model": "image-01",
+  "provider": "MiniMax",
+  "prompt": "Candid documentary photo of a real bowl of tonkotsu ramen as eaten at a small ramen counter in Fukuoka: opaque, creamy, milky-white pork bone broth with a thin sheen of fat, thin straight noodles partly visible, two slices of chashu pork belly, a halved soft-boiled egg with jammy orange yolk, chopped green onion, a little pink pickled ginger and wood-ear mushroom strips. Served in a deep patterned ceramic ramen bowl on a worn wooden counter, a pair of wooden chopsticks resting on the bowl, a cup of water and a jar of sesame softly out of focus behind. Soft natural daylight mixed with warm shop light, viewed from about 40 degrees above, 35mm lens, moderate depth of field. Everyday unstyled serving, true-to-life colours, realistic textures. No food styling, no fake steam, no studio lighting, no text, no logos, no people, no hands.",
+  "seed": null,
+  "width": 1536,
+  "height": 1024,
+  "files": [
+    "ramen-japanese-1.jpg",
+    "ramen-japanese-2.jpg",
+    "ramen-japanese-3.jpg"
+  ],
+  "web": [
+    {
+      "file": "ramen-japanese-1-1536w.webp",
+      "width": 1536,
+      "kb": 94
+    },
+    {
+      "file": "ramen-japanese-1-800w.webp",
+      "width": 800,
+      "kb": 36
+    },
+    {
+      "file": "ramen-japanese-2-1536w.webp",
+      "width": 1536,
+      "kb": 67
+    },
+    {
+      "file": "ramen-japanese-2-800w.webp",
+      "width": 800,
+      "kb": 27
+    },
+    {
+      "file": "ramen-japanese-3-1536w.webp",
+      "width": 1536,
+      "kb": 86
+    },
+    {
+      "file": "ramen-japanese-3-800w.webp",
+      "width": 800,
+      "kb": 33
+    }
+  ],
+  "trace_id": "07228e3c1793911099d0c93e39ca6411",
+  "blocked_by_safety": "0",
+  "generated_at": "2026-10-17T11:26:21+00:00"
+}

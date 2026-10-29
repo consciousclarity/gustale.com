@@ -105,3 +105,9 @@ ruvector.db
 # Holds provider API keys in PLAINTEXT — never commit.
 claude-flow.config.json
 apps/api/deploy/
+
+# ─── Hermes session handoff (webmaster-only, never commit) ──────────
+# docs/session-handoff.md is written by the session-guard plugin when a
+# session is frozen or reset. It contains live conversation excerpts and
+# internal paths — this repo is PUBLIC, so it must stay local.
+docs/session-handoff.md
