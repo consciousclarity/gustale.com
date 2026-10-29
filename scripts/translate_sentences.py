@@ -170,12 +170,38 @@ def _translate_once(
 
     # The response may carry a `thinking` block before the answer.
     # The translation is the LAST `text` block.
+    #
+    # A THINKING-ONLY RESPONSE: sometimes the model returns ONLY a
+    # thinking block and no text block at all — the answer was never
+    # produced. `stop_reason` is then usually "max_tokens" (the
+    # reasoning ate the allowance) or "end_turn" (the model stopped
+    # after thinking). Either way there is no text to take.
+    #
+    # The fix is NOT to take the thinking text — that is the model's
+    # reasoning, not the translation, and writing it would put English
+    # or a meta-commentary into the catalogue. The fix is to RETURN
+    # EMPTY and let the caller's retry ladder ask again with a bigger
+    # budget.
+    content = payload.get("content") or []
     text_parts = [
         block.get("text", "")
-        for block in payload.get("content", [])
+        for block in content
         if block.get("type") == "text"
     ]
-    return "\n".join(text_parts).strip()
+    text = "\n".join(p for p in text_parts if p).strip()
+
+    if not text:
+        # Log what happened, so a run that keeps failing is
+        # diagnosable rather than mysterious.
+        stop = payload.get("stop_reason", "?")
+        kinds = [b.get("type") for b in content]
+        print(
+            f"    (no text block: stop_reason={stop}, blocks={kinds})",
+            file=sys.stderr,
+        )
+        return ""
+
+    return text
 
 
 # ── The output check ────────────────────────────────────────────────────
@@ -223,20 +249,44 @@ def check_translation(source: str, translated: str, locale: str) -> str | None:
     #
     # The tell is not the missing sentence-ending mark on its own —
     # a translated sentence sometimes legitimately ends without one.
-    # The tell is that it ends mid-PHRASE: the last few words are not
-    # a complete clause, which shows up as a very short tail after
-    # the last comma, or as the text stopping at a conjunction.
+    # The reliable signal is the LENGTH RATIO.
     #
-    # The reliable signal is the LENGTH RATIO: a translation that is
-    # dramatically shorter than its source was truncated.
-    # The measured length ratios for the real sentences are 0.97 to
-    # 1.31 — a translation is about the same length as its source.
-    # A truncation lands well below 0.6.
-    if len(stripped) < 0.6 * len(source.strip()):
-        return (
-            f"the translation is too short to be complete "
-            f"({len(stripped)} chars for a {len(source.strip())}-char source)"
-        )
+    # THE THRESHOLD, calibrated on the measured data rather than
+    # guessed. Over the 1,300+ accepted translations the ratio runs
+    # from 0.600 to 1.387, with the 2nd percentile at 0.922 and the
+    # median at 1.149.
+    #
+    # The previous threshold of 0.6 was exactly the observed MINIMUM,
+    # which is a threshold that rejects every good value at the edge
+    # and still lets real problems through. Chinese is the language
+    # that compresses hardest: "起源于20世纪50年代加拿大魁北克省的乡村地区。"
+    # is 23 characters against a 35-character English source, a ratio
+    # of 0.600, and it is a COMPLETE, CORRECT translation.
+    #
+    # So the floor is 0.45 — below the shortest legitimate Chinese
+    # seen, and well above the 0.30 band where the real truncations
+    # land (23 chars for a 142-char source is 0.16).
+    #
+    # The CEILING matters just as much: a runaway generation was
+    # accepted at a ratio of 82 — 16,022 characters of Indonesian for
+    # a 194-character source, which is the model looping. A ceiling of
+    # 3.0 catches that; the observed maximum for a real translation is
+    # 1.387.
+    src_len = len(source.strip())
+    if src_len:
+        ratio = len(stripped) / src_len
+        if ratio < 0.45:
+            return (
+                f"the translation is too short to be complete "
+                f"({len(stripped)} chars for a {src_len}-char source, "
+                f"ratio {ratio:.2f})"
+            )
+        if ratio > 3.0:
+            return (
+                f"the translation is far too long — it looks like a "
+                f"runaway generation ({len(stripped)} chars for a "
+                f"{src_len}-char source, ratio {ratio:.2f})"
+            )
 
     # A GLUED WORD: a lowercase run immediately followed by an
     # uppercase run, with no space between them. This is the shape of
@@ -291,6 +341,40 @@ def fetch_sentences() -> list[dict]:
     raise SystemExit("could not parse the sentences out of dbq.sh")
 
 
+def existing_translations() -> dict[tuple[str, str], str]:
+    """The (sentence_id, locale) pairs already translated, and their hash.
+
+    This is what makes the run RESUMABLE. A run that was killed
+    half-way — both earlier runs died with SIGTERM (-15) — should not
+    redo the work it already did. A pair is skipped when its stored
+    hash still matches the CURRENT source hash, which means the
+    translation is not stale.
+
+    The write is an UPSERT keyed on (source_sentence_id, locale), so
+    running twice is safe even for a pair that IS re-translated.
+    """
+    sql = """
+    select json_agg(row_to_json(t))
+    from (
+      select source_sentence_id, locale, source_hash, status
+        from description_sentence_translations
+    ) t;
+    """
+    out = subprocess.run(
+        ["bash", "scripts/dbq.sh", sql],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    result: dict[tuple[str, str], str] = {}
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith('[{"'):
+            for row in json.loads(line):
+                result[(row["source_sentence_id"], row["locale"])] = row["source_hash"]
+    return result
+
+
 def write_translation(
     source_sentence_id: str,
     locale: str,
@@ -308,7 +392,8 @@ def write_translation(
     INSERT INTO description_sentence_translations
       (source_sentence_id, locale, text, source_hash, status, translator, is_stale)
     VALUES
-      ('{source_sentence_id}', '{locale}', $${text}$$, '{hash_value}', 'machine', '{translator}', false)
+      ('{source_sentence_id}', '{locale}', $${text}$$, '{hash_value}',
+       'machine'::sentence_translation_status, '{translator}', false)
     ON CONFLICT (source_sentence_id, locale) DO UPDATE
       SET text = EXCLUDED.text,
           source_hash = EXCLUDED.source_hash,
@@ -354,12 +439,87 @@ def write_translation(
         raise RuntimeError(f"the write failed: {result.stderr[-500:]}")
 
 
+# ── The single-instance lock ───────────────────────────────────────────
+#
+# TWO RUNS AT ONCE IS THE BUG THIS PREVENTS.
+#
+# The translator was run twice concurrently against the same database
+# (once for --all, once for a single locale). Both wrote to the same
+# rows, so the totals were whatever the two happened to produce — 313
+# for one locale and 291 for another, for the SAME locale, which is
+# not a number that means anything.
+#
+# The lock is an exclusive flock on a file. It is:
+#   - NON-BLOCKING by default: a second run exits immediately with a
+#     clear message rather than waiting, so a scheduled job cannot
+#     pile up behind a long one.
+#   - RELEASED ON EXIT, including on SIGTERM — the lock is held by the
+#     file descriptor, so the kernel drops it when the process dies.
+#     Both earlier runs died with -15 (SIGTERM) and the lock does not
+#     survive them.
+LOCK_PATH = "/tmp/gustale-translate.lock"
+
+
+def acquire_lock(path: str = LOCK_PATH, wait_seconds: int = 0) -> "io.TextIOWrapper":
+    """Take the single-instance lock, or exit.
+
+    flock() is advisory but it is advisory between the processes that
+    respect it — and the whole point is that every run of THIS script
+    respects it.
+    """
+    import fcntl
+
+    handle = open(path, "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        if wait_seconds > 0:
+            deadline = time.time() + wait_seconds
+            while time.time() < deadline:
+                time.sleep(1)
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError:
+                    continue
+            else:
+                handle.close()
+                raise SystemExit(
+                    f"another translation run holds {path}; "
+                    f"waited {wait_seconds}s and gave up"
+                )
+        else:
+            handle.close()
+            raise SystemExit(
+                f"another translation run already holds {path}. "
+                f"Only one may run at a time — the two would overwrite "
+                f"each other's rows and the totals would be meaningless."
+            )
+    # The pid is written for a human to read; the LOCK is what
+    # actually excludes.
+    handle.write(f"{os.getpid()}\n")
+    handle.flush()
+    return handle
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--locale", help="one locale, e.g. es")
     parser.add_argument("--all", action="store_true", help="every locale")
     parser.add_argument("--limit", type=int, help="only this many sentences")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--wait-lock",
+        type=int,
+        default=0,
+        help="seconds to wait for the single-instance lock",
+    )
+    parser.add_argument(
+        "--retry-rejected",
+        type=int,
+        default=0,
+        help="extra attempts for a sentence the output check rejected",
+    )
     args = parser.parse_args()
 
     if args.locale:
@@ -372,6 +532,12 @@ def main() -> int:
     for locale in locales:
         if locale not in LOCALE_NAMES:
             raise SystemExit(f"unknown locale: {locale}")
+
+    # THE LOCK. Taken before any work, and released when the process
+    # exits — including on SIGTERM, because the lock is held by the
+    # file descriptor and the kernel drops it when the process dies.
+    lock = acquire_lock(wait_seconds=args.wait_lock)
+    print(f"[translate] the lock is held (pid {os.getpid()})")
 
     token = load_token()
     sentences = fetch_sentences()
@@ -390,6 +556,7 @@ def main() -> int:
     failures = []
     rejected = []
     total = 0
+    skipped_resume = 0
     # The citation lines are not translated. See CITATION_PREFIX.
     translatable = [
         r for r in sentences if not r["text"].lstrip().startswith(CITATION_PREFIX)
@@ -400,22 +567,64 @@ def main() -> int:
         f"{skipped} citation lines skipped"
     )
 
+    # What is already done, so a killed run can resume.
+    done = existing_translations()
+    print(f"[translate] {len(done)} translation(s) already in the database")
+
     for locale in locales:
         for index, row in enumerate(translatable, start=1):
+            row_hash = source_hash(row["text"])
+
+            # RESUME. A pair already translated, with a hash that still
+            # matches the current source, is done. It is not stale, so
+            # there is nothing to fix. Skipping it is what makes the
+            # job resumable — and safe to run twice.
+            stored = done.get((row["id"], locale))
+            if stored == row_hash:
+                skipped_resume += 1
+                continue
+
+            translated = ""
+            problem = ""
+            # The retry ladder: a sentence the output check rejected
+            # gets asked again, because the failure is often the
+            # model's mood rather than the sentence.
+            attempts = 1 + max(0, args.retry_rejected)
+            for attempt in range(attempts):
+                try:
+                    translated = translate(token, row["text"], locale)
+                except Exception as exc:  # noqa: BLE001
+                    failures.append((locale, row["slug"], str(exc)[:200]))
+                    print(f"  FAILED {locale} {row['slug']}: {str(exc)[:160]}")
+                    translated = ""
+                    problem = str(exc)[:160]
+                    break
+
+                problem = check_translation(row["text"], translated, locale) or ""
+                if not problem:
+                    break
+
+                if attempt < attempts - 1:
+                    print(
+                        f"  RETRY {locale} {row['slug']} "
+                        f"(attempt {attempt + 2}/{attempts}): {problem}"
+                    )
+                    time.sleep(1.0)
+
+            if problem:
+                rejected.append((locale, row["slug"], problem))
+                print(f"  REJECTED {locale} {row['slug']}: {problem}")
+                continue
+
             try:
-                translated = translate(token, row["text"], locale)
-                problem = check_translation(row["text"], translated, locale)
-                if problem:
-                    rejected.append((locale, row["slug"], problem))
-                    print(f"  REJECTED {locale} {row['slug']}: {problem}")
-                    continue
                 write_translation(
                     row["id"],
                     locale,
                     translated,
-                    source_hash(row["text"]),
+                    row_hash,
                     MODEL,
                 )
+                done[(row["id"], locale)] = row_hash
                 total += 1
             except Exception as exc:  # noqa: BLE001
                 failures.append((locale, row["slug"], str(exc)[:200]))
@@ -426,6 +635,7 @@ def main() -> int:
             time.sleep(0.25)
 
     print(f"[translate] {total} translations written")
+    print(f"[translate] {skipped_resume} already done (resumed)")
     if rejected:
         print(f"[translate] {len(rejected)} REJECTED by the output check")
     if failures:
