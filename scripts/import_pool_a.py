@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -81,13 +82,21 @@ WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "gustale-pool-a-import/1.0 (https://gustale.com; hello@gustale.com)"
 
 
+# The target database. The default is live; the dry-run against a
+# COPY is what the import is proven on, and it has to be a copy —
+# writing to live first and checking afterwards is the wrong order.
+DB_NAME = os.environ.get("GUSTALE_DB_NAME", "gustale")
+
+
 def db(sql: str, vars: dict[str, str] | None = None) -> str:
-    """A query against the live database, through dbq.sh."""
+    """A query against the target database, through dbq.sh."""
     argv = ["bash", str(REPO / "scripts" / "dbq.sh")]
     for name, value in (vars or {}).items():
         argv += ["-v", f"{name}={value}"]
     argv.append(sql)
-    result = subprocess.run(argv, capture_output=True, text=True)
+    env = dict(os.environ)
+    env["GUSTALE_DB_NAME"] = DB_NAME
+    result = subprocess.run(argv, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         raise RuntimeError(f"the query failed: {result.stderr[-600:]}")
     return result.stdout
