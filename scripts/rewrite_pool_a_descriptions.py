@@ -441,6 +441,23 @@ For each concrete claim in the draft — every ingredient, every technique, \
 every place, every date, every claim about who made it or what it is \
 made of — decide whether the FACTS support it.
 
+THE DISH'S OWN NAME IS NOT A CLAIM.
+
+The draft is an entry FOR a particular dish, so it names that dish. The \
+name is the SUBJECT of the entry, not something the entry asserts about \
+the dish, and it is not judged against the facts. A draft that says "Bai \
+ye is a soybean food" is not making a claim that the facts must support \
+by the name "Bai ye" — it is saying that whatever this dish is, it is a \
+soybean food. Judge the description on everything else it says.
+
+This matters because a dish's article may not use the dish's own name at \
+all. "Bai ye" redirects to the article "Tofu skin", whose text never says \
+"bai ye" — and a fact-checker that treats the name as a claim will \
+reject every honest description of it, including one that says nothing \
+but what the facts say. A source that does not name the dish is a problem \
+with the CITATION, and the right response to it is not to reject the \
+wording but to notice it; that is why the name is out of scope here.
+
 A claim IS supported if the facts state it, or if it follows directly \
 from what the facts state (a synonym, a more general wording of the \
 same thing, or a straightforward restatement).
@@ -663,7 +680,31 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
                     repaired = clean(repair(token, dish, candidate, reason))
                 except Exception as exc:  # noqa: BLE001
                     repaired = ""
-                if not repaired or repaired.upper().startswith(INSUFFICIENT):
+                if not repaired:
+                    break
+                if repaired.upper().startswith(INSUFFICIENT):
+                    # The model's own verdict, on the retry, is that
+                    # the source cannot support a full description.
+                    #
+                    # That verdict was being DISCARDED: the loop
+                    # broke out and kept the original text and the
+                    # original reason, so a dish whose source is
+                    # genuinely too thin was reported as a plain
+                    # failure — "too thin to be worth publishing" —
+                    # rather than as the insufficient source it is.
+                    # The two are different answers and the
+                    # distinction is the whole point of the flag: a
+                    # failed description is a writer's problem, an
+                    # insufficient source is a source's problem, and
+                    # only the first one is worth retrying.
+                    final_status = "insufficient"
+                    final_reason = (
+                        "the cited source does not support a full description"
+                    )
+                    final_text = ""
+                    final_content = 0.0
+                    final_function = 0.0
+                    grounded = False
                     break
                 attempts.append((repaired, None))
 

@@ -35,6 +35,11 @@ LEADS_FILE = REPO / "data" / "pool_a_leads.json"
 
 USER_AGENT = "gustale-reference-work/1.0 (https://gustale.com)"
 
+# How many paragraphs of the article BODY to keep when the lead was
+# too short to describe the dish. Two is enough to carry the
+# what-and-how; the rest is history.
+BODY_PARAGRAPHS = 2
+
 
 def fetch_lead(title: str) -> str | None:
     """The lead of a Wikipedia article, or None.
@@ -108,6 +113,64 @@ def _action_extract(title: str) -> str | None:
         extract = page.get("extract")
         if extract:
             return extract.strip()
+    return None
+
+
+def _action_extract_full(title: str) -> str | None:
+    """The WHOLE article body, from the action API.
+
+    `exintro=1` returns only the LEAD PARAGRAPH, and for an article
+    that a dish's title REDIRECTS to, the lead paragraph can be about
+    a different thing entirely.
+
+    The case that matters: the dish "Baked ziti" redirects to the
+    article "Ziti", which is about the PASTA SHAPE. Its lead is one
+    sentence — "Ziti or zite is a shape of extruded pasta originating
+    in the Italian region of Sicily." — and it says nothing at all
+    about baking, the dish, or the sauce. No honest description of
+    baked ziti can be written from it, because the facts are not
+    there.
+
+    But the BODY of that article does describe the baked preparation:
+    "In baked macaroni dishes, these tubes are used unbroken". So
+    for a lead that is short, the body is fetched as well, and the
+    two are kept together — the lead first, then the rest of the
+    article. The writer then has the facts, and the grounding check
+    still decides what may be claimed.
+
+    # This is only used when the lead is short. A long lead already
+    # carries the substance, and pulling the whole article for every
+    # dish would make the prompt enormous for no gain.
+    #
+    # The body is CAPPED. "Bai ye" redirects to "Tofu skin", whose
+    # article runs to 6,122 characters — most of it history of the
+    # use of tofu skin in Chinese, Korean and Japanese cooking. A
+    # writer given all of it will start reaching for the parts that
+    # are furthest from the dish, and the grounding check will then
+    # reject the description for claiming something the dish does not
+    # need. The first paragraphs carry the what-and-how; the rest is
+    # history, which the lead paragraph usually does not cover
+    # either, and which this project's evidence model would not let
+    # the writer assert anyway.
+    """
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=query&prop=extracts"
+        "&explaintext=1&format=json&redirects=1&titles="
+        + urllib.parse.quote(title.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return None
+    pages = payload.get("query", {}).get("pages", {})
+    for page in pages.values():
+        extract = page.get("extract")
+        if not extract:
+            continue
+        paragraphs = [p.strip() for p in extract.strip().split("\n\n") if p.strip()]
+        return "\n\n".join(paragraphs[:BODY_PARAGRAPHS]).strip()
     return None
 
 
@@ -189,6 +252,47 @@ def main() -> int:
         if fetched % 100 == 0 and fetched:
             print(f"[leads] {fetched}/{len(missing)}")
             LEADS_FILE.write_text(json.dumps(leads, ensure_ascii=False, indent=1))
+
+    # ── Backfill the SHORT leads with the full article body ───────
+    #
+    # A lead under 200 characters is usually a dish whose article is
+    # a REDIRECT to a differently-titled article, and the lead
+    # paragraph of THAT article is about something else. "Baked ziti"
+    # redirects to "Ziti", whose lead is one sentence about a pasta
+    # shape and says nothing about baking.
+    #
+    # The body of the same article does carry the facts, so the body
+    # is fetched and appended. Only short leads are affected: a long
+    # lead already holds the substance, and fetching every article
+    # in full would be a thousand large fetches for no gain.
+    #
+    # This runs as its own pass so the main fetch stays fast, and it
+    # only ever APPENDS — a lead that already has its body is left
+    # alone.
+    short_slugs = [
+        row
+        for row in pool
+        if row.get("slug")
+        and row.get("article")
+        and row["slug"] in leads
+        and len(leads[row["slug"]]) < 200
+        and "── full article ──" not in leads[row["slug"]]
+    ]
+    if short_slugs:
+        print(f"[leads] backfilling {len(short_slugs)} short lead(s) with the article body")
+        backfilled = 0
+        for row in short_slugs:
+            body = _action_extract_full(row["article"])
+            if body and len(body) > len(leads[row["slug"]]):
+                leads[row["slug"]] = (
+                    leads[row["slug"]] + "\n\n── full article ──\n" + body
+                )
+                backfilled += 1
+            time.sleep(args.delay)
+            if backfilled % 50 == 0 and backfilled:
+                print(f"[leads] backfilled {backfilled}/{len(short_slugs)}")
+                LEADS_FILE.write_text(json.dumps(leads, ensure_ascii=False, indent=1))
+        print(f"[leads] backfilled {backfilled}")
 
     LEADS_FILE.write_text(json.dumps(leads, ensure_ascii=False, indent=1))
     print(f"[leads] fetched {fetched}; the cache now holds {len(leads)}")
