@@ -81,10 +81,26 @@ def db_rows(sql: str) -> list[dict]:
     return []
 
 
-def run_sql(sql: str) -> str:
-    """Run a statement and return psql's output."""
+def run_sql(sql: str, **variables: str) -> str:
+    """Run a statement and return psql's output.
+
+    The `variables` are passed to psql as `-v name=value`, so the
+    statement can refer to them as `:'name'`. psql quotes the value
+    itself, which is what makes it safe to put a description with an
+    apostrophe in it into a statement.
+
+    The value has to arrive as a `-v` ARGUMENT and not inside the SQL
+    string: psql does not substitute variables inside a `-c` string
+    the way it does inside a script read from stdin or a file, so a
+    statement that mixes `:'slug'` with a `-c` call fails with
+    "syntax error at or near ':'".
+    """
+    args = ["bash", str(REPO / "scripts" / "dbq.sh")]
+    for name, value in variables.items():
+        args += ["-v", f"{name}={value}"]
+    args.append(sql)
     result = subprocess.run(
-        ["bash", str(REPO / "scripts" / "dbq.sh"), sql],
+        args,
         capture_output=True,
         text=True,
     )
@@ -153,11 +169,20 @@ def main() -> int:
         # description with an apostrophe in it ("the dish's own") would
         # otherwise break the statement. psql's :'name' quoting escapes
         # the value itself.
+        #
+        # The status is NOT part of the WHERE clause. The write has to
+        # be idempotent: a dish already published — by an earlier
+        # partial run, or by hand — still needs its description
+        # brought to the checked text, and a `status = 'draft'` filter
+        # would quietly skip it and report a success that never
+        # happened. The publish step below is what moves a dish from
+        # draft to published, and it only ever moves a DRAFT, so
+        # nothing here can publish anything.
         with_svg = subprocess.run(
             ["bash", str(REPO / "scripts" / "dbq.sh"),
              "-v", f"desc={text}", "-v", f"slug={slug}",
              "update dishes set short_description = :'desc' "
-             "where slug = :'slug' and status = 'draft';"],
+             "where slug = :'slug';"],
             capture_output=True,
             text=True,
         )
@@ -170,11 +195,19 @@ def main() -> int:
     print(f"[apply] wrote {written} descriptions ({skipped} skipped)")
 
     # ── 2. READ BACK and re-check ────────────────────────────────
+    #
+    # The read-back is NOT filtered by status. What is being checked
+    # here is the TEXT that was stored — that it is what was checked,
+    # and that it still passes the gate. A dish that is already
+    # published (from an earlier partial run, or published by hand)
+    # still has to be verified; filtering it out would let a bad
+    # description through unnoticed precisely because it had already
+    # gone out.
     reread = db_rows(
         "select slug, short_description from dishes "
         "where slug in (" + ",".join(
             "'" + r["slug"].replace("'", "''") + "'" for r in passed
-        ) + ") and status = 'draft'"
+        ) + ")"
     )
     by_slug = {r["slug"]: r["short_description"] for r in reread}
 
@@ -214,6 +247,17 @@ def main() -> int:
 
     # ── 3. PUBLISH ───────────────────────────────────────────────
     published = 0
+    # The comment goes in as a psql VARIABLE, not as a SQL string
+    # literal. It contains an apostrophe ("the site's own voice"),
+    # and a literal would have to be escaped by hand; psql's :'name'
+    # quoting does it correctly. The same reason the description
+    # itself is a variable.
+    comment = (
+        f"Pool A publication batch {args.batch}: the description was "
+        "rewritten in the site's own voice and passed the similarity "
+        "and grounding gates; the statement stays research_pending and "
+        "the dish is shown with the unevidenced badge."
+    )
     for r in passed:
         slug = r["slug"]
         out = run_sql(
@@ -224,10 +268,10 @@ def main() -> int:
             "insert into edit_history (user_id, target_type, target_id, action, diff, comment) "
             "select u.id, 'dish', u.id, 'review', "
             "       jsonb_build_object('status', jsonb_build_object('from','draft','to','published')), "
-            "       'Pool A publication batch " + str(args.batch) + ": the description was "
-            "rewritten in the site's own voice and passed the similarity and grounding gates; "
-            "the statement stays research_pending and the dish is shown with the unevidenced badge.'"
-            "  from u;"
+            "       :'comment'"
+            "  from u;",
+            slug=slug,
+            comment=comment,
         )
         published += 1
 
