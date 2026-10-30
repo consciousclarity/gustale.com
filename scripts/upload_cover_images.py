@@ -308,9 +308,23 @@ def main() -> int:
         # the fallback `src`.
         master_key = variants[str(max(WIDTHS))]
         master_blob = blobs[str(max(WIDTHS))]
-        master_width = max(WIDTHS)
-        # The height of the optimised master, from the blob itself.
-        master_height = Image.open(io.BytesIO(master_blob)).height
+        # The dimensions of the optimised master, MEASURED FROM THE
+        # BLOB, not assumed from the width that was asked for.
+        #
+        # `optimise` CROPS to a 3:4 ratio before it resizes, so the
+        # rendered file is often much narrower than the width that was
+        # requested. An image whose source was 500x667 comes out
+        # 500x667, not 1536x667 — asking for a 1536-wide variant only
+        # means "do not scale this up".
+        #
+        # Storing the REQUESTED width made 739 of 1,338 covers claim
+        # a width their file does not have (1536x1080 for a file that
+        # is really 810x1080). The declared aspect ratio is what the
+        # browser reserves space for, so a wrong width defeats the
+        # whole point of storing the dimensions: the page reserves the
+        # wrong box and shifts when the image loads.
+        with Image.open(io.BytesIO(master_blob)) as master_image:
+            master_width, master_height = master_image.size
         alt = alt_text_for(record)
         sql = (
             "with ins as ("
