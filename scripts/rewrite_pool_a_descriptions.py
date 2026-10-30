@@ -663,7 +663,31 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
                     repaired = clean(repair(token, dish, candidate, reason))
                 except Exception as exc:  # noqa: BLE001
                     repaired = ""
-                if not repaired or repaired.upper().startswith(INSUFFICIENT):
+                if not repaired:
+                    break
+                if repaired.upper().startswith(INSUFFICIENT):
+                    # The model's own verdict, on the retry, is that
+                    # the source cannot support a full description.
+                    #
+                    # That verdict was being DISCARDED: the loop
+                    # broke out and kept the original text and the
+                    # original reason, so a dish whose source is
+                    # genuinely too thin was reported as a plain
+                    # failure — "too thin to be worth publishing" —
+                    # rather than as the insufficient source it is.
+                    # The two are different answers and the
+                    # distinction is the whole point of the flag: a
+                    # failed description is a writer's problem, an
+                    # insufficient source is a source's problem, and
+                    # only the first one is worth retrying.
+                    final_status = "insufficient"
+                    final_reason = (
+                        "the cited source does not support a full description"
+                    )
+                    final_text = ""
+                    final_content = 0.0
+                    final_function = 0.0
+                    grounded = False
                     break
                 attempts.append((repaired, None))
 
