@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 import urllib.parse
@@ -174,6 +175,182 @@ def _action_extract_full(title: str) -> str | None:
     return None
 
 
+def _strip_templates(text: str) -> str:
+    """Remove the {{...}} template blocks, matching the braces.
+
+    A regular expression cannot do this. An infobox nests — it has
+    fields, and some of those fields hold other templates — so the
+    pattern stops at the first inner "}}" and leaves the rest of the
+    infobox, and sometimes the lead sentence with it, sitting in the
+    text.
+
+    The braces are counted instead: depth goes up on "{{" and down on
+    "}}", and everything between the matching pair is dropped.
+
+    ONE EXCEPTION: the {{Nihongo}} template, which carries the
+    subject's name in its first argument. "Shirokuma"'s article opens
+
+        {{Nihongo|'''Shirokuma'''|白熊 or しろくま}} is a type of
+        kakigōri, a Japanese dessert made from shaved ice...
+
+    Dropping the template leaves "is a type of kakigōri..." — a
+    sentence with no subject, which is worse than no source at all.
+    So for that one template the first argument is kept.
+    """
+    out: list[str] = []
+    depth = 0
+    index = 0
+    length = len(text)
+    while index < length:
+        if text.startswith("{{", index):
+            # Is this the {{Nihongo}} template? Keep its first
+            # argument, which is the subject's name.
+            match = re.match(r"\{\{\s*Nihongo\s*\|", text[index : index + 40], re.I)
+            if match:
+                after = index + match.end()
+                end = text.find("}}", after)
+                if end != -1:
+                    argument = text[after:end].split("|")[0]
+                    out.append(re.sub(r"'{2,5}", "", argument))
+                    index = end + 2
+                    continue
+            depth += 1
+            index += 2
+            continue
+        if text.startswith("}}", index):
+            depth = max(0, depth - 1)
+            index += 2
+            continue
+        if depth == 0:
+            out.append(text[index])
+        index += 1
+    return "".join(out)
+
+
+def _wikitext_to_text(wikitext: str) -> str:
+    """Enough wikitext to read a sentence out of.
+
+    The wikitext of a dish article is a template block, then a
+    couple of paragraphs of prose with a handful of wiki links and a
+    little bold/italic markup. This strips the markup and leaves the
+    words. It is not a general converter and does not need to be — it
+    only has to make the LEAD readable.
+    """
+    text = wikitext
+    # Comments.
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+    # The templates, which come first and carry no prose. They nest,
+    # so the braces have to be MATCHED rather than pattern-matched —
+    # a regular expression stops at the first inner brace and leaves
+    # the rest of the infobox behind.
+    text = _strip_templates(text)
+    # Ref tags, with their content.
+    text = re.sub(r"<ref[^>]*>.*?</ref>", " ", text, flags=re.S | re.I)
+    text = re.sub(r"<ref[^>]*/>", " ", text, flags=re.I)
+    # Wiki links: keep the label, drop the target.
+    text = re.sub(r"\[\[([^\]|]*\|)?([^\]]*)\]\]", r"\2", text)
+    # External links.
+    text = re.sub(r"\[https?://\S+\s+([^\]]*)\]", r"\1", text)
+    text = re.sub(r"\[https?://\S+\]", " ", text)
+    # Bold, italic, quote markup.
+    text = re.sub(r"'{2,5}", "", text)
+    # The stubs begin with a bare image caption — "thumb|right|A plate
+    # containing crocchè" — and a stray "thumbnail|'Mpanatigghi." That
+    # is markup, not prose, so it is dropped.
+    text = re.sub(r"(?im)^\s*thumb(?:nail)?\|[^\n]*\n?", "", text)
+    text = re.sub(r"(?i)\bthumb(?:nail)?\|", "", text)
+    # Headings and list bullets.
+    text = re.sub(r"^=+\s*|\s*=+$", " ", text, flags=re.M)
+    text = re.sub(r"^[*#:;]+\s*", "", text)
+    # HTML tags.
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"[ \t]+", " ", text).strip()
+
+
+def _is_redirect_title(title: str) -> bool:
+    """Does this title redirect somewhere else?
+
+    The title is asked for WITHOUT `redirects=1`, so the answer is
+    about the title itself. With `redirects=1` the API resolves the
+    redirect and answers about the TARGET, whose own redirect flag is
+    false — so a redirecting title looks like an ordinary article.
+    The presence of the `redirect` key is the signal.
+    """
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=query&prop=info"
+        "&format=json&titles="
+        + urllib.parse.quote(title.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return False
+    for page in payload.get("query", {}).get("pages", {}).values():
+        return "redirect" in page
+    return False
+
+
+def _last_article_revision(title: str) -> str | None:
+    """The text of the LAST revision that was an article, not a redirect.
+
+    A dish's article is often MERGED into a differently-titled article
+    and turned into a redirect. When that happens the merged-away
+    article's own last revision — the one just before the merge —
+    is still the Wikipedia text for the dish.
+
+    The case that matters: "Chewz" is a candy, but the article was
+    merged into "Lance Inc." (the company that made it) and now
+    redirects there. The redirect target is about a snack-food
+    business, so the source cannot support a description of the
+    candy. The last article revision, from 2017, says what it is:
+
+        Chewz are a Mentos-like candy with a hard shell and a soft,
+        chewy interior that is made by Lance, Inc.
+
+    Only the MOST RECENT such revision is taken. The OLDEST revision
+    of a mature article is a 2005 stub, which is a worse source than
+    the current lead — "Abacha"'s first revision in 2005 is a
+    one-line stub, while its 2017 revision is the full article.
+
+    The revisions are walked from newest to oldest, and a revision
+    that is a redirect is skipped. When a redirect is found, the
+    search stops: everything older than the redirect is either the
+    redirect itself or a redirect too.
+    """
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=query&prop=revisions"
+        "&rvlimit=50&rvprop=content|timestamp|ids&rvslots=main"
+        "&format=json&titles="
+        + urllib.parse.quote(title.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return None
+    for page in payload.get("query", {}).get("pages", {}).values():
+        revisions = page.get("revisions") or []
+        for revision in revisions:
+            slot = revision.get("slots", {}).get("main", {})
+            wikitext = slot.get("*") or slot.get("content") or ""
+            if wikitext.strip().upper().startswith("#REDIRECT"):
+                # This revision is the redirect. The one before it is
+                # the last revision of the article — keep looking.
+                continue
+            text = _wikitext_to_text(wikitext)
+            # Only the LEAD is wanted: the first two paragraphs that
+            # survive the markup stripping.
+            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+            lead = "\n\n".join(paragraphs[:2]).strip()
+            if lead:
+                return lead
+        return None
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", action="store_true")
@@ -293,6 +470,58 @@ def main() -> int:
                 print(f"[leads] backfilled {backfilled}/{len(short_slugs)}")
                 LEADS_FILE.write_text(json.dumps(leads, ensure_ascii=False, indent=1))
         print(f"[leads] backfilled {backfilled}")
+
+    # ── Recover the sources that were MERGED away ─────────────────
+    #
+    # A dish whose article was merged into another article and turned
+    # into a redirect can end up with a source that does not describe
+    # it at all. "Chewz" is a candy; the article was merged into
+    # "Lance Inc." — the company that made it — and now redirects
+    # there. The source is about a snack-food business, so no honest
+    # description of the candy can be written from it.
+    #
+    # The page's own last article revision still describes the candy:
+    #
+    #     Chewz are a Mentos-like candy with a hard shell and a soft,
+    #     chewy interior that is made by Lance, Inc.
+    #
+    # That IS the Wikipedia text for the dish. The merge buried it.
+    #
+    # The test is narrow and mechanical: the cached source must not
+    # mention the dish's own NAME. If it does, the source describes
+    # the dish and there is nothing to fix — 89 of the 90 redirected
+    # Pool A dishes are in that position and they pass.
+    #
+    # The history is only consulted for a page that IS a redirect, and
+    # the MOST RECENT article revision is taken rather than the
+    # oldest: the oldest revision of a mature article is a 2005 stub,
+    # which is a worse source than what is already cached.
+    print("[leads] recovering the sources that were merged away")
+    history_fixed = 0
+    for row in pool:
+        slug = row.get("slug")
+        article = row.get("article")
+        if not slug or not article or slug not in leads:
+            continue
+        cached = leads[slug]
+        name = (row.get("label") or article or "").strip()
+        if not name:
+            continue
+        # Does the cached source even mention the dish?
+        if name.lower() in cached.lower():
+            continue
+        if not _is_redirect_title(article):
+            continue
+        recovered = _last_article_revision(article)
+        if not recovered or name.lower() not in recovered.lower():
+            continue
+        leads[slug] = recovered
+        history_fixed += 1
+        print(f"  {slug}: the source did not describe it; the history does")
+        time.sleep(args.delay)
+    if history_fixed:
+        print(f"[leads] {history_fixed} source(s) recovered from the page history")
+        LEADS_FILE.write_text(json.dumps(leads, ensure_ascii=False, indent=1))
 
     LEADS_FILE.write_text(json.dumps(leads, ensure_ascii=False, indent=1))
     print(f"[leads] fetched {fetched}; the cache now holds {len(leads)}")
