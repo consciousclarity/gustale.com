@@ -61,6 +61,7 @@ DATA_MIGRATIONS=(
 # moment.
 MIGRATION_0032=db/migrations/0032_gus239_archive_dish_translations.sql
 MIGRATION_0033=db/migrations/0033_gus239_english_names.sql
+MIGRATION_0034=db/migrations/0034_gus242_fix_corrupted_tradition.sql
 
 run_pg() {
   docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
@@ -145,6 +146,15 @@ echo "--- the GUS-239 English names"
 run_pg -f - < "$MIGRATION_0033" >/tmp/m0033.log 2>&1 || { echo "FAILED: 0033"; tail -12 /tmp/m0033.log; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0033.log | head -2 || true
+
+# 0034 fixes the one corrupted row in the 1e traditions load — a row
+# whose Wikidata Q-id is for Algerian cuisine but which carried
+# Tunisian text. It is a rename, so it must run AFTER the traditions
+# exist (0019), which they do by this point in the chain.
+echo "--- the corrupted tradition row"
+run_pg -f - < "$MIGRATION_0034" >/tmp/m0034.log 2>&1 || { echo "FAILED: 0034"; tail -12 /tmp/m0034.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE|GUS-242' /tmp/m0034.log | head -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then
