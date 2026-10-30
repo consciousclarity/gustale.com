@@ -81,7 +81,6 @@ ALLOWED_LICENCES = {
     "cc0": "CC0",
     "public domain": "Public domain",
     "pd": "Public domain",
-    "attribution": "Public domain (attribution)",
 }
 
 # The licences that are explicitly NOT usable.
@@ -90,6 +89,26 @@ ALLOWED_LICENCES = {
 # licences that look like permission but are not. They are listed so
 # that a report can say WHY an image was skipped, rather than just
 # that it was.
+#
+# A BARE "attribution" IS ALSO REFUSED, and it used to be allowed.
+#
+# Commons reports `LicenseShortName = "Attribution"` with NO
+# machine-readable `License` code when the uploader declared
+# `{{Attribution}}` or a `Permission=` field without naming a
+# Creative Commons licence. That is not a licence at all — it is the
+# absence of one. Three real cases:
+#
+#   File:Asado 2005.jpg          "Copyright 2005 recetasgourmet.com.ar.
+#                                 Permitido el uso del contenido citando
+#                                 la fuente" — a copyright notice with
+#                                 bespoke permission, NOT public domain
+#   File:Baho.jpg                "Si tienes permiso no hay problema..."
+#                                 — written permission from the author
+#   File:Bingka kantang halus.jpg  no licence template at all
+#
+# Mapping "attribution" to "Public domain (attribution)" published a
+# false licence claim on a live page. A missing licence must be
+# refused, exactly like an unreadable one.
 DENIED_LICENCE_MARKERS = ("fair use", "non-free", "nonfree", "copyrighted free use")
 
 
@@ -183,7 +202,18 @@ def normalise_licence(code: str | None, short: str | None) -> tuple[str | None, 
     # Without this, 4 images were refused for a licence that IS in
     # the allowed set, purely because of where it was obtained.
     raw_code = re.sub(r"-[a-z]{2}$", "", raw_code)
-    raw_short = re.sub(r"\s*[a-z]{2}$", "", raw_short).strip()
+
+    # The SHORT NAME is only stripped of a trailing country code when
+    # what remains is still a licence we know. A blind strip is
+    # dangerous: "public domain" ends in "in", so an unguarded
+    # two-letter strip turns it into "public doma" and refuses a
+    # perfectly good public-domain image.
+    for key, label in ALLOWED_LICENCES.items():
+        if raw_short == key or raw_short == label.lower():
+            return label, ""
+        stripped = re.sub(r"\s*[a-z]{2}$", "", raw_short).strip()
+        if stripped and (stripped == key or stripped == label.lower()):
+            return label, ""
 
     for marker in DENIED_LICENCE_MARKERS:
         if marker in raw_code or marker in raw_short:
@@ -191,12 +221,6 @@ def normalise_licence(code: str | None, short: str | None) -> tuple[str | None, 
 
     if raw_code in ALLOWED_LICENCES:
         return ALLOWED_LICENCES[raw_code], ""
-
-    # The short name is the fallback: "Public domain" and "CC0" both
-    # come through as names in some cases.
-    for key, label in ALLOWED_LICENCES.items():
-        if raw_short == key or raw_short == label.lower():
-            return label, ""
 
     if raw_code.startswith("pd") or raw_short.startswith("pd"):
         return "Public domain", ""
