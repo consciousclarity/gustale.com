@@ -15,7 +15,10 @@ export async function getStaticPaths() {
   try {
     const allSlugs: string[] = [];
     const PAGE_SIZE = 100;
-    for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
+    // Until the API returns a SHORT page — that is how you know
+    // there is no more. The old cap of 1000 left every dish past
+    // the thousandth with no page at all.
+    for (let offset = 0; ; offset += PAGE_SIZE) {
       const res = await fetch(
         `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
       );
@@ -25,6 +28,7 @@ export async function getStaticPaths() {
       };
       allSlugs.push(...json.dishes.map((d) => d.slug));
       if (json.dishes.length < PAGE_SIZE) break;
+      if (offset >= 500 * PAGE_SIZE) break;
     }
 
     const locales = SITE_LOCALES.filter((l) => l !== "en");
