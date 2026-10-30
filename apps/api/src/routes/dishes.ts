@@ -265,7 +265,12 @@ export function registerDishRoutes(app: FastifyInstance): void {
         fam.slug              AS family_slug,
         fam.name              AS family_name,
         meth.slug             AS method_slug,
-        meth.name             AS method_name
+        meth.name             AS method_name,
+        cov.cover_storage_key AS cover_storage_key,
+        cov.cover_variants    AS cover_variants,
+        cov.cover_alt_text    AS cover_alt_text,
+        cov.cover_width       AS cover_width,
+        cov.cover_height      AS cover_height
       FROM dishes d
       LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
       LEFT JOIN LATERAL (

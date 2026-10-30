@@ -295,7 +295,9 @@ def fetch_batch(batch: int, limit: int) -> list[dict]:
     )
 
 
-def call_model(token: str, prompt: str, max_tokens: int = 4000) -> str:
+def call_model(
+    token: str, prompt: str, max_tokens: int = 4000, attempts: int = 2
+) -> str:
     """One call to MiniMax. Returns the text, or "" if there was none.
 
     The token budget has to be generous, because the model spends part
@@ -304,45 +306,64 @@ def call_model(token: str, prompt: str, max_tokens: int = 4000) -> str:
     produced — the response came back with a `thinking` block and no
     `text` block at all. The answer is short (under 220 characters),
     but the reasoning in front of it is not.
-    """
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "system": SYSTEM_PROMPT.format(
-                examples="\n".join(f"- {e}" for e in VOICE_EXAMPLES)
-            ),
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode()
-    request = urllib.request.Request(
-        API_URL,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-            "anthropic-version": "2023-06-01",
-        },
-    )
-    with urllib.request.urlopen(request, timeout=240) as response:
-        payload = json.loads(response.read())
 
-    # The response may carry a `thinking` block before the answer; the
-    # answer is the last `text` block. A thinking-only response has no
-    # text at all — the answer was never produced — and the retry
-    # ladder asks again with a bigger budget.
-    content = payload.get("content") or []
-    text = "\n".join(
-        block.get("text", "") for block in content if block.get("type") == "text"
-    ).strip()
-    if not text:
+    A thinking-only response is retried with a bigger budget. The
+    repair step depends on this: a repair that came back empty was
+    read as "there is no better description", and the dish was
+    reported as a plain failure when a second try would have passed
+    it. (bici-bici and big-red-gum were lost this way in batch 2.)
+    """
+    budget = max_tokens
+    for attempt in range(attempts):
+        body = json.dumps(
+            {
+                "model": MODEL,
+                "max_tokens": budget,
+                "system": SYSTEM_PROMPT.format(
+                    examples="\n".join(f"- {e}" for e in VOICE_EXAMPLES)
+                ),
+                "messages": [{"role": "user", "content": prompt}],
+            }
+        ).encode()
+        request = urllib.request.Request(
+            API_URL,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=240) as response:
+            payload = json.loads(response.read())
+
+        # The response may carry a `thinking` block before the answer;
+        # the answer is the last `text` block. A thinking-only response
+        # has no text at all — the answer was never produced — and the
+        # retry ladder asks again with a bigger budget.
+        content = payload.get("content") or []
+        text = "\n".join(
+            block.get("text", "")
+            for block in content
+            if block.get("type") == "text"
+        ).strip()
+        if text:
+            return text
         stop = payload.get("stop_reason", "?")
         kinds = [b.get("type") for b in content]
-        print(
-            f"    (no text block: stop_reason={stop}, blocks={kinds})",
-            file=sys.stderr,
-        )
-    return text
+        if attempt + 1 < attempts:
+            budget = budget * 3
+            print(
+                f"    (no text block: stop_reason={stop}, blocks={kinds}) "
+                f"— retrying with {budget} tokens",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"    (no text block: stop_reason={stop}, blocks={kinds})",
+                file=sys.stderr,
+            )
+    return ""
 
 
 def build_prompt(dish: dict) -> str:
@@ -492,6 +513,38 @@ Answer with exactly one word:
 - UNSUPPORTED — at least one claim is not supported.
 
 Output only that one word."""
+
+
+def source_facts(lead: str) -> str:
+    """The facts, as plain prose the fact-checker can read.
+
+    The cached lead carries structural markers when the article's
+    lead was too short and the body was appended:
+
+        Bici bici or bicibici muhallebisi is a Turkish dessert.
+
+        ── full article ──
+        Bici bici is a very light dessert, typical of southern Turkey...
+
+    The fact-checker stops reading at the marker, so everything after
+    it — which is where the substance is — was invisible to it. A
+    description that said "typical of southern Turkey" was rejected
+    even when that was the source's own wording, because the
+    sentence carrying it sat after the marker.
+
+    The markers are stripped and the sections are joined, so the
+    checker sees one continuous piece of source text. The section
+    headings the article itself carries ("== Description ==") are
+    stripped too, for the same reason.
+    """
+    if not lead:
+        return ""
+    text = lead
+    for marker in ("── full article ──", "== Description ==", "== See also =="):
+        text = text.replace(marker, "\n")
+    # Collapse the blank lines the markers leave behind.
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def check_grounding(token: str, description: str, facts: str) -> tuple[bool, str]:
@@ -658,6 +711,7 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
         # specific problem named. One repair attempt. A dish that
         # still fails after that is reported, not forced through.
         attempts = [(text, None)]
+        attempt_log: list[tuple] = []
         final_text = text
         final_status = "fail"
         final_reason = None
@@ -668,10 +722,13 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
         for attempt_index in range(2):
             candidate = attempts[-1][0]
             passed, content, function, reason = check(candidate, lead)
+            attempt_log.append((candidate, content, function, reason))
 
             if passed:
                 try:
-                    grounded, verdict = check_grounding(token, candidate, lead)
+                    grounded, verdict = check_grounding(
+                        token, candidate, source_facts(lead)
+                    )
                 except Exception as exc:  # noqa: BLE001
                     grounded, verdict = False, f"the grounding check failed: {exc}"[:200]
                 if grounded:
@@ -734,6 +791,17 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
             new=final_text,
             content=final_content,
             function=final_function,
+            # The attempts are kept so a failure can be diagnosed after
+            # the fact: what was tried, and what each try scored.
+            attempts=[
+                {
+                    "text": a_text[:400],
+                    "content": a_content,
+                    "function": a_function,
+                    "reason": a_reason,
+                }
+                for a_text, a_content, a_function, a_reason in attempt_log
+            ],
         )
         if grounded is not None:
             record["grounded"] = grounded
