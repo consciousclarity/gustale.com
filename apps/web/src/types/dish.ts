@@ -44,6 +44,28 @@ export interface DishSummary {
   methodSlug: string | null;
   /** Primary preparation method display name. */
   methodName: string | null;
+  /**
+   * The dish's cover image, for the list thumbnail.
+   *
+   * null when the dish has no cover — the front-end then shows the
+   * neutral placeholder rather than an empty box.
+   */
+  cover: DishCover | null;
+}
+
+/**
+ * A dish's cover image, as the API returns it for the list.
+ *
+ * `variantsUrls` is keyed by width ("800", "1536") so the front-end
+ * can build a srcset. `publicUrl` is the largest variant and is the
+ * fallback for a browser without srcset support.
+ */
+export interface DishCover {
+  publicUrl: string;
+  variantsUrls: Record<string, string>;
+  width: number | null;
+  height: number | null;
+  altText: string | null;
 }
 
 export interface DishListResponse {

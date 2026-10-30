@@ -129,4 +129,5 @@ __pycache__/
 # scripts/rewrite_pool_a_descriptions.py, and the descriptions are
 # published to the database, not to the repository.
 data/cover_images.json
+data/cover_images_poola.json
 data/pool_a_descriptions.json

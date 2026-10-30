@@ -285,6 +285,28 @@ export function registerDishRoutes(app: FastifyInstance): void {
         ORDER BY dp.sequence_order ASC
         LIMIT 1
       ) meth ON true
+      LEFT JOIN LATERAL (
+        -- The dish's cover image, for the list thumbnail.
+        --
+        -- Only the PUBLIC variant keys are taken. The master file is
+        -- in the private bucket and is not proxied at /media/*, so
+        -- exposing it would 404 and would leak that it exists. The
+        -- variants map is the only public surface, and the front-end
+        -- builds its srcset from it.
+        SELECT
+          m.storage_key AS cover_storage_key,
+          m.variants AS cover_variants,
+          m.alt_text AS cover_alt_text,
+          m.width    AS cover_width,
+          m.height   AS cover_height
+        FROM media_attachments ma
+        JOIN media m ON m.id = ma.media_id
+        WHERE ma.target_type = 'dish'
+          AND ma.target_id = d.id
+          AND ma.role = 'cover'
+        ORDER BY ma.id
+        LIMIT 1
+      ) cov ON true
       WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
       ORDER BY d.view_count DESC, d.canonical_name ASC
       LIMIT ${params.limit}
@@ -303,6 +325,11 @@ export function registerDishRoutes(app: FastifyInstance): void {
       family_name: string | null;
       method_slug: string | null;
       method_name: string | null;
+      cover_storage_key: string | null;
+      cover_variants: Record<string, string> | null;
+      cover_alt_text: string | null;
+      cover_width: number | null;
+      cover_height: number | null;
     }[];
 
     const result = rows.map((row) => ({
@@ -322,6 +349,28 @@ export function registerDishRoutes(app: FastifyInstance): void {
       familyName: row.family_name,
       methodSlug: row.method_slug,
       methodName: row.method_name,
+      // The cover thumbnail, when the dish has one. `variantsUrls` is
+      // keyed by width ("800", "1536") so the front-end can build a
+      // srcset; `publicUrl` is the largest variant, which is what a
+      // crawler or a browser without srcset support falls back to.
+      // null when there is no cover — the front-end then shows the
+      // neutral placeholder.
+      cover: (() => {
+        const variantsUrls = mapVariantsToUrls(row.cover_variants);
+        if (Object.keys(variantsUrls).length === 0) return null;
+        const publicUrl = pickPublicUrl(
+          row.cover_storage_key ?? "",
+          row.cover_variants,
+        );
+        if (!publicUrl) return null;
+        return {
+          publicUrl,
+          variantsUrls,
+          width: row.cover_width,
+          height: row.cover_height,
+          altText: row.cover_alt_text,
+        };
+      })(),
     }));
 
     return { dishes: result, limit: params.limit, offset: params.offset };

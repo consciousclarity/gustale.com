@@ -1,5 +1,23 @@
 import type * as React from "react";
 
+/**
+ * A dish's cover image, as the API returns it for the list.
+ *
+ * `variantsUrls` is keyed by width ("800", "1536") so the front-end
+ * can build a srcset. `publicUrl` is the largest variant and is the
+ * fallback for a browser without srcset support.
+ *
+ * It is declared here rather than imported from the web app so the
+ * UI package stays independent of the app that consumes it.
+ */
+export interface DishCover {
+  publicUrl: string;
+  variantsUrls: Record<string, string>;
+  width: number | null;
+  height: number | null;
+  altText: string | null;
+}
+
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   as?: "div" | "article" | "section" | "aside";
   padded?: boolean;
@@ -39,6 +57,14 @@ export interface DishCardProps {
   status?: string;
   viewCount?: number;
   /**
+   * The cover image for the card, when the dish has one.
+   *
+   * When it is absent the card shows a neutral placeholder — a
+   * typographic mark of the dish's origin, never a broken image and
+   * never an empty box.
+   */
+  cover?: DishCover | null;
+  /**
    * The heading level for the dish's name.
    *
    * WHY THIS IS A PROP
@@ -59,18 +85,90 @@ export interface DishCardProps {
   headingLevel?: "h2" | "h3" | "h4";
 }
 
+function buildSrcSet(variantsUrls: Record<string, string>): string | undefined {
+  const entries: string[] = [];
+  for (const [width, url] of Object.entries(variantsUrls)) {
+    if (typeof url === "string" && url.length > 0) {
+      entries.push(`${url} ${width}w`);
+    }
+  }
+  return entries.length > 0 ? entries.join(", ") : undefined;
+}
+
+/**
+ * The card's thumbnail: the cover image, or a neutral placeholder.
+ *
+ * The image is LAZY-loaded. A browse page can carry dozens of cards,
+ * and none of them is above the fold in any meaningful sense — the
+ * browser should not fetch forty images to render a screenful. The
+ * placeholder is always in the DOM underneath, so there is never a
+ * flash of empty space and never a broken-image icon.
+ */
+function DishCardThumb({
+  cover,
+  title,
+}: {
+  cover?: DishCover | null;
+  title: string;
+}) {
+  const srcSet = cover ? buildSrcSet(cover.variantsUrls) : undefined;
+  const alt = cover?.altText?.trim() || `${title} — cover`;
+
+  if (!cover) {
+    return (
+      <div
+        className="dish-card-thumb dish-card-thumb--placeholder"
+        // The placeholder carries the dish's name as text, so it is
+        // meaningful content, not decoration.
+        role="img"
+        aria-label={`${title} — no photograph yet`}
+      >
+        <span className="dish-card-thumb__initials" aria-hidden="true">
+          {title.slice(0, 1).toUpperCase()}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dish-card-thumb">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cover.publicUrl}
+        srcSet={srcSet}
+        // The card is a third of a grid column on a desktop and full
+        // width on a phone. The 800w variant covers both without the
+        // browser pulling the 1536w one down.
+        sizes="(min-width: 1024px) 320px, (min-width: 640px) 45vw, 92vw"
+        alt={alt}
+        className="dish-card-thumb__img"
+        loading="lazy"
+        decoding="async"
+        // Explicit dimensions reserve the space so the list does not
+        // jump as the images arrive. The stored dimensions are the
+        // source image's, so the ratio is right; the CSS clamps the
+        // rendered box to a fixed aspect.
+        width={cover.width ?? undefined}
+        height={cover.height ?? undefined}
+      />
+    </div>
+  );
+}
+
 export function DishCard({
   title,
   description,
   href,
   status,
   viewCount,
+  cover,
   headingLevel = "h3",
 }: DishCardProps) {
   const Heading = headingLevel;
   return (
     <Card className="transition hover:border-emerald-300 hover:shadow-md">
       <a href={href} className="block">
+        <DishCardThumb cover={cover} title={title} />
         <Heading className="text-lg font-semibold text-slate-900 hover:text-emerald-700">
           {title}
         </Heading>

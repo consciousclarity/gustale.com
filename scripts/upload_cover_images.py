@@ -246,9 +246,19 @@ def main() -> int:
     parser.add_argument("--upload", action="store_true", help="upload and write the rows")
     parser.add_argument("--report", action="store_true", help="report on the plan")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--plan",
+        type=Path,
+        default=PLAN_FILE,
+        help=(
+            "The plan file to upload. The default is the whole plan; "
+            "pass a filtered one to upload a subset (the Pool A "
+            "covers, for instance) without touching the others."
+        ),
+    )
     args = parser.parse_args()
 
-    plan = json.loads(PLAN_FILE.read_text())
+    plan = json.loads(args.plan.read_text())
     usable = [r for r in plan if r.get("status") == "ok"]
     if args.limit:
         usable = usable[: args.limit]
