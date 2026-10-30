@@ -111,6 +111,65 @@ ALLOWED_LICENCES = {
 # refused, exactly like an unreadable one.
 DENIED_LICENCE_MARKERS = ("fair use", "non-free", "nonfree", "copyrighted free use")
 
+# A file name that says the image is a LOGO rather than a photograph.
+#
+# The file NAME is not a reliable signal — "Logo del Café" is a dish,
+# "Choclologo" is a dish, and "brand_logo" is one word to a regex.
+# The Commons IMAGE DESCRIPTION is, because whoever uploaded a logo
+# says so:
+#
+#   File:Lance company logo.png      "Logo of Lance, Inc."
+#   File:Extra_gum_brand_logo.png    "logo of the brand"
+#
+# Both are Wikipedia's lead image for a branded product, and neither
+# is a picture of the food. The description is checked for the word
+# "logo" (or "wordmark") used as a NOUN, which is how the description
+# of a logo reads, and it is checked against the file name as a
+# secondary signal.
+#
+# The description check is deliberately narrow: it fires on "logo"
+# appearing as a standalone word. A dish description that merely
+# mentions a logo ("a wrapper bearing the company logo") is about
+# the food, and refusing it would cost a legitimate picture.
+LOGO_DESCRIPTION_PATTERN = re.compile(
+    r"\b(?:logo|wordmark|emblem)\b",
+    re.IGNORECASE,
+)
+
+# A file name that says the image is a logo. Used only to BACK UP the
+# description check, because a file named "..._brand_logo.png" is
+# almost never a photograph.
+LOGO_FILE_PATTERN = re.compile(
+    r"(?:^|[^a-z])(?:brand|company|product|firm)[_ -]+logos?\b",
+    re.IGNORECASE,
+)
+
+# A DESCRIPTION that is ABOUT a logo, rather than one that mentions
+# one.
+#
+# "Logo of Lance, Inc." and "logo of the brand" describe the logo.
+# "A wrapper bearing the company logo" describes a chocolate bar that
+# happens to have a logo on it — that is a photograph of the food, and
+# refusing it would cost a legitimate picture.
+#
+# So the pattern matches "logo" only where it is the HEAD of the
+# description, or where it is immediately followed by a word that
+# says what the logo belongs to.
+#
+# "Logo del Café" is a DISH, and its description starts with "Logo",
+# so the head match needs a second condition: the word after "logo"
+# must be a preposition or a company word, not a food word. "Logo
+# of Lance, Inc." and "logo of the brand" both fit; "Logo del Café"
+# does not.
+LOGO_DESCRIPTION_PATTERN = re.compile(
+    r"(?:"
+    r"^\W*(?:the\s+|an\s+|a\s+)?logos?\s+(?:of|for|from)\b"   # "Logo of Lance, Inc."
+    r"|\blogos?\s+of\s+the\b"                # "logo of the brand"
+    r"|\b(?:wordmark|emblem)\b"
+    r")",
+    re.IGNORECASE,
+)
+
 
 def api(host: str, params: dict) -> dict:
     """One MediaWiki API call, with a backoff when it is rate-limited.
@@ -454,6 +513,33 @@ def find_cover(dish: dict) -> dict:
     artist = strip_html(meta.get("Artist", {}).get("value"))
     credit_raw = strip_html(meta.get("Credit", {}).get("value"))
     desc_raw = strip_html(meta.get("ImageDescription", {}).get("value"))
+
+    # A BRAND OR COMPANY LOGO IS NOT A PICTURE OF THE FOOD.
+    #
+    # Wikipedia's lead image for a branded product is often the
+    # company's logo rather than the product. Two real cases from
+    # Pool A:
+    #
+    #   chewz      -> "File:Lance company logo.png"
+    #                 ("Logo of Lance, Inc.") — the manufacturer, not
+    #                 the candy
+    #   extra-gum  -> "File:Extra_gum_brand_logo.png"
+    #                 ("logo of the brand") — the wordmark, not the gum
+    #
+    # A page whose lead image is a logo has NO photograph of the
+    # dish, so the honest outcome is the placeholder. The image is
+    # refused by name rather than published as if it were the food.
+    #
+    # The DESCRIPTION is the signal, because whoever uploads a logo
+    # says so. The file name is only a backstop: "Logo del Café" is
+    # a dish, and "Choclologo" is a dish, so a bare "logo" in a name
+    # is not enough.
+    if LOGO_DESCRIPTION_PATTERN.search(desc_raw) or LOGO_FILE_PATTERN.search(file_title):
+        record.update(
+            status="skipped",
+            reason=f"the lead image is a logo ({file_title}), not a picture of the dish",
+        )
+        return record
 
     # The credit line. The artist is the required part; the source
     # link to the file page is added so the attribution is
