@@ -508,11 +508,22 @@ from the author's own knowledge of the dish. A dish's real ingredients \
 being true in the world is not the question. The question is whether \
 THESE FACTS support it.
 
-Answer with exactly one word:
-- SUPPORTED  — every claim is supported by the facts.
-- UNSUPPORTED — at least one claim is not supported.
+NAME THE UNSUPPORTED CLAIM.
 
-Output only that one word."""
+Answer in this form:
+
+- If every claim is supported, answer exactly: SUPPORTED
+- If a claim is not supported, answer on two lines:
+    UNSUPPORTED: <the claim, quoted from the draft>
+
+The second line matters. A draft for "Cenil" that reads "An Indonesian \
+snack of tapioca dough and sugar" is not supported, because the facts \
+never say the snack is Indonesian — they say it is "a traditional \
+snack" and name the ingredients. The author put the nationality there \
+from their own knowledge, and quoting it back is the only way the \
+writer can be told to take it out. Without the quoted claim the \
+writer is told only that something is wrong, and tends to change \
+something else."""
 
 
 def source_facts(lead: str) -> str:
@@ -704,12 +715,23 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
             print(f"  [{index}/{len(dishes)}] {slug}: INSUFFICIENT")
             continue
 
-        # ── Evaluate, and if it failed, try once more ─────────────
+        # ── Evaluate, and if it failed, try again ─────────────────
         #
         # The two checks are cheap next to a wrong publish, so the
         # flow is: write, check, and on failure write AGAIN with the
-        # specific problem named. One repair attempt. A dish that
-        # still fails after that is reported, not forced through.
+        # specific problem named.
+        #
+        # TWO repair attempts, not one. The second is for the case
+        # where the first repair fixed one problem and exposed
+        # another: "coulibiac" came back from the first repair
+        # GROUNDED but at 0.455 overlap, three hundredths over the
+        # limit. Its source is two sentences long, so there are only
+        # so many ways to phrase it and the description has to be
+        # reworded once more to get under. One attempt cannot
+        # resolve both problems; two can.
+        #
+        # A dish that still fails after that is reported, not forced
+        # through.
         attempts = [(text, None)]
         attempt_log: list[tuple] = []
         final_text = text
@@ -737,7 +759,7 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
         # that cannot clear it at all.
         best: dict | None = None
 
-        for attempt_index in range(2):
+        for attempt_index in range(3):
             candidate = attempts[-1][0]
             passed, content, function, reason = check(candidate, lead)
             attempt_log.append((candidate, content, function, reason))
@@ -766,7 +788,7 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
                     break
                 reason = (
                     f"a claim is not supported by the cited source "
-                    f"(the grounding check said {verdict.strip()[:60]})"
+                    f"({verdict.strip()[:60]})"
                 )
             elif reason is None:
                 reason = "the description did not pass the checks"
@@ -791,8 +813,8 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
                     "key": key,
                 }
 
-            if attempt_index == 0:
-                # One repair attempt, told what went wrong.
+            if attempt_index < 2:
+                # A repair attempt, told what went wrong.
                 try:
                     repaired = clean(repair(token, dish, candidate, reason))
                 except Exception as exc:  # noqa: BLE001
