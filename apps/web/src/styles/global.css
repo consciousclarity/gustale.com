@@ -4847,6 +4847,45 @@ body.nav-panel-open {
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
 }
+
+/* ── The card thumbnail ─────────────────────────────────────────────
+   A fixed 3:2 box. The image is cropped to fill it, so cards with
+   different source ratios still line up in a row.
+
+   The placeholder is a flat neutral surface with the dish's initial
+   — deliberately quiet. It is there so a dish without a photograph
+   reads as "no photograph yet", not as a broken image, and it must
+   not compete with the dishes that do have one.
+   ──────────────────────────────────────────────────────────────── */
+.dish-card-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--card, #fbf8f1);
+  margin-bottom: 10px;
+}
+.dish-card-thumb__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dish-card-thumb--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, var(--card, #fbf8f1) 0%, #efe9dc 100%);
+  border: 1px solid var(--line);
+}
+.dish-card-thumb__initials {
+  font-family: var(--display);
+  font-size: 2.25rem;
+  line-height: 1;
+  color: var(--sub);
+  opacity: 0.55;
+}
 .browse-more {
   display: flex;
   justify-content: center;

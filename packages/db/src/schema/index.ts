@@ -352,6 +352,12 @@ export const dishes = pgTable(
     originDateEarliest: integer("origin_date_earliest"),
     originDateLatest: integer("origin_date_latest"),
     status: text("status").$type<DishStatus>().notNull().default("draft"),
+    // The frozen Pool A publication batch this dish belongs to (1-14),
+    // or NULL for a dish that is not part of Pool A. Assigned once by
+    // slug order and never changed, so a batch's membership cannot
+    // shift when another batch is published or when a new dish is
+    // imported. See packages/db/drizzle/0015_pool_a_batch.sql.
+    poolABatch: integer("pool_a_batch"),
     viewCount: integer("view_count").notNull().default(0),
     editCount: integer("edit_count").notNull().default(0),
     contributorCount: integer("contributor_count").notNull().default(0),

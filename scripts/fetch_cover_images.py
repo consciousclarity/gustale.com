@@ -175,6 +175,21 @@ def normalise_licence(code: str | None, short: str | None) -> tuple[str | None, 
     return None, f"the licence {short or code or '(none)'} is not in the allowed set"
 
 
+def title_from_url(url: str) -> str:
+    """The article title, read back out of its Wikipedia URL.
+
+    `https://en.wikipedia.org/wiki/Abacha_(food)` gives "Abacha
+    (food)". The underscores are spaces and the percent-escapes are
+    decoded. A URL that is not a Wikipedia article URL gives "".
+    """
+    if not url:
+        return ""
+    m = re.search(r"/wiki/([^?#]+)", url)
+    if not m:
+        return ""
+    return urllib.parse.unquote(m.group(1)).replace("_", " ")
+
+
 def published_dishes() -> list[dict]:
     """The published dishes, with the Wikipedia title to look up.
 
@@ -182,18 +197,45 @@ def published_dishes() -> list[dict]:
     has one — that is the article the encyclopedia's entry is about,
     so its lead image is the right one. Otherwise the canonical name
     is used.
+
+    `pool_a_batch` is selected so a caller can tell a Pool A dish
+    from a legacy one. The two kinds carry their citation in
+    different tables — the legacy dishes in `citations`, the Pool A
+    ones in `claim_citations` — so the title lookup below has to
+    consider both, and the batch number says which is which.
+
+    THE ARTICLE TITLE COMES FROM THE URL, NOT THE SOURCE TITLE.
+
+    `sources.title` for a Pool A dish is the dish's LABEL, not the
+    article's title. "African Salad" is the label; the article is
+    "Abacha (food)". "3-in-1" is the label; the article is
+    "3-in-1 (fast food dish)". Looking up the label finds the wrong
+    article or none at all — "3-in-1" resolves to "3-in-One Oil",
+    and its lead image is a company's logo.
+
+    The URL is exact. It is the address the citation points at, so
+    the title is read back out of it.
     """
     sql = """
         select d.id::text as id,
                d.slug as slug,
                d.canonical_name as name,
+               d.pool_a_batch as pool_a_batch,
                coalesce((
-                   select s.title from citations c
+                   select s.url from citations c
                      join sources s on s.id = c.source_id
                     where c.target_id = d.id
                       and s.url like '%wikipedia.org/wiki/%'
                     order by c.id limit 1
-               ), '') as wiki_title
+               ), '') as legacy_url,
+               coalesce((
+                   select s.url from statements st
+                     join claim_citations cc on cc.statement_id = st.id
+                     join sources s on s.id = cc.source_id
+                    where st.subject_type = 'dish' and st.subject_id = d.id
+                      and s.url like '%wikipedia.org/wiki/%'
+                    order by cc.id limit 1
+               ), '') as pool_a_url
           from dishes d
          where d.status = 'published'
          order by d.slug
@@ -260,7 +302,12 @@ def find_cover(dish: dict) -> dict:
     `reason` explaining why there is no usable image.
     """
     slug = dish["slug"]
-    title = dish.get("wiki_title") or dish["name"]
+    # The article title comes from the citation's URL, which is the
+    # exact article. `sources.title` is the dish's LABEL for a Pool A
+    # dish ("African Salad" for an article called "Abacha (food)"),
+    # and looking up the label finds the wrong article or none.
+    url = dish.get("pool_a_url") or dish.get("legacy_url") or ""
+    title = title_from_url(url) or dish["name"]
 
     record: dict = {"slug": slug, "name": dish["name"], "wiki_title": title}
 
