@@ -494,6 +494,38 @@ Answer with exactly one word:
 Output only that one word."""
 
 
+def source_facts(lead: str) -> str:
+    """The facts, as plain prose the fact-checker can read.
+
+    The cached lead carries structural markers when the article's
+    lead was too short and the body was appended:
+
+        Bici bici or bicibici muhallebisi is a Turkish dessert.
+
+        ── full article ──
+        Bici bici is a very light dessert, typical of southern Turkey...
+
+    The fact-checker stops reading at the marker, so everything after
+    it — which is where the substance is — was invisible to it. A
+    description that said "typical of southern Turkey" was rejected
+    even when that was the source's own wording, because the
+    sentence carrying it sat after the marker.
+
+    The markers are stripped and the sections are joined, so the
+    checker sees one continuous piece of source text. The section
+    headings the article itself carries ("== Description ==") are
+    stripped too, for the same reason.
+    """
+    if not lead:
+        return ""
+    text = lead
+    for marker in ("── full article ──", "== Description ==", "== See also =="):
+        text = text.replace(marker, "\n")
+    # Collapse the blank lines the markers leave behind.
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def check_grounding(token: str, description: str, facts: str) -> tuple[bool, str]:
     """Is every claim in the description supported by the facts?
 
@@ -671,7 +703,9 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
 
             if passed:
                 try:
-                    grounded, verdict = check_grounding(token, candidate, lead)
+                    grounded, verdict = check_grounding(
+                        token, candidate, source_facts(lead)
+                    )
                 except Exception as exc:  # noqa: BLE001
                     grounded, verdict = False, f"the grounding check failed: {exc}"[:200]
                 if grounded:
