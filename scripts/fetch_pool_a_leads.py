@@ -472,6 +472,24 @@ def _last_article_revision(title: str) -> str | None:
     search stops: everything older than the redirect is either the
     redirect itself or a redirect too.
     """
+    for revision in _revisions(title):
+        wikitext = revision
+        if _is_redirect_text(wikitext):
+            # This revision is the redirect. The one before it is
+            # the last revision of the article — keep looking.
+            continue
+        text = _wikitext_to_text(wikitext)
+        # Only the LEAD is wanted: the first two paragraphs that
+        # survive the markup stripping.
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        lead = "\n\n".join(paragraphs[:2]).strip()
+        if lead:
+            return lead
+    return None
+
+
+def _revisions(title: str) -> list[str]:
+    """The wikitext of a page's revisions, newest first."""
     url = (
         "https://en.wikipedia.org/w/api.php?action=query&prop=revisions"
         "&rvlimit=50&rvprop=content|timestamp|ids&rvslots=main"
@@ -483,24 +501,111 @@ def _last_article_revision(title: str) -> str | None:
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read())
     except Exception:
-        return None
+        return []
+    out: list[str] = []
     for page in payload.get("query", {}).get("pages", {}).values():
-        revisions = page.get("revisions") or []
-        for revision in revisions:
+        for revision in page.get("revisions") or []:
+            slot = revision.get("slots", {}).get("main", {})
+            out.append(slot.get("*") or slot.get("content") or "")
+    return out
+
+
+def _redirect_target(title: str) -> tuple[str | None, str | None]:
+    """Where does this title redirect to? (article, section)"""
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=query&prop=revisions"
+        "&rvlimit=1&rvprop=content&rvslots=main&format=json&titles="
+        + urllib.parse.quote(title.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return None, None
+    for page in payload.get("query", {}).get("pages", {}).values():
+        for revision in page.get("revisions") or []:
             slot = revision.get("slots", {}).get("main", {})
             wikitext = slot.get("*") or slot.get("content") or ""
-            if _is_redirect_text(wikitext):
-                # This revision is the redirect. The one before it is
-                # the last revision of the article — keep looking.
-                continue
-            text = _wikitext_to_text(wikitext)
-            # Only the LEAD is wanted: the first two paragraphs that
-            # survive the markup stripping.
-            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-            lead = "\n\n".join(paragraphs[:2]).strip()
-            if lead:
-                return lead
+            match = re.search(
+                r"#REDIRECT\s*\[\[([^\]]+)\]\]", wikitext, re.IGNORECASE
+            )
+            if not match:
+                return None, None
+            target = match.group(1).strip()
+            if "#" in target:
+                article, _, section = target.partition("#")
+                return article.strip(), section.strip()
+            return target, None
+    return None, None
+
+
+def _redirect_section_text(title: str) -> str | None:
+    """The text of the SECTION a redirect points at, if it points at one.
+
+    A redirect into a section of another article is how Wikipedia
+    files a dish that is one example of a broader category.
+    "Sogan-dolma" — stuffed onions — redirects to "Dolma#Vegetables",
+    and the "Vegetables" section of the dolma article describes the
+    stuffed onions. The article's lead is about dolma in general,
+    which is a different thing.
+
+    The section's own text is taken, plus the section heading, so the
+    result still reads as a sentence about the dish.
+    """
+    article, section = _redirect_target(title)
+    if not article or not section:
         return None
+    # The parse API wants the section's INDEX, not its name, so the
+    # section list is fetched first and the name looked up in it.
+    index = _section_index(article, section)
+    if index is None:
+        return None
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=parse&prop=wikitext"
+        "&format=json&section=" + urllib.parse.quote(str(index)) + "&page="
+        + urllib.parse.quote(article.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return None
+    wikitext = (
+        payload.get("parse", {}).get("wikitext", {}).get("*", "")
+    )
+    if not wikitext:
+        return None
+    text = _wikitext_to_text(wikitext)
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    body = "\n\n".join(paragraphs[:2]).strip()
+    if not body:
+        return None
+    # The heading is repeated at the start of the body, because the
+    # section's wikitext begins with it. Drop the repeat.
+    if body.lower().startswith(section.lower()):
+        body = body[len(section):].lstrip(" —-–:.\n")
+    if not body:
+        return None
+    return f"{section} — {body}"
+
+
+def _section_index(article: str, section: str) -> str | None:
+    """The index of a section, by its name."""
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=parse&prop=sections"
+        "&format=json&page=" + urllib.parse.quote(article.replace(" ", "_"))
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except Exception:
+        return None
+    for entry in payload.get("parse", {}).get("sections", []):
+        if entry.get("line", "").strip().lower() == section.strip().lower():
+            return entry.get("index")
     return None
 
 
@@ -678,9 +783,18 @@ def main() -> int:
         recovered = _last_article_revision(article)
         if not recovered:
             # The page was created as a redirect and never had an
-            # article. There is nothing to recover, and the source
-            # stays as it is — the description pipeline will report
-            # it as insufficient, which is the honest answer.
+            # article of its own. But it may point at a SECTION of
+            # another article, and that section is about the dish.
+            #
+            # "Sogan-dolma" redirects to "Dolma#Vegetables" — the
+            # stuffed-onions entry inside the dolma article. The
+            # redirect target's whole lead is about dolma in general,
+            # which does not describe this dish, but the section does.
+            recovered = _redirect_section_text(article)
+        if not recovered:
+            # There is nothing to recover. The source stays as it is,
+            # and the description pipeline will report the dish as
+            # insufficient, which is the honest answer.
             continue
         if recovered.strip() == cached.strip():
             continue
