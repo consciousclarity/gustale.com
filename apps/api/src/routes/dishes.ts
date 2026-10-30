@@ -23,6 +23,7 @@ import {
   preparationMethods,
   preparationMethodTranslations,
   sources,
+  statements,
   tags,
   users,
 } from "@gustale/db";
@@ -781,6 +782,34 @@ export function registerDishRoutes(app: FastifyInstance): void {
       SELECT dimension, reason FROM dish_dimension_unset
        WHERE dish_id = ${dishRow.id}
     `);
+
+    // The evidence status — the Pool A publication badge.
+    //
+    // A dish is UNEVIDENCED when it has statements and NONE of them
+    // has reached `verified`. The Pool A dishes each carry one
+    // statement whose only citation is an S6 (discovery-only) source,
+    // so they are all `research_pending`: classified, discoverable,
+    // published — and not yet evidenced.
+    //
+    // The badge is derived, never stored, so it cannot drift from the
+    // statements. A dish with NO statements at all (the 121 legacy
+    // published dishes, which predate the claims model) is NOT
+    // unevidenced — they carry the legacy `citations` rows instead,
+    // and showing a badge on them would be a false claim.
+    const statementRows = await db
+      .select({ status: statements.status })
+      .from(statements)
+      .where(
+        and(
+          eq(statements.subjectType, "dish"),
+          eq(statements.subjectId, dishRow.id),
+        ),
+      );
+
+    const verifiedCount = statementRows.filter(
+      (s) => s.status === "verified" || s.status === "published",
+    ).length;
+    const unevidenced = statementRows.length > 0 && verifiedCount === 0;
     // ADR-003 layer 3b — the prose.
     //
     // The description is stored as SENTENCES, and each sentence is
@@ -898,6 +927,13 @@ export function registerDishRoutes(app: FastifyInstance): void {
       tags: dishTagRows,
       dimensions,
       unsetDimensions,
+      // The Pool A publication badge: this dish is published but none
+      // of its statements is verified, so the page must say so.
+      unevidenced,
+      evidence: {
+        statementCount: statementRows.length,
+        verifiedCount,
+      },
       // Every name the dish has, in every language, with its kind and
       // script. The client picks the one to show; the API has already
       // chosen the primary for the requested locale.
