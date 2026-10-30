@@ -441,6 +441,23 @@ For each concrete claim in the draft — every ingredient, every technique, \
 every place, every date, every claim about who made it or what it is \
 made of — decide whether the FACTS support it.
 
+THE DISH'S OWN NAME IS NOT A CLAIM.
+
+The draft is an entry FOR a particular dish, so it names that dish. The \
+name is the SUBJECT of the entry, not something the entry asserts about \
+the dish, and it is not judged against the facts. A draft that says "Bai \
+ye is a soybean food" is not making a claim that the facts must support \
+by the name "Bai ye" — it is saying that whatever this dish is, it is a \
+soybean food. Judge the description on everything else it says.
+
+This matters because a dish's article may not use the dish's own name at \
+all. "Bai ye" redirects to the article "Tofu skin", whose text never says \
+"bai ye" — and a fact-checker that treats the name as a claim will \
+reject every honest description of it, including one that says nothing \
+but what the facts say. A source that does not name the dish is a problem \
+with the CITATION, and the right response to it is not to reject the \
+wording but to notice it; that is why the name is out of scope here.
+
 A claim IS supported if the facts state it, or if it follows directly \
 from what the facts state (a synonym, a more general wording of the \
 same thing, or a straightforward restatement).
