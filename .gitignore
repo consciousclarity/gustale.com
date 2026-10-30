@@ -123,3 +123,10 @@ apps/web/public/fonts/noto/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# The generated cover-image plan and the Pool A description proposals.
+# They are rebuilt by scripts/fetch_cover_images.py and
+# scripts/rewrite_pool_a_descriptions.py, and the descriptions are
+# published to the database, not to the repository.
+data/cover_images.json
+data/pool_a_descriptions.json
