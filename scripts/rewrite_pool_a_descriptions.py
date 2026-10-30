@@ -240,37 +240,61 @@ def fetch_batch(batch: int, limit: int) -> list[dict]:
     So the facts are the full lead, which is the cached fetch of the
     very URL the citation points at. The excerpt is kept as well, for
     the report.
+
+    THE BATCH SLICE MUST NOT MOVE WHEN A BATCH IS PUBLISHED.
+
+    The obvious way to slice is `order by slug offset N limit 100`,
+    but over which set? Over the drafts, it breaks the moment a batch
+    is published: the published dishes leave the `status = 'draft'`
+    result set, so every later offset lands 100 dishes too far. Batch
+    2 would have picked up 2 of its intended 103 dishes and skipped
+    the rest — and since the batches go out in order, that error would
+    repeat and compound, silently skipping dishes and rewriting the
+    wrong ones.
+
+    So the slice is taken over the WHOLE Pool A set — every dish,
+    whatever its status — which is stable, because the set only grows
+    at import time. The draft filter is applied AFTER the slice, not
+    before it. A dish already published simply drops out of the
+    batch, and the batch gets a little smaller; it never shifts.
     """
     offset = (batch - 1) * limit
+    # The slice is taken FIRST, over the whole Pool A set, and the
+    # draft filter is applied to the slice afterwards. Doing it the
+    # other way round — filtering to drafts and then offsetting —
+    # makes the slice move every time a batch is published.
     return db_rows(
         f"""
-        select d.id::text                       as id,
-               d.slug                           as slug,
-               d.canonical_name                 as name,
-               d.short_description              as current,
-               coalesce(c.excerpt, '')          as excerpt,
-               coalesce(s.title, '')            as source_title,
-               coalesce(s.url, '')              as source_url,
-               (select string_agg(distinct v.name, ', ')
-                  from dish_dish_families df
-                  join dish_families v on v.id = df.value_id
-                 where df.dish_id = d.id)        as family,
-               (select string_agg(distinct v.name, ', ')
-                  from dish_dish_cuisines dc
-                  join dish_cuisines v on v.id = dc.value_id
-                 where dc.dish_id = d.id)        as cuisine,
-               (select string_agg(distinct g.name, ', ')
-                  from geo_entities g
-                 where g.id = d.origin_geo_id)          as places
-          from dishes d
-          left join statements st
-                 on st.subject_type = 'dish' and st.subject_id = d.id
-          left join claim_citations c on c.statement_id = st.id
-          left join sources s on s.id = c.source_id
-         where d.created_by = 'wikidata-derived'
-           and d.status = 'draft'
-         order by d.slug
-         offset {offset} limit {limit}
+        select * from (
+          select d.id::text                       as id,
+                 d.slug                           as slug,
+                 d.canonical_name                 as name,
+                 d.short_description              as current,
+                 coalesce(c.excerpt, '')          as excerpt,
+                 coalesce(s.title, '')            as source_title,
+                 coalesce(s.url, '')              as source_url,
+                 (select string_agg(distinct v.name, ', ')
+                    from dish_dish_families df
+                    join dish_families v on v.id = df.value_id
+                   where df.dish_id = d.id)        as family,
+                 (select string_agg(distinct v.name, ', ')
+                    from dish_dish_cuisines dc
+                    join dish_cuisines v on v.id = dc.value_id
+                   where dc.dish_id = d.id)        as cuisine,
+                 (select string_agg(distinct g.name, ', ')
+                    from geo_entities g
+                   where g.id = d.origin_geo_id)   as places,
+                 d.status                         as status
+            from dishes d
+            left join statements st
+                   on st.subject_type = 'dish' and st.subject_id = d.id
+            left join claim_citations c on c.statement_id = st.id
+            left join sources s on s.id = c.source_id
+           where d.created_by = 'wikidata-derived'
+           order by d.slug
+           offset {offset} limit {limit}
+        ) sliced
+        where sliced.status = 'draft'
         """
     )
 
