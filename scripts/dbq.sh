@@ -77,7 +77,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$QUERY" ]]; then
+  # No query was given as an argument — read it from STDIN. This is
+  # how a large generated statement is passed: as an argument it would
+  # overflow the exec argument list.
+  if [[ ! -t 0 ]]; then
+    QUERY="$(cat)"
+  fi
+fi
+
+if [[ -z "$QUERY" ]]; then
   echo "usage: dbq.sh [-v NAME=value] \"<sql>\"" >&2
+  echo "       (or pipe the SQL on stdin)" >&2
   exit 2
 fi
 
@@ -85,11 +95,18 @@ fi
 # :'name' variables in script input — with -c, the variables are
 # passed but NOT substituted. So a value containing an apostrophe
 # would be injected as raw SQL.
-# The query goes through STDIN, not -c. psql only interpolates its
-# :'name' variables in script input — with -c, the variables are
-# passed but NOT substituted. So a value containing an apostrophe
-# would be injected as raw SQL.
-printf '%s\n' "$QUERY" | docker exec -e PGPASSWORD="$PGPASSWORD" -i shared-postgres \
+#
+# The query is ALSO written to a temporary file rather than being
+# passed as a command-line argument to this script. A generated
+# statement can run to tens of kilobytes, and a single argument that
+# long overflows the exec argument list ("Argument list too long").
+# The file keeps the interface the same — the SQL still arrives as an
+# argument to dbq.sh — while the ARGUMENT TO PSQL stays short.
+QUERY_FILE="$(mktemp)"
+trap 'rm -f "$QUERY_FILE"' EXIT
+printf '%s\n' "$QUERY" > "$QUERY_FILE"
+
+cat "$QUERY_FILE" | docker exec -e PGPASSWORD="$PGPASSWORD" -i shared-postgres \
   psql -v ON_ERROR_STOP=1 -X \
        "${VARS[@]+"${VARS[@]}"}" \
        -U "$DB_USER" -d "$DB_NAME" -h 127.0.0.1 -p 5432

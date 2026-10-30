@@ -54,20 +54,94 @@ import urllib.parse
 import uuid
 from pathlib import Path
 
+# The slug derivation is IMPORTED, not copied. The importer created
+# the dishes; if the two scripts derived slugs differently the
+# citations would silently land on nothing. Importing the importer's
+# own function makes that impossible.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from import_pool_a import slugify  # noqa: E402
+
 REPO = Path(__file__).resolve().parent.parent
 POOL_FILE = REPO / "data" / "pool_a.json"
 
 ADMIN = "00000000-0000-0000-0000-000000000001"
 
 
+# The database this script writes to. "gustale" is the live one; the
+# dry run sets it to an exact copy so the script can be exercised
+# without touching live data.
+TARGET_DATABASE = "gustale"
+
+
 def db(sql: str) -> str:
+    """Run SQL against TARGET_DATABASE.
+
+    When the target is the live database this goes through dbq.sh,
+    which owns the credential handling. Any other target is a scratch
+    copy inside the same container, reached with psql directly.
+
+    The SQL is passed to dbq.sh on STDIN, not as an argument: a
+    generated statement runs to tens of kilobytes, and a single
+    argument that long overflows the exec argument list ("Argument
+    list too long"). dbq.sh reads its query from stdin when none is
+    given.
+    """
+    if TARGET_DATABASE == "gustale":
+        out = subprocess.run(
+            ["bash", str(REPO / "scripts" / "dbq.sh")],
+            input=sql,
+            capture_output=True,
+            text=True,
+        )
+        if out.returncode != 0:
+            raise RuntimeError(
+                f"dbq.sh failed: {out.stderr.strip()}\n--- the SQL was ---\n{sql[:800]}"
+            )
+        return out.stdout
+    return db_on(TARGET_DATABASE, sql)
+
+
+def db_on(database: str, sql: str) -> str:
+    """Run SQL against a NAMED database.
+
+    The default target is the live `gustale`. A named target is used
+    for the dry run on an exact copy, so the script can be exercised
+    without touching the live data.
+
+    The SQL goes in on STDIN, not as an argument: the generated
+    statements run to tens of kilobytes, and a command-line argument
+    of that size overflows the exec argument list.
+    """
     out = subprocess.run(
-        ["bash", str(REPO / "scripts" / "dbq.sh"), sql],
+        [
+            "docker",
+            "exec",
+            "-i",
+            "-u",
+            "postgres",
+            "shared-postgres",
+            "psql",
+            "-U",
+            "postgres",
+            "-d",
+            database,
+            "-tA",
+            "-f",
+            "-",
+        ],
+        input=sql,
         capture_output=True,
         text=True,
-        check=True,
-    ).stdout
-    return out
+    )
+    if out.returncode != 0:
+        # psql's own message is the useful one — "relation does not
+        # exist", a syntax error, a constraint violation. It is
+        # surfaced rather than swallowed into a bare exit code.
+        raise RuntimeError(
+            f"psql failed against {database}: {out.stderr.strip()}\n"
+            f"--- the SQL was ---\n{sql[:800]}"
+        )
+    return out.stdout
 
 
 def db_rows(sql: str) -> list[dict]:
@@ -147,7 +221,7 @@ def build_sources(pool: list[dict]) -> dict[str, str]:
         r["slug"]: r
         for r in db_rows(
             """
-            select slug, id, name
+            select slug, id, canonical_name as name
               from dishes
              where created_by = 'wikidata-derived'
             """
@@ -168,8 +242,14 @@ def build_sources(pool: list[dict]) -> dict[str, str]:
     slug_to_source: dict[str, str] = {}
 
     for row in pool:
-        slug = row.get("slug")
         article = row.get("article")
+        label = row.get("label")
+        # The pool file has no `slug` key — the slug is DERIVED, and it
+        # must be derived exactly as the importer derived it, or the
+        # citation lands on nothing. The importer uses
+        # slugify(article or label); this mirrors that, and the two
+        # are checked against each other below.
+        slug = slugify(article or label or "")
         if not slug or not article or slug not in by_slug:
             continue
         url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(article.replace(' ', '_'))}"
@@ -177,7 +257,7 @@ def build_sources(pool: list[dict]) -> dict[str, str]:
         if not source_id:
             source_id = str(uuid.uuid4())
             url_to_source[url] = source_id
-            to_create.append((source_id, row.get("label") or article, url))
+            to_create.append((source_id, label or article, url))
         slug_to_source[slug] = source_id
 
     if to_create:
@@ -232,7 +312,10 @@ def attach_citations(pool: list[dict], slug_to_source: dict[str, str]) -> int:
 
     values: list[str] = []
     for row in pool:
-        slug = row.get("slug")
+        # The slug is DERIVED here too, for the same reason it is
+        # derived in build_sources — the pool file has no `slug` key.
+        # Both must use the importer's slugify so they agree.
+        slug = slugify(row.get("article") or row.get("label") or "")
         source_id = slug_to_source.get(slug)
         dish = dishes.get(slug)
         if not source_id or not dish or not dish.get("statement_id"):
@@ -265,9 +348,23 @@ def attach_citations(pool: list[dict], slug_to_source: dict[str, str]) -> int:
 
 
 def main() -> int:
+    global TARGET_DATABASE
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--database",
+        default="gustale",
+        help=(
+            "The database to write to. The default is the live one. "
+            "Point it at an exact copy for a dry run on real data."
+        ),
+    )
     args = parser.parse_args()
+
+    TARGET_DATABASE = args.database
+    if TARGET_DATABASE != "gustale":
+        print(f"[cite] the target database: {TARGET_DATABASE}")
 
     pool = json.loads(POOL_FILE.read_text())
     print(f"[cite] {len(pool)} Pool A dishes")
