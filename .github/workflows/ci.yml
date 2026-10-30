@@ -459,7 +459,13 @@ jobs:
   deploy:
       name: Deploy to Hostinger
       runs-on: ubuntu-24.04
-      timeout-minutes: 15
+      # The web build bakes a static page per published dish and fetches
+      # each from the API. That was under a minute at 31 dishes and is
+      # over nine minutes at 621, which does not fit in 15 alongside the
+      # image pulls, the API swap and the verification. The job was
+      # being killed with the API swapped and the web containers still
+      # on the old build.
+      timeout-minutes: 45
       needs: [build, build-web]  # api + both web variants must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       # The workflow-level concurrency uses cancel-in-progress: true, which
@@ -506,7 +512,15 @@ jobs:
             host: ${{ secrets.HOSTINGER_HOST }}
             username: ${{ secrets.HOSTINGER_USER }}
             key: ${{ secrets.HOSTINGER_SSH_KEY }}
-            command_timeout: 10m
+            # The web build bakes a static page for EVERY published dish,
+            # and it fetches each one from the API. At 31 dishes that took
+            # well under a minute; at 621 it takes over nine, and the
+            # build was being killed by the timeout with the API already
+            # swapped and the web containers still on the old build.
+            #
+            # 30 minutes leaves room for the page count to grow again.
+            # The build is idempotent, so a re-run is cheap.
+            command_timeout: 30m
             # Forward the env vars declared in `env:` to the remote script.
             envs: GITHUB_TOKEN,GITHUB_ACTOR,GITHUB_RUN_ID,HOME
             script: |
