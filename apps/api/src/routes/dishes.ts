@@ -298,6 +298,18 @@ export function registerDishRoutes(app: FastifyInstance): void {
         -- exposing it would 404 and would leak that it exists. The
         -- variants map is the only public surface, and the front-end
         -- builds its srcset from it.
+        --
+        -- The row is chosen by what it can actually SERVE, not by
+        -- which one came first. A dish can have more than one cover
+        -- row: the seed data left the original JPEG master attached
+        -- to a few dishes, and that row's storage key points at the
+        -- private bucket, so it 404s and it carries no dimensions.
+        -- The <img> tag then has no width and height to reserve,
+        -- and the list jumps as the image arrives.
+        --
+        -- So: prefer a row whose key is a public one and whose
+        -- dimensions are known, then fall back to any row with a
+        -- public key, then to whatever there is.
         SELECT
           m.storage_key AS cover_storage_key,
           m.variants AS cover_variants,
@@ -309,7 +321,10 @@ export function registerDishRoutes(app: FastifyInstance): void {
         WHERE ma.target_type = 'dish'
           AND ma.target_id = d.id
           AND ma.role = 'cover'
-        ORDER BY ma.id
+        ORDER BY
+          (m.storage_key LIKE 'dishes/%')::int DESC,
+          (m.width IS NOT NULL AND m.height IS NOT NULL)::int DESC,
+          ma.id
         LIMIT 1
       ) cov ON true
       WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
