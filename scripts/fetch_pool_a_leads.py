@@ -26,6 +26,7 @@ import json
 import re
 import sys
 import time
+import unicodedata
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -227,6 +228,139 @@ def _strip_templates(text: str) -> str:
     return "".join(out)
 
 
+def _mentions(text: str, name: str) -> bool:
+    """Does the text mention the name, as a phrase?
+
+    The name is compared as a WHOLE PHRASE, with word boundaries on
+    both sides, and with the diacritics folded away.
+
+    The boundaries matter: "Mexican pizza" is a phrase, and the text
+    "Pizza is a staple of Italian cuisine" contains the word "pizza"
+    but does not mention "Mexican pizza". A plain substring check
+    says it does, which is how a generic source about pizza was
+    mistaken for a description of the Mexican pizza.
+
+    The folding matters too: the article is "Niño envuelto" and the
+    text says "Niños envueltos", and "Acıbadem kurabiyesi" against
+    "Acıbadem Kurabiyesi". The comparison ignores case, accents and
+    punctuation, and treats a trailing plural "s" as optional.
+    """
+    if not text or not name:
+        return False
+
+    def fold(value: str) -> str:
+        value = value.lower()
+        # Strip the diacritics: they vary between the label and the
+        # article text, and they carry no meaning for this test.
+        decomposed = unicodedata.normalize("NFKD", value)
+        stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+        # Anything that is not a letter or a digit becomes a space.
+        return re.sub(r"[^a-z0-9]+", " ", stripped).strip()
+
+    haystack = " " + fold(text) + " "
+    needle = fold(name)
+    if not needle:
+        return False
+    if f" {needle} " in haystack:
+        return True
+    # A plural, which may be on any word and not only the last one:
+    # the article is "Niño envuelto" and the text says "Niños
+    # envueltos", so both words carry the "s".
+    words = needle.split()
+    for index in range(len(words)):
+        candidate = " ".join(
+            word + "s" if position == index else word
+            for position, word in enumerate(words)
+        )
+        if f" {candidate} " in haystack:
+            return True
+    # A plural on every word.
+    if len(words) > 1:
+        candidate = " ".join(word + "s" for word in words)
+        if f" {candidate} " in haystack:
+            return True
+    return False
+
+
+def _dish_names(row: dict) -> list[str]:
+    """The names a source might use for this dish.
+
+    Two of them, because they differ in ways that matter:
+
+    - the LABEL, which is the dish's name in the dataset. "makaroni
+      schotel" is the label; the article text says "Makaroni schotel".
+    - the ARTICLE TITLE, without its disambiguator. "Orama (dish)" is
+      the title; the text says "Orama". The parenthetical is a
+      Wikipedia convention and is not part of the name.
+
+    A source is taken to describe the dish if it mentions EITHER.
+    """
+    names: list[str] = []
+    label = (row.get("label") or "").strip()
+    if label:
+        names.append(label)
+    article = (row.get("article") or "").strip()
+    if article:
+        stem = re.sub(r"\s*\([^)]*\)\s*$", "", article).strip()
+        if stem:
+            names.append(stem)
+    return names
+
+
+def _describes(text: str, row: dict) -> bool:
+    """Does this text describe this dish?
+
+    Two tests, either of which is enough.
+
+    1. The text mentions the dish's name — the label, or the article
+       title without its disambiguator.
+
+    2. The text contains the CONTENT WORDS of the article title. This
+       catches the transliterations and translations, where the words
+       are the dish's but spelled differently: the article is "Batik
+       cake" and the text says "Kek batik"; the article is "Vangibath"
+       and the text says "Vangi Bath"; the article is "Lohikeitto" and
+       the text says "Salmon chowder", which shares only "lohi" — so
+       that one needs a looser rule, and gets the redirect test
+       instead.
+
+    The second test is only applied to titles of two words or more, and
+    it needs a strong showing:
+
+    - For a title of two content words, BOTH must be present. "Pizza
+      is a staple of Italian cuisine" contains "pizza" but not
+      "mexican", and a dish called "Mexican pizza" is not described by
+      a text about pizza in general. One word out of two is the
+      weakest possible evidence and it is not enough.
+    - For a longer title, at least two thirds of the content words
+      must be present. "Batik cake" against "Kek batik is a type of
+      Malaysian no-bake fridge cake" matches on both, and "Vangibath"
+      against "Vangi Bath is a vegetarian South Indian dish" matches
+      on both, while a generic source about batiks or cakes matches
+      on one.
+    """
+    if any(_mentions(text, name) for name in _dish_names(row)):
+        return True
+
+    article = (row.get("article") or "").strip()
+    stem = re.sub(r"\s*\([^)]*\)\s*$", "", article).strip()
+    words = [w for w in _fold_words(stem).split() if len(w) > 3]
+    if len(words) < 2:
+        return False
+    haystack = " " + _fold_words(text) + " "
+    present = sum(1 for word in words if f" {word}" in haystack)
+    if len(words) == 2:
+        return present == 2
+    return present * 3 >= len(words) * 2
+
+
+def _fold_words(value: str) -> str:
+    """Lower-case, strip the diacritics, and reduce to word characters."""
+    decomposed = unicodedata.normalize("NFKD", value.lower())
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", stripped).strip()
+
+
 def _wikitext_to_text(wikitext: str) -> str:
     """Enough wikitext to read a sentence out of.
 
@@ -261,8 +395,14 @@ def _wikitext_to_text(wikitext: str) -> str:
     text = re.sub(r"(?i)\bthumb(?:nail)?\|", "", text)
     # Headings and list bullets.
     text = re.sub(r"^=+\s*|\s*=+$", " ", text, flags=re.M)
-    text = re.sub(r"^[*#:;]+\s*", "", text)
-    # HTML tags.
+    text = re.sub(r"^[*#:;]+\s*", "", text, flags=re.M)
+    # An empty pair of brackets, left behind by a template that held
+    # only a pronunciation: "Acıbadem kurabiyesi ( )".
+    text = re.sub(r"\(\s*\)", "", text)
+    # The category markers at the end of an article: "Category:Mexican
+    # cuisine". They are metadata, not prose.
+    text = re.sub(r"(?im)^\s*Category:[^\n]*\n?", "", text)
+
     text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"[ \t]+", " ", text).strip()
 
@@ -290,6 +430,19 @@ def _is_redirect_title(title: str) -> bool:
     for page in payload.get("query", {}).get("pages", {}).values():
         return "redirect" in page
     return False
+
+
+def _is_redirect_text(wikitext: str) -> bool:
+    """Is this revision a redirect?
+
+    A redirect is normally "#REDIRECT [[Target]]", but Wikipedia also
+    writes them as "#REDIRECT[[Target]]" and, for a soft redirect that
+    is temporarily disabled, as "Temporarily disabled #REDIRECT
+    [[Target]]". The marker is looked for anywhere in the first line
+    rather than only at the start, because the prefix varies.
+    """
+    first_line = wikitext.strip().split("\n", 1)[0].upper()
+    return "#REDIRECT" in first_line
 
 
 def _last_article_revision(title: str) -> str | None:
@@ -336,7 +489,7 @@ def _last_article_revision(title: str) -> str | None:
         for revision in revisions:
             slot = revision.get("slots", {}).get("main", {})
             wikitext = slot.get("*") or slot.get("content") or ""
-            if wikitext.strip().upper().startswith("#REDIRECT"):
+            if _is_redirect_text(wikitext):
                 # This revision is the redirect. The one before it is
                 # the last revision of the article — keep looking.
                 continue
@@ -507,17 +660,33 @@ def main() -> int:
         name = (row.get("label") or article or "").strip()
         if not name:
             continue
-        # Does the cached source even mention the dish?
-        if name.lower() in cached.lower():
-            continue
+        # A REDIRECT page is not its own article: the text the API
+        # returns for it belongs to the TARGET, which may be about
+        # something else entirely. "Chewz" redirects to "Lance Inc.",
+        # a snack-food company; the description came from a company
+        # page. "Sambal tuktuk" redirects to "Sambal", a category.
+        #
+        # So for a redirect the page's own last ARTICLE revision is
+        # the dish's text, by definition — that is the text the page
+        # carried before it was merged away. It is used when it is
+        # there and it is better than what the redirect gives.
+        #
+        # A page that is NOT a redirect is its own article, and its
+        # text is the source. Nothing is done to it.
         if not _is_redirect_title(article):
             continue
         recovered = _last_article_revision(article)
-        if not recovered or name.lower() not in recovered.lower():
+        if not recovered:
+            # The page was created as a redirect and never had an
+            # article. There is nothing to recover, and the source
+            # stays as it is — the description pipeline will report
+            # it as insufficient, which is the honest answer.
+            continue
+        if recovered.strip() == cached.strip():
             continue
         leads[slug] = recovered
         history_fixed += 1
-        print(f"  {slug}: the source did not describe it; the history does")
+        print(f"  {slug}: the source was the redirect's target; the history is the dish")
         time.sleep(args.delay)
     if history_fixed:
         print(f"[leads] {history_fixed} source(s) recovered from the page history")
