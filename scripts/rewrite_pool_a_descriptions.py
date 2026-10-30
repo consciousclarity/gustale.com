@@ -719,6 +719,24 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
         final_function = 0.0
         grounded = None
 
+        # The BEST attempt is what gets reported, not the last one.
+        #
+        # The repair is told what went wrong, and it often makes
+        # things worse: a description that was over the similarity
+        # limit gets reworded into something even closer. "Coulibiac"
+        # is the case in point — the first attempt scored 0.435 and
+        # failed only the grounding check, the repair rewrote it and
+        # scored 0.650, and the 0.650 was what got reported. The
+        # failure was real either way, but the report named the wrong
+        # problem, and the better attempt was thrown away.
+        #
+        # An attempt is better if it got FURTHER: it passed the
+        # similarity gate, or it came closer to passing it. The
+        # similarity gate is the mechanical one, so an attempt that
+        # clears it and fails on grounding is further along than one
+        # that cannot clear it at all.
+        best: dict | None = None
+
         for attempt_index in range(2):
             candidate = attempts[-1][0]
             passed, content, function, reason = check(candidate, lead)
@@ -737,6 +755,14 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
                     final_reason = None
                     final_content = content
                     final_function = function
+                    best = {
+                        "text": candidate,
+                        "status": "pass",
+                        "reason": None,
+                        "content": content,
+                        "function": function,
+                        "key": (2, 0.0),
+                    }
                     break
                 reason = (
                     f"a claim is not supported by the cited source "
@@ -745,11 +771,25 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
             elif reason is None:
                 reason = "the description did not pass the checks"
 
-            final_text = candidate
-            final_reason = reason
-            final_content = content
-            final_function = function
-            final_status = "fail"
+            # How far did this attempt get? The similarity gate first
+            # — clearing it means the wording is original — then how
+            # close it came to clearing it.
+            #
+            # The comparison key is (cleared the gate, -overlap), and
+            # it is compared as a tuple so that clearing the gate
+            # always beats not clearing it, whatever the overlap.
+            clears_similarity = content is not None and content < THRESHOLD
+            key = (1 if clears_similarity else 0, -(content if content is not None else 1.0))
+            if best is None or key > best["key"]:
+                best = {
+                    "text": candidate,
+                    "status": "fail",
+                    "reason": reason,
+                    "content": content if content is not None else 1.0,
+                    "function": function,
+                    "clears_similarity": clears_similarity,
+                    "key": key,
+                }
 
             if attempt_index == 0:
                 # One repair attempt, told what went wrong.
@@ -784,6 +824,32 @@ def run_batch(batch: int, limit: int, resume: bool) -> list[dict]:
                     grounded = False
                     break
                 attempts.append((repaired, None))
+
+        # Report the BEST attempt, not the last one.
+        #
+        # The loop above keeps the last attempt's text and reason in
+        # `final_*` as it goes. If the repair made the description
+        # WORSE — which it often does, because it is told the
+        # description was too close to the source and so rewords it
+        # into something even closer — the worse one is what is
+        # reported.
+        #
+        # "Coulibiac" is the case in point. The first attempt scored
+        # 0.435 and failed only the grounding check. The repair
+        # scored 0.650. The 0.650 was reported as "too close to the
+        # source", which named the wrong problem — the real problem
+        # was grounding — and threw away the attempt that had got
+        # further.
+        #
+        # A pass always wins. Failing that, an attempt that cleared
+        # the similarity gate is better than one that did not, and
+        # among equals the lower overlap is better.
+        if best is not None and best.get("status") != "pass":
+            final_text = best["text"]
+            final_reason = best["reason"]
+            final_content = best["content"]
+            final_function = best["function"]
+            final_status = "fail"
 
         record.update(
             status=final_status,
