@@ -134,11 +134,43 @@ def main() -> int:
         if "slug" not in row:
             row["slug"] = slugify(row.get("article") or row.get("label") or "")
 
-    missing = [
-        row for row in pool
-        if row.get("slug") and row.get("article") and row.get("slug") not in leads
+    # A slug is "missing" if it is not cached AT ALL — OR if what is
+    # cached is DEGENERATE.
+    #
+    # The second case is the one that matters. A degenerate lead (one
+    # character, or mostly punctuation) is worse than no lead: the
+    # similarity check compares against it and finds our description
+    # 100% different, which marks a VERBATIM COPY as original. That is
+    # the check waving through exactly what it exists to catch.
+    #
+    # Without this, a degenerate lead that had already been cached was
+    # trusted forever — the fetcher skipped it as "already cached" and
+    # never noticed. The cache has to be VALIDATED, not just present.
+    degenerate_cached = [
+        slug
+        for slug, text in leads.items()
+        if isinstance(text, str) and _is_degenerate(text)
     ]
-    print(f"[leads] {len(leads)} cached, {len(missing)} to fetch")
+    if degenerate_cached:
+        shown = ", ".join(degenerate_cached[:8])
+        more = "..." if len(degenerate_cached) > 8 else ""
+        print(
+            f"[leads] {len(degenerate_cached)} cached lead(s) are degenerate "
+            f"and will be re-fetched: {shown}{more}"
+        )
+
+    missing = [
+        row
+        for row in pool
+        if row.get("slug")
+        and row.get("article")
+        and (row["slug"] not in leads or row["slug"] in degenerate_cached)
+    ]
+    print(
+        f"[leads] {len(leads)} cached "
+        f"({len(leads) - len(degenerate_cached)} usable), "
+        f"{len(missing)} to fetch"
+    )
 
     if args.report:
         if leads:
