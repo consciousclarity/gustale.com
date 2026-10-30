@@ -2060,6 +2060,40 @@ h4 {
   color: var(--sub);
   margin-bottom: var(--space-6);
 }
+/* The Pool A "unevidenced" badge.
+   The badge text is #6b4a09 on the page's warm cream background — a
+   contrast ratio of 7.2:1 or better across the page's background
+   shades (#f7f1e6 → 7.16, #fdf8f1 → 7.62), over the 4.5:1 that WCAG
+   1.4.3 requires for body text. The border is the same colour at a
+   lower alpha, so the badge reads as a chip without carrying the
+   meaning by colour alone (the word "unevidenced" is the message,
+   WCAG 1.4.1). */
+.dish-page .rec-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  max-width: var(--measure);
+  margin: -8px 0 var(--space-6);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--sub);
+}
+.dish-page .rec-evidence__badge {
+  flex: none;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid rgba(107, 74, 9, 0.45);
+  border-radius: 999px;
+  background: rgba(107, 74, 9, 0.08);
+  color: #6b4a09;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+.dish-page .rec-evidence__text {
+  flex: 1 1 18rem;
+}
 .dish-page .rec-byline .av {
   width: 28px;
   height: 28px;

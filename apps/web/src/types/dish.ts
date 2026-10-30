@@ -227,6 +227,15 @@ export interface DishDetailResponse {
   // "no evidence" rather than showing nothing.
   unsetDimensions: DishUnsetDimension[];
 
+  // The Pool A publication badge. `unevidenced` is true when the dish
+  // has statements and none of them is verified — it is published and
+  // classified, but its claims are not yet evidenced.
+  unevidenced: boolean;
+  evidence: {
+    statementCount: number;
+    verifiedCount: number;
+  };
+
   // ADR-003 layer 2 — the dish's names.
   names: DishName[];
   // The languages the dish has a name in, for the language switcher.

@@ -30,6 +30,11 @@ export interface DishDetailProps {
   preparations: DishPreparation[];
   sources: DishCitation[];
   media: DishMediaAttachment[];
+  /**
+   * The Pool A publication badge. When true, the page shows a visible
+   * notice that the dish's claims are not yet evidenced.
+   */
+  unevidenced?: boolean;
   /** P1-1 journey beats; omit or [] hides the Journey section. */
   journeyBeats?: JourneyBeat[];
   journeyLineages?: JourneyLineageLink[];
@@ -49,6 +54,7 @@ export function DishDetail({
   preparations,
   sources,
   media,
+  unevidenced = false,
   journeyBeats = [],
   journeyLineages = [],
 }: DishDetailProps) {
@@ -96,6 +102,21 @@ export function DishDetail({
           <h1 className="rec-title">{dish.name}</h1>
 
           {dish.description && <p className="rec-intro">{dish.description}</p>}
+
+          {/* The Pool A publication badge. A dish that is published and
+              classified but whose claims are not yet evidenced says so,
+              visibly, next to the prose it applies to. The notice is
+              text, not colour alone — WCAG 1.4.1. */}
+          {unevidenced && (
+            <p className="rec-evidence" role="note">
+              <span className="rec-evidence__badge">unevidenced</span>
+              <span className="rec-evidence__text">
+                This dish was found through Wikipedia and is classified, but its
+                claims have not yet been checked against a source. Treat the
+                details as a starting point, not as settled fact.
+              </span>
+            </p>
+          )}
 
           <div className="rec-byline">
             <span className="av" />

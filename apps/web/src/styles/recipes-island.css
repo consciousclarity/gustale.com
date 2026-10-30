@@ -236,6 +236,34 @@ body {
   color: var(--sub);
   margin-bottom: 24px;
 }
+/* The Pool A "unevidenced" badge — see global.css for the contrast
+   measurement. #6b4a09 on this property's background is 7.4:1. */
+.rec-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  max-width: 480px;
+  margin: -6px 0 24px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--sub);
+}
+.rec-evidence__badge {
+  flex: none;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid rgba(107, 74, 9, 0.45);
+  border-radius: 999px;
+  background: rgba(107, 74, 9, 0.08);
+  color: #6b4a09;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+.rec-evidence__text {
+  flex: 1 1 18rem;
+}
 .rec-byline .av {
   width: 30px;
   height: 30px;
