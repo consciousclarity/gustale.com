@@ -94,11 +94,29 @@ DENIED_LICENCE_MARKERS = ("fair use", "non-free", "nonfree", "copyrighted free u
 
 
 def api(host: str, params: dict) -> dict:
-    """One MediaWiki API call."""
+    """One MediaWiki API call, with a backoff when it is rate-limited.
+
+    Wikimedia answers 429 when too many requests arrive too quickly.
+    The first run over 713 dishes hit that on 169 of them, and every
+    one of those was recorded as "the Wikipedia lookup failed" — which
+    is a skip, not a licence decision, and it silently threw away a
+    fifth of the cover images.
+
+    The retry waits and asks again. A 429 is a "not now", not a "no".
+    """
     url = f"https://{host}/w/api.php?" + urllib.parse.urlencode(params)
     request = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(request, timeout=45) as response:
-        return json.loads(response.read())
+    delay = 2.0
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429 or attempt == 3:
+                raise
+            time.sleep(delay)
+            delay *= 2
+    raise RuntimeError("unreachable")
 
 
 def strip_html(value: str | None) -> str:
@@ -153,6 +171,19 @@ def normalise_licence(code: str | None, short: str | None) -> tuple[str | None, 
     """
     raw_code = (code or "").strip().lower()
     raw_short = (short or "").strip().lower()
+
+    # A LICENCE PORTAL SUFFIX is not part of the licence.
+    #
+    # Commons tags a licence with the portal it was obtained through:
+    # "cc-by-sa-2.0-kr" is the Korean CC BY-SA 2.0 portal, and it is
+    # the same licence as "cc-by-sa-2.0". Likewise "cc-by-3.0-pl" is
+    # the Polish CC BY 3.0 portal. The suffix is the two-letter
+    # country code at the end, after a dash.
+    #
+    # Without this, 4 images were refused for a licence that IS in
+    # the allowed set, purely because of where it was obtained.
+    raw_code = re.sub(r"-[a-z]{2}$", "", raw_code)
+    raw_short = re.sub(r"\s*[a-z]{2}$", "", raw_short).strip()
 
     for marker in DENIED_LICENCE_MARKERS:
         if marker in raw_code or marker in raw_short:
