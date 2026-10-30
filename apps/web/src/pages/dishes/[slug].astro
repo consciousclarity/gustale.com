@@ -37,11 +37,16 @@ export async function getStaticPaths() {
 
   try {
     // API caps `limit` at 100 per page, so loop to gather all published dishes.
-    // For our v1 encyclopedia (31 dishes) one request is enough; the loop
-    // future-proofs against growth without adding pagination complexity here.
+    //
+    // The loop runs until the API returns a SHORT page, which is how
+    // you know there is no more. It has no upper limit of its own:
+    // a cap of 1000 pages' worth of dishes silently dropped every
+    // dish past the thousandth, and at 1,474 published dishes that
+    // was 474 dishes with no page — a 404 on a dish that exists in
+    // the database and is listed in the API.
     const allSlugs: string[] = [];
     const PAGE_SIZE = 100;
-    for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
+    for (let offset = 0; ; offset += PAGE_SIZE) {
       const res = await fetch(
         `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
       );
@@ -51,6 +56,11 @@ export async function getStaticPaths() {
       };
       allSlugs.push(...json.dishes.map((d) => d.slug));
       if (json.dishes.length < PAGE_SIZE) break; // last page
+      // A guard against a server that keeps returning the same page
+      // would loop forever. 500 pages is 50,000 dishes, far past any
+      // realistic size, and it stops a bad response from hanging
+      // the build.
+      if (offset >= 500 * PAGE_SIZE) break;
     }
     return allSlugs.map((slug) => ({ params: { slug } }));
   } catch (err) {

@@ -16,7 +16,10 @@ export async function getStaticPaths() {
   try {
     const allSlugs: { slug: string; name: string }[] = [];
     const PAGE_SIZE = 100;
-    for (let offset = 0; offset < 1000; offset += PAGE_SIZE) {
+    // Until the API returns a SHORT page — that is how you know
+    // there is no more. The old cap of 1000 left every dish past
+    // the thousandth off the edit page's list.
+    for (let offset = 0; ; offset += PAGE_SIZE) {
       const res = await fetch(
         `${apiBase}/api/dishes?limit=${PAGE_SIZE}&offset=${offset}&status=published`,
       );
