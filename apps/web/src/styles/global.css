@@ -4876,11 +4876,7 @@ body.nav-panel-open {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(
-    160deg,
-    var(--card, #fbf8f1) 0%,
-    #efe9dc 100%
-  );
+  background: linear-gradient(160deg, var(--card, #fbf8f1) 0%, #efe9dc 100%);
   border: 1px solid var(--line);
 }
 .dish-card-thumb__initials {

@@ -92,16 +92,37 @@ UPDATE dishes d
    AND d.pool_a_batch IS DISTINCT FROM ((o.n - 1) / 100) + 1;
 
 -- ---------------------------------------------------------------------
--- The assertion. The published batch 1 is immutable: these 100 slugs
--- are the ones that went live under PR #117. If this count is not 100,
--- the backfill has drifted and the batch numbering must not be
--- trusted. It is checked here, at migration time, rather than trusted
--- later.
+-- The assertion.
+--
+-- The published batch 1 is immutable: these 100 slugs are the ones
+-- that went live under PR #117. If this count is not 100, the
+-- backfill has drifted and the batch numbering must not be trusted.
+-- It is checked here, at migration time, rather than trusted later.
+--
+-- BUT ONLY WHEN THERE ARE POOL A DISHES TO BACKFILL.
+--
+-- The migration runs in CI against a fresh database, where the Pool
+-- A import has not happened yet and `created_by = 'wikidata-derived'`
+-- matches nothing. Asserting "batch 1 has 100 dishes" against an
+-- empty set is not a useful check — it is a check that can only ever
+-- fail — so the whole block is skipped when there is nothing to
+-- backfill. The backfill is a no-op in that case, which is correct:
+-- the column stays NULL and the importer assigns the batch numbers
+-- when it creates the rows.
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
+  pool_a_total integer;
   n integer;
 BEGIN
+  SELECT count(*) INTO pool_a_total FROM dishes
+   WHERE created_by = 'wikidata-derived';
+
+  IF pool_a_total = 0 THEN
+    RAISE NOTICE 'pool_a_batch: no Pool A dishes in this database yet; the backfill was a no-op.';
+    RETURN;
+  END IF;
+
   SELECT count(*) INTO n FROM dishes
    WHERE created_by = 'wikidata-derived' AND pool_a_batch = 1;
   IF n <> 100 THEN
@@ -114,7 +135,9 @@ BEGIN
     RAISE EXCEPTION 'pool_a_batch backfill failed: % Pool A dishes have no batch', n;
   END IF;
 
-  -- No dish may be in two batches, and the numbering must be dense.
+  -- Every batch but the last holds exactly 100 dishes. The last is
+  -- the short one (54 for the current 1,354), so at most ONE batch is
+  -- allowed to differ.
   SELECT count(*) INTO n FROM (
     SELECT pool_a_batch FROM dishes
      WHERE created_by = 'wikidata-derived'

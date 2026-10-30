@@ -286,6 +286,20 @@ def import_batch(
     print(f"    the review sample: {len(sampled_idx)} of {len(rows)} "
           f"({len(sampled_idx) / len(rows) * 100:.0f}%) — NON-BLOCKING")
 
+    # The frozen publication batch these dishes belong to.
+    #
+    # A NEW import must not disturb the batches that already exist, so
+    # it gets a batch number of its own: the next one after the
+    # highest in use. It is NOT numbered by position among all the
+    # dishes, because that would shift every batch when a dish is
+    # added.
+    existing = db_rows(
+        "select coalesce(max(pool_a_batch), 0) as highest from dishes "
+        "where created_by = 'wikidata-derived' and pool_a_batch is not null"
+    )
+    pool_a_batch = (existing[0]["highest"] + 1) if existing else 1
+    print(f"    the frozen publication batch: {pool_a_batch}")
+
     imported = 0
     skipped = 0
     for_review = 0
@@ -338,6 +352,7 @@ def import_batch(
             country_qid=country_qid,
             provenance="wikidata-derived",
             status="draft",
+            pool_a_batch=pool_a_batch,
         )
         if not result:
             skipped += 1
@@ -412,11 +427,17 @@ def insert_dish(
     country_qid: str | None,
     provenance: str,
     status: str,
+    pool_a_batch: int | None = None,
 ) -> dict | None:
     """Insert one dish, its place link, and its origin statement.
 
     Everything happens in ONE transaction, so a dish never exists
     without its classification.
+
+    `pool_a_batch` is the frozen publication batch the dish belongs
+    to. It is passed in rather than computed here, so that every dish
+    of an import lands in the SAME batch — a per-row `max() + 1`
+    would give each dish its own number.
     """
     import uuid
 
@@ -446,18 +467,39 @@ def insert_dish(
 
     # The dishes table carries the place on origin_geo_id, and the
     # PROVENANCE lives on the dimension link tables, not on dishes.
+    #
+    # pool_a_batch is the frozen publication batch. A NEW import must
+    # not disturb the batches that already exist, so the new dishes
+    # are given a batch number of their own rather than being
+    # numbered by position among all the dishes.
+    #
+    # The column is written only when it exists: on an older database
+    # (or in CI before migration 0015 has run) the statement below
+    # would fail on an unknown column, so it is left out and the
+    # migration's backfill assigns the numbers afterwards.
+    has_batch_column = db_rows(
+        "select 1 as present from information_schema.columns "
+        "where table_name = 'dishes' and column_name = 'pool_a_batch'"
+    )
+    batch_column = "pool_a_batch" if has_batch_column else ""
+    batch_value = (
+        str(pool_a_batch)
+        if (has_batch_column and pool_a_batch is not None)
+        else "null"
+    )
+
     sql = f"""
     begin;
     insert into dishes
       (id, slug, canonical_name, short_description, long_description,
        status, origin_geo_id, created_by, sentence_managed, created_at,
-       updated_at)
+       updated_at{", " + batch_column if batch_column else ""})
     values
       ('{dish_id}', {sql_literal(slug)}, {sql_literal(name)},
        {sql_literal(short_description)}, {sql_literal(long_description)},
        '{status}',
        {f"'{geo_id}'" if geo_id else "null"},
-       {sql_literal(provenance)}, false, now(), now());
+       {sql_literal(provenance)}, false, now(), now(){f", {batch_value}" if batch_column else ""});
     """
 
     if geo_id:
