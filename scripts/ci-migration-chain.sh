@@ -86,6 +86,12 @@ MIGRATION_0035=db/migrations/0035_categories_kind.sql
 MIGRATION_0036=db/migrations/0036_atlas_schema.sql
 ATLAS_CONSTRAINT_TESTS=scripts/test_atlas_schema.sql
 
+# 0037 is the P2 backfill: the legacy places & traditions data moves into
+# dish_place_associations, and what cannot be decided goes to the editorial
+# queue. It is restartable (ON CONFLICT DO NOTHING) and reversible (every
+# row carries a legacy provenance), and it asserts its own outcome.
+MIGRATION_0037=db/migrations/0037_atlas_backfill.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -248,6 +254,13 @@ run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_CONSTRAINT_TESTS" >/tmp/atlas_constrain
   || { echo "FAILED: the atlas constraint tests"; grep -E 'FAIL|ERROR' /tmp/atlas_constraints.log | head -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_SCHEMA_TESTS' /tmp/atlas_constraints.log | tail -1 || true
+
+# 0037 — the P2 backfill. It asserts its own outcome, so a failure here
+# means the backfill did not do what it says it does.
+echo "--- the ADR-004 atlas backfill"
+run_pg -f - < "$MIGRATION_0037" >/tmp/m0037.log 2>&1 || { echo "FAILED: 0037"; grep -E 'ERROR|NOTICE' /tmp/m0037.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_BACKFILL_OK|reconciliation' /tmp/m0037.log | tail -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then

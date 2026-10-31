@@ -411,6 +411,21 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/test_atlas_schema.sql
 
+      # 0037 is the P2 backfill: the legacy places & traditions data moves
+      # into dish_place_associations, and what cannot be decided goes to
+      # the editorial queue rather than being guessed.
+      #
+      # It is RESTARTABLE (every insert is ON CONFLICT DO NOTHING) and
+      # REVERSIBLE (every row it creates carries a legacy provenance, so
+      # one DELETE removes exactly what it created).
+      #
+      # The migration asserts its own outcome — every count against the
+      # legacy tables — and refuses to be trusted if the numbers differ.
+      - name: Apply the ADR-004 atlas backfill
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0037_atlas_backfill.sql
+
       - name: Run vitest
         working-directory: apps/api
         run: pnpm test -- --reporter=verbose

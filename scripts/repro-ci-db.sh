@@ -163,6 +163,14 @@ run_pg -v ON_ERROR_STOP=1 -f - < "$(dirname "$0")/test_atlas_schema.sql" > /tmp/
   || { echo "  FAILED: the atlas constraint tests"; grep -E 'FAIL|ERROR' /tmp/repro_atlas_constraints.log | head -12; fail=1; }
 grep -E 'ATLAS_SCHEMA_TESTS' /tmp/repro_atlas_constraints.log | tail -1 || true
 
+# 0037 is the P2 backfill: the legacy places & traditions data moves into
+# dish_place_associations, and what cannot be decided goes to the editorial
+# queue. It asserts its own outcome.
+step "the ADR-004 atlas backfill"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0037_atlas_backfill.sql" > /tmp/repro_atlas_backfill.log 2>&1 \
+  || { echo "  FAILED: 0037"; grep -E 'ERROR' /tmp/repro_atlas_backfill.log | head -6; fail=1; }
+grep -E 'ATLAS_BACKFILL_OK' /tmp/repro_atlas_backfill.log | tail -1 || true
+
 echo ""
 if [ $fail -eq 0 ]; then
   echo "CI_DB_REPRO_OK=1"
