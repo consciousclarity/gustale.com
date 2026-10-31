@@ -1,7 +1,6 @@
+import { db, dishes, geoEntities } from "@gustale/db";
 import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-
-import { db, dishes, geoEntities } from "@gustale/db";
 import { httpError } from "../errors.js";
 import { slugParamSchema } from "../schemas/common.js";
 
@@ -61,7 +60,11 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
       .limit(1);
 
     const dish = dishRows[0];
-    if (!dish || dish.status !== "published") {
+    if (dish?.status !== "published") {
+      // A dish that does not exist and a dish that is not published are
+      // the SAME answer: a 404. A draft dish must not be distinguishable
+      // from a missing one by the response code — that would tell a
+      // reader that the dish exists and is being withheld.
       throw httpError(404, "not_found", "Dish not found");
     }
 
@@ -111,24 +114,26 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
         entity_name
     `);
 
-    const placesAndTraditions = (associationRows as unknown as {
-      id: string;
-      relationship_type: string;
-      entity_kind: string;
-      entity_id: string;
-      explanation: string | null;
-      qualifiers: Record<string, unknown>;
-      provenance: string;
-      legacy_value: string | null;
-      evidence_status: string;
-      dispute_state: string | null;
-      research_outcome: string | null;
-      review_state: string;
-      publication_state: string;
-      entity_name: string | null;
-      entity_iso_code: string | null;
-      place_entity_type: string | null;
-    }[]).map((row) => ({
+    const placesAndTraditions = (
+      associationRows as unknown as {
+        id: string;
+        relationship_type: string;
+        entity_kind: string;
+        entity_id: string;
+        explanation: string | null;
+        qualifiers: Record<string, unknown>;
+        provenance: string;
+        legacy_value: string | null;
+        evidence_status: string;
+        dispute_state: string | null;
+        research_outcome: string | null;
+        review_state: string;
+        publication_state: string;
+        entity_name: string | null;
+        entity_iso_code: string | null;
+        place_entity_type: string | null;
+      }[]
+    ).map((row) => ({
       id: row.id,
       // The relationship, named. The public sentence is built from this
       // and the entity name — and the wording is "Associated with" for
@@ -511,20 +516,21 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
           AS connections
     `);
 
-    const countRow =
-      (counts as unknown as {
+    const countRow = (
+      counts as unknown as {
         dishes: number;
         places: number;
         communities: number;
         families: number;
         connections: number;
-      }[])[0] ?? {
-        dishes: 0,
-        places: 0,
-        communities: 0,
-        families: 0,
-        connections: 0,
-      };
+      }[]
+    )[0] ?? {
+      dishes: 0,
+      places: 0,
+      communities: 0,
+      families: 0,
+      connections: 0,
+    };
 
     // ── the legacy origin, clearly marked ───────────────────────────
     //

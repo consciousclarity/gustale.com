@@ -101,16 +101,34 @@ async function main() {
     );
     if (items.length < pageSize) break;
   }
-  if (list.length !== allSlugs.length) {
+  // THE LIST AND THE MAP ARE DIFFERENT SETS, and that is not drift.
+  //
+  // `/api/dishes/map` returns only the dishes that HAVE A GEOMETRY —
+  // it filters on `origin_location IS NOT NULL` — because a dot on a
+  // map needs a coordinate. On the live catalogue that is 121 of the
+  // 1,474 published dishes; the other 1,353 have no geometry and are
+  // not on the map.
+  //
+  // The LIST is every published dish. So the DETAIL capture must walk
+  // the LIST's slugs, not the map's.
+  //
+  // The first version of this script walked the map's slugs, which
+  // meant the mock file carried 121 details against 1,474 list
+  // entries — 1,353 dishes with no detail, so the SSG build served
+  // them as empty pages. The mock was stale in a way that looked like
+  // a successful capture.
+  const listSlugs = list.map((d) => d.slug);
+  if (listSlugs.length !== allSlugs.length) {
     process.stderr.write(
-      `! list=${list.length} != map=${allSlugs.length} — continuing but expect drift\n`,
+      `! list=${listSlugs.length} vs map=${allSlugs.length} — the map holds only the dishes WITH geometry, which is expected\n`,
     );
   }
 
-  // 3. Per-slug detail capture.
+  // 3. Per-slug detail capture — over the LIST, so every published
+  // dish gets a detail.
   const details = {};
   let i = 0;
-  for (const slug of allSlugs) {
+  for (const slug of listSlugs) {
     i += 1;
     try {
       details[slug] = await getJson(`/api/dishes/${encodeURIComponent(slug)}`);
@@ -118,16 +136,33 @@ async function main() {
       process.stderr.write(`! detail ${slug}: ${err.message}\n`);
       // continue
     }
-    if (i % 20 === 0) console.log(`  details ${i}/${allSlugs.length}`);
-    if (i < allSlugs.length) await sleep(POLL_MS);
+    if (i % 100 === 0) console.log(`  details ${i}/${listSlugs.length}`);
+    if (i < listSlugs.length) await sleep(POLL_MS);
   }
   console.log(
-    `+ details: ${Object.keys(details).length} (expected ${allSlugs.length})`,
+    `+ details: ${Object.keys(details).length} (expected ${listSlugs.length})`,
   );
+
+  // THE ASSERTION. The details must cover EVERY published dish, not
+  // just the ones with geometry.
+  //
+  // The first version of this script compared the details against the
+  // MAP's count (121), so a capture that fetched 121 details for 1,474
+  // published dishes PASSED. The mock then served 1,353 dishes with no
+  // detail, and the SSG build baked them as empty pages.
+  //
+  // A stale mock that looks like a successful capture is worse than no
+  // mock, so this is asserted, not just logged.
+  if (Object.keys(details).length !== listSlugs.length) {
+    throw new Error(
+      `the capture is incomplete: ${Object.keys(details).length} details for ${listSlugs.length} published dishes. ` +
+        `Every published dish needs a detail — the SSG build bakes a page per dish.`,
+    );
+  }
 
   // 4. Compose mock-api-data.json
   const mockData = {
-    generatedFrom: `${API_BASE} (live, ${allSlugs.length} published dishes, captured ${new Date().toISOString()})`,
+    generatedFrom: `${API_BASE} (live, ${listSlugs.length} published dishes, ${mapResp.dishes.length} of them with geometry, captured ${new Date().toISOString()})`,
     list,
     map: mapResp.dishes,
     details,
