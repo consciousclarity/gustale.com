@@ -170,6 +170,35 @@ export const geoEntities = pgTable(
 export const categorySource = ["foodon", "wikidata", "custom"] as const;
 export type CategorySource = (typeof categorySource)[number];
 
+// What kind of category a row is.
+//
+// Cuisines and course-groups are both top-level (parentId = null), so depth
+// alone cannot tell them apart — the `kind` discriminator does.
+//
+//   dish-type     the legacy flat dish-type set (Noodle soup, Stew, Curry…),
+//                 kept for back-compat
+//   cuisine       a national cuisine (Indonesian cuisine, Italian cuisine…)
+//   family        a food family (Noodle soups, Dumplings…)
+//   course-group  a top-level course group (Appetizer, Main course…)
+//
+// This column has been in the LIVE `gustale` database since 2026-06-25, but
+// the migration that added it (`0004_dark_rockslide.sql`) was authored on the
+// archived branch `feat-taxonomy-foundation` and never merged to `main`.
+// Migration 0035 restores it to the committed chain; see
+// `db/migrations/0035_categories_kind.sql` and the PR that carries it.
+//
+// The live column is `text NOT NULL DEFAULT 'dish-type'` with NO check
+// constraint and NO index — these four values are a convention, not an
+// enforced enum. The type below records the convention; the database does
+// not enforce it, and this migration does not change that.
+export const categoryKind = [
+  "dish-type",
+  "cuisine",
+  "family",
+  "course-group",
+] as const;
+export type CategoryKind = (typeof categoryKind)[number];
+
 export const categories = pgTable("categories", {
   id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
   parentId: uuid("parent_id").references((): any => categories.id),
@@ -183,6 +212,7 @@ export const categories = pgTable("categories", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  kind: text("kind").$type<CategoryKind>().notNull().default("dish-type"),
 });
 
 export const categoryTranslations = pgTable(

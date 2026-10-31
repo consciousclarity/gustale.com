@@ -63,13 +63,73 @@ MIGRATION_0032=db/migrations/0032_gus239_archive_dish_translations.sql
 MIGRATION_0033=db/migrations/0033_gus239_english_names.sql
 MIGRATION_0034=db/migrations/0034_gus242_fix_corrupted_tradition.sql
 
+# 0035 restores `categories.kind` — a column that was in the LIVE database
+# since 2026-06-25 but in no committed migration. It is idempotent
+# (ADD COLUMN IF NOT EXISTS) and touches nothing else, so it can run at
+# any point in the chain; it goes here, with the other numbered migrations,
+# so the chain stays in one place.
+#
+# It matters that it is in THIS list: without it, `GET /api/dishes`
+# returns 500 on a database built from the committed chain, because the
+# query reads `c.kind`. The regression test is
+# apps/api/test/dishes-list.test.ts.
+MIGRATION_0035=db/migrations/0035_categories_kind.sql
+
+# In CI mode the Postgres client must be FOUND, not assumed. On a
+# Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
+# the client lives under /usr/lib/postgresql/<version>/bin — and a script
+# that only tries PATH fails on the second one. The same fallback is used
+# by scripts/populate_description_sentences.py.
+PSQL_BIN=""
+if [ "${CHAIN_MODE:-}" = "ci" ]; then
+  if command -v psql >/dev/null 2>&1; then
+    PSQL_BIN="$(command -v psql)"
+  else
+    PSQL_BIN="$(ls -1 /usr/lib/postgresql/*/bin/psql 2>/dev/null | sort | tail -1)"
+  fi
+  if [ -z "$PSQL_BIN" ]; then
+    echo "FAILED: no psql client found (looked on PATH and under /usr/lib/postgresql/*/bin)" >&2
+    exit 1
+  fi
+  # A GitHub runner reaches the Postgres SERVICE container on 127.0.0.1
+  # (the service is published to the runner's host). The variable is here
+  # so a containerised simulation can point somewhere else; the default is
+  # the runner's own arrangement.
+  PG_HOST="${PG_HOST:-127.0.0.1}"
+fi
+
 run_pg() {
-  docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
+  if [ "${CHAIN_MODE:-}" = "ci" ]; then
+    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U gustale -d "$DB" -v ON_ERROR_STOP=1 "$@"
+  else
+    docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
+  fi
 }
 
-echo "=== creating $DB ==="
-docker exec -u postgres shared-postgres psql -U postgres -d postgres \
-  -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
+# The chain runs in THREE environments, and the one difference that
+# actually breaks is whether the `shared-postgres` container exists:
+#
+#   - the live host / a dev box: the container holds the database
+#   - the CI runner (and the Nightly runner): Postgres is a SERVICE
+#     container reachable at 127.0.0.1, with PGPASSWORD=gustale, and
+#     there is NO `shared-postgres` container to `docker exec` into
+#
+# The first version of this script only knew the first case, which is
+# exactly why the Nightly could not use it: the Nightly's runner has no
+# `shared-postgres` container. `CHAIN_MODE=ci` selects the service path.
+# It is a variable rather than a guess because "is the container there" is
+# not the same question as "which host do I run on" — the Nightly and the
+# CI both run on a GitHub runner, and the live host is the one with the
+# container.
+if [ "${CHAIN_MODE:-}" = "ci" ]; then
+  echo "=== creating $DB (CI mode: Postgres service on 127.0.0.1) ==="
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U gustale -d postgres \
+    -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
+else
+  echo "=== creating $DB (container mode: shared-postgres) ==="
+  docker exec -u postgres shared-postgres psql -U postgres -d postgres \
+    -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
+fi
 
 fail=0
 for f in "${DRIZZLE_FILES[@]}"; do
@@ -155,6 +215,13 @@ echo "--- the corrupted tradition row"
 run_pg -f - < "$MIGRATION_0034" >/tmp/m0034.log 2>&1 || { echo "FAILED: 0034"; tail -12 /tmp/m0034.log; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE|GUS-242' /tmp/m0034.log | head -2 || true
+
+# 0035 restores `categories.kind`. Idempotent, so it is safe here and
+# safe on live (where the column already exists and this is a no-op).
+echo "--- the categories.kind column"
+run_pg -f - < "$MIGRATION_0035" >/tmp/m0035.log 2>&1 || { echo "FAILED: 0035"; tail -12 /tmp/m0035.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0035.log | head -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then

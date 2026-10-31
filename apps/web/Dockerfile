@@ -26,7 +26,7 @@
 # key is just those 7 files), then COPY . . for the build. Combined
 # with `cache-from: type=gha` in ci.yml, source-only PRs reuse the
 # install layer and skip ~60-90s of `pnpm install` work.
-FROM node:22-slim AS builder
+FROM node:22.23.4-slim AS builder
 
 WORKDIR /app
 

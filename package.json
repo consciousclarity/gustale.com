@@ -6,7 +6,7 @@
   "description": "Open-source geo-located encyclopedia of dishes and ingredients",
   "license": "AGPL-3.0",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.23.4"
   },
   "packageManager": "pnpm@11.8.0",
   "workspaces": [

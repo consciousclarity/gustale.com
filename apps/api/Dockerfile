@@ -22,7 +22,7 @@
 # Combined with `cache-from: type=gha` in ci.yml, a typical PR
 # (source-only changes) reuses the install layer and skips ~60-90s of
 # `pnpm install` work. A lockfile change re-installs but is rare.
-FROM node:22-slim AS builder
+FROM node:22.23.4-slim AS builder
 
 WORKDIR /app
 
@@ -58,7 +58,7 @@ RUN pnpm --filter @gustale/api run build
 # Use `pnpm deploy` to materialize a self-contained production layout
 # for the api package. It resolves all workspace + transitive deps and
 # produces a directory that can be COPY'd into the runtime stage.
-FROM node:22-slim AS prod-extract
+FROM node:22.23.4-slim AS prod-extract
 
 WORKDIR /app
 
@@ -82,7 +82,7 @@ RUN pnpm deploy --prod --force-legacy-deploy --filter @gustale/api ./deploy
 ENV CI=true
 
 # ---------- Stage 3: runtime ----------
-FROM node:22-slim
+FROM node:22.23.4-slim
 
 WORKDIR /app
 

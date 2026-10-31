@@ -56,7 +56,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # PINNED, not floating. Astro 7.4.2 requires node >=22.23.4
+          # and refuses to build otherwise:
+          #   "Node.js v22.23.1 is not supported by Astro!"
+          # A floating "22" drifts: the runner may resolve a 22.x
+          # below the floor and the build fails on a dependency's
+          # requirement rather than on anything in this repo. The
+          # same version is in .nvmrc and in package.json#engines.
+          node-version: "22.23.4"
           cache: pnpm
 
       - name: Install dependencies
@@ -78,40 +85,54 @@ jobs:
         run: pnpm --filter @gustale/db run generate
         continue-on-error: true   # generation is informational; the SQL file is committed
 
-      - name: Apply committed schema
-        run: |
-          # Apply the full *committed* migration chain (not just 0000).
-          # Nightly previously applied only 0000_cloudy_satana.sql, so columns that
-          # 0001_text_user_id_fks.sql converts uuid→text stayed uuid and POSTs that
-          # write better-auth user ids returned 500 instead of 201.
-          #
-          # Source the list from `git ls-files`, NOT a filesystem glob.
-          # The preceding "Regenerate schema" step may run `drizzle-kit generate`
-          # against a drifted journal and WRITE a new untracked SQL file (e.g.
-          # 0006_worthless_riptide.sql) into packages/db/drizzle/. A plain
-          # `*.sql` glob would then re-apply that on top of committed migrations
-          # (e.g. 0006_lineages.sql) and fail with "relation already exists".
-          #
-          # Journal-drift caveat: packages/db/drizzle/meta/_journal.json may omit or
-          # reorder tags relative to committed files (e.g. 0003_*, dual 0005_*,
-          # 0007_pg_trgm.sql). We still apply every *committed* *.sql in
-          # lexicographic sort order — do not switch this step to "journal-only"
-          # without reconciling those drifted files first.
-          set -euo pipefail
-          mapfile -t files < <(git ls-files 'packages/db/drizzle/*.sql' | LC_ALL=C sort)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No committed packages/db/drizzle/*.sql migrations found" >&2
-            exit 1
-          fi
-          for f in "${files[@]}"; do
-            echo "Applying $f"
-            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 -f "$f"
-          done
+      # ── The FULL migration chain ────────────────────────────────────
+      #
+      # WHY THIS IS NOW A SCRIPT AND NOT A STEP
+      #
+      # Until 2026-10-31 the Nightly applied ONLY the drizzle chain:
+      #
+      #     git ls-files 'packages/db/drizzle/*.sql'
+      #
+      # and then the seed. It never applied the 33 `db/migrations/*.sql`
+      # GUS migrations that `ci.yml` applies. The code needs them:
+      # `description_sentences`, `dish_names`, `statements` and
+      # `categories.kind` are all created there, so the Nightly's
+      # database was missing them and the suite failed with, among
+      # others:
+      #
+      #     relation "description_sentences" does not exist
+      #
+      # Two Nightly runs failed this way (2026-10-31 06:44 and 09:56
+      # WITA) — the job that exists to CATCH drift was itself blind to
+      # the drift.
+      #
+      # The fix is NOT new migration logic. `scripts/ci-migration-chain.sh`
+      # already lists the exact chain the CI applies, in the order the
+      # CI applies it, including the steps that must run in a specific
+      # sequence (the description-sentence population before 0032, 0032
+      # before 0033). The Nightly now runs that script, so the two
+      # workflows cannot drift apart again.
+      #
+      # `CHAIN_MODE=ci` tells the script to use the Postgres SERVICE
+      # container at 127.0.0.1 instead of `docker exec`-ing the
+      # `shared-postgres` container — a GitHub runner has the former
+      # and not the latter.
+      #
+      # The chain builds its own throwaway database (`gustale_nightly`)
+      # so it can apply the migrations in order without fighting the
+      # service database's pre-existing objects.
+      - name: Apply the full migration chain
+        env:
+          CHAIN_MODE: ci
+          PGPASSWORD: gustale
+        run: bash scripts/ci-migration-chain.sh gustale_nightly
 
-      - name: Apply seed
+      # The chain builds `gustale_nightly`; the tests below need
+      # DATABASE_URL to point at it. The chain's own database is the
+      # one that has the full schema and the seed.
+      - name: Point the tests at the chain's database
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
-            -f packages/db/seed-moussaka.sql
+          echo "DATABASE_URL=postgres://gustale:gustale@127.0.0.1:5432/gustale_nightly" >> "$GITHUB_ENV"
 
       - name: Build db package
         run: pnpm --filter @gustale/db run build
