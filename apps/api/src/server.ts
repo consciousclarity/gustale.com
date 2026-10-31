@@ -17,6 +17,7 @@ import betterAuthPlugin from "./plugins/auth.js";
 import authContextPlugin from "./plugins/auth-context.js";
 import { registerAdminDishRoutes } from "./routes/admin-dishes.js";
 import { registerAtlasRoutes } from "./routes/atlas.js";
+import { registerAtlasCountRoutes } from "./routes/atlas-counts.js";
 import { registerDashboardRoutes } from "./routes/dashboard.js";
 import { registerDishRoutes } from "./routes/dishes.js";
 import { registerDishMediaRoutes } from "./routes/dishes-media.js";
@@ -94,6 +95,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   // ADDITIVE — `GET /api/dishes/:slug` keeps its shape, because the
   // SSG build and the web client consume it.
   registerAtlasRoutes(app);
+  // The DEFINED counts — the catalogue's, each one saying what it
+  // counts. ADR-004's F7: the homepage's four numbers were computed
+  // from the legacy taxonomy and labelled a technique "lineages".
+  registerAtlasCountRoutes(app);
   registerTranslationReviewRoutes(app);
   registerAdminDishRoutes(app);
   registerTaxonomyRoutes(app);
