@@ -167,9 +167,46 @@ UNION ALL SELECT 'dish_name_relations', count(*) FROM dish_name_relations
 UNION ALL SELECT 'relation_types', count(*) FROM relation_types;"
 
 echo ""
-echo "--- the constraint tests, on LIVE ---"
-docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+echo "--- the constraint tests, NOT on live ---"
+#
+# The constraint tests are NOT run against the live database.
+#
+# They were, and that is how six real associations were deleted:
+#
+#   - the tests' cleanup deletes by DISH, and on live the fixtures ARE
+#     the three reference dishes, which carry the P2 backfill's
+#     associations;
+#   - running the tests against live therefore deleted six rows.
+#
+# The tests belong on a DISPOSABLE COPY. The copy is created, the
+# migration and the tests run there, and the copy is dropped. That is the
+# dry-run step, and it is where the constraints are proved.
+#
+# The live database is verified by READING it — the counts and the new
+# objects — never by writing test rows into it.
+echo "  (the constraint tests run on the dry-run copy, never on live)"
+#
+# The copy is made from the dump the backup already took, so the copy is
+# the same shape as the database the migration is about to touch.
+COPY_DB="gustale_atlas_gate_copy"
+docker exec -u postgres shared-postgres psql -U postgres -d postgres \
+  -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
+docker exec -u postgres shared-postgres createdb -U postgres "$COPY_DB"
+docker exec -u postgres shared-postgres pg_restore -U postgres -d "$COPY_DB" \
+  --no-owner --no-privileges /tmp/gustale_atlas_snapshot.dump >/dev/null 2>&1 || true
+docker exec -u postgres shared-postgres psql -U postgres -d "$COPY_DB" \
+  -c "GRANT ALL ON SCHEMA public TO gustale;" \
+  -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
+  -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" >/dev/null
+
+# The migration and the constraint tests, both on the copy.
+docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
+  -f - < "$MIGRATION" >/dev/null 2>&1
+docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
   -f - < scripts/test_atlas_schema.sql 2>&1 | grep -E "ATLAS_SCHEMA_TESTS|ERROR" | tail -3
+
+docker exec -u postgres shared-postgres psql -U postgres -d postgres \
+  -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
 
 echo ""
 echo "LIVE_MIGRATION_OK=1"
