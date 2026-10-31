@@ -95,6 +95,18 @@ jobs:
         # DO NOT add `continue-on-error: true` here; that flag is what
         # made the previous stub gate silently invisible for months.
 
+      # The migration list is written down twice — once in this workflow
+      # and once in scripts/ci-migration-chain.sh — and the Nightly runs
+      # the script. Two copies of one thing drift, and they HAD drifted:
+      # 0034 was in the script and missing here, and 0035 was in
+      # neither. A migration that is not applied is a schema that does
+      # not exist, and the route that reads it returns 500.
+      #
+      # This check makes the two lists agree, so the next migration
+      # cannot be added to one and forgotten in the other.
+      - name: Validate the CI migration chain
+        run: python3 scripts/validate-ci-migration-chain.py
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
@@ -341,6 +353,42 @@ jobs:
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0033_gus239_english_names.sql
+
+      # 0034 fixes the one corrupted row in the 1e traditions load — a row
+      # whose Wikidata Q-id is for Algerian cuisine but which carried
+      # Tunisian text. It is a rename, so it must run AFTER the traditions
+      # exist (0019), which they do by this point in the chain.
+      #
+      # It was missing here too, which is the same drift class this PR is
+      # about: the workflow's migration list and the chain script's list
+      # are two copies of the same thing, and they had already diverged.
+      - name: Apply the corrupted-tradition fix
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0034_gus242_fix_corrupted_tradition.sql
+
+      # `categories.kind` — the column that was in the LIVE database since
+      # 2026-06-25 but in no committed migration (it was authored on the
+      # archived branch `feat-taxonomy-foundation` and applied to live
+      # from there).
+      #
+      # WITHOUT THIS STEP THE CI DATABASE HAS NO SUCH COLUMN, and
+      # `GET /api/dishes` returns 500 — because the query reads
+      # `c.kind`:
+      #
+      #     ERROR: column c.kind does not exist
+      #
+      # The live site works only because the live database has the
+      # column; every freshly built environment was broken. The
+      # regression test is apps/api/test/dishes-list.test.ts, and
+      # scripts/ci-migration-chain.sh applies the same migration.
+      #
+      # It is idempotent (ADD COLUMN IF NOT EXISTS), so this is safe on
+      # live too, where it is a no-op.
+      - name: Apply the categories.kind column
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0035_categories_kind.sql
 
       - name: Run vitest
         working-directory: apps/api
