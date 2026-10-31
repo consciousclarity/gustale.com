@@ -11,8 +11,6 @@
 -- allow nested routine declarations inside a DO block. Each helper is
 -- dropped at the end, so the database is left as it was found.
 --
--- GUSTALE_PROTECTED_DATABASES: gustale, gustale_prod, gustale_production
---
 -- ── THE REFUSAL ────────────────────────────────────────────────────────
 --
 -- These tests WRITE rows and then delete them. Against a throwaway
@@ -29,24 +27,41 @@
 -- The cleanup is now marker-scoped (every row this file inserts carries a
 -- marker, and only marked rows are removed), and the file asserts at the
 -- end that it left the database exactly as it found it. But a cleanup
--- bug is a bug, and the strongest control is to not run here at all.
+-- bug is a bug, and the strongest control is to not run there at all.
 --
--- So this file REFUSES TO RUN against a protected database. The check is
--- the database's OWN NAME, read from inside the database, so it cannot be
--- fooled by a connection string that points somewhere else. The gate
--- (scripts/apply-migration-live.sh) reads the list below and refuses to
--- run if its copy's name is in it, so the two cannot drift.
+-- THE CHECK IS POSITIVE: the database must carry the disposable marker
+-- (scripts/mark_disposable_db.sql), and the default is DENY. An
+-- unmarked database — whatever its name — is refused.
 --
--- The list above is the source of truth for BOTH sides.
+-- WHY NOT A LIST OF FORBIDDEN NAMES
+--
+-- The first attempt was a name list, and it was wrong. The CI database
+-- is named `gustale`, the same as production, because the PostgreSQL
+-- service container in ci.yml creates it that way. A name list cannot
+-- tell "the production database" from "a CI database that happens to
+-- share the name" — so either the CI run is refused and the constraint
+-- tests never run in CI at all, or production is not protected. There is
+-- no correct name list.
+--
+-- The marker is applied only by the scripts that CREATE a disposable
+-- database. Production never gets it, and the gate asserts that.
 
 DO $$
 DECLARE
   v_db text := current_database();
-  v_protected text[] := ARRAY['gustale', 'gustale_prod', 'gustale_production'];
+  v_marked boolean := false;
 BEGIN
-  IF v_db = ANY (v_protected) THEN
+  -- The marker table may not exist yet on a database that has never
+  -- been marked. That is the SAME as "not marked" — the default is deny.
+  IF to_regclass('public.gustale_disposable_database') IS NOT NULL THEN
+    SELECT EXISTS (
+      SELECT 1 FROM gustale_disposable_database
+    ) INTO v_marked;
+  END IF;
+
+  IF NOT v_marked THEN
     RAISE EXCEPTION
-      'REFUSED: the atlas constraint tests refuse to run against the protected database %',
+      'REFUSED: the atlas constraint tests refuse to run against the database % — it is not marked disposable. Apply scripts/mark_disposable_db.sql to a database you created for them, and NEVER to production.',
       v_db;
   END IF;
 END $$;

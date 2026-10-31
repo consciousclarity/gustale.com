@@ -45,6 +45,17 @@ run_pg -c 'CREATE EXTENSION IF NOT EXISTS postgis;' \
 # superuser, so gustale has no grants — and every test query fails
 # with "permission denied for table categories", which looks like a
 # test failure and is not one.
+
+# The database is a DISPOSABLE copy, and it says so.
+#
+# The atlas constraint tests refuse to run against a database that is
+# not marked disposable (scripts/mark_disposable_db.sql). The default is
+# deny: an unmarked database is refused, whatever its name.
+#
+# The mark is applied HERE, immediately after this script creates the
+# database, and never to production.
+run_pg -f - < "$(dirname "$0")/mark_disposable_db.sql" >/dev/null 2>&1 \
+  || { echo "  FAILED: the disposable marker"; fail=1; }
 step "the grants"
 run_pg -c "GRANT ALL ON SCHEMA public TO gustale;" \
        -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \

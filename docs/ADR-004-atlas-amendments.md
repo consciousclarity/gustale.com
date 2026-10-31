@@ -819,15 +819,34 @@ associations.
 The gate was corrected to run the tests on a disposable copy. But the
 correction lived in a **comment**, and a comment is not a control.
 
-**The decision.** The refusal is now mechanical, in two places:
+**The decision.** The refusal is now mechanical, and **positive**: a
+database must **carry the disposable marker**, and the default is deny.
 
-1. `scripts/test_atlas_schema.sql` declares
-   `GUSTALE_PROTECTED_DATABASES: gustale, gustale_prod, gustale_production`
-   and **refuses to run** against any of them. The check is the
-   database's own name, read from inside the database, so it cannot be
-   fooled by a connection string.
-2. `scripts/apply-migration-live.sh` reads that list from the test file
-   and aborts if its copy's name is in it — so the two cannot drift.
+`scripts/mark_disposable_db.sql` creates the marker. It is applied by
+the scripts that **create** a disposable database — the live gate's
+copy, the local reproduction, the Nightly's database, the regression
+checker, and the CI service database — and by nothing else.
+
+`scripts/test_atlas_schema.sql` refuses to run against a database
+without the marker. `scripts/apply-migration-live.sh` marks the copy and
+**asserts that the live database is unmarked**, so production cannot be
+marked by accident.
+
+**Why a marker and not a list of forbidden names.** The first attempt
+was a list — `GUSTALE_PROTECTED_DATABASES: gustale, gustale_prod,
+gustale_production` — and it was **wrong**. The CI database is named
+`gustale`, the same as production, because the PostgreSQL service
+container in `ci.yml` creates it that way.
+
+A name list therefore cannot tell "the production database" from "a CI
+database that happens to share the name". Either the CI run is refused
+— and the constraint tests never run in CI at all — or production is not
+protected. **There is no correct name list.** The CI run caught this:
+the first version of the marker-less guard failed the whole CI job with
+`REFUSED: ... the protected database gustale`.
+
+The shape is the same as §14.2's publish credential: an explicit
+credential, not a list of forbidden names.
 
 **The live database is verified by READING it.** The counts, the new
 objects, and the diff against the snapshot. Never by writing test rows

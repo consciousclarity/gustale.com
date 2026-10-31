@@ -227,6 +227,20 @@ for f in "${DATA_MIGRATIONS[@]}"; do
 done
 [ $fail -eq 0 ] || exit 1
 
+
+# The database is a DISPOSABLE copy, and it says so.
+#
+# The atlas constraint tests refuse to run against a database that is
+# not marked disposable (scripts/mark_disposable_db.sql). The default is
+# deny: an unmarked database is refused, whatever its name.
+#
+# The mark is applied HERE, immediately after this script creates the
+# database, and never to production.
+echo "--- mark the database as disposable"
+run_pg -f - < scripts/mark_disposable_db.sql >/dev/null 2>&1 \
+  || { echo "FAILED: the disposable marker"; fail=1; }
+[ $fail -eq 0 ] || exit 1
+
 echo ""
 echo "=== the resulting state ==="
 run_pg -c "

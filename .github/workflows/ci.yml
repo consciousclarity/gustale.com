@@ -265,7 +265,26 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f packages/db/seed-moussaka.sql \
             -f packages/db/seed-journey.sql
-          # The FOUR REFERENCE DISHES are seeded in a LATER step, after
+          # Mark the database as DISPOSABLE.
+      #
+      # The atlas constraint tests WRITE rows and then delete them, and
+      # they refuse to run against a database that is not marked
+      # disposable. The default is deny.
+      #
+      # The mark is applied HERE, to the ephemeral CI database, and never
+      # to production. It has to be applied BEFORE the constraint tests
+      # run, which is the "Test the ADR-004 atlas constraints" step
+      # below.
+      #
+      # A NAME list cannot do this job: this database is named `gustale`,
+      # the same as production, because the PostgreSQL service container
+      # creates it that way.
+      - name: Mark the database as disposable
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f scripts/mark_disposable_db.sql
+
+      # The FOUR REFERENCE DISHES are seeded in a LATER step, after
           # the GUS-242 data migrations. The reason is
           # `dish_dish_cuisines.provenance`: that column is added by
           # db/migrations/gus-242-schema-prep.sql, so a seed that writes

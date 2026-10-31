@@ -23,6 +23,12 @@ docker exec -u postgres shared-postgres psql -U postgres -d "$DB" \
   -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
   -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" >/dev/null
 
+# Mark the copy as DISPOSABLE. The atlas constraint tests refuse to run
+# against a database that is not marked disposable, and the default is
+# deny.
+docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+  -f - < scripts/mark_disposable_db.sql >/dev/null 2>&1
+
 echo "=== applying 0036 to the copy ==="
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
   -f - < db/migrations/0036_atlas_schema.sql >/dev/null 2>&1
@@ -44,6 +50,9 @@ run_case() {
   docker exec -u postgres shared-postgres createdb -U postgres "$DB"
   docker exec -u postgres shared-postgres pg_restore -U postgres -d "$DB" \
     --no-owner --no-privileges /tmp/gustale_atlas_snapshot.dump >/dev/null 2>&1 || true
+  # Mark the copy as DISPOSABLE (the constraint tests need it).
+  docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+    -f - < scripts/mark_disposable_db.sql >/dev/null 2>&1
   docker exec -u postgres shared-postgres psql -U postgres -d "$DB" \
     -c "GRANT ALL ON SCHEMA public TO gustale;" \
     -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
