@@ -145,6 +145,22 @@ MIGRATION_0039=db/migrations/0039_journey_place_queue.sql
 # produced nothing fails.
 ATLAS_BACKFILL_ASSERTIONS=scripts/test_atlas_backfill.sql
 
+# 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2) and the fixtures.
+#
+# D8.2 says: "a single SQL function is the only thing that decides what
+# the public may see", and it names
+# published_claims_for_dish(p_dish_id uuid). That function DID NOT
+# EXIST — the route wrote the filter out by hand, three times. This
+# migration creates the three predicates and the route uses them, so a
+# claim cannot be public on one surface and draft on another.
+#
+# It also publishes the four reference dishes as FIXTURES, so the model
+# is demonstrable without presenting unevidenced history as fact. Every
+# fixture row carries `provenance = 'atlas_fixture'`, so a reviewer can
+# find and remove them, and it asserts that NO real association or
+# statement is published.
+MIGRATION_0040=db/migrations/0040_atlas_publication_predicate.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -352,6 +368,12 @@ echo "--- the journey place queue"
 run_pg -f - < "$MIGRATION_0039" >/tmp/m0039.log 2>&1 || { echo "FAILED: 0039"; grep -E 'ERROR|NOTICE' /tmp/m0039.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/m0039.log | tail -1 || true
+
+# 0040 — the publication predicate and the fixtures.
+echo "--- the publication predicate"
+run_pg -f - < "$MIGRATION_0040" >/tmp/m0040.log 2>&1 || { echo "FAILED: 0040"; grep -E 'ERROR|NOTICE' /tmp/m0040.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/m0040.log | tail -1 || true
 
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND

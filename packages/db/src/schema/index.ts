@@ -2059,3 +2059,53 @@ export const dishNameRelations = pgTable(
     toIdx: index("dish_name_relations_to_idx").on(t.toDishId),
   }),
 );
+
+// ─────────────────────────────────────────────────────────────────────
+// THE PUBLISH CREDENTIAL (migration 0038)
+//
+// The `verified` and `published` transitions on a statement require an
+// actor that HOLDS one of these rows. The rule is POSITIVE and the
+// default is DENY: an actor that is not in this table is refused,
+// whatever it is called.
+//
+// Before 0038 the guard was a NAME check — an actor matching `%agent%`
+// or `%hermes%` was refused — which passes every other name, and a
+// published claim is visible to the public.
+//
+// `actor` is a `users.id`, so the credential is tied to an ACCOUNT and
+// not to a free-text name anybody can type. There is deliberately no
+// automated role: an automated process cannot be a human editor.
+//
+// The table starts EMPTY, so the gate is closed until a credential is
+// issued deliberately.
+// ─────────────────────────────────────────────────────────────────────
+
+export const publishCredentialRole = ["editor", "publisher"] as const;
+export type PublishCredentialRole = (typeof publishCredentialRole)[number];
+
+export const publishCredential = pgTable(
+  "publish_credential",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    // The `users.id` of the account that holds the credential. This is
+    // the value `statement_set_status()` receives as `p_actor`.
+    actor: text("actor").notNull(),
+    // 'editor' may verify; 'publisher' may verify and publish.
+    credentialRole: text("credential_role")
+      .$type<PublishCredentialRole>()
+      .notNull(),
+    // A credential is not usable until it is verified. A row with a
+    // NULL `verified_at` is an unverified claim to be an editor, and the
+    // guard refuses to honour it.
+    verifiedBy: text("verified_by"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    actorUniq: unique("publish_credential_actor_uniq").on(t.actor),
+    roleIdx: index("publish_credential_role_idx").on(t.credentialRole),
+  }),
+);
+

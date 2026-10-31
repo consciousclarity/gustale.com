@@ -16,6 +16,7 @@ import { ensureBuckets } from "./lib/minio.js";
 import betterAuthPlugin from "./plugins/auth.js";
 import authContextPlugin from "./plugins/auth-context.js";
 import { registerAdminDishRoutes } from "./routes/admin-dishes.js";
+import { registerAtlasRoutes } from "./routes/atlas.js";
 import { registerDashboardRoutes } from "./routes/dashboard.js";
 import { registerDishRoutes } from "./routes/dishes.js";
 import { registerDishMediaRoutes } from "./routes/dishes-media.js";
@@ -89,6 +90,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerHealthRoutes(app);
   registerDishRoutes(app);
   registerDishWriteRoutes(app);
+  // The atlas view: the THREE CONCEPTS, separately (ADR-004). It is
+  // ADDITIVE — `GET /api/dishes/:slug` keeps its shape, because the
+  // SSG build and the web client consume it.
+  registerAtlasRoutes(app);
   registerTranslationReviewRoutes(app);
   registerAdminDishRoutes(app);
   registerTaxonomyRoutes(app);

@@ -964,3 +964,89 @@ ambiguous number in a migration chain is a defect waiting to happen.
 counts*. "1,476 dishes", "38 migrations" and "47 constraint tests" are
 only meaningful next to the thing they count.
 
+### 14.6 The publication predicate — ONE definition (P3)
+
+**The finding.** ADR-004 §8.2 (D8.2) says:
+
+> Decision: a single SQL function is the only thing that decides what
+> the public may see.
+
+and it names the function:
+
+```sql
+CREATE FUNCTION public.published_claims_for_dish(p_dish_id uuid)
+RETURNS SETOF statements ...
+```
+
+**That function did not exist.** The P3 route wrote the filter out by
+hand, three times — `AND a.publication_state = 'published'`, `AND
+st.status = 'published'`, and again in the date sub-select. Three
+hand-written copies of one rule is exactly what D8.2 forbids: a claim
+can be public on one surface and draft on another, and nobody notices
+until a reader sees a draft claim.
+
+**The decision.** Migration **0040** creates three predicates, and the
+route uses all three:
+
+| function | decides |
+|---|---|
+| `published_claims_for_dish(dish_id)` | the claims a reader may see |
+| `published_associations_for_dish(dish_id)` | the typed associations a reader may see |
+| `published_connections_for_dish(dish_id)` | the typed connections a reader may see |
+
+The claim predicate is **per statement, never per dish** — one disputed
+claim does not suppress the published ones beside it. The association
+and connection predicates also check the **dish's own status**, so a
+draft dish's associations cannot leak through a route that forgot to
+check.
+
+### 14.7 The fixtures — demonstrated, never asserted
+
+**The decision.** The brief's §12 says the model is "demonstrated with
+isolated fixtures", and §13 says "fixtures never enter the live
+database or the production content pipeline".
+
+Migration 0040 publishes the four reference dishes' associations and
+claims **as fixtures**, marked `provenance = 'atlas_fixture'` so a
+reviewer can find and remove them.
+
+What it does **not** do:
+
+- It publishes **no real association**. All 2,713 backfilled rows stay
+  `draft` with `evidence_status='unevidenced'`, because none of them
+  is supported by a qualifying source, and the brief forbids
+  presenting unevidenced history as fact.
+- It creates **no claim about a real dish's history**. The fixture
+  claims name *the atlas fixture*, not a person or a place, and they
+  carry a `created_by` predicate against a **fixture source** whose own
+  title says it is a demonstration record.
+
+And the migration **asserts** that no real association or statement is
+published — so a future change that published one by accident fails the
+migration rather than reaching a reader.
+
+### 14.8 The count semantics — decided, not assumed
+
+**The finding.** The P3 route's first count query was:
+
+```sql
+count(DISTINCT from_dish_id || to_dish_id)
+```
+
+which is wrong twice over. It **does not run at all** — the
+concatenation operator is not defined for `uuid` values in PostgreSQL —
+and even if it did, it would count the two ends of a symmetric pair as
+two connections, and it would count a dish's connection to itself as
+one.
+
+**The decision.** Three counts, each defined:
+
+| count | what it counts |
+|---|---|
+| `dishes` | the published dishes, counted once each, independently of associations |
+| `places` | the distinct **place** entities associated with a published dish |
+| `communities` | the distinct **community** entities — counted SEPARATELY, because a community is a people or a practice, not a place |
+| `connections` | the distinct **undirected** pairs, normalised with `LEAST`/`GREATEST` — the same rule the normalized-pair index uses, so the count and the constraint agree on what a pair is |
+
+The first version also counted places and communities together, which
+inflated the place count with things that are not places.

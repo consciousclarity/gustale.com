@@ -63,25 +63,46 @@ DECLARE
   -- seed built the database, and the name is what the backfill actually
   -- resolved. A uuid would make this file a test of the seed rather
   -- than of the migration.
+  --
+  -- THE PROVENANCE IS A SET, not a single value, and the reason is
+  -- migration 0040.
+  --
+  -- The P2 backfill created these rows with the provenance of the
+  -- legacy field it read: 'legacy_dish_traditions',
+  -- 'legacy_dish_cuisines' or 'legacy_origin_geo_id'. Migration 0040
+  -- then PUBLISHES them as fixtures, and marks them
+  -- 'atlas_fixture' — because a published row must be findable and
+  -- removable.
+  --
+  -- So the row's provenance depends on whether 0040 has run, and a
+  -- single-value assertion would fail on whichever database it was
+  -- wrong for. The assertion is about the ASSOCIATION — the
+  -- relationship type, the entity kind and the entity — and the
+  -- provenance is accepted from the set of values the two migrations
+  -- produce.
+  --
+  -- What is asserted, strictly, is that the row EXISTS with that
+  -- relationship and entity. The provenance set is the bookkeeping
+  -- detail, and both values are correct depending on the chain.
   r RECORD;
 BEGIN
   FOR r IN
     SELECT * FROM (VALUES
       -- rendang: two legacy traditions and one legacy origin.
-      ('rendang',               'established_tradition', 'community', 'Minangkabau',       'legacy_dish_traditions'),
-      ('rendang',               'established_tradition', 'community', 'Indonesian cuisine','legacy_dish_cuisines'),
-      ('rendang',               'legacy_unreviewed',     'place',     'Indonesia',         'legacy_origin_geo_id'),
+      ('rendang',               'established_tradition', 'community', 'Minangkabau',       ARRAY['legacy_dish_traditions','atlas_fixture']),
+      ('rendang',               'established_tradition', 'community', 'Indonesian cuisine',ARRAY['legacy_dish_cuisines','atlas_fixture']),
+      ('rendang',               'legacy_unreviewed',     'place',     'Indonesia',         ARRAY['legacy_origin_geo_id','atlas_fixture']),
       -- chicken-tikka-masala: NO legacy tradition and NO legacy cuisine,
       -- so exactly ONE association — the origin. This is the case that
       -- proves the backfill does not invent a tradition.
-      ('chicken-tikka-masala',  'legacy_unreviewed',     'place',     'United Kingdom',    'legacy_origin_geo_id'),
+      ('chicken-tikka-masala',  'legacy_unreviewed',     'place',     'United Kingdom',    ARRAY['legacy_origin_geo_id','atlas_fixture']),
       -- tacos-al-pastor: one legacy cuisine and one legacy origin.
-      ('tacos-al-pastor',       'established_tradition', 'community', 'Mexican cuisine',   'legacy_dish_cuisines'),
-      ('tacos-al-pastor',       'legacy_unreviewed',     'place',     'Mexico',            'legacy_origin_geo_id'),
+      ('tacos-al-pastor',       'established_tradition', 'community', 'Mexican cuisine',   ARRAY['legacy_dish_cuisines','atlas_fixture']),
+      ('tacos-al-pastor',       'legacy_unreviewed',     'place',     'Mexico',            ARRAY['legacy_origin_geo_id','atlas_fixture']),
       -- falafel: the brief's §12 acceptance case. One legacy cuisine
       -- and one legacy origin.
-      ('falafel',               'established_tradition', 'community', 'Israeli cuisine',   'legacy_dish_cuisines'),
-      ('falafel',               'legacy_unreviewed',     'place',     'Israel',            'legacy_origin_geo_id')
+      ('falafel',               'established_tradition', 'community', 'Israeli cuisine',   ARRAY['legacy_dish_cuisines','atlas_fixture']),
+      ('falafel',               'legacy_unreviewed',     'place',     'Israel',            ARRAY['legacy_origin_geo_id','atlas_fixture'])
     ) AS t(slug, relationship_type, entity_kind, entity_name, provenance)
   LOOP
     v_checked := v_checked + 1;
@@ -96,11 +117,11 @@ BEGIN
          AND a.relationship_type = r.relationship_type
          AND a.entity_kind = r.entity_kind
          AND coalesce(g.name, t.name) = r.entity_name
-         AND a.provenance = r.provenance
+         AND a.provenance = ANY (r.provenance)
     ) THEN
       v_fail := v_fail + 1;
-      RAISE WARNING 'FAIL  % must have a % / % association with % (provenance %) — it does not',
-        r.slug, r.relationship_type, r.entity_kind, r.entity_name, r.provenance;
+      RAISE WARNING 'FAIL  % must have a % / % association with % — it does not',
+        r.slug, r.relationship_type, r.entity_kind, r.entity_name;
     END IF;
   END LOOP;
 
@@ -257,34 +278,74 @@ BEGIN
     JOIN dish_cuisines c ON c.id = dc.value_id
     JOIN dish_traditions t ON t.slug = c.slug || '-cuisine';
 
+  -- The cuisine-as-place count. The legacy value of such a row is the
+  -- PLACE's name (the backfill resolved the cuisine to the country),
+  -- so the baseline is the cuisines whose name resolves to a place.
   SELECT count(*) INTO v_expected_cuisines_pl FROM dish_dish_cuisines dc
     JOIN dish_cuisines c ON c.id = dc.value_id
     JOIN geo_entities g ON g.name = c.name OR g.name = c.slug
    WHERE NOT EXISTS (SELECT 1 FROM dish_traditions t WHERE t.slug = c.slug || '-cuisine');
 
-  SELECT count(*) INTO v_expected_origins FROM dishes d
-   WHERE d.origin_geo_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM dish_dish_cuisines dc
-         JOIN dish_cuisines c ON c.id = dc.value_id
-         JOIN geo_entities g ON g.name = c.name OR g.name = c.slug
-        WHERE dc.dish_id = d.id
-          AND g.id = d.origin_geo_id
-          AND NOT EXISTS (SELECT 1 FROM dish_traditions t WHERE t.slug = c.slug || '-cuisine')
-     );
+  -- The legacy-origin baseline: the DISINCT (dish, place) pairs whose
+  -- legacy origin produced an association.
+  --
+  -- It is a DISTINCT pair count and not a row count, because the
+  -- identity of an association is (dish, relationship_type,
+  -- entity_kind, entity_id). Five dishes have a legacy origin that is
+  -- ALSO the place of their legacy cuisine, so the same association is
+  -- seen twice and kept once.
+  SELECT count(*) INTO v_expected_origins FROM (
+    SELECT DISTINCT d.id, d.origin_geo_id
+      FROM dishes d
+     WHERE d.origin_geo_id IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM dish_dish_cuisines dc
+           JOIN dish_cuisines c ON c.id = dc.value_id
+           JOIN geo_entities g ON g.name = c.name OR g.name = c.slug
+          WHERE dc.dish_id = d.id
+            AND g.id = d.origin_geo_id
+            AND NOT EXISTS (SELECT 1 FROM dish_traditions t WHERE t.slug = c.slug || '-cuisine')
+       )
+  ) e;
 
   v_expected_total := v_expected_traditions + v_expected_cuisines_tr
                     + v_expected_cuisines_pl + v_expected_origins;
 
   -- THE ACTUAL counts.
+  --
+  -- THE COUNTS ARE NOT MATCHED BY PROVENANCE, and that is the point.
+  --
+  -- The provenance records WHICH LEGACY FIELD a row came from, and
+  -- migration 0040 re-marks the published ones as 'atlas_fixture' — so
+  -- a provenance-matched count would depend on whether 0040 has run.
+  --
+  -- The counts are matched by the `qualifiers` INSTEAD. The backfill
+  -- records the legacy source in them, and that record is NOT changed
+  -- by 0040:
+  --
+  --   'legacyCuisine'      the row came from the legacy CUISINE
+  --   'legacyOriginGeoId'  the row came from the legacy ORIGIN
+  --   neither              the row came from the legacy TRADITION
+  --
+  -- So the counts are the same before and after 0040, and the two
+  -- sides of the comparison cannot drift.
   SELECT count(*) INTO v_traditions FROM dish_place_associations
-   WHERE provenance = 'legacy_dish_traditions';
+   WHERE relationship_type = 'established_tradition'
+     AND entity_kind = 'community'
+     AND NOT (qualifiers ? 'legacyCuisine')
+     AND NOT (qualifiers ? 'legacyOriginGeoId');
   SELECT count(*) INTO v_cuisines_tr FROM dish_place_associations
-   WHERE provenance = 'legacy_dish_cuisines' AND relationship_type = 'established_tradition';
+   WHERE relationship_type = 'established_tradition'
+     AND entity_kind = 'community'
+     AND qualifiers ? 'legacyCuisine';
   SELECT count(*) INTO v_cuisines_pl FROM dish_place_associations
-   WHERE provenance = 'legacy_dish_cuisines' AND relationship_type = 'legacy_unreviewed';
+   WHERE relationship_type = 'legacy_unreviewed'
+     AND entity_kind = 'place'
+     AND NOT (qualifiers ? 'legacyOriginGeoId');
   SELECT count(*) INTO v_origins FROM dish_place_associations
-   WHERE provenance = 'legacy_origin_geo_id';
+   WHERE relationship_type = 'legacy_unreviewed'
+     AND entity_kind = 'place'
+     AND qualifiers ? 'legacyOriginGeoId';
   SELECT count(*) INTO v_total FROM dish_place_associations;
 
   RAISE NOTICE '=== the count-snapshot guard ===';

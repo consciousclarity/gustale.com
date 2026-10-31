@@ -289,6 +289,19 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0039_journey_place_queue.sql" > 
   || { echo "  FAILED: 0039"; grep -E 'ERROR' /tmp/repro_journey_queue.log | head -6; fail=1; }
 grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/repro_journey_queue.log | tail -1 || true
 
+# 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2) and the fixtures.
+#
+# D8.2 says "a single SQL function is the only thing that decides what
+# the public may see", and it names published_claims_for_dish(). That
+# function did not exist — the route wrote the filter out by hand,
+# three times. This creates the three predicates, and it publishes the
+# four reference dishes as FIXTURES so the model is demonstrable without
+# presenting unevidenced history as fact.
+step "the publication predicate"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0040_atlas_publication_predicate.sql" > /tmp/repro_publication.log 2>&1 \
+  || { echo "  FAILED: 0040"; grep -E 'ERROR' /tmp/repro_publication.log | head -6; fail=1; }
+grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/repro_publication.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
