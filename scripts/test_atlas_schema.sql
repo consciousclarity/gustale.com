@@ -10,6 +10,61 @@
 -- The harness lives in three helper functions, because PL/pgSQL does not
 -- allow nested routine declarations inside a DO block. Each helper is
 -- dropped at the end, so the database is left as it was found.
+--
+-- ── THE REFUSAL ────────────────────────────────────────────────────────
+--
+-- These tests WRITE rows and then delete them. Against a throwaway
+-- database that is fine. Against PRODUCTION it is not: the first version
+-- of this file deleted by DISH
+--
+--     DELETE FROM dish_place_associations WHERE dish_id IN (v_a, v_b, v_c);
+--
+-- and on the live database the fixtures ARE the three reference dishes —
+-- rendang, chicken-tikka-masala, tacos-al-pastor — which carry the P2
+-- backfill's associations. So the test deleted SIX real rows
+-- (rendang 3->0, chicken-tikka-masala 1->0, tacos-al-pastor 2->0).
+--
+-- The cleanup is now marker-scoped (every row this file inserts carries a
+-- marker, and only marked rows are removed), and the file asserts at the
+-- end that it left the database exactly as it found it. But a cleanup
+-- bug is a bug, and the strongest control is to not run there at all.
+--
+-- THE CHECK IS POSITIVE: the database must carry the disposable marker
+-- (scripts/mark_disposable_db.sql), and the default is DENY. An
+-- unmarked database — whatever its name — is refused.
+--
+-- WHY NOT A LIST OF FORBIDDEN NAMES
+--
+-- The first attempt was a name list, and it was wrong. The CI database
+-- is named `gustale`, the same as production, because the PostgreSQL
+-- service container in ci.yml creates it that way. A name list cannot
+-- tell "the production database" from "a CI database that happens to
+-- share the name" — so either the CI run is refused and the constraint
+-- tests never run in CI at all, or production is not protected. There is
+-- no correct name list.
+--
+-- The marker is applied only by the scripts that CREATE a disposable
+-- database. Production never gets it, and the gate asserts that.
+
+DO $$
+DECLARE
+  v_db text := current_database();
+  v_marked boolean := false;
+BEGIN
+  -- The marker table may not exist yet on a database that has never
+  -- been marked. That is the SAME as "not marked" — the default is deny.
+  IF to_regclass('public.gustale_disposable_database') IS NOT NULL THEN
+    SELECT EXISTS (
+      SELECT 1 FROM gustale_disposable_database
+    ) INTO v_marked;
+  END IF;
+
+  IF NOT v_marked THEN
+    RAISE EXCEPTION
+      'REFUSED: the atlas constraint tests refuse to run against the database % — it is not marked disposable. Apply scripts/mark_disposable_db.sql to a database you created for them, and NEVER to production.',
+      v_db;
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- the helpers
@@ -87,6 +142,9 @@ DECLARE
   v_stmt uuid;
   v_fixture_ids uuid[];
   v_err text;
+  -- The account the D9 publish-credential cases use. It is a real
+  -- `users` row created by the test, and the cleanup removes it.
+  v_test_actor text;
   -- the counts before the test's own writes, compared after its cleanup
   v_assoc_before bigint;
   v_rel_before   bigint;
@@ -670,6 +728,236 @@ BEGIN
   END IF;
 
   ---------------------------------------------------------------------
+  -- D9: the publish credential — a POSITIVE, default-deny check
+  ---------------------------------------------------------------------
+  --
+  -- The `verified` and `published` transitions used to be guarded by a
+  -- NAME check: an actor matching `%agent%` or `%hermes%` was refused.
+  -- That denies the names you thought of and passes everything else, so
+  -- any process called `ci-bot` or `nightly` could verify and publish a
+  -- claim — and a published claim is VISIBLE to the public.
+  --
+  -- The rule is now positive: the actor must HOLD a verified
+  -- `publish_credential` row. These cases prove it.
+  --
+  -- The cases need a statement that can actually REACH `verified`, so
+  -- the evidence gate has to be satisfied first: a documented statement
+  -- with a `supports` citation from an S1-S5 source. The test creates
+  -- both and removes them in the cleanup.
+  --
+  -- The whole D9 block is SKIPPED when migration 0038 has not been
+  -- applied — which is the case when the suite runs before 0038 in the
+  -- migration chain. Skipping is correct there: the publish credential
+  -- does not exist yet, so there is nothing to prove, and the suite is
+  -- run AGAIN after 0038, where the D9 cases do run.
+  --
+  -- A skipped block is reported as a NOTICE, never as a silent pass, so
+  -- a run that skipped it is visible in the log.
+  IF to_regclass('public.publish_credential') IS NULL THEN
+    RAISE NOTICE 'the publish credential is not in this database (migration 0038 has not been applied) — the D9 cases are SKIPPED';
+  ELSE
+
+  -- The test's own account. It is a real `users` row, so the owner
+  -- guard accepts a credential for it, and the test can remove it.
+  v_test_actor := 'atlas-constraint-test-editor';
+
+  INSERT INTO users (id, email, display_name, role)
+  VALUES (v_test_actor, 'atlas-constraint-test@example.invalid',
+          'Atlas Constraint Test', 'user')
+  ON CONFLICT (id) DO NOTHING;
+
+  -- An S2 source: class-sufficient for a documented claim, and not S6.
+  INSERT INTO sources (id, source_type, title, language, url, source_class, source_classed_at)
+  VALUES ('44444444-4444-4444-4444-444444444444', 'web',
+          'The atlas constraint test source', 'en',
+          'https://example.invalid/atlas-constraint-test', 'S2', now())
+  ON CONFLICT (id) DO NOTHING;
+
+  -- A documented statement about one of the fixtures.
+  INSERT INTO statements (
+    id, subject_type, subject_id, predicate_id, value_type, value_literal,
+    value_literal_type, qualifiers, claim_class, status
+  )
+  SELECT '55555555-5555-5555-5555-555555555555', 'dish', v_a, p.id,
+         'literal', 'the atlas constraint test', 'text', '{}'::jsonb,
+         'documented', 'draft'
+    FROM predicates p WHERE p.slug = 'created_by'
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO claim_citations (
+    id, statement_id, source_id, stance, locator, excerpt, revision_id,
+    retrieved_at, excerpt_validated
+  )
+  VALUES ('66666666-6666-6666-6666-666666666666',
+          '55555555-5555-5555-5555-555555555555',
+          '44444444-4444-4444-4444-444444444444',
+          'supports', 'para 1', 'the atlas constraint test', 'r1', now(), true)
+  ON CONFLICT (id) DO NOTHING;
+
+  -- THE CASES
+  --
+  -- (a) an actor with NO credential at all is refused. This is the case
+  --     the name check let through: 'ci-bot' contains neither 'agent' nor
+  --     'hermes', so the old guard would have allowed it.
+  v_err := atlas_test_must_fail(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''ci-bot'')');
+  IF v_err IS NULL THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail('D9 an unknown actor is refused the verified transition', 'the transition was accepted');
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 an unknown actor is refused the verified transition');
+  END IF;
+
+  -- (b) an UNKNOWN actor name is refused for `published` too.
+  --
+  -- The statement has not reached `published` yet at this point (the
+  -- `verified` case above was refused, so it is still `draft`), so the
+  -- `published` gate would refuse it for the WRONG reason — the missing
+  -- sentence anchor, not the missing credential. To make the case prove
+  -- what it claims, the statement is first moved to a status the
+  -- credential check can be reached on its own.
+  --
+  -- `research_pending` needs no credential and no evidence, so it is the
+  -- honest way to set up the case.
+  v_err := atlas_test_must_succeed(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''research_pending'', ''hermes-agent'')');
+  IF v_err IS NOT NULL THEN
+    PERFORM atlas_test_fail('D9 the published-guard fixture could not be set up', v_err);
+  END IF;
+
+  v_err := atlas_test_must_fail(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''some-random-name'')');
+  IF v_err IS NULL THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail('D9 an unknown actor is refused the published transition', 'the transition was accepted');
+  ELSIF v_err LIKE '%publish credential%' THEN
+    -- The refusal must be about the CREDENTIAL, not about some other
+    -- gate. A test that passes for the wrong reason is not a test.
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 an unknown actor is refused the published transition');
+  ELSE
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail(
+      'D9 an unknown actor is refused the published transition',
+      'refused for the wrong reason: ' || v_err);
+  END IF;
+
+  -- (c) a NULL actor is refused. The old check handled this case; the
+  --     new one must too.
+  v_err := atlas_test_must_fail(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', NULL)');
+  IF v_err IS NULL THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail('D9 a NULL actor is refused the verified transition', 'the transition was accepted');
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 a NULL actor is refused the verified transition');
+  END IF;
+
+  -- (d) an UNVERIFIED credential is refused. A row that exists but has
+  --     not been verified is a claim to be an editor, not a credential.
+  INSERT INTO publish_credential (actor, credential_role, verified_by, verified_at)
+  VALUES (v_test_actor, 'publisher', NULL, NULL)
+  ON CONFLICT (actor) DO NOTHING;
+
+  v_err := atlas_test_must_fail(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''' || v_test_actor || ''')');
+  IF v_err IS NULL THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail('D9 an unverified credential is refused', 'the transition was accepted');
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 an unverified credential is refused');
+  END IF;
+
+  -- (e) a credential for an account that does not exist is refused by
+  --     the owner guard. This is the case that stops the credential from
+  --     degenerating into a name in a table.
+  v_err := atlas_test_must_fail(
+    'INSERT INTO publish_credential (actor, credential_role, verified_by, verified_at)
+     VALUES (''atlas-constraint-test-ghost'', ''publisher'', ''someone'', now())');
+  IF v_err IS NULL THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail('D9 a credential for an account that does not exist is refused', 'the INSERT was accepted');
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 a credential for an account that does not exist is refused');
+  END IF;
+
+  -- (f) a credentialed actor may verify. The check is not simply
+  --     refusing everything.
+  UPDATE publish_credential
+     SET verified_by = 'the atlas constraint test', verified_at = now()
+   WHERE actor = v_test_actor;
+
+  v_err := atlas_test_must_succeed(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''' || v_test_actor || ''')');
+  IF v_err IS NULL THEN
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 a credentialed editor may verify');
+  ELSE
+    PERFORM atlas_test_fail('D9 a credentialed editor may verify', v_err);
+  END IF;
+
+  -- (g) an 'editor' may NOT publish. Publishing is the stronger act and
+  --     needs the stronger role.
+  v_err := atlas_test_must_fail(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''' || v_test_actor || ''')');
+  IF v_err IS NULL THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail('D9 an editor credential may not publish', 'the transition was accepted');
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 an editor credential may not publish');
+  END IF;
+
+  -- (h) a 'publisher' may publish. The role separation is real, not a
+  --     blanket refusal.
+  UPDATE publish_credential
+     SET credential_role = 'publisher'
+   WHERE actor = v_test_actor;
+
+  -- The `published` gate needs a sentence anchor, so one is created.
+  --
+  -- The position is high on purpose: `description_sentences` is UNIQUE on
+  -- (dish_id, field, locale, position), and the fixture dish already
+  -- carries a 'short' sentence at position 1 from the seed. The general
+  -- ON CONFLICT DO NOTHING is the second line of defence.
+  INSERT INTO description_sentences (id, dish_id, field, locale, position, text)
+  SELECT '77777777-7777-7777-7777-777777777777', v_a, 'short', 'en', 9001,
+         'The atlas constraint test sentence.'
+  ON CONFLICT DO NOTHING;
+  INSERT INTO sentence_claims (sentence_id, statement_id, is_primary)
+  VALUES ('77777777-7777-7777-7777-777777777777',
+          '55555555-5555-5555-5555-555555555555', true)
+  ON CONFLICT DO NOTHING;
+
+  v_err := atlas_test_must_succeed(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''' || v_test_actor || ''')');
+  IF v_err IS NULL THEN
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 a publisher credential may publish');
+  ELSE
+    PERFORM atlas_test_fail('D9 a publisher credential may publish', v_err);
+  END IF;
+
+  -- (i) THE MACHINE'S TRANSITIONS ARE UNTOUCHED. `research_pending` and
+  --     `draft` need no credential — the machine is allowed to make
+  --     them. If this case failed, the new guard would have broken the
+  --     agent's own workflow.
+  v_err := atlas_test_must_succeed(
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''research_pending'', ''hermes-agent'')');
+  IF v_err IS NULL THEN
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('D9 a machine transition needs no credential');
+  ELSE
+    PERFORM atlas_test_fail('D9 a machine transition needs no credential', v_err);
+  END IF;
+
+  END IF;  -- the publish credential exists (migration 0038)
+
+  ---------------------------------------------------------------------
   -- THE CLEANUP — this block leaves the database as it found it
   ---------------------------------------------------------------------
   --
@@ -710,6 +998,32 @@ BEGIN
   -- the statement the test created, if it created one
   DELETE FROM statements WHERE id = v_stmt
     AND value_literal = 'the atlas constraint test';
+
+  -- THE D9 FIXTURES. The statement, its citation, the source and the
+  -- credential all hang off FIXED ids, so the cleanup can name them
+  -- exactly — there is no dish-scoped delete here, which is the bug that
+  -- destroyed six real associations.
+  --
+  -- The cascade takes most of it: deleting the statement removes its
+  -- citation (ON DELETE CASCADE), its status log and its sentence
+  -- claim. The source and the sentence have to go explicitly.
+  --
+  -- The block is conditional, because the D9 cases are SKIPPED when
+  -- migration 0038 has not been applied — and on that database the
+  -- `publish_credential` table does not exist, so referring to it
+  -- would fail the cleanup.
+  IF to_regclass('public.publish_credential') IS NOT NULL THEN
+    DELETE FROM publish_credential WHERE actor = v_test_actor;
+    DELETE FROM description_sentences
+     WHERE id = '77777777-7777-7777-7777-777777777777';
+    DELETE FROM statements
+     WHERE id = '55555555-5555-5555-5555-555555555555'
+       AND value_literal = 'the atlas constraint test';
+    DELETE FROM sources
+     WHERE id = '44444444-4444-4444-4444-444444444444'
+       AND title = 'The atlas constraint test source';
+    DELETE FROM users WHERE id = v_test_actor;
+  END IF;
 
   -- THE GUARD: the test must leave the database exactly as it found it.
   SELECT count(*) INTO v_assoc_after FROM dish_place_associations;

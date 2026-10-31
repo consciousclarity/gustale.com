@@ -189,6 +189,46 @@ echo "  (the constraint tests run on the dry-run copy, never on live)"
 # The copy is made from the dump the backup already took, so the copy is
 # the same shape as the database the migration is about to touch.
 COPY_DB="gustale_atlas_gate_copy"
+
+# THE MARKER. The copy must be marked DISPOSABLE before the constraint
+# tests run on it.
+#
+# The protection is POSITIVE, and the default is deny. The constraint
+# tests refuse to run against a database that does not carry the
+# disposable marker (scripts/mark_disposable_db.sql), so a database
+# that nobody explicitly created for the tests is refused.
+#
+# The first attempt at this was a list of forbidden DATABASE NAMES, and
+# it was wrong: the CI database is named `gustale`, the same as
+# production, because the PostgreSQL service container in ci.yml creates
+# it that way. A name list cannot tell "production" from "a CI database
+# that shares the name", so either the CI run is refused — and the
+# constraint tests never run in CI at all — or production is not
+# protected. There is no correct name list.
+#
+# The same shape as the publish credential (0038): an explicit
+# credential, not a list of forbidden names.
+#
+# THE MARKER IS NEVER APPLIED TO PRODUCTION. This script creates the
+# copy, marks the COPY, and asserts that the LIVE database is UNMARKED
+# — so production cannot be marked by accident.
+echo "  marking the copy '$COPY_DB' as disposable"
+docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
+  -f - < scripts/mark_disposable_db.sql >/dev/null 2>&1 \
+  || { echo "FAILED: the copy '$COPY_DB' could not be marked disposable."; exit 1; }
+
+# The live database must NOT be marked. If it is, something has applied
+# the marker to production, and the gate stops.
+LIVE_MARKED=$(docker exec -u postgres shared-postgres psql -U postgres -d "$DB" -tAc \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='gustale_disposable_database';" 2>/dev/null || echo 0)
+if [ "$LIVE_MARKED" != "0" ]; then
+  echo "FAILED: the live database '$DB' carries the disposable marker."
+  echo "The constraint tests must never run against production, and the live"
+  echo "database must never be marked disposable."
+  exit 1
+fi
+echo "  the live database '$DB' is NOT marked disposable — correct"
+
 docker exec -u postgres shared-postgres psql -U postgres -d postgres \
   -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
 docker exec -u postgres shared-postgres createdb -U postgres "$COPY_DB"
@@ -203,7 +243,7 @@ docker exec -u postgres shared-postgres psql -U postgres -d "$COPY_DB" \
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
   -f - < "$MIGRATION" >/dev/null 2>&1
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
-  -f - < scripts/test_atlas_schema.sql 2>&1 | grep -E "ATLAS_SCHEMA_TESTS|ERROR" | tail -3
+  -f - < scripts/test_atlas_schema.sql 2>&1 | grep -E "ATLAS_SCHEMA_TESTS|ERROR|REFUSED" | tail -3
 
 docker exec -u postgres shared-postgres psql -U postgres -d postgres \
   -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
