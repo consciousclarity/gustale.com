@@ -795,3 +795,153 @@ once the claims are published, that the counts will be defined, that the
 symmetric-pair constraint rejects a reversed duplicate — are the P1–P3
 acceptance criteria, and each one has a test that must fail before the code
 that satisfies it is written.
+
+---
+
+## 14. Amendment 1 — the P0–P2 review findings
+
+**Added:** 2026-10-31, after the review of the P0–P2 report.
+**decided-by:** hermes.
+**Amends:** §4 (D4, publication), §11 (the migration order), §12.
+
+This amendment records five findings from the review and the decisions
+taken in response. It is written before any live write, and each change
+is additive and idempotent.
+
+### 14.1 The constraint tests must never run against production
+
+**The finding.** The live gate ran `scripts/test_atlas_schema.sql`
+against the **live** database. That is how six real associations were
+deleted on 2026-10-31: the test's cleanup deleted by DISH, and on live
+the fixtures *are* three reference dishes carrying the backfill's
+associations.
+
+The gate was corrected to run the tests on a disposable copy. But the
+correction lived in a **comment**, and a comment is not a control.
+
+**The decision.** The refusal is now mechanical, in two places:
+
+1. `scripts/test_atlas_schema.sql` declares
+   `GUSTALE_PROTECTED_DATABASES: gustale, gustale_prod, gustale_production`
+   and **refuses to run** against any of them. The check is the
+   database's own name, read from inside the database, so it cannot be
+   fooled by a connection string.
+2. `scripts/apply-migration-live.sh` reads that list from the test file
+   and aborts if its copy's name is in it — so the two cannot drift.
+
+**The live database is verified by READING it.** The counts, the new
+objects, and the diff against the snapshot. Never by writing test rows
+into it.
+
+### 14.2 The publish credential — a positive, default-deny check
+
+**The finding.** `statement_set_status()` refused the `verified` and
+`published` transitions for an actor whose name matched `%agent%` or
+`%hermes%`. That is a **negative** check, and a negative check on a name
+denies only the names you thought of. `ci-bot`, `nightly` and `kafka`
+would all have passed — and a published claim is **visible to the
+public**.
+
+**The decision.** The rule is now positive and the default is deny.
+
+A new table `publish_credential` holds the allow-list. A row means: this
+**account** holds a human-editor credential.
+
+| `credential_role` | may verify | may publish |
+|---|:---:|:---:|
+| `editor` | ✅ | — |
+| `publisher` | ✅ | ✅ |
+
+There is deliberately **no automated role**. An automated process cannot
+be a human editor, and a credential that could be issued to one would be
+the same hole with an extra step.
+
+The table starts **EMPTY**, so both transitions are refused for everyone
+until a credential is issued deliberately. Opening the gate is an act,
+not an omission.
+
+The check runs **before** the evidence gates, not after. An actor
+without a credential has no business learning whether an evidence gate is
+met, and a refusal that names the *content* rather than the
+*credential* reads as an editorial decision rather than an authorisation
+failure. The constraint test asserts the refusal message names the
+credential, which is what keeps the ordering honest.
+
+### 14.3 The journey places that produced no association are QUEUED
+
+**The finding.** The P2 backfill reads three legacy fields:
+`dishes.origin_geo_id`, `dish_dish_cuisines` and `dish_dish_traditions`.
+It does **not** read `dish_journey_beats`.
+
+So a place named only in a dish's **journey** produced no association —
+and was silently dropped. On live that is **30 of 35 journey beats,
+across all 12 dishes that have journey beats**. Every one of the twelve
+is affected.
+
+`falafel` is the clearest case. Its journey says the origin is contested
+between **Egypt** and the **Levant**; its legacy origin field says
+**Israel**. After the backfill it has two associations, both
+Israel-linked, and its own journey text — the thing the page shows the
+reader above the Origin panel — names three places that produced
+nothing.
+
+**The decision.** The journey place is **queued for a reviewer**. Not
+assigned, not guessed, not dropped.
+
+A journey beat like `Egypt / Levant` is a **contested** claim with two
+places in it, and choosing one would be inventing a claim the brief
+forbids. `Levantine cities` is a region with no `geo_entities` row.
+`Global` is not a place at all. A reviewer decides, per item.
+
+The new queue category is `journey_place_without_association`. Migration
+0039 creates **no association** and decides nothing.
+
+### 14.4 The CI database must hold the acceptance fixtures
+
+**The finding.** The CI database was built from a three-dish seed, so the
+backfill produced five associations and `ATLAS_BACKFILL_OK=1` proved
+only that migration 0037 **executes**. The tell was in the CI log:
+`statements: 0 total` — there was no catalog to backfill. A backfill
+that produced **zero** associations would have passed the same gate.
+
+The aggregate assertion could not catch it, and could not in principle:
+0037's expected counts are computed from the same legacy tables the
+migration reads, so both sides move together.
+
+**The decision.** Two things:
+
+1. A new seed, `packages/db/seed-atlas-references.sql`, seeds the four
+   reference dishes — `rendang`, `chicken-tikka-masala`,
+   `tacos-al-pastor`, `falafel` — with the exact legacy shape they have
+   on live. `chicken-tikka-masala` deliberately carries **no** cuisine
+   and **no** tradition, which is what proves the backfill does not
+   invent one.
+2. A new assertion file, `scripts/test_atlas_backfill.sql`, asserts the
+   **exact association rows** — the relationship type, the entity kind,
+   the entity and the provenance — not a count. It also carries the
+   count-snapshot guard, with **non-zero baselines**: a zero baseline
+   would let a backfill that produced nothing pass, which is the failure
+   this file exists to catch.
+
+The seed runs **after** the GUS-242 data migrations, because
+`dish_dish_cuisines.provenance` is added by `gus-242-schema-prep.sql`.
+Seeded before it, the seed fails and — being one transaction — silently
+discards the dishes it had already inserted. The per-dish assertions
+caught exactly that on the first run.
+
+### 14.5 The migration-order and count facts
+
+These are recorded because they were ambiguous in the report, and an
+ambiguous number in a migration chain is a defect waiting to happen.
+
+| # | the question | the answer |
+|---|---|---|
+| 1 | **1,476 or 1,474 dishes?** | **Both are right, and they count different things.** 1,476 is every row in `dishes`; 1,474 is the rows with `status='published'`. The difference is **one draft** (`yukkuri-shite-itte-ne`, deliberately held) and **one archived**. Neither number is wrong; they answer different questions. Every count in this project must name which one it means. |
+| 2 | **Is there a migration numbering gap?** | **In `db/migrations`, no** — 0015…0039 is continuous. The gaps are in the **drizzle** chain: `packages/db/drizzle/` holds **two files numbered 0005** (`0005_food_geography_phase_2a` and `0005_user_role_index`), and `0003`, `0005_food_geography_phase_2a`, `0007`, `0012`, `0013`, `0014` and `0015` are **absent from the drizzle journal** — it records only 10 of the 17 files. The two chains also **share the number 0015** (`db/migrations/0015_gus242_resync.sql` and `packages/db/drizzle/0015_pool_a_batch.sql`). The journal is already known to be drifted, which is why the CI applies the committed files rather than the journal. |
+| 3 | **34 tests or 38?** | **34 was the count at commit `dd855ec`; 38 was the count at `7afabb9`.** The four are the guard tests added by `7afabb9` — the count-snapshot cases that assert the test left the associations, the relations, the identities and the dates exactly as it found them. Both numbers were correct for their own commit. The suite is now **47**, with the nine D9 publish-credential cases added. |
+| 4 | **"36 migrations" vs "files run to 0037"** | **No gap — the validator counts `db/migrations/*.sql` only.** The "36" was 25 numbered + 11 named (`gus-014-*`, `gus-224-*`, `gus-227-*`, `gus-241-*`, `gus-242-*`). It does not count the 17 drizzle files, which are a **separate chain**. The number moved to **38** when 0038 and 0039 were added. |
+
+**The rule this establishes:** a count in a report must say *what it
+counts*. "1,476 dishes", "38 migrations" and "47 constraint tests" are
+only meaningful next to the thing they count.
+

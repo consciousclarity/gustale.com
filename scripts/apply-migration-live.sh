@@ -189,6 +189,43 @@ echo "  (the constraint tests run on the dry-run copy, never on live)"
 # The copy is made from the dump the backup already took, so the copy is
 # the same shape as the database the migration is about to touch.
 COPY_DB="gustale_atlas_gate_copy"
+
+# THE REFUSAL. The copy's name is asserted to be different from the live
+# database's, and the test runner is passed the copy's name EXPLICITLY.
+#
+# The previous version of this script ran the constraint tests with
+# `-d "$COPY_DB"`, which was already correct — but nothing PROVED it. The
+# guard lived only in a comment, and a comment is not a control. One
+# careless edit to the `-d` flag would have put the test rows straight
+# back into production, which is exactly what happened before.
+#
+# So the refusal is now MECHANICAL, in two places:
+#
+#   1. here, the copy's name is checked against the live name before the
+#      copy is created, and the run ABORTS if they are the same;
+#   2. in scripts/test_atlas_schema.sql, the test refuses to run against
+#      a database whose name is in the protected set — so the same
+#      protection holds when the test file is run by hand, by CI, or by
+#      any other script.
+#
+# The protected set lives in the test file, and this script READS it from
+# there rather than repeating it, so the two cannot drift.
+PROTECTED_DBS=$(grep -oE "^-- GUSTALE_PROTECTED_DATABASES:.*" scripts/test_atlas_schema.sql \
+  | head -1 | sed 's/^-- GUSTALE_PROTECTED_DATABASES: *//' | tr ',' '\n' | tr -d ' ' | grep -v '^$')
+if [ -z "$PROTECTED_DBS" ]; then
+  echo "FAILED: scripts/test_atlas_schema.sql declares no protected database list."
+  echo "The gate cannot prove the constraint tests will not run against production."
+  exit 1
+fi
+for protected in $PROTECTED_DBS; do
+  if [ "$COPY_DB" = "$protected" ] || [ "$DB" = "$protected" ]; then
+    echo "FAILED: the copy '$COPY_DB' or the live database '$DB' is a PROTECTED database ($protected)."
+    echo "The constraint tests must never run against production."
+    exit 1
+  fi
+done
+echo "  the copy '$COPY_DB' is not a protected database ($PROTECTED_DBS)"
+
 docker exec -u postgres shared-postgres psql -U postgres -d postgres \
   -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
 docker exec -u postgres shared-postgres createdb -U postgres "$COPY_DB"
@@ -203,7 +240,7 @@ docker exec -u postgres shared-postgres psql -U postgres -d "$COPY_DB" \
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
   -f - < "$MIGRATION" >/dev/null 2>&1
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
-  -f - < scripts/test_atlas_schema.sql 2>&1 | grep -E "ATLAS_SCHEMA_TESTS|ERROR" | tail -3
+  -f - < scripts/test_atlas_schema.sql 2>&1 | grep -E "ATLAS_SCHEMA_TESTS|ERROR|REFUSED" | tail -3
 
 docker exec -u postgres shared-postgres psql -U postgres -d postgres \
   -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1

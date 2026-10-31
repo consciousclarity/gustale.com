@@ -63,6 +63,29 @@ MIGRATION_0032=db/migrations/0032_gus239_archive_dish_translations.sql
 MIGRATION_0033=db/migrations/0033_gus239_english_names.sql
 MIGRATION_0034=db/migrations/0034_gus242_fix_corrupted_tradition.sql
 
+
+# The FOUR REFERENCE DISHES — rendang, chicken-tikka-masala,
+# tacos-al-pastor and falafel — with the EXACT legacy shape they have
+# on live. Without this seed the backfill has almost nothing to read,
+# and `ATLAS_BACKFILL_OK=1` proves only that the migration EXECUTES.
+#
+# IT RUNS HERE, AFTER the GUS-242 data migrations, after the sentence
+# population, and after 0032 and 0033:
+#
+#   1. `dish_dish_cuisines.provenance` is added by
+#      db/migrations/gus-242-schema-prep.sql. Seeded before it, the seed
+#      fails and — being one transaction — silently discards the dishes
+#      it had already inserted.
+#   2. 0032 asserts that every PUBLISHED dish has a `dish_names` row and
+#      a 'short' description sentence. Seeded before 0032, the four new
+#      published dishes break that assertion.
+#
+# The per-dish assertions caught both misorderings.
+echo "--- seed: the atlas reference dishes"
+run_pg -f - < packages/db/seed-atlas-references.sql >/dev/null 2>&1 \
+  || { echo "FAILED: seed-atlas-references"; fail=1; }
+[ $fail -eq 0 ] || exit 1
+
 # 0035 restores `categories.kind` — a column that was in the LIVE database
 # since 2026-06-25 but in no committed migration. It is idempotent
 # (ADD COLUMN IF NOT EXISTS) and touches nothing else, so it can run at
@@ -91,6 +114,36 @@ ATLAS_CONSTRAINT_TESTS=scripts/test_atlas_schema.sql
 # queue. It is restartable (ON CONFLICT DO NOTHING) and reversible (every
 # row carries a legacy provenance), and it asserts its own outcome.
 MIGRATION_0037=db/migrations/0037_atlas_backfill.sql
+
+# 0038 is the publish credential. The `verified` and `published`
+# transitions used to be guarded by a NAME check — an actor matching
+# `%agent%` or `%hermes%` was refused — which passes every other name.
+# The rule is now positive: the actor must HOLD a verified
+# `publish_credential` row, and the default is deny.
+#
+# It is additive and idempotent: it creates one table and replaces one
+# function.
+MIGRATION_0038=db/migrations/0038_publish_credential.sql
+
+# 0039 queues the journey places that produced NO association.
+#
+# The P2 backfill read the legacy origin, cuisine and tradition fields.
+# It did not read `dish_journey_beats` — so a place named only in a
+# dish's journey produced no association and was silently dropped. On
+# live that is 30 of 35 journey beats across all 12 dishes that have
+# them. 0039 puts every one of them in the editorial queue, where a
+# reviewer decides. It creates no association and decides nothing.
+MIGRATION_0039=db/migrations/0039_journey_place_queue.sql
+
+# The per-dish backfill assertions.
+#
+# 0037 asserts its outcome in AGGREGATE. Both sides of that comparison
+# are computed from the same legacy tables, so a mapping that is wrong
+# in the same way on both sides passes. This asserts the EXACT
+# association rows the four reference dishes must have, and the
+# count-snapshot guard with NON-ZERO baselines — so a backfill that
+# produced nothing fails.
+ATLAS_BACKFILL_ASSERTIONS=scripts/test_atlas_backfill.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
@@ -249,6 +302,10 @@ run_pg -f - < "$MIGRATION_0036" >/tmp/m0036.log 2>&1 || { echo "FAILED: 0036"; t
 grep -E 'NOTICE' /tmp/m0036.log | head -3 || true
 
 # The constraint tests: every case asserts that a bad write is REFUSED.
+#
+# They run HERE, before 0038 — the D9 publish-credential cases need the
+# 0038 table, so the suite is run AGAIN after 0038 below. The first run
+# covers D1-D8; the second covers everything including D9.
 echo "--- the ADR-004 atlas constraints"
 run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_CONSTRAINT_TESTS" >/tmp/atlas_constraints.log 2>&1 \
   || { echo "FAILED: the atlas constraint tests"; grep -E 'FAIL|ERROR' /tmp/atlas_constraints.log | head -12; fail=1; }
@@ -261,6 +318,42 @@ echo "--- the ADR-004 atlas backfill"
 run_pg -f - < "$MIGRATION_0037" >/tmp/m0037.log 2>&1 || { echo "FAILED: 0037"; grep -E 'ERROR|NOTICE' /tmp/m0037.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_BACKFILL_OK|reconciliation' /tmp/m0037.log | tail -2 || true
+
+# 0038 — the publish credential. Additive and idempotent.
+echo "--- the publish credential"
+run_pg -f - < "$MIGRATION_0038" >/tmp/m0038.log 2>&1 || { echo "FAILED: 0038"; grep -E 'ERROR|NOTICE' /tmp/m0038.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'PUBLISH_CREDENTIAL_OK' /tmp/m0038.log | tail -1 || true
+
+# The constraint tests AGAIN, now with the D9 publish-credential cases.
+echo "--- the atlas constraints (with the publish credential)"
+run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_CONSTRAINT_TESTS" >/tmp/atlas_constraints2.log 2>&1 \
+  || { echo "FAILED: the atlas constraint tests (with the publish credential)"; grep -E 'FAIL|ERROR' /tmp/atlas_constraints2.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_SCHEMA_TESTS' /tmp/atlas_constraints2.log | tail -1 || true
+
+# 0039 — the journey places that produced no association, queued rather
+# than dropped.
+echo "--- the journey place queue"
+run_pg -f - < "$MIGRATION_0039" >/tmp/m0039.log 2>&1 || { echo "FAILED: 0039"; grep -E 'ERROR|NOTICE' /tmp/m0039.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/m0039.log | tail -1 || true
+
+# The PER-DISH backfill assertions. LAST, because they assert the state
+# the whole chain produces: the reference dishes' association rows AND
+# the journey places in the editorial queue.
+#
+# 0037's own assertion is an AGGREGATE one: the counts against the
+# legacy tables. Both sides come from the same tables, so a mapping that
+# is wrong in the same way on both sides passes. This asserts the EXACT
+# association rows the four reference dishes must have, and the
+# count-snapshot guard with NON-ZERO baselines — a backfill that produced
+# nothing FAILS it.
+echo "--- the atlas backfill assertions"
+run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_BACKFILL_ASSERTIONS" >/tmp/atlas_backfill_assertions.log 2>&1 \
+  || { echo "FAILED: the atlas backfill assertions"; grep -E 'FAIL|ERROR' /tmp/atlas_backfill_assertions.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_BACKFILL_ASSERTIONS|ATLAS_COUNT_GUARD' /tmp/atlas_backfill_assertions.log | tail -2 || true
 
 echo ""
 if [ $fail -eq 0 ]; then
