@@ -2108,4 +2108,3 @@ export const publishCredential = pgTable(
     roleIdx: index("publish_credential_role_idx").on(t.credentialRole),
   }),
 );
-

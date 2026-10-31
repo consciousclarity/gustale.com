@@ -286,9 +286,7 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
     const one = await getAtlas("chicken-tikka-masala");
     expect(one.placesAndTraditions).toHaveLength(1);
     expect(one.placesAndTraditions[0]?.entityKind).toBe("place");
-    expect(one.placesAndTraditions[0]?.relationship).toBe(
-      "legacy_unreviewed",
-    );
+    expect(one.placesAndTraditions[0]?.relationship).toBe("legacy_unreviewed");
 
     const many = await getAtlas("rendang");
     expect(many.placesAndTraditions).toHaveLength(3);
@@ -322,7 +320,9 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
 
   it("preserves the legacy value and its provenance", async () => {
     const body = await getAtlas("falafel");
-    const place = body.placesAndTraditions.find((a) => a.entityKind === "place");
+    const place = body.placesAndTraditions.find(
+      (a) => a.entityKind === "place",
+    );
 
     // The original value is preserved, so nothing is lost, and it is
     // marked as legacy so it is not read as a finding.
@@ -352,9 +352,7 @@ describe("GET /api/dishes/:slug/atlas — history & connections", () => {
       // NOT "single". The route must pass the NULL through.
       expect(
         claim.independence === null ||
-          ["single", "corroborated", "dependent"].includes(
-            claim.independence,
-          ),
+          ["single", "corroborated", "dependent"].includes(claim.independence),
       ).toBe(true);
     }
   });
@@ -429,10 +427,10 @@ describe("GET /api/dishes/:slug/atlas — the counts", () => {
   it("reports what is published, so an empty section is explained", async () => {
     const body = await getAtlas("falafel");
 
-    expect(body.published.associations).toBe(
-      body.placesAndTraditions.length,
+    expect(body.published.associations).toBe(body.placesAndTraditions.length);
+    expect(body.published.claims).toBe(
+      body.historyAndConnections.claims.length,
     );
-    expect(body.published.claims).toBe(body.historyAndConnections.claims.length);
     expect(body.published.connections).toBe(
       body.historyAndConnections.connections.length,
     );
