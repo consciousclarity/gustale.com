@@ -87,6 +87,15 @@ DECLARE
   v_stmt uuid;
   v_fixture_ids uuid[];
   v_err text;
+  -- the counts before the test's own writes, compared after its cleanup
+  v_assoc_before bigint;
+  v_rel_before   bigint;
+  v_ident_before bigint;
+  v_dates_before bigint;
+  v_assoc_after  bigint;
+  v_rel_after    bigint;
+  v_ident_after  bigint;
+  v_dates_after  bigint;
 BEGIN
   ---------------------------------------------------------------------
   -- the fixtures
@@ -171,6 +180,17 @@ BEGIN
     END IF;
     RAISE NOTICE 'this database has no statements; the test created one and will remove it';
   END IF;
+
+  -- THE SNAPSHOT, taken BEFORE any of this test's own writes.
+  --
+  -- The cleanup at the end is compared against it, so the test proves it
+  -- left the database exactly as it found it. This is the guard against
+  -- the bug that deleted six real associations from the three reference
+  -- dishes when the test was run against live.
+  SELECT count(*) INTO v_assoc_before FROM dish_place_associations;
+  SELECT count(*) INTO v_rel_before   FROM dish_relations;
+  SELECT count(*) INTO v_ident_before FROM dish_identities;
+  SELECT count(*) INTO v_dates_before FROM claim_dates;
 
   SELECT id INTO v_place FROM geo_entities LIMIT 1;
   SELECT id INTO v_tradition FROM dish_traditions LIMIT 1;
@@ -261,7 +281,7 @@ BEGIN
 
   v_err := atlas_test_must_fail(
     'INSERT INTO claim_dates (dish_id, date_kind, date_text, year_start, year_end, precision)
-     VALUES (''' || v_a || ''', ''proposed_emergence'', ''x'', 1900, 1800, ''bounded'')');
+     VALUES (''' || v_a || ''', ''proposed_emergence'', ''the atlas constraint test'', 1900, 1800, ''bounded'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D6 a reversed interval is rejected', 'the INSERT was accepted');
@@ -272,7 +292,7 @@ BEGIN
 
   v_err := atlas_test_must_fail(
     'INSERT INTO claim_dates (dish_id, date_kind, date_text, year_start, year_end, precision)
-     VALUES (''' || v_a || ''', ''proposed_emergence'', ''x'', 1200, 1900, ''open'')');
+     VALUES (''' || v_a || ''', ''proposed_emergence'', ''the atlas constraint test'', 1200, 1900, ''open'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D6 an open precision has no end year', 'the INSERT was accepted');
@@ -284,7 +304,7 @@ BEGIN
   -- "before the thirteenth century" — an OPEN interval with no year at all.
   v_err := atlas_test_must_succeed(
     'INSERT INTO claim_dates (dish_id, date_kind, date_text, year_start, year_end, precision)
-     VALUES (''' || v_a || ''', ''proposed_emergence'', ''before the thirteenth century'', NULL, NULL, ''open'')');
+     VALUES (''' || v_a || ''', ''proposed_emergence'', ''the atlas constraint test'', NULL, NULL, ''open'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D6 an open-ended date with no year is accepted');
@@ -294,7 +314,7 @@ BEGIN
 
   v_err := atlas_test_must_fail(
     'INSERT INTO claim_dates (dish_id, date_kind, date_text, year_start, precision)
-     VALUES (''' || v_a || ''', ''birthday'', ''x'', 1900, ''exact'')');
+     VALUES (''' || v_a || ''', ''birthday'', ''the atlas constraint test'', 1900, ''exact'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D6 only the four date kinds are accepted', 'the INSERT was accepted');
@@ -308,8 +328,8 @@ BEGIN
   ---------------------------------------------------------------------
 
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id)
-     VALUES (''' || v_a || ''', ''invented_type'', ''place'', ''' || v_place || ''')');
+    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, provenance)
+     VALUES (''' || v_a || ''', ''invented_type'', ''place'', ''' || v_place || ''', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D3 only the six relationship types are accepted', 'the INSERT was accepted');
@@ -321,8 +341,8 @@ BEGIN
   -- The entity-kind combination is enforced SERVER-SIDE: a 'place'
   -- association may not point at a traditions row.
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id)
-     VALUES (''' || v_a || ''', ''established_tradition'', ''place'', ''' || v_tradition || ''')');
+    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, provenance)
+     VALUES (''' || v_a || ''', ''established_tradition'', ''place'', ''' || v_tradition || ''', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D3 a place association may not point at a traditions row', 'the INSERT was accepted');
@@ -333,8 +353,8 @@ BEGIN
 
   -- ... and a 'community' association may not point at a geo_entities row.
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id)
-     VALUES (''' || v_a || ''', ''established_tradition'', ''community'', ''' || v_place || ''')');
+    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, provenance)
+     VALUES (''' || v_a || ''', ''established_tradition'', ''community'', ''' || v_place || ''', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D3 a community association may not point at a geo_entities row', 'the INSERT was accepted');
@@ -346,8 +366,8 @@ BEGIN
   -- ... and a community association that points at a traditions row IS
   -- accepted. The guard is not simply refusing everything.
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id)
-     VALUES (''' || v_a || ''', ''established_tradition'', ''community'', ''' || v_tradition || ''')');
+    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, provenance)
+     VALUES (''' || v_a || ''', ''established_tradition'', ''community'', ''' || v_tradition || ''', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D3 a community association pointing at a traditions row is accepted');
@@ -358,8 +378,8 @@ BEGIN
   -- The identity of an association is (dish, type, kind, entity): a second
   -- row for the same association is refused.
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id)
-     VALUES (''' || v_a || ''', ''established_tradition'', ''community'', ''' || v_tradition || ''')');
+    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, provenance)
+     VALUES (''' || v_a || ''', ''established_tradition'', ''community'', ''' || v_tradition || ''', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D3 a duplicate association is rejected', 'the INSERT was accepted');
@@ -371,8 +391,8 @@ BEGIN
   -- A DIFFERENT relationship type for the same entity is a different
   -- association, and is accepted.
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id)
-     VALUES (''' || v_a || ''', ''legacy_unreviewed'', ''community'', ''' || v_tradition || ''')');
+    'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, provenance)
+     VALUES (''' || v_a || ''', ''legacy_unreviewed'', ''community'', ''' || v_tradition || ''', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D3 a different relationship type for the same entity is a different association');
@@ -383,7 +403,7 @@ BEGIN
   -- The evidence axes are constrained on the association too.
   v_err := atlas_test_must_fail(
     'INSERT INTO dish_place_associations (dish_id, relationship_type, entity_kind, entity_id, evidence_status)
-     VALUES (''' || v_b || ''', ''historical_emergence'', ''place'', ''' || v_place || ''', ''certain'')');
+     VALUES (''' || v_b || ''', ''historical_emergence'', ''place'', ''' || v_place || ''', ''certain'', ''atlas_constraint_test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D4 the association evidence_status is constrained', 'the INSERT was accepted');
@@ -419,8 +439,8 @@ BEGIN
 
   -- A self-link is refused.
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_a || ''', ''' || v_a || ''', ''similar_form'', ''' || v_rel_sym || ''', true)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_a || ''', ''' || v_a || ''', ''similar_form'', ''' || v_rel_sym || ''', true, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a self-link is rejected', 'the INSERT was accepted');
@@ -441,8 +461,8 @@ BEGIN
   -- the index itself is what refuses it (proven by the regression check,
   -- which drops the index and the trigger in turn).
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_a || ''', ''' || v_b || ''', ''similar_form'', ''' || v_rel_sym || ''', true)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_a || ''', ''' || v_b || ''', ''similar_form'', ''' || v_rel_sym || ''', true, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a symmetric pair is accepted');
@@ -451,8 +471,8 @@ BEGIN
   END IF;
 
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_b || ''', ''' || v_a || ''', ''similar_form'', ''' || v_rel_sym || ''', true)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_b || ''', ''' || v_a || ''', ''similar_form'', ''' || v_rel_sym || ''', true, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a REVERSED duplicate of a symmetric pair is rejected', 'the INSERT was accepted');
@@ -478,8 +498,8 @@ BEGIN
 
   -- A DIRECTIONAL pair is accepted. The influence network is not a tree.
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_a || ''', ''' || v_c || ''', ''developed_from'', ''' || v_rel_dev || ''', false)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_a || ''', ''' || v_c || ''', ''developed_from'', ''' || v_rel_dev || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a directional pair is accepted');
@@ -491,9 +511,9 @@ BEGIN
   -- is a second legitimate claim, and it must survive. Uniqueness is on
   -- the EDGE IDENTITY (from, to, type) — never on (from, to) alone.
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
      VALUES (''' || v_a || ''', ''' || v_c || ''', ''adapted_from'', ''' ||
-     (SELECT id FROM relation_types WHERE slug = 'adapted_from') || ''', false)');
+     (SELECT id FROM relation_types WHERE slug = 'adapted_from') || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a SECOND, DIFFERENT predicate between the same pair is accepted (parallel claims survive)');
@@ -504,8 +524,8 @@ BEGIN
   -- The EXISTING rule still holds: the SAME predicate in both directions
   -- is a contradiction, and is refused.
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_c || ''', ''' || v_a || ''', ''developed_from'', ''' || v_rel_dev || ''', false)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_c || ''', ''' || v_a || ''', ''developed_from'', ''' || v_rel_dev || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 the SAME predicate in both directions is still refused', 'the INSERT was accepted');
@@ -524,8 +544,8 @@ BEGIN
   --
   -- The three-edge cycle is the case ONLY the new guard can catch.
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_a || ''', ''' || v_b || ''', ''regional_variant_of'', ''' || v_rel_var || ''', false)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_a || ''', ''' || v_b || ''', ''regional_variant_of'', ''' || v_rel_var || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a regional_variant_of edge is accepted');
@@ -534,8 +554,8 @@ BEGIN
   END IF;
 
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_b || ''', ''' || v_c || ''', ''regional_variant_of'', ''' || v_rel_var || ''', false)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_b || ''', ''' || v_c || ''', ''regional_variant_of'', ''' || v_rel_var || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 the second regional_variant_of edge is accepted');
@@ -545,8 +565,8 @@ BEGIN
 
   -- The closing edge: c -> a would complete the loop.
   v_err := atlas_test_must_fail(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_c || ''', ''' || v_a || ''', ''regional_variant_of'', ''' || v_rel_var || ''', false)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_c || ''', ''' || v_a || ''', ''regional_variant_of'', ''' || v_rel_var || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a regional_variant_of CYCLE is rejected', 'the INSERT was accepted');
@@ -558,8 +578,8 @@ BEGIN
   -- The cycle guard applies ONLY to regional_variant_of. A developed_from
   -- loop is allowed — the influence network is not a tree.
   v_err := atlas_test_must_succeed(
-    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric)
-     VALUES (''' || v_b || ''', ''' || v_a || ''', ''developed_from'', ''' || v_rel_dev || ''', false)');
+    'INSERT INTO dish_relations (from_dish_id, to_dish_id, relation_type, relation_type_id, is_symmetric, reason)
+     VALUES (''' || v_b || ''', ''' || v_a || ''', ''developed_from'', ''' || v_rel_dev || ''', false, ''the atlas constraint test'')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a developed_from loop is allowed (the influence network is not a tree)');
@@ -652,14 +672,91 @@ BEGIN
   ---------------------------------------------------------------------
   -- THE CLEANUP — this block leaves the database as it found it
   ---------------------------------------------------------------------
-  DELETE FROM dish_identities WHERE from_dish_id IN (v_a, v_b, v_c);
-  DELETE FROM dish_relations WHERE from_dish_id IN (v_a, v_b, v_c) OR to_dish_id IN (v_a, v_b, v_c);
-  DELETE FROM dish_place_associations WHERE dish_id IN (v_a, v_b, v_c);
-  DELETE FROM claim_dates WHERE dish_id IN (v_a, v_b, v_c);
+  --
+  -- IT MUST DELETE ONLY WHAT THE TEST CREATED.
+  --
+  -- The first version deleted by DISH:
+  --
+  --     DELETE FROM dish_place_associations WHERE dish_id IN (v_a, v_b, v_c);
+  --
+  -- which is wrong in a way that only shows up on a database with real
+  -- data. On the live database the fixtures ARE the three reference
+  -- dishes — rendang, chicken-tikka-masala, tacos-al-pastor — and they
+  -- have associations from the P2 backfill. The test deleted them:
+  --
+  --     rendang               0 associations (was 3)
+  --     chicken-tikka-masala  0 associations (was 1)
+  --     tacos-al-pastor      0 associations (was 2)
+  --
+  -- Six real rows, gone, because a TEST cleaned up after itself.
+  --
+  -- So every row the test inserts carries a marker, and the cleanup
+  -- removes only rows with that marker. The guard below proves it: the
+  -- counts before the test are compared with the counts after it, and a
+  -- difference is a FAILURE.
+  ---------------------------------------------------------------------
+
+  -- (the counts before the test's own writes were taken at the very
+  --  start of this block, before any of the test's inserts)
+  DELETE FROM dish_identities WHERE from_dish_id IN (v_a, v_b, v_c)
+     AND explanation = 'the test';
+  DELETE FROM dish_relations WHERE (from_dish_id IN (v_a, v_b, v_c) OR to_dish_id IN (v_a, v_b, v_c))
+     AND reason = 'the atlas constraint test';
+  DELETE FROM dish_place_associations WHERE dish_id IN (v_a, v_b, v_c)
+     AND provenance = 'atlas_constraint_test';
+  DELETE FROM claim_dates WHERE dish_id IN (v_a, v_b, v_c)
+     AND date_text = 'the atlas constraint test';
   UPDATE statements SET dispute_state = NULL, research_outcome = NULL WHERE id = v_stmt;
   -- the statement the test created, if it created one
   DELETE FROM statements WHERE id = v_stmt
     AND value_literal = 'the atlas constraint test';
+
+  -- THE GUARD: the test must leave the database exactly as it found it.
+  SELECT count(*) INTO v_assoc_after FROM dish_place_associations;
+  SELECT count(*) INTO v_rel_after   FROM dish_relations;
+  SELECT count(*) INTO v_ident_after FROM dish_identities;
+  SELECT count(*) INTO v_dates_after FROM claim_dates;
+
+  IF v_assoc_after <> v_assoc_before THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail(
+      'the test left the associations changed',
+      'before ' || v_assoc_before || ', after ' || v_assoc_after ||
+      ' — the cleanup deleted rows the test did not create');
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('the test left the associations exactly as it found them');
+  END IF;
+
+  IF v_rel_after <> v_rel_before THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail(
+      'the test left the relations changed',
+      'before ' || v_rel_before || ', after ' || v_rel_after);
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('the test left the relations exactly as it found them');
+  END IF;
+
+  IF v_ident_after <> v_ident_before THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail(
+      'the test left the identities changed',
+      'before ' || v_ident_before || ', after ' || v_ident_after);
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('the test left the identities exactly as it found them');
+  END IF;
+
+  IF v_dates_after <> v_dates_before THEN
+    v_fail := v_fail + 1;
+    PERFORM atlas_test_fail(
+      'the test left the dates changed',
+      'before ' || v_dates_before || ', after ' || v_dates_after);
+  ELSE
+    v_pass := v_pass + 1;
+    PERFORM atlas_test_pass('the test left the dates exactly as it found them');
+  END IF;
 
   RAISE NOTICE '';
   RAISE NOTICE 'ATLAS_SCHEMA_TESTS: % passed, % failed', v_pass, v_fail;
