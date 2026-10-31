@@ -119,6 +119,26 @@ BEGIN
     RAISE NOTICE 'the reference dishes are not in this database; using any three distinct dishes instead';
   END IF;
 
+  -- THE THREE FIXTURES ARE SORTED BY ID, so that v_a < v_b < v_c.
+  --
+  -- This is not cosmetic. The database already refuses a symmetric
+  -- relation whose endpoints are the wrong way round (check_relation_
+  -- direction(): "symmetric relation requires from_dish_id < to_dish_id"),
+  -- so the symmetric-pair cases need a pair whose ids are in order.
+  --
+  -- The reference dishes have random uuids, so their order is a
+  -- coin toss — and the CI database's seed dishes have DETERMINISTIC
+  -- uuids (00000000-0000-0000-0000-000000000020 and ...031), where the
+  -- slug order and the id order are the opposite way round.
+  --
+  -- Sorting by id makes the fixture deterministic in BOTH databases, and
+  -- the local test can no longer pass by luck.
+  SELECT array_agg(id ORDER BY id) INTO v_fixture_ids
+    FROM (SELECT unnest(ARRAY[v_a, v_b, v_c]) AS id) t;
+  v_a := v_fixture_ids[1];
+  v_b := v_fixture_ids[2];
+  v_c := v_fixture_ids[3];
+
   IF v_a IS NULL OR v_b IS NULL OR v_c IS NULL THEN
     RAISE EXCEPTION 'the fixtures are missing: this database has fewer than three dishes';
   END IF;
