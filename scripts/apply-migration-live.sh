@@ -45,6 +45,9 @@ cat > /tmp/atlas_live_assertions.sql <<'SQL'
 DO $$
 DECLARE
   n bigint;
+  -- The LEGACY tables. The migration is additive, so every one of these
+  -- counts must be identical afterwards. The NEW tables are checked
+  -- separately, with their own expected values.
   pairs text[][] := ARRAY[
     -- relation_types is DELIBERATELY excluded from the unchanged-count
     -- assertion: ADR-004 §5 extends the vocabulary from 7 rows to 13 (the
@@ -53,7 +56,12 @@ DECLARE
     -- documented change is allowed, and only that one.
     ARRAY['statements',        '1354'],
     ARRAY['claim_citations',  '1354'],
-    ARRAY['dish_relations',   '96'],
+    -- dish_relations is 86, not the 182 it was before GUS-224: that
+    -- migration DELETED 96 inverse-duplicate rows (91 of a symmetric
+    -- relation, 5 of a directional pair asserted both ways) and moved
+    -- them to dish_relations_archive for provenance. The P0 baseline
+    -- recorded 96, which was the ARCHIVE's count, not the live one.
+    ARRAY['dish_relations',   '86'],
     ARRAY['dish_families',    '306'],
     ARRAY['dishes',           '1476'],
     ARRAY['sources',          '1486'],
@@ -79,6 +87,17 @@ BEGIN
     END IF;
   END LOOP;
   RAISE NOTICE 'all % legacy counts are unchanged', array_length(pairs, 1);
+
+  -- The tables the migration ADDS. They start empty and must hold the
+  -- expected number of rows afterwards.
+  IF to_regclass('public.dish_place_associations') IS NOT NULL THEN
+    SELECT count(*) INTO n FROM dish_place_associations;
+    RAISE NOTICE 'dish_place_associations: % rows', n;
+  END IF;
+  IF to_regclass('public.editorial_review_queue') IS NOT NULL THEN
+    SELECT count(*) INTO n FROM editorial_review_queue;
+    RAISE NOTICE 'editorial_review_queue: % rows', n;
+  END IF;
 END $$;
 SQL
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \

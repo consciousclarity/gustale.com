@@ -171,7 +171,7 @@ Live `gustale` database, 2026-10-31.
 | | legacy `dish_categories` → `categories` | 339 / 152 |
 | **History & connections** | `statements` | 1,354 |
 | | `claim_citations` | 1,354 |
-| | `dish_relations` | 96 |
+| `dish_relations` | 86 |
 | | `lineages` / `dish_lineages` | 14 / 34 |
 | | `dish_variants` | 1 |
 
@@ -363,7 +363,8 @@ The reference dishes in `KANBAN.md` §6 — `rendang`, `chicken-tikka-masala`,
 | F10 | **"No detailed steps recorded yet."** on the dish page | §7, Preparation panel | **OPEN** — content, not structure |
 | F11 | The GitHub REST API refuses to merge a PR whose diff touches `.github/workflows/` | `refusing to allow a Personal Access Token to create or update workflow … without 'workflow' scope` | **WORKED AROUND** — see §9 |
 | F12 | `web_search` / `web_extract` are down | Firecrawl proxy has no vhost/certificate for it | **WORKED AROUND** — see §9 |
-| F13 | **Every source in the database is S6 Wikipedia** — 1,486 of 1,486 | `SELECT source_class, count(*) FROM sources GROUP BY 1` → one row: S6 | **OPEN** — this baseline |
+| F13 | **Every source in the database is S6 Wikipedia** — 1,486 of 1,486 | `SELECT source_class, count(*) FROM sources GROUP BY 1` → one row: S6=1486 | **OPEN** — this baseline |
+| F15 | **This baseline miscounted `dish_relations`** — it recorded 96; the live count is 86 | GUS-224 deleted 96 inverse-duplicate rows (91 symmetric, 5 directional) into `dish_relations_archive`, so 182 became 86. The baseline took the ARCHIVE's count | **CORRECTED** — the gate for the P2 backfill caught it, because the assertion expected 96 and the live count was 86 |
 | F14 | **No statement can reach `verified` or `published`** | the gate requires an S1–S5 `supports` citation; there are none | **OPEN** — this baseline. See the chain below. |
 
 ---
