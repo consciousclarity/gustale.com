@@ -566,6 +566,26 @@ export const statements = pgTable("statements", {
   // Q8: independence is STORED, tri-state, and never defaulted.
   // NULL means "not assessed", which is NOT the same as "single".
   independence: text("independence"),
+  // ADR-004 D4: the three evidence axes, as SEPARATE columns.
+  //
+  // `status` above is the PUBLICATION/MODERATION state and `claimClass` is
+  // the EPISTEMIC KIND of the claim; both keep their ADR-002 meanings and
+  // the database still refuses a direct UPDATE of `status`. These three
+  // are the axes ADR-004 adds, and they are deliberately not one field:
+  //
+  //   evidenceStatus   how well evidenced the claim is
+  //   disputeState     whether competing accounts exist
+  //   researchOutcome  what the research found
+  //
+  // `evidenced` is a PROJECT STATE — qualifying non-Wikipedia sources are
+  // attached. It does NOT mean the claim is uncontested; that is
+  // `disputeState`'s business.
+  evidenceStatus: text("evidence_status")
+    .$type<EvidenceStatus>()
+    .notNull()
+    .default("unevidenced"),
+  disputeState: text("dispute_state").$type<DisputeState>(),
+  researchOutcome: text("research_outcome").$type<ResearchOutcome>(),
   independenceCheckedAt: timestamp("independence_checked_at", {
     withTimezone: true,
   }),
@@ -986,6 +1006,11 @@ export const dishRelations = pgTable(
     // FALSE for directional types (ancestor, diaspora) — storing both
     // directions there would assert a contradiction.
     isSymmetric: boolean("is_symmetric").notNull().default(true),
+    // ADR-004 D5: for `connection_proposed`, whether the DIRECTION of the
+    // connection is known. When it is false, NO arrow is rendered — in the
+    // page, in the graph, or in the API. An arrow asserts a direction the
+    // data does not have.
+    directionKnown: boolean("direction_known").notNull().default(true),
     // 'active' | 'quarantined'. Quarantined rows are excluded from the
     // public view; admins still see them with `quarantineNote`.
     status: text("status")
@@ -1763,3 +1788,274 @@ export const dishRelationsAdmin = pgView(
   "dish_relations_admin",
   relationViewColumns,
 ).existing();
+
+// =====================================================================
+// ADR-004 — THE SHARED CULINARY ATLAS
+// =====================================================================
+//
+// Three concepts, kept separate in storage, in the API, in the editor, in
+// search, on the maps and in what the public is shown:
+//
+//   PLACES & TRADITIONS   dish_place_associations
+//   FOOD FAMILIES         dish_families / dish_techniques / dish_courses /
+//                         ingredient_categories / dish_contexts
+//   HISTORY & CONNECTIONS statements / dish_relations / claim_dates
+//
+// The rule that decides every ambiguous case: association is not ownership,
+// shared heritage is not shared invention, similarity is not descent, and
+// earliest documentation is not a birthplace.
+
+// ── The three evidence axes ───────────────────────────────────────────
+//
+// Deliberately THREE columns and not one overloaded field.
+//
+//   evidence_status   how well evidenced the claim is
+//   dispute_state     whether competing accounts exist
+//   research_outcome  what the research found
+//
+// `statements.status` (publication/moderation) and `statements.claim_class`
+// (epistemic kind) keep their existing ADR-002 meanings, and the database
+// still refuses a direct UPDATE of `status`.
+
+export const evidenceStatus = [
+  "unevidenced",
+  "research_pending",
+  "provisional",
+  "evidenced",
+] as const;
+export type EvidenceStatus = (typeof evidenceStatus)[number];
+
+export const disputeState = ["disputed", "unresolved"] as const;
+export type DisputeState = (typeof disputeState)[number];
+
+export const researchOutcome = ["completed", "inconclusive"] as const;
+export type ResearchOutcome = (typeof researchOutcome)[number];
+
+// ── D6: claim_dates ───────────────────────────────────────────────────
+//
+// A date qualifies a SPECIFIC claim, never a dish as a whole. The
+// machine-readable value and the human-readable expression are both
+// stored, because neither is derivable from the other: "before the
+// thirteenth century" has no year, and "c. 1800" is not "1800".
+
+export const claimDateKind = [
+  "surviving_record",
+  "proposed_emergence",
+  "introduction",
+  "adaptation",
+] as const;
+export type ClaimDateKind = (typeof claimDateKind)[number];
+
+export const datePrecision = [
+  "exact",
+  "approximate",
+  "bounded",
+  "open",
+] as const;
+export type DatePrecision = (typeof datePrecision)[number];
+
+export const claimDates = pgTable(
+  "claim_dates",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    statementId: uuid("statement_id").references(() => statements.id, {
+      onDelete: "cascade",
+    }),
+    dishId: uuid("dish_id").references(() => dishes.id, {
+      onDelete: "cascade",
+    }),
+    dateKind: text("date_kind").$type<ClaimDateKind>().notNull(),
+    yearStart: integer("year_start"),
+    yearEnd: integer("year_end"),
+    precision: text("precision").$type<DatePrecision>(),
+    dateText: text("date_text").notNull(),
+    placeId: uuid("place_id").references(() => geoEntities.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    statementIdx: index("claim_dates_statement_idx").on(t.statementId),
+    dishIdx: index("claim_dates_dish_idx").on(t.dishId),
+    placeIdx: index("claim_dates_place_idx").on(t.placeId),
+    kindIdx: index("claim_dates_kind_idx").on(t.dateKind),
+  }),
+);
+
+// ── D1/D3: dish_place_associations ────────────────────────────────────
+//
+// The six relationship types, and no others. `legacy_unreviewed` is
+// MIGRATION ONLY — it exists so that a backfill never has to guess, and
+// the editor never creates it.
+
+export const placeAssociationType = [
+  "historical_emergence",
+  "established_tradition",
+  "regional_adaptation",
+  "later_introduction",
+  "earliest_documentation",
+  "legacy_unreviewed",
+] as const;
+export type PlaceAssociationType = (typeof placeAssociationType)[number];
+
+export const placeEntityKind = ["place", "community"] as const;
+export type PlaceEntityKind = (typeof placeEntityKind)[number];
+
+export const associationReviewState = [
+  "unreviewed",
+  "in_review",
+  "accepted",
+  "rejected",
+] as const;
+export type AssociationReviewState = (typeof associationReviewState)[number];
+
+export const associationPublicationState = [
+  "draft",
+  "published",
+  "withdrawn",
+] as const;
+export type AssociationPublicationState =
+  (typeof associationPublicationState)[number];
+
+export const dishPlaceAssociations = pgTable(
+  "dish_place_associations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    relationshipType: text("relationship_type")
+      .$type<PlaceAssociationType>()
+      .notNull(),
+    // A 'place' entity is a geo_entities row (a modern place, a historical
+    // region, a cross-border area). A 'community' entity is a
+    // dish_traditions row (a people, a culinary tradition). A community is
+    // a group of people, NOT a place: it has no geometry and no ISO code.
+    entityKind: text("entity_kind").$type<PlaceEntityKind>().notNull(),
+    entityId: uuid("entity_id").notNull(),
+    explanation: text("explanation"),
+    qualifiers: jsonb("qualifiers").notNull().default(sql`'{}'::jsonb`),
+    provenance: text("provenance").notNull().default("editorial"),
+    // The original legacy value this row was derived from, preserved
+    // verbatim — nothing is lost by the migration and everything is
+    // reversible.
+    legacyValue: text("legacy_value"),
+    evidenceStatus: text("evidence_status")
+      .$type<EvidenceStatus>()
+      .notNull()
+      .default("unevidenced"),
+    disputeState: text("dispute_state").$type<DisputeState>(),
+    researchOutcome: text("research_outcome").$type<ResearchOutcome>(),
+    reviewState: text("review_state")
+      .$type<AssociationReviewState>()
+      .notNull()
+      .default("unreviewed"),
+    publicationState: text("publication_state")
+      .$type<AssociationPublicationState>()
+      .notNull()
+      .default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    // The identity of an association: the dish, the relationship and the
+    // entity. A second claim about the SAME association is a competing
+    // statement, not a second row.
+    identityUniq: unique("dpa_identity_uniq").on(
+      t.dishId,
+      t.relationshipType,
+      t.entityKind,
+      t.entityId,
+    ),
+    dishIdx: index("dpa_dish_idx").on(t.dishId),
+    entityIdx: index("dpa_entity_idx").on(t.entityKind, t.entityId),
+    typeIdx: index("dpa_type_idx").on(t.relationshipType),
+    publicationIdx: index("dpa_publication_idx").on(t.publicationState),
+    reviewIdx: index("dpa_review_idx").on(t.reviewState),
+  }),
+);
+
+// ── D7: dish identity ─────────────────────────────────────────────────
+//
+// shared_dish          one preparation, two rows
+// regional_variant     a named local form
+// historically_related related by documented history, not identity
+//
+// Identifiers are preserved until editorial review resolves identity:
+// nothing is merged by name, and nothing is split by national association.
+
+export const dishIdentityKind = [
+  "shared_dish",
+  "regional_variant",
+  "historically_related",
+] as const;
+export type DishIdentityKind = (typeof dishIdentityKind)[number];
+
+export const dishIdentities = pgTable(
+  "dish_identities",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    fromDishId: uuid("from_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    toDishId: uuid("to_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    identityKind: text("identity_kind").$type<DishIdentityKind>().notNull(),
+    explanation: text("explanation"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pairUniq: unique("dish_identities_pair_uniq").on(
+      t.fromDishId,
+      t.toDishId,
+      t.identityKind,
+    ),
+    fromIdx: index("dish_identities_from_idx").on(t.fromDishId),
+    toIdx: index("dish_identities_to_idx").on(t.toDishId),
+  }),
+);
+
+// How two dish rows relate by NAME. `dish_names` carries the names
+// themselves; this carries the link between two dishes when the same name
+// denotes two of them (the US biscuit and the British biscuit).
+export const dishNameRelationKind = [
+  "alias",
+  "translation",
+  "transliteration",
+] as const;
+export type DishNameRelationKind = (typeof dishNameRelationKind)[number];
+
+export const dishNameRelations = pgTable(
+  "dish_name_relations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    fromDishId: uuid("from_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    toDishId: uuid("to_dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    relationKind: text("relation_kind").$type<DishNameRelationKind>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    pairUniq: unique("dish_name_relations_pair_uniq").on(
+      t.fromDishId,
+      t.toDishId,
+      t.relationKind,
+    ),
+    fromIdx: index("dish_name_relations_from_idx").on(t.fromDishId),
+    toIdx: index("dish_name_relations_to_idx").on(t.toDishId),
+  }),
+);

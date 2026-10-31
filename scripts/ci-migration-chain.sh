@@ -75,6 +75,17 @@ MIGRATION_0034=db/migrations/0034_gus242_fix_corrupted_tradition.sql
 # apps/api/test/dishes-list.test.ts.
 MIGRATION_0035=db/migrations/0035_categories_kind.sql
 
+# 0036 is ADR-004's additive schema — the three evidence axes on
+# `statements`, `claim_dates`, `dish_place_associations`, the relation_types
+# vocabulary, the normalized-pair index, the cycle triggers and the two
+# identity tables. Additive and idempotent: it drops, renames and retypes
+# nothing, and it creates only what does not already exist.
+#
+# The constraint tests run right after it, because a schema that exists but
+# does not hold is worse than no schema.
+MIGRATION_0036=db/migrations/0036_atlas_schema.sql
+ATLAS_CONSTRAINT_TESTS=scripts/test_atlas_schema.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -222,6 +233,21 @@ echo "--- the categories.kind column"
 run_pg -f - < "$MIGRATION_0035" >/tmp/m0035.log 2>&1 || { echo "FAILED: 0035"; tail -12 /tmp/m0035.log; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0035.log | head -2 || true
+
+
+# 0036 — ADR-004's additive schema. Idempotent, so it is safe here and
+# safe on live (where it creates only what does not exist).
+echo "--- the ADR-004 atlas schema"
+run_pg -f - < "$MIGRATION_0036" >/tmp/m0036.log 2>&1 || { echo "FAILED: 0036"; tail -12 /tmp/m0036.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0036.log | head -3 || true
+
+# The constraint tests: every case asserts that a bad write is REFUSED.
+echo "--- the ADR-004 atlas constraints"
+run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_CONSTRAINT_TESTS" >/tmp/atlas_constraints.log 2>&1 \
+  || { echo "FAILED: the atlas constraint tests"; grep -E 'FAIL|ERROR' /tmp/atlas_constraints.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_SCHEMA_TESTS' /tmp/atlas_constraints.log | tail -1 || true
 
 echo ""
 if [ $fail -eq 0 ]; then

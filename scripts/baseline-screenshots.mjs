@@ -66,7 +66,9 @@ for (const vp of VIEWPORTS) {
         title,
         file,
       });
-      console.log(`OK   ${vp.name.padEnd(7)} ${String(res?.status()).padEnd(4)} ${p.path}  "${title}"`);
+      console.log(
+        `OK   ${vp.name.padEnd(7)} ${String(res?.status()).padEnd(4)} ${p.path}  "${title}"`,
+      );
     } catch (err) {
       results.push({
         slug: p.slug,
@@ -76,7 +78,9 @@ for (const vp of VIEWPORTS) {
         error: err.message,
         file: null,
       });
-      console.log(`FAIL ${vp.name.padEnd(7)} ---   ${p.path}  ${err.message.split("\n")[0]}`);
+      console.log(
+        `FAIL ${vp.name.padEnd(7)} ---   ${p.path}  ${err.message.split("\n")[0]}`,
+      );
     }
   }
   await ctx.close();

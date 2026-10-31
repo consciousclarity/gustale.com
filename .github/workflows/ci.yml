@@ -390,6 +390,27 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0035_categories_kind.sql
 
+      # 0036 is ADR-004's additive schema: the three evidence axes on
+      # `statements`, `claim_dates`, `dish_place_associations`, the
+      # relation_types vocabulary, the normalized-pair index, the cycle
+      # triggers, and the two identity tables.
+      #
+      # It is additive — nothing is dropped, renamed or retyped — and
+      # idempotent, so it is safe on live (where it creates only what does
+      # not exist) and safe to re-run.
+      #
+      # The constraint tests come immediately after, because a schema that
+      # exists but does not hold is worse than no schema.
+      - name: Apply the ADR-004 atlas schema
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0036_atlas_schema.sql
+
+      - name: Test the ADR-004 atlas constraints
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f scripts/test_atlas_schema.sql
+
       - name: Run vitest
         working-directory: apps/api
         run: pnpm test -- --reporter=verbose

@@ -39,6 +39,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 CI_WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 CHAIN_SCRIPT = REPO / "scripts" / "ci-migration-chain.sh"
+REPRO_SCRIPT = REPO / "scripts" / "repro-ci-db.sh"
 
 MIGRATION_RE = re.compile(r"db/migrations/[0-9a-zA-Z_.-]+\.sql")
 
@@ -51,40 +52,55 @@ def migrations_in(path: Path) -> set[str]:
     return set(MIGRATION_RE.findall(path.read_text()))
 
 
+def compare(name_a: str, a: set[str], name_b: str, b: set[str]) -> list[str]:
+    """The migrations that differ between two lists, as report lines."""
+    lines: list[str] = []
+    only_a = sorted(a - b)
+    only_b = sorted(b - a)
+    if only_a:
+        lines.append(f"  in {name_a} but NOT in {name_b}:")
+        lines.extend(f"    {m}" for m in only_a)
+    if only_b:
+        lines.append(f"  in {name_b} but NOT in {name_a}:")
+        lines.extend(f"    {m}" for m in only_b)
+    return lines
+
+
 def main() -> int:
     ci = migrations_in(CI_WORKFLOW)
     chain = migrations_in(CHAIN_SCRIPT)
+    repro = migrations_in(REPRO_SCRIPT)
 
-    only_ci = sorted(ci - chain)
-    only_chain = sorted(chain - ci)
+    problems: list[str] = []
+    problems += compare(
+        ".github/workflows/ci.yml", ci, "scripts/ci-migration-chain.sh", chain
+    )
+    problems += compare(
+        ".github/workflows/ci.yml", ci, "scripts/repro-ci-db.sh", repro
+    )
+    problems += compare(
+        "scripts/ci-migration-chain.sh", chain, "scripts/repro-ci-db.sh", repro
+    )
 
-    if not only_ci and not only_chain:
-        print(f"CI migration chain OK ({len(ci)} migrations, both lists agree)")
+    if not problems:
+        print(
+            f"CI migration chain OK ({len(ci)} migrations, "
+            "all three lists agree)"
+        )
         return 0
 
+    print("CI migration chain MISMATCH:", file=sys.stderr)
+    for line in problems:
+        print(line, file=sys.stderr)
     print(
-        "CI migration chain MISMATCH:",
-        file=sys.stderr,
-    )
-    if only_ci:
-        print(
-            "  in .github/workflows/ci.yml but NOT in scripts/ci-migration-chain.sh:",
-            file=sys.stderr,
-        )
-        for m in only_ci:
-            print(f"    {m}", file=sys.stderr)
-    if only_chain:
-        print(
-            "  in scripts/ci-migration-chain.sh but NOT in .github/workflows/ci.yml:",
-            file=sys.stderr,
-        )
-        for m in only_chain:
-            print(f"    {m}", file=sys.stderr)
-    print(
-        "\nBoth files must apply the same migrations. The Nightly runs the\n"
-        "chain script, so if the lists differ, the Nightly and the CI build\n"
-        "different schemas — and the one that is missing a migration is the\n"
-        "one whose routes return 500.",
+        "\nAll three files must apply the same migrations.\n"
+        "  .github/workflows/ci.yml          — the CI database\n"
+        "  scripts/ci-migration-chain.sh     — the Nightly database\n"
+        "  scripts/repro-ci-db.sh            — the LOCAL reproduction\n"
+        "\nA migration that is not applied is a schema that does not exist,\n"
+        "and the route that reads it returns 500. The local reproduction\n"
+        "drifting from CI is how a developer ends up debugging a failure\n"
+        "that the CI database does not have.",
         file=sys.stderr,
     )
     return 1

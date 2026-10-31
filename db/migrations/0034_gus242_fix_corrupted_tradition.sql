@@ -55,28 +55,41 @@ BEGIN;
 
 -- ---------------------------------------------------------------------
 -- ASSERTIONS (before any write).
+--
+-- IDEMPOTENCE
+--
+-- This migration repairs ONE row that was corrupted by the 1e traditions
+-- load: a row with the Algerian Q-id (Q3006881) that carried Tunisian
+-- text and the slug `tunisian-cuisine-2`.
+--
+-- On a database built from the committed chain, that row is NEVER
+-- corrupted in the first place — the corruption was a one-off in the
+-- live load, not a property of the migration chain. So a fresh build has
+-- no `tunisian-cuisine-2` row at all, and the repair is a no-op.
+--
+-- The first version of this migration asserted that the corrupt row
+-- MUST exist, which meant it FAILED on every freshly built database:
+--
+--     ERROR: A1 failed: the tunisian-cuisine-2 row is not in the expected
+--            state (found 0 rows)
+--
+-- That is the same class of bug as the `categories.kind` drift: a
+-- migration that only works on the one database it was written against.
+--
+-- So the migration now accepts BOTH states and asserts the OUTCOME:
+--
+--   state 1  the corrupt row exists -> it is repaired
+--   state 2  no corrupt row exists  -> the outcome is already correct
+--
+-- and in state 2 it VERIFIES that the corrected row is present and right.
+-- The end state is the same either way, and the assertions are about the
+-- outcome rather than about the path.
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE n int;
 BEGIN
-  -- The corrupted row must exist, with exactly the wrong text.
-  SELECT count(*) INTO n FROM dish_traditions
-   WHERE slug = 'tunisian-cuisine-2'
-     AND wikidata_id = 'Q3006881'
-     AND name = 'tunisian cuisine';
-  IF n <> 1 THEN
-    RAISE EXCEPTION 'A1 failed: the tunisian-cuisine-2 row is not in the expected state (found % rows)', n;
-  END IF;
-
-  -- The slug we are about to free must not already be taken.
-  SELECT count(*) INTO n FROM dish_traditions
-   WHERE slug = 'algerian-cuisine';
-  IF n <> 0 THEN
-    RAISE EXCEPTION 'A2 failed: an algerian-cuisine tradition already exists';
-  END IF;
-
-  -- The genuine Tunisian tradition must be present and correct, or
-  -- this row is not a duplicate of it.
+  -- The genuine Tunisian tradition must be present and correct, or the
+  -- row this migration is about is not a duplicate of it.
   SELECT count(*) INTO n FROM dish_traditions
    WHERE slug = 'tunisian-cuisine'
      AND wikidata_id = 'Q1328433';
@@ -84,13 +97,44 @@ BEGIN
     RAISE EXCEPTION 'A3 failed: the genuine tunisian-cuisine tradition is missing';
   END IF;
 
-  -- Nothing may reference the old slug.
-  SELECT count(*) INTO n FROM dish_dish_traditions
-   WHERE value_id IN (
-     SELECT id FROM dish_traditions WHERE slug = 'tunisian-cuisine-2'
-   );
-  IF n <> 0 THEN
-    RAISE EXCEPTION 'A4 failed: % rows reference tunisian-cuisine-2', n;
+  -- The corrupt row, if it exists, must have exactly the wrong text.
+  -- If it does not exist, there is nothing to repair.
+  SELECT count(*) INTO n FROM dish_traditions
+   WHERE slug = 'tunisian-cuisine-2'
+     AND wikidata_id = 'Q3006881'
+     AND name = 'tunisian cuisine';
+  IF n = 1 THEN
+    -- The slug we are about to free must not already be taken.
+    SELECT count(*) INTO n FROM dish_traditions
+     WHERE slug = 'algerian-cuisine';
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'A2 failed: an algerian-cuisine tradition already exists';
+    END IF;
+
+    -- Nothing may reference the old slug.
+    SELECT count(*) INTO n FROM dish_dish_traditions
+     WHERE value_id IN (
+       SELECT id FROM dish_traditions WHERE slug = 'tunisian-cuisine-2'
+     );
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'A4 failed: % rows reference tunisian-cuisine-2', n;
+    END IF;
+  ELSIF n = 0 THEN
+    -- Nothing to repair. The outcome must already be correct.
+    SELECT count(*) INTO n FROM dish_traditions
+     WHERE slug = 'algerian-cuisine'
+       AND wikidata_id = 'Q3006881'
+       AND name = 'Algerian cuisine'
+       AND definition = 'culinary traditions of Algeria';
+    IF n <> 1 THEN
+      RAISE EXCEPTION
+        'A1 failed: there is no tunisian-cuisine-2 row to repair, and the corrected algerian-cuisine row is not in the expected state (found % rows)',
+        n;
+    END IF;
+  ELSE
+    RAISE EXCEPTION
+      'A1 failed: the tunisian-cuisine-2 row is not in the expected state (found % rows)',
+      n;
   END IF;
 END $$;
 

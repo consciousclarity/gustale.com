@@ -133,6 +133,36 @@ step "the GUS-239 English names"
 run_pg -f - < "$(dirname "$0")/../db/migrations/0033_gus239_english_names.sql" 2>&1 | grep -E 'NOTICE|ERROR' | head -3
 run_pg -f - < "$(dirname "$0")/../db/migrations/0033_gus239_english_names.sql" >/dev/null 2>&1 || { echo "  FAILED: 0033"; fail=1; }
 
+# 0034 fixes the one corrupted row in the 1e traditions load. It must run
+# AFTER the traditions exist (0019), which they do by this point.
+step "the corrupted-tradition fix"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0034_gus242_fix_corrupted_tradition.sql" 2>&1 | grep -E 'NOTICE|ERROR' | head -3
+run_pg -f - < "$(dirname "$0")/../db/migrations/0034_gus242_fix_corrupted_tradition.sql" >/dev/null 2>&1 || { echo "  FAILED: 0034"; fail=1; }
+
+# 0035 restores `categories.kind` — the column that was in the LIVE
+# database since 2026-06-25 but in no committed migration. Without it,
+# `GET /api/dishes` returns 500 on a database built from the committed
+# chain.
+step "the categories.kind column"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0035_categories_kind.sql" 2>&1 | grep -E 'NOTICE|ERROR' | head -3
+run_pg -f - < "$(dirname "$0")/../db/migrations/0035_categories_kind.sql" >/dev/null 2>&1 || { echo "  FAILED: 0035"; fail=1; }
+
+# 0036 is ADR-004's additive schema: the three evidence axes on
+# `statements`, `claim_dates`, `dish_place_associations`, the
+# relation_types vocabulary, the normalized-pair index, the cycle triggers
+# and the two identity tables. Additive and idempotent.
+step "the ADR-004 atlas schema"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0036_atlas_schema.sql" 2>&1 | grep -E 'NOTICE|ERROR' | head -4
+run_pg -f - < "$(dirname "$0")/../db/migrations/0036_atlas_schema.sql" >/dev/null 2>&1 || { echo "  FAILED: 0036"; fail=1; }
+
+# The constraint tests: every case asserts that a bad write is REFUSED. A
+# schema that exists but does not hold is worse than no schema, so the
+# tests are part of the reproduction, not an afterthought.
+step "the ADR-004 atlas constraints"
+run_pg -v ON_ERROR_STOP=1 -f - < "$(dirname "$0")/test_atlas_schema.sql" > /tmp/repro_atlas_constraints.log 2>&1 \
+  || { echo "  FAILED: the atlas constraint tests"; grep -E 'FAIL|ERROR' /tmp/repro_atlas_constraints.log | head -12; fail=1; }
+grep -E 'ATLAS_SCHEMA_TESTS' /tmp/repro_atlas_constraints.log | tail -1 || true
+
 echo ""
 if [ $fail -eq 0 ]; then
   echo "CI_DB_REPRO_OK=1"
