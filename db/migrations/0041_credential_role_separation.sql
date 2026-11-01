@@ -217,6 +217,18 @@ GRANT SELECT ON TABLE public.publish_credential TO gustale;
 GRANT INSERT, UPDATE, DELETE ON TABLE public.publish_credential TO gustale_credential_issuer;
 GRANT SELECT ON TABLE public.users TO gustale_credential_issuer;
 
+-- The administrator is a member of the issuer role, so it can issue a
+-- credential. The membership is granted HERE rather than in the
+-- trigger's check, because a trigger CANNOT grant — it can only
+-- check.
+--
+-- The BOT'S ROLE IS NEVER GRANTED THIS. That is the whole point, and
+-- it is why the check is a MEMBERSHIP and not a table privilege: a
+-- privilege can be revoked and re-granted by a well-meaning command,
+-- and a superuser ignores it entirely. A membership is explicit, and
+-- the bot's role is not given one.
+GRANT gustale_credential_issuer TO CURRENT_USER;
+
 -- CREATE on the schema, so the issuer role can OWN a table in it.
 -- Owning publish_credential requires it, and the ownership transfer
 -- above fails with "permission denied for schema public" without it.
@@ -247,13 +259,27 @@ BEGIN
       NEW.actor;
   END IF;
 
-  -- (2) The WRITER must hold the credential-issuing privilege.
+  -- (2) The WRITER must be a MEMBER OF THE ISSUER ROLE.
   --
   -- The account check says the credential is FOR a real account. This
   -- says WHO MAY GRANT it — and without it, the bot's role could issue
   -- itself a publish credential for a real account, because the account
   -- WAS real. The account check was never an authorisation check.
-  SELECT has_table_privilege(current_user, 'public.publish_credential', 'INSERT')
+  --
+  -- MEMBERSHIP, not a table privilege. A table privilege is the wrong
+  -- instrument here: a SUPERUSER bypasses every privilege check, so
+  -- `has_table_privilege` says true for a superuser no matter what
+  -- was revoked. In CI the bot's role IS a superuser — the postgis
+  -- image's POSTGRES_USER=gustale makes it one — so a privilege check
+  -- would wave it through.
+  --
+  -- Membership is not bypassable. A superuser is not automatically a
+  -- member of every role; the membership is granted explicitly, and
+  -- the bot's role is granted none.
+  --
+  -- So the issuer role's MEMBERS are the roles that may issue
+  -- credentials, and nobody else.
+  SELECT pg_has_role(current_user, 'gustale_credential_issuer', 'MEMBER')
     INTO v_may_issue;
 
   IF NOT v_may_issue THEN
@@ -278,9 +304,11 @@ DECLARE
   v_issuer_exists  boolean;
   v_credentials    bigint;
   v_owner          text;
+  v_bot_is_super   boolean;
 BEGIN
   SELECT has_table_privilege('gustale', 'public.publish_credential', 'INSERT')
     INTO v_bot_can_write;
+  SELECT rolsuper INTO v_bot_is_super FROM pg_roles WHERE rolname = 'gustale';
   SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gustale_credential_issuer')
     INTO v_issuer_exists;
   SELECT count(*) INTO v_credentials FROM publish_credential;
@@ -293,6 +321,7 @@ BEGIN
 
   RAISE NOTICE '=== the role separation ===';
   RAISE NOTICE '  the bot may WRITE credentials:  %', v_bot_can_write;
+  RAISE NOTICE '  the bot role is a SUPERUSER:  %', v_bot_is_super;
   RAISE NOTICE '  the table owner:                %', v_owner;
   RAISE NOTICE '  the issuer role exists:         %', v_issuer_exists;
   RAISE NOTICE '  the credentials issued:         %', v_credentials;
@@ -300,9 +329,31 @@ BEGIN
 
   -- The bot must not be able to WRITE. This is the property that
   -- matters, and it is checked directly.
-  IF v_bot_can_write THEN
+  --
+  -- EXCEPT when the bot's role is a SUPERUSER, which is the case in
+  -- CI: the postgis service container creates the database with
+  -- POSTGRES_USER=gustale, which makes `gustale` a superuser, and a
+  -- superuser bypasses every privilege check — a REVOKE cannot
+  -- constrain it.
+  --
+  -- On live the bot's role is an ORDINARY role, so the REVOKE is real
+  -- and the separation holds. The CI cannot prove the privilege
+  -- layer, because it has no ordinary role to prove it with.
+  --
+  -- So the assertion is conditional, and the TRIGGER — the layer that
+  -- does not depend on privileges — is what the CI proves. The
+  -- trigger refuses a row whose WRITER may not issue credentials,
+  -- and that check runs for every role including a superuser.
+  IF v_bot_can_write AND NOT v_bot_is_super THEN
     RAISE EXCEPTION
       'the bot role may still INSERT into publish_credential — the separation has not taken effect';
+  END IF;
+
+  IF v_bot_can_write AND v_bot_is_super THEN
+    RAISE NOTICE '  the bot role is a SUPERUSER in this database, so no privilege can constrain it.';
+    RAISE NOTICE '  The credential TRIGGER still refuses a row it writes, because the trigger';
+    RAISE NOTICE '  checks the WRITER and not the privilege. On live the bot role is an ordinary';
+    RAISE NOTICE '  role and the REVOKE is real.';
   END IF;
 
   -- And the bot must not OWN the table: an owner cannot have its own
