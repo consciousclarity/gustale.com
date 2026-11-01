@@ -329,6 +329,40 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0041_credential_role_separation.
   || { echo "  FAILED: 0041"; grep -E 'ERROR' /tmp/repro_credsep.log | head -6; fail=1; }
 grep -E 'ATLAS_CREDENTIAL_SEPARATION_OK' /tmp/repro_credsep.log | tail -1 || true
 
+# 0042 — revokes the TRIGGER escalation on publish_credential. It comes
+# after 0041 because 0041 creates the roles it works on.
+step "the credential trigger revocation"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0042_credential_trigger_revocation.sql" > /tmp/repro_0042.log 2>&1 \
+  || { echo "  FAILED: 0042"; grep -E 'ERROR' /tmp/repro_0042.log | head -6; fail=1; }
+grep -E 'PUBLISH_CREDENTIAL_TRIGGER_REVOKED' /tmp/repro_0042.log | tail -1 || true
+
+# The escalation check — a separate file, run after 0042. It asserts a
+# GRANT state that only 0041 and 0042 establish.
+step "the credential escalation check"
+run_pg -f - < "$(dirname "$0")/mark_disposable_db.sql" > /tmp/repro_mark.log 2>&1 \
+  || { echo "  FAILED: the disposable marker"; grep -E 'ERROR' /tmp/repro_mark.log | head -4; fail=1; }
+run_pg -v ON_ERROR_STOP=1 -f - < "$(dirname "$0")/test_atlas_trigger_escalation.sql" > /tmp/repro_escalation.log 2>&1 \
+  || { echo "  FAILED: the credential escalation check"; grep -E 'FAIL|ERROR' /tmp/repro_escalation.log | head -8; fail=1; }
+grep -E 'ATLAS_TRIGGER_ESCALATION' /tmp/repro_escalation.log | tail -1 || true
+
+# 0043 — the taxonomy canonicalisation.
+step "the taxonomy canonicalisation"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0043_taxonomy_canonicalisation.sql" > /tmp/repro_0043.log 2>&1 \
+  || { echo "  FAILED: 0043"; grep -E 'ERROR' /tmp/repro_0043.log | head -6; fail=1; }
+grep -E 'TAXONOMY_CANONICALISED' /tmp/repro_0043.log | tail -1 || true
+
+# 0044 — the not-a-dish queue item.
+step "the not-a-dish queue item"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0044_not_a_dish_queue.sql" > /tmp/repro_0044.log 2>&1 \
+  || { echo "  FAILED: 0044"; grep -E 'ERROR' /tmp/repro_0044.log | head -6; fail=1; }
+grep -E 'NOT_A_DISH_QUEUED' /tmp/repro_0044.log | tail -1 || true
+
+# 0045 — corrects the credential guard function's comment.
+step "the credential guard comment"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0045_credential_guard_comment.sql" > /tmp/repro_0045.log 2>&1 \
+  || { echo "  FAILED: 0045"; grep -E 'ERROR' /tmp/repro_0045.log | head -6; fail=1; }
+grep -E 'CREDENTIAL_GUARD_COMMENT_CORRECTED' /tmp/repro_0045.log | tail -1 || true
+
 step "the atlas fixtures"
 run_pg -f - < "$(dirname "$0")/../packages/db/seed-atlas-fixtures.sql" > /tmp/repro_fixtures.log 2>&1 \
   || { echo "  FAILED: the atlas fixtures"; grep -E 'ERROR' /tmp/repro_fixtures.log | head -6; fail=1; }

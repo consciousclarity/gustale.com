@@ -86,6 +86,9 @@ MIGRATION_0035=db/migrations/0035_categories_kind.sql
 # does not hold is worse than no schema.
 MIGRATION_0036=db/migrations/0036_atlas_schema.sql
 ATLAS_CONSTRAINT_TESTS=scripts/test_atlas_schema.sql
+ATLAS_TRIGGER_ESCALATION_TEST=scripts/test_atlas_trigger_escalation.sql
+MARK_DISPOSABLE=scripts/mark_disposable_db.sql
+CI_MIGRATION_ROLE=scripts/ci-migration-role.sql
 
 # 0037 is the P2 backfill: the legacy places & traditions data moves into
 # dish_place_associations, and what cannot be decided goes to the editorial
@@ -161,6 +164,10 @@ ATLAS_FIXTURE_SEED=packages/db/seed-atlas-fixtures.sql
 # to a NOLOGIN issuer role that is granted to no login role. It also
 # strengthens the trigger, so the check is on the WRITER and not only
 # on the privilege.
+MIGRATION_0042=db/migrations/0042_credential_trigger_revocation.sql
+MIGRATION_0043=db/migrations/0043_taxonomy_canonicalisation.sql
+MIGRATION_0044=db/migrations/0044_not_a_dish_queue.sql
+MIGRATION_0045=db/migrations/0045_credential_guard_comment.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
@@ -188,7 +195,18 @@ fi
 
 run_pg() {
   if [ "${CHAIN_MODE:-}" = "ci" ]; then
-    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U gustale -d "$DB" -v ON_ERROR_STOP=1 "$@"
+    # AS `postgres` — THE ADMIN — EXACTLY AS LIVE DOES.
+    #
+    # On live the migrations run as `postgres`, which owns the tables.
+    # The chain does the same here, so the CI's schema arrangement is
+    # the one live has.
+    #
+    # The chain must NOT run as the bot. The bot's role is an ordinary
+    # role now — on live and in CI — and it does not own the tables the
+    # atlas migrations ALTER. A chain that ran as the bot would fail
+    # with "must be owner of table", which is the correct behaviour: it
+    # is the proof that the bot is not an admin.
+    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   else
     docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   fi
@@ -211,13 +229,56 @@ run_pg() {
 # container.
 if [ "${CHAIN_MODE:-}" = "ci" ]; then
   echo "=== creating $DB (CI mode: Postgres service on 127.0.0.1) ==="
-  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U gustale -d postgres \
+  # AS `postgres`, THE SUPERUSER.
+  #
+  # The bot's role `gustale` is an ORDINARY role now, and it may not be
+  # the owner of the database it is about to use. The service's
+  # superuser is `postgres` — that is the arrangement live has.
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d postgres \
     -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
+
 else
   echo "=== creating $DB (container mode: shared-postgres) ==="
   docker exec -u postgres shared-postgres psql -U postgres -d postgres \
     -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
 fi
+
+# THE ROLE SETUP, IN THE CHAIN ITSELF — IN BOTH MODES.
+#
+# This step creates the cluster's roles: the migration role, the bot's
+# ordinary role, and the issuer role. They are cluster-wide, so they
+# persist across the chain's throwaway databases.
+#
+# It lives HERE, in the chain, rather than in a workflow, because the
+# chain is what several different callers use — the CI workflow, the
+# Nightly workflow, the devcontainer and the local reproduction — and
+# only the CI workflow ran the role setup. The Nightly worked without it
+# precisely because its bot was a superuser, and that is the
+# arrangement being removed.
+#
+# It runs in BOTH modes, because the grants it sets are what give the
+# bot its rights on the tables the chain is about to create. In CI mode
+# the chain connects as the superuser `postgres`; in container mode it
+# does the same, through `docker exec`.
+#
+# Doing it in the chain means every caller gets the same roles and the
+# same grants by construction, and none of them can drift.
+echo "--- the role setup"
+if [ "${CHAIN_MODE:-}" = "ci" ]; then
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" \
+    -v ON_ERROR_STOP=1 -f "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
+    || { echo "FAILED: the role setup"; grep -E 'ERROR|NOTICE' /tmp/ci_role_setup.log | tail -12; exit 1; }
+else
+  # STDIN, NOT -f.
+  #
+  # `docker exec -f` reads the file from inside the container, and the
+  # chain's migration files live on the HOST. Every other migration in
+  # this script is piped in with `-f -` for exactly that reason.
+  docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+    -f - < "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
+    || { echo "FAILED: the role setup"; grep -E 'ERROR|NOTICE' /tmp/ci_role_setup.log | tail -12; exit 1; }
+fi
+grep -E 'CI_MIGRATION_ROLE_OK' /tmp/ci_role_setup.log | tail -1 || true
 
 fail=0
 
@@ -427,10 +488,60 @@ run_pg -f - < "$MIGRATION_0040" >/tmp/m0040.log 2>&1 || { echo "FAILED: 0040"; g
 grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/m0040.log | tail -1 || true
 
 # 0041 — the role separation for the publish credential.
+#
+# It comes FIRST, because it creates the roles the later ones need:
+# 0042 revokes privileges from the bot's role on a table 0041 hands to
+# the issuer role, and 0045 rewrites the guard function 0041 installs.
 echo "--- the credential role separation"
 run_pg -f - < "$MIGRATION_0041" >/tmp/m0041.log 2>&1 || { echo "FAILED: 0041"; grep -E 'ERROR|NOTICE' /tmp/m0041.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_CREDENTIAL_SEPARATION_OK' /tmp/m0041.log | tail -1 || true
+
+# 0042 — revokes the TRIGGER escalation on publish_credential.
+echo "--- the credential trigger revocation"
+run_pg -f - < "$MIGRATION_0042" >/tmp/m0042.log 2>&1 || { echo "FAILED: 0042"; grep -E 'ERROR|NOTICE' /tmp/m0042.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0042.log | head -4 || true
+
+# The D10 ESCALATION CHECK — a separate step, run after 0042.
+#
+# It cannot live in the main constraint suite, because it asserts a
+# GRANT state that only 0041 and 0042 establish: the bot holds SELECT on
+# publish_credential (0041 grants it) and holds neither TRIGGER nor
+# REFERENCES (0042 revokes them). The main suite runs before and after
+# 0038 — before either of those.
+#
+# So the escalation check is its own file, its own step, and its own
+# report line. It is the step that proves the bot cannot plant a trigger
+# on the credential table.
+echo "--- the credential escalation check"
+# The disposable marker, first. The escalation test refuses to run
+# against a database nobody marked for it — and the chain's database is
+# created by the chain itself, so the chain marks it.
+run_pg -f - < "$MARK_DISPOSABLE" >/tmp/mark_disposable.log 2>&1 \
+  || { echo "FAILED: the disposable marker"; grep -E 'ERROR' /tmp/mark_disposable.log | head -6; fail=1; }
+run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_TRIGGER_ESCALATION_TEST" >/tmp/atlas_escalation.log 2>&1 \
+  || { echo "FAILED: the credential escalation check"; grep -E 'FAIL|ERROR' /tmp/atlas_escalation.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_TRIGGER_ESCALATION' /tmp/atlas_escalation.log | tail -1 || true
+
+# 0043 — the taxonomy canonicalisation.
+echo "--- the taxonomy canonicalisation"
+run_pg -f - < "$MIGRATION_0043" >/tmp/m0043.log 2>&1 || { echo "FAILED: 0043"; grep -E 'ERROR|NOTICE' /tmp/m0043.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0043.log | head -8 || true
+
+# 0044 — the not-a-dish queue item.
+echo "--- the not-a-dish queue item"
+run_pg -f - < "$MIGRATION_0044" >/tmp/m0044.log 2>&1 || { echo "FAILED: 0044"; grep -E 'ERROR|NOTICE' /tmp/m0044.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0044.log | head -6 || true
+
+# 0045 — corrects the guard function's comment.
+echo "--- the credential guard comment"
+run_pg -f - < "$MIGRATION_0045" >/tmp/m0045.log 2>&1 || { echo "FAILED: 0045"; grep -E 'ERROR|NOTICE' /tmp/m0045.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0045.log | head -8 || true
 
 # The FIXTURES — a seed, and NOT part of the migration chain.
 echo "--- the atlas fixtures (seed, never a migration)"
