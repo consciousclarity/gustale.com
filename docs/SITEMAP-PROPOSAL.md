@@ -157,6 +157,19 @@ are not part of the site.
 prose and a dish list. `/lineages/flatbread/` returns 200 with real
 content.
 
+**Re-measured on live after the 2026-11-02 deploy.** All 14 return 200.
+Twelve link to at least one published dish. **Two — `preserved-fish` and
+`wrapped-leaf` — have no published dish behind them**: they carry the
+prose (about 12 KB of text each) but the lineage→dish join is empty for
+both, so their dish list is empty. They are not thin pages, but they
+are the two that a crawler would land on and find nothing to follow.
+
+That does not change the recommendation — a page with real prose and a
+200 is indexable, and the lineage is the point of the page — but it is
+worth knowing that the dish list is not populated for every one of
+them. The honest summary is **14 pages, all with prose, 12 with dish
+links.**
+
 ## Ingredients — **no**
 
 2 pages, both derived from dish details, both thin. The ingredient
