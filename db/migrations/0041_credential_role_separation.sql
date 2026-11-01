@@ -81,6 +81,9 @@ BEGIN;
 --
 -- NOLOGIN: it is not a credential anyone can log in with. It exists
 -- to HOLD a privilege, and somebody SET ROLEs to it deliberately.
+--
+-- It is also the OWNER of publish_credential, and that is deliberate —
+-- see the ownership transfer below.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gustale_credential_issuer') THEN
@@ -89,10 +92,53 @@ BEGIN
 END $$;
 
 COMMENT ON ROLE gustale_credential_issuer IS
-  'The role that may ISSUE a publish credential, and nothing else. It is NOLOGIN and is granted to no login role: issuing a credential is a deliberate act. The bot (gustale) is NOT a member and must never be.';
+  'The role that may ISSUE a publish credential, and nothing else. It is NOLOGIN, it is granted to no login role, and it owns publish_credential. Issuing a credential is a deliberate act somebody performs AS the issuer, with the privilege visibly set. The bot (gustale) is NOT a member and must never be.';
 
 -- =====================================================================
--- 2. THE PRIVILEGES
+-- 2. THE OWNERSHIP TRANSFER — AND WHY IT IS NOT OPTIONAL
+-- =====================================================================
+--
+-- The bot's role must not OWN publish_credential, because an owner
+-- cannot have its own privileges revoked: the owner has an implicit
+-- grant that REVOKE does not remove.
+--
+-- This matters in CI, where the PostgreSQL service container creates
+-- the database with POSTGRES_USER=gustale, so the migrations run as
+-- gustale and the table is owned BY GUSTALE. A plain REVOKE there is a
+-- no-op, and the migration's own assertion caught exactly that:
+--
+--     ERROR: the bot role may still INSERT into publish_credential
+--             — the separation has not taken effect
+--
+-- On live the migrations run as postgres, so the table is owned by
+-- postgres and the REVOKE works. But a migration that only works in
+-- one of the two environments is a migration that works in the wrong
+-- one.
+--
+-- So the ownership is TRANSFERRED to the issuer role — a NOLOGIN role
+-- granted to nobody — and THEN the privileges are revoked. After the
+-- transfer the bot is an ordinary grantee in BOTH environments, and
+-- the revocation is real.
+--
+-- The transfer is conditional, so re-running does nothing.
+DO $$
+DECLARE
+  v_owner text;
+BEGIN
+  SELECT pg_get_userbyid(c.relowner) INTO v_owner
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relname = 'publish_credential';
+
+  IF v_owner IS NOT NULL AND v_owner <> 'gustale_credential_issuer' THEN
+    EXECUTE 'ALTER TABLE public.publish_credential OWNER TO gustale_credential_issuer';
+    RAISE NOTICE '  the ownership of publish_credential moved from % to the issuer role', v_owner;
+  END IF;
+END $$;
+
+-- =====================================================================
+-- 3. THE PRIVILEGES
 -- =====================================================================
 --
 -- The bot's role keeps READ and loses WRITE.
@@ -108,8 +154,12 @@ GRANT SELECT ON TABLE public.publish_credential TO gustale;
 GRANT INSERT, UPDATE, DELETE ON TABLE public.publish_credential TO gustale_credential_issuer;
 GRANT SELECT ON TABLE public.users TO gustale_credential_issuer;
 
+-- The bot must not be able to change the OWNER back, or to change the
+-- issuer role's membership. It cannot ALTER the table (it does not own
+-- it) and it is not a member of the issuer role.
+
 -- =====================================================================
--- 3. THE TRIGGER — THE WRITER MUST BE AUTHORISED
+-- 4. THE TRIGGER — THE WRITER MUST BE AUTHORISED
 -- =====================================================================
 --
 -- This is the layer that does not depend on a privilege surviving.
@@ -151,7 +201,7 @@ COMMENT ON FUNCTION public.publish_credential_owner_guard() IS
   'Refuses a publish credential unless (1) the actor is a real users account AND (2) the role that WROTE the row holds the credential-issuing privilege. The account check alone was not an authorisation check: the bot could insert a valid credential for a real account.';
 
 -- =====================================================================
--- 4. THE RECONCILIATION
+-- 5. THE RECONCILIATION
 -- =====================================================================
 
 DO $$
@@ -159,6 +209,7 @@ DECLARE
   v_bot_can_write boolean;
   v_issuer_exists  boolean;
   v_credentials    bigint;
+  v_owner          text;
 BEGIN
   SELECT has_table_privilege('gustale', 'public.publish_credential', 'INSERT')
     INTO v_bot_can_write;
@@ -166,15 +217,31 @@ BEGIN
     INTO v_issuer_exists;
   SELECT count(*) INTO v_credentials FROM publish_credential;
 
+  SELECT pg_get_userbyid(c.relowner) INTO v_owner
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relname = 'publish_credential';
+
   RAISE NOTICE '=== the role separation ===';
   RAISE NOTICE '  the bot may WRITE credentials:  %', v_bot_can_write;
+  RAISE NOTICE '  the table owner:                %', v_owner;
   RAISE NOTICE '  the issuer role exists:         %', v_issuer_exists;
   RAISE NOTICE '  the credentials issued:         %', v_credentials;
   RAISE NOTICE '';
 
+  -- The bot must not be able to WRITE. This is the property that
+  -- matters, and it is checked directly.
   IF v_bot_can_write THEN
     RAISE EXCEPTION
       'the bot role may still INSERT into publish_credential — the separation has not taken effect';
+  END IF;
+
+  -- And the bot must not OWN the table: an owner cannot have its own
+  -- privileges revoked, so an owner is a bypass.
+  IF v_owner = 'gustale' THEN
+    RAISE EXCEPTION
+      'the bot role still OWNS publish_credential — an owner cannot have its privileges revoked';
   END IF;
 
   IF NOT v_issuer_exists THEN

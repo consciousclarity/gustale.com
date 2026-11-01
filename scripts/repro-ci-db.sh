@@ -28,6 +28,20 @@ echo "=== creating $DB ==="
 docker exec -u postgres "$CONTAINER" psql -U postgres -d postgres \
   -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
 
+# The ATLAS migrations run as the `postgres` SUPERUSER, exactly as they
+# run on live.
+#
+# The CI's PostgreSQL service container creates the database with
+# POSTGRES_USER=gustale, so the migrations used to run as gustale — and
+# the publish_credential table was OWNED BY gustale. An owner cannot
+# have its own privileges revoked, so the credential role separation
+# (0041) could not take effect there, and its own assertion caught it:
+#
+#     ERROR: the bot role may still INSERT into publish_credential
+#
+# Running as postgres makes the CI's arrangement IDENTICAL to live's:
+# the table is owned by postgres, the REVOKE is real, and the
+# separation is proved where it will actually run.
 run_pg() {
   docker exec -u postgres -i "$CONTAINER" psql -U postgres -d "$DB" \
     -v ON_ERROR_STOP=1 "$@"

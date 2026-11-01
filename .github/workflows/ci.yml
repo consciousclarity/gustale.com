@@ -469,7 +469,7 @@ jobs:
       # exists but does not hold is worse than no schema.
       - name: Apply the ADR-004 atlas schema
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0036_atlas_schema.sql
 
       - name: Test the ADR-004 atlas constraints
@@ -489,7 +489,7 @@ jobs:
       # legacy tables — and refuses to be trusted if the numbers differ.
       - name: Apply the ADR-004 atlas backfill
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0037_atlas_backfill.sql
 
       # 0038 is the publish credential. The `verified` and `published`
@@ -501,7 +501,7 @@ jobs:
       # Additive and idempotent: one table, one function.
       - name: Apply the publish credential
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0038_publish_credential.sql
 
       # The constraint tests AGAIN, now with the D9 publish-credential
@@ -527,7 +527,7 @@ jobs:
       # reviewer decides. It creates no association and decides nothing.
       - name: Apply the journey place queue
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0039_journey_place_queue.sql
 
       # 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2). It writes NO
@@ -544,7 +544,7 @@ jobs:
       # database by another route must not be served.
       - name: Apply the publication predicate
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0040_atlas_publication_predicate.sql
 
       # 0041 is the ROLE SEPARATION for the publish credential.
@@ -559,7 +559,7 @@ jobs:
       # strengthens the trigger so the check is on the WRITER.
       - name: Apply the credential role separation
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0041_credential_role_separation.sql
 
       # The FIXTURES — a SEED, not a migration.
