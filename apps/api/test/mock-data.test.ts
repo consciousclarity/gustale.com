@@ -84,6 +84,17 @@ type MockData = {
   details?: Record<string, unknown>;
   atlas?: Record<string, unknown>;
   counts?: { counts?: Record<string, number>; definitions?: unknown } | null;
+  connections?: {
+    connections?: {
+      id: string;
+      relationship: string;
+      relationshipName: string;
+      from: { slug: string; lat: number | null; lng: number | null };
+      to: { slug: string; lat: number | null; lng: number | null };
+    }[];
+    count?: number;
+    byRelationship?: Record<string, number>;
+  } | null;
 };
 
 const mock = JSON.parse(readFileSync(MOCK_DATA_PATH, "utf-8")) as MockData;
@@ -92,6 +103,7 @@ const MAP = mock.map ?? [];
 const DETAILS = mock.details ?? {};
 const ATLAS = mock.atlas ?? {};
 const COUNTS = mock.counts ?? null;
+const CONNECTIONS = mock.connections ?? null;
 
 // ─────────────────────────────────────────────────────────────────────
 
@@ -303,6 +315,48 @@ describe("the CI mock data — the ATLAS data is present and consistent", () => 
     expect(places).not.toBeNull();
     expect(Array.isArray(places?.places)).toBe(true);
     expect(places?.count).toBe(places?.places?.length ?? 0);
+  });
+
+  it("carries the CONNECTIONS, so the map draws its edges", () => {
+    // The map's edges come from /api/atlas/connections. A mock
+    // WITHOUT the key bakes a map with no relationships at all — and
+    // because the build does not fail on an empty edge set, that
+    // silence is invisible: the page looks fine and simply has
+    // nothing on it.
+    //
+    // The connections must also be CONSISTENT with the map's dishes:
+    // an edge to a dish the map does not draw points at nothing.
+    expect(mock, "the mock has no 'connections' key").toHaveProperty(
+      "connections",
+    );
+    expect(CONNECTIONS).not.toBeNull();
+    const edges = CONNECTIONS?.connections ?? [];
+    expect(Array.isArray(edges)).toBe(true);
+    expect(CONNECTIONS?.count).toBe(edges.length);
+
+    // every edge's endpoints must be dishes the map holds
+    //
+    // The map is a FLAT LIST of dishes, not an object with a 'dishes'
+    // key.
+    const mapSlugs = new Set(
+      (mock.map as { slug: string }[] | null)?.map((d) => d.slug) ?? [],
+    );
+    expect(mapSlugs.size, "the map holds no dishes at all").toBeGreaterThan(0);
+    for (const edge of edges) {
+      expect(
+        mapSlugs.has(edge.from.slug),
+        `the edge to "${edge.from.slug}" points at a dish the map does not draw`,
+      ).toBe(true);
+      expect(
+        mapSlugs.has(edge.to.slug),
+        `the edge to "${edge.to.slug}" points at a dish the map does not draw`,
+      ).toBe(true);
+    }
+
+    // and the relation types must be countable
+    const byRelationship = CONNECTIONS?.byRelationship ?? {};
+    const summed = Object.values(byRelationship).reduce((a, b) => a + b, 0);
+    expect(summed).toBe(edges.length);
   });
 
   it("carries the DEFINED COUNTS, with a definition per count", () => {

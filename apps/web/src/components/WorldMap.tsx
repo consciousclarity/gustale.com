@@ -19,7 +19,12 @@ import type {
 // pattern is used in <DishMap> and <GustaleHomeIsland>.
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { getMapDishes, type MapDish } from "../lib/api";
+import {
+  getAtlasConnections,
+  getMapDishes,
+  type MapConnection,
+  type MapDish,
+} from "../lib/api";
 import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
@@ -31,9 +36,23 @@ import {
   dedupeDishesBySlug,
   expandToCoincidentStack,
 } from "../lib/mapCoincident";
+import {
+  RELATIONSHIP_KINDS,
+  type RelationshipKind,
+} from "../lib/relationship-grammar";
+import { RelationshipLayer } from "./RelationshipLayer";
+import { RelationshipLegend } from "./RelationshipLegend";
 
 export interface WorldMapProps {
   dishes: MapDish[];
+  /**
+   * Whether the connection layer is on.
+   *
+   * It is a PROP and not only internal state, because the map page
+   * decides it from the URL — a reader who shares a link to "the map
+   * with the connections on" gets that map.
+   */
+  showConnections?: boolean;
 }
 
 /**
@@ -79,7 +98,7 @@ const HIT_LAYERS = [
  */
 const CLUSTER_MAX_ZOOM = 11;
 
-export function WorldMap({ dishes }: WorldMapProps) {
+export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const popupListRef = useRef<HTMLUListElement | null>(null);
@@ -93,6 +112,21 @@ export function WorldMap({ dishes }: WorldMapProps) {
 
   const [effectiveDishes, setEffectiveDishes] = useState<MapDish[]>(dishes);
   const [isLoading, setIsLoading] = useState<boolean>(dishes.length === 0);
+
+  // ─── The connections ───
+  //
+  // Fetched once, on the client. The map is an interactive island, so
+  // the connections are fetched with it rather than server-rendered —
+  // a static build cannot know which edges a reader will scroll to.
+  const [connections, setConnections] = useState<MapConnection[]>([]);
+  const [byRelationship, setByRelationship] = useState<Record<string, number>>(
+    {},
+  );
+  const [enabledKinds, setEnabledKinds] = useState<Set<RelationshipKind>>(
+    () => new Set(RELATIONSHIP_KINDS),
+  );
+  const [showAllConnections, setShowAllConnections] = useState(false);
+  const [connectionsError, setConnectionsError] = useState<string | null>(null);
 
   const detectWebGL = (): boolean => {
     if (typeof document === "undefined") return false;
@@ -288,6 +322,15 @@ export function WorldMap({ dishes }: WorldMapProps) {
         });
 
         mapRef.current = mapInstance;
+
+        // Expose the instance for the verification script.
+        //
+        // The map's layers are the only way to check that the four
+        // relationship kinds are really on the map and not merely
+        // described in the legend — and the legend is React-rendered
+        // HTML, which the script can read without this.
+        (window as unknown as { __gustaleMap?: maplibregl.Map }).__gustaleMap =
+          mapInstance;
 
         const coincidentByCoord = countCoincidentByCoord(effectiveDishes);
         const featureCollection: GeoJSON.FeatureCollection = {
@@ -665,12 +708,68 @@ export function WorldMap({ dishes }: WorldMapProps) {
     }
   }, [view]);
 
+  // ─── The connections, fetched once ───
+  //
+  // The map is the only consumer, and it is an island, so the fetch
+  // happens on the client. A failure is NOT fatal: the map still shows
+  // the dishes, and the legend says why the connections are missing.
+  useEffect(() => {
+    if (!showConnections) return;
+    let cancelled = false;
+    getAtlasConnections()
+      .then((res) => {
+        if (cancelled) return;
+        setConnections(res.connections);
+        setByRelationship(res.byRelationship);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setConnectionsError(
+          err instanceof Error
+            ? err.message
+            : "the connections could not be loaded",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showConnections]);
+
+  const toggleKind = useCallback((kind: RelationshipKind) => {
+    setEnabledKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      return next;
+    });
+  }, []);
+
   const stackHeading =
     stackPopup &&
     `${stackPopup.dishes.length} dish${stackPopup.dishes.length === 1 ? "" : "es"} at this location`;
 
   return (
     <>
+      {showConnections && (
+        <RelationshipLegend
+          byRelationship={byRelationship}
+          enabledKinds={enabledKinds}
+          onToggle={toggleKind}
+          showAll={showAllConnections}
+          onToggleShowAll={setShowAllConnections}
+        />
+      )}
+
+      {showConnections && connectionsError && (
+        <p className="rel-legend__error" role="status">
+          The connections could not be loaded: {connectionsError}. The map still
+          shows every published dish.
+        </p>
+      )}
+
       <div className="wm-frame">
         {!mapError && (
           <div className="wm-view-toggle">
@@ -686,6 +785,15 @@ export function WorldMap({ dishes }: WorldMapProps) {
           role="img"
           aria-label="Interactive globe showing published dishes by origin"
         />
+
+        {showConnections && !mapError && mapReady && (
+          <RelationshipLayer
+            map={mapRef.current}
+            connections={connections}
+            enabledKinds={enabledKinds}
+            showAll={showAllConnections}
+          />
+        )}
 
         {mapError && effectiveDishes.length > 0 && (
           <div className="wm-fallback">

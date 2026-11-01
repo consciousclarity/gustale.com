@@ -5687,3 +5687,171 @@ body.nav-panel-open {
   color: var(--ink, #211c16);
   max-width: 72ch;
 }
+
+/* ─── The map's relationship legend ────────────────────────────────────
+ *
+ * The legend is the map's key. It carries FOUR things per group — the
+ * marker shape, the line pattern, the name, and the meaning — because
+ * the map's four connection kinds must be distinguishable WITHOUT
+ * colour. The colour is the last channel, not the first.
+ *
+ * The colours here are the ones the relationship-grammar module
+ * defines, repeated so the legend is legible even before the module
+ * has loaded (the module is imported by the component that renders
+ * this, so they can never actually drift — but a legend that renders
+ * before its data does would flash).
+ */
+
+.rel-legend {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.125rem;
+  background: var(--surface, #fffdf9);
+  border: 1px solid var(--line, #e3ddd2);
+  border-radius: 10px;
+}
+
+.rel-legend__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink, #211c16);
+}
+
+.rel-legend__note {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted, #6d6459);
+  max-width: 72ch;
+}
+
+.rel-legend__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.rel-legend__item {
+  margin: 0;
+}
+
+.rel-legend__toggle {
+  display: grid;
+  grid-template-columns: 22px 58px 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.rel-legend__toggle:hover:not(:disabled) {
+  background: var(--surface-alt, #f7f3ea);
+  border-color: var(--line, #e3ddd2);
+}
+
+.rel-legend__toggle:disabled {
+  cursor: default;
+}
+
+.rel-legend__toggle[aria-pressed="false"] {
+  opacity: 0.45;
+}
+
+/* The marker and the line are NEVER hidden when the group is off —
+ * the reader must still be able to see what the group looks like in
+ * order to turn it back on. Only the text dims. */
+.rel-legend__marker,
+.rel-legend__line {
+  display: block;
+  line-height: 0;
+}
+
+.rel-legend__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.rel-legend__name {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--ink, #211c16);
+}
+
+.rel-legend__meaning {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted, #6d6459);
+}
+
+.rel-legend__count {
+  font-size: 0.74rem;
+  color: var(--muted, #6d6459);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.rel-legend__scope {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.85rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line, #e3ddd2);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted, #6d6459);
+  cursor: pointer;
+}
+
+.rel-legend__scope input {
+  margin-top: 0.15rem;
+}
+
+.rel-legend__error {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.82rem;
+  color: #7a4a12;
+  background: #fdf6e8;
+  border: 1px solid #ead9b4;
+  border-radius: 8px;
+}
+
+@media (max-width: 640px) {
+  .rel-legend__toggle {
+    grid-template-columns: 22px 1fr;
+    grid-template-areas:
+      "marker name"
+      "line   name"
+      "line   count";
+    row-gap: 0.35rem;
+  }
+
+  .rel-legend__marker {
+    grid-area: marker;
+  }
+
+  .rel-legend__line {
+    grid-area: line;
+  }
+
+  .rel-legend__text {
+    grid-area: name;
+  }
+
+  .rel-legend__count {
+    grid-area: count;
+  }
+}

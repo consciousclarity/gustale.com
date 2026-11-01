@@ -17,6 +17,7 @@ import betterAuthPlugin from "./plugins/auth.js";
 import authContextPlugin from "./plugins/auth-context.js";
 import { registerAdminDishRoutes } from "./routes/admin-dishes.js";
 import { registerAtlasRoutes } from "./routes/atlas.js";
+import { registerAtlasConnectionsRoute } from "./routes/atlas-connections.js";
 import { registerAtlasCountRoutes } from "./routes/atlas-counts.js";
 import { registerDashboardRoutes } from "./routes/dashboard.js";
 import { registerDishRoutes } from "./routes/dishes.js";
@@ -101,6 +102,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   // counts. ADR-004's F7: the homepage's four numbers were computed
   // from the legacy taxonomy and labelled a technique "lineages".
   registerAtlasCountRoutes(app);
+  registerAtlasConnectionsRoute(app);
   // The PLACE page's data: the dishes associated with a place, grouped
   // by relationship type (P4).
   registerPlaceRoutes(app);

@@ -70,6 +70,10 @@ const COUNTS = DATA.counts ?? null;
 // /place/* pages at all.
 const PLACES = DATA.places ?? null;
 
+// The map's connections. Without them the mock's map would draw no
+// edges at all, and the SSG build would bake an empty map.
+const CONNECTIONS = DATA.connections ?? null;
+
 // Ingredient encyclopedia stubs derived from dish detail payloads so
 // /ingredients and /ingredients/:slug SSG work offline in CI.
 const INGREDIENTS = (() => {
@@ -398,6 +402,37 @@ const server = http.createServer((req, res) => {
     }
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(body));
+    return;
+  }
+
+  // GET /api/atlas/connections — the edges between dishes, with both
+  // endpoints' coordinates. The map draws these, so a mock without
+  // them would bake a map with no connections at all.
+  if (url.pathname === "/api/atlas/connections") {
+    if (!CONNECTIONS) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: "No connections in the mock data",
+        }),
+      );
+      return;
+    }
+    const byRelationship = {};
+    for (const c of CONNECTIONS.connections ?? []) {
+      byRelationship[c.relationship] =
+        (byRelationship[c.relationship] ?? 0) + 1;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        connections: CONNECTIONS.connections ?? [],
+        count: (CONNECTIONS.connections ?? []).length,
+        byRelationship,
+      }),
+    );
     return;
   }
 
