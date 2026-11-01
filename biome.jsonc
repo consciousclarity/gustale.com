@@ -12,7 +12,17 @@
       "!**/.astro",
       "!**/graphify-out",
       "!packages/db/drizzle",
-      "!data"
+      "!data",
+      // The two mock files are GENERATED ARTEFACTS. The capture script
+      // (scripts/refresh-ss-mock.mjs) writes them, and biome's JSON
+      // formatter disagrees with JSON.stringify's output — so every
+      // capture reintroduced a lint failure.
+      //
+      // They are build INPUTS, not source: the Astro build bakes
+      // against them, and apps/api/test/mock-data.test.ts is what
+      // actually validates them — a stronger check than a formatter.
+      "!apps/web/scripts/mock-api-data.json",
+      "!apps/web/scripts/mock-api-lineages.json"
     ]
   },
   "formatter": {
