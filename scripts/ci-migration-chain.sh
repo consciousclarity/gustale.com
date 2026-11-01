@@ -145,7 +145,7 @@ MIGRATION_0039=db/migrations/0039_journey_place_queue.sql
 # produced nothing fails.
 ATLAS_BACKFILL_ASSERTIONS=scripts/test_atlas_backfill.sql
 
-# 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2) and the fixtures.
+# 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2).
 #
 # D8.2 says: "a single SQL function is the only thing that decides what
 # the public may see", and it names
@@ -154,12 +154,24 @@ ATLAS_BACKFILL_ASSERTIONS=scripts/test_atlas_backfill.sql
 # migration creates the three predicates and the route uses them, so a
 # claim cannot be public on one surface and draft on another.
 #
-# It also publishes the four reference dishes as FIXTURES, so the model
-# is demonstrable without presenting unevidenced history as fact. Every
-# fixture row carries `provenance = 'atlas_fixture'`, so a reviewer can
-# find and remove them, and it asserts that NO real association or
-# statement is published.
+# It WRITES NO ROWS. The FIXTURES are a separate SEED (below), because
+# the brief's §13 says fixtures never enter the live database, and a
+# migration IS what the live chain runs.
 MIGRATION_0040=db/migrations/0040_atlas_publication_predicate.sql
+
+# The FIXTURES — a SEED, not a migration.
+#
+# The brief's §12: the model is "demonstrated with isolated fixtures".
+# The brief's §13: "Fixtures never enter the live database or the
+# production content pipeline."
+#
+# So this is a SEED and it lives OUTSIDE db/migrations/, which is what
+# keeps the live migration chain from ever running it. It is applied by
+# CI, by the Nightly and by the local reproduction — the three places
+# that need a populated atlas — and by nothing else.
+#
+# (Alejandro's decision, 2026-10-31.)
+ATLAS_FIXTURE_SEED=packages/db/seed-atlas-fixtures.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
@@ -369,11 +381,17 @@ run_pg -f - < "$MIGRATION_0039" >/tmp/m0039.log 2>&1 || { echo "FAILED: 0039"; g
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/m0039.log | tail -1 || true
 
-# 0040 — the publication predicate and the fixtures.
+# 0040 — the publication predicate. It writes NO rows.
 echo "--- the publication predicate"
 run_pg -f - < "$MIGRATION_0040" >/tmp/m0040.log 2>&1 || { echo "FAILED: 0040"; grep -E 'ERROR|NOTICE' /tmp/m0040.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/m0040.log | tail -1 || true
+
+# The FIXTURES — a seed, and NOT part of the migration chain.
+echo "--- the atlas fixtures (seed, never a migration)"
+run_pg -f - < "$ATLAS_FIXTURE_SEED" >/tmp/atlas_fixtures.log 2>&1 || { echo "FAILED: the atlas fixtures"; grep -E 'ERROR|NOTICE' /tmp/atlas_fixtures.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_FIXTURES_OK' /tmp/atlas_fixtures.log | tail -1 || true
 
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND

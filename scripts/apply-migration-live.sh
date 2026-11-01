@@ -37,6 +37,31 @@ UNION ALL SELECT 'vocabulary_labels|'||count(*) FROM vocabulary_labels;" \
   | tee /tmp/atlas_live_snapshot.txt
 
 echo ""
+echo "=== 1b. THE FIXTURE CHECK — the fixtures must NOT be on live ==="
+#
+# The brief's §13: "Fixtures never enter the live database or the
+# production content pipeline."
+#
+# The fixtures are a SEED (packages/db/seed-atlas-fixtures.sql) and the
+# live migration chain never runs it. But a seed could be applied by
+# hand, or a migration could carry one by accident, so the gate CHECKS
+# rather than trusting the chain.
+#
+# If a fixture row is here, the gate STOPS — before it writes anything.
+FIXTURE_ROWS=$(docker exec -u postgres shared-postgres psql -U postgres -d "$DB" -tAc "
+  SELECT
+    (SELECT count(*) FROM dish_place_associations WHERE provenance = 'atlas_fixture')
+  + (SELECT count(*) FROM statements WHERE qualifiers->>'provenance' = 'atlas_fixture');
+" 2>/dev/null || echo "0")
+if [ "$FIXTURE_ROWS" != "0" ]; then
+  echo "FAILED: the live database carries $FIXTURE_ROWS FIXTURE row(s)."
+  echo "The fixtures are CI/dev only (brief §13) and must never be on live."
+  echo "The gate will not run while a fixture is present."
+  exit 1
+fi
+echo "  the live database carries no fixture row — correct"
+
+echo ""
 echo "=== 2. THE ASSERTIONS — what must still be true AFTER the write ==="
 # These are the counts that must NOT change. The migration is additive, so
 # every legacy row count must be identical afterwards. A mismatch aborts
@@ -153,6 +178,22 @@ echo "--- the documented change, verified ---"
 echo "relation_types before: $(grep "relation_types|" /tmp/atlas_live_snapshot.txt)"
 echo "relation_types after:  $(grep "relation_types|" /tmp/atlas_live_after.txt)"
 echo "expected: 7 -> 13 (ADR-004 §5: five historical predicates + often_compared_with + three renames keeping their ids)"
+
+echo ""
+echo "--- the fixture check, again, AFTER the apply ---"
+# The apply must not have created a fixture row. The predicate
+# migration asserts this too, but the gate verifies independently.
+FIXTURE_AFTER=$(docker exec -u postgres shared-postgres psql -U postgres -d "$DB" -tAc "
+  SELECT
+    (SELECT count(*) FROM dish_place_associations WHERE provenance = 'atlas_fixture')
+  + (SELECT count(*) FROM statements WHERE qualifiers->>'provenance' = 'atlas_fixture');
+" 2>/dev/null || echo "0")
+if [ "$FIXTURE_AFTER" != "0" ]; then
+  echo "FAILED: the apply created $FIXTURE_AFTER fixture row(s) on live."
+  echo "The fixtures are CI/dev only (brief §13)."
+  exit 1
+fi
+echo "  still no fixture row — correct"
 
 echo ""
 echo "--- the new objects, verified independently ---"

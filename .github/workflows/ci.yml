@@ -530,22 +530,35 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0039_journey_place_queue.sql
 
-      # 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2) and the
-      # fixtures.
+      # 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2). It writes NO
+      # rows.
       #
       # D8.2 says "a single SQL function is the only thing that decides
       # what the public may see", and it names
       # published_claims_for_dish(). That function did not exist — the
       # route wrote the filter out by hand, three times. This creates
-      # the three predicates, and it publishes the four reference dishes
-      # as FIXTURES so the model is demonstrable without presenting
-      # unevidenced history as fact.
+      # the three predicates.
       #
-      # It asserts that NO real association or statement is published.
+      # It also asserts that NO FIXTURE row is present — the fixtures
+      # belong to the seed below, and a fixture that reached this
+      # database by another route must not be served.
       - name: Apply the publication predicate
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0040_atlas_publication_predicate.sql
+
+      # The FIXTURES — a SEED, not a migration.
+      #
+      # The brief's §12: the model is "demonstrated with isolated
+      # fixtures". The brief's §13: "Fixtures never enter the live
+      # database or the production content pipeline."
+      #
+      # So it is a SEED and it lives OUTSIDE db/migrations/, which is
+      # what keeps the live migration chain from ever running it.
+      - name: Apply the atlas fixtures
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f packages/db/seed-atlas-fixtures.sql
 
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
