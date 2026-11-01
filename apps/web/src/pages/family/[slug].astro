@@ -1,4 +1,5 @@
 ---
+import FamilyTaxonomyPanel from "../../components/FamilyTaxonomyPanel";
 import Layout from "../../layouts/Layout.astro";
 import { ApiError, listDishes } from "../../lib/api";
 import { collectFamiliesFromPublishedDishes } from "../../lib/collectDishFamilies";
@@ -204,6 +205,18 @@ const blurb = KNOWN_BLURBS[slug] ?? familyDescription ?? null;
       </div>
     </div>
   )}
+
+  {/* ─── The taxonomy ──────────────────────────────────────────────
+      The dimension, the definition, the inclusion criteria, and the
+      note that classification does NOT imply ancestry. A reader who
+      sees "N dishes in the Dumpling family" will otherwise conclude
+      those dishes share an origin, and they need not.
+
+      It is an island: the taxonomy is fetched when the panel reaches
+      the viewport, so the page stays static. */}
+  <div class="wrap">
+    <FamilyTaxonomyPanel slug={slug} client:visible />
+  </div>
 
   {/* ─── Dish grid ─────────────────────────────────────────────── */}
   {sortedRegions.map(([region, dishes]) => (
