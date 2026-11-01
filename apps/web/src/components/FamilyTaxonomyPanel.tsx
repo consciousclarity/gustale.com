@@ -125,6 +125,29 @@ export default function FamilyTaxonomyPanel({ slug }: { slug: string }) {
           <dd>{counts.dishes}</dd>
         </div>
 
+        {/*
+          THE DEFINITION, AND THE INCLUSION CRITERIA — AS ONE FIELD WHEN
+          THERE IS ONLY ONE VALUE.
+
+          The vocabulary has NO separate inclusion-criteria column: every
+          dimension table has exactly one prose column, `description`.
+          So the endpoint's `inclusion.criteria` is null, and the
+          criterion is the definition.
+
+          The first version rendered two headings with IDENTICAL text
+          under them, which looked like two pieces of information and was
+          one, twice. It also always rendered the "What is included"
+          block, so a family with a definition showed the definition AND
+          a paragraph about the vocabulary's gap — the gap message was
+          printed even when the definition was right there.
+
+          So:
+            - a definition and no criteria -> ONE field, "Definition"
+            - a definition and distinct criteria -> both
+            - neither -> ONE field saying the vocabulary records no rule
+
+          One field when there is one value. Never two of the same.
+        */}
         {family.definition ? (
           <div>
             <dt>Definition</dt>
@@ -132,20 +155,23 @@ export default function FamilyTaxonomyPanel({ slug }: { slug: string }) {
           </div>
         ) : null}
 
-        <div>
-          <dt>What is included</dt>
-          <dd>
-            {inclusion.hasCriteria ? (
-              inclusion.criteria
-            ) : (
-              <>
-                The vocabulary does not yet record a rule for what belongs in
-                this group, so the list below is the dishes currently filed
-                under it. That is a gap in the vocabulary, not a definition.
-              </>
-            )}
-          </dd>
-        </div>
+        {inclusion.hasCriteria ? (
+          <div>
+            <dt>What is included</dt>
+            <dd>{inclusion.criteria}</dd>
+          </div>
+        ) : null}
+
+        {!family.definition && !inclusion.hasCriteria ? (
+          <div>
+            <dt>What is included</dt>
+            <dd>
+              The vocabulary does not yet record a rule for what belongs in this
+              group, so the list below is the dishes currently filed under it.
+              That is a gap in the vocabulary, not a definition.
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <p className="fam-taxonomy__not-ancestry">{notAncestry}</p>

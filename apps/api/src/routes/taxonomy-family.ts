@@ -257,11 +257,28 @@ export function registerTaxonomyFamilyRoutes(app: FastifyInstance): void {
         // The INCLUSION CRITERIA — what belongs in this group, stated
         // as a rule.
         //
-        // Where the vocabulary carries a description, that IS the
-        // criterion. Where it does not, the criterion says what is known
-        // and what is not — an honest gap beats an invented rule.
-        criteria: found.description,
-        hasCriteria: Boolean(found.description),
+        // THE VOCABULARY HAS NO SEPARATE CRITERIA FIELD. Every dimension
+        // table has exactly one prose column, `description`, and the
+        // legacy `categories` table has the same. So there is nothing
+        // else for a criterion to come from.
+        //
+        // That means the first version of this endpoint served the SAME
+        // string twice — once as `definition` and once as
+        // `inclusion.criteria` — and the page rendered two headings with
+        // identical text under them. It looked like two pieces of
+        // information and it was one, twice.
+        //
+        // The fix is NOT to invent a second source. It is to say what is
+        // true:
+        //
+        //   - `criteria` is null when there is no distinct rule
+        //   - `hasCriteria` is false, so the page shows ONE field
+        //
+        // A second heading with the same text under it is noise; a
+        // heading that says "the vocabulary records a rule for this
+        // group" and then shows the rule is honest.
+        criteria: null,
+        hasCriteria: false,
       },
       notAncestry: NOT_ANCESTRY,
       counts: { dishes: dishes.length },
