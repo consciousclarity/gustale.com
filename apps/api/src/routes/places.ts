@@ -112,6 +112,60 @@ function slugifyPlace(name: string): string {
 
 export function registerPlaceRoutes(app: FastifyInstance): void {
   /**
+   * GET /api/places
+   *
+   * The places that have PUBLISHED associations.
+   *
+   * The place page's static paths come from here. A place with no
+   * published association has nothing to show — the page would be a
+   * heading and an empty list — so it does not get a page.
+   *
+   * This is NOT the same list as the legacy "countries" directory, which
+   * is built from the dishes' origin fields. That directory lists
+   * 180-odd places, most of which have no association at all. This
+   * lists the places a reader can actually browse associations for.
+   */
+  app.get("/api/places", async (request) => {
+    const rows = await db.execute(sql`
+      SELECT
+        g.name,
+        g.local_name,
+        g.iso_code,
+        g.entity_type,
+        count(DISTINCT a.dish_id)::int AS dishes,
+        count(DISTINCT a.relationship_type)::int AS relationship_types
+      FROM dish_place_associations a
+      JOIN geo_entities g ON g.id = a.entity_id AND a.entity_kind = 'place'
+      JOIN dishes d ON d.id = a.dish_id AND d.status = 'published'
+      WHERE a.publication_state = 'published'
+        AND g.status = 'active'
+      GROUP BY g.id, g.name, g.local_name, g.iso_code, g.entity_type
+      ORDER BY g.name
+    `);
+
+    const places = (
+      rows as unknown as {
+        name: string;
+        local_name: string | null;
+        iso_code: string | null;
+        entity_type: string;
+        dishes: number;
+        relationship_types: number;
+      }[]
+    ).map((row) => ({
+      slug: slugifyPlace(row.name),
+      name: row.name,
+      localName: row.local_name,
+      isoCode: row.iso_code,
+      entityType: row.entity_type,
+      dishes: row.dishes,
+      relationshipTypes: row.relationship_types,
+    }));
+
+    return { places, count: places.length };
+  });
+
+  /**
    * GET /api/places/:slug
    *
    * The place, and the dishes associated with it, grouped by

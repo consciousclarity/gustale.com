@@ -65,6 +65,10 @@ const DETAILS = DATA.details ?? {};
 const ATLAS = DATA.atlas ?? {};
 // The DEFINED COUNTS — the site-wide numbers, each with its definition.
 const COUNTS = DATA.counts ?? null;
+// The PLACES — the places with published associations. The place page's
+// static paths come from this list, so without it the build produces no
+// /place/* pages at all.
+const PLACES = DATA.places ?? null;
 
 // Ingredient encyclopedia stubs derived from dish detail payloads so
 // /ingredients and /ingredients/:slug SSG work offline in CI.
@@ -102,6 +106,18 @@ const INGREDIENTS = (() => {
 // on the real captured snapshot. A unique familySlug appears only after the
 // first page — used by validate-build to prove family fallback pagination.
 export const LATE_PAGE_FAMILY_SLUG = "late-page-family";
+
+// The relationship labels, the same wording as the API's. The mock and
+// the API must not drift, or the mock shows different group headings
+// than the live site does.
+const RELATIONSHIP_LABELS = {
+  historical_emergence: "Historical emergence",
+  established_tradition: "Established tradition",
+  regional_adaptation: "Regional adaptation",
+  later_introduction: "Later introduction",
+  earliest_documentation: "Earliest documentation",
+  legacy_unreviewed: "Unreviewed legacy association",
+};
 const DISH_LIST_PAGE_LIMIT = 100;
 
 function withPaginationFixture(baseList) {
@@ -402,6 +418,97 @@ const server = http.createServer((req, res) => {
     }
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(COUNTS));
+    return;
+  }
+
+  // GET /api/places — the places with published associations.
+  if (url.pathname === "/api/places" && req.method === "GET") {
+    if (!PLACES) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: "No places in the mock data",
+        }),
+      );
+      return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(PLACES));
+    return;
+  }
+
+  // GET /api/places/:slug — one place and its dishes, grouped by
+  // relationship type.
+  const placeMatch = url.pathname.match(/^\/api\/places\/([^/]+)$/);
+  if (placeMatch) {
+    const slug = decodeURIComponent(placeMatch[1]);
+    const place = (PLACES?.places ?? []).find(
+      (p) =>
+        p.slug === slug ||
+        (p.isoCode ?? "").toLowerCase() === slug.toLowerCase(),
+    );
+    if (!place) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: `No place "${slug}"`,
+        }),
+      );
+      return;
+    }
+
+    // The dishes come from the captured atlas data, so the page shows
+    // what the API showed when it was captured.
+    const groups = [];
+    for (const dish of LIST) {
+      const atlas = ATLAS[dish.slug];
+      if (!atlas) continue;
+      const hit = (atlas.placesAndTraditions ?? []).find(
+        (a) => a.entityKind === "place" && a.name === place.name,
+      );
+      if (!hit) continue;
+      const group = groups.find((g) => g.relationship === hit.relationship);
+      const entry = {
+        slug: dish.slug,
+        canonicalName: dish.canonicalName,
+        shortDescription: dish.shortDescription ?? null,
+        viewCount: 0,
+        evidence: hit.evidence,
+        explanation: hit.explanation ?? null,
+      };
+      if (group) {
+        group.dishes.push(entry);
+      } else {
+        groups.push({
+          relationship: hit.relationship,
+          label: RELATIONSHIP_LABELS[hit.relationship] ?? hit.relationship,
+          dishes: [entry],
+        });
+      }
+    }
+
+    const slugs = new Set(groups.flatMap((g) => g.dishes.map((d) => d.slug)));
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        place: {
+          slug: place.slug,
+          name: place.name,
+          localName: place.localName ?? null,
+          isoCode: place.isoCode ?? null,
+          entityType: place.entityType,
+          subdivisionType: null,
+          lat: null,
+          lng: null,
+        },
+        groups,
+        counts: { dishes: slugs.size, groups: groups.length },
+      }),
+    );
     return;
   }
 

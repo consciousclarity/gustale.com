@@ -1,0 +1,162 @@
+---
+/**
+ * The PLACE page.
+ *
+ * URL pattern: /place/[slug]
+ *
+ * The page heads "Dishes associated with this place" and groups them by
+ * relationship type — the brief's §5 (D3) and the P4 acceptance
+ * criterion:
+ *
+ *   > The place page heads "Dishes associated with this place" and
+ *   > groups by relationship type; a shared dish appears under every
+ *   > relevant published association and counts once per result set.
+ *
+ * WHY THE PAGE SAYS "ASSOCIATED WITH" AND NOT "ORIGIN"
+ *
+ * An association records a connection. It does not establish that the
+ * dish was invented there, and the brief's §10 forbids the wording that
+ * says it does. The legacy `origin_geo_id` value is still shown, but
+ * under its own heading and marked as discovery data — because it is
+ * what the database holds, and hiding it would lose it.
+ *
+ * WHY IT IS AN ISLAND
+ *
+ * The place's dishes change as associations are published, and the page
+ * is a browse surface rather than a document. The island keeps the
+ * static page fast and loads the associations when the section
+ * approaches the viewport.
+ */
+
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import BrowseHeader from "../../components/BrowseHeader.astro";
+import ErrorBoundary from "../../components/ErrorBoundary.tsx";
+import PlaceDishes from "../../components/PlaceDishes";
+import Layout from "../../layouts/Layout.astro";
+import type { PlaceResponse } from "../../lib/api";
+import { ApiError, getPlace } from "../../lib/api";
+
+export async function getStaticPaths() {
+  // The paths are the places that have PUBLISHED associations. A place
+  // with none has nothing to show, so it does not get a page.
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    console.warn(
+      "[place/getStaticPaths] PUBLIC_API_BASE unset — no place pages",
+    );
+    return [];
+  }
+
+  try {
+    const res = await fetch(`${apiBase}/api/places`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      places?: { slug: string; name: string }[];
+    };
+    return (json.places ?? [])
+      .filter((p) => p.slug && p.name)
+      .map((p) => ({
+        params: { slug: p.slug },
+        props: { name: p.name },
+      }));
+  } catch {
+    // A failed fetch must not wipe the place pages — the same rule the
+    // family page follows.
+    return [];
+  }
+}
+
+const { slug } = Astro.params;
+
+let place: PlaceResponse["place"] | null = null;
+let loadFailed = false;
+let failureReason = "";
+
+if (slug) {
+  try {
+    const res = await getPlace(slug);
+    place = res.place;
+  } catch (err) {
+    loadFailed = true;
+    failureReason =
+      err instanceof ApiError
+        ? `API ${err.status}`
+        : err instanceof Error
+          ? err.message
+          : "unknown";
+  }
+}
+---
+
+<Layout
+  title={place ? `${place.name} — Gustale` : "Place — Gustale"}
+  description={
+    place
+      ? `Dishes associated with ${place.name} on Gustale — a place is a record of where a dish is connected, not a claim that it was invented there.`
+      : "Dishes associated with this place on Gustale."
+  }
+>
+  <Breadcrumbs
+    crumbs={[
+      { href: "/", label: "Home" },
+      { href: "/regions", label: "Places" },
+      ...(place ? [{ label: place.name }] : []),
+    ]}
+  />
+
+  {
+    place ? (
+      <BrowseHeader
+        eyebrow="Place"
+        title={place.name}
+        subtitle={
+          place.localName && place.localName !== place.name
+            ? `${place.localName} · ${place.entityType}`
+            : `A ${place.entityType} in the atlas.`
+        }
+        countLabel={
+          place.isoCode
+            ? `${place.isoCode}`
+            : place.entityType
+        }
+        showToolbar={false}
+        showFilters={false}
+      />
+    ) : (
+      <BrowseHeader
+        eyebrow="Place"
+        title="Place not found"
+        subtitle={
+          loadFailed
+            ? `The place could not be loaded (${failureReason}).`
+            : "That place is not in the atlas."
+        }
+        countLabel=""
+        showToolbar={false}
+        showFilters={false}
+      />
+    )
+  }
+
+  {
+    place ? (
+      <div class="wrap">
+        <ErrorBoundary name="Place dishes">
+          <PlaceDishes slug={slug!} client:visible />
+        </ErrorBoundary>
+      </div>
+    ) : null
+  }
+</Layout>
+
+<style>
+  /* The note under the empty state. A place with no published
+     association says so — and says WHY, so the reader does not take
+     "no dishes" for "no dishes are connected to this place". */
+  .atlas-note {
+    margin: 0.75rem 0 0;
+    font-size: 13px;
+    color: var(--sub, #6b6052);
+    max-width: 64ch;
+  }
+</style>
