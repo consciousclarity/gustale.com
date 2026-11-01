@@ -64,28 +64,6 @@ MIGRATION_0033=db/migrations/0033_gus239_english_names.sql
 MIGRATION_0034=db/migrations/0034_gus242_fix_corrupted_tradition.sql
 
 
-# The FOUR REFERENCE DISHES — rendang, chicken-tikka-masala,
-# tacos-al-pastor and falafel — with the EXACT legacy shape they have
-# on live. Without this seed the backfill has almost nothing to read,
-# and `ATLAS_BACKFILL_OK=1` proves only that the migration EXECUTES.
-#
-# IT RUNS HERE, AFTER the GUS-242 data migrations, after the sentence
-# population, and after 0032 and 0033:
-#
-#   1. `dish_dish_cuisines.provenance` is added by
-#      db/migrations/gus-242-schema-prep.sql. Seeded before it, the seed
-#      fails and — being one transaction — silently discards the dishes
-#      it had already inserted.
-#   2. 0032 asserts that every PUBLISHED dish has a `dish_names` row and
-#      a 'short' description sentence. Seeded before 0032, the four new
-#      published dishes break that assertion.
-#
-# The per-dish assertions caught both misorderings.
-echo "--- seed: the atlas reference dishes"
-run_pg -f - < packages/db/seed-atlas-references.sql >/dev/null 2>&1 \
-  || { echo "FAILED: seed-atlas-references"; fail=1; }
-[ $fail -eq 0 ] || exit 1
-
 # 0035 restores `categories.kind` — a column that was in the LIVE database
 # since 2026-06-25 but in no committed migration. It is idempotent
 # (ADD COLUMN IF NOT EXISTS) and touches nothing else, so it can run at
@@ -242,9 +220,28 @@ else
 fi
 
 fail=0
+
+# THE EXTENSIONS.
+#
+# The base schema needs `uuid-ossp` and `postgis`, and so does the GUS
+# chain (the geo tables are PostGIS). The script creates the DATABASE
+# above but never created the EXTENSIONS — in CI the workflow did it,
+# and in container mode nothing did, so the first migration failed on a
+# missing function.
+#
+# The script owns the database it creates, so it must own the
+# extensions too. CREATE EXTENSION IF NOT EXISTS is idempotent, so this
+# is safe whether or not they are already there.
+echo "--- the extensions"
+run_pg -c 'CREATE EXTENSION IF NOT EXISTS postgis;' >/dev/null 2>&1 \
+  || { echo "FAILED: postgis extension"; fail=1; }
+run_pg -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' >/dev/null 2>&1 \
+  || { echo "FAILED: uuid-ossp extension"; fail=1; }
+[ $fail -eq 0 ] || exit 1
+
 for f in "${DRIZZLE_FILES[@]}"; do
   echo "--- drizzle: $f"
-  run_pg -f - < "$f" >/dev/null 2>&1 || { echo "FAILED: $f"; fail=1; break; }
+  out=$(run_pg -f - < "$f" 2>&1) || { echo "FAILED: $f"; echo "$out" | grep -E 'ERROR' | tail -5; fail=1; break; }
 done
 [ $fail -eq 0 ] || exit 1
 
@@ -330,6 +327,36 @@ echo "--- the GUS-239 English names"
 run_pg -f - < "$MIGRATION_0033" >/tmp/m0033.log 2>&1 || { echo "FAILED: 0033"; tail -12 /tmp/m0033.log; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0033.log | head -2 || true
+
+# The FOUR REFERENCE DISHES — rendang, chicken-tikka-masala,
+# tacos-al-pastor and falafel — with the EXACT legacy shape they have
+# on live. Without this seed the backfill has almost nothing to read,
+# and `ATLAS_BACKFILL_OK=1` proves only that the migration EXECUTES.
+#
+# IT RUNS HERE, AFTER the GUS-242 data migrations, after the sentence
+# population, and after 0032 and 0033:
+#
+#   1. `dish_dish_cuisines.provenance` is added by
+#      db/migrations/gus-242-schema-prep.sql. Seeded before it, the seed
+#      fails and — being one transaction — silently discards the dishes
+#      it had already inserted.
+#   2. 0032 asserts that every PUBLISHED dish has a `dish_names` row and
+#      a 'short' description sentence. Seeded before 0032, the four new
+#      published dishes break that assertion.
+#
+# The per-dish assertions caught both misorderings.
+#
+# IT USED TO SIT AT THE TOP OF THIS FILE — before `run_pg` was defined
+# and before the database was created — where it could not run at all.
+# Bash treats an undefined command as a failure, so every run printed
+# "FAILED: seed-atlas-references" and then exited before creating the
+# database or applying a single migration. The chain was broken, and
+# the failure looked like a data problem rather than a misplaced block.
+echo "--- seed: the atlas reference dishes"
+run_pg -f - < packages/db/seed-atlas-references.sql >/tmp/atlas_refs.log 2>&1 \
+  || { echo "FAILED: seed-atlas-references"; tail -12 /tmp/atlas_refs.log; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE|INSERT' /tmp/atlas_refs.log | head -4 || true
 
 # 0034 fixes the one corrupted row in the 1e traditions load — a row
 # whose Wikidata Q-id is for Algerian cuisine but which carried

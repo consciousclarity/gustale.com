@@ -17,11 +17,11 @@ dev-logs: ## Tail dev service logs
 
 # ── Database ─────────────────────────────────────────────────────────────────
 
-db-migrate: ## Run pending Drizzle migrations
-	pnpm --filter @gustale/api run db:migrate
+db-migrate: ## Apply the full migration chain to a throwaway database (a proof, not your dev data)
+	bash scripts/ci-migration-chain.sh
 
-db-reset: ## Drop all tables and re-run migrations (DANGEROUS — destroys local data)
-	docker exec gustale-postgres-dev psql -U gustale -d gustale -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && pnpm --filter @gustale/api run db:migrate
+db-reset: ## Rebuild the local dev database from the full chain (DANGEROUS — destroys local data)
+	bash scripts/ci-migration-chain.sh gustale_dev
 
 # ── Typecheck ─────────────────────────────────────────────────────────────────
 
