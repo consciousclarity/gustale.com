@@ -102,6 +102,27 @@ function withPaginationFixture(baseList) {
   if (!Array.isArray(baseList) || baseList.length === 0) return baseList ?? [];
   const list = baseList.slice();
   const template = baseList[0];
+
+  // THE LATE FAMILY GOES ON THE SECOND PAGE, WHEREVER THE LIST ENDS.
+  //
+  // The first version of this appended the fixture at the END of the
+  // list, and padded the list to 100 first so the fixture landed at
+  // offset 100 — the start of page two.
+  //
+  // That worked when the mock held 121 dishes. It does NOT work now
+  // that the mock holds every published dish (1,474): the fixture
+  // lands at offset 1,474, which is on page fifteen, and the check
+  // that reads page two never sees it. The web build failed with
+  //
+  //     pagination fixture: late family present on second page
+  //     — late-page-family missing at offset=100
+  //
+  // So the fixture is now INSERTED AT THE PAGE BOUNDARY, whatever the
+  // list's length: at the first offset that is a multiple of the page
+  // limit and is not zero. For a 1,474-dish list that is offset 100.
+  //
+  // The pad entries exist only so a SHORT list still fills a page; a
+  // long list needs none.
   let i = 0;
   while (list.length < DISH_LIST_PAGE_LIMIT) {
     i += 1;
@@ -114,7 +135,12 @@ function withPaginationFixture(baseList) {
       familyName: template.familyName,
     });
   }
-  list.push({
+
+  // The insertion index is DISH_LIST_PAGE_LIMIT — 100 — which is the
+  // first entry of the SECOND page. The check reads offset=100, so the
+  // fixture must be in offsets 100..199, and offset 100 is the only
+  // place that is true for every list length.
+  list.splice(DISH_LIST_PAGE_LIMIT, 0, {
     ...template,
     id: "mock-late-page-family",
     slug: "__late-page-family-dish",
