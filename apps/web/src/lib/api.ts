@@ -641,6 +641,42 @@ export function getAtlasCounts(): Promise<AtlasCounts> {
   return request<AtlasCounts>("/api/atlas/counts");
 }
 
+// ─── The map's connections (GET /api/atlas/connections) ───────────────────
+//
+// The edges between dishes, with BOTH endpoints' coordinates, so the
+// map draws a connection without a second lookup.
+
+export interface MapConnectionEndpoint {
+  slug: string;
+  name: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface MapConnection {
+  id: string;
+  relationship: string;
+  relationshipName: string;
+  isSymmetric: boolean;
+  /** FALSE means the direction is not established: no arrow may be drawn. */
+  directionKnown: boolean;
+  reason: string | null;
+  strength: number;
+  from: MapConnectionEndpoint;
+  to: MapConnectionEndpoint;
+}
+
+export interface MapConnectionsResponse {
+  connections: MapConnection[];
+  count: number;
+  /** The count per relation type, so the legend can state the numbers. */
+  byRelationship: Record<string, number>;
+}
+
+export function getAtlasConnections(): Promise<MapConnectionsResponse> {
+  return request<MapConnectionsResponse>("/api/atlas/connections");
+}
+
 // ─── The place (GET /api/places/:slug) ──────────────────────────────────
 //
 // The dishes associated with a place, grouped by relationship type.

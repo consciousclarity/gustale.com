@@ -207,6 +207,24 @@ async function main() {
     );
   }
 
+  // 3e. The CONNECTIONS — the map's edges, with both endpoints'
+  // coordinates.
+  //
+  // The map draws these, so without them the SSG build bakes a map with
+  // no connections at all: the legend would say "0 connections" on every
+  // page type, and the build would look successful.
+  let connections = null;
+  try {
+    connections = await getJson("/api/atlas/connections");
+    console.log(
+      `+ connections: ${connections.count} (${Object.keys(connections.byRelationship ?? {}).length} relation types)`,
+    );
+  } catch (err) {
+    process.stderr.write(
+      `! the connections endpoint is not available (${err.message})\n`,
+    );
+  }
+
   console.log(
     `+ details: ${Object.keys(details).length} (expected ${listSlugs.length})`,
   );
@@ -237,10 +255,11 @@ async function main() {
     atlas,
     counts,
     places,
+    connections,
   };
   writeFileSync(MOCK_DATA_PATH, `${JSON.stringify(mockData, null, 2)}\n`);
   console.log(
-    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details, ${Object.keys(atlas).length} atlas, ${places?.count ?? 0} places)`,
+    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details, ${Object.keys(atlas).length} atlas, ${places?.count ?? 0} places, ${connections?.count ?? 0} connections)`,
   );
 
   // 5. Lineages.
