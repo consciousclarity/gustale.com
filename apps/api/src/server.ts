@@ -26,6 +26,7 @@ import { registerHealthRoutes } from "./routes/health.js";
 import { registerIngredientRoutes } from "./routes/ingredients.js";
 import { registerLineageRoutes } from "./routes/lineages.js";
 import { registerMediaRoutes } from "./routes/media.js";
+import { registerPlaceRoutes } from "./routes/places.js";
 import { registerSearchRoutes } from "./routes/search.js";
 import { registerTaxonomyRoutes } from "./routes/taxonomy.js";
 import { registerTranslationReviewRoutes } from "./routes/translation-review.js";
@@ -99,6 +100,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   // counts. ADR-004's F7: the homepage's four numbers were computed
   // from the legacy taxonomy and labelled a technique "lineages".
   registerAtlasCountRoutes(app);
+  // The PLACE page's data: the dishes associated with a place, grouped
+  // by relationship type (P4).
+  registerPlaceRoutes(app);
   registerTranslationReviewRoutes(app);
   registerAdminDishRoutes(app);
   registerTaxonomyRoutes(app);
