@@ -84,15 +84,46 @@ BEGIN;
 --
 -- It is also the OWNER of publish_credential, and that is deliberate —
 -- see the ownership transfer below.
+-- The issuer role.
+--
+-- It is created here when the role running this migration may create
+-- roles — which is the case on live (the migrations run as postgres, a
+-- superuser) but NOT in CI, where the migrations run as the
+-- dedicated migration role and the CI's setup step has already created
+-- it.
+--
+-- So the creation is attempted, and its ABSENCE is a clear error rather
+-- than a silent skip: the separation cannot be established without the
+-- role, and a migration that half-applies is worse than one that fails.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gustale_credential_issuer') THEN
-    CREATE ROLE gustale_credential_issuer NOLOGIN;
+    BEGIN
+      -- ADMIN OPTION, so the role can be granted onwards — the
+      -- ownership transfer below needs the current role to be a member
+      -- of the issuer role.
+      CREATE ROLE gustale_credential_issuer NOLOGIN ADMIN OPTION;
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE EXCEPTION
+        'the role gustale_credential_issuer does not exist and this migration may not create it. '
+        'It must exist before the separation can be applied: it holds the privilege of issuing a '
+        'publish credential, and no other role may hold it.';
+    END;
   END IF;
 END $$;
 
-COMMENT ON ROLE gustale_credential_issuer IS
-  'The role that may ISSUE a publish credential, and nothing else. It is NOLOGIN, it is granted to no login role, and it owns publish_credential. Issuing a credential is a deliberate act somebody performs AS the issuer, with the privilege visibly set. The bot (gustale) is NOT a member and must never be.';
+-- The comment is best-effort: COMMENT ON ROLE needs the role's OWNER,
+-- and in CI the issuer role was created by the setup step, so the
+-- migration role is a member but not the owner. The comment documents
+-- the role; it is not part of the separation, so a role the migration
+-- cannot comment on is not a failure.
+DO $$
+BEGIN
+  COMMENT ON ROLE gustale_credential_issuer IS
+    'The role that may ISSUE a publish credential, and nothing else. It is NOLOGIN, it is granted to no login role, and it owns publish_credential. Issuing a credential is a deliberate act somebody performs AS the issuer, with the privilege visibly set. The bot (gustale) is NOT a member and must never be.';
+EXCEPTION WHEN insufficient_privilege THEN
+  NULL;
+END $$;
 
 -- =====================================================================
 -- 2. THE OWNERSHIP TRANSFER — AND WHY IT IS NOT OPTIONAL
@@ -132,6 +163,29 @@ BEGIN
      AND c.relname = 'publish_credential';
 
   IF v_owner IS NOT NULL AND v_owner <> 'gustale_credential_issuer' THEN
+    -- Handing a table to a role requires being a member of it, so the
+    -- current role is made a member of the issuer role first.
+    --
+    -- This is safe and narrow. The issuer role is NOLOGIN, so nobody
+    -- can log in as it, and the BOT'S ROLE IS NEVER A MEMBER of it —
+    -- that is the whole point of the separation. The role that joins
+    -- here is the one running the migration: `postgres` on live, and
+    -- the CI's dedicated migration role.
+    BEGIN
+      EXECUTE 'GRANT gustale_credential_issuer TO ' || quote_ident(current_user);
+    EXCEPTION WHEN insufficient_privilege THEN
+      -- The membership was established when the ROLE ARRANGEMENT was
+      -- set up — by the CI's setup step, which runs as the superuser.
+      -- The migration role has no ADMIN OPTION on the issuer role, so
+      -- it cannot grant it onwards; it only needs to BE a member, and
+      -- the setup step made it one.
+      IF NOT pg_has_role(current_user, 'gustale_credential_issuer', 'MEMBER') THEN
+        RAISE EXCEPTION
+          'the role % may not hand publish_credential to the issuer role and is not a member of it. '
+          'The role arrangement must grant the issuer role to the migration role first.',
+          current_user;
+      END IF;
+    END;
     EXECUTE 'ALTER TABLE public.publish_credential OWNER TO gustale_credential_issuer';
     RAISE NOTICE '  the ownership of publish_credential moved from % to the issuer role', v_owner;
   END IF;
@@ -153,6 +207,11 @@ GRANT SELECT ON TABLE public.publish_credential TO gustale;
 -- check works for it.
 GRANT INSERT, UPDATE, DELETE ON TABLE public.publish_credential TO gustale_credential_issuer;
 GRANT SELECT ON TABLE public.users TO gustale_credential_issuer;
+
+-- CREATE on the schema, so the issuer role can OWN a table in it.
+-- Owning publish_credential requires it, and the ownership transfer
+-- above fails with "permission denied for schema public" without it.
+GRANT USAGE, CREATE ON SCHEMA public TO gustale_credential_issuer;
 
 -- The bot must not be able to change the OWNER back, or to change the
 -- issuer role's membership. It cannot ALTER the table (it does not own
