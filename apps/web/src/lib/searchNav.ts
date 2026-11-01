@@ -87,9 +87,9 @@ export function searchHelpLinks(domain: GustaleDomain): BrowseLink[] {
   if (domain === "geo") {
     return [
       { href: "/", label: "Globe" },
-      { href: "/regions", label: "Countries" },
+      { href: "/regions", label: "Places" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
       { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     ];
   }
@@ -97,7 +97,7 @@ export function searchHelpLinks(domain: GustaleDomain): BrowseLink[] {
     { href: "/dishes", label: "Recipes" },
     { href: "/ingredients", label: "Ingredients" },
     { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "Lineages" },
+    { href: "/lineages", label: "History & connections" },
     { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
   ];
 }
@@ -115,9 +115,9 @@ export function searchEmptyBrowseLinks(domain: GustaleDomain): BrowseLink[] {
 export function searchErrorBrowseLinks(domain: GustaleDomain): BrowseLink[] {
   if (domain === "geo") {
     return [
-      { href: "/regions", label: "Countries" },
+      { href: "/regions", label: "Places" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
       { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     ];
   }
@@ -125,7 +125,7 @@ export function searchErrorBrowseLinks(domain: GustaleDomain): BrowseLink[] {
     { href: "/dishes", label: "Recipes" },
     { href: "/ingredients", label: "Ingredients" },
     { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "Lineages" },
+    { href: "/lineages", label: "History & connections" },
     { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
   ];
 }
@@ -188,7 +188,15 @@ export function isPrimaryNavActive(
     return p === href || p.startsWith(`${href}/`);
   }
 
-  // Recipes
+  // Recipes — the navigation is now the SAME as the geo one (P4):
+  // Explore / Places / Food families / History & connections / About.
+  //
+  // So the matcher handles the same paths on both, and the recipes
+  // domain's own /dishes and /ingredients pages are still "active"
+  // when the reader is on one — they are reachable from the site's
+  // content, and the nav item that matches them is the site's home.
+  if (href === "/") return p === "/" || p === "";
+  if (href === "/regions") return p === "/regions" || p.startsWith("/regions/");
   if (href === "/dishes") {
     return p === "/dishes" || p.startsWith("/dishes/");
   }

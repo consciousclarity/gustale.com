@@ -242,7 +242,7 @@ describe("safe encoding + domain recovery", () => {
     assert.equal(absoluteDishesIndexHref("recipes", "pho"), "/dishes?q=pho");
     const geo = recoveryLinks("geo");
     assert.ok(
-      geo.primary.some((l) => l.href === "/regions" && l.label === "Countries"),
+      geo.primary.some((l) => l.href === "/regions" && l.label === "Places"),
     );
     assert.equal(geo.altBrowse?.href, "https://gustale.recipes/dishes");
     assert.equal(mapBrowseHref("recipes"), "https://gustale.com/map");

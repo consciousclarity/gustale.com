@@ -130,19 +130,23 @@ check(
 );
 
 if (DOMAIN === "geo") {
-  // Atlas nav uses "Countries" (href=/regions), not "Regions".
-  // Astro may emit whitespace inside the anchor: "> Countries <".
-  const countriesLabelCount = countOccurrences(regionsHtml, "Countries");
+  // The Atlas nav uses "Places" (href=/regions), not "Regions" and not
+  // the old "Countries" — the directory holds places, and 42 of the
+  // entities it lists are regions and cultural areas rather than
+  // countries (ADR-004 F8).
+  //
+  // Astro may emit whitespace inside the anchor: "> Places <".
+  const placesLabelCount = countOccurrences(regionsHtml, "Places");
   check(
-    "main navigation contains Countries → /regions",
+    "main navigation contains Places → /regions",
     countOccurrences(regionsHtml, 'href="/regions"') >= 1,
     'no href="/regions" in nav',
   );
   check(
-    "mobile navigation includes Countries",
-    /nav-mobile-link[\s\S]{0,120}Countries/.test(regionsHtml ?? "") &&
-      countriesLabelCount >= 1,
-    `expected Countries in mobile nav, found ${countriesLabelCount} total`,
+    "mobile navigation includes Places",
+    /nav-mobile-link[\s\S]{0,120}Places/.test(regionsHtml ?? "") &&
+      placesLabelCount >= 1,
+    `expected Places in mobile nav, found ${placesLabelCount} total`,
   );
   check(
     "nav identifies Atlas property in text",
@@ -167,28 +171,39 @@ if (DOMAIN === "geo") {
       /Current property: Recipes/.test(regionsHtml ?? ""),
     "Recipes property label missing from nav",
   );
-  check(
-    "recipes nav includes Ingredients",
-    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
-    "missing /ingredients in recipes nav",
-  );
+  // The recipes dist still ships the ingredients pages — they are
+  // reachable from the dish pages — even though the NAV no longer
+  // lists them (P4 made the navigation the same on both domains).
   check(
     "recipes dist includes /ingredients index",
     await exists(`${DIST}ingredients/index.html`),
     "ingredients/index.html missing",
   );
+  // The navigation is now the SAME on both domains (P4), so the
+  // recipes nav carries the five shared entries and NOT the old
+  // domain-specific ones. That is the change being asserted.
   check(
-    "recipes nav includes Recipes → /dishes",
-    countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
-    "missing /dishes in recipes nav",
+    "recipes nav includes Places → /regions",
+    countOccurrences(regionsHtml, 'href="/regions"') >= 1,
+    "missing /regions in recipes nav",
+  );
+  check(
+    "recipes nav includes History & connections → /lineages",
+    countOccurrences(regionsHtml, 'href="/lineages"') >= 1,
+    "missing /lineages in recipes nav",
+  );
+  check(
+    "recipes nav no longer lists Ingredients",
+    countOccurrences(regionsHtml, 'href="/ingredients"') === 0,
+    "/ingredients is still in the recipes nav",
   );
 }
 
-// ─── 3. /regions presented as Countries (U0-C directory, not chip wall) ───
+// ─── 3. /regions presented as Places (U0-C directory, not chip wall) ───
 check(
-  "/regions H1 presents Countries",
-  /<h1[^>]*>[\s\S]*?Countries[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
-  "expected Countries in page H1",
+  "/regions H1 presents Places",
+  /<h1[^>]*>[\s\S]*?Places[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
+  "expected Places in page H1",
 );
 check(
   "/regions has no dead /regions/:slug links",
@@ -529,10 +544,10 @@ check(
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
   check(
-    "static aria-current on Countries for /regions",
+    "static aria-current on Places for /regions",
     /href="\/regions"[^>]*aria-current="page"/.test(regionsHtml ?? "") ||
       /aria-current="page"[^>]*href="\/regions"/.test(regionsHtml ?? ""),
-    "Countries link missing aria-current=page on /regions",
+    "Places link missing aria-current=page on /regions",
   );
   const dumplingHtml = await read(dumplingFamilyPath);
   check(
@@ -542,12 +557,19 @@ if (DOMAIN === "geo") {
     "Food families missing aria-current on /family/dumpling",
   );
 } else {
+  // The recipes domain's nav is now the SAME as the geo one (P4), so
+  // the active link on /dishes is "Explore" — the nav's first entry,
+  // which is the site's home. The recipes LISTING is reachable from
+  // there, but the nav item that matches /dishes is the home link.
+  //
+  // The check is that SOME nav link carries aria-current="page", and
+  // that it is the one whose href matches the current path.
   const dishesHtml = await read(`${DIST}dishes/index.html`);
   check(
-    "static aria-current on Recipes for /dishes",
+    "static aria-current on the Explore link for /dishes (recipes build)",
     /href="\/dishes"[^>]*aria-current="page"/.test(dishesHtml ?? "") ||
       /aria-current="page"[^>]*href="\/dishes"/.test(dishesHtml ?? ""),
-    "Recipes link missing aria-current=page on /dishes",
+    "no nav link carries aria-current=page on /dishes",
   );
 }
 
@@ -584,6 +606,14 @@ check(
 check(
   "primary-nav match: /dishes/:slug → Recipes (recipes build)",
   isPrimaryNavActive("/dishes", "/dishes/vindaloo/", "recipes") === true,
+);
+check(
+  "primary-nav match: /regions → Places (recipes build)",
+  isPrimaryNavActive("/regions", "/regions/", "recipes") === true,
+);
+check(
+  "primary-nav match: /lineages → History & connections (recipes build)",
+  isPrimaryNavActive("/lineages", "/lineages/", "recipes") === true,
 );
 
 // ─── The crawl signals ─────────────────────────────────────────────────

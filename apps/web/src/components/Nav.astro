@@ -34,20 +34,49 @@ const recipesProperty = {
 
 const currentProperty = isGeo ? atlasProperty : recipesProperty;
 
-/** Primary nav — only routes that exist in the corresponding post-build dist. */
+/**
+ * Primary nav — only routes that exist in the corresponding post-build
+ * dist.
+ *
+ * P4: the navigation becomes Explore / Places / Food families / History &
+ * connections / About, CONSISTENTLY ON BOTH DOMAINS.
+ *
+ * The previous version had two different navigations — "Globe /
+ * Countries / Food families / Lineages / About" on the geo domain and
+ * "Recipes / Ingredients / Food families / Lineages / About" on the
+ * recipes one — so a reader moving between the domains found a
+ * different site. The concepts are the same on both; only the recipes
+ * domain's extra section is dropped, because a recipes site whose nav
+ * cannot show you where a dish came from is not telling the whole
+ * story.
+ *
+ * The PATHS do not change:
+ *
+ *   /            Explore       (the globe / the atlas home)
+ *   /regions     Places       (the path stays; the label changes)
+ *   /families    Food families
+ *   /lineages    History & connections
+ *   /about       About
+ *
+ * The old lineage URLs are the redirect question (see the 301 work); the
+ * path here is unchanged so nothing 404s in the meantime.
+ */
 const primaryLinks = isGeo
   ? [
-      { href: "/", label: "Globe" },
-      { href: "/regions", label: "Countries" },
+      { href: "/", label: "Explore" },
+      { href: "/regions", label: "Places" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
       { href: "/about", label: "About" },
     ]
   : [
-      { href: "/dishes", label: "Recipes" },
-      { href: "/ingredients", label: "Ingredients" },
+      // On the recipes domain "Explore" is the recipes home, which is
+      // the recipes LISTING — the site's entry point on this domain.
+      // The other four are the same pages as on the atlas domain.
+      { href: "/dishes", label: "Explore" },
+      { href: "/regions", label: "Places" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
       { href: "/about", label: "About" },
     ];
 

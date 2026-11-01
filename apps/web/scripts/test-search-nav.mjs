@@ -103,9 +103,7 @@ describe("fallback browse links", () => {
     assert.ok(!help.some((l) => l.href === "/dishes"));
     assert.ok(!help.some((l) => l.href === "/ingredients"));
 
-    assert.ok(
-      err.some((l) => l.href === "/regions" && l.label === "Countries"),
-    );
+    assert.ok(err.some((l) => l.href === "/regions" && l.label === "Places"));
     assert.ok(
       err.some((l) => l.href === "/families" && l.label === "Food families"),
     );

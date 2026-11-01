@@ -430,9 +430,9 @@ export function recoveryLinks(domain) {
     return {
       primary: [
         { href: "/", label: "Globe" },
-        { href: "/regions", label: "Countries" },
+        { href: "/regions", label: "Places" },
         { href: "/families", label: "Food families" },
-        { href: "/lineages", label: "Lineages" },
+        { href: "/lineages", label: "History & connections" },
       ],
       altBrowse: { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     };
@@ -442,7 +442,7 @@ export function recoveryLinks(domain) {
       { href: "/dishes", label: "Recipes" },
       { href: "/ingredients", label: "Ingredients" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
     ],
     altBrowse: { href: `${ATLAS_ORIGIN}/`, label: "Gustale Atlas" },
   };

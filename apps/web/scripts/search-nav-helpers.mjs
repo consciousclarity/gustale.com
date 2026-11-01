@@ -74,9 +74,9 @@ export function searchHelpLinks(domain) {
   if (domain === "geo") {
     return [
       { href: "/", label: "Globe" },
-      { href: "/regions", label: "Countries" },
+      { href: "/regions", label: "Places" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
       { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     ];
   }
@@ -84,17 +84,19 @@ export function searchHelpLinks(domain) {
     { href: "/dishes", label: "Recipes" },
     { href: "/ingredients", label: "Ingredients" },
     { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "Lineages" },
+    { href: "/lineages", label: "History & connections" },
     { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
   ];
 }
 
 export function searchErrorBrowseLinks(domain) {
+  // The labels here are the NAV labels, so a reader who lands on a
+  // search error sees the same words they would see in the nav.
   if (domain === "geo") {
     return [
-      { href: "/regions", label: "Countries" },
+      { href: "/regions", label: "Places" },
       { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "Lineages" },
+      { href: "/lineages", label: "History & connections" },
       { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
     ];
   }
@@ -102,7 +104,7 @@ export function searchErrorBrowseLinks(domain) {
     { href: "/dishes", label: "Recipes" },
     { href: "/ingredients", label: "Ingredients" },
     { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "Lineages" },
+    { href: "/lineages", label: "History & connections" },
     { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
   ];
 }
@@ -131,6 +133,15 @@ export function isPrimaryNavActive(href, pathname, domain) {
     return p === href || p.startsWith(`${href}/`);
   }
 
+  // The recipes domain's navigation is now the SAME as the geo one —
+  // Explore / Places / Food families / History & connections / About —
+  // so the matcher handles the same paths on both.
+  //
+  // The recipes domain still has its own /dishes and /ingredients
+  // pages, and they are reachable from the site's content, so a link to
+  // one is still "active" when the reader is on it.
+  if (href === "/") return p === "/" || p === "";
+  if (href === "/regions") return p === "/regions" || p.startsWith("/regions/");
   if (href === "/dishes") return p === "/dishes" || p.startsWith("/dishes/");
   if (href === "/ingredients") {
     return p === "/ingredients" || p.startsWith("/ingredients/");
