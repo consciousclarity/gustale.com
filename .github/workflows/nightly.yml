@@ -33,7 +33,18 @@ jobs:
       postgis:
         image: postgis/postgis:16-3.4
         env:
-          POSTGRES_USER: gustale
+          # THE SUPERUSER IS `postgres`, NOT THE BOT — the same as CI and
+          # the same as live.
+          #
+          # With POSTGRES_USER=gustale the bot WAS the superuser, and
+          # every privilege check the Nightly ran was answered by an
+          # admin. The Nightly exists to catch drift; it must not run
+          # with a stronger role than production.
+          #
+          # The chain script runs the role setup itself, so the
+          # migration role and the bot's ordinary role exist by the time
+          # the chain applies the migrations.
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: gustale
           POSTGRES_DB: gustale
         ports:

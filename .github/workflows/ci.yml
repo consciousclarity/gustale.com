@@ -143,7 +143,28 @@ jobs:
       postgis:
         image: postgis/postgis:16-3.4
         env:
-          POSTGRES_USER: gustale
+          # THE SUPERUSER IS `postgres`, NOT THE BOT.
+          #
+          # This mirrors live. On live the roles are:
+          #
+          #   postgres         superuser, ADMIN only
+          #   gustale          the bot, NOT a superuser, owns nothing
+          #   gustale_migrator LOGIN, owns the tables, runs the migrations
+          #
+          # With POSTGRES_USER=gustale the postgis image made the BOT the
+          # superuser, so every privilege check in CI was answered by an
+          # admin. A check that passes because of a superuser does not
+          # test what live does — and it HIDES defects.
+          #
+          # One concrete example: pg_has_role() returns TRUE for a
+          # superuser for EVERY role, so the publish_credential guard's
+          # membership check passed in CI for the wrong reason. The guard
+          # was verified against live, where the bot is not a superuser.
+          #
+          # With POSTGRES_USER=postgres, the bot role is created below as
+          # a plain LOGIN role with no SUPERUSER, and the CI's privilege
+          # checks answer the same way live's do.
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: gustale
           POSTGRES_DB: gustale
         ports:
@@ -218,9 +239,36 @@ jobs:
           # (pg_database_owner) and aborted the step with ON_ERROR_STOP,
           # leaving the tables unowned. The file does not touch the
           # schema's owner at all.
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+          # AS THE SUPERUSER — `postgres`, not the bot.
+          #
+          # This step creates the roles, so it needs CREATE ROLE and the
+          # ADMIN OPTION on the issuer role. Only the superuser has those.
+          #
+          # With POSTGRES_USER=gustale the bot WAS the superuser, so this
+          # step ran as the bot and every role it created was
+          # administrative by accident. Now the superuser is `postgres`,
+          # the bot's role is an ordinary role, and this step is where the
+          # separation is actually established.
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/ci-migration-role.sql
 
+          # THE MIGRATIONS RUN AS `postgres` — THE ADMIN — EXACTLY AS
+          # LIVE DOES.
+          #
+          # On live the migrations run as `postgres`, which owns the
+          # tables. The CI ran them as `gustale_migrator`, a role that
+          # owns nothing on live, which means the CI was testing a
+          # schema arrangement that live does not have — and, before the
+          # ownership transfer was removed, it was testing one that
+          # live could not have had.
+          #
+          # What the CI must mirror is the PRIVILEGE MODEL: the bot is
+          # an ordinary role, and the admin owns the tables. The
+          # migrations need the admin, and so they use it.
+          #
+          # The bot role is still created as an ordinary LOGIN by the
+          # role setup above, and the tests below still connect as it.
+          #
           # Apply the full *committed* migration chain (not a hardcoded prefix).
           # Source from `git ls-files`, NOT a filesystem glob and NOT the
           # drizzle journal — same pattern as nightly (PR #39). The journal is
@@ -245,7 +293,7 @@ jobs:
           # scripts/find_migration_order.py, which applies the files to a
           # fresh database and reports any that cannot be placed.
           set -euo pipefail
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
             -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
 
@@ -256,7 +304,7 @@ jobs:
           fi
           for f in "${drizzle_files[@]}"; do
             echo "Applying $f"
-            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 -f "$f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 -f "$f"
           done
 
           # The GUS-xxx chain, in dependency order. See the list in
@@ -283,12 +331,12 @@ jobs:
               exit 1
             fi
             echo "Applying $f"
-            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 -f "$f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 -f "$f"
           done
 
       - name: Apply seed
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f packages/db/seed-moussaka.sql \
             -f packages/db/seed-journey.sql
           # Mark the database as DISPOSABLE.
@@ -307,7 +355,7 @@ jobs:
       # creates it that way.
       - name: Mark the database as disposable
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/mark_disposable_db.sql
 
       # The FOUR REFERENCE DISHES are seeded in a LATER step, after
@@ -368,7 +416,7 @@ jobs:
               exit 1
             fi
             echo "Applying $f"
-            PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 -f "$f"
+            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 -f "$f"
           done
 
       # The API imports the schema tables from @gustale/db, which
@@ -398,7 +446,7 @@ jobs:
 
       - name: Apply the GUS-239 archive
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0032_gus239_archive_dish_translations.sql
 
       # The English name for every dish that lacks one in dish_names.
@@ -407,7 +455,7 @@ jobs:
       # part of that coverage.
       - name: Apply the GUS-239 English names
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0033_gus239_english_names.sql
 
       # The FOUR REFERENCE DISHES — rendang, chicken-tikka-masala,
@@ -443,7 +491,7 @@ jobs:
       # That is what they are for.
       - name: Apply the atlas reference dishes
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f packages/db/seed-atlas-references.sql
 
       # 0034 fixes the one corrupted row in the 1e traditions load — a row
@@ -456,7 +504,7 @@ jobs:
       # are two copies of the same thing, and they had already diverged.
       - name: Apply the corrupted-tradition fix
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0034_gus242_fix_corrupted_tradition.sql
 
       # `categories.kind` — the column that was in the LIVE database since
@@ -479,7 +527,7 @@ jobs:
       # live too, where it is a no-op.
       - name: Apply the categories.kind column
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0035_categories_kind.sql
 
       # 0036 is ADR-004's additive schema: the three evidence axes on
@@ -495,12 +543,12 @@ jobs:
       # exists but does not hold is worse than no schema.
       - name: Apply the ADR-004 atlas schema
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0036_atlas_schema.sql
 
       - name: Test the ADR-004 atlas constraints
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/test_atlas_schema.sql
 
       # 0037 is the P2 backfill: the legacy places & traditions data moves
@@ -515,7 +563,7 @@ jobs:
       # legacy tables — and refuses to be trusted if the numbers differ.
       - name: Apply the ADR-004 atlas backfill
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0037_atlas_backfill.sql
 
       # 0038 is the publish credential. The `verified` and `published`
@@ -527,7 +575,7 @@ jobs:
       # Additive and idempotent: one table, one function.
       - name: Apply the publish credential
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0038_publish_credential.sql
 
       # The constraint tests AGAIN, now with the D9 publish-credential
@@ -538,7 +586,7 @@ jobs:
       # transitions need no credential.
       - name: Test the publish credential constraints
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/test_atlas_schema.sql
 
       # 0039 queues the journey places that produced NO association.
@@ -553,7 +601,7 @@ jobs:
       # reviewer decides. It creates no association and decides nothing.
       - name: Apply the journey place queue
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0039_journey_place_queue.sql
 
       # 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2). It writes NO
@@ -570,7 +618,7 @@ jobs:
       # database by another route must not be served.
       - name: Apply the publication predicate
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0040_atlas_publication_predicate.sql
 
       # 0041 is the ROLE SEPARATION for the publish credential.
@@ -585,8 +633,69 @@ jobs:
       # strengthens the trigger so the check is on the WRITER.
       - name: Apply the credential role separation
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0041_credential_role_separation.sql
+
+      # 0042 revokes TRIGGER and REFERENCES on publish_credential from the
+      # bot's role.
+      #
+      # TRIGGER lets the bot CREATE A TRIGGER on the table, and a trigger
+      # FIRES AS THE USER WHO PERFORMED THE INSERT. So the bot could
+      # plant a trigger and then not insert anything itself — the trigger
+      # would fire inside somebody else's insert, with that person's
+      # privileges. Proven on a disposable copy: a BEFORE trigger
+      # rewrote `verified_by` from 'the-real-owner' to 'GRANTED BY THE
+      # BOT'. The credential's audit trail was forgeable.
+      #
+      # SELECT stays: statement_set_status() is not SECURITY DEFINER, so
+      # it reads the credential row AS ITS CALLER, and the bot calls it.
+      - name: Apply the credential trigger revocation
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0042_credential_trigger_revocation.sql
+
+      # The escalation check — a separate file, run after 0042.
+      #
+      # It cannot live in the main constraint suite, because it asserts a
+      # GRANT state that only 0041 and 0042 establish: the bot holds
+      # SELECT on publish_credential (0041 grants it) and holds neither
+      # TRIGGER nor REFERENCES (0042 revokes them). The main suite's
+      # second run happens BEFORE both.
+      #
+      # It is the step that proves the bot cannot plant a trigger on the
+      # credential table — a trigger would fire as the inserter, with the
+      # inserter's privileges.
+      - name: The credential escalation check
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f scripts/mark_disposable_db.sql
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f scripts/test_atlas_trigger_escalation.sql
+
+      # 0043 — the taxonomy canonicalisation. Copies the 26 legacy
+      # descriptions into the dimension rows that have none, and queues
+      # the unmatched dish-type and course-group rows for a reviewer.
+      - name: Apply the taxonomy canonicalisation
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0043_taxonomy_canonicalisation.sql
+
+      # 0044 — the queue item for `yukkuri-shite-itte-ne`, the one entry
+      # in the 1,354-row Pool A batch that is not a food.
+      - name: Apply the not-a-dish queue item
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0044_not_a_dish_queue.sql
+
+      # 0045 — corrects the credential guard function's comment, which
+      # claimed membership was unbypassable. PostgreSQL makes a
+      # SUPERUSER a member of every role, so the claim was false. The
+      # logic is unchanged; the comment now states exactly what the
+      # guard does and does not guarantee.
+      - name: Apply the credential guard comment
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0045_credential_guard_comment.sql
 
       # The FIXTURES — a SEED, not a migration.
       #
@@ -598,7 +707,7 @@ jobs:
       # what keeps the live migration chain from ever running it.
       - name: Apply the atlas fixtures
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f packages/db/seed-atlas-fixtures.sql
 
       # The PER-DISH backfill assertions. LAST, because they assert the
@@ -617,7 +726,7 @@ jobs:
       # NON-ZERO baselines. A backfill that produced nothing fails it.
       - name: Assert the atlas backfill per dish
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale_migrator -d gustale -v ON_ERROR_STOP=1 \
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/test_atlas_backfill.sql
 
       - name: Run vitest

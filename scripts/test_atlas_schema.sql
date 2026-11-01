@@ -958,6 +958,27 @@ BEGIN
   END IF;  -- the publish credential exists (migration 0038)
 
   ---------------------------------------------------------------------
+  -- D10 — THE TRIGGER ESCALATION ON publish_credential
+  ---------------------------------------------------------------------
+  --
+  -- These cases live in scripts/test_atlas_trigger_escalation.sql, NOT
+  -- here, and the reason is TIMING.
+  --
+  -- This suite runs twice in the chain: once before migration 0038, and
+  -- once after it. The D9 publish-credential cases belong to the second
+  -- run.
+  --
+  -- The D10 cases assert a GRANT state that only migrations 0041 and
+  -- 0042 establish — the bot holds SELECT (0041 grants it) and holds
+  -- neither TRIGGER nor REFERENCES (0042 revokes them). The second run
+  -- of this suite happens BEFORE 0041 and 0042, so a suite that
+  -- included them would pass only mid-chain.
+  --
+  -- They are their own file, run after 0042, with their own report line.
+  ---------------------------------------------------------------------
+
+
+  ---------------------------------------------------------------------
   -- THE CLEANUP — this block leaves the database as it found it
   ---------------------------------------------------------------------
   --
