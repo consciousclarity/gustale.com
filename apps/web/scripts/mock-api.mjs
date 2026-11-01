@@ -59,6 +59,12 @@ const LINEAGES_DATA = HAS_LINEAGES
 const LIST = DATA.list ?? [];
 const MAP = DATA.map ?? [];
 const DETAILS = DATA.details ?? {};
+// The ATLAS data — the three concepts per dish (ADR-004), captured
+// alongside the dish details. The atlas route is a DIFFERENT path from
+// the dish detail, so it needs its own capture and its own store.
+const ATLAS = DATA.atlas ?? {};
+// The DEFINED COUNTS — the site-wide numbers, each with its definition.
+const COUNTS = DATA.counts ?? null;
 
 // Ingredient encyclopedia stubs derived from dish detail payloads so
 // /ingredients and /ingredients/:slug SSG work offline in CI.
@@ -354,6 +360,51 @@ const server = http.createServer((req, res) => {
   }
 
   // GET /api/dishes/:slug — dish detail
+  // GET /api/dishes/:slug/atlas — the THREE CONCEPTS, separately.
+  //
+  // The dish route below matches /api/dishes/<slug> exactly, so this
+  // path is not shadowed by it — but it is registered first so the
+  // intent is unambiguous.
+  const atlasMatch = url.pathname.match(/^\/api\/dishes\/([^/]+)\/atlas$/);
+  if (atlasMatch) {
+    const slug = decodeURIComponent(atlasMatch[1]);
+    const body = ATLAS[slug];
+    if (!body) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: `No atlas data for "${slug}"`,
+        }),
+      );
+      return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(body));
+    return;
+  }
+
+  // GET /api/atlas/counts — the DEFINED counts, each with its
+  // definition. The homepage's statistics come from here (ADR-004 F7),
+  // so a mock without it would bake the old undefined numbers.
+  if (url.pathname === "/api/atlas/counts") {
+    if (!COUNTS) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          message: "No counts in the mock data",
+        }),
+      );
+      return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(COUNTS));
+    return;
+  }
+
   const slugMatch = url.pathname.match(/^\/api\/dishes\/([^/]+)$/);
   if (slugMatch && req.method === "GET") {
     const detail = DETAILS[slugMatch[1]];

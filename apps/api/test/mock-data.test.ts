@@ -82,12 +82,16 @@ type MockData = {
   list?: MockDish[];
   map?: MockDish[];
   details?: Record<string, unknown>;
+  atlas?: Record<string, unknown>;
+  counts?: { counts?: Record<string, number>; definitions?: unknown } | null;
 };
 
 const mock = JSON.parse(readFileSync(MOCK_DATA_PATH, "utf-8")) as MockData;
 const LIST = mock.list ?? [];
 const MAP = mock.map ?? [];
 const DETAILS = mock.details ?? {};
+const ATLAS = mock.atlas ?? {};
+const COUNTS = mock.counts ?? null;
 
 // ─────────────────────────────────────────────────────────────────────
 
@@ -237,6 +241,75 @@ describe("the CI mock data — the detail shape matches the live API", () => {
       }
     }
     expect(mismatched).toEqual([]);
+  });
+});
+
+describe("the CI mock data — the ATLAS data is present and consistent", () => {
+  it("carries an atlas entry for every listed dish", () => {
+    // The atlas route is /api/dishes/:slug/atlas — a DIFFERENT path from
+    // the dish detail — so the capture has to fetch it separately. If
+    // it does not, a P4 build against this mock silently bakes dishes
+    // with no associations and no claims.
+    //
+    // This is the same class of bug as the 1,353 empty pages, one phase
+    // later.
+    const missing = LIST.filter((d) => !(d.slug in ATLAS)).map((d) => d.slug);
+    expect(missing).toEqual([]);
+  });
+
+  it("gives every atlas entry the same key set", () => {
+    const reference = Object.keys(
+      ATLAS[LIST[0]?.slug ?? ""] as Record<string, unknown>,
+    ).sort();
+    expect(reference.length).toBeGreaterThan(0);
+
+    const mismatched: string[] = [];
+    for (const dish of LIST) {
+      const entry = ATLAS[dish.slug] as Record<string, unknown> | undefined;
+      if (!entry) {
+        mismatched.push(`${dish.slug} (missing)`);
+        continue;
+      }
+      if (Object.keys(entry).sort().join(",") !== reference.join(",")) {
+        mismatched.push(dish.slug);
+      }
+    }
+    expect(mismatched).toEqual([]);
+  });
+
+  it("carries the THREE concepts in every atlas entry", () => {
+    // The three concepts are separate and NAMED (ADR-004). A mock whose
+    // atlas entries lack them would bake a page with none of them.
+    for (const dish of LIST.slice(0, 50)) {
+      const entry = ATLAS[dish.slug] as Record<string, unknown> | undefined;
+      expect(entry).toBeDefined();
+      expect(entry).toHaveProperty("placesAndTraditions");
+      expect(entry).toHaveProperty("foodFamilies");
+      expect(entry).toHaveProperty("historyAndConnections");
+    }
+  });
+
+  it("carries the DEFINED COUNTS, with a definition per count", () => {
+    // The homepage's statistics come from these (ADR-004 F7). A mock
+    // without them would bake the old undefined numbers.
+    expect(COUNTS).not.toBeNull();
+    expect(COUNTS?.counts).toBeDefined();
+    expect(COUNTS?.definitions).toBeDefined();
+
+    const counts = (COUNTS?.counts ?? {}) as Record<string, number>;
+    for (const key of ["dishes", "places", "communities", "families"]) {
+      expect(counts[key], `"${key}" is missing`).toBeGreaterThanOrEqual(0);
+    }
+
+    const definitions = (COUNTS?.definitions ?? {}) as Record<string, string>;
+    for (const key of Object.keys(counts)) {
+      expect(definitions[key], `"${key}" has no definition`).toBeTruthy();
+    }
+  });
+
+  it("the counts dish count agrees with the list", () => {
+    const counts = (COUNTS?.counts ?? {}) as Record<string, number>;
+    expect(counts.dishes).toBe(LIST.length);
   });
 });
 

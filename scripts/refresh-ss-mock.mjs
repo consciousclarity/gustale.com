@@ -139,6 +139,58 @@ async function main() {
     if (i % 100 === 0) console.log(`  details ${i}/${listSlugs.length}`);
     if (i < listSlugs.length) await sleep(POLL_MS);
   }
+
+  // 3b. The ATLAS data — the three concepts, per dish.
+  //
+  // The atlas route is /api/dishes/:slug/atlas, a DIFFERENT path from
+  // the dish detail, so the capture above does not fetch it.
+  //
+  // Without this the mock carries no atlas data at all, and a P4 build
+  // against it would silently bake dishes with no associations and no
+  // claims — the same class of bug as the 1,353 empty pages, one phase
+  // later.
+  //
+  // The atlas route is OPTIONAL: an API that predates it returns 404,
+  // and then there is simply nothing to capture. The capture says so
+  // rather than pretending.
+  const atlas = {};
+  let atlasCount = 0;
+  let atlasMissing = 0;
+  for (const slug of listSlugs) {
+    try {
+      const body = await getJson(
+        `/api/dishes/${encodeURIComponent(slug)}/atlas`,
+      );
+      atlas[slug] = body;
+      atlasCount += 1;
+    } catch (err) {
+      // 404 means the API does not have the route yet. That is not a
+      // failure — it is a fact about the API, and it is recorded.
+      atlasMissing += 1;
+      if (atlasMissing === 1) {
+        process.stderr.write(
+          `! the atlas route is not available (${err.message}) — the mock will carry no atlas data\n`,
+        );
+      }
+    }
+    if (atlasCount % 100 === 0)
+      console.log(`  atlas ${atlasCount}/${listSlugs.length}`);
+    if (atlasCount < listSlugs.length) await sleep(POLL_MS);
+  }
+  console.log(`+ atlas: ${atlasCount} of ${listSlugs.length} dishes`);
+
+  // 3c. The DEFINED COUNTS — the site-wide numbers, each with its
+  // definition. One endpoint, and the homepage's statistics come from
+  // it (ADR-004 F7).
+  let counts = null;
+  try {
+    counts = await getJson("/api/atlas/counts");
+    console.log(`+ counts: ${JSON.stringify(counts.counts)}`);
+  } catch (err) {
+    process.stderr.write(
+      `! the counts endpoint is not available (${err.message})\n`,
+    );
+  }
   console.log(
     `+ details: ${Object.keys(details).length} (expected ${listSlugs.length})`,
   );
@@ -166,10 +218,12 @@ async function main() {
     list,
     map: mapResp.dishes,
     details,
+    atlas,
+    counts,
   };
   writeFileSync(MOCK_DATA_PATH, `${JSON.stringify(mockData, null, 2)}\n`);
   console.log(
-    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details)`,
+    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details, ${Object.keys(atlas).length} atlas)`,
   );
 
   // 5. Lineages.
