@@ -217,6 +217,35 @@ jobs:
               EXECUTE format('CREATE ROLE gustale_migrator LOGIN PASSWORD %L', 'gustale');
             END IF;
           END $$;
+
+          -- The migration role OWNS the public schema and the tables in
+          -- it, exactly as `postgres` owns live's.
+          --
+          -- Without this, migration 0036 fails with
+          --
+          --     ERROR: must be owner of table statements
+          --
+          -- because the service container created the tables as
+          -- `gustale`, and the atlas migrations ALTER some of them
+          -- (statements, dish_relations, dish_families).
+          --
+          -- On live those tables are owned by `postgres`, so the
+          -- migrations work there. This makes the CI's arrangement the
+          -- SAME as live's: a dedicated role owns the schema, and the
+          -- bot's role does DML only.
+          ALTER SCHEMA public OWNER TO gustale_migrator;
+
+          DO $$
+          DECLARE t text;
+          BEGIN
+            FOR t IN
+              SELECT c.relname FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE n.nspname = 'public' AND c.relkind IN ('r','p')
+            LOOP
+              EXECUTE format('ALTER TABLE public.%I OWNER TO gustale_migrator', t);
+            END LOOP;
+          END $$;
           SQL
 
           # Apply the full *committed* migration chain (not a hardcoded prefix).
