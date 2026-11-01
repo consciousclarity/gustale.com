@@ -29,6 +29,7 @@ import { registerMediaRoutes } from "./routes/media.js";
 import { registerPlaceRoutes } from "./routes/places.js";
 import { registerSearchRoutes } from "./routes/search.js";
 import { registerTaxonomyRoutes } from "./routes/taxonomy.js";
+import { registerTaxonomyFamilyRoutes } from "./routes/taxonomy-family.js";
 import { registerTranslationReviewRoutes } from "./routes/translation-review.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -103,6 +104,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   // The PLACE page's data: the dishes associated with a place, grouped
   // by relationship type (P4).
   registerPlaceRoutes(app);
+  // The FAMILY page's taxonomy: the dimension, the definition, the
+  // inclusion criteria, and the note that classification does not imply
+  // ancestry (P4).
+  registerTaxonomyFamilyRoutes(app);
   registerTranslationReviewRoutes(app);
   registerAdminDishRoutes(app);
   registerTaxonomyRoutes(app);

@@ -5640,3 +5640,50 @@ body.nav-panel-open {
 .gst-locale-notice__link:hover {
   text-decoration: underline;
 }
+
+/* ─── The family page's taxonomy panel ─────────────────────────────────
+   The dimension, the definition, the inclusion criteria, and the note
+   that classification does NOT imply ancestry. */
+.fam-taxonomy {
+  margin: 0 0 var(--space-8, 3rem);
+}
+.fam-taxonomy__facts {
+  margin: 0 0 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px 28px;
+  max-width: 78ch;
+}
+.fam-taxonomy__facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fam-taxonomy__facts dt {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sub, #6b6052);
+}
+.fam-taxonomy__facts dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink, #211c16);
+}
+.fam-taxonomy__explain {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--sub, #6b6052);
+}
+.fam-taxonomy__not-ancestry {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent, #b4531f);
+  background: var(--accent-soft, rgba(180, 83, 31, 0.05));
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink, #211c16);
+  max-width: 72ch;
+}

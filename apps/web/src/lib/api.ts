@@ -716,6 +716,39 @@ export function listPlaces(): Promise<PlaceListResponse> {
   return request<PlaceListResponse>("/api/places");
 }
 
+// ─── The family taxonomy (GET /api/taxonomy/family/:slug) ─────────────────
+//
+// The family's DIMENSION, its DEFINITION, its INCLUSION CRITERIA, and the
+// note that classification does not imply ancestry.
+
+export interface FamilyTaxonomy {
+  family: {
+    slug: string;
+    name: string;
+    dimension: string;
+    dimensionLabel: string;
+    dimensionExplanation: string | null;
+    definition: string | null;
+  };
+  inclusion: {
+    criteria: string | null;
+    hasCriteria: boolean;
+  };
+  notAncestry: string;
+  counts: { dishes: number };
+  dishes: {
+    slug: string;
+    canonicalName: string;
+    shortDescription: string | null;
+  }[];
+}
+
+export function getFamilyTaxonomy(slug: string): Promise<FamilyTaxonomy> {
+  return request<FamilyTaxonomy>(
+    `/api/taxonomy/family/${encodeURIComponent(slug)}`,
+  );
+}
+
 // ─── Admin endpoints (Phase 4 — Admin Dish Editor redo) ──────────────────
 //
 // These endpoints are gated by the API's `requireRole(request, 'admin')`
