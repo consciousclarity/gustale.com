@@ -47,6 +47,48 @@ env:
   NODE_ENV: test
 
 jobs:
+  # ─── Job 0: the live-approval gate ─────────────────────────────────
+  #
+  # A PR that touches the live database's schema or data may not be
+  # merged until Alejandro has explicitly approved that PR for live.
+  #
+  # WHY THIS IS A SEPARATE JOB AND NOT A STEP: it must be a REQUIRED
+  # status check, so it cannot be a step inside a job that can be
+  # skipped. It has no database and no build — it reads the diff and the
+  # PR's label timeline, and that is all.
+  #
+  # It runs on PULL_REQUEST only. On a push to main it is skipped,
+  # because by then the merge has already happened and the approval was
+  # checked at merge time.
+  live-approval:
+    name: Live approval gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gate diffs the base against the head, so it needs the
+          # merge base's history, not a shallow clone.
+          fetch-depth: 0
+
+      - name: Check the live-approval gate
+        env:
+          # The gate reads the label timeline through the gh CLI.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          bash scripts/check-live-approval.sh \
+            "${{ github.event.pull_request.number }}" "$BASE_SHA" "$HEAD_SHA"
+
+      - name: The gate's own tests
+        run: bash scripts/test-live-approval-gate.sh
+
   # ─── Job 1: Lint + typecheck ───────────────────────────────────────
   lint:
     name: Lint + typecheck
