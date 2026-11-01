@@ -9,50 +9,72 @@
 //   "atlas of how food moved" claim sounds empty without them.
 //
 //   This component renders a tight hero band with the real catalog counts pulled from
-//   /api/dishes at build time (the same fetch the map page uses; cached by CI's mock
+//   /api/atlas/counts at build time (the same fetch the map page uses; cached by CI's mock
 //   API during build — see apps/web/scripts/mock-api.mjs). When the React island
 //   hydrates below it, the page gets its full interactive hero. The two coexist: this
 //   band sits ABOVE the workspace and visually anchors the top of the fold; the
 //   React hero (which already shows the same numbers in its own `.hero-meta`) sits
 //   BELOW it.
 //
-//   Cost: ~1 extra SSG fetch + ~600 bytes of static HTML. Reversible: deleting this
-//   component from `index.astro` restores the previous behavior.
+// P4 — THE COUNTS ARE NOW DEFINED (ADR-004 F7)
+//
+//   The first version computed its four numbers from the LIST endpoint's
+//   legacy fields, and that was wrong in three ways at once:
+//
+//     - "families" counted the LEGACY `dish-type` categories, not the
+//       family dimension the brief's D2 makes the source of truth;
+//     - "lineages" counted a TECHNIQUE (the `method` field);
+//     - "origins" counted distinct origin NAMES, of which 42 on live
+//       are regions and cultural areas rather than countries — so
+//       calling them "origins" beside a nav item labelled
+//       "Countries" was a mismatch the reader could see.
+//
+//   The counts now come from /api/atlas/counts, which counts DISTINCT
+//   dishes and DISTINCT entities and returns a DEFINITION for each
+//   number. The definitions are rendered on the page, because a count
+//   nobody can interpret is the defect the ADR recorded.
+//
+//   The labels follow the definitions rather than a fixed list, so a
+//   number and its meaning cannot drift apart.
 
-import { ApiError, listAllDishes } from "../lib/api";
+import { ApiError, getAtlasCounts } from "../lib/api";
 
 interface Counts {
   dishes: number;
-  countries: number;
+  places: number;
+  communities: number;
   families: number;
-  lineages: number;
+  techniques: number;
+  connections: number;
   ok: true;
   // useful when the SSG fetch fails: render placeholders rather than zero.
   ok_false_reason?: string;
+  // The definitions, so the page can say what each number means.
+  definitions?: Record<string, string>;
 }
+
+// The four statistics the homepage shows, and the order they appear in.
+//
+// The keys are the COUNT endpoint's keys, so the number and its label
+// come from the same place.
+const STATS = [
+  { key: "dishes", label: "dishes" },
+  { key: "places", label: "places" },
+  { key: "families", label: "food families" },
+  { key: "connections", label: "connections" },
+] as const;
 
 async function fetchCounts(): Promise<Counts> {
   try {
-    // Page through /api/dishes — the API caps limit at 100, and the catalog
-    // is already past that (120 published as of the 60→120 seed).
-    const [listResp] = await Promise.all([
-      listAllDishes({ status: "published" }),
-    ]);
-    const dishes = listResp.dishes ?? [];
-    const countries = new Set(
-      dishes.map((d) => d.originName).filter(Boolean) as string[],
-    ).size;
-    const families = new Set(
-      dishes.map((d) => d.familySlug).filter(Boolean) as string[],
-    ).size;
-    const lineages = new Set(
-      dishes.map((d) => d.methodSlug).filter(Boolean) as string[],
-    ).size;
+    const resp = await getAtlasCounts();
     return {
-      dishes: dishes.length,
-      countries,
-      families,
-      lineages,
+      dishes: resp.counts.dishes,
+      places: resp.counts.places,
+      communities: resp.counts.communities,
+      families: resp.counts.families,
+      techniques: resp.counts.techniques,
+      connections: resp.counts.connections,
+      definitions: resp.definitions,
       ok: true,
     };
   } catch (err) {
@@ -66,9 +88,11 @@ async function fetchCounts(): Promise<Counts> {
           : "unknown";
     return {
       dishes: 0,
-      countries: 0,
+      places: 0,
+      communities: 0,
       families: 0,
-      lineages: 0,
+      techniques: 0,
+      connections: 0,
       ok: false,
       ok_false_reason: reason,
     };
@@ -97,23 +121,26 @@ const fmt = (n: number): string =>
     </h2>
 
     <div class="atlas-kpi__stats" role="list">
-      <div role="listitem">
-        <b>{fmt(counts.dishes)}</b>
-        <span>dishes</span>
-      </div>
-      <div role="listitem">
-        <b>{fmt(counts.countries)}</b>
-        <span>origins</span>
-      </div>
-      <div role="listitem">
-        <b>{fmt(counts.families)}</b>
-        <span>families</span>
-      </div>
-      <div role="listitem">
-        <b>{fmt(counts.lineages)}</b>
-        <span>lineages</span>
-      </div>
+      {STATS.map((stat) => (
+        <div role="listitem" title={counts.definitions?.[stat.key] ?? ""}>
+          <b>{fmt(counts[stat.key])}</b>
+          <span>{stat.label}</span>
+        </div>
+      ))}
     </div>
+
+    {
+      counts.ok && counts.definitions && (
+        <dl class="atlas-kpi__definitions">
+          {STATS.map((stat) => (
+            <div>
+              <dt>{stat.label}</dt>
+              <dd>{counts.definitions?.[stat.key]}</dd>
+            </div>
+          ))}
+        </dl>
+      )
+    }
 
     {
       !counts.ok && (
@@ -176,6 +203,27 @@ const fmt = (n: number): string =>
     color: var(--ink, #211c16);
   }
   .atlas-kpi--degraded .atlas-kpi__stats b { color: var(--sub, #6b6052); }
+  /* The definitions. A count nobody can interpret is the defect the ADR
+     recorded, so the page says what each number means. */
+  .atlas-kpi__definitions {
+    margin: 22px 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 10px 26px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--sub, #6b6052);
+  }
+  .atlas-kpi__definitions > div { display: flex; gap: 7px; }
+  .atlas-kpi__definitions dt {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--sub, #6b6052);
+  }
+  .atlas-kpi__definitions dd { margin: 0; }
   .atlas-kpi__note {
     margin: 16px 0 0;
     font-size: 12px;

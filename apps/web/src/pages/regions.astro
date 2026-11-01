@@ -9,7 +9,10 @@ import { buildCountryDirectory, recoveryLinks } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
 import type { DishListResponse } from "../types/dish";
 
-// Route stays /regions; public language is Countries.
+// Route stays /regions; the public language is "Places" — the
+// directory holds places, and the nav beside it says "Places" too.
+// The old label was "Countries", and 42 of the entities it listed were
+// regions and cultural areas rather than countries (ADR-004 F8).
 let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
 let buildFailed = false;
 
@@ -25,14 +28,14 @@ const recovery = recoveryLinks(domain);
 ---
 
 <Layout
-  title="Countries — Gustale"
+  title="Places — Gustale"
   description="Browse Gustale dishes by country of origin — a compact country directory for the atlas."
 >
-  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Countries' }]} />
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Places' }]} />
 
   <BrowseHeader
     eyebrow="Browse the atlas"
-    title="Countries"
+    title="Places"
     subtitle="A compact directory of origins. Search by country or dish name, then follow the dishes into the atlas."
     countLabel={`${countries.length} countries`}
     showToolbar={false}

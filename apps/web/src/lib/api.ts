@@ -473,6 +473,174 @@ export function getMediaSignedUrl(
   );
 }
 
+// ─── The atlas view (GET /api/dishes/:slug/atlas) ─────────────────────────
+//
+// The THREE CONCEPTS, separately and named (ADR-004):
+//
+//   placesAndTraditions    where and with whom
+//   foodFamilies           what kind of food it is
+//   historyAndConnections  how it moved and what it relates to
+//
+// The types here MIRROR the API's response. They are declared in the
+// web app rather than imported from a shared package, because the API
+// is the contract and the web app is a consumer of it — a change to
+// either side should show up as a type error on the other.
+
+export interface AtlasAssociation {
+  id: string;
+  /** One of the six relationship types. */
+  relationship: string;
+  /** 'place' is a geographic entity; 'community' is a people or a practice. */
+  entityKind: "place" | "community";
+  entityId: string;
+  name: string | null;
+  isoCode: string | null;
+  /** 'country' | 'region' | … — for a place, so no client labels every entity a country. */
+  placeEntityType: string | null;
+  explanation: string | null;
+  qualifiers: Record<string, unknown>;
+  evidence: {
+    status: string;
+    dispute: string | null;
+    research: string | null;
+  };
+  reviewState: string;
+  legacyValue: string | null;
+  provenance: string;
+}
+
+export interface AtlasClaim {
+  id: string;
+  predicate: string;
+  predicateName: string;
+  valueType: string;
+  value: {
+    ref: string | null;
+    literal: string | null;
+    literalType: string | null;
+    placeName: string | null;
+    placeIsoCode: string | null;
+    communityName: string | null;
+  };
+  claimClass: string;
+  status: string;
+  evidence: {
+    status: string;
+    dispute: string | null;
+    research: string | null;
+  };
+  /** ADR-002 Q8: null means "not assessed", which is NOT "single". */
+  independence: string | null;
+  qualifiers: Record<string, unknown>;
+}
+
+export interface AtlasConnection {
+  id: string;
+  relationship: string;
+  relationshipName: string;
+  isSymmetric: boolean;
+  /**
+   * FALSE means the direction is not established. The client must render
+   * NO ARROW and no directional sentence in that case.
+   */
+  directionKnown: boolean;
+  /** 'source' = the predecessor/influence; 'target' = the derived one. */
+  role: "source" | "target" | "either";
+  other: { slug: string; name: string };
+  reason: string | null;
+  status: string;
+}
+
+export interface AtlasDate {
+  id: string;
+  kind: string;
+  yearStart: number | null;
+  yearEnd: number | null;
+  precision: string | null;
+  /** The human-readable expression, as written. */
+  text: string;
+  statementId: string | null;
+  placeName: string | null;
+}
+
+export interface AtlasFoodFamilies {
+  family: { name: string; slug: string; parent?: string }[];
+  technique: { name: string; slug: string }[];
+  course: { name: string; slug: string }[];
+  ingredientCategory: { name: string; slug: string }[];
+  context: { name: string; slug: string }[];
+}
+
+export interface AtlasResponse {
+  dish: { id: string; slug: string; canonicalName: string };
+  placesAndTraditions: AtlasAssociation[];
+  foodFamilies: AtlasFoodFamilies;
+  historyAndConnections: {
+    claims: AtlasClaim[];
+    connections: AtlasConnection[];
+    dates: AtlasDate[];
+  };
+  legacy: {
+    origin: {
+      name: string;
+      isoCode: string | null;
+      entityType: string | null;
+      /** "Associated with" — never "Origin". */
+      label: string;
+      /** True when the value is S6 discovery data, not a reviewed claim. */
+      isDiscoveryData: boolean;
+      warning: string;
+    } | null;
+  };
+  counts: {
+    dishes: number;
+    places: number;
+    communities: number;
+    families: number;
+    techniques: number;
+    courses: number;
+    contexts: number;
+    connections: number;
+    claims: number;
+  };
+  published: {
+    associations: number;
+    claims: number;
+    connections: number;
+  };
+}
+
+export function getDishAtlas(slug: string): Promise<AtlasResponse> {
+  return request<AtlasResponse>(
+    `/api/dishes/${encodeURIComponent(slug)}/atlas`,
+  );
+}
+
+// ─── The defined counts (GET /api/atlas/counts) ──────────────────────────
+//
+// The catalogue's counts, each one with a DEFINITION. The definitions
+// travel with the numbers so a client cannot render "178 origins"
+// without also being able to say what an origin is (ADR-004 F7).
+
+export interface AtlasCounts {
+  counts: {
+    dishes: number;
+    places: number;
+    communities: number;
+    families: number;
+    techniques: number;
+    courses: number;
+    contexts: number;
+    connections: number;
+    claims: number;
+  };
+  definitions: Record<string, string>;
+}
+
+export function getAtlasCounts(): Promise<AtlasCounts> {
+  return request<AtlasCounts>("/api/atlas/counts");
+}
+
 // ─── Admin endpoints (Phase 4 — Admin Dish Editor redo) ──────────────────
 //
 // These endpoints are gated by the API's `requireRole(request, 'admin')`

@@ -1,4 +1,5 @@
 ---
+import AtlasPlaces from "../../components/AtlasPlaces";
 import { DishDetail } from "../../components/DishDetail";
 import type {
   JourneyBeat,
@@ -179,13 +180,37 @@ const servedEnglish =
         client:load
       />
 
+      {/* PLACES & TRADITIONS — the typed associations (P4).
+
+          This REPLACES the "Origin" band, which asserted a SETTLED
+          origin for a dish whose own journey says the origin is
+          contested — falafel's page said "Origin Israel" directly above
+          a journey that said Egypt and the Levant. The associations keep
+          emergence, tradition, documentation and spread SEPARATE, and
+          the legacy value appears under its own heading, marked as
+          discovery data.
+
+          It is an island, so the page stays static and the associations
+          load when the section approaches the viewport. */}
+      <div class="wrap">
+        <AtlasPlaces
+          slug={data.dish.slug}
+          dishName={data.dish.name}
+          client:visible
+        />
+      </div>
+
+      {/* The map stays — but it is the MAP OF THE ASSOCIATED PLACE, not a
+          claim that the dish was invented there. It comes after the
+          associations so the reader meets the claims before the
+          picture. */}
       {data.origin && (
         <section
           aria-labelledby="origin-heading"
           class="wrap dish-origin-band"
         >
           <h2 id="origin-heading">
-            Origin
+            Where {data.dish.name} is associated
           </h2>
           <p class="sub">
             <strong style="color: var(--ink);">{data.origin.name}</strong>
@@ -202,7 +227,7 @@ const servedEnglish =
           <noscript>
             <p class="alert alert-warning">
               Enable JavaScript to see the interactive map of where this dish
-              originates.
+              is associated.
             </p>
           </noscript>
           <DishMap
