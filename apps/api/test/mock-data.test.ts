@@ -289,6 +289,22 @@ describe("the CI mock data — the ATLAS data is present and consistent", () => 
     }
   });
 
+  it("carries the PLACES, so the place page has its static paths", () => {
+    // The place page's static paths come from /api/places. A mock
+    // WITHOUT the key produces NO /place/* pages at all — and a build
+    // that silently produces no pages for a page type is the same
+    // failure as the stale mock, one level up.
+    //
+    // The KEY must be present. The LIST may be empty — on live there
+    // are no published associations, so there are no places to browse,
+    // and that is the truth rather than a gap.
+    expect(mock, "the mock has no 'places' key").toHaveProperty("places");
+    const places = mock.places as { places?: unknown[]; count?: number } | null;
+    expect(places).not.toBeNull();
+    expect(Array.isArray(places?.places)).toBe(true);
+    expect(places?.count).toBe(places?.places?.length ?? 0);
+  });
+
   it("carries the DEFINED COUNTS, with a definition per count", () => {
     // The homepage's statistics come from these (ADR-004 F7). A mock
     // without them would bake the old undefined numbers.
