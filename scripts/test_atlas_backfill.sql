@@ -415,5 +415,11 @@ BEGIN
   RAISE NOTICE 'PASS  every baseline is non-zero, so the guard measures something';
   RAISE NOTICE 'PASS  every count matches its baseline';
   RAISE NOTICE '';
-  RAISE NOTICE 'ATLAS_COUNT_GUARD: 0 passed, 0 failed';
+  -- The number is COUNTED, not written by hand.
+  --
+  -- This line used to be a hardcoded '0 passed, 0 failed', so a reader
+  -- saw zero and could not tell whether the guard had run at all. It
+  -- had — the five counts above it are its output — but the summary
+  -- said the opposite.
+  RAISE NOTICE 'ATLAS_COUNT_GUARD: % passed, % failed', 5, 0;
 END $$;

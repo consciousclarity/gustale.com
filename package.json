@@ -20,7 +20,7 @@
     "lint": "biome check --max-diagnostics none --no-errors-on-unmatched .",
     "test": "pnpm -r run test",
     "db:generate": "pnpm --filter @gustale/db run generate",
-    "db:migrate": "pnpm --filter @gustale/db run migrate",
+    "db:chain": "bash scripts/ci-migration-chain.sh",
     "db:seed": "pnpm --filter @gustale/db run seed",
     "smoke:map": "node scripts/hermes/smoke-map-pages.mjs",
     "smoke:map:summary": "node scripts/hermes/smoke-map-pages.mjs >/dev/null 2>&1; cat /tmp/snap/summary.json | python3 -c \"import json,sys; d=json.load(sys.stdin); print(f'{len(d)} shots, {sum(1 for s in d if s[\\\"failures\\\"])} failures')\""

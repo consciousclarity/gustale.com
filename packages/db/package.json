@@ -17,7 +17,6 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate",
-    "migrate": "tsx src/migrate.ts",
     "seed": "tsx src/seed.ts",
     "validate": "tsx src/seed-data/validate.ts",
     "typecheck": "tsc --noEmit",

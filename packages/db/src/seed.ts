@@ -12,7 +12,6 @@
 
 import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as schema from "./schema/index.js";
 import {
@@ -63,12 +62,25 @@ const schemaTablesOnly = Object.fromEntries(
 const db = drizzle(client, { schema: schemaTablesOnly });
 
 async function main(): Promise<void> {
-  // 1. Migrate first (safe to re-run)
-  console.log("Running migrations...");
-  await migrate(db, { migrationsFolder: "./drizzle" });
-  console.log("Migrations complete");
-
-  // 2. Seed user (the "creator" and "last editor")
+  // THE MIGRATIONS ARE NOT RUN HERE.
+  //
+  // This seed used to call the drizzle-kit migrator first:
+  //
+  //     await migrate(db, { migrationsFolder: "./drizzle" });
+  //
+  // That was a SECOND runner for the base schema, and it was not
+  // merely redundant — it was wrong. The migrator applies what
+  // `drizzle/meta/_journal.json` records, and the journal recorded only
+  // 10 of the 17 committed SQL files (0003, 0005_food_geography, 0007,
+  // 0012, 0013, 0014 and 0015 were absent). So the migrator built a
+  // schema missing the geography tables, the media variants, the
+  // passkey column and the geo provenance.
+  //
+  // The authoritative runner is `scripts/ci-migration-chain.sh`, which
+  // applies every committed file by name, in order, with psql. Run that
+  // before seeding.
+  //
+  // 1. Seed user (the "creator" and "last editor")
   const userId = "00000000-0000-0000-0000-000000000001";
   await db
     .insert(schema.users)

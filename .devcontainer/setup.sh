@@ -32,8 +32,26 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-echo "Running database migrations..."
-pnpm --filter @gustale/api run db:migrate || echo "(migrate command not found — run manually: pnpm db:migrate)"
+# The migration chain.
+#
+# This called `pnpm --filter @gustale/api run db:migrate`, which is NOT
+# a script that exists — apps/api has no `db:migrate` — and its fallback
+# message pointed at `pnpm db:migrate`, which did not exist either. So
+# the devcontainer has been silently skipping its migrations.
+#
+# The chain is now `scripts/ci-migration-chain.sh`, which applies the
+# base schema and the GUS chain in order and seeds the reference
+# dishes. It creates its own database, so it is pointed at the dev
+# database by name.
+# CHAIN_MODE=ci is REQUIRED here.
+#
+# The devcontainer's Postgres is a SERVICE on localhost:5432 — there is
+# no `shared-postgres` container to `docker exec` into, which is the
+# mode the script uses by default. CHAIN_MODE=ci makes it connect over
+# TCP as the `gustale` role instead.
+echo "Running the migration chain..."
+CHAIN_MODE=ci PGPASSWORD=gustale_dev bash scripts/ci-migration-chain.sh gustale_dev \
+  || echo "(the chain failed — run it by hand: CHAIN_MODE=ci PGPASSWORD=gustale_dev bash scripts/ci-migration-chain.sh gustale_dev)"
 
 # 5. Create MinIO buckets
 echo "Setting up MinIO buckets..."
