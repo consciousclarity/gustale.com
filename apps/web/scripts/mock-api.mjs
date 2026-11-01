@@ -706,7 +706,7 @@ const server = http.createServer((req, res) => {
       1,
       Math.min(20, parseInt(url.searchParams.get("limit") ?? "5", 10) || 5),
     );
-    const typeFilter = url.searchParams.get("type"); // optional: dish|region|lineage|ingredient
+    const typeFilter = url.searchParams.get("type"); // optional: dish|family|lineage|ingredient|place
     const start = Date.now();
     const matchScore = (haystack, needle) => {
       if (!needle) return 0;
@@ -719,21 +719,71 @@ const server = http.createServer((req, res) => {
     const groups = [];
 
     if (!typeFilter || typeFilter === "dish") {
+      // The dish search reads the name, the description, the PLACE and
+      // the FAMILY — the same fields the real API reads. The mock has
+      // no pg_trgm, so it uses a substring match, but the SHAPE of the
+      // response must match: every hit says which field matched.
       const hits = LIST.filter((d) => d.status === "published")
-        .map((d) => ({
-          slug: d.slug,
-          name: d.canonicalName,
-          shortDescription: d.shortDescription ?? null,
-          href: `/dishes/${d.slug}`,
-          score: Math.max(
-            matchScore(d.canonicalName, q),
-            matchScore(d.shortDescription, q),
-          ),
-        }))
+        .map((d) => {
+          const nameScore = matchScore(d.canonicalName, q);
+          const descScore = matchScore(d.shortDescription, q) * 0.6;
+          const placeScore = matchScore(d.originName, q) * 0.9;
+          const familyScore = matchScore(d.familyName, q) * 0.8;
+          const score = Math.max(nameScore, descScore, placeScore, familyScore);
+          let matchedOn;
+          if (
+            nameScore >= descScore &&
+            nameScore >= placeScore &&
+            nameScore >= familyScore
+          ) {
+            matchedOn = "name";
+          } else if (placeScore >= familyScore && placeScore >= descScore) {
+            matchedOn = "place";
+          } else if (familyScore >= descScore) {
+            matchedOn = "family";
+          } else {
+            matchedOn = "description";
+          }
+          return {
+            slug: d.slug,
+            name: d.canonicalName,
+            shortDescription: d.shortDescription ?? null,
+            href: `/dishes/${d.slug}`,
+            score,
+            matchedOn,
+          };
+        })
         .filter((h) => h.score > 0)
         .sort((a, b) => b.score - a.score);
       groups.push({
         type: "dish",
+        total: hits.length,
+        results: hits.slice(0, limit),
+      });
+    }
+    if (!typeFilter || typeFilter === "family") {
+      // The families that have a dish behind them — the same test the
+      // real API applies.
+      const families = new Map();
+      for (const d of LIST) {
+        if (d.status !== "published") continue;
+        if (d.familySlug && d.familyName) {
+          families.set(d.familySlug, d.familyName);
+        }
+      }
+      const hits = [...families.entries()]
+        .map(([slug, name]) => ({
+          slug,
+          name,
+          shortDescription: null,
+          href: `/family/${slug}`,
+          score: matchScore(name, q),
+          matchedOn: "name",
+        }))
+        .filter((h) => h.score > 0)
+        .sort((a, b) => b.score - a.score);
+      groups.push({
+        type: "family",
         total: hits.length,
         results: hits.slice(0, limit),
       });
@@ -776,9 +826,39 @@ const server = http.createServer((req, res) => {
         results: hits.slice(0, limit),
       });
     }
-    if (!typeFilter || typeFilter === "region") {
-      // food_regions not in mock; same treatment as ingredients.
-      groups.push({ type: "region", total: 0, results: [] });
+    if (!typeFilter || typeFilter === "place") {
+      // The places that have a published dish behind them. The mock's
+      // dishes carry their origin in `originName`; the real API reads
+      // `dish_place_associations`, which is empty on live today — so
+      // this group is empty on live and populated in the mock.
+      const places = new Map();
+      for (const d of LIST) {
+        if (d.status === "published" && d.originName) {
+          places.set(d.originName, d.originName);
+        }
+      }
+      const hits = [...places.values()]
+        .map((name) => ({
+          slug: name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, ""),
+          name,
+          shortDescription: null,
+          href: `/place/${name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")}`,
+          score: matchScore(name, q),
+          matchedOn: "place",
+        }))
+        .filter((h) => h.score > 0)
+        .sort((a, b) => b.score - a.score);
+      groups.push({
+        type: "place",
+        total: hits.length,
+        results: hits.slice(0, limit),
+      });
     }
 
     res.setHeader("Content-Type", "application/json");

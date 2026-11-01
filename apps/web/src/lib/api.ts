@@ -1260,15 +1260,35 @@ export function getLineage(slug: string): Promise<LineageDetailResponse> {
 // the API (Cache-Control: public, max-age=60); the client doesn't need its own
 // cache layer for the in-memory dedup that component already does.
 
+/**
+ * Why a result matched.
+ *
+ * The API says which field matched, so the UI can explain a result the
+ * reader does not recognise: "matched because of its place" is an
+ * answer; a bare link is not.
+ */
+export type SearchMatch =
+  | "name"
+  | "description"
+  | "place"
+  | "family"
+  | "cuisine";
+
 export interface SearchHit {
   slug: string;
   name: string;
   shortDescription: string | null;
   href: string;
   score: number;
+  matchedOn?: SearchMatch;
 }
 
-export type SearchGroupType = "dish" | "region" | "lineage" | "ingredient";
+export type SearchGroupType =
+  | "dish"
+  | "family"
+  | "lineage"
+  | "ingredient"
+  | "place";
 
 export interface SearchGroup {
   type: SearchGroupType;

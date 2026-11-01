@@ -23,16 +23,45 @@ const DEBOUNCE_MS = 220;
 const MIN_QUERY_LENGTH = 2;
 const GROUP_LABELS: Record<SearchGroupType, string> = {
   dish: "Dishes",
+  family: "Food families",
   lineage: "Lineages",
   ingredient: "Ingredients",
-  region: "Regions",
+  place: "Places",
 };
+
+/**
+ * The order the groups appear in.
+ *
+ * Dishes first — a reader typing "japan" mostly wants dishes. Then the
+ * things a dish belongs to: its family, then its history, then the
+ * narrower vocabularies.
+ *
+ * 'region' was removed: `food_regions` has no published rows, so that
+ * group was always empty and always showed a heading with nothing
+ * under it.
+ */
 const GROUP_ORDER: SearchGroupType[] = [
   "dish",
+  "family",
   "lineage",
   "ingredient",
-  "region",
+  "place",
 ];
+
+/**
+ * Why a dish matched — shown beside the name.
+ *
+ * Only shown when the match was NOT the name itself, because "matched
+ * because of its name" is noise. The point is to explain a result the
+ * reader did not expect: "because of its place", "because of its
+ * family".
+ */
+const MATCH_LABELS: Record<string, string> = {
+  place: "because of its place",
+  family: "because of its family",
+  cuisine: "because of its cuisine",
+  description: "because of its description",
+};
 
 interface GlobalSearchProps {
   variant?: "compact" | "full";
@@ -476,6 +505,11 @@ export function GlobalSearch({
                             onClick={() => setOpen(false)}
                           >
                             <span className="gs-hit-name">{hit.name}</span>
+                            {hit.matchedOn && MATCH_LABELS[hit.matchedOn] && (
+                              <span className="gs-hit-match">
+                                {MATCH_LABELS[hit.matchedOn]}
+                              </span>
+                            )}
                             {hit.shortDescription && (
                               <span className="gs-hit-desc">
                                 {hit.shortDescription}

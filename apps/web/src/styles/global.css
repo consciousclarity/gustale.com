@@ -4541,6 +4541,17 @@ h4 {
   -webkit-box-orient: vertical;
 }
 
+/* Why this result matched — shown only when the match was NOT the name
+   (a place, a family, a cuisine). It explains a result the reader did
+   not expect, so they are not left wondering why "Sushi" is in the
+   list for "Japan". */
+.gs-hit-match {
+  font-size: 11px;
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  color: var(--accent, #b8552f);
+  opacity: 0.85;
+}
+
 .gs-more {
   display: block;
   padding: 8px 18px 4px;
