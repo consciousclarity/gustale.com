@@ -173,6 +173,18 @@ MIGRATION_0040=db/migrations/0040_atlas_publication_predicate.sql
 # (Alejandro's decision, 2026-10-31.)
 ATLAS_FIXTURE_SEED=packages/db/seed-atlas-fixtures.sql
 
+# 0041 is the ROLE SEPARATION for the publish credential.
+#
+# 0038's guard checked that the credential's ACCOUNT is real. It did not
+# check WHO wrote the row — and the bot's role (gustale) could insert a
+# valid credential for a real account, which IS a publish credential.
+#
+# 0041 takes the WRITE privilege away from the bot's role and gives it
+# to a NOLOGIN issuer role that is granted to no login role. It also
+# strengthens the trigger, so the check is on the WRITER and not only
+# on the privilege.
+MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -386,6 +398,12 @@ echo "--- the publication predicate"
 run_pg -f - < "$MIGRATION_0040" >/tmp/m0040.log 2>&1 || { echo "FAILED: 0040"; grep -E 'ERROR|NOTICE' /tmp/m0040.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/m0040.log | tail -1 || true
+
+# 0041 — the role separation for the publish credential.
+echo "--- the credential role separation"
+run_pg -f - < "$MIGRATION_0041" >/tmp/m0041.log 2>&1 || { echo "FAILED: 0041"; grep -E 'ERROR|NOTICE' /tmp/m0041.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_CREDENTIAL_SEPARATION_OK' /tmp/m0041.log | tail -1 || true
 
 # The FIXTURES — a seed, and NOT part of the migration chain.
 echo "--- the atlas fixtures (seed, never a migration)"

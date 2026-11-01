@@ -310,6 +310,11 @@ grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/repro_publication.log | tail -1 ||
 # keeps the live migration chain from ever running it. Applied by CI,
 # the Nightly and the local reproduction — the three places that need a
 # populated atlas — and by nothing else.
+step "the credential role separation"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0041_credential_role_separation.sql" > /tmp/repro_credsep.log 2>&1 \
+  || { echo "  FAILED: 0041"; grep -E 'ERROR' /tmp/repro_credsep.log | head -6; fail=1; }
+grep -E 'ATLAS_CREDENTIAL_SEPARATION_OK' /tmp/repro_credsep.log | tail -1 || true
+
 step "the atlas fixtures"
 run_pg -f - < "$(dirname "$0")/../packages/db/seed-atlas-fixtures.sql" > /tmp/repro_fixtures.log 2>&1 \
   || { echo "  FAILED: the atlas fixtures"; grep -E 'ERROR' /tmp/repro_fixtures.log | head -6; fail=1; }

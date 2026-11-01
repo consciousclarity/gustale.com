@@ -547,6 +547,21 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0040_atlas_publication_predicate.sql
 
+      # 0041 is the ROLE SEPARATION for the publish credential.
+      #
+      # 0038's guard checked that the credential's ACCOUNT is real. It
+      # did not check WHO wrote the row — and the bot's role (gustale)
+      # could insert a valid credential for a real account, which IS a
+      # publish credential.
+      #
+      # This takes the WRITE privilege away from the bot's role and
+      # gives it to a NOLOGIN issuer role granted to no login role, and
+      # strengthens the trigger so the check is on the WRITER.
+      - name: Apply the credential role separation
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0041_credential_role_separation.sql
+
       # The FIXTURES — a SEED, not a migration.
       #
       # The brief's §12: the model is "demonstrated with isolated
