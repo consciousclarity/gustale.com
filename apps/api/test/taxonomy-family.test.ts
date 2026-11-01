@@ -138,14 +138,29 @@ describe("GET /api/taxonomy/family/:slug — the definition and the criteria", (
     expect(body.family.definition?.length).toBeGreaterThan(5);
   });
 
-  it("carries the INCLUSION CRITERIA, and says when there is none", async () => {
+  it("does NOT serve the same text twice", async () => {
     const body = await getFamily(FAMILY);
 
-    // The criteria and the definition are the same prose, and the flag
-    // says whether there IS any. An empty definition is not a
-    // definition, and the page must be able to tell the difference.
-    expect(body.inclusion.hasCriteria).toBe(true);
-    expect(body.inclusion.criteria).toBeTruthy();
+    // THE VOCABULARY HAS NO SEPARATE CRITERIA FIELD. Every dimension
+    // table has exactly one prose column, `description` — and the
+    // legacy `categories` table has the same. So there is no second
+    // source for a criterion.
+    //
+    // The first version served the definition AS the criterion, and the
+    // page rendered two headings with identical text under them. It
+    // looked like two pieces of information and it was one, twice.
+    //
+    // So the criterion is null, and the page shows ONE field. A second
+    // heading with the same text is noise.
+    if (body.family.definition) {
+      expect(body.inclusion.hasCriteria).toBe(false);
+      expect(body.inclusion.criteria).toBeNull();
+    }
+
+    // And the two are never equal when both are present.
+    if (body.inclusion.criteria) {
+      expect(body.inclusion.criteria).not.toBe(body.family.definition);
+    }
   });
 
   it("carries the NOT-ANCESTRY statement, in words", async () => {
