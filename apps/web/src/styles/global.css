@@ -5644,7 +5644,9 @@ body.nav-panel-open {
 /* ─── The family page's taxonomy panel ─────────────────────────────────
    The dimension, the definition, the inclusion criteria, and the note
    that classification does NOT imply ancestry. */
-.fam-taxonomy { margin: 0 0 var(--space-8, 3rem); }
+.fam-taxonomy {
+  margin: 0 0 var(--space-8, 3rem);
+}
 .fam-taxonomy__facts {
   margin: 0 0 1.25rem;
   display: grid;
@@ -5652,9 +5654,13 @@ body.nav-panel-open {
   gap: 18px 28px;
   max-width: 78ch;
 }
-.fam-taxonomy__facts > div { display: flex; flex-direction: column; gap: 4px; }
+.fam-taxonomy__facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .fam-taxonomy__facts dt {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
