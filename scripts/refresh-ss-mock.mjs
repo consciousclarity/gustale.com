@@ -191,6 +191,22 @@ async function main() {
       `! the counts endpoint is not available (${err.message})\n`,
     );
   }
+  // 3d. The PLACES — the places with published associations.
+  //
+  // The place page's static paths come from this list, so without it
+  // the build produces no /place/* pages at all — and a build that
+  // silently produces no pages for a page type is the same failure as
+  // the stale mock, one level up.
+  let places = null;
+  try {
+    places = await getJson("/api/places");
+    console.log(`+ places: ${places.count} with published associations`);
+  } catch (err) {
+    process.stderr.write(
+      `! the places endpoint is not available (${err.message})\n`,
+    );
+  }
+
   console.log(
     `+ details: ${Object.keys(details).length} (expected ${listSlugs.length})`,
   );
@@ -220,10 +236,11 @@ async function main() {
     details,
     atlas,
     counts,
+    places,
   };
   writeFileSync(MOCK_DATA_PATH, `${JSON.stringify(mockData, null, 2)}\n`);
   console.log(
-    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details, ${Object.keys(atlas).length} atlas)`,
+    `+ wrote ${MOCK_DATA_PATH} (${list.length} list, ${mockData.map.length} map, ${Object.keys(details).length} details, ${Object.keys(atlas).length} atlas, ${places?.count ?? 0} places)`,
   );
 
   // 5. Lineages.

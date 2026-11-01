@@ -641,6 +641,81 @@ export function getAtlasCounts(): Promise<AtlasCounts> {
   return request<AtlasCounts>("/api/atlas/counts");
 }
 
+// ─── The place (GET /api/places/:slug) ──────────────────────────────────
+//
+// The dishes associated with a place, grouped by relationship type.
+//
+// A dish associated with the place under TWO relationship types appears
+// under BOTH — that is what "appears under every relevant published
+// association" means — and it counts ONCE in `counts.dishes`, because
+// the count is of DISTINCT dishes.
+
+export interface PlaceDish {
+  slug: string;
+  canonicalName: string;
+  shortDescription: string | null;
+  viewCount: number;
+  evidence: {
+    status: string;
+    dispute: string | null;
+    research: string | null;
+  };
+  explanation: string | null;
+}
+
+export interface PlaceGroup {
+  relationship: string;
+  label: string;
+  dishes: PlaceDish[];
+}
+
+export interface PlaceResponse {
+  place: {
+    slug: string;
+    name: string;
+    localName: string | null;
+    isoCode: string | null;
+    entityType: string;
+    subdivisionType: string | null;
+    lat: number | null;
+    lng: number | null;
+  };
+  groups: PlaceGroup[];
+  counts: {
+    dishes: number;
+    groups: number;
+  };
+}
+
+export function getPlace(slug: string): Promise<PlaceResponse> {
+  return request<PlaceResponse>(`/api/places/${encodeURIComponent(slug)}`);
+}
+
+// ─── The places (GET /api/places) ─────────────────────────────────────────
+//
+// The places that have PUBLISHED associations. This is NOT the legacy
+// "countries" directory — that one is built from the dishes' origin
+// fields and lists places with no association at all.
+
+export interface PlaceListItem {
+  slug: string;
+  name: string;
+  localName: string | null;
+  isoCode: string | null;
+  entityType: string;
+  dishes: number;
+  relationshipTypes: number;
+}
+
+export interface PlaceListResponse {
+  places: PlaceListItem[];
+  count: number;
+}
+
+export function listPlaces(): Promise<PlaceListResponse> {
+  return request<PlaceListResponse>("/api/places");
+}
+
 // ─── Admin endpoints (Phase 4 — Admin Dish Editor redo) ──────────────────
 //
 // These endpoints are gated by the API's `requireRole(request, 'admin')`
