@@ -99,10 +99,16 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gustale_credential_issuer') THEN
     BEGIN
-      -- ADMIN OPTION, so the role can be granted onwards — the
-      -- ownership transfer below needs the current role to be a member
-      -- of the issuer role.
-      CREATE ROLE gustale_credential_issuer NOLOGIN ADMIN OPTION;
+      -- NOLOGIN: nobody logs in as it. It exists to HOLD a privilege.
+      --
+      -- The ADMIN OPTION is not a CREATE ROLE option — it goes on the
+      -- GRANT. On live this migration runs as postgres, a superuser,
+      -- and so can grant the role onwards itself.
+      CREATE ROLE gustale_credential_issuer NOLOGIN;
+      EXECUTE format(
+        'GRANT gustale_credential_issuer TO %I WITH ADMIN OPTION',
+        current_user
+      );
     EXCEPTION WHEN insufficient_privilege THEN
       RAISE EXCEPTION
         'the role gustale_credential_issuer does not exist and this migration may not create it. '
@@ -172,7 +178,10 @@ BEGIN
     -- here is the one running the migration: `postgres` on live, and
     -- the CI's dedicated migration role.
     BEGIN
-      EXECUTE 'GRANT gustale_credential_issuer TO ' || quote_ident(current_user);
+      EXECUTE format(
+        'GRANT gustale_credential_issuer TO %I',
+        current_user
+      );
     EXCEPTION WHEN insufficient_privilege THEN
       -- The membership was established when the ROLE ARRANGEMENT was
       -- set up — by the CI's setup step, which runs as the superuser.

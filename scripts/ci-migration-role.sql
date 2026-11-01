@@ -63,10 +63,11 @@ BEGIN
   -- It is created here as well, because the migration that uses it
   -- (0041) runs as the migration role, which may not create roles.
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gustale_credential_issuer') THEN
-    -- ADMIN OPTION, so the migration role can later grant it onwards —
-    -- which it needs in order to hand publish_credential over to it
-    -- (handing a table to a role requires being a member of it).
-    CREATE ROLE gustale_credential_issuer NOLOGIN ADMIN OPTION;
+    -- NOLOGIN: nobody logs in as it. It exists to HOLD a privilege.
+    --
+    -- The ADMIN OPTION is not a CREATE ROLE option — it goes on the
+    -- GRANT below.
+    CREATE ROLE gustale_credential_issuer NOLOGIN;
   END IF;
 END $$;
 
