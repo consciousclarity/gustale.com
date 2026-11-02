@@ -107,6 +107,20 @@ jobs:
       - name: Validate the CI migration chain
         run: python3 scripts/validate-ci-migration-chain.py
 
+      # The description-similarity gate's own test.
+      #
+      # `scripts/check_description_similarity.py` ALWAYS returned 0,
+      # whatever it found: it printed "N of M descriptions are at or
+      # above the threshold" and exited 0. A gate that cannot fail is
+      # not a gate.
+      #
+      # This test asserts the two properties that make it a gate: a
+      # finding fails, and a run that compared NOTHING fails (a gate
+      # that fails open when its input is missing is worse than no
+      # gate, because it looks like a gate that is passing).
+      - name: Test the description-similarity gate
+        run: python3 scripts/test_description_similarity_gate.py
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
