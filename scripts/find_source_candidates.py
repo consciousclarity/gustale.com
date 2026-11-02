@@ -399,6 +399,47 @@ STOPWORDS = {
     "served", "course", "eaten", "context", "dish",
 }
 
+# Words that are ordinary English as well as words in a dish's name.
+#
+# A dish named "10 Won Bread" has two name tokens, and BOTH of them
+# are ordinary English words. A work about "the Bread and Roses
+# Strike" therefore matches the dish's name on every token — which is
+# exactly the case the weighted score cannot catch, because the
+# arithmetic sees a perfect match.
+#
+# The arithmetic sees a perfect match; the words do not mean the dish.
+#
+# So a dish whose name consists ONLY of common words is, for matching
+# purposes, an unmatchable name: a candidate about it has to be
+# confirmed by a human reading it, because the title cannot tell the
+# difference. The filter's job is to find the OBVIOUS candidates, and
+# this is not one.
+#
+# The list is deliberately short: words that appear in a dish's NAME
+# and are ordinary English at the same time.
+COMMON_WORDS = {
+    "bread", "won", "cake", "pie", "soup", "rice", "salad", "steak",
+    "fish", "egg", "meat", "corn", "bean", "lamb", "pork", "duck",
+    "chicken", "beef", "pork", "jam", "roll", "nut", "apple", "pear",
+    "plum", "cherry", "melon", "lemon", "lime", "grape", "onion",
+    "garlic", "pepper", "carrot", "potato", "tomato", "bean", "herb",
+    "spice", "sauce", "sugar", "salt", "honey", "butter", "cream",
+    "cheese", "wine", "beer", "juice", "coffee", "tea", "water",
+    "milk", "egg", "corn", "bean", "yam", "taro", "lotus", "bamboo",
+    "mushroom", "tofu", "bean", "noodle", "dumpling", "bun", "pastry",
+    "biscuit", "cookie", "cake", "custard", "syrup", "marmalade",
+    "chutney", "salad", "soup", "stew", "roast", "grill", "fry", "boil",
+    "bake", "breakfast", "lunch", "dinner", "supper", "brunch",
+}
+
+# NOTE ON WHAT IS NOT IN THAT LIST. A dish whose name is a distinctive
+# culinary word — hummus, falafel, sushi, kebab, shawarma, tagine,
+# couscous — is NOT unmatchable, and it must not be put in the list.
+# Those words are ordinary English to a spell-checker and nothing at
+# all to a reader: a work titled "Hummus: A Global History" is about
+# the dish. The list holds only words that are common in ENGLISH
+# PROSE, which is what creates the coincidence."
+
 
 def term_overlap(candidate_title: str, dish_name: str, predicate: str) -> float:
     """How much of the dish's own vocabulary appears in the candidate's title.
@@ -406,16 +447,84 @@ def term_overlap(candidate_title: str, dish_name: str, predicate: str) -> float:
     A candidate whose title shares nothing with the dish's name is not
     about the dish. The threshold is deliberately high: this stage is
     for finding the obvious candidates, and a human judges the rest.
+
+    THE MEASURED FAILURE THIS FIXES
+    -------------------------------
+    The first run matched "Why Labor Won: Tactical Innovation, Failed
+    Repression" to the dish "10 Won Bread". The reason was that the
+    dish's name tokenised to {"won", "bread"} and the word "won" is a
+    real English word. A substring match on a single common word is
+    not evidence that a work is about the dish.
+
+    So the score is now WEIGHTED, and the subject's own name tokens
+    carry more weight than the predicate's vocabulary:
+
+      * every name token that appears in the title scores 1.0
+      * every predicate token that appears in the title scores 0.25
+        (the predicate is shared by every dish of the kind, so a match
+        on it is weak evidence)
+      * a name token that does NOT appear in the title costs 0.5
+
+    The penalty is what kills the false positive: "Why Labor Won"
+    matches "won" but not "bread", so it scores 1.0 - 0.5 = 0.5, and
+    a genuine match on both tokens scores 1.0. At the default
+    threshold of 0.34 the false positive is still borderline, so the
+    penalty is doubled: it scores 1.0 - 1.0 = 0.0.
+
+    A dish whose name is a single token cannot be matched on absence,
+    so the penalty is skipped when there is only one name token; the
+    score is then just the fraction of name tokens present.
     """
     def tokens(text: str) -> set:
         words = re.findall(r"[a-z]+", text.lower())
         return {w for w in words if w not in STOPWORDS and len(w) > 2}
 
     title_tokens = tokens(candidate_title)
-    subject_tokens = tokens(dish_name) | tokens(predicate)
-    if not subject_tokens:
+    name_tokens = tokens(dish_name)
+    predicate_tokens = tokens(predicate)
+
+    if not name_tokens and not predicate_tokens:
         return 0.0
-    return len(title_tokens & subject_tokens) / len(subject_tokens)
+
+    score = 0.0
+    matched = 0
+    for token in name_tokens:
+        if token in title_tokens:
+            score += 1.0
+            matched += 1
+        elif len(name_tokens) > 1:
+            # The dish's own name is missing a word: that is evidence
+            # AGAINST the work being about this dish.
+            score -= 1.0
+    for token in predicate_tokens:
+        if token in title_tokens:
+            score += 0.25
+
+    # Scale so the score stays in 0..1 for the threshold to mean
+    # something comparable across dishes with different name lengths.
+    best_possible = len(name_tokens) + 0.25 * len(predicate_tokens)
+    if best_possible <= 0:
+        return 0.0
+    score = max(0.0, score) / best_possible
+
+    # A single common word is not a match, whatever the arithmetic says.
+    if len(name_tokens) > 1 and matched == 0:
+        return 0.0
+
+    # A dish whose name is ALL ordinary English words cannot be matched
+    # on its title. "10 Won Bread" against "Why Labor Won ... the Bread
+    # and Roses Strike" matches on every token and means nothing: the
+    # words are common, not distinctive of the dish.
+    #
+    # The score is kept, but it is CAPPED below the threshold, so the
+    # candidate is not proposed as a match on the strength of a
+    # coincidence of vocabulary. It is still recorded — the dish needs
+    # its sources and a human may see something the title does not —
+    # but it is recorded as a weak lead rather than as a match.
+    if name_tokens and name_tokens <= COMMON_WORDS:
+        return min(score, 0.30)
+
+    return score
 
 
 # ── the writing ───────────────────────────────────────────────────────
