@@ -271,7 +271,18 @@ either direction.
 ### The proof is verified against deliberately broken versions
 
 Four defect classes were built by hand and the proof was run against
-each. All four are caught:
+each. All four are caught.
+
+**This is now a permanent test**, not a one-off: `scripts/test_publish_proof_detects.sh`
+builds the four broken versions, applies each over a good schema, and
+asserts the proof refuses it. A **syntax error is explicitly not a
+catch** — the script refuses a malformed variant rather than counting
+it as a detection, because a test that accepts a broken file proves
+nothing. The script also asserts up front that the chain is green
+*and* that the proof actually ran, so it cannot pass against a proof
+that has gone back to skipping itself.
+
+The four defect classes:
 
 | The broken version | Caught by |
 |---|---|
