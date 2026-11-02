@@ -74,6 +74,9 @@ DO $$
 DECLARE
   v_pass integer := 0;
   v_fail integer := 0;
+  -- The number of checks ATTEMPTED. The assertion floor is measured
+  -- against this: a check that never ran is not a passing check.
+  v_checks integer := 0;
   v_err text;
   v_trigger boolean;
   v_references boolean;
@@ -104,6 +107,7 @@ BEGIN
     v_err := SQLERRM;
   END;
 
+  v_checks := v_checks + 1;
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the bot CAN create a trigger on publish_credential -- it would fire with the inserter''s privileges';
@@ -113,6 +117,7 @@ BEGIN
   END IF;
 
   -- (b) the escalation privileges are gone.
+  v_checks := v_checks + 1;
   IF NOT v_trigger AND NOT v_references THEN
     v_pass := v_pass + 1;
     RAISE NOTICE 'PASS  the bot holds neither TRIGGER nor REFERENCES on publish_credential';
@@ -123,6 +128,7 @@ BEGIN
   END IF;
 
   -- (c) the bot cannot write to the table either.
+  v_checks := v_checks + 1;
   IF NOT v_insert THEN
     v_pass := v_pass + 1;
     RAISE NOTICE 'PASS  the bot holds no INSERT on publish_credential';
@@ -134,6 +140,7 @@ BEGIN
   -- (d) SELECT is still held — statement_set_status() reads the table AS
   -- ITS CALLER, because it is not SECURITY DEFINER, and the bot calls
   -- it. Revoking SELECT would break the bot's legitimate use.
+  v_checks := v_checks + 1;
   IF v_select THEN
     v_pass := v_pass + 1;
     RAISE NOTICE 'PASS  the bot still holds SELECT on publish_credential';
@@ -155,6 +162,7 @@ BEGIN
      AND NOT has_table_privilege('gustale', c.oid, 'UPDATE')
      AND NOT has_table_privilege('gustale', c.oid, 'DELETE');
 
+  v_checks := v_checks + 1;
   IF v_bad_tables IS NULL THEN
     v_pass := v_pass + 1;
     RAISE NOTICE 'PASS  the bot holds TRIGGER only on tables it can also write';
@@ -165,6 +173,7 @@ BEGIN
 
   -- (f) and the arrangement that makes the guard meaningful: the bot is
   --     NOT a superuser, and NOT a member of the issuer role.
+  v_checks := v_checks + 1;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='gustale' AND rolsuper) THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the bot role is a SUPERUSER -- the guard does not constrain it';
@@ -173,6 +182,7 @@ BEGIN
     RAISE NOTICE 'PASS  the bot role is not a superuser';
   END IF;
 
+  v_checks := v_checks + 1;
   IF pg_has_role('gustale','gustale_credential_issuer','MEMBER') THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the bot role is a member of the issuer role -- it could issue a credential';
@@ -182,6 +192,21 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'ATLAS_TRIGGER_ESCALATION: % passed, % failed', v_pass, v_fail;
+
+  -- ── THE ASSERTION FLOOR ──────────────────────────────────────────
+  --
+  -- This gate used to fail ONLY when v_fail > 0, so a gate that ran
+  -- ZERO checks passed: v_fail was 0, so "0 failed" was reported as
+  -- success. If the checks were removed or short-circuited, the gate
+  -- would go green while asserting nothing.
+  --
+  -- The floor is checked BEFORE the failure check, so the gate cannot
+  -- pass having made fewer assertions than it is supposed to.
+  IF v_checks < 7 THEN
+    RAISE EXCEPTION
+      'the credential escalation checks made only % checks (expected 7) -- the gate is not asserting what it should',
+      v_checks;
+  END IF;
 
   IF v_fail > 0 THEN
     RAISE EXCEPTION 'the credential escalation checks FAILED (% of %)', v_fail, v_pass + v_fail;
