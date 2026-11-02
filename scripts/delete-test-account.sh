@@ -99,8 +99,63 @@ REF_COLUMNS=(
 log() { echo "[delete-test-account] $*"; }
 fail() { echo "::error::$*" >&2; exit 1; }
 
+# --- how to reach the database -----------------------------------------
+#
+# On the VPS the database is a container called `shared-postgres`, so
+# every call is `docker exec ... psql`. In CI it is a service container
+# on 127.0.0.1:5432, with no docker at all.
+#
+# The two are not interchangeable, so the choice is ONE variable read
+# from the environment, with the VPS as the default. Hardcoding
+# `docker exec shared-postgres` made this script unusable in CI: the
+# test job could not run it at all.
+#
+#   GUSTALE_PG_MODE=docker   -> docker exec -i -u postgres shared-postgres ...
+#   GUSTALE_PG_MODE=host     -> psql on 127.0.0.1 (CI's service container)
+PG_MODE="${GUSTALE_PG_MODE:-docker}"
+PGHOST="${GUSTALE_PGHOST:-127.0.0.1}"
+PGPORT="${GUSTALE_PGPORT:-5432}"
+PGUSER="${GUSTALE_PGUSER:-postgres}"
+PGPASSWORD="${GUSTALE_PGPASSWORD:-gustale}"
+PGCONTAINER="${GUSTALE_PG_CONTAINER:-shared-postgres}"
+
+# pg <db> <args...> -- run psql against a database.
+pg() {
+  local db="$1"; shift
+  if [ "$PG_MODE" = "host" ]; then
+    PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$db" "$@"
+  else
+    docker exec -i -u postgres "$PGCONTAINER" psql -U "$PGUSER" -d "$db" "$@"
+  fi
+}
+
+# pg_admin <args...> -- run psql against the cluster (no database chosen).
+pg_admin() {
+  if [ "$PG_MODE" = "host" ]; then
+    PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$@"
+  else
+    docker exec -i -u postgres "$PGCONTAINER" psql -U "$PGUSER" "$@"
+  fi
+}
+
+# pg_tool <tool> <args...> -- createdb, pg_dump, pg_restore, rm.
+pg_tool() {
+  local tool="$1"; shift
+  if [ "$PG_MODE" = "host" ]; then
+    case "$tool" in
+      createdb)   PGPASSWORD="$PGPASSWORD" createdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$@" ;;
+      pg_dump)    PGPASSWORD="$PGPASSWORD" pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$@" ;;
+      pg_restore) PGPASSWORD="$PGPASSWORD" pg_restore -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$@" ;;
+      rm)         rm -f "$@" ;;
+      *) return 1 ;;
+    esac
+  else
+    docker exec -u postgres "$PGCONTAINER" "$tool" -U "$PGUSER" "$@"
+  fi
+}
+
 psql_q() {
-  docker exec -i -u postgres shared-postgres psql -U postgres -d "$1" -tAc "$2" 2>/dev/null | tail -1
+  pg "$1" -tAc "$2" 2>/dev/null | tail -1
 }
 
 # --- Step 1: the target must exist, and its email must match ---
@@ -164,18 +219,18 @@ log "--- making the copy $COPY_DB ---"
 # TEMPLATE: the live database has live connections, and TEMPLATE refuses
 # to copy a database that is in use.
 DUMP=/tmp/gustale_delacct_snapshot_$$.dump
-docker exec -u postgres shared-postgres pg_dump -U postgres -d "$DB" --format=custom \
+pg_tool pg_dump -d "$DB" --format=custom \
   --file="$DUMP" >/dev/null 2>&1 || fail "could not dump $DB"
-docker exec -i -u postgres shared-postgres psql -U postgres -d postgres -tAc \
+pg_admin -d postgres -tAc \
   "DROP DATABASE IF EXISTS $COPY_DB;" >/dev/null 2>&1
-docker exec -u postgres shared-postgres createdb -U postgres "$COPY_DB" 2>/dev/null \
+pg_tool createdb "$COPY_DB" 2>/dev/null \
   || fail "could not create the copy $COPY_DB"
-docker exec -u postgres shared-postgres pg_restore -U postgres -d "$COPY_DB" \
+pg_tool pg_restore -d "$COPY_DB" \
   --no-owner --no-privileges "$DUMP" >/dev/null 2>&1 || true
-docker exec -u postgres shared-postgres rm -f "$DUMP"
+pg_tool rm "$DUMP"
 
 # Mark it disposable, so any test that touches it is allowed to write.
-docker exec -i -u postgres shared-postgres psql -U postgres -d "$COPY_DB" -q \
+pg "$COPY_DB" -q \
   -f - < "$(dirname "$0")/mark_disposable_db.sql" >/dev/null 2>&1
 
 # The counts that must change.
@@ -230,14 +285,14 @@ if [ "$WITH_CONTENT" = "1" ]; then
   # One transaction: the content and the account go together, or
   # neither does.
   if [ -n "$CONTENT_DISHES" ]; then
-    docker exec -i -u postgres shared-postgres psql -U postgres -d "$COPY_DB" -q \
+    pg "$COPY_DB" -q \
       -c "BEGIN; DELETE FROM edit_history WHERE user_id = '$TARGET_ID'; DELETE FROM dishes WHERE created_by = '$TARGET_ID'; DELETE FROM \"user\" WHERE id = '$TARGET_ID'; COMMIT;" 2>&1 | tail -3
   else
-    docker exec -i -u postgres shared-postgres psql -U postgres -d "$COPY_DB" -q \
+    pg "$COPY_DB" -q \
       -c "BEGIN; DELETE FROM edit_history WHERE user_id = '$TARGET_ID'; DELETE FROM \"user\" WHERE id = '$TARGET_ID'; COMMIT;" 2>&1 | tail -3
   fi
 else
-  docker exec -i -u postgres shared-postgres psql -U postgres -d "$COPY_DB" -q \
+  pg "$COPY_DB" -q \
     -c "DELETE FROM \"user\" WHERE id = '$TARGET_ID';" 2>&1 | tail -2
 fi
 
@@ -365,9 +420,9 @@ fi
 
 # --- Step 6: drop the copy (ALWAYS) ---
 drop_copy() {
-  docker exec -i -u postgres shared-postgres psql -U postgres -tAc \
+  pg_admin -tAc \
     "DROP DATABASE IF EXISTS $COPY_DB;" >/dev/null 2>&1
-  docker exec -u postgres shared-postgres rm -f "/tmp/gustale_delacct_snapshot_$$.dump" >/dev/null 2>&1
+  pg_tool rm "/tmp/gustale_delacct_snapshot_$$.dump" >/dev/null 2>&1
   log "the copy $COPY_DB dropped"
 }
 trap drop_copy EXIT
@@ -396,10 +451,10 @@ if [ "$WITH_CONTENT" = "1" ]; then
   LIVE_EDITS=$(psql_q "$DB" "SELECT count(*) FROM edit_history WHERE user_id = '$TARGET_ID'")
   log "  the live content to delete: the dishes=[${LIVE_DISHES:-none}] the edit_history rows=$LIVE_EDITS"
   if [ -n "$LIVE_DISHES" ]; then
-    docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" -q \
+    pg "$DB" -q \
       -c "BEGIN; DELETE FROM edit_history WHERE user_id = '$TARGET_ID'; DELETE FROM dishes WHERE created_by = '$TARGET_ID'; DELETE FROM \"user\" WHERE id = '$TARGET_ID'; COMMIT;" 2>&1 | tail -3
   else
-    docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" -q \
+    pg "$DB" -q \
       -c "BEGIN; DELETE FROM edit_history WHERE user_id = '$TARGET_ID'; DELETE FROM \"user\" WHERE id = '$TARGET_ID'; COMMIT;" 2>&1 | tail -3
   fi
   AFTER_DISH=$(psql_q "$DB" "SELECT count(*) FROM dishes")
@@ -415,7 +470,7 @@ if [ "$WITH_CONTENT" = "1" ]; then
   fi
   log "  the dishes: $BEFORE_USER_DISH -> $AFTER_DISH | the edit_history: $BEFORE_USER_EDIT -> $AFTER_EDIT"
 else
-  docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" -q \
+  pg "$DB" -q \
     -c "DELETE FROM \"user\" WHERE id = '$TARGET_ID';" 2>&1 | tail -2
 fi
 AFTER_USER=$(psql_q "$DB" "SELECT count(*) FROM \"user\"")
