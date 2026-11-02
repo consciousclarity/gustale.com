@@ -41,6 +41,11 @@ if [ "$SRC_DIR" != "$DEST_DIR" ]; then
   install -d -m 0755 "$DEST_DIR/scripts/hermes"
   install -m 0755 "$SRC_DIR/scripts/hermes/rebuild-web-live.sh" "$DEST_DIR/scripts/hermes/rebuild-web-live.sh"
   install -m 0755 "$SRC_DIR/scripts/hermes/build-web-live.sh"    "$DEST_DIR/scripts/hermes/build-web-live.sh"
+  # The post-deploy sitemap check. The rebuild is the thing that most
+  # often leaves the two sites out of step, so it MUST run this --
+  # and the script has to be present, or the rebuild fails on a
+  # missing file rather than on a real problem.
+  install -m 0755 "$SRC_DIR/scripts/check-live-sitemaps.sh"      "$DEST_DIR/scripts/check-live-sitemaps.sh"
 fi
 install -m 0644 "$SRC_DIR/scripts/hermes/gustale-rebuild-web.service" "$SERVICE_FILE"
 install -m 0644 "$SRC_DIR/scripts/hermes/gustale-rebuild-web.timer"    "$TIMER_FILE"

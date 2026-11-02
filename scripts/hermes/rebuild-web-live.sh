@@ -251,6 +251,16 @@ source "$TAG_FILE"
 log "  $IMAGE_RECIPES"
 log "  $IMAGE_GEO"
 
+# The two images MUST have distinct tags. They are different builds
+# (different PUBLIC_DOMAIN); sharing one tag let a stale build-cache
+# layer masquerade as a fresh one, which is how gustale.recipes ended
+# up serving 1,643 sitemap URLs while gustale.com served 1,531 -- on
+# the same commit, with both containers "healthy".
+if [ "$IMAGE_RECIPES" = "$IMAGE_GEO" ]; then
+  log "ERROR: the two web images share a tag: $IMAGE_RECIPES"
+  exit 1
+fi
+
 # --- Step 6: pull + restart the web containers ---
 # With GUSTALE_NO_PUSH=1 the image is in the local docker cache; no
 # pull is needed. The deploy path (without GUSTALE_NO_PUSH) DOES need
@@ -335,6 +345,18 @@ cat >"$STATE_TMP" <<EOF
 EOF
 mv -f "$STATE_TMP" "$STATE_FILE"
 log "  $STATE_FILE written"
+
+log ""
+# --- Step 9: the sitemap check on BOTH domains ---
+# The rebuild is the thing that most often leaves the two sites out of
+# step, so it must verify BOTH. A single-domain check would have called
+# the 2026-11-02 state a clean rebuild.
+log ""
+log "--- Checking both domains' sitemaps ---"
+if ! bash /home/deploy/gustale-rebuild/scripts/check-live-sitemaps.sh 1531; then
+  log "ERROR: the sitemap check failed -- one of the two sites is serving a stale build"
+  exit 1
+fi
 
 log ""
 log "=== gustale-rebuild-web OK at $BUILD_SHORT_SHA ==="
