@@ -379,6 +379,18 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0047_publish_credential_session_
   || { echo "  FAILED: 0047"; grep -E 'ERROR' /tmp/repro_0047.log | head -6; fail=1; }
 grep -E 'SESSION_BINDING_PROOF_OK' /tmp/repro_0047.log | tail -1 || true
 
+# 0048 — refuses a publish credential for a BOT account.
+# It must run AFTER 0047: 0047 REPLACES the guard function, 0048 amends it.
+step "the bot credential guard"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0048_bot_credential_guard.sql" > /tmp/repro_0048.log 2>&1 \
+  || { echo "  FAILED: 0048"; grep -E 'ERROR' /tmp/repro_0048.log | head -6; fail=1; }
+grep -E 'BOT_CREDENTIAL_GUARD_OK' /tmp/repro_0048.log | tail -1 || true
+
+step "the bot credential guard's regression test"
+run_pg -f - < "$(dirname "$0")/../scripts/test_bot_credential_guard.sql" > /tmp/repro_bot_guard.log 2>&1 \
+  || { echo "  FAILED: the bot credential guard's test"; grep -E 'ERROR' /tmp/repro_bot_guard.log | head -6; fail=1; }
+grep -E 'BOT_CREDENTIAL_GUARD_TEST_OK' /tmp/repro_bot_guard.log | tail -1 || true
+
 step "the atlas fixtures"
 run_pg -f - < "$(dirname "$0")/../packages/db/seed-atlas-fixtures.sql" > /tmp/repro_fixtures.log 2>&1 \
   || { echo "  FAILED: the atlas fixtures"; grep -E 'ERROR' /tmp/repro_fixtures.log | head -6; fail=1; }
