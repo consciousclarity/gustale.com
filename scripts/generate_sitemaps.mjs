@@ -75,13 +75,19 @@ async function collectDishSlugs(dist) {
   } catch {
     return [];
   }
+  // "dishes/new" is the ROUTE for the "add a dish" form, not a dish.
+  // It is a real page in the build output, so a naive directory scan
+  // counted it — and the sitemap then listed a form URL as if it were
+  // a dish page. These are the reserved routes under /dishes/.
+  const RESERVED = new Set(["new", "edit", "create", "search"]);
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      slugs.add(entry.name);
+      if (!RESERVED.has(entry.name)) slugs.add(entry.name);
     } else if (entry.name.endsWith(".html") && entry.name !== "index.html") {
       // Node's Dirent has no `.stem` — that is Python's pathlib API.
       // Strip the extension by hand.
-      slugs.add(entry.name.slice(0, -".html".length));
+      const slug = entry.name.slice(0, -".html".length);
+      if (!RESERVED.has(slug)) slugs.add(slug);
     }
   }
   return [...slugs].sort();
@@ -123,8 +129,19 @@ async function pageLinksToDish(htmlPath) {
   // The hreflang alternates also contain "/dishes/", but they point at
   // the SAME dish in another locale, so they are excluded by requiring
   // the anchor to start the attribute.
+  //
+  // "/dishes/new" IS NOT A DISH. It is the link to the "add a dish"
+  // form, and EVERY family page carries it — the invitation to map
+  // more dishes to the family. Counting it made all 152 families look
+  // content-bearing, so the sitemap listed all of them and the 109
+  // empty ones were indexed anyway. That is exactly the defect the
+  // data-derived sitemap was written to close, so the form link is
+  // excluded explicitly.
   const dishAnchors = html.match(/<a\s[^>]*href="\/dishes\/[^"]+"/g);
-  return Array.isArray(dishAnchors) && dishAnchors.length > 0;
+  if (!Array.isArray(dishAnchors)) return false;
+  return dishAnchors.some(
+    (anchor) => !/href="\/dishes\/(new|edit|create|search)"/.test(anchor),
+  );
 }
 
 /**
