@@ -30,7 +30,7 @@
  *         <dist>/sitemap-<locale>.xml
  */
 
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 // The locales that get a sitemap. English is the base, at the root.
@@ -87,6 +87,93 @@ async function collectDishSlugs(dist) {
   return [...slugs].sort();
 }
 
+/**
+ * Does this built page link to at least one dish?
+ *
+ * THE TEST IS "LINKS TO A DISH", not "mentions the word dish".
+ *
+ * A family page with no dishes behind it still renders — it carries the
+ * explanation of what the family is and the invitation to map more
+ * dishes. It mentions dishes in prose. What it does NOT do is link to
+ * one, because there is none to link to.
+ *
+ * So the test counts the anchors whose href points at a real dish page.
+ * A page with zero such anchors has nothing behind it, and:
+ *
+ *   - it is NOT listed in the sitemap;
+ *   - it is marked noindex, so it is not indexed either.
+ *
+ * The two decisions come from ONE test, so the sitemap and the robots
+ * meta can never disagree about which pages have content.
+ *
+ * WHY IT READS THE HTML AND NOT THE DATABASE: the sitemap is generated
+ * from the build output so that it lists exactly the pages that exist.
+ * A page that failed to build is not in the dist, and therefore not in
+ * the sitemap — no 404 in a sitemap. Reading the same HTML the crawler
+ * will read keeps that guarantee for the content test as well.
+ */
+async function pageLinksToDish(htmlPath) {
+  let html;
+  try {
+    html = await readFile(htmlPath, "utf-8");
+  } catch {
+    return false;
+  }
+  // The anchors are what matter. A dish link is href="/dishes/<slug>".
+  // The hreflang alternates also contain "/dishes/", but they point at
+  // the SAME dish in another locale, so they are excluded by requiring
+  // the anchor to start the attribute.
+  const dishAnchors = html.match(/<a\s[^>]*href="\/dishes\/[^"]+"/g);
+  return Array.isArray(dishAnchors) && dishAnchors.length > 0;
+}
+
+/**
+ * The family and lineage slugs that have content behind them.
+ *
+ * A "content-bearing" page is one that links to at least one dish.
+ * The rest are omitted from the sitemap and marked noindex.
+ *
+ * The page's HTML is found the same way the dish slugs are: the geo
+ * build keeps the nested dist/<section>/<slug>/index.html form, and the
+ * recipes build flattens to dist/<section>/<slug>.html.
+ */
+async function collectContentBearingSlugs(dist, section) {
+  const dir = join(dist, section);
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return { withDishes: [], withoutDishes: [] };
+  }
+
+  const withDishes = [];
+  const withoutDishes = [];
+  for (const entry of entries) {
+    // The section's own index page (dist/<section>/index.html) is not a
+    // slug. It is a directory in the geo build and a file in the
+    // recipes build, and neither is a page that belongs in the
+    // sitemap under a slug.
+    if (entry.isDirectory() && entry.name === "index.html") continue;
+    if (!entry.isDirectory() && entry.name === "index.html") continue;
+    if (!entry.isDirectory() && !entry.name.endsWith(".html")) continue;
+
+    const slug = entry.isDirectory()
+      ? entry.name
+      : entry.name.slice(0, -".html".length);
+    const htmlPath = entry.isDirectory()
+      ? join(dir, entry.name, "index.html")
+      : join(dir, entry.name);
+
+    const hasDishes = await pageLinksToDish(htmlPath);
+    if (hasDishes) withDishes.push(slug);
+    else withoutDishes.push(slug);
+  }
+  return {
+    withDishes: withDishes.sort(),
+    withoutDishes: withoutDishes.sort(),
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const getArg = (name, fallback) => {
@@ -104,13 +191,31 @@ async function main() {
   const origin = siteOrigin(domain);
   const slugs = await collectDishSlugs(dist);
 
+  // The families and the lineages, split by whether they have a dish
+  // behind them.
+  //
+  // THE SITEMAP IS GENERATED FROM THE DATA, so a page enters it as soon
+  // as it has a dish mapped to it — there is no list of slugs to keep
+  // in step with the database. The next build after a dish is mapped
+  // picks it up.
+  const families = await collectContentBearingSlugs(dist, "family");
+  const lineages = await collectContentBearingSlugs(dist, "lineages");
+
   // The locale pages are only built for the geo domain for now, and
   // the sitemap must not list URLs that 404.
   const locales = domain === "geo" ? requested : ["en"];
 
   console.log(`[sitemap] domain=${domain} origin=${origin}`);
   console.log(
-    `[sitemap] ${slugs.length} dishes, locales: ${locales.join(", ")}`,
+    `[sitemap] ${slugs.length} dishes, ${locales.join(", ")}`,
+  );
+  console.log(
+    `[sitemap] families: ${families.withDishes.length} with dishes, ` +
+      `${families.withoutDishes.length} without (omitted)`,
+  );
+  console.log(
+    `[sitemap] lineages: ${lineages.withDishes.length} with dishes, ` +
+      `${lineages.withoutDishes.length} without (omitted)`,
   );
 
   for (const locale of locales) {
@@ -144,6 +249,42 @@ async function main() {
           `${origin}${prefix}/dishes/${slug}`,
         )}</loc>\n${links.join("\n")}\n  </url>`,
       );
+    }
+
+    // The families and the lineages that have a dish behind them.
+    //
+    // These carry the alternates too, so a search engine that reads one
+    // of them learns the whole locale set.
+    //
+    // The families and the lineages are NOT locale-scoped in the build
+    // yet — only the English pages are built for them — so they are
+    // listed under the English prefix only. Listing a locale URL that
+    // was never built would put a 404 in a sitemap, which is the one
+    // thing this generator exists to prevent.
+    for (const [section, group] of [
+      ["family", families],
+      ["lineages", lineages],
+    ]) {
+      for (const slug of group.withDishes) {
+        const links = [];
+        for (const l of locales) {
+          links.push(
+            `    <xhtml:link rel="alternate" hreflang="${l}" href="${esc(
+              `${origin}${localePrefix(l)}/${section}/${slug}`,
+            )}" />`,
+          );
+        }
+        links.push(
+          `    <xhtml:link rel="alternate" hreflang="x-default" href="${esc(
+            `${origin}/${section}/${slug}`,
+          )}" />`,
+        );
+        urls.push(
+          `  <url>\n    <loc>${esc(
+            `${origin}/${section}/${slug}`,
+          )}</loc>\n${links.join("\n")}\n  </url>`,
+        );
+      }
     }
 
     const xml =
