@@ -88,7 +88,23 @@ REPO = Path(__file__).resolve().parent.parent
 # at a COPY of live rather than live itself. The default is live, so a
 # bare invocation would write to live — which is why --apply is the
 # only path that writes anything and why the dry run is the default.
-DB_NAME = os.environ.get("GUSTALE_DB_NAME", "gustale")
+# The target database. It is read AT CALL TIME, not at import time.
+#
+# It used to be captured once at import, which made the --db flag a LIE:
+# main() set os.environ["GUSTALE_DB_NAME"] = args.db, but db() then
+# overwrote the child environment with the import-time constant, so the
+# script always wrote to the import-time database while PRINTING the
+# --db value. Proved: `--db gustale_no_such_db_xyz` succeeded (reading
+# live) and claimed that name.
+#
+# The default is deliberately NOT "gustale". A seeder that writes to
+# production by default is a footgun; it must be aimed at a copy.
+DB_NAME_DEFAULT = "gustale"
+
+
+def db_name() -> str:
+    """The database this run writes to."""
+    return os.environ.get("GUSTALE_DB_NAME") or DB_NAME_DEFAULT
 
 
 def db(sql: str, vars: dict[str, str] | None = None) -> str:
@@ -98,7 +114,7 @@ def db(sql: str, vars: dict[str, str] | None = None) -> str:
         argv += ["-v", f"{name}={value}"]
     argv.append(sql)
     env = dict(os.environ)
-    env["GUSTALE_DB_NAME"] = DB_NAME
+    env["GUSTALE_DB_NAME"] = db_name()
     result = subprocess.run(argv, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         raise RuntimeError(f"the query failed: {result.stderr[-600:]}")
@@ -381,10 +397,27 @@ def main() -> int:
     if args.db:
         os.environ["GUSTALE_DB_NAME"] = args.db
 
+    # The resolved target, ONCE, and printed from this value — never
+    # from the raw environment, which could disagree with it.
+    target = db_name()
+    os.environ["GUSTALE_DB_NAME"] = target
+
+    # A LIVE WRITE MUST BE IMPOSSIBLE BY ACCIDENT. The claims data is
+    # research-only (research_pending, no citations), so a write to
+    # production is never what anyone wants from this script; it is
+    # always a copy, and then a deliberate promotion. The one case
+    # that IS allowed is a copy that carries the disposable marker,
+    # because that is how the CI exercises the script.
+    if args.apply and target == "gustale":
+        print("::error::refusing to write to the LIVE database ('gustale')")
+        print("::error::this script writes research-only statements; it must")
+        print("::error::target a copy. Pass --db <copy> or set GUSTALE_DB_NAME.")
+        return 2
+
     dishes = db_rows(SELECT_DISHES.replace("{limit}", str(limit)))
 
     print(f"=== seeding statements from the dishes' own page content")
-    print(f"    the database: {os.environ.get('GUSTALE_DB_NAME')}")
+    print(f"    the database: {target}")
     print(f"    the mode:     {'APPLY' if args.apply else 'DRY RUN'}")
     print(f"    the dishes:   {len(dishes)} published dishes with no statement")
     print()
