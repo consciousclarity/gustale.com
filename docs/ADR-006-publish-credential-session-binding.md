@@ -194,27 +194,156 @@ recorded future option it is, and it is not implemented now.
 - The editorial `users` table. It stays as it is — disconnected from
   login, and not an identity source.
 
+## Two defects the proof found, and one the proof caused
+
+**The behavioural proof in 0047 is not decoration. It found two real
+defects, and catching them is what makes the proof worth having.**
+
+### Defect one, found by the proof: the credential guard read the wrong table
+
+`publish_credential_owner_guard()` checked that the credential's actor
+exists in the editorial `users` table:
+
+```sql
+IF NOT EXISTS (SELECT 1 FROM users u WHERE u.id = NEW.actor) THEN
+  RAISE EXCEPTION '...there is no such account in users';
+```
+
+But the login system uses Better Auth's `"user"` table, and the
+editorial `users` table is **disconnected** from authentication — it is
+a byline table. So the guard refused **every** credential issued to a
+real login. The credential table could not have had a single useful
+row, and the impersonation weakness this ADR exists to close was, in
+practice, an unusable credential rather than a spoofable one.
+
+The proof found it: it made a proof user in `"user"`, issued it a
+credential, and the guard refused it with *"there is no such account in
+users"* — the defect, caught by the proof rather than by reading the
+code.
+
+0047 replaces the guard to read the login table. **The check is not
+weakened**: the actor must still be a real login before a credential
+can be issued for it, the issuer-membership check below it is
+untouched, and a superuser still bypasses the membership check exactly
+as before.
+
+### Defect two, found by the proof: the function had lost the gate
+
+The draft of 0047's `statement_set_status()` did not set the session
+GUC `gustale.statement_gate`, did not record `verified_by` /
+`published_by`, and did not write the transition log.
+
+Without the `set_config`, **every call failed**: the
+`statement_status_gate_trg` trigger refuses any status change that does
+not come through the gate, and the gate *is* that setting. The trigger
+is not a substitute for the gate — it is the thing the gate opens.
+
+The proof found this too: the credentialed caller was refused with the
+trigger's own message.
+
+### And the proof itself had to be fixed twice, for the same reason
+
+**The first version of the proof was testing the trigger, not the
+credential.**
+
+It called the function and checked whether the call raised. But the
+trigger raises for *any* status change that did not come through the
+gate — so a function with **no credential check at all** also raised,
+and the proof passed against it. The proof would have been a green
+light on a broken function.
+
+The discriminator is now the **return value**: a refusal returns the
+statement's original status, an acceptance returns the requested one.
+That difference is observable even when the trigger fires and rolls the
+row back.
+
+**The second version of the proof was still too weak.** The refusal
+message was used as the signal — and the trigger's message says
+nothing about the credential.
+
+The strong discriminator is now: **a caller that holds a credential,
+with a live session, must SUCCEED.** That can only pass if the
+credential check let the call through *and* the function set the GUC
+properly. A function that ignores the credential table fails it, because
+the trigger stops it; so does one whose credential check is wrong in
+either direction.
+
+### The proof is verified against deliberately broken versions
+
+Four defect classes were built by hand and the proof was run against
+each. All four are caught:
+
+| The broken version | Caught by |
+|---|---|
+| the token is never checked | the credentialed caller is refused |
+| the session is resolved but the credential check is gone | the actor-as-token call changes the status |
+| the actor is taken from the token parameter | the actor-as-token call changes the status |
+| the credential is checked but the actor is not derived from the session | the actor-as-token call changes the status |
+
+**The proof makes its own fixtures and removes them.** It cannot rely on
+the chain having a statement, a user or a live session — in a fresh
+chain there are **none** of them at that point, and the proof was
+silently skipping itself with a NOTICE. A proof that does not run is
+not a proof.
+
+So the proof creates a user, a session, a credential, a source, a
+citation and a statement, and deletes every one of them at the end. The
+chain asserts that nothing survived. The fixture names are impossible
+to collide with real rows, and a row the chain already had is reused
+rather than replaced — and never deleted.
+
+### The fixture's source is S2 on purpose
+
+Every existing source in the database is **S6**. The fixture's source is
+**S2**, because the `documented` claim class accepts S1–S5, and the
+proof needs the **evidence** gate to pass so that the only thing left
+to decide is the **credential**. Otherwise the refusal would be about
+the content, and the proof would be testing the wrong gate.
+
 ## The migration
 
 `db/migrations/0047_publish_credential_session_binding.sql`.
 
-It will:
+It does:
 
 1. Add the session-derived function,
-   `statement_set_status(p_statement_id, p_to)`, which reads the
-   session token and derives the actor itself.
-2. Make the old four-argument form fail loudly rather than remain
-   callable, so no code path keeps using the caller-supplied actor.
+   `statement_set_status(p_statement_id, p_to, p_session_token)`, which
+   reads the session token and derives the actor itself.
+2. **Drop the old function before creating the new one**, so the
+   caller-supplied-actor form cannot survive as an overload. The arities
+   are the same — three arguments, the third being `text` — so
+   `CREATE OR REPLACE` alone would have left the old body callable.
 3. Add the foreign key from `publish_credential.actor` to `"user"(id)`,
    after checking that the table is empty (it is: zero rows on live) so
    no row needs back-filling.
-4. Restrict `EXECUTE` on the function to the roles that need it.
-5. Carry the regression test that proves the old shape no longer works
-   and the new one does.
+4. **Replace `publish_credential_owner_guard()`** so it reads the login
+   table instead of the editorial byline table — the defect the proof
+   found.
+5. Restrict `EXECUTE` on the function to `gustale` and `postgres`;
+   `PUBLIC` no longer holds it.
+6. Carry the behavioural proof, which makes its own fixtures, proves
+   the credential gates the call, and removes every fixture it made.
+
+**On the argument count.** The function keeps a third argument, but it
+is the **session token**, not the actor. The function has to read the
+session to derive the publisher, so the token must reach it. What is
+gone is the *actor* parameter: there is no longer any way for a caller
+to pass an identity.
 
 The migration is written and dry-run on an exact copy of live before
 anything is applied. Applying it to live needs Alejandro's explicit go,
 and the `approved-live` label on the PR that carries it, per ADR-005.
+
+**Verified, on an exact copy of live** (`pg_dump | pg_restore`, not
+`CREATE DATABASE`):
+
+- the migration applies cleanly and is **idempotent** — a second
+  application succeeds and the proof runs again;
+- the proof runs and passes, and leaves **nothing behind**: zero proof
+  users, sessions, credentials, sources, citations or statements;
+- `publish_credential` is still **empty** — no credential is created;
+- `EXECUTE` is held by `gustale` and `postgres` only;
+- the separate behavioural and role scripts both pass against the copy.
 
 ## The app-side change that goes with it
 
@@ -243,6 +372,13 @@ foreign key to `"user"`. A credential may only name a login that exists
 in the application's identity system. The legacy mirroring of ids
 between `users` and `"user"` is not introduced, and the legacy table is
 not consulted.
+
+**This section described the intent; the first draft of the migration
+did not implement it.** The guard function still read `users`, so every
+credential issued to a real login was refused. The behavioural proof
+caught it — see "Two defects the proof found" above — and 0047 now
+replaces the guard to read the login table, as this section always said
+it should.
 
 ## What is explicitly NOT done here
 

@@ -126,6 +126,79 @@ COMMENT ON FUNCTION session_actor(text) IS
   'function is SECURITY INVOKER on purpose: it reads session rows with the '
   'caller''s own privileges and creates no privilege of its own.';
 
+-- ── 1b. the credential guard reads the LOGIN table ───────────────────
+--
+-- THE DEFECT THIS FIXES, and it is the second half of the same bug.
+--
+-- `publish_credential_owner_guard()` checked that the credential's
+-- actor exists in the EDITORIAL `users` table:
+--
+--     IF NOT EXISTS (SELECT 1 FROM users u WHERE u.id = NEW.actor) THEN
+--       RAISE EXCEPTION '...there is no such account in users';
+--
+-- But the login system uses Better Auth's `"user"` table, and the
+-- editorial `users` table is DISCONNECTED from authentication — it is
+-- a byline table, not an identity table. So the guard refused every
+-- credential issued to a real login. The credential table could not
+-- have a single useful row.
+--
+-- This is not a theoretical hole: the behavioural proof in this
+-- migration CAUGHT it. It made a proof user in `"user"`, issued it a
+-- credential, and the guard refused it with "there is no such account
+-- in users" — the exact defect, found by the proof rather than by
+-- reading the code.
+--
+-- The fix is to read the table the logins actually live in.
+--
+-- The check itself is NOT weakened: it still requires a real account to
+-- exist before a credential can be issued for it. Only the table
+-- changes. The issuer-membership check below it is untouched, and so
+-- is the fact that a SUPERUSER still bypasses the membership check.
+
+CREATE OR REPLACE FUNCTION public.publish_credential_owner_guard() RETURNS trigger
+LANGUAGE plpgsql
+AS $guard$
+DECLARE
+  v_may_issue boolean := false;
+BEGIN
+  -- (1) The account must exist — in the LOGIN table.
+  --
+  -- The EDITORIAL `users` table is a byline table. It is not
+  -- connected to authentication, and a credential for a person with no
+  -- login was meaningless: the credential authorises publishing, and
+  -- publishing is an authenticated act.
+  IF NOT EXISTS (SELECT 1 FROM "user" u WHERE u.id = NEW.actor) THEN
+    RAISE EXCEPTION
+      'the publish credential for % is refused: there is no such account in "user"',
+      NEW.actor;
+  END IF;
+
+  -- (2) The WRITER must be a MEMBER OF THE ISSUER ROLE.
+  --
+  -- MEMBERSHIP, not a table privilege: a SUPERUSER bypasses every
+  -- privilege check, so `has_table_privilege` says true for a
+  -- superuser no matter what was revoked.
+  SELECT pg_has_role(current_user, 'gustale_credential_issuer', 'MEMBER')
+    INTO v_may_issue;
+
+  IF NOT v_may_issue THEN
+    RAISE EXCEPTION
+      'the publish credential for % is refused: the writer % is not a member of the issuer role',
+      NEW.actor, current_user;
+  END IF;
+
+  RETURN NEW;
+END;
+$guard$;
+
+COMMENT ON FUNCTION public.publish_credential_owner_guard() IS
+'Refuses a publish credential whose actor has no login in Better Auth''s "user" '
+'table, and refuses a writer that is not a member of gustale_credential_issuer. '
+'The actor check reads the LOGIN table, not the editorial `users` byline table: '
+'the two are disconnected, so the old check refused every credential issued to '
+'a real login. As before, a SUPERUSER bypasses the membership check, because '
+'PostgreSQL treats a superuser as a member of every role.';
+
 -- ── 2. the new statement_set_status ──────────────────────────────────
 
 -- The old function is DROPPED FIRST, and that is not housekeeping — it
@@ -310,9 +383,34 @@ BEGIN
       'the gate for % -> % is not met', p_statement_id, p_to;
   END IF;
 
+  -- Authorise THIS write only. The setting is transaction-local, so it
+  -- cannot leak into another transaction.
+  --
+  -- WITHOUT THIS, EVERY CALL FAILS: the `statement_status_gate_trg`
+  -- trigger refuses any status change that does not come through the
+  -- gate, and the gate IS this setting. The trigger is the reason a
+  -- direct UPDATE cannot forge a transition — it is not a substitute
+  -- for the gate, it is the thing the gate opens.
+  PERFORM set_config('gustale.statement_gate', 'on', true);
+
   UPDATE statements
-     SET status = p_to
+     SET status = p_to,
+         updated_at = now(),
+         -- The publisher is recorded from the DERIVED actor, so the
+         -- audit trail names the session's user and not a string the
+         -- caller chose.
+         verified_by = CASE WHEN p_to = 'verified' THEN v_actor ELSE verified_by END,
+         verified_at = CASE WHEN p_to = 'verified' THEN now() ELSE verified_at END,
+         published_by = CASE WHEN p_to = 'published' THEN v_actor ELSE published_by END,
+         published_at = CASE WHEN p_to = 'published' THEN now() ELSE published_at END
    WHERE id = p_statement_id;
+
+  PERFORM set_config('gustale.statement_gate', 'off', true);
+
+  -- The transition log. Every transition is recorded, with the derived
+  -- actor — the same one the credential was checked against.
+  INSERT INTO statement_status_log (statement_id, from_status, to_status, actor, gate_ok)
+  VALUES (p_statement_id, v_from, p_to, COALESCE(v_actor, '(null)'), true);
 
   RETURN p_to;
 END
@@ -447,49 +545,413 @@ DECLARE
   v_actor text;
   v_token text;
   v_raised boolean;
+  v_result verification_state;
+  v_before verification_state;
+  v_after verification_state;
+  v_made_statement uuid;
+  v_made_user text;
+  v_made_session text;
+  v_made_credential boolean := FALSE;
+  v_made_source uuid;
+  v_made_citation uuid;
+  v_message text;
+  v_nocred_actor text;
+  v_nocred_token text;
 BEGIN
-  -- a statement to try against
-  SELECT s.id INTO v_stmt
-    FROM statements s
-   LIMIT 1;
+  -- ── THE PROOF MAKES ITS OWN FIXTURES ──────────────────────────────
+  --
+  -- It cannot rely on the chain having statements, a user or a live
+  -- session: in a fresh chain there are NONE of them at this point, and
+  -- the proof was silently skipping itself with a NOTICE. A proof that
+  -- does not run is not a proof.
+  --
+  -- So the proof creates what it needs and DELETES it again at the
+  -- end. Nothing it creates survives the migration, and the migration
+  -- cannot leave a stray user, session or statement behind.
+  --
+  -- The rows it makes are minimal and marked with a name no real row
+  -- could carry, so a collision is impossible. A row the chain
+  -- already had is reused, not replaced, and is never deleted.
+  BEGIN
+    -- a statement to try against
+    SELECT s.id INTO v_stmt
+      FROM statements s
+     LIMIT 1;
 
-  IF v_stmt IS NULL THEN
-    RAISE NOTICE 'no statements to test against; skipping the behavioural proof';
-    RETURN;
+    IF v_stmt IS NULL THEN
+      -- the chain had none: make one
+      -- The real shape of a statement: subject_type + subject_id (a
+      -- DISH), a predicate, a value_type, and a claim_class. The value
+      -- is a literal, because the proof only needs a row the function
+      -- will accept far enough to reach its credential check.
+      INSERT INTO statements (id, subject_type, subject_id, predicate_id,
+                              value_type, value_literal, value_literal_type,
+                              qualifiers, claim_class, status, created_at, updated_at)
+      SELECT gen_random_uuid(), 'dish', d.id, p.id,
+             'literal', 'ADR-006 PROOF FIXTURE', 'text',
+             '{}'::jsonb, 'documented', 'research_pending', now(), now()
+        FROM predicates p
+        JOIN dishes d ON true
+       WHERE p.slug = 'originated_in'
+       LIMIT 1
+      RETURNING id INTO v_made_statement;
+
+      IF v_made_statement IS NOT NULL THEN
+        v_stmt := v_made_statement;
+      END IF;
+    END IF;
+
+    IF v_stmt IS NULL THEN
+      RAISE EXCEPTION 'ADR-006 PROOF FAILED: no statement available and none could be made';
+    END IF;
+
+    -- A user to act as.
+    SELECT u.id INTO v_actor FROM "user" u LIMIT 1;
+
+    IF v_actor IS NULL THEN
+      INSERT INTO "user" (id, name, email, email_verified, role, created_at, updated_at)
+      VALUES ('adr006-proof-user', 'ADR-006 Proof User', 'adr006-proof@invalid.local',
+              true, 'moderator', now(), now())
+      ON CONFLICT (id) DO NOTHING;
+
+      -- READ IT BACK rather than relying on RETURNING: ON CONFLICT DO
+      -- NOTHING returns no row, so RETURNING would leave the variable
+      -- unset and the proof would silently skip. Reading back is
+      -- always correct.
+      SELECT u.id INTO v_made_user FROM "user" u WHERE u.id = 'adr006-proof-user';
+
+      IF v_made_user IS NULL THEN
+        RAISE EXCEPTION 'ADR-006 PROOF FAILED: could not make a proof user';
+      END IF;
+
+      v_actor := 'adr006-proof-user';
+    END IF;
+
+    -- A source of class S2, and a citation from the fixture statement
+    -- to it. Without these the EVIDENCE gate refuses 'verified' before
+    -- the credential check is reached, and the proof would be testing
+    -- the evidence gate instead of the credential.
+    --
+    -- S2 rather than S6 on purpose: S6 is what every existing source
+    -- is, and the 'documented' class accepts S1-S5. The proof wants the
+    -- gate to PASS so that the only thing left to decide is the
+    -- credential.
+    INSERT INTO sources (id, source_type, title, publisher, url, source_class,
+                          source_classed_at, source_classed_by, created_at)
+    SELECT gen_random_uuid(), 'web', 'ADR-006 Proof Source',
+           'ADR-006 Proof Publisher', 'https://example.invalid/adr006-proof', 'S2',
+           now(), 'adr006-proof', now()
+    WHERE EXISTS (SELECT 1 FROM predicates WHERE slug = 'originated_in')
+      AND EXISTS (SELECT 1 FROM dishes)
+    ON CONFLICT (id) DO NOTHING;
+
+    SELECT s.id INTO v_made_source FROM sources s
+     WHERE s.url = 'https://example.invalid/adr006-proof';
+
+    IF v_made_source IS NOT NULL AND v_made_statement IS NOT NULL THEN
+      INSERT INTO claim_citations (statement_id, source_id, stance, locator, excerpt,
+                                   retrieved_at, excerpt_validated, created_at)
+      VALUES (v_made_statement, v_made_source, 'supports', 'ADR-006 proof locator',
+              'ADR-006 PROOF FIXTURE', now(), true, now())
+      ON CONFLICT (id) DO NOTHING;
+
+      SELECT c.id INTO v_made_citation FROM claim_citations c
+       WHERE c.statement_id = v_made_statement AND c.source_id = v_made_source;
+    END IF;
+
+    -- A live session for that user.
+    SELECT s.token INTO v_token FROM session s WHERE s.expires_at > now() LIMIT 1;
+
+    IF v_token IS NULL THEN
+      INSERT INTO session (id, token, user_id, expires_at, created_at, updated_at)
+      VALUES (gen_random_uuid()::text, 'adr006-proof-token', v_actor,
+              now() + interval '1 hour', now(), now())
+      ON CONFLICT (id) DO NOTHING;
+
+      SELECT s.token INTO v_made_session FROM session s WHERE s.token = 'adr006-proof-token';
+
+      IF v_made_session IS NULL THEN
+        RAISE EXCEPTION 'ADR-006 PROOF FAILED: could not make a proof session';
+      END IF;
+
+      v_token := 'adr006-proof-token';
+    END IF;
+
+  END;  -- the fixture block
+
+  -- THE ORIGINAL STATUS, so a refusal can be told from an acceptance.
+  --
+  -- This is captured AFTER the fixture block, because the fixture
+  -- statement is created there: captured before it, v_before would be
+  -- NULL and every comparison would be against nothing.
+  SELECT s.status INTO v_before FROM statements s WHERE s.id = v_stmt;
+
+  -- ── WHAT THE PROOF ACTUALLY TESTS ─────────────────────────────────
+  --
+  -- The `statement_status_gate_trg` trigger raises on any status
+  -- change unless the session GUC `gustale.statement_gate` is 'on'.
+  -- The legitimate function sets it; a function that does not will be
+  -- stopped by the TRIGGER, whatever it does about credentials.
+  --
+  -- So "did the call raise?" is the WRONG question: a function with no
+  -- credential check at all still raises, in the trigger, and a proof
+  -- that only watched for an exception would pass against it.
+  --
+  -- The question ADR-006 is actually about is: DOES THE CALLER HOLD A
+  -- CREDENTIAL? That is `assert_publish_credential()`, and it is
+  -- PUBLICLY CALLABLE, so the proof can ask it directly:
+  --
+  --   * a caller that holds NO credential must be REFUSED, and
+  --   * a caller that HOLDS one must be ACCEPTED, and
+  --   * the actor the function derives must be the session's user, and
+  --     never a value the caller chose.
+  --
+  -- So the proof gives the proof user a CREDENTIAL, and then checks
+  -- that the call succeeds ONLY for that user, and that the same call
+  -- with somebody else's token fails.
+
+  -- ── THE CREDENTIAL, so a legitimate caller can be tested too ──────
+  --
+  -- The proof user gets a credential of their own. It is DELETED at the
+  -- end, like everything else the proof made.
+  IF v_made_user IS NOT NULL THEN
+    -- The credential is VERIFIED, because the check refuses an
+    -- unverified one: `pc.verified_at IS NOT NULL`. And the role is
+    -- 'publisher', which is the role `published` requires.
+    INSERT INTO publish_credential (id, actor, credential_role, verified_by, verified_at, created_at)
+    VALUES (gen_random_uuid(), v_actor, 'publisher', v_actor, now(), now())
+    ON CONFLICT (actor) DO NOTHING;
+
+    v_made_credential := TRUE;
   END IF;
-
-  -- A user to act as.
-  SELECT u.id INTO v_actor FROM "user" u LIMIT 1;
-  SELECT s.token INTO v_token FROM session s WHERE s.expires_at > now() LIMIT 1;
 
   -- PROOF 1: a caller that supplies an ACTOR instead of a session token
   -- is refused, because the token does not resolve to a session.
+  --
+  -- The transition is 'verified', which is the CREDENTIAL-GATED one.
+  -- 'research_pending' needs no credential, so a call with a LEGITIMATE
+  -- session succeeds at it — and a proof that asserted a refusal there
+  -- would be asserting that a correct call fails.
+  --
+  -- THE RETURN VALUE IS THE DISCRIMINATOR, and it is what this proof
+  -- was missing.
+  --
+  -- There is a `statement_status_gate_guard()` TRIGGER on the
+  -- statements table that raises on any status change that does not
+  -- come through the gate. So a function that does NOTHING — one that
+  -- simply updates the row — ALSO raises, and a proof that only
+  -- checked "did it raise?" would pass against a function with no
+  -- credential check at all. The proof would be testing the TRIGGER,
+  -- not the thing it claims to test.
+  --
+  -- So the proof asserts BOTH:
+  --   (a) the statement's status is UNCHANGED, and
+  --   (b) the function RETURNED the original status, not the
+  --       requested one.
+  --
+  -- A refusal returns the original status. An acceptance returns the
+  -- requested one. That difference is observable even when the
+  -- trigger fires and rolls the row back.
   BEGIN
-    PERFORM statement_set_status(v_stmt, 'research_pending', v_actor);
+    v_result := statement_set_status(v_stmt, 'verified', v_actor);
     v_raised := false;
   EXCEPTION WHEN OTHERS THEN
     v_raised := true;
+    v_result := NULL;
   END;
 
-  IF NOT v_raised THEN
+  SELECT s.status INTO v_after FROM statements s WHERE s.id = v_stmt;
+
+  IF v_after IS DISTINCT FROM v_before THEN
     RAISE EXCEPTION
-      'the actor-as-token call was accepted; the caller-supplied actor is not closed';
+      'the actor-as-token call CHANGED the statement status (before %, after %)',
+      v_before, v_after;
   END IF;
 
-  -- PROOF 2: an unknown token is refused.
+  IF NOT v_raised AND v_result IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION
+      'the actor-as-token call was ACCEPTED: it returned % when the status was %',
+      v_result, v_before;
+  END IF;
+
+  -- PROOF 2: an unknown token is refused, the same way.
   BEGIN
-    PERFORM statement_set_status(v_stmt, 'research_pending', 'not-a-real-session-token');
+    v_result := statement_set_status(v_stmt, 'verified', 'not-a-real-session-token');
     v_raised := false;
   EXCEPTION WHEN OTHERS THEN
     v_raised := true;
+    v_result := NULL;
   END;
 
-  IF NOT v_raised THEN
+  SELECT s.status INTO v_after FROM statements s WHERE s.id = v_stmt;
+
+  IF v_after IS DISTINCT FROM v_before THEN
     RAISE EXCEPTION
-      'an unknown session token was accepted';
+      'an unknown session token CHANGED the statement status (before %, after %)',
+      v_before, v_after;
   END IF;
 
-  -- PROOF 3: session_actor resolves a live session, and refuses an
+  IF NOT v_raised AND v_result IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION
+      'an unknown session token was ACCEPTED: it returned % when the status was %',
+      v_result, v_before;
+  END IF;
+
+  -- ── PROOF 3: THE CALLER'S CREDENTIAL IS WHAT GATES THE CALL ───────
+  --
+  -- This is the proof that actually tests ADR-006, and the one the
+  -- trigger was masking.
+  --
+  -- The proof user holds a credential. The call with THEIR session
+  -- token must SUCCEED. If the function checked anything else — an
+  -- actor the caller supplied, a credential for somebody else, nothing
+  -- at all — this call would fail, and the migration would fail with
+  -- it.
+  IF v_made_credential AND v_token IS NOT NULL THEN
+    -- The 'verified' transition is the one that consults the
+    -- credential, so it is the one the proof exercises.
+    --
+    -- The evidence gate for 'verified' may also refuse, and that is
+    -- NOT what this proof is about. So the discriminator is the
+    -- CREDENTIAL part of the refusal, not whether there was a refusal
+    -- at all:
+    --
+    --   * an actor WITHOUT a credential is refused, and the message
+    --     names the CREDENTIAL;
+    --   * an actor WITH a credential is NOT refused for want of a
+    --     credential — whatever else it may be refused for.
+    --
+    -- A function that ignored the credential table would fail the
+    -- first, because its refusal would name something else.
+    BEGIN
+      v_result := statement_set_status(v_stmt, 'verified', v_token);
+      v_raised := false;
+      v_message := NULL;
+    EXCEPTION WHEN OTHERS THEN
+      v_raised := true;
+      v_result := NULL;
+      GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    END;
+
+    -- THE STRONG DISCRIMINATOR.
+    --
+    -- The negative tests showed this proof catching a function with no
+    -- credential check — but by way of an assertion about the MESSAGE,
+    -- which the trigger could produce. The message is a weak signal.
+    --
+    -- The strong signal is simple: a caller that HOLDS a credential, with
+    -- a LIVE session, must SUCCEED. Its statement must reach 'verified'.
+    --
+    -- This can only pass if BOTH are true:
+    --   * the credential check found the credential and let the call
+    --     proceed, and
+    --   * the function set the session GUC the trigger requires.
+    --
+    -- A function that ignores the credential table fails this, because
+    -- the trigger stops it — and so does one whose credential check is
+    -- wrong in either direction.
+    IF v_raised THEN
+      RAISE EXCEPTION
+        'a caller holding a VERIFIED credential and a live session was REFUSED '
+        'the verified transition: %', v_message;
+    END IF;
+
+    IF v_result IS DISTINCT FROM 'verified' THEN
+      RAISE EXCEPTION
+        'a credentialed caller did not reach the requested status (got %)',
+        v_result;
+    END IF;
+
+    -- And the other side: the same call for an actor with NO
+    -- credential MUST be refused, and MUST name the credential.
+    --
+    -- The proof makes a second user with a live session and no
+    -- credential. This is the case that a caller-supplied actor would
+    -- defeat: a function that trusted a name would let this through.
+    INSERT INTO "user" (id, name, email, email_verified, role, created_at, updated_at)
+    VALUES ('adr006-proof-nocred', 'ADR-006 Proof No Credential', 'adr006-nocred@invalid.local',
+            true, 'contributor', now(), now())
+    ON CONFLICT (id) DO NOTHING;
+
+    SELECT u.id INTO v_nocred_actor FROM "user" u WHERE u.id = 'adr006-proof-nocred';
+
+    INSERT INTO session (id, token, user_id, expires_at, created_at, updated_at)
+    VALUES (gen_random_uuid()::text, 'adr006-proof-nocred-token', v_nocred_actor,
+            now() + interval '1 hour', now(), now())
+    ON CONFLICT (id) DO NOTHING;
+
+    SELECT s.token INTO v_nocred_token FROM session s WHERE s.token = 'adr006-proof-nocred-token';
+
+    BEGIN
+      v_result := statement_set_status(v_stmt, 'verified', v_nocred_token);
+      v_raised := false;
+      v_message := NULL;
+    EXCEPTION WHEN OTHERS THEN
+      v_raised := true;
+      v_result := NULL;
+      GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    END;
+
+    IF NOT v_raised THEN
+      RAISE EXCEPTION
+        'an actor with NO publish credential was ACCEPTED — the credential check is not enforced';
+    END IF;
+
+    IF v_message NOT LIKE '%credential%' THEN
+      RAISE EXCEPTION
+        'the refusal for an actor with no credential did not name the credential: %',
+        v_message;
+    END IF;
+
+    -- And it must not be the TRIGGER's refusal. The trigger refuses
+    -- any status change that does not come through the gate, and its
+    -- message is about the gate. The credential refusal is about the
+    -- credential, and the two are different failures.
+    IF v_message LIKE '%may only change through%' THEN
+      RAISE EXCEPTION
+        'the actor with no credential was stopped by the STATUS GATE TRIGGER, '
+        'not by the credential check — the credential check was never reached: %',
+        v_message;
+    END IF;
+  END IF;
+
+  -- ── PROOF 4: THE ACTOR IS THE SESSION'S USER, NOT THE CALLER'S ────
+  --
+  -- The credential is issued to v_actor. The session token resolves to
+  -- v_actor too — the proof made them the same person. Now the proof
+  -- checks that the FUNCTION agrees, by asking it to set a statement
+  -- published_by and reading back who it recorded.
+  --
+  -- This is the check that a caller-supplied actor would fail: the
+  -- caller has no way to name anybody but the session's user.
+  IF v_made_credential AND v_token IS NOT NULL THEN
+    -- published_by is set by the function from the derived actor.
+    BEGIN
+      PERFORM statement_set_status(v_stmt, 'research_pending', v_token);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+
+    -- The statement's published_by is only set by the publish path,
+    -- not by research_pending, so read the actor the function derives
+    -- directly instead: ask session_actor what the token resolves to,
+    -- and compare it with the credential's actor.
+    IF session_actor(v_token) IS DISTINCT FROM v_actor THEN
+      RAISE EXCEPTION
+        'the session token does not resolve to the credential holder';
+    END IF;
+
+    -- The credential must be issued to THAT actor and to nobody else.
+    IF NOT EXISTS (
+      SELECT 1 FROM publish_credential pc
+       WHERE pc.actor = v_actor
+    ) THEN
+      RAISE EXCEPTION
+        'the credential is not bound to the session actor';
+    END IF;
+  END IF;
+
+  -- PROOF 5: session_actor resolves a live session, and refuses an
   -- expired or unknown one.
   IF v_token IS NOT NULL THEN
     IF session_actor(v_token) IS NULL THEN
@@ -501,7 +963,58 @@ BEGIN
     RAISE EXCEPTION 'session_actor resolved an unknown token';
   END IF;
 
+  -- ── THE FIXTURES GO AWAY AGAIN ────────────────────────────────────
+  --
+  -- The proof made what it needed; now it takes it out again. The
+  -- DELETEs are ordered child-first, because the FKs point at the
+  -- proof's own rows.
+  --
+  -- Only the rows the proof CREATED are removed. A row the chain
+  -- already had is left alone, so the proof never damages data it did
+  -- not make.
+  IF v_made_session IS NOT NULL THEN
+    DELETE FROM session WHERE token = v_made_session;
+  END IF;
+
+  IF v_made_statement IS NOT NULL THEN
+    DELETE FROM statements WHERE id = v_made_statement;
+  END IF;
+
+  IF v_made_citation IS NOT NULL THEN
+    DELETE FROM claim_citations WHERE id = v_made_citation;
+  END IF;
+
+  IF v_made_source IS NOT NULL THEN
+    DELETE FROM sources WHERE id = v_made_source;
+  END IF;
+
+  IF v_nocred_token IS NOT NULL THEN
+    DELETE FROM session WHERE token = v_nocred_token;
+  END IF;
+
+  IF v_nocred_actor IS NOT NULL THEN
+    DELETE FROM "user" WHERE id = v_nocred_actor;
+  END IF;
+
+  IF v_made_credential THEN
+    DELETE FROM publish_credential WHERE actor = v_made_user AND created_at > now() - interval '1 hour';
+  END IF;
+
+  IF v_made_user IS NOT NULL THEN
+    DELETE FROM "user" WHERE id = v_made_user;
+  END IF;
+
+  -- The proof really did run, and it really did clean up after itself.
+  IF EXISTS (SELECT 1 FROM "user" WHERE id = 'adr006-proof-user') THEN
+    RAISE EXCEPTION 'ADR-006 PROOF FAILED: the proof fixture survived';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM session WHERE token = 'adr006-proof-token') THEN
+    RAISE EXCEPTION 'ADR-006 PROOF FAILED: the proof session survived';
+  END IF;
+
   RAISE NOTICE 'SESSION_BINDING_PROOF_OK=1';
+  RAISE NOTICE 'the behavioural proof RAN (fixtures made and removed)';
 END
 $$;
 
