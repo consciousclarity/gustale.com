@@ -107,6 +107,16 @@ jobs:
       - name: Validate the CI migration chain
         run: python3 scripts/validate-ci-migration-chain.py
 
+      # The marker checker's own test.
+      #
+      # The marker check is what makes the gates' markers matter: it is
+      # what turns "the gate printed a marker" into "the workflow
+      # verified the gate printed it". The checker needs a test, because
+      # a checker that passes when it should fail is worse than no
+      # checker at all -- it would make the gates look verified.
+      - name: Test the CI marker checker
+        run: bash scripts/test-check-ci-markers.sh
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
@@ -546,10 +556,22 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0036_atlas_schema.sql
 
+      # The marker check: the gate prints ATLAS_SCHEMA_TESTS, and the
+      # workflow now checks that it PRINTED it. The exit code alone is
+      # not enough -- a gate whose assertion bodies are removed still
+      # exits 0 -- and before this change nothing in the workflow
+      # grepped for the marker at all. The human reading the log was
+      # the only thing reading it.
       - name: Test the ADR-004 atlas constraints
         run: |
+          # `set -o pipefail` is REQUIRED here: without it the step's
+          # exit code is tee's, which is 0, and the gate would stop
+          # being able to fail. With it, the step fails if EITHER psql
+          # OR tee fails.
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_schema.sql
+            -f scripts/test_atlas_schema.sql 2>&1 | tee /tmp/atlas_schema.log
+          bash scripts/check-ci-markers.sh "the atlas schema gate" "ATLAS_SCHEMA_TESTS" /tmp/atlas_schema.log
 
       # 0037 is the P2 backfill: the legacy places & traditions data moves
       # into dish_place_associations, and what cannot be decided goes to
@@ -586,8 +608,10 @@ jobs:
       # transitions need no credential.
       - name: Test the publish credential constraints
         run: |
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_schema.sql
+            -f scripts/test_atlas_schema.sql 2>&1 | tee /tmp/publish_credential.log
+          bash scripts/check-ci-markers.sh "the publish credential gate" "ATLAS_SCHEMA_TESTS" /tmp/publish_credential.log
 
       # 0039 queues the journey places that produced NO association.
       #
@@ -667,10 +691,12 @@ jobs:
       # inserter's privileges.
       - name: The credential escalation check
         run: |
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/mark_disposable_db.sql
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_trigger_escalation.sql
+            -f scripts/test_atlas_trigger_escalation.sql 2>&1 | tee /tmp/trigger_escalation.log
+          bash scripts/check-ci-markers.sh "the trigger escalation gate" "ATLAS_TRIGGER_ESCALATION" /tmp/trigger_escalation.log
 
       # 0043 — the taxonomy canonicalisation. Copies the 26 legacy
       # descriptions into the dimension rows that have none, and queues
@@ -726,8 +752,10 @@ jobs:
       # NON-ZERO baselines. A backfill that produced nothing fails it.
       - name: Assert the atlas backfill per dish
         run: |
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_backfill.sql
+            -f scripts/test_atlas_backfill.sql 2>&1 | tee /tmp/atlas_backfill.log
+          bash scripts/check-ci-markers.sh "the backfill gate" "ATLAS_COUNT_GUARD" /tmp/atlas_backfill.log
 
       - name: Run vitest
         working-directory: apps/api
