@@ -383,7 +383,18 @@ log ""
 # the 2026-11-02 state a clean rebuild.
 log ""
 log "--- Checking both domains' sitemaps ---"
-if ! bash /home/deploy/gustale-rebuild/scripts/check-live-sitemaps.sh 1531; then
+# The check script is installed alongside the rebuild scripts on the
+# VPS. It is also looked up relative to this script, so the rebuild
+# works when run from a checkout.
+CHECK_SCRIPT="/home/deploy/gustale-rebuild/scripts/check-live-sitemaps.sh"
+if [ ! -f "$CHECK_SCRIPT" ]; then
+  CHECK_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/check-live-sitemaps.sh"
+fi
+if [ ! -f "$CHECK_SCRIPT" ]; then
+  log "ERROR: the sitemap check script is missing ($CHECK_SCRIPT) -- the rebuild cannot verify the two sites"
+  exit 1
+fi
+if ! bash "$CHECK_SCRIPT" 1531; then
   log "ERROR: the sitemap check failed -- one of the two sites is serving a stale build"
   exit 1
 fi
