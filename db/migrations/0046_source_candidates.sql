@@ -151,8 +151,36 @@ CREATE TABLE IF NOT EXISTS source_candidates (
 
 -- One candidate per (statement, work). The same work found twice by two
 -- catalogues is one candidate, not two.
-CREATE UNIQUE INDEX IF NOT EXISTS source_candidates_statement_doi_url_uniq
-  ON source_candidates (statement_id, doi, url);
+--
+-- WHY THIS INDEX IS NOT (statement_id, doi, url)
+-- ---------------------------------------------
+-- That index was here and it was WRONG, in two independent ways.
+--
+-- 1. NULLs never collide. In Postgres a unique index treats NULLs as
+--    DISTINCT, so two candidates for the same work and the same
+--    statement, both with a NULL doi, are two rows. The work's
+--    identity is in the TITLE and the YEAR, not in the DOI.
+--
+-- 2. The same DOI in two forms is two keys. One catalogue returns
+--    "https://doi.org/10.5219/1985" and another returns
+--    "10.5219/1985" -- the same work, two different strings, two
+--    different index entries.
+--
+-- PROVED on a copy of live: 61 candidates, 47 distinct works. The 14
+-- duplicated rows were exactly the candidates whose doi was NULL (the
+-- OpenAlex ones, whose url is an openalex.org/W... id) and the ones
+-- whose DOI appeared with and without the https://doi.org/ prefix.
+--
+-- So the index is on the WORK's identity -- the statement, the work
+-- type, the title and the year -- with NULLS NOT DISTINCT so a missing
+-- title or year still collides with another missing one.
+--
+-- The DOI is deliberately NOT part of the key: it is the same work's
+-- identifier, not a second work. It stays as a COLUMN so the reviewer
+-- can search on it.
+CREATE UNIQUE INDEX IF NOT EXISTS source_candidates_statement_work_uniq
+  ON source_candidates (statement_id, work_type, title, year, url)
+  NULLS NOT DISTINCT;
 
 -- The reviewer's query: the pending candidates for a statement.
 CREATE INDEX IF NOT EXISTS source_candidates_statement_idx

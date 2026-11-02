@@ -612,7 +612,16 @@ print(len(rows))
         "catalogue_relevance, term_overlap, proposed_source_class, status, fetched, "
         "fetch_note, locator, excerpt) "
         "VALUES " + ", ".join(values) +
-        " ON CONFLICT (statement_id, doi, url) DO NOTHING;"
+        # The conflict target MUST match the unique index in 0046:
+        # source_candidates_statement_work_uniq, which is on the WORK's
+        # identity (statement, work_type, title, year, url) with NULLS
+        # NOT DISTINCT.
+        #
+        # The old target was (statement_id, doi, url), and it did not
+        # dedupe: NULL dois never collide, and the same DOI in two
+        # forms is two keys. Proved on a copy of live -- 61 candidates,
+        # 47 distinct works.
+        " ON CONFLICT (statement_id, work_type, title, year, url) DO NOTHING;"
     )
     psql(statement)
     return len(rows)
