@@ -177,14 +177,22 @@ if [ -f "$STATE_FILE" ] && [ "$FORCE" = "0" ]; then
   log "  previous:  $PREV_VERSION  build=$PREV_BUILD_SHA"
 fi
 
-if [ "$FORCE" = "0" ] && [ "$CURRENT_VERSION" = "$PREV_VERSION" ] && [ -n "$PREV_VERSION" ]; then
-  log ""
-  log "--- No content change detected; exiting without rebuild ---"
-  log "  current:  $CURRENT_VERSION"
-  log "  previous: $PREV_VERSION"
-  log "  next run: see gustale-rebuild-web.timer"
-  exit 0
-fi
+# The rebuild is needed when EITHER the content changed OR the code
+# changed.
+#
+# The code check was MISSING, and that is a real bug with a real
+# consequence: a commit that changes the BUILD (a sitemap fix, a
+# template change, anything in the web app) was never deployed by the
+# timer, because the content version had not changed. The timer
+# happily reported "No content change detected; exiting without
+# rebuild" for a commit that was waiting to be deployed.
+#
+# On 2026-11-02 that is exactly how gustale.recipes kept serving a
+# stale sitemap: the fix was merged, the timer ran, and it declined to
+# rebuild because no dish had changed.
+#
+# The build sha is known only AFTER the fetch (step 4), so the
+# comparison happens after the checkout, not here.
 
 log ""
 log "--- Content changed (or first run / forced) — proceeding with rebuild ---"
@@ -212,6 +220,28 @@ git checkout --quiet --force origin/main
 BUILD_SHA=$(git rev-parse HEAD)
 BUILD_SHORT_SHA="${BUILD_SHA:0:7}"
 log "  build sha: $BUILD_SHA"
+
+# Now that the sha is known, compare it to the last successful build.
+#
+# If the code changed, the rebuild MUST happen even when no content
+# changed -- otherwise a merged build fix never reaches production.
+if [ "$FORCE" = "0" ] \
+   && [ "$CURRENT_VERSION" = "$PREV_VERSION" ] \
+   && [ -n "$PREV_VERSION" ] \
+   && [ "$BUILD_SHA" = "$PREV_BUILD_SHA" ]; then
+  log ""
+  log "--- No content AND no code change detected; exiting without rebuild ---"
+  log "  content:  $CURRENT_VERSION"
+  log "  previous: $PREV_VERSION"
+  log "  build:    $BUILD_SHA (unchanged)"
+  log "  next run: see gustale-rebuild-web.timer"
+  exit 0
+fi
+
+if [ "$CURRENT_VERSION" = "$PREV_VERSION" ] && [ -n "$PREV_VERSION" ]; then
+  log "  the content is unchanged, but the BUILD changed: $PREV_BUILD_SHA -> $BUILD_SHA"
+  log "  rebuilding anyway, because a build fix must reach production"
+fi
 
 # --- Step 5: build the web images with live data ---
 # The rebuild runs entirely on the VPS and consumes the image locally
