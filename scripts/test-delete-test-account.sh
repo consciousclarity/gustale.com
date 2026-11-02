@@ -69,10 +69,41 @@ fi
 # The gate takes an id AND an expected email substring. Passing a real
 # id with the WRONG expected email must be refused -- that is what
 # stops a production account being deleted by passing its id.
-REAL_ID=$(docker exec -i -u postgres shared-postgres psql -U postgres -d "${GUSTALE_DB_NAME:-gustale}" -tAc \
-  "SELECT id FROM \"user\" ORDER BY email LIMIT 1" 2>/dev/null | tail -1)
-if [ -n "$REAL_ID" ]; then
-  run_gate "$REAL_ID" "definitely-not-the-email"
+# The CI database has no Better Auth accounts at all, so this test
+# creates its own fixture and removes it afterwards. It used to read
+# an existing account, which meant the test FAILED in CI for want of
+# one -- and a test that cannot run is a test that protects nothing.
+DB="${GUSTALE_DB_NAME:-gustale}"
+FIXTURE_EMAIL="gate-test-account@gustale.invalid"
+FIXTURE_ID=""
+cleanup_fixture() {
+  [ -n "$FIXTURE_ID" ] || return 0
+  docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" -q -c \
+    "DELETE FROM \"user\" WHERE id = '$FIXTURE_ID'" >/dev/null 2>&1 || true
+}
+trap cleanup_fixture EXIT
+
+# The columns are snake_case (email_verified, created_at, updated_at).
+#
+# Remove any leftover fixture FIRST. The email is unique, so a fixture
+# left behind by an interrupted run made the INSERT fail and the test
+# reported "could not create a fixture account" for the wrong reason.
+docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" -q -c \
+  "DELETE FROM \"user\" WHERE email = '$FIXTURE_EMAIL'" >/dev/null 2>&1 || true
+
+# `psql -c` prints the command tag ("INSERT 0 1") alongside the
+# RETURNING row, so the id has to be picked out by shape, not by
+# position -- `tail -1` returned the command tag and the gate was
+# handed "INSERT 0 1" as the account id.
+FIXTURE_ID=$(docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" -tAc \
+  "INSERT INTO \"user\" (id, name, email, email_verified, created_at, updated_at)
+   VALUES (gen_random_uuid()::text, 'gate test', '$FIXTURE_EMAIL', true, now(), now())
+   RETURNING id" 2>/dev/null \
+  | grep -E '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' | head -1)
+
+if [ -n "$FIXTURE_ID" ]; then
+  ok "created a fixture account to test against"
+  run_gate "$FIXTURE_ID" "definitely-not-the-email"
   RC=$?
   if [ "$RC" = "99" ]; then
     bad "the gate could not be RUN (exit 99 = permission or not-found)"
@@ -81,8 +112,22 @@ if [ -n "$REAL_ID" ]; then
   else
     bad "it ACCEPTED an account whose email did not match the expectation"
   fi
+
+  # ── and it ACCEPTS the right email (the positive control) ──
+  # Without this, "refuses everything" would pass the whole test.
+  # The gate with no --apply flag validates on a DISPOSABLE COPY and
+  # writes nothing, so this is safe to run against the live database.
+  run_gate "$FIXTURE_ID" "$FIXTURE_EMAIL"
+  RC=$?
+  if [ "$RC" = "99" ]; then
+    bad "the gate could not be RUN (exit 99 = permission or not-found)"
+  elif [ "$RC" -ne 0 ]; then
+    bad "it refused a legitimate account (exit $RC) -- the gate is too strict"
+  else
+    ok "it ACCEPTS an account whose email matches the expectation"
+  fi
 else
-  bad "could not read any account to test the email mismatch against"
+  bad "could not create a fixture account to test the email mismatch against"
 fi
 
 # ── it refuses an unknown option ────────────────────────────────────

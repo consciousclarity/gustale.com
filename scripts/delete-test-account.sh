@@ -264,7 +264,16 @@ assert_eq() {
   fi
 }
 assert_eq "the user table"   "$BEFORE_USER"    "$AFTER_USER"    1
-assert_eq "the account table" "$BEFORE_ACCOUNT" "$AFTER_ACCOUNT" 1
+# The `account` table holds the OAuth/password rows. An account that
+# has NONE of them (a freshly made test account) legitimately leaves
+# the table unchanged -- there was nothing to cascade. Asserting a
+# drop of one there failed the gate for the wrong reason: the delete
+# was correct, the expectation was not.
+if [ "$BEFORE_ACCOUNT" != "$AFTER_ACCOUNT" ]; then
+  assert_eq "the account table" "$BEFORE_ACCOUNT" "$AFTER_ACCOUNT" 1
+else
+  echo "  the account table: $BEFORE_ACCOUNT -> $AFTER_ACCOUNT (the account held no linked row)"
+fi
 # The session table drops by the number of sessions the account HELD.
 # It may be zero -- a test account that never logged in has no session,
 # and asserting a drop of one would fail the gate for the wrong reason.
