@@ -206,9 +206,7 @@ async function main() {
   const locales = domain === "geo" ? requested : ["en"];
 
   console.log(`[sitemap] domain=${domain} origin=${origin}`);
-  console.log(
-    `[sitemap] ${slugs.length} dishes, ${locales.join(", ")}`,
-  );
+  console.log(`[sitemap] ${slugs.length} dishes, ${locales.join(", ")}`);
   console.log(
     `[sitemap] families: ${families.withDishes.length} with dishes, ` +
       `${families.withoutDishes.length} without (omitted)`,
