@@ -168,6 +168,8 @@ MIGRATION_0042=db/migrations/0042_credential_trigger_revocation.sql
 MIGRATION_0043=db/migrations/0043_taxonomy_canonicalisation.sql
 MIGRATION_0044=db/migrations/0044_not_a_dish_queue.sql
 MIGRATION_0045=db/migrations/0045_credential_guard_comment.sql
+MIGRATION_0046=db/migrations/0046_source_candidates.sql
+MIGRATION_0047=db/migrations/0047_publish_credential_session_binding.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
@@ -542,6 +544,24 @@ echo "--- the credential guard comment"
 run_pg -f - < "$MIGRATION_0045" >/tmp/m0045.log 2>&1 || { echo "FAILED: 0045"; grep -E 'ERROR|NOTICE' /tmp/m0045.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0045.log | head -8 || true
+
+# ── 0046: the candidate-source table (GUS-1010) ─────────────────────
+#
+# The table that holds CANDIDATE sources, awaiting review. It is NOT
+# `sources` and NOT `claim_citations`, and nothing in it is ever
+# verified.
+run_pg -f - < "$MIGRATION_0046" >/tmp/m0046.log 2>&1 || { echo "FAILED: 0046"; grep -E 'ERROR|NOTICE' /tmp/m0046.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0046.log | head -8 || true
+
+# ── 0047: the publish credential is bound to the session ────────────
+#
+# The publisher is derived from the Better Auth session, never supplied
+# by the caller. The migration carries its own behavioural proof and
+# FAILS if the caller-supplied actor is still accepted.
+run_pg -f - < "$MIGRATION_0047" >/tmp/m0047.log 2>&1 || { echo "FAILED: 0047"; grep -E 'ERROR|NOTICE' /tmp/m0047.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0047.log | head -8 || true
 
 # The FIXTURES — a seed, and NOT part of the migration chain.
 echo "--- the atlas fixtures (seed, never a migration)"

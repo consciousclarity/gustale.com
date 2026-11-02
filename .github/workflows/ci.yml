@@ -697,6 +697,27 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0045_credential_guard_comment.sql
 
+      # ── 0046: the candidate-source table (GUS-1010) ──────────────────
+      #
+      # The table that holds CANDIDATE sources, awaiting review. It is
+      # NOT `sources` and NOT `claim_citations`, and nothing in it is
+      # ever verified. See db/migrations/0046_source_candidates.sql.
+      - name: Apply the source candidates table
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0046_source_candidates.sql
+
+      # ── 0047: the publish credential is bound to the session ────────
+      #
+      # The publisher is derived from the Better Auth session, never
+      # supplied by the caller. See
+      # docs/ADR-006-publish-credential-session-binding.md for what this
+      # does and does not protect against.
+      - name: Apply the publish credential session binding
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0047_publish_credential_session_binding.sql
+
       # The FIXTURES — a SEED, not a migration.
       #
       # The brief's §12: the model is "demonstrated with isolated

@@ -363,6 +363,22 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0045_credential_guard_comment.sq
   || { echo "  FAILED: 0045"; grep -E 'ERROR' /tmp/repro_0045.log | head -6; fail=1; }
 grep -E 'CREDENTIAL_GUARD_COMMENT_CORRECTED' /tmp/repro_0045.log | tail -1 || true
 
+# 0046 — the candidate-source table (GUS-1010). NOT `sources`, NOT
+# `claim_citations`, and nothing in it is ever verified.
+step "the source candidates table"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0046_source_candidates.sql" > /tmp/repro_0046.log 2>&1 \
+  || { echo "  FAILED: 0046"; grep -E 'ERROR' /tmp/repro_0046.log | head -6; fail=1; }
+grep -E 'SOURCE_CANDIDATES_TABLE_READY' /tmp/repro_0046.log | tail -1 || true
+
+# 0047 — the publish credential is bound to the Better Auth session. The
+# publisher is derived from the session, never supplied by the caller.
+# The migration carries its own behavioural proof and FAILS if the
+# caller-supplied actor is still accepted.
+step "the publish credential session binding"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0047_publish_credential_session_binding.sql" > /tmp/repro_0047.log 2>&1 \
+  || { echo "  FAILED: 0047"; grep -E 'ERROR' /tmp/repro_0047.log | head -6; fail=1; }
+grep -E 'SESSION_BINDING_PROOF_OK' /tmp/repro_0047.log | tail -1 || true
+
 step "the atlas fixtures"
 run_pg -f - < "$(dirname "$0")/../packages/db/seed-atlas-fixtures.sql" > /tmp/repro_fixtures.log 2>&1 \
   || { echo "  FAILED: the atlas fixtures"; grep -E 'ERROR' /tmp/repro_fixtures.log | head -6; fail=1; }
