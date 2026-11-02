@@ -107,6 +107,15 @@ jobs:
       - name: Validate the CI migration chain
         run: python3 scripts/validate-ci-migration-chain.py
 
+      # The audit's registry probe's own test.
+      #
+      # The probe is what stops `pnpm audit` from passing by being
+      # unable to reach the registry. The probe itself needs a test: a
+      # probe that fails against a HEALTHY registry would turn the
+      # dependency gate off entirely, and it would do so silently.
+      - name: Test the audit registry probe
+        run: python3 scripts/test_audit_registry_probe.py
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
@@ -212,7 +221,40 @@ jobs:
       # update this comment -- but do not leave it silently disabled.
       - name: pnpm audit (blocking at high)
         if: always()
-        run: pnpm audit --audit-level=high
+        run: |
+          # The audit must have ACTUALLY consulted the registry.
+          #
+          # `pnpm audit` against an unreachable registry EXITS 0 and
+          # prints the advisories it had CACHED -- and it does so
+          # SILENTLY: exit 0, empty stderr, and byte-identical JSON to a
+          # successful run. PROVED: with npm_config_registry pointed at
+          # a dead port, `pnpm audit --audit-level=high --json` produced
+          # exactly the same output as the successful run, and exit 0.
+          #
+          # So the audit's own exit code cannot tell "no vulnerabilities"
+          # from "the registry was never reached". The audit must not be
+          # able to pass by being unable to run.
+          #
+          # The probe: the registry's advisory endpoint must answer.
+          # A connection failure (curl exit 7) means the audit's answer
+          # was the cache, not the registry.
+          echo "--- probing the registry ---"
+          # `/-/ping` is the registry's liveness endpoint: 200 on a live
+          # registry, and a connection error (curl exit 7) on a dead one.
+          # It is used instead of the advisory endpoint because the
+          # advisory endpoint answers 405 to a GET -- it only accepts
+          # POST -- and a probe that fails against a HEALTHY registry is
+          # worse than no probe at all.
+          REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}"
+          REGISTRY="${REGISTRY%/}"
+          if ! curl -fsS --max-time 30 -o /dev/null "$REGISTRY/-/ping" 2>/dev/null; then
+            echo "::error::the npm registry ($REGISTRY) did not answer -- the audit below would report its CACHE, not the advisories. The gate did not run."
+            exit 1
+          fi
+          echo "  the registry answered"
+          echo ""
+
+          pnpm audit --audit-level=high
 
       - name: Apply schema to ephemeral DB
         run: |
