@@ -5,12 +5,24 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-User=hermes
+# The service runs as `gustale`, and `gustale` owns EVERYTHING the
+# rebuild touches: the timer build checkout, the deploy dir, the state
+# file, the lock and the env file.
+#
+# This MUST match the owner of the build dir, or the git fetch in the
+# rebuild script fails with "insufficient permission for adding an
+# object to repository database .git/objects" — which is how this
+# service broke on 2026-11-03. The CI deploy runs as root and writes
+# root-owned git objects into the SHARED build dir; the timer therefore
+# gets its OWN checkout (GUSTALE_BUILD_DIR in the env file), so the two
+# can never corrupt each other.
+User=gustale
+Group=gustale
 # Run from the dedicated build checkout, NEVER the working folder.
 # The script does its own `git fetch origin main && git checkout
-# origin/main` so any branch / dirty tree in /home/hermes/projects/gustale.com
+# origin/main` so any branch / dirty tree in /home/gustale/projects/gustale.com
 # is irrelevant.
-WorkingDirectory=/home/deploy/gustale-build
+WorkingDirectory=/home/gustale/gustale-rebuild-checkout
 ExecStart=/home/deploy/gustale-rebuild/rebuild-web-live.sh
 StandardOutput=journal
 StandardError=journal
@@ -21,9 +33,10 @@ StandardError=journal
 # so the service would silently fail to start except when an
 # orphaned lock was present.
 #
-# Environment file: holds GITHUB_TOKEN so build-web-live.sh can
-# optionally push to ghcr.io. The rebuild script sets GUSTALE_NO_PUSH=1
-# to skip the push, so this is no longer strictly required for the
-# rebuild flow; it remains for the deploy path. Owned by hermes:hermes,
+# Environment file: holds GUSTALE_BUILD_DIR (the timer's own build
+# checkout) and GITHUB_TOKEN so build-web-live.sh can optionally push
+# to ghcr.io. The rebuild script sets GUSTALE_NO_PUSH=1 to skip the
+# push, so the token is no longer strictly required for the rebuild
+# flow; it remains for the deploy path. Owned by gustale:gustale,
 # mode 0600, created by scripts/hermes/install-rebuild-timer.sh.
 EnvironmentFile=/home/deploy/gustale-rebuild.env
