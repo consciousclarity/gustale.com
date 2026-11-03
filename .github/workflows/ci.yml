@@ -32,6 +32,20 @@ env:
   # Test against the real DATABASE_URL the app uses; the service container
   # below provides postgis/postgis:16-3.4 on 127.0.0.1:5432.
   DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale
+  # The Postgres SERVICE container below is deliberately named `gustale`,
+  # so that the CI schema mirrors live's exactly -- same dbname, same
+  # roles, same guards. That makes the dbname alone unable to identify
+  # the live database, so scripts/lib/db_guard.py also asks WHICH SERVER
+  # it is talking to.
+  #
+  # On a GitHub runner, 127.0.0.1:5432 is the job's own service
+  # container -- it exists for one job and is never the production VPS's
+  # Postgres. So the server here is a throwaway, and this says so.
+  #
+  # This is a statement about the SERVER, not about the data. It does NOT
+  # let a diagnostic write to live: on the production host the guard
+  # still refuses the live database without GUSTALE_LIVE_DB_ALLOW=1.
+  GUSTALE_DB_IS_THROWAWAY: "1"
   SESSION_SECRET: ci-session-secret-do-not-use-anywhere-real
   AUTH_SECRET: ci-auth-secret-do-not-use-anywhere-real
   # These must be set so env.ts's Zod schema passes — even though the
@@ -159,6 +173,7 @@ jobs:
         run: |
           python3 scripts/test-check-no-live-db-defaults.py
           python3 scripts/check-no-live-db-defaults.py
+          python3 scripts/test-db-guard.py
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it

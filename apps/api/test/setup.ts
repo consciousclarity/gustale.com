@@ -54,6 +54,24 @@ function liveAllowed(): boolean {
 }
 
 /**
+ * Is this process running against a throwaway server?
+ *
+ * The CI's Postgres service container is deliberately named `gustale`, so
+ * the CI schema mirrors live's exactly. A name therefore cannot identify
+ * the live database, and this rule mirrors the Python guard's:
+ *
+ *   the live database is live only when the dbname matches AND the
+ *   server is not a declared throwaway.
+ *
+ * `GUSTALE_DB_IS_THROWAWAY` is set by .github/workflows/ci.yml. On a
+ * GitHub runner, 127.0.0.1:5432 is the job's own service container --
+ * it exists for one job and is never the production VPS's Postgres.
+ */
+function serverIsThrowaway(): boolean {
+  return process.env.GUSTALE_DB_IS_THROWAWAY === "1";
+}
+
+/**
  * The database name in a postgres DSN.
  *
  * Handles the URL form (postgresql://user:pw@host:port/db?opts) and the
@@ -82,7 +100,7 @@ function databaseNameFromDsn(dsn: string): string | null {
 const dsn = process.env.DATABASE_URL ?? "";
 const dbName = databaseNameFromDsn(dsn);
 
-if (dbName === LIVE_DB) {
+if (dbName === LIVE_DB && !serverIsThrowaway()) {
   // The ONLY way past this is an explicit, per-invocation opt-in — the
   // same variable the rest of the toolchain uses. It exists so that
   // reaching live is always a deliberate act.

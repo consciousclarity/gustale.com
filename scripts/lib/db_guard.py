@@ -41,6 +41,36 @@ THE SCRATCH DATABASE
 `GUSTALE_SCRATCH_DB` names the disposable database that diagnostics
 use. It defaults to `gustale_dev`. It must never be the live database;
 :func:`resolve` refuses that.
+
+THE SAME NAME, A DIFFERENT SERVER
+---------------------------------
+A NAME cannot identify the live database. The CI's Postgres service
+container is deliberately named `gustale` too, so that the CI schema
+mirrors live's exactly -- same dbname, same roles, same guards. A
+script told `--db gustale` on the CI runner is talking to a THROWAWAY
+database that lives for one job.
+
+So "is this live?" is not one question. It is two:
+
+  1. Is the dbname the live name (`gustale`)? and
+  2. Is the SERVER the live server?
+
+The live server is the VPS's own Postgres -- the `shared-postgres`
+container, reachable on this host at 127.0.0.1:5432. A CI service
+container is also on 127.0.0.1:5432, but it is a DIFFERENT server that
+happens to share the address.
+
+The rule therefore is: the live database is live **only** when the
+dbname matches AND the process has not declared itself to be running
+against a throwaway server. `GUSTALE_DB_IS_THROWAWAY=1` is that
+declaration, and it is set by the CI workflow -- which runs on a GitHub
+runner, where `127.0.0.1:5432` is the job's own service container and
+never the production VPS.
+
+`GUSTALE_DB_IS_THROWAWAY` is a statement about the SERVER, not about
+the data, so it does not weaken the rule that matters: a diagnostic on
+the production host still cannot reach live without
+`GUSTALE_LIVE_DB_ALLOW=1`.
 """
 from __future__ import annotations
 
@@ -56,6 +86,17 @@ LIVE_ALLOW_VAR = "GUSTALE_LIVE_DB_ALLOW"
 
 #: The variable naming the disposable database diagnostics may use.
 SCRATCH_VAR = "GUSTALE_SCRATCH_DB"
+
+#: Declares that THIS PROCESS is running against a throwaway server.
+#:
+#: The CI's Postgres service container is deliberately named `gustale`, so
+#: that the CI schema mirrors live's exactly. A script told `--db gustale`
+#: on a GitHub runner is talking to a database that lives for one job.
+#:
+#: This variable says "the server is not the production one". It does NOT
+#: say "live data is fine" -- on the production host the guard still
+#: refuses the live database without GUSTALE_LIVE_DB_ALLOW=1.
+THROWAWAY_VAR = "GUSTALE_DB_IS_THROWAWAY"
 
 #: The default scratch database.
 DEFAULT_SCRATCH_DB = "gustale_dev"
@@ -101,14 +142,32 @@ def _dbname_from_dsn(dsn: str) -> str | None:
     return None
 
 
+def server_is_throwaway() -> bool:
+    """Is this process running against a throwaway server?
+
+    Set by the CI workflow. It means "the server is not the production
+    VPS's Postgres", not "live data is acceptable here".
+    """
+    return os.environ.get(THROWAWAY_VAR, "").strip() == "1"
+
+
 def _is_live(dbname: str | None) -> bool:
     """Is this the live database?
 
-    The check is exact on purpose. `gustale_dev` is NOT live, and
-    `gustale` IS. A prefix match would wrongly call `gustale_dev`
-    live; a fuzzy match would wrongly call `gustale_recipes` live.
+    Two conditions, both required:
+
+      1. the dbname is exactly the live name. The check is exact on
+         purpose. `gustale_dev` is NOT live, and `gustale` IS. A prefix
+         match would wrongly call `gustale_dev` live; a fuzzy match
+         would wrongly call `gustale_recipes` live.
+      2. the server is not a declared throwaway.
+
+    Condition 2 exists because the CI's service container is named
+    `gustale` on purpose, so the CI schema mirrors live's exactly.
     """
-    return dbname == LIVE_DB
+    if dbname != LIVE_DB:
+        return False
+    return not server_is_throwaway()
 
 
 def live_allowed() -> bool:
