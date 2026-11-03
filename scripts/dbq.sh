@@ -25,6 +25,19 @@ DB_USER="${GUSTALE_DB_USER:-gustale}"
 DB_HOST="${GUSTALE_DB_HOST:-127.0.0.1}"
 DB_PORT="${GUSTALE_DB_PORT:-5432}"
 
+# dbq.sh is the ONE sanctioned path to the live database, and the gate
+# scripts (check-live-approval.sh, apply-migration-live.sh) are its
+# callers. So it does NOT refuse -- but it says so loudly, so a
+# diagnostic that reaches live by accident is visible in the log rather
+# than silent.
+#
+# A diagnostic must not use dbq.sh at all; it should use the guard
+# (scripts/lib/db_guard.py) and a scratch database.
+if [ "$DB_NAME" = "gustale" ] && [ "${GUSTALE_LIVE_DB_ALLOW:-}" != "1" ]; then
+  echo "WARNING: dbq.sh is running against the LIVE database ('gustale') without GUSTALE_LIVE_DB_ALLOW=1." >&2
+  echo "WARNING: if this is a diagnostic, use scripts/lib/db_guard.py and a scratch database instead." >&2
+fi
+
 export PGPASSWORD
 if [[ -n "${GUSTALE_DB_PASSWORD:-}" ]]; then
   # From the environment. Use it as-is.

@@ -37,6 +37,12 @@ import subprocess
 import sys
 import unicodedata
 from pathlib import Path
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
+
 
 REPO = Path(__file__).resolve().parent.parent
 POOL_FILE = REPO / "data" / "pool_a.json"
@@ -79,8 +85,20 @@ def fetch_rows(sql: str) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
-    parser.add_argument("--db", default="gustale")
+    parser.add_argument(
+        "--db",
+        default=db_guard.scratch_database(),
+        help=(
+            "The database to write to. The default is a SCRATCH database; "
+            "the live one needs GUSTALE_LIVE_DB_ALLOW=1."
+        ),
+    )
     args = parser.parse_args()
+
+    # Vet the target BEFORE touching anything. This refuses the live
+    # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
+    # invocation.
+    args.db = db_guard.resolve(args.db, purpose="backfill_pool_a_sample.py")
 
     pool = json.loads(POOL_FILE.read_text())
     batches = [pool[i : i + BATCH_SIZE] for i in range(0, len(pool), BATCH_SIZE)]

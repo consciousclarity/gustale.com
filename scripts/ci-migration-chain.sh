@@ -12,6 +12,46 @@ set -euo pipefail
 DB="${1:-gustale_cichain_test}"
 cd "$(dirname "$0")/.."
 
+# THE LIVE DATABASE IS NOT A CHAIN TARGET.
+#
+# This script DROPs the database it is given and recreates it:
+#
+#     DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB;
+#
+# So `bash scripts/ci-migration-chain.sh gustale` would DROP THE LIVE
+# DATABASE AND RECREATE IT EMPTY. That is the single most destructive
+# command in the repository, and it used to be one typo away.
+#
+# The default (gustale_cichain_test) is a disposable database, and the
+# chain is meant to run against throwaway databases. Live is only
+# reachable with the explicit per-invocation opt-in, and even then the
+# chain's own DROP makes it a terrible idea -- use
+# scripts/apply-migration-live.sh, which goes through the live-approval
+# gate.
+#
+# The guard also knows about the CI's service container, which is
+# deliberately named `gustale` so the CI schema mirrors live's. On a
+# GitHub runner that database is disposable, and the workflow sets
+# GUSTALE_DB_IS_THROWAWAY=1 to say so. Here, on the live host, that
+# variable is NOT set, so `gustale` means the live database and is
+# refused.
+# The Python that runs the guard. Resolved before the guard is called,
+# because the guard decides whether this script may touch the database
+# it is about to DROP.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+  echo "::error::no python3 on PATH; cannot vet the chain's target database."
+  exit 1
+}
+
+GUSTALE_CHAIN_DB="$("$PYTHON_BIN" scripts/lib/db_guard.py ci-migration-chain.sh "$DB")" || {
+  echo "::error::the migration chain refuses to target the live database."
+  echo "::error::It DROPs and recreates its target, so live must never be one."
+  echo "::error::Use a throwaway database, or scripts/apply-migration-live.sh."
+  exit 1
+}
+DB="$GUSTALE_CHAIN_DB"
+
 DRIZZLE_FILES=()
 while IFS= read -r f; do DRIZZLE_FILES+=("$f"); done < <(
   git ls-files 'packages/db/drizzle/*.sql' | sort

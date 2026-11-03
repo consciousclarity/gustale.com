@@ -61,16 +61,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from import_pool_a import slugify  # noqa: E402
 
+# The live-database guard. It refuses to let this script reach the
+# live database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS
+# invocation. See scripts/lib/db_guard.py.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402  # scripts/lib/db_guard.py
+
 REPO = Path(__file__).resolve().parent.parent
 POOL_FILE = REPO / "data" / "pool_a.json"
 
 ADMIN = "00000000-0000-0000-0000-000000000001"
 
 
-# The database this script writes to. "gustale" is the live one; the
-# dry run sets it to an exact copy so the script can be exercised
-# without touching live data.
-TARGET_DATABASE = "gustale"
+# The database this script writes to.
+#
+# It does NOT default to live. The default is a disposable scratch
+# database; the live database requires the explicit, per-invocation
+# opt-in GUSTALE_LIVE_DB_ALLOW=1, which scripts/lib/db_guard.py
+# enforces. See that module for why the opt-in is a separate variable
+# and not just "the name of the database".
+TARGET_DATABASE = db_guard.scratch_database()
 
 
 def db(sql: str) -> str:
@@ -86,7 +96,7 @@ def db(sql: str) -> str:
     list too long"). dbq.sh reads its query from stdin when none is
     given.
     """
-    if TARGET_DATABASE == "gustale":
+    if TARGET_DATABASE == db_guard.LIVE_DB:
         out = subprocess.run(
             ["bash", str(REPO / "scripts" / "dbq.sh")],
             input=sql,
@@ -104,9 +114,8 @@ def db(sql: str) -> str:
 def db_on(database: str, sql: str) -> str:
     """Run SQL against a NAMED database.
 
-    The default target is the live `gustale`. A named target is used
-    for the dry run on an exact copy, so the script can be exercised
-    without touching the live data.
+    The default target is a SCRATCH database. The live database is
+    used only when GUSTALE_LIVE_DB_ALLOW=1 is set for this invocation.
 
     The SQL goes in on STDIN, not as an argument: the generated
     statements run to tens of kilobytes, and a command-line argument
@@ -354,16 +363,20 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument(
         "--database",
-        default="gustale",
+        default=db_guard.scratch_database(),
         help=(
-            "The database to write to. The default is the live one. "
-            "Point it at an exact copy for a dry run on real data."
+            "The database to write to. The default is a SCRATCH database. "
+            "The live database requires GUSTALE_LIVE_DB_ALLOW=1 for that "
+            "invocation, and the live-approval gate."
         ),
     )
     args = parser.parse_args()
 
-    TARGET_DATABASE = args.database
-    if TARGET_DATABASE != "gustale":
+    # Vet the target BEFORE touching anything. This raises and exits
+    # non-zero if the target is live and this invocation did not opt in.
+    TARGET_DATABASE = db_guard.resolve(args.database, purpose="cite_pool_a.py")
+
+    if TARGET_DATABASE != db_guard.LIVE_DB:
         print(f"[cite] the target database: {TARGET_DATABASE}")
 
     pool = json.loads(POOL_FILE.read_text())
