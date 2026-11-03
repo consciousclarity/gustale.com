@@ -46,6 +46,22 @@ LIVE_DB = "gustale"
 #:
 #: Each entry is (path, reason). The reason is part of the contract: if
 #: the script's purpose changes, the reason must change too.
+#: Scripts that DROP a database or a role, and therefore MUST use the
+#: guard -- even though the name they drop is a variable, so the
+#: name-based scan cannot see it.
+#:
+#: `scripts/ci-migration-chain.sh` does:
+#:
+#:     DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB;
+#:
+#: so `bash scripts/ci-migration-chain.sh gustale` would DROP THE LIVE
+#: DATABASE AND RECREATE IT EMPTY. The name-based scan sees only `$DB`
+#: and passes it -- the danger is in the ARGUMENT, not in the text.
+#:
+#: A script that drops a database is dangerous by construction, whatever
+#: it is told to drop. It must resolve its target through the guard.
+DESTRUCTIVE_NEEDS_GUARD = ("DROP DATABASE", "DROP ROLE", "DROP OWNED")
+
 ALLOWLIST: dict[str, str] = {
     "scripts/dbq.sh": (
         "The live query helper. It is the ONE way a shell script reaches "
@@ -328,6 +344,30 @@ def collect_files() -> list[Path]:
     return sorted(files)
 
 
+def _guards_its_drop_target(text: str) -> bool:
+    """Does this script already refuse the live database as a target?
+
+    Two shapes count:
+
+      * it uses the shared guard -- `import db_guard` or `db_guard.`; and
+      * it has its own check -- a comparison against the live db name in
+        a condition, e.g. `if [ "$t" = "$LIVE_DB" ]`.
+
+    The second shape matters: several scripts predate the shared guard
+    and have their own refusal, which is just as safe. A scanner that
+    only understood the shared guard would report them all as unsafe and
+    get ignored for crying wolf.
+    """
+    if "import db_guard" in text or "db_guard." in text:
+        return True
+    # A live-db comparison: `= "$LIVE_DB"`, `== "gustale"`, etc.
+    if re.search(r'LIVE_DB', text) and re.search(r'=\s*"?\$\{?LIVE_DB', text):
+        return True
+    if re.search(r'forbidden_target|refuse.*live|refus.*live', text, re.IGNORECASE):
+        return True
+    return False
+
+
 def scan_file(path: Path) -> list[str]:
     """Return the findings for one file. Empty list means clean."""
     rel = _rel(path)
@@ -341,6 +381,24 @@ def scan_file(path: Path) -> list[str]:
 
     findings: list[str] = []
     lines = text.splitlines()
+
+    # A script that DROPs a database or a role is dangerous whatever it
+    # is told to drop -- the danger is in the ARGUMENT, which a
+    # name-based scan cannot see. Such a script must resolve its target
+    # through the guard.
+    if rel not in ALLOWLIST and not _guards_its_drop_target(text):
+        for lineno, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            for pattern in DESTRUCTIVE_NEEDS_GUARD:
+                if pattern in stripped.upper():
+                    findings.append(
+                        f"{rel}:{lineno}: DROPs a database or a role "
+                        f"({pattern}) without refusing the live database as a "
+                        f"target: {stripped[:90]}"
+                    )
+                    break
 
     for lineno, line in enumerate(lines, 1):
         stripped = line.strip()

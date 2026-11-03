@@ -75,6 +75,33 @@ CASES: list[tuple[str, bool]] = [
 ]
 
 
+#: The destructive-target rule is a DIFFERENT question from "does this
+#: line name the live database". A script that DROPs `$DB` names no
+#: database at all -- the danger is in the ARGUMENT. So these cases get
+#: their own runner.
+DESTRUCTIVE_CASES = [
+    # A script that DROPs a database or a role by variable is dangerous
+    # whatever it is told to drop.
+    ('psql -c "DROP DATABASE IF EXISTS $DB;"', True),
+    ('d(f"DROP DATABASE IF EXISTS {DB};")', True),
+    ('-c "DROP DATABASE IF EXISTS \"$TEST_DB\" WITH (FORCE);"', True),
+    ('psql -c "DROP ROLE IF EXISTS $ROLE;"', True),
+    ('psql -c "DROP OWNED BY $ROLE;"', True),
+    # ...but only when the line is not a comment.
+    ('# psql -c "DROP DATABASE IF EXISTS $DB;"', False),
+    ('  # DROP ROLE IF EXISTS $ROLE', False),
+]
+
+
+def _is_destructive(line: str) -> bool:
+    """Does this line drop a database or a role?"""
+    stripped = line.strip()
+    if stripped.startswith("#"):
+        return False
+    upper = stripped.upper()
+    return any(pattern in upper for pattern in scanner.DESTRUCTIVE_NEEDS_GUARD)
+
+
 def main() -> int:
     print("=== the live-database scanner's own detection cases ===")
     failures = 0
@@ -87,10 +114,23 @@ def main() -> int:
         want = "FLAG" if expect else "skip"
         print(f"  {'OK  ' if ok else 'FAIL'}  want={want}  got={verdict}  {line[:72]}")
     print()
+    print("=== the destructive-target rule's own cases ===")
+    d_failures = 0
+    for line, expect in DESTRUCTIVE_CASES:
+        got = _is_destructive(line)
+        ok = got == expect
+        if not ok:
+            d_failures += 1
+        verdict = "FLAG" if got else "skip"
+        want = "FLAG" if expect else "skip"
+        print(f"  {'OK  ' if ok else 'FAIL'}  want={want}  got={verdict}  {line[:72]}")
+    failures += d_failures
+    print()
     if failures:
-        print(f"  FAIL  {failures} of {len(CASES)} cases are wrong")
+        print(f"  FAIL  {failures} case(s) are wrong "
+              f"({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive)")
         return 1
-    print(f"  ALL PASS  ({len(CASES)} cases)")
+    print(f"  ALL PASS  ({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive)")
     return 0
 
 
