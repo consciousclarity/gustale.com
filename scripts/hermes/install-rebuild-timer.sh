@@ -89,7 +89,17 @@ fi
 install -d -o "$SVC_USER" -g "$SVC_GROUP" -m 0755 "$DEPLOY_DIR"
 install -m 0755 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/rebuild-web-live.sh" "$DEPLOY_DIR/rebuild-web-live.sh"
 install -m 0755 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/build-web-live.sh"    "$DEPLOY_DIR/build-web-live.sh"
+
+# The post-deploy sitemap check (PR #163). The rebuild script looks for
+# it at /home/deploy/gustale-rebuild/scripts/check-live-sitemaps.sh, so
+# it must be installed under $DEPLOY_DIR/scripts/ — NOT next to the
+# other two scripts. Installing it flat would make the rebuild abort
+# with "the sitemap check script is missing" on every run.
 install -d -o "$SVC_USER" -g "$SVC_GROUP" -m 0755 "$DEPLOY_DIR/scripts"
+if [ -f "$SRC_DIR/scripts/check-live-sitemaps.sh" ]; then
+  install -m 0755 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/check-live-sitemaps.sh" "$DEPLOY_DIR/scripts/check-live-sitemaps.sh"
+fi
+
 install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/gustale-rebuild-web.service" "$SERVICE_FILE"
 install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/gustale-rebuild-web.timer"    "$TIMER_FILE"
 
