@@ -25,6 +25,12 @@ import re
 import subprocess
 import sys
 
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lib"))
+import db_guard  # noqa: E402
+
 REPO = pathlib.Path(__file__).resolve().parents[2]
 PG_CONTAINER = "shared-postgres"
 PG_SUPERUSER = "postgres"
@@ -568,7 +574,14 @@ def emit_sql(path: str, mapping: dict, preps: dict, canonical_names: dict) -> No
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default="gustale")
+    ap.add_argument(
+        "--db",
+        default=db_guard.scratch_database(),
+        help=(
+            "The database to read. The default is a SCRATCH database; "
+            "the live one needs GUSTALE_LIVE_DB_ALLOW=1."
+        ),
+    )
     ap.add_argument("--out", default=str(REPO / ".hermes" / "REPORTS" / "GUS-014-118-mapping-report.md"))
     ap.add_argument("--emit-sql", default=None,
                     help="write the migration SQL for the mapped dimensions to this path")

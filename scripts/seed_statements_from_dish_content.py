@@ -81,6 +81,12 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
+
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -99,7 +105,9 @@ REPO = Path(__file__).resolve().parent.parent
 #
 # The default is deliberately NOT "gustale". A seeder that writes to
 # production by default is a footgun; it must be aimed at a copy.
-DB_NAME_DEFAULT = "gustale"
+# NOT live by default. The live database requires the explicit
+# GUSTALE_LIVE_DB_ALLOW=1 opt-in for this invocation.
+DB_NAME_DEFAULT = db_guard.scratch_database()
 
 
 def db_name() -> str:
@@ -399,7 +407,11 @@ def main() -> int:
 
     # The resolved target, ONCE, and printed from this value — never
     # from the raw environment, which could disagree with it.
-    target = db_name()
+    #
+    # The guard vets it: the live database needs the explicit
+    # GUSTALE_LIVE_DB_ALLOW=1 opt-in, and this script has its own,
+    # stricter rule below (it never writes to live at all).
+    target = db_guard.resolve(db_name(), purpose="seed_statements_from_dish_content.py")
     os.environ["GUSTALE_DB_NAME"] = target
 
     # A LIVE WRITE MUST BE IMPOSSIBLE BY ACCIDENT. The claims data is
@@ -408,8 +420,8 @@ def main() -> int:
     # always a copy, and then a deliberate promotion. The one case
     # that IS allowed is a copy that carries the disposable marker,
     # because that is how the CI exercises the script.
-    if args.apply and target == "gustale":
-        print("::error::refusing to write to the LIVE database ('gustale')")
+    if args.apply and target == db_guard.LIVE_DB:
+        print(f"::error::refusing to write to the LIVE database ({db_guard.LIVE_DB!r})")
         print("::error::this script writes research-only statements; it must")
         print("::error::target a copy. Pass --db <copy> or set GUSTALE_DB_NAME.")
         return 2

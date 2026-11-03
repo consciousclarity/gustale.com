@@ -73,6 +73,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
+
 REPO = Path(__file__).resolve().parent.parent
 POOL_FILE = REPO / "data" / "pool_a.json"
 
@@ -86,7 +92,12 @@ USER_AGENT = "gustale-pool-a-import/1.0 (https://gustale.com; hello@gustale.com)
 # The target database. The default is live; the dry-run against a
 # COPY is what the import is proven on, and it has to be a copy —
 # writing to live first and checking afterwards is the wrong order.
-DB_NAME = os.environ.get("GUSTALE_DB_NAME", "gustale")
+# NOT live by default. The live database requires the explicit
+# GUSTALE_LIVE_DB_ALLOW=1 opt-in for this invocation.
+DB_NAME = db_guard.resolve(
+    os.environ.get("GUSTALE_DB_NAME") or db_guard.scratch_database(),
+    purpose="import_pool_a.py",
+)
 
 
 def db(sql: str, vars: dict[str, str] | None = None) -> str:

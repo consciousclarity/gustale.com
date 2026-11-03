@@ -31,6 +31,12 @@ import re
 import subprocess
 import sys
 
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lib"))
+import db_guard  # noqa: E402
+
 PG_CONTAINER = "shared-postgres"
 PG_SUPERUSER = "postgres"
 PILOT_SLUGS = {"rendang", "chicken-tikka-masala", "tacos-al-pastor"}
@@ -102,8 +108,23 @@ def load_catalog(path: pathlib.Path) -> dict[str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("snapshot_dir")
-    ap.add_argument("--db", default="gustale")
+    ap.add_argument(
+        "--db",
+        default=db_guard.scratch_database(),
+        help=(
+            "The database to read. The default is a SCRATCH database; "
+            "the live one needs GUSTALE_LIVE_DB_ALLOW=1."
+        ),
+    )
     args = ap.parse_args()
+
+    # Vet the target BEFORE touching anything. This refuses the live
+    # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS
+    # invocation. See scripts/lib/db_guard.py for why the opt-in is a
+    # separate variable.
+    args.db = db_guard.resolve(
+        args.db, purpose="gus-014-check-other-dishes.py"
+    )
 
     snap = pathlib.Path(args.snapshot_dir)
     baseline_path = snap / "catalog-baseline.tsv"

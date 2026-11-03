@@ -34,6 +34,12 @@ from pathlib import Path
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
+
 from split_sentences import split_sentences  # noqa: E402
 
 FIELDS = (("short_description", "short"), ("long_description", "long"))
@@ -353,10 +359,15 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument(
         "--db",
-        default="gustale",
+        default=db_guard.scratch_database(),
         help="the database to read from and write to (default: gustale, the live one)",
     )
     args = parser.parse_args()
+
+    # Vet the target BEFORE touching anything. This refuses the live
+    # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
+    # invocation.
+    args.db = db_guard.resolve(args.db, purpose="populate_description_sentences.py")
 
     if not can_connect(args.db):
         print(f"[populate] CANNOT REACH the database {args.db}.")
