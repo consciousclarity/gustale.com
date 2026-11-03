@@ -41,6 +41,22 @@ sys.path.insert(0, str(HERE / "lib"))
 import db_guard  # noqa: E402
 
 
+#: Every environment variable this test must CONTROL. A case that does not
+#: mention one must find it UNSET -- not whatever the ambient environment
+#: happens to hold.
+#:
+#: This matters because the CI workflow sets GUSTALE_DB_IS_THROWAWAY=1 at
+#: the workflow level, so the runner's environment is NOT a neutral
+#: baseline. The first version of this test inherited it, and the two
+#: "production server" cases failed in CI while passing locally -- the
+#: ambient environment leaked into the assertions.
+CONTROLLED_VARS = (
+    db_guard.LIVE_ALLOW_VAR,
+    db_guard.THROWAWAY_VAR,
+    db_guard.SCRATCH_VAR,
+)
+
+
 def check(env: dict[str, str], dbname: str | None, *, live_allowed: bool) -> tuple[bool, bool]:
     """Is `dbname` the live database for this process, and was it allowed?
 
@@ -58,17 +74,15 @@ def check(env: dict[str, str], dbname: str | None, *, live_allowed: bool) -> tup
     (is_live=True, was_allowed=False): the guard knows what it is and
     refuses it.
     """
-    saved = {k: os.environ.get(k) for k in env}
-    saved_allow = os.environ.get(db_guard.LIVE_ALLOW_VAR)
+    saved = {k: os.environ.get(k) for k in CONTROLLED_VARS}
+    # Start from a CLEAN baseline: every controlled variable is unset
+    # unless this case says otherwise.
+    for k in CONTROLLED_VARS:
+        os.environ.pop(k, None)
     for k, v in env.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
+        os.environ[k] = v
     if live_allowed:
         os.environ[db_guard.LIVE_ALLOW_VAR] = "1"
-    else:
-        os.environ.pop(db_guard.LIVE_ALLOW_VAR, None)
 
     db_guard.reset()
     was_allowed = True
@@ -88,10 +102,6 @@ def check(env: dict[str, str], dbname: str | None, *, live_allowed: bool) -> tup
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-        if saved_allow is None:
-            os.environ.pop(db_guard.LIVE_ALLOW_VAR, None)
-        else:
-            os.environ[db_guard.LIVE_ALLOW_VAR] = saved_allow
     return got_live, was_allowed
 
 
