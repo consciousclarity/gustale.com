@@ -549,6 +549,38 @@ run_pg -f - < "$ATLAS_FIXTURE_SEED" >/tmp/atlas_fixtures.log 2>&1 || { echo "FAI
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_FIXTURES_OK' /tmp/atlas_fixtures.log | tail -1 || true
 
+# The constraint tests a THIRD time — against the FINAL schema.
+#
+# The first two runs (before 0038 and after 0038) test the schema at
+# those two points. This one tests the schema a DEPLOYMENT ENDS UP WITH:
+# every migration applied, including 0047 (the session binding) and 0048
+# (the bot credential guard), plus the fixtures seed.
+#
+# WHY IT IS NEEDED — TWO REASONS, BOTH REAL
+#
+# 1. The D9 publish-credential cases are SESSION-BOUND. They present a
+#    Better Auth session token, and only 0047's `statement_set_status`
+#    accepts a session token — the pre-0047 function compares its third
+#    argument against `publish_credential.actor` directly, so a session
+#    token is compared as though it were an account id and the transition
+#    is refused. The second suite run is BEFORE 0047, so on that database
+#    the D9 credential cases CANNOT pass.
+#
+# 2. The fixtures seed creates statements with status 'published', and a
+#    published statement makes the D8 case a NO-OP: the gate trigger
+#    returns early when the status does not change, so "UPDATE status to
+#    'published'" on an already-published statement is not a transition
+#    and is (correctly) accepted. The suite's fixture selection now
+#    avoids published statements, but the third run is what PROVES that
+#    on the state a deployment really has.
+#
+# So the third run is the one that tests the final schema. Without it,
+# the chain proves that the migrations APPLY and nothing more.
+run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_CONSTRAINT_TESTS" >/tmp/atlas_constraints3.log 2>&1 \
+  || { echo "FAILED: the atlas constraint tests (against the final schema)"; grep -E 'FAIL|ERROR' /tmp/atlas_constraints3.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_SCHEMA_TESTS' /tmp/atlas_constraints3.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
