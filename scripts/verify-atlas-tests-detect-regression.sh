@@ -36,20 +36,33 @@ SQL=scripts/test_atlas_schema.sql
 MIGRATION_0036=db/migrations/0036_atlas_schema.sql
 MARK_DISPOSABLE=scripts/mark_disposable_db.sql
 
-# THE SNAPSHOT.
+# THE COPY.
 #
 # The regression cases need a database that ALREADY has the atlas schema,
 # because the case drops a constraint and then re-runs the suite against
-# what is left. The snapshot is the schema as the chain leaves it.
+# what is left. The copy is the schema as the chain leaves it.
 #
 # It is taken ONCE, at the start, from a database this script builds with
-# the SAME chain the CI uses — so the snapshot and the chain cannot drift
+# the SAME chain the CI uses — so the copy and the chain cannot drift
 # apart. The original script restored a dump from /tmp that nothing in
 # the repository ever created, so on any machine that had not been
 # prepared by hand the restore silently failed (`|| true`), and every case
 # then measured a database with NO atlas schema at all — which passes
 # trivially and "detects" nothing.
-SNAPSHOT="${SNAPSHOT:-/tmp/gustale_atlas_snapshot.dump}"
+#
+# THE COPY IS A `CREATE DATABASE ... TEMPLATE`, NOT A DUMP.
+#
+# A dump needs pg_dump and pg_restore — two more client programs that
+# must be installed and version-matched on the runner, and that the
+# Nightly never had. The copy needs nothing but psql, which the runner
+# already has, and it is ATOMIC: the copy is either the whole database
+# or the CREATE fails. A dump can be truncated, empty, half-restored,
+# or restored with the wrong ownership, and every one of those looks
+# like "the constraint is not there" to a test that is measuring the
+# wrong thing.
+#
+# `CREATE DATABASE ... TEMPLATE` also cannot leave the source behind:
+# the source database is dropped after the copy is made.
 
 # ── the psql helper ────────────────────────────────────────────────────
 PSQL_BIN=""
@@ -64,13 +77,17 @@ if [ "${CHAIN_MODE:-}" = "ci" ]; then
     exit 1
   fi
   PG_HOST="${PG_HOST:-127.0.0.1}"
+  # The port is configurable for the same reason the host is: PostgreSQL
+  # is not always on 5432. The default is unchanged.
+  PG_PORT="${PG_PORT:-5432}"
   PG_SUPERPASS="${PGPASSWORD:-gustale}"
+
 fi
 
 # psql against the ADMIN database, for CREATE/DROP DATABASE.
 admin() {
   if [ "${CHAIN_MODE:-}" = "ci" ]; then
-    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
+    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
   else
     docker exec -u postgres shared-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
   fi
@@ -83,7 +100,7 @@ admin() {
 run_sql() {
   local db="$1"; shift
   if [ "${CHAIN_MODE:-}" = "ci" ]; then
-    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$db" -v ON_ERROR_STOP=1 "$@"
+    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$db" -v ON_ERROR_STOP=1 "$@"
   else
     docker exec -u postgres -i shared-postgres psql -U postgres -d "$db" -v ON_ERROR_STOP=1 "$@"
   fi
@@ -93,8 +110,16 @@ run_sql() {
 apply_file() {
   local db="$1" file="$2"
   if [ "${CHAIN_MODE:-}" = "ci" ]; then
-    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$db" \
-      -v ON_ERROR_STOP=1 -f "$file" >/dev/null 2>&1
+    # STDIN, NOT -f <path>.
+    #
+    # `psql -f <path>` reads the file relative to psql's OWN working
+    # directory, which is not necessarily the shell's. On the runner
+    # they are the same, so it works there — but the file is on the
+    # host, and a psql that runs inside a container cannot see it.
+    # Every other step here pipes the file in with `-f -`; this one
+    # now does the same.
+    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$db" \
+      -v ON_ERROR_STOP=1 -f - < "$file" >/dev/null 2>&1
   else
     docker exec -u postgres -i shared-postgres psql -U postgres -d "$db" -v ON_ERROR_STOP=1 \
       -f - < "$file" >/dev/null 2>&1
@@ -102,8 +127,16 @@ apply_file() {
 }
 
 drop_create() {
+  # DROP ONLY. It does NOT create the database.
+  #
+  # `CREATE DATABASE ... TEMPLATE` cannot create a database that
+  # already exists — the name must be free — so this used to DROP the
+  # database and then CREATE it, which left an EMPTY database sitting
+  # under the name the copy was about to take, and every copy failed
+  # with "database already exists".
+  #
+  # The copy creates the database itself.
   admin -c "DROP DATABASE IF EXISTS ${DB};" >/dev/null 2>&1
-  admin -c "CREATE DATABASE ${DB};" >/dev/null 2>&1
 }
 
 echo "=== building the snapshot database and taking the dump ==="
@@ -121,73 +154,82 @@ if [ "$chain_rc" -ne 0 ]; then
 fi
 echo "the chain is applied to $CHAIN_DB"
 
-# Take the snapshot from it.
-if [ "${CHAIN_MODE:-}" = "ci" ]; then
-  PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$CHAIN_DB" \
-    -Fc -f "$SNAPSHOT" >/dev/null 2>&1
-  dump_rc=$?
-else
-  docker exec -u postgres shared-postgres pg_dump -U postgres -d "$CHAIN_DB" -Fc \
-    > "$SNAPSHOT" 2>/dev/null
-  dump_rc=$?
-fi
-if [ "$dump_rc" -ne 0 ] || [ ! -s "$SNAPSHOT" ]; then
-  echo "FAILED: could not take the snapshot at $SNAPSHOT" >&2
+# Take the copy from it.
+#
+# `CREATE DATABASE ... TEMPLATE` COPIES the source. The source stays
+# put afterwards and is dropped below, once the copy has been proven.
+admin -c "DROP DATABASE IF EXISTS ${DB};" >/dev/null 2>&1
+# The source must have no connections, or the copy is refused.
+admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${CHAIN_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+if ! admin -c "CREATE DATABASE ${DB} TEMPLATE ${CHAIN_DB};" >/dev/null 2>&1; then
+  echo "FAILED: could not copy $CHAIN_DB into $DB" >&2
   exit 1
 fi
-echo "the snapshot is at $SNAPSHOT ($(wc -c < "$SNAPSHOT") bytes)"
 
-# The chain's own database has served its purpose.
-admin -c "DROP DATABASE IF EXISTS ${CHAIN_DB};" >/dev/null 2>&1
+# THE COPY MUST ACTUALLY CONTAIN THE SCHEMA.
+#
+# This is the check the dump-based version could not make: an empty
+# copy makes every regression case "detect" a failure that is really
+# just a missing table, and the proof is empty. The count is checked
+# BEFORE any case is measured, so an empty copy is caught here rather
+# than being reported as ten undetected regressions.
+copy_tables="$(run_sql "$DB" -tAc \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>&1 | tr -dc '0-9')"
+if [ -z "$copy_tables" ] || [ "$copy_tables" -lt 10 ]; then
+  echo "FAILED: the copy of $CHAIN_DB has $copy_tables public tables — the copy is empty" >&2
+  exit 1
+fi
+echo "the copy of $CHAIN_DB is $DB ($copy_tables public tables)"
 
-# Restore the snapshot into a fresh database.
+# THE CHAIN'S DATABASE IS KEPT FOR NOW.
+#
+# Every regression case mutates its own copy (it drops a constraint),
+# and each case needs a FRESH copy of the pristine schema. The pristine
+# schema is this database, so it has to still be here when the cases
+# run. It is dropped at the very end.
+
+# Restore the copy: a FRESH copy of the pristine schema.
+#
+# The pristine source is the chain's database, which is kept for exactly
+# this: every regression case needs to start from the same schema, and
+# the case MUTATES its database (it drops a constraint). So each case
+# gets a fresh copy, made with `CREATE DATABASE ... TEMPLATE` — atomic,
+# and needing nothing but psql.
+#
+# THE PRISTINE SOURCE IS NOT DROPPED UNTIL THE END. The copy is made
+# from it before each case, so it has to still be there.
 restore_snapshot() {
   drop_create
-  if [ "${CHAIN_MODE:-}" = "ci" ]; then
-    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" \
-      -v ON_ERROR_STOP=1 -c "GRANT ALL ON SCHEMA public TO gustale;" \
-      -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
-      -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" >/dev/null 2>&1
-    # pg_restore is a client tool; it reads the dump from the host.
-    PGPASSWORD="$PG_SUPERPASS" "$PSQL_BIN" --version >/dev/null 2>&1
-    if command -v pg_restore >/dev/null 2>&1; then
-      PGPASSWORD="$PG_SUPERPASS" pg_restore -h "$PG_HOST" -U postgres -d "$DB" \
-        --no-owner --no-privileges "$SNAPSHOT" >/dev/null 2>&1
-    else
-      local rbin
-      rbin="$(ls -1 /usr/lib/postgresql/*/bin/pg_restore 2>/dev/null | sort | tail -1)"
-      PGPASSWORD="$PG_SUPERPASS" "$rbin" -h "$PG_HOST" -U postgres -d "$DB" \
-        --no-owner --no-privileges "$SNAPSHOT" >/dev/null 2>&1
-    fi
-  else
-    docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" \
-      -v ON_ERROR_STOP=1 -c "GRANT ALL ON SCHEMA public TO gustale;" \
-      -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
-      -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" >/dev/null 2>&1
-    # pg_restore CANNOT READ FROM STDIN — it needs a real file. The dump
-    # is on the HOST, so it is COPIED into the container first.
-    #
-    # The original script piped the dump into `docker exec ... pg_restore
-    # ... -`, which fails with "could not open input file "-". The failure
-    # was swallowed by `|| true`, so every regression case then ran
-    # against a database with NO tables at all, and the suite errored
-    # rather than testing anything. The proof was empty.
-    docker cp "$SNAPSHOT" "shared-postgres:${SNAPSHOT}" >/dev/null 2>&1
-    docker exec -u postgres shared-postgres pg_restore -U postgres -d "$DB" \
-      --no-owner --no-privileges "${SNAPSHOT}" >/dev/null 2>&1
+  # THE SOURCE MUST HAVE NO CONNECTIONS.
+  #
+  # `CREATE DATABASE ... TEMPLATE` refuses to copy a database that
+  # anyone is connected to: "source database is being accessed by
+  # other users". The chain's database is connected to by the check
+  # above (the table count), and psql leaves the session behind for a
+  # moment, so the connections are terminated explicitly first.
+  #
+  # This is only ever asked of a THROWAWAY database that this script
+  # created, so terminating its sessions costs nothing.
+  admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${CHAIN_DB}' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+
+  if ! admin -c "CREATE DATABASE ${DB} TEMPLATE ${CHAIN_DB};" >/dev/null 2>&1; then
+    echo "FAILED: could not copy ${CHAIN_DB} into ${DB}" >&2
+    return 1
   fi
 
-  # THE RESTORE MUST HAVE ACTUALLY RESTORED SOMETHING.
+  # THE COPY MUST ACTUALLY CONTAIN THE SCHEMA.
   #
-  # Every failure in the restore path above is swallowed, so the only way
-  # to know the copy is real is to LOOK at it. An empty database makes
-  # every regression case "detect" a failure that is really just a
-  # missing table.
+  # This is the check the dump-based version could not make. An empty
+  # copy makes every regression case "detect" a failure that is really
+  # just a missing table, and the proof is empty — the original script
+  # reported ten undetected regressions, or ten detected ones, on a
+  # database with no tables at all, and neither was a measurement of
+  # anything.
   local tables
   tables="$(run_sql "$DB" -tAc \
     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>&1 | tr -dc '0-9')"
   if [ -z "$tables" ] || [ "$tables" -lt 10 ]; then
-    echo "FAILED: the restore produced $tables public tables — the copy is empty" >&2
+    echo "FAILED: the copy has $tables public tables — the copy is empty" >&2
     return 1
   fi
   return 0
@@ -304,7 +346,8 @@ run_case "the dish_identities kind CHECK" \
 echo ""
 admin -c "DROP DATABASE IF EXISTS ${DB};" >/dev/null 2>&1
 echo "the regression copy is dropped"
-rm -f "$SNAPSHOT"
+admin -c "DROP DATABASE IF EXISTS ${CHAIN_DB};" >/dev/null 2>&1
+echo "the pristine source is dropped"
 
 # ── THE EXIT CODE ──────────────────────────────────────────────────────
 #

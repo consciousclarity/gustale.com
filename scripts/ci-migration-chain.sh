@@ -191,6 +191,10 @@ if [ "${CHAIN_MODE:-}" = "ci" ]; then
   # so a containerised simulation can point somewhere else; the default is
   # the runner's own arrangement.
   PG_HOST="${PG_HOST:-127.0.0.1}"
+  # The port is configurable for the same reason the host is: PostgreSQL
+  # is not always on 5432. The default is unchanged, so the runner's
+  # arrangement — the service published on 5432 — is what runs.
+  PG_PORT="${PG_PORT:-5432}"
 fi
 
 run_pg() {
@@ -206,7 +210,7 @@ run_pg() {
     # atlas migrations ALTER. A chain that ran as the bot would fail
     # with "must be owner of table", which is the correct behaviour: it
     # is the proof that the bot is not an admin.
-    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
+    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   else
     docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   fi
@@ -234,7 +238,7 @@ if [ "${CHAIN_MODE:-}" = "ci" ]; then
   # The bot's role `gustale` is an ORDINARY role now, and it may not be
   # the owner of the database it is about to use. The service's
   # superuser is `postgres` — that is the arrangement live has.
-  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d postgres \
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d postgres \
     -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
 
 else
@@ -265,8 +269,21 @@ fi
 # same grants by construction, and none of them can drift.
 echo "--- the role setup"
 if [ "${CHAIN_MODE:-}" = "ci" ]; then
-  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" \
-    -v ON_ERROR_STOP=1 -f "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
+  # STDIN, NOT -f <path>.
+  #
+  # `psql -f <path>` reads the file relative to psql's OWN working
+  # directory, which is not necessarily the shell's. On the runner it
+  # is the same, so it works there — but it is the only step in this
+  # script that reads a file by path, and it is the one step that
+  # breaks when psql's cwd is not the repo root (a containerised psql,
+  # for instance, where the file is on the host and not in the
+  # container).
+  #
+  # Every other step here pipes the file in with `-f -`. This one now
+  # does the same, so the whole script behaves identically no matter
+  # where psql runs.
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$DB" \
+    -v ON_ERROR_STOP=1 -f - < "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
     || { echo "FAILED: the role setup"; grep -E 'ERROR|NOTICE' /tmp/ci_role_setup.log | tail -12; exit 1; }
 else
   # STDIN, NOT -f.
