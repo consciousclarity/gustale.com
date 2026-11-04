@@ -1050,7 +1050,11 @@ jobs:
       # image pulls, the API swap and the verification. The job was
       # being killed with the API swapped and the web containers still
       # on the old build.
-      timeout-minutes: 45
+      #
+      # At 1,474 dishes each web variant takes ~15 minutes to build, so
+      # the two builds alone take ~30. The SSH step's limit (below) is 60
+      # minutes; this job limit leaves room for it plus the verify.
+      timeout-minutes: 75
       needs: [build, build-web]  # api + both web variants must be built and pushed first
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       # The workflow-level concurrency uses cancel-in-progress: true, which
@@ -1103,9 +1107,13 @@ jobs:
             # build was being killed by the timeout with the API already
             # swapped and the web containers still on the old build.
             #
-            # 30 minutes leaves room for the page count to grow again.
-            # The build is idempotent, so a re-run is cheap.
-            command_timeout: 30m
+            # 30 minutes was enough at 621 dishes. At 1,474 each of the two
+            # web builds takes ~15 minutes (04:35-05:04 for cd8cac3, which
+            # finished with 25 seconds to spare; ebf3ca9 and bc2e7d9 were
+            # killed mid-way through the geo build). 60 minutes leaves room
+            # for the page count to grow again. The build is idempotent, so
+            # a re-run is cheap.
+            command_timeout: 60m
             # Forward the env vars declared in `env:` to the remote script.
             envs: GITHUB_TOKEN,GITHUB_ACTOR,GITHUB_RUN_ID,HOME
             script: |
