@@ -88,6 +88,39 @@ BEGIN
   RETURN p_name;
 END $$;
 
+-- Is statement_set_status() the SESSION-BOUND form?
+--
+-- 0047 replaced the function so that its third argument is a session
+-- token rather than a caller-supplied actor. The arity is the SAME, so
+-- the only way to tell the two apart is to look at the PARAMETER NAME —
+-- the session-bound form names it `p_session_token`, the actor form
+-- names it `p_actor`.
+--
+-- Reading the parameter name is deliberate. It is the same thing 0047
+-- itself does when it asserts that exactly one form of the function
+-- remains, and it is a property of the FUNCTION rather than of the
+-- data, so it does not depend on there being any session to test with.
+CREATE OR REPLACE FUNCTION atlas_statement_set_status_is_session_bound()
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  v_bound boolean := false;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname = 'statement_set_status'
+       AND p.pronargs = 3
+       AND 'p_session_token' = ANY(p.proargnames::text[])
+  ) INTO v_bound;
+
+  RETURN v_bound;
+END $$;
+
 -- Run a statement that MUST fail. Returns the error message, or NULL if it
 -- unexpectedly succeeded.
 CREATE OR REPLACE FUNCTION atlas_test_must_fail(p_sql text)
@@ -126,6 +159,7 @@ DO $$
 DECLARE
   v_pass integer := 0;
   v_fail integer := 0;
+  v_floor integer := 0;
 
   v_a uuid;
   v_b uuid;
@@ -145,6 +179,7 @@ DECLARE
   -- The account the D9 publish-credential cases use. It is a real
   -- `users` row created by the test, and the cleanup removes it.
   v_test_actor text;
+  v_test_session text;
   -- the counts before the test's own writes, compared after its cleanup
   v_assoc_before bigint;
   v_rel_before   bigint;
@@ -214,9 +249,49 @@ BEGIN
     RAISE EXCEPTION 'the fixtures are not three distinct dishes';
   END IF;
 
+  -- THE FIXTURE MUST MAKE D8 A REAL TRANSITION.
+  --
+  -- The D8 case asserts that a direct
+  --
+  --     UPDATE statements SET status = 'published' WHERE id = <v_stmt>
+  --
+  -- is refused. But the gate trigger opens with:
+  --
+  --     IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+  --       RETURN NEW;   -- a status change that is not a change is not a transition
+  --     END IF;
+  --
+  -- So the case only tests anything when the fixture's status is NOT
+  -- already 'published'. If the fixture IS already published, the UPDATE
+  -- sets published to published — not a transition — the trigger returns
+  -- early (correctly) and accepts it, and the suite then FAILS a guard
+  -- that did exactly the right thing.
+  --
+  -- The fixture is therefore selected from the statements that are NOT
+  -- already published. The suite's own fixture (created below when the
+  -- database has no statements) is 'research_pending', which is a real
+  -- transition to 'published'.
+  --
+  -- WHY THIS WAS NOT VISIBLE
+  --
+  -- packages/db/seed-atlas-fixtures.sql creates four statements with
+  -- status 'published', and it runs AFTER both suite runs — in ci.yml at
+  -- line 753 (the suite runs at 594 and 632) and in
+  -- scripts/ci-migration-chain.sh at line 548 (the suite runs at 452 and
+  -- 472). So the suite always ran against a database with no published
+  -- statement, the old query found nothing, and the suite created its
+  -- own fixture.
+  --
+  -- Run the suite against the chain's FINAL state — after the fixtures
+  -- seed, which is what a real deployment ends up with — and the old
+  -- query picked a published statement and D8 failed.
+  --
+  -- Live has 1,354 statements, all 'research_pending', so the defect was
+  -- latent there too.
   SELECT st.id INTO v_stmt
     FROM statements st
     JOIN dishes d ON d.id = st.subject_id AND st.subject_type = 'dish'
+   WHERE st.status IS DISTINCT FROM 'published'
    LIMIT 1;
 
   -- A fresh CI database has no statements at all (the Pool A import has
@@ -297,6 +372,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D4 the three axes are independent of each other');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D4 the three axes are independent of each other', v_err);
   END IF;
 
@@ -307,6 +383,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D4 a NULL dispute_state means "no competing account recorded"');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D4 a NULL dispute_state means "no competing account recorded"', v_err);
   END IF;
 
@@ -367,6 +444,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D6 an open-ended date with no year is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D6 an open-ended date with no year is accepted', v_err);
   END IF;
 
@@ -430,6 +508,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D3 a community association pointing at a traditions row is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D3 a community association pointing at a traditions row is accepted', v_err);
   END IF;
 
@@ -455,6 +534,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D3 a different relationship type for the same entity is a different association');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D3 a different relationship type for the same entity is a different association', v_err);
   END IF;
 
@@ -525,6 +605,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a symmetric pair is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a symmetric pair is accepted', v_err);
   END IF;
 
@@ -562,6 +643,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a directional pair is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a directional pair is accepted', v_err);
   END IF;
 
@@ -576,6 +658,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a SECOND, DIFFERENT predicate between the same pair is accepted (parallel claims survive)');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a SECOND, DIFFERENT predicate between the same pair is accepted (parallel claims survive)', v_err);
   END IF;
 
@@ -608,6 +691,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a regional_variant_of edge is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a regional_variant_of edge is accepted', v_err);
   END IF;
 
@@ -618,6 +702,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 the second regional_variant_of edge is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 the second regional_variant_of edge is accepted', v_err);
   END IF;
 
@@ -642,6 +727,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D5 a developed_from loop is allowed (the influence network is not a tree)');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D5 a developed_from loop is allowed (the influence network is not a tree)', v_err);
   END IF;
 
@@ -724,6 +810,7 @@ BEGIN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D7 a shared_dish identity is accepted');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D7 a shared_dish identity is accepted', v_err);
   END IF;
 
@@ -755,16 +842,109 @@ BEGIN
   -- a run that skipped it is visible in the log.
   IF to_regclass('public.publish_credential') IS NULL THEN
     RAISE NOTICE 'the publish credential is not in this database (migration 0038 has not been applied) — the D9 cases are SKIPPED';
+  ELSIF NOT atlas_statement_set_status_is_session_bound() THEN
+    -- The D9 CASES ARE SESSION-BOUND, AND THE SESSION BINDING IS 0047.
+    --
+    -- The cases present a Better Auth SESSION TOKEN as the third
+    -- argument of statement_set_status(). The pre-0047 function
+    -- compared that argument against `publish_credential.actor`
+    -- directly, so a session token was compared as though it were an
+    -- account id: the lookup found nothing, and the transition was
+    -- refused with "holds no publish credential".
+    --
+    -- So on a database where 0047 has not been applied these cases
+    -- CANNOT pass — and that is not a defect in the cases, it is the
+    -- schema being older than the cases.
+    --
+    -- The suite runs THREE times in the chain: before 0038, after 0038,
+    -- and against the FINAL schema (after 0047 and 0048). This block
+    -- is skipped on the first two and RUNS on the third.
+    --
+    -- Skipping is reported as a NOTICE, never as a silent pass — and it
+    -- is never a way to hide a failure, because the third run is the
+    -- one that must exercise these cases.
+    RAISE NOTICE 'the publish credential is not session-bound (migration 0047 has not been applied) — the D9 session cases are SKIPPED';
   ELSE
 
   -- The test's own account. It is a real `users` row, so the owner
   -- guard accepts a credential for it, and the test can remove it.
+  --
+  -- IT MUST BE A Better Auth `"user"` ROW.
+  --
+  -- The owner guard checks the publisher against Better Auth's `"user"`
+  -- table -- that is the login identity, and it is what 0047 bound
+  -- `publish_credential.actor` to. The editorial `users` table is a
+  -- DISCONNECTED leftover: it holds no login accounts and the guard
+  -- never reads it.
+  --
+  -- This fixture used to insert into `users`. That worked while the
+  -- guard read `users` too, and stopped working the moment 0047
+  -- corrected the guard to read the table that actually holds login
+  -- accounts -- the fixture was asserting against a table the guard
+  -- does not read. The failure was loud ("there is no such account in
+  -- \"user\""), which is how it was caught.
+  --
+  -- The Better Auth columns: id, name, email, email_verified,
+  -- created_at, updated_at.
   v_test_actor := 'atlas-constraint-test-editor';
 
-  INSERT INTO users (id, email, display_name, role)
-  VALUES (v_test_actor, 'atlas-constraint-test@example.invalid',
-          'Atlas Constraint Test', 'user')
+  -- The Better Auth `"user"` table has two NOT NULL columns with no
+  -- default: `role` and `locale`. They must be supplied or the
+  -- INSERT fails -- and because the fixture INSERT is inside the test
+  -- block, a failure there leaves the account missing and every
+  -- session-based assertion fails with a confusing "no valid session
+  -- was presented".
+  INSERT INTO "user" (id, name, email, email_verified, role, locale,
+                       created_at, updated_at)
+  VALUES (v_test_actor, 'Atlas Constraint Test',
+          'atlas-constraint-test@example.invalid', true, 'contributor', 'en',
+          now()::timestamp, now()::timestamp)
   ON CONFLICT (id) DO NOTHING;
+
+  -- AND the editorial `users` table, which is what 0038/0045's guard
+  -- reads. 0047 corrects the guard to read Better Auth's `"user"`
+  -- table, so the two migrations disagree about which table holds a
+  -- login identity -- and the CI chain runs this suite BOTH before and
+  -- after 0047.
+  --
+  -- Before 0047 the guard reads `users`. After 0047 it reads `"user"`.
+  -- A fixture that satisfies only one of them fails the other run.
+  -- The fixture therefore inserts into BOTH, and the cleanup removes
+  -- both. (The `users` table is the byline table; it is a separate
+  -- table with its own columns -- see the INSERT's column list.)
+  -- The editorial `users` table has no `name` column: it is
+  -- (id, email, email_verified, password_hash, display_name, role,
+  -- language, ...). `display_name` and `role` are NOT NULL; `role` has
+  -- a default of 'user'.
+  INSERT INTO users (id, email, email_verified, display_name, role, language)
+  VALUES (v_test_actor, 'atlas-constraint-test@example.invalid', true,
+          'Atlas Constraint Test', 'user', 'en')
+  ON CONFLICT (id) DO NOTHING;
+
+  -- The test's own SESSION.
+  --
+  -- 0047 changed `statement_set_status`'s third argument from the
+  -- actor's identity to a Better Auth SESSION TOKEN. The publisher is
+  -- derived from the validated session, never supplied by the caller.
+  --
+  -- So this test must present a SESSION, not an actor. Every call
+  -- below passes `v_test_session`, and the session resolves to
+  -- `v_test_actor` -- which is how the credential checks still see the
+  -- right actor.
+  --
+  -- The token is 32 hex characters, matching the raw token Better Auth
+  -- stores (the session table holds the raw value, not a hash).
+  v_test_session := 'atlasconstrainttestsessiontoken000001';
+  -- The session table's timestamps are `timestamp` (no time zone),
+  -- so `now()::timestamp` is used rather than `now()`.
+  INSERT INTO session (id, token, user_id, expires_at, created_at, updated_at)
+  VALUES ('atlas-constraint-test-session', v_test_session, v_test_actor,
+          (now() + interval '1 day')::timestamp, now()::timestamp, now()::timestamp)
+  ON CONFLICT (id) DO UPDATE
+    SET token = EXCLUDED.token,
+        user_id = EXCLUDED.user_id,
+        expires_at = EXCLUDED.expires_at,
+        updated_at = now();
 
   -- An S2 source: class-sufficient for a documented claim, and not S6.
   INSERT INTO sources (id, source_type, title, language, url, source_class, source_classed_at)
@@ -820,18 +1000,47 @@ BEGIN
   --
   -- `research_pending` needs no credential and no evidence, so it is the
   -- honest way to set up the case.
+  -- The third argument is now a SESSION TOKEN, not an actor.
+  --
+  -- EVERY transition presents a session, including the machine one.
+  -- 0047 derives the actor from the session for all of them: there is
+  -- no actor parameter at all, so a caller cannot name an identity it
+  -- does not hold a session for. What distinguishes a machine
+  -- transition is that the session's user holds NO CREDENTIAL --
+  -- `research_pending` needs no credential.
+  --
+  -- This is the setup for the published-guard case below: it moves the
+  -- statement to `research_pending` so the later transition to
+  -- `published` is a real transition and not a no-op.
   v_err := atlas_test_must_succeed(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''research_pending'', ''hermes-agent'')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''research_pending'', ''' || v_test_session || ''')');
   IF v_err IS NOT NULL THEN
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 the published-guard fixture could not be set up', v_err);
   END IF;
 
+  -- A session token that resolves to NO account. The transition must
+  -- be refused, and refused because the publisher has no credential.
+  --
+  -- A token that resolves to NO account. The transition must be
+  -- refused.
+  --
+  -- The refusal is "no valid session was presented" -- there is no
+  -- publisher, so there is no credential to check. That is the correct
+  -- refusal and it is EARLIER than the credential check: under 0047
+  -- the credential check is only reachable once a publisher has been
+  -- derived from a valid session.
+  --
+  -- The assertion accepts either refusal, because both are correct and
+  -- the point of the case is that the transition is refused, not that
+  -- it is refused for one specific reason. A test that pins the exact
+  -- message breaks every time the guard's wording changes.
   v_err := atlas_test_must_fail(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''some-random-name'')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''a-token-that-resolves-to-nobody'')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 an unknown actor is refused the published transition', 'the transition was accepted');
-  ELSIF v_err LIKE '%publish credential%' THEN
+  ELSIF v_err LIKE '%publish credential%' OR v_err LIKE '%no valid session%' THEN
     -- The refusal must be about the CREDENTIAL, not about some other
     -- gate. A test that passes for the wrong reason is not a test.
     v_pass := v_pass + 1;
@@ -862,7 +1071,7 @@ BEGIN
   ON CONFLICT (actor) DO NOTHING;
 
   v_err := atlas_test_must_fail(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''' || v_test_actor || ''')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''' || v_test_session || ''')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 an unverified credential is refused', 'the transition was accepted');
@@ -892,18 +1101,19 @@ BEGIN
    WHERE actor = v_test_actor;
 
   v_err := atlas_test_must_succeed(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''' || v_test_actor || ''')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''verified'', ''' || v_test_session || ''')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D9 a credentialed editor may verify');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 a credentialed editor may verify', v_err);
   END IF;
 
   -- (g) an 'editor' may NOT publish. Publishing is the stronger act and
   --     needs the stronger role.
   v_err := atlas_test_must_fail(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''' || v_test_actor || ''')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''' || v_test_session || ''')');
   IF v_err IS NULL THEN
     v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 an editor credential may not publish', 'the transition was accepted');
@@ -934,11 +1144,12 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   v_err := atlas_test_must_succeed(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''' || v_test_actor || ''')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''published'', ''' || v_test_session || ''')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D9 a publisher credential may publish');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 a publisher credential may publish', v_err);
   END IF;
 
@@ -946,12 +1157,17 @@ BEGIN
   --     `draft` need no credential — the machine is allowed to make
   --     them. If this case failed, the new guard would have broken the
   --     agent's own workflow.
+  --
+  --     The third argument is a SESSION TOKEN (0047), not an actor. The
+  --     machine's session belongs to a user with NO credential, and
+  --     `research_pending` needs none — so the transition succeeds.
   v_err := atlas_test_must_succeed(
-    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''research_pending'', ''hermes-agent'')');
+    'SELECT statement_set_status(''55555555-5555-5555-5555-555555555555'', ''research_pending'', ''' || v_test_session || ''')');
   IF v_err IS NULL THEN
     v_pass := v_pass + 1;
     PERFORM atlas_test_pass('D9 a machine transition needs no credential');
   ELSE
+    v_fail := v_fail + 1;
     PERFORM atlas_test_fail('D9 a machine transition needs no credential', v_err);
   END IF;
 
@@ -1043,6 +1259,11 @@ BEGIN
     DELETE FROM sources
      WHERE id = '44444444-4444-4444-4444-444444444444'
        AND title = 'The atlas constraint test source';
+    -- The fixture lives in Better Auth's `"user"` table (see where it
+    -- is created), so the cleanup must delete it from THERE. Deleting
+    -- from the editorial `users` table would leave the fixture behind
+    -- and it would accumulate on every run.
+    DELETE FROM "user" WHERE id = v_test_actor;
     DELETE FROM users WHERE id = v_test_actor;
   END IF;
 
@@ -1095,6 +1316,73 @@ BEGIN
 
   RAISE NOTICE '';
   RAISE NOTICE 'ATLAS_SCHEMA_TESTS: % passed, % failed', v_pass, v_fail;
+
+  -- ── THE ASSERTION FLOOR ──────────────────────────────────────────
+  --
+  -- This gate used to fail ONLY when v_fail > 0. That means a gate
+  -- which ran ZERO assertions passed: v_fail was 0 and v_pass was 0,
+  -- so "0 of 0" was reported as success.
+  --
+  -- That is a false green. A gate that silently stops asserting
+  -- anything -- because a table was renamed, a helper was refactored,
+  -- or an early RETURN short-circuits the block -- would go green and
+  -- assert nothing at all.
+  --
+  -- The floor is the number of assertions this file makes. It is
+  -- asserted BEFORE the failure check, so the gate cannot pass with
+  -- fewer assertions than it is supposed to make.
+  --
+  -- The floor DIFFERS between the two CI runs, because the D9 block
+  -- (the publish-credential cases) is SKIPPED until migration 0038 has
+  -- been applied. CI runs this suite twice: once before 0038, where the
+  -- D9 cases are skipped, and once after, where they run. Each run has
+  -- its own floor, and each floor is the number of assertions THAT RUN
+  -- is expected to make. A single floor would fail the pre-0038 run for
+  -- the right reason -- it asserted fewer checks -- which is a false
+  -- alarm, and a gate that cries wolf gets ignored.
+  IF to_regclass('public.publish_credential') IS NULL THEN
+    v_floor := 38;   -- the pre-0038 run: the D9 block is skipped
+  ELSIF EXISTS (
+    SELECT 1 FROM pg_constraint con
+      JOIN pg_class c ON c.oid = con.conrelid
+     WHERE c.relname = 'publish_credential'
+       AND con.contype = 'f'
+       AND pg_get_constraintdef(con.oid) LIKE '%REFERENCES "user"(id)%'
+  ) THEN
+    -- The post-0047 run: 0047 replaced the owner guard and bound
+    -- `publish_credential.actor` to Better Auth's `"user"` table.
+    v_floor := 47;
+  ELSIF atlas_statement_set_status_is_session_bound() THEN
+    -- The post-0047 schema WITHOUT the foreign key. 0047 adds both,
+    -- so this is not reachable on a database 0047 has been applied to —
+    -- it is here so the floor is never silently wrong.
+    v_floor := 47;
+  ELSE
+    -- The 0038..0046 run: the D9 block is SKIPPED, because the D9
+    -- cases present a SESSION TOKEN and the pre-0047 function compares
+    -- its third argument against `publish_credential.actor` directly.
+    -- A session token is not an account id, so the lookup finds nothing
+    -- and the transition is refused — the cases CANNOT pass here.
+    --
+    -- The floor used to be 45 here, on the assumption that the D9 block
+    -- ran. It did not: two of its cases assert the 0047 semantics and
+    -- failed, and — worse — they did not even COUNT, because their
+    -- failure branches called atlas_test_fail() without incrementing
+    -- v_fail. The suite reported "45 passed, 0 failed" while two
+    -- assertions were broken.
+    --
+    -- Now that the failure branches count, the D9 block is skipped
+    -- instead of failed, and the floor is the number of assertions this
+    -- run ACTUALLY makes: 38.
+    v_floor := 38;
+  END IF;
+
+  IF v_pass + v_fail < v_floor THEN
+    RAISE EXCEPTION
+      'atlas schema tests made only % assertions (expected at least %) -- the gate is not asserting what it should',
+      v_pass + v_fail, v_floor;
+  END IF;
+
   IF v_fail > 0 THEN
     RAISE EXCEPTION 'atlas schema tests FAILED (% of %)', v_fail, v_pass + v_fail;
   END IF;

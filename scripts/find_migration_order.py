@@ -34,9 +34,17 @@ Output: the working order, one path per line.
 """
 
 import subprocess
+import sys
 from pathlib import Path
 
-DB = "gustale_order_probe"
+# This script DROPs and recreates the database it probes. It must never
+# be pointed at the live database, so its target goes through the
+# shared guard -- which refuses `gustale` unless the process has made
+# the explicit per-invocation opt-in.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
+
+DB = db_guard.resolve("gustale_order_probe", purpose="find_migration_order.py")
 
 DRIZZLE = sorted(
     str(p) for p in Path("packages/db/drizzle").glob("*.sql")

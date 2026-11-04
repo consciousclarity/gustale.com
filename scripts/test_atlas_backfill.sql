@@ -251,6 +251,12 @@ END $$;
 DO $$
 DECLARE
   v_fail integer := 0;
+  -- The number of checks that PASSED. Counted, not written by hand.
+  v_pass integer := 0;
+  -- The number of checks ATTEMPTED. This is what the assertion floor
+  -- is measured against: a check that never ran is not a passing
+  -- check.
+  v_checks integer := 0;
 
   -- The counts the CI database must hold after the backfill. These are
   -- read from the SEED, not hard-coded, so they cannot drift away from
@@ -353,6 +359,7 @@ BEGIN
   -- THE NON-ZERO ASSERTION. Every baseline must be above zero, or the
   -- guard is measuring nothing. This is the check that makes the whole
   -- block meaningful: it fails if the seed stops covering the catalog.
+  v_checks := v_checks + 1;
   IF v_expected_traditions = 0 OR v_expected_cuisines_tr = 0
      OR v_expected_origins = 0 OR v_expected_total = 0 THEN
     v_fail := v_fail + 1;
@@ -368,33 +375,40 @@ BEGIN
     JOIN dishes d ON d.id = a.dish_id
    WHERE d.slug IN ('rendang','chicken-tikka-masala','tacos-al-pastor','falafel');
 
+  v_checks := v_checks + 1;
   IF v_expected_refs <> 4 THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the four reference dishes must all be seeded — % of 4 are present', v_expected_refs;
   END IF;
 
+  v_checks := v_checks + 1;
   IF v_actual_refs <> 8 THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the four reference dishes must hold exactly 8 associations after the backfill — they hold %', v_actual_refs;
   END IF;
 
   -- The totals, each against its own baseline.
+  v_checks := v_checks + 1;
   IF v_traditions <> v_expected_traditions THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the tradition associations are % but % were expected', v_traditions, v_expected_traditions;
   END IF;
+  v_checks := v_checks + 1;
   IF v_cuisines_tr <> v_expected_cuisines_tr THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the cuisine-as-tradition associations are % but % were expected', v_cuisines_tr, v_expected_cuisines_tr;
   END IF;
+  v_checks := v_checks + 1;
   IF v_cuisines_pl <> v_expected_cuisines_pl THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the cuisine-as-place associations are % but % were expected', v_cuisines_pl, v_expected_cuisines_pl;
   END IF;
+  v_checks := v_checks + 1;
   IF v_origins <> v_expected_origins THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the legacy origin associations are % but % were expected', v_origins, v_expected_origins;
   END IF;
+  v_checks := v_checks + 1;
   IF v_total <> v_expected_total THEN
     v_fail := v_fail + 1;
     RAISE WARNING 'FAIL  the total associations are % but % were expected', v_total, v_expected_total;
@@ -408,10 +422,28 @@ BEGIN
   RAISE NOTICE '  the reference dishes:         % associations across 4 dishes', v_actual_refs;
   RAISE NOTICE '';
 
+  -- ── THE ASSERTION FLOOR ──────────────────────────────────────────
+  --
+  -- This gate used to fail ONLY when v_fail > 0. A gate that ran ZERO
+  -- checks passed: v_fail was 0, so "0 failed" was reported as
+  -- success. If the checks below were removed, renamed, or
+  -- short-circuited, the guard would go green while measuring nothing.
+  --
+  -- `v_checks` counts the checks ATTEMPTED, which is not the same as
+  -- the number that failed. The floor is checked BEFORE the failure
+  -- check, so the gate cannot pass having made fewer assertions than
+  -- it is supposed to.
+  IF v_checks < 8 THEN
+    RAISE EXCEPTION
+      'the count-snapshot guard made only % checks (expected 8) -- the gate is not asserting what it should',
+      v_checks;
+  END IF;
+
   IF v_fail > 0 THEN
     RAISE EXCEPTION 'the count-snapshot guard FAILED (% checks)', v_fail;
   END IF;
 
+  v_pass := v_checks - v_fail;
   RAISE NOTICE 'PASS  every baseline is non-zero, so the guard measures something';
   RAISE NOTICE 'PASS  every count matches its baseline';
   RAISE NOTICE '';
@@ -421,5 +453,10 @@ BEGIN
   -- saw zero and could not tell whether the guard had run at all. It
   -- had — the five counts above it are its output — but the summary
   -- said the opposite.
-  RAISE NOTICE 'ATLAS_COUNT_GUARD: % passed, % failed', 5, 0;
+  -- The passed/failed counts are REAL, not hardcoded.
+  --
+  -- This used to report '5 passed, 0 failed' unconditionally -- even
+  -- if the checks below had been removed or short-circuited. The
+  -- summary was a lie that could not disagree with the outcome.
+  RAISE NOTICE 'ATLAS_COUNT_GUARD: % passed, % failed', v_pass, v_fail;
 END $$;

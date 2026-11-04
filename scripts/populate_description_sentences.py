@@ -34,6 +34,12 @@ from pathlib import Path
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
+
 from split_sentences import split_sentences  # noqa: E402
 
 FIELDS = (("short_description", "short"), ("long_description", "long"))
@@ -42,7 +48,7 @@ FIELDS = (("short_description", "short"), ("long_description", "long"))
 def psql_command(db: str) -> list[str]:
     """The psql invocation for this environment.
 
-    THREE environments, one script:
+    FOUR environments, one script:
 
     - The live host: the `shared-postgres` container, reached with
       `docker exec`. The password lives in the deployment file and
@@ -52,16 +58,38 @@ def psql_command(db: str) -> list[str]:
       fails there.
     - A scratch database on the host: the container, but the database
       is not `gustale`, so it is read as the postgres superuser.
+    - CHAIN_MODE=ci: a service on 127.0.0.1, whatever else is on the
+      machine.
 
-    The probe is whether the container is there at all, because that
-    is the difference that actually breaks.
+    THE PROBE IS NOT "IS THERE A CONTAINER". It is "am I in CI mode",
+    and only then "is there a container".
 
-    When there is no container, the client is found in the usual
-    places rather than assumed to be on PATH: on a Debian image the
-    client is /usr/bin/psql, but on some it is under
-    /usr/lib/postgresql/<version>/bin, and a script that only tries
-    PATH fails on the second one.
+    That distinction matters because the probe was "is there a
+    container", which is a question about the MACHINE, not about the
+    JOB. A developer running the chain locally on a host that happens
+    to run the `shared-postgres` container — which is this one — got
+    `docker exec` for a database that the container does not have, and
+    the step failed with "CANNOT REACH the database".
+
+    CHAIN_MODE=ci says what the CALLER is doing: it is running a CI
+    simulation against a service. When it is set, the container is
+    irrelevant — the service is at PG_HOST:PG_PORT.
+
+    The password and the port come from the environment, as they do
+    everywhere else in the CI.
     """
+    if os.environ.get("CHAIN_MODE") == "ci":
+        psql = shutil.which("psql")
+        if not psql:
+            import glob
+            candidates = sorted(glob.glob("/usr/lib/postgresql/*/bin/psql"))
+            psql = candidates[-1] if candidates else "psql"
+        return [
+            psql, "-h", os.environ.get("PG_HOST", "127.0.0.1"),
+            "-p", os.environ.get("PG_PORT", "5432"),
+            "-U", os.environ.get("PGUSER", "postgres"), "-d", db,
+            "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
+        ]
     if shutil.which("docker") and _has_container():
         return [
             "docker", "exec", "-u", "postgres", "-i", "shared-postgres",
@@ -353,10 +381,15 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument(
         "--db",
-        default="gustale",
+        default=db_guard.scratch_database(),
         help="the database to read from and write to (default: gustale, the live one)",
     )
     args = parser.parse_args()
+
+    # Vet the target BEFORE touching anything. This refuses the live
+    # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
+    # invocation.
+    args.db = db_guard.resolve(args.db, purpose="populate_description_sentences.py")
 
     if not can_connect(args.db):
         print(f"[populate] CANNOT REACH the database {args.db}.")

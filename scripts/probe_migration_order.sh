@@ -21,7 +21,11 @@
 
 set -euo pipefail
 
-DB="gustale_order_probe"
+# This script DROPs and recreates the database it probes. It must never
+# be pointed at the live database, so its target goes through the shared
+# guard -- which refuses `gustale` unless the process has made the
+# explicit per-invocation opt-in.
+DB="$(python3 scripts/lib/db_guard.py probe_migration_order.sh gustale_order_probe)"
 DOCKER=(docker exec -u postgres -i shared-postgres)
 
 psql_run() {

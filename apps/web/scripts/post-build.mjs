@@ -263,21 +263,54 @@ for (const e of rootEntries) {
 //
 // The generator is a Python script at the repo root; it is run from
 // here so it runs for every domain variant.
+// A MISSING SITEMAP MUST FAIL THE BUILD.
+//
+// This used to be a catch-and-log. That was a false green: the build
+// exited 0, CI went green, the image was built and pushed to ghcr, the
+// containers were swapped -- and the site was left with NO sitemap at
+// all. The only trace was a line in the build log that nobody reads.
+//
+// The reasoning behind the old behaviour ("the site still works without
+// it") is wrong in the one way that matters: a site with no sitemap
+// works, and then silently stops being indexed. Nothing alerts. The
+// degradation is invisible until the traffic is gone.
+//
+// So: the sitemap generation is now a HARD FAILURE. If the generator
+// cannot produce the sitemaps, the build does not produce an image.
+//
+// There is one escape hatch, and it is deliberately hard to hit by
+// accident: ALLOW_NO_SITEMAP=1. It exists for the case where someone
+// is building the site locally and genuinely does not want to run the
+// generator. It prints a loud warning, it is NOT set in CI, and the
+// deploy's own sitemap check would catch a missing sitemap anyway.
 console.log("[post-build] generating the per-locale sitemaps");
-try {
+{
   const { execFileSync } = await import("node:child_process");
-  execFileSync(
-    "node",
-    ["scripts/generate_sitemaps.mjs", "--dist", DIST, "--domain", DOMAIN],
-    { cwd: repoRoot, stdio: "inherit" },
-  );
-} catch (err) {
-  // A missing sitemap must not fail the whole build — the site still
-  // works without it. It is logged loudly so it is noticed.
-  console.error(
-    "[post-build] sitemap generation FAILED — the build will ship without a sitemap:",
-    err.message,
-  );
+  try {
+    execFileSync(
+      "node",
+      ["scripts/generate_sitemaps.mjs", "--dist", DIST, "--domain", DOMAIN],
+      { cwd: repoRoot, stdio: "inherit" },
+    );
+  } catch (err) {
+    const allowNoSitemap = process.env.ALLOW_NO_SITEMAP === "1";
+    if (allowNoSitemap) {
+      console.error(
+        "[post-build] WARNING: sitemap generation FAILED, but " +
+          "ALLOW_NO_SITEMAP=1 is set. The build will ship WITHOUT a " +
+          "sitemap. Do not deploy this image.",
+        err.message,
+      );
+    } else {
+      console.error(
+        "[post-build] sitemap generation FAILED — refusing to build an " +
+          "image with no sitemap. Set ALLOW_NO_SITEMAP=1 only for local " +
+          "experiments; CI must never set it.",
+        err.message,
+      );
+      process.exit(1);
+    }
+  }
 }
 
 console.log(`[post-build] domain=${DOMAIN}, removed ${removed} paths`);

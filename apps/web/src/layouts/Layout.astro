@@ -50,6 +50,16 @@ export interface Props {
    * than none, because it is an instruction, not a description.
    */
   canonicalUrl?: string;
+  /**
+   * Mark the page `noindex, follow`.
+   *
+   * Used for the pages that exist but carry no content yet — a family
+   * page whose dishes have not been mapped, a lineage with nothing
+   * mapped to it. They stay reachable and keep their invitation to
+   * contribute, but they are kept out of the index and out of the
+   * sitemap.
+   */
+  noindex?: boolean;
 }
 
 const {
@@ -59,6 +69,7 @@ const {
   alternates = [],
   localeUrls = {},
   canonicalUrl: canonicalProp,
+  noindex = false,
 } = Astro.props;
 const isGeo = isGeoDomain();
 const rtl = isRtl(locale);
@@ -128,6 +139,22 @@ const canonicalUrl =
       canonicalUrl && (
         <link rel="canonical" href={canonicalUrl} />
       )
+    }
+    {
+      /*
+       * A page with no content behind it — a family page whose dishes
+       * have not been mapped yet, a lineage with nothing mapped to it —
+       * is a valid URL that a crawler can reach, but it is not worth
+       * indexing. The empty pages stay reachable (they carry the
+       * "help us map more dishes" invitation) and they are marked
+       * noindex so they do not compete with the pages that do have
+       * content.
+       *
+       * THE SITEMAP DOES NOT LIST THEM EITHER. The sitemap is generated
+       * from the same data, so the two agree: a page is in the sitemap
+       * if and only if it has content.
+       */
+      noindex && <meta name="robots" content="noindex, follow" />
     }
   </head>
   <body class="gst">

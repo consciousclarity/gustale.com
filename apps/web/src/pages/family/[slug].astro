@@ -164,6 +164,7 @@ const blurb = KNOWN_BLURBS[slug] ?? familyDescription ?? null;
 <Layout
   title={`${familyName} — Gustale`}
   description={blurb ?? `Browse Gustale's ${familyName.toLowerCase()} dishes.`}
+  noindex={totalDishes === 0}
 >
 
   {/* ─── Breadcrumb ───────────────────────────────────────────── */}

@@ -12,6 +12,46 @@ set -euo pipefail
 DB="${1:-gustale_cichain_test}"
 cd "$(dirname "$0")/.."
 
+# THE LIVE DATABASE IS NOT A CHAIN TARGET.
+#
+# This script DROPs the database it is given and recreates it:
+#
+#     DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB;
+#
+# So `bash scripts/ci-migration-chain.sh gustale` would DROP THE LIVE
+# DATABASE AND RECREATE IT EMPTY. That is the single most destructive
+# command in the repository, and it used to be one typo away.
+#
+# The default (gustale_cichain_test) is a disposable database, and the
+# chain is meant to run against throwaway databases. Live is only
+# reachable with the explicit per-invocation opt-in, and even then the
+# chain's own DROP makes it a terrible idea -- use
+# scripts/apply-migration-live.sh, which goes through the live-approval
+# gate.
+#
+# The guard also knows about the CI's service container, which is
+# deliberately named `gustale` so the CI schema mirrors live's. On a
+# GitHub runner that database is disposable, and the workflow sets
+# GUSTALE_DB_IS_THROWAWAY=1 to say so. Here, on the live host, that
+# variable is NOT set, so `gustale` means the live database and is
+# refused.
+# The Python that runs the guard. Resolved before the guard is called,
+# because the guard decides whether this script may touch the database
+# it is about to DROP.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+  echo "::error::no python3 on PATH; cannot vet the chain's target database."
+  exit 1
+}
+
+GUSTALE_CHAIN_DB="$("$PYTHON_BIN" scripts/lib/db_guard.py ci-migration-chain.sh "$DB")" || {
+  echo "::error::the migration chain refuses to target the live database."
+  echo "::error::It DROPs and recreates its target, so live must never be one."
+  echo "::error::Use a throwaway database, or scripts/apply-migration-live.sh."
+  exit 1
+}
+DB="$GUSTALE_CHAIN_DB"
+
 DRIZZLE_FILES=()
 while IFS= read -r f; do DRIZZLE_FILES+=("$f"); done < <(
   git ls-files 'packages/db/drizzle/*.sql' | sort
@@ -196,6 +236,10 @@ if [ "${CHAIN_MODE:-}" = "ci" ]; then
   # so a containerised simulation can point somewhere else; the default is
   # the runner's own arrangement.
   PG_HOST="${PG_HOST:-127.0.0.1}"
+  # The port is configurable for the same reason the host is: PostgreSQL
+  # is not always on 5432. The default is unchanged, so the runner's
+  # arrangement — the service published on 5432 — is what runs.
+  PG_PORT="${PG_PORT:-5432}"
 fi
 
 run_pg() {
@@ -211,7 +255,7 @@ run_pg() {
     # atlas migrations ALTER. A chain that ran as the bot would fail
     # with "must be owner of table", which is the correct behaviour: it
     # is the proof that the bot is not an admin.
-    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
+    PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   else
     docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   fi
@@ -239,7 +283,7 @@ if [ "${CHAIN_MODE:-}" = "ci" ]; then
   # The bot's role `gustale` is an ORDINARY role now, and it may not be
   # the owner of the database it is about to use. The service's
   # superuser is `postgres` — that is the arrangement live has.
-  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d postgres \
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d postgres \
     -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
 
 else
@@ -270,8 +314,21 @@ fi
 # same grants by construction, and none of them can drift.
 echo "--- the role setup"
 if [ "${CHAIN_MODE:-}" = "ci" ]; then
-  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -U postgres -d "$DB" \
-    -v ON_ERROR_STOP=1 -f "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
+  # STDIN, NOT -f <path>.
+  #
+  # `psql -f <path>` reads the file relative to psql's OWN working
+  # directory, which is not necessarily the shell's. On the runner it
+  # is the same, so it works there — but it is the only step in this
+  # script that reads a file by path, and it is the one step that
+  # breaks when psql's cwd is not the repo root (a containerised psql,
+  # for instance, where the file is on the host and not in the
+  # container).
+  #
+  # Every other step here pipes the file in with `-f -`. This one now
+  # does the same, so the whole script behaves identically no matter
+  # where psql runs.
+  PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$DB" \
+    -v ON_ERROR_STOP=1 -f - < "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
     || { echo "FAILED: the role setup"; grep -E 'ERROR|NOTICE' /tmp/ci_role_setup.log | tail -12; exit 1; }
 else
   # STDIN, NOT -f.
@@ -592,6 +649,38 @@ echo "--- the atlas fixtures (seed, never a migration)"
 run_pg -f - < "$ATLAS_FIXTURE_SEED" >/tmp/atlas_fixtures.log 2>&1 || { echo "FAILED: the atlas fixtures"; grep -E 'ERROR|NOTICE' /tmp/atlas_fixtures.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_FIXTURES_OK' /tmp/atlas_fixtures.log | tail -1 || true
+
+# The constraint tests a THIRD time — against the FINAL schema.
+#
+# The first two runs (before 0038 and after 0038) test the schema at
+# those two points. This one tests the schema a DEPLOYMENT ENDS UP WITH:
+# every migration applied, including 0047 (the session binding) and 0048
+# (the bot credential guard), plus the fixtures seed.
+#
+# WHY IT IS NEEDED — TWO REASONS, BOTH REAL
+#
+# 1. The D9 publish-credential cases are SESSION-BOUND. They present a
+#    Better Auth session token, and only 0047's `statement_set_status`
+#    accepts a session token — the pre-0047 function compares its third
+#    argument against `publish_credential.actor` directly, so a session
+#    token is compared as though it were an account id and the transition
+#    is refused. The second suite run is BEFORE 0047, so on that database
+#    the D9 credential cases CANNOT pass.
+#
+# 2. The fixtures seed creates statements with status 'published', and a
+#    published statement makes the D8 case a NO-OP: the gate trigger
+#    returns early when the status does not change, so "UPDATE status to
+#    'published'" on an already-published statement is not a transition
+#    and is (correctly) accepted. The suite's fixture selection now
+#    avoids published statements, but the third run is what PROVES that
+#    on the state a deployment really has.
+#
+# So the third run is the one that tests the final schema. Without it,
+# the chain proves that the migrations APPLY and nothing more.
+run_pg -v ON_ERROR_STOP=1 -f - < "$ATLAS_CONSTRAINT_TESTS" >/tmp/atlas_constraints3.log 2>&1 \
+  || { echo "FAILED: the atlas constraint tests (against the final schema)"; grep -E 'FAIL|ERROR' /tmp/atlas_constraints3.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'ATLAS_SCHEMA_TESTS' /tmp/atlas_constraints3.log | tail -1 || true
 
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND

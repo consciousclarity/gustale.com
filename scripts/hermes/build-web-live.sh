@@ -60,6 +60,30 @@ SHA="$1"
 SHORT_SHA="$(echo "$SHA" | cut -c1-7)"
 REPO="${GITHUB_REPOSITORY:-consciousclarity/gustale.com}"
 GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
+# THE TAG MUST BE DISTINCT PER BUILD.
+#
+# Both web images are built from the same commit but are DIFFERENT
+# builds: PUBLIC_DOMAIN=recipes and PUBLIC_DOMAIN=geo produce different
+# static output (different sitemaps, different URLs). They used to share
+# one tag, `live-data-<short-sha>`, which was wrong twice over:
+#
+#   1. It made the two images indistinguishable — the verify step could
+#      not tell them apart, and neither could an operator.
+#   2. It let a stale build-cache layer masquerade as the new one. On
+#      2026-11-02 the recipes image carried a sitemap generated 13
+#      minutes before the geo one, from a build that predated the fix.
+#      Both containers reported the SAME tag and were "healthy", while
+#      gustale.com served 1,531 sitemap URLs and gustale.recipes served
+#      1,643.
+#
+# So each build gets its own tag, suffixed with the domain:
+#   live-data-<short-sha>-recipes
+#   live-data-<short-sha>-geo
+#
+# TAG is the shared base; build_one appends the variant's suffix. TAG
+# itself must be set here: the deploy checks it against
+# live-data-<short-sha>, and `set -u` aborts on the first use if it is
+# missing (which is how the 2026-11-04 deploy of cb12bfa failed).
 TAG="live-data-${SHORT_SHA}"
 REGISTRY="ghcr.io/${REPO}"
 # The tag file is a per-run artefact. A fixed /tmp path collides between
@@ -119,7 +143,13 @@ fi
 build_one() {
   local domain="$1"
   local img_name="$2"
-  local img="${REGISTRY}/${img_name}:${TAG}"
+  # The per-build tag: the shared TAG plus THIS build's suffix (the third
+  # argument). It must match what the tag file below advertises
+  # ($TAG-recipes / $TAG-geo), or the deploy looks for an image that was
+  # never built.
+  local suffix="${3:?build_one needs a tag suffix}"
+  local tag="${TAG}-${suffix}"
+  local img="${REGISTRY}/${img_name}:${tag}"
   echo ""
   echo "--- building $img (PUBLIC_DOMAIN=$domain, BUILD_DATA_SOURCE=live) ---"
   # Honour a caller-controlled no-cache toggle. The default is to use
@@ -147,8 +177,11 @@ build_one() {
   fi
 }
 
-build_one recipes gustale-web-recipes
-build_one geo     gustale-web-geo
+# Each build gets a DISTINCT tag. The suffix is per-variant, so the two
+# images can never share a tag — and a cached layer from one can never be
+# served for the other.
+build_one recipes gustale-web-recipes recipes
+build_one geo     gustale-web-geo geo
 
 # Emit the deploy variables. Two channels: stdout (line-prefixed with TAG=
 # / IMAGE_=, for the deploy script to capture) and a file (for operators
@@ -159,8 +192,10 @@ build_one geo     gustale-web-geo
 rm -f "$TAG_FILE"
 cat >"$TAG_FILE" <<EOF
 TAG=$TAG
-IMAGE_RECIPES=$REGISTRY/gustale-web-recipes:$TAG
-IMAGE_GEO=$REGISTRY/gustale-web-geo:$TAG
+TAG_RECIPES=$TAG-recipes
+TAG_GEO=$TAG-geo
+IMAGE_RECIPES=$REGISTRY/gustale-web-recipes:$TAG-recipes
+IMAGE_GEO=$REGISTRY/gustale-web-geo:$TAG-geo
 EOF
 # Make the file world-readable so the deploy script (running as root)
 # can `source` it even if the file was originally written by hermes
@@ -171,8 +206,8 @@ cat "$TAG_FILE"
 echo ""
 echo "=== DONE ==="
 if [ "$NO_PUSH" = "1" ]; then
-  echo "  images built (local only): $REGISTRY/gustale-web-recipes:$TAG, $REGISTRY/gustale-web-geo:$TAG"
+  echo "  images built (local only): $REGISTRY/gustale-web-recipes:$TAG-recipes, $REGISTRY/gustale-web-geo:$TAG-geo"
 else
-  echo "  images pushed: $REGISTRY/gustale-web-recipes:$TAG, $REGISTRY/gustale-web-geo:$TAG"
+  echo "  images pushed: $REGISTRY/gustale-web-recipes:$TAG-recipes, $REGISTRY/gustale-web-geo:$TAG-geo"
 fi
 echo "  tag file:      $TAG_FILE"

@@ -52,9 +52,17 @@ POOL_FILE = REPO / "data" / "pool_a.json"
 ADMIN = "00000000-0000-0000-0000-000000000001"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
 from import_pool_a import slugify  # noqa: E402
 
-TARGET_DATABASE = "gustale"
+# NOT live by default. The live database requires the explicit
+# GUSTALE_LIVE_DB_ALLOW=1 opt-in for this invocation.
+TARGET_DATABASE = db_guard.scratch_database()
 
 
 # ── the class → family map ────────────────────────────────────────────
@@ -320,7 +328,7 @@ CLASS_RANK: dict[str, int] = {
 
 
 def db(sql: str) -> str:
-    if TARGET_DATABASE == "gustale":
+    if TARGET_DATABASE == db_guard.LIVE_DB:
         out = subprocess.run(
             ["bash", str(REPO / "scripts" / "dbq.sh")],
             input=sql,
@@ -595,11 +603,14 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
-    parser.add_argument("--database", default="gustale")
+    parser.add_argument("--database", default=db_guard.scratch_database())
     args = parser.parse_args()
 
-    TARGET_DATABASE = args.database
-    if TARGET_DATABASE != "gustale":
+    # Vet the target BEFORE touching anything. This refuses the live
+    # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
+    # invocation.
+    TARGET_DATABASE = db_guard.resolve(args.database, purpose="classify_pool_a_families.py")
+    if TARGET_DATABASE != db_guard.LIVE_DB:
         print(f"[classify] the target database: {TARGET_DATABASE}")
 
     pool = json.loads(POOL_FILE.read_text())
