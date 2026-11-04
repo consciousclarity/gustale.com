@@ -123,6 +123,41 @@ a live change goes through backup → snapshot → dry-run on an exact copy
 → count assertions → apply → independent verification, with automatic
 rollback on failure. This ADR adds the *decision* gate in front of it.
 
+## The gate must run from the base branch (amended 2026-11-02)
+
+The gate originally ran on `pull_request`. That made it
+**self-defeating**: `pull_request` checks out the PR's own code, and
+the gate script lives in the repository. A PR that touched
+`db/migrations/` could edit `scripts/check-live-approval.sh` in the same
+diff, and CI would run **the PR's weakened gate against the PR**. The
+check that decides whether a migration may be merged was, in that case,
+written by the thing it was checking.
+
+The gate now runs on **`pull_request_target`**, which executes the
+workflow from the **base branch**:
+
+- the checkout is pinned to `github.event.pull_request.base.sha`, so the
+  PR's code is never present in the job;
+- the gate script that runs is the base branch's copy;
+- the job does **not** check out the PR's head and does **not** execute
+  anything from the PR.
+
+Because `pull_request_target` carries a powerful token, the change is
+deliberately narrow: **only** the `live-approval` job runs on that
+event. The `lint`, `test`, `build` and `build-web` jobs are all
+guarded with `if: github.event_name != 'pull_request_target'`, so no
+PR's code ever runs under the privileged token.
+
+`scripts/test-base-branch-approval-gate.sh` asserts this structure
+(9 checks) and fails if the gate is moved back onto `pull_request`,
+if the checkout is pointed at the PR head, if any other job is allowed
+to run on `pull_request_target`, or if the gate's permissions grow.
+
+## What the gate does NOT do
+
+It does not check *who is asking* for the gate to run, and it is not a
+substitute for branch protection. See "What is left to do" below.
+
 ## What is left to do
 
 - **Set the branch protection / ruleset so the `live-approval` check is
@@ -134,6 +169,64 @@ rollback on failure. This ADR adds the *decision* gate in front of it.
   Until then the gate is advisory in the merge UI, though the workflow
   still fails the check and the agent's own process treats a failing
   check as a block.
+
+- **Separate the approving identity from the acting identity.** See
+  "The identity problem" below.
+
+## The identity problem, and what a GitHub App can and cannot do
+
+**The problem.** The gate requires the `approved-live` label to have been
+applied by `consciousclarity` exactly. The agent's own PAT on this host
+*is* `consciousclarity`. So the agent can approve its own PR, and the
+"only Alejandro can approve" rule is not a boundary — it is a habit.
+
+**The correction to the original proposal.** The proposal said a GitHub
+App would be granted a "Labels" permission. **There is no Labels
+permission in GitHub.** Label mutation is not a separate scope: it is
+part of **Pull requests: write** (`pull-requests: write`), the same
+scope that lets the App edit a PR's title or body. Any identity that
+can write to a pull request can therefore set or remove `approved-live`.
+
+**What this means for the trust boundary.** The App must NOT be trusted
+to *not* label. The boundary has to come from elsewhere:
+
+1. **The gate checks the effective label actor, exactly.** The App may
+   apply the label; the gate still requires the actor to be
+   `consciousclarity`. The App's own applications of the label do not
+   count and must be rejected by the gate.
+2. **Branch protection requires the `live-approval` check.** A required
+   status check is what actually blocks the merge, and it is set in the
+   repository settings, which the App is not given permission to change.
+3. **The App gets no `Workflows` and no `Administration` permission.**
+   Without `workflows`, the App cannot write to `.github/workflows/`
+   and cannot trigger a workflow run. Without `administration`, it
+   cannot touch branch protection, rulesets or repository settings.
+
+**The App's permissions, exactly:**
+
+| permission | value | why |
+|---|---|---|
+| `Metadata` | read-only | required; always granted |
+| `Contents` | read-only | reads the base branch's gate script |
+| `Pull requests` | read & write | **includes label mutation** — there is no separate Labels permission |
+| `Workflows` | **none** | so the App cannot edit workflows or trigger runs |
+| `Administration` | **none** | so the App cannot weaken branch protection |
+
+**The gate runs from the base branch** (see above), so even a PR that
+changes the App's configuration cannot change the rule that judges it.
+
+**The remaining gap, stated plainly.** While the agent's PAT acts as
+`consciousclarity`, the agent *can* self-approve. Moving the label to
+an App does not close that by itself: the App is only useful once the
+agent's own PAT can no longer act as `consciousclarity`. The sequence is
+therefore: Alejandro sets up the App → Alejandro confirms the App works
+→ the `consciousclarity` PAT is deleted from the VPS → only then does
+the App's identity become the only one that can label, and the gate's
+exact-actor check becomes a real boundary.
+
+Until that last step happens, this remains a **procedural** boundary:
+the agent's own process does not add or remove `approved-live`, and
+every approval is recorded in the PR timeline with its actor.
 
 ## The amendment to ADR-004 §14
 

@@ -236,15 +236,85 @@ git config --global --add safe.directory "$BUILD_DIR" 2>/dev/null || true
 #
 # A public fetch that needs a secret is a fetch waiting to break when the
 # secret is rotated.
-ANON_URL="https://github.com/consciousclarity/gustale.com.git"
+# GUSTALE_REBUILD_ORIGIN_URL exists for the fail-closed test, which
+# drives this script against a throwaway local origin. Production
+# never sets it.
+ANON_URL="${GUSTALE_REBUILD_ORIGIN_URL:-https://github.com/consciousclarity/gustale.com.git}"
 if ! git remote get-url origin 2>/dev/null | grep -qx "$ANON_URL"; then
   log "  switching origin to the anonymous HTTPS URL"
   git remote set-url origin "$ANON_URL"
 fi
 
 log "--- Fetching origin/main into $BUILD_DIR (anonymous) ---"
-GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/true \
-  git -c credential.helper= fetch --no-tags --depth=50 origin main
+#
+# FAIL CLOSED. A fetch that fails must ABORT the run.
+#
+# This is not defensive padding. On 2026-11-03 the fetch in this dir
+# failed (the dir was shared with the root CI deploy, which left
+# root-owned object dirs the timer could not write). A failed fetch does
+# NOT update origin/main -- it FREEZES the ref at its old value. The
+# `git checkout --force origin/main` on the next line then SUCCEEDED
+# against that stale ref and rolled the build dir BACKWARDS:
+#
+#   86c0444 HEAD@{2026-11-03 12:27:19}: checkout: moving from
+#               60021a77748d6c69a8506f91213d9bdefc79f7b2 to origin/main
+#
+# So the timer was silently deploying an old commit every 30 minutes.
+# The fetch failing did not stop it -- it made it worse, because the
+# script cannot tell "up to date" from "could not be updated".
+#
+# `set -e` alone is not enough: `git fetch` exits non-zero on failure,
+# but we must make the ABORT explicit and loud, because the whole point
+# is that a failed fetch must never be followed by a checkout.
+if ! GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/true \
+     git -c credential.helper= fetch --no-tags --depth=50 origin main; then
+  log "ERROR: git fetch failed — ABORTING without checkout or build."
+  log "  The origin/main ref is UNCHANGED and may be STALE."
+  log "  Continuing would deploy a stale commit. Refusing."
+  exit 1
+fi
+log "  fetch OK"
+
+# The commit the fetch actually brought in. Read it from origin/main
+# (the ref the fetch updated) BEFORE the checkout, so the ancestry
+# guard compares against the fetched commit and not against whatever
+# the checkout will later produce.
+FETCHED_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
+if [ -z "$FETCHED_SHA" ]; then
+  log "ERROR: the fetch reported success but origin/main does not resolve to a commit."
+  log "  Refusing to check out or build. ABORTING."
+  exit 1
+fi
+log "  fetched sha: $FETCHED_SHA"
+
+# FAIL CLOSED, part 2: the fetched ref must be a DESCENDANT of the
+# commit that is currently deployed.
+#
+# A ref that is not a descendant of the deployed SHA means we are about
+# to roll the deployment backwards (a force-push, a revert, a branch
+# reset, or a ref that moved to an unrelated history). The timer must
+# not deploy that: it would replace a working site with an old one.
+#
+# The deployed SHA comes from the state file (what the last successful
+# run deployed) and falls back to the image tag the live containers
+# are running, so the guard still applies on a first run.
+DEPLOYED_SHA="${PREV_BUILD_SHA:-}"
+if [ -z "$DEPLOYED_SHA" ]; then
+  # No state file yet. Fall back to the tag of the running container.
+  DEPLOYED_SHA=$(docker inspect --format '{{index .Config.Image "ghcr.io/consciousclarity/gustale.com/gustale-web-recipes"}}' \
+    gustale-web-recipes 2>/dev/null | sed -n 's/.*live-data-\([0-9a-f]\{7,40\}\)$/\1/p' || true)
+  [ -n "$DEPLOYED_SHA" ] && DEPLOYED_SHA=$(git rev-parse "$DEPLOYED_SHA" 2>/dev/null || echo "$DEPLOYED_SHA")
+fi
+
+if [ -n "$DEPLOYED_SHA" ] && git cat-file -e "$DEPLOYED_SHA^{commit}" 2>/dev/null; then
+  if ! git merge-base --is-ancestor "$DEPLOYED_SHA" "$FETCHED_SHA"; then
+    log "ERROR: the fetched commit $FETCHED_SHA is NOT a descendant of the deployed $DEPLOYED_SHA."
+    log "  This would roll the deployment BACKWARDS. Refusing to check out or build."
+    exit 1
+  fi
+  log "  ancestry OK: $DEPLOYED_SHA is an ancestor of $FETCHED_SHA"
+fi
+
 git checkout --quiet --force origin/main
 BUILD_SHA=$(git rev-parse HEAD)
 BUILD_SHORT_SHA="${BUILD_SHA:0:7}"
@@ -309,6 +379,16 @@ source "$TAG_FILE"
 : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
 log "  $IMAGE_RECIPES"
 log "  $IMAGE_GEO"
+
+# The two images MUST have distinct tags. They are different builds
+# (different PUBLIC_DOMAIN); sharing one tag let a stale build-cache
+# layer masquerade as a fresh one, which is how gustale.recipes ended
+# up serving 1,643 sitemap URLs while gustale.com served 1,531 -- on
+# the same commit, with both containers "healthy".
+if [ "$IMAGE_RECIPES" = "$IMAGE_GEO" ]; then
+  log "ERROR: the two web images share a tag: $IMAGE_RECIPES"
+  exit 1
+fi
 
 # --- Step 6: pull + restart the web containers ---
 # With GUSTALE_NO_PUSH=1 the image is in the local docker cache; no
@@ -394,6 +474,29 @@ cat >"$STATE_TMP" <<EOF
 EOF
 mv -f "$STATE_TMP" "$STATE_FILE"
 log "  $STATE_FILE written"
+
+log ""
+# --- Step 9: the sitemap check on BOTH domains ---
+# The rebuild is the thing that most often leaves the two sites out of
+# step, so it must verify BOTH. A single-domain check would have called
+# the 2026-11-02 state a clean rebuild.
+log ""
+log "--- Checking both domains' sitemaps ---"
+# The check script is installed alongside the rebuild scripts on the
+# VPS. It is also looked up relative to this script, so the rebuild
+# works when run from a checkout.
+CHECK_SCRIPT="/home/deploy/gustale-rebuild/scripts/check-live-sitemaps.sh"
+if [ ! -f "$CHECK_SCRIPT" ]; then
+  CHECK_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/check-live-sitemaps.sh"
+fi
+if [ ! -f "$CHECK_SCRIPT" ]; then
+  log "ERROR: the sitemap check script is missing ($CHECK_SCRIPT) -- the rebuild cannot verify the two sites"
+  exit 1
+fi
+if ! bash "$CHECK_SCRIPT" 1531; then
+  log "ERROR: the sitemap check failed -- one of the two sites is serving a stale build"
+  exit 1
+fi
 
 log ""
 log "=== gustale-rebuild-web OK at $BUILD_SHORT_SHA ==="

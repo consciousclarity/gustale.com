@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -122,9 +123,19 @@ def db_rows(sql: str) -> list[dict]:
     The query is WRAPPED in a json_agg here, so every caller passes a
     plain SELECT and gets structured rows back. psql WRAPS a long
     value across several lines, so the JSON does not arrive as one
-    line — the whole output is scanned for the first JSON array
+    line -- the whole output is scanned for the first JSON array
     instead.
+
+    The TEST HOOK: if GUSTALE_DESCRIPTION_SIMILARITY_STUB_DB points at a
+    JSON file, its contents are returned instead of querying the
+    database. This is what lets the gate's regression test exercise the
+    gate's exit codes without needing the live database -- and without
+    touching production to test a gate.
     """
+    stub = os.environ.get("GUSTALE_DESCRIPTION_SIMILARITY_STUB_DB")
+    if stub:
+        return json.loads(Path(stub).read_text())
+
     out = subprocess.run(
         ["bash", str(REPO / "scripts" / "dbq.sh"),
          "select coalesce(json_agg(row_to_json(t)), '[]'::json) from (" + sql + ") t"],
@@ -150,6 +161,7 @@ def db_rows(sql: str) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", action="store_true")
+    parser.add_argument("--check", action="store_true")
     parser.add_argument("--limit", type=int, default=40)
     parser.add_argument("--sort", default="desc")
     args = parser.parse_args()
@@ -160,7 +172,11 @@ def main() -> int:
     # lookup here. Deriving it again here would be a second
     # implementation of a rule that already has one, and a mismatch
     # would silently compare the wrong lead against the wrong dish.
-    leads = json.loads(LEADS_FILE.read_text())
+    stub_leads = os.environ.get("GUSTALE_DESCRIPTION_SIMILARITY_STUB_LEADS")
+    if stub_leads:
+        leads = json.loads(Path(stub_leads).read_text())
+    else:
+        leads = json.loads(LEADS_FILE.read_text())
 
     dishes = db_rows(
         """
@@ -225,6 +241,51 @@ def main() -> int:
         print(f"{flag} {r['content']:.3f} fn={r['function']:.3f}  {r['slug']:<30}")
         print(f"          ours: {r['own']}")
         print(f"          lead: {r['lead']}")
+
+    # ── THE EXIT CODE ────────────────────────────────────────────────────
+    #
+    # This script ALWAYS returned 0, whatever it found. It printed
+    # "N of M descriptions are at or above the threshold" and then
+    # exited 0, so it could not fail a build and could not fail CI. A
+    # gate that cannot fail is not a gate: it is a report that happens
+    # to live in the same file as a gate.
+    #
+    # The fix is the exit code, and it has two halves:
+    #
+    #   * --check (the gate mode): exit 1 if ANY description is at or
+    #     above the threshold. That is the property the gate exists for.
+    #
+    #   * the default: exit 1 if the check could not RUN AT ALL -- no
+    #     database, no leads file, zero dishes to compare. A check that
+    #     examined nothing must not report success.
+    #
+    # The report mode (--report) stays informational and exits 0 on a
+    # finding: it is a tool for looking at the distribution, and a
+    # tool that fails while you are using it is a nuisance. The GATE
+    # is --check.
+    if args.check:
+        # The zero-assertion guard comes FIRST: a check that compared
+        # nothing has not passed, and it must not reach the "OK" line.
+        if not rows:
+            print()
+            print("[similarity] FAIL: no descriptions were compared -- the check did not run")
+            return 1
+        if over:
+            print()
+            print(f"[similarity] FAIL: {len(over)} of {len(rows)} descriptions are at or above {THRESHOLD}")
+            for r in over:
+                print(f"    {r['content']:.3f}  {r['slug']}")
+            return 1
+        print()
+        print(f"[similarity] OK: none of the {len(rows)} descriptions are at or above {THRESHOLD}")
+        return 0
+
+    # The zero-assertion guard: a check that examined NOTHING has not
+    # passed. It has not run.
+    if not rows:
+        print()
+        print("[similarity] FAIL: no descriptions were compared -- the check did not run")
+        return 1
     return 0
 
 

@@ -15,15 +15,19 @@ on:
     paths-ignore:
       - '.hermes/**'
       - '**/*.md'
+  # The live-approval gate is NOT here: it runs on pull_request_target
+  # from its own workflow, .github/workflows/live-approval.yml.
 
 # Grant the GITHUB_TOKEN permissions to write to ghcr.io
 permissions:
   contents: read
   packages: write
 
-# Cancel in-progress runs for the same branch/PR.
+# Cancel in-progress runs for the same branch/PR. Keyed by event and PR
+# number so a PR's runs can never share a group with main's push runs
+# (which would cancel main's build and deploy).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -61,48 +65,6 @@ env:
   NODE_ENV: test
 
 jobs:
-  # ─── Job 0: the live-approval gate ─────────────────────────────────
-  #
-  # A PR that touches the live database's schema or data may not be
-  # merged until Alejandro has explicitly approved that PR for live.
-  #
-  # WHY THIS IS A SEPARATE JOB AND NOT A STEP: it must be a REQUIRED
-  # status check, so it cannot be a step inside a job that can be
-  # skipped. It has no database and no build — it reads the diff and the
-  # PR's label timeline, and that is all.
-  #
-  # It runs on PULL_REQUEST only. On a push to main it is skipped,
-  # because by then the merge has already happened and the approval was
-  # checked at merge time.
-  live-approval:
-    name: Live approval gate
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The gate diffs the base against the head, so it needs the
-          # merge base's history, not a shallow clone.
-          fetch-depth: 0
-
-      - name: Check the live-approval gate
-        env:
-          # The gate reads the label timeline through the gh CLI.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          bash scripts/check-live-approval.sh \
-            "${{ github.event.pull_request.number }}" "$BASE_SHA" "$HEAD_SHA"
-
-      - name: The gate's own tests
-        run: bash scripts/test-live-approval-gate.sh
-
   # ─── Job 1: Lint + typecheck ───────────────────────────────────────
   lint:
     name: Lint + typecheck
@@ -174,6 +136,82 @@ jobs:
           python3 scripts/test-check-no-live-db-defaults.py
           python3 scripts/check-no-live-db-defaults.py
           python3 scripts/test-db-guard.py
+
+      # The rebuild timer must FAIL CLOSED.
+      #
+      # A failed `git fetch` does not update origin/main -- it FREEZES
+      # the ref at its old value. The script's `git checkout --force
+      # origin/main` then succeeds against that stale ref and rolls the
+      # build dir BACKWARDS to an old commit. That is not theoretical:
+      # on 2026-11-03 the timer was rolling the build dir back to
+      # 86c0444 every 30 minutes while only reporting a fetch error.
+      #
+      # The test drives the real script against a real throwaway git
+      # repo and proves both guards fire: a failed fetch, and a
+      # fetched commit that is not a descendant of the deployed one.
+      # It builds no image and touches no container.
+      - name: The rebuild timer's fail-closed guards
+        run: bash scripts/hermes/test-rebuild-fail-closed.sh
+
+      # The marker checker's own test.
+      #
+      # The marker check is what makes the gates' markers matter: it is
+      # what turns "the gate printed a marker" into "the workflow
+      # verified the gate printed it". The checker needs a test, because
+      # a checker that passes when it should fail is worse than no
+      # checker at all -- it would make the gates look verified.
+      - name: Test the CI marker checker
+        run: bash scripts/test-check-ci-markers.sh
+
+      # The lint wrapper's own test.
+      #
+      # `biome check --no-errors-on-unmatched` can exit 0 while having
+      # checked NOTHING, so the lint runs through a wrapper that
+      # asserts biome actually examined some files. The wrapper needs a
+      # test too: a wrapper that failed against a HEALTHY tree would
+      # turn the lint gate off entirely.
+      - name: Test the lint wrapper
+        run: node scripts/test-lint-wrapper.mjs
+
+      # The audit's registry probe's own test.
+      #
+      # The probe is what stops `pnpm audit` from passing by being
+      # unable to reach the registry. The probe itself needs a test: a
+      # probe that fails against a HEALTHY registry would turn the
+      # dependency gate off entirely, and it would do so silently.
+      - name: Test the audit registry probe
+        run: python3 scripts/test_audit_registry_probe.py
+
+      # The description-similarity gate's own test.
+      #
+      # `scripts/check_description_similarity.py` ALWAYS returned 0,
+      # whatever it found: it printed "N of M descriptions are at or
+      # above the threshold" and exited 0. A gate that cannot fail is
+      # not a gate.
+      #
+      # This test asserts the two properties that make it a gate: a
+      # finding fails, and a run that compared NOTHING fails (a gate
+      # that fails open when its input is missing is worse than no
+      # gate, because it looks like a gate that is passing).
+      - name: Test the description-similarity gate
+        run: python3 scripts/test_description_similarity_gate.py
+
+      # The post-build sitemap gate.
+      #
+      # `apps/web/scripts/post-build.mjs` GENERATES the sitemap during the
+      # web build. It used to swallow a generation failure: the script
+      # logged the error and exited 0, so a build with NO sitemap shipped
+      # and reported success. The sitemaps were the last thing anyone
+      # looked at, so nothing else caught it.
+      #
+      # This test asserts the gate's actual property: when sitemap
+      # generation fails, the build FAILS. It is a standalone test
+      # because the failure mode is invisible from the outside -- you
+      # cannot tell a swallowed failure from a success by looking at the
+      # exit code alone.
+      - name: Test the post-build sitemap gate
+        run: node apps/web/scripts/test-post-build-sitemap-gate.mjs
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
@@ -279,7 +317,40 @@ jobs:
       # update this comment -- but do not leave it silently disabled.
       - name: pnpm audit (blocking at high)
         if: always()
-        run: pnpm audit --audit-level=high
+        run: |
+          # The audit must have ACTUALLY consulted the registry.
+          #
+          # `pnpm audit` against an unreachable registry EXITS 0 and
+          # prints the advisories it had CACHED -- and it does so
+          # SILENTLY: exit 0, empty stderr, and byte-identical JSON to a
+          # successful run. PROVED: with npm_config_registry pointed at
+          # a dead port, `pnpm audit --audit-level=high --json` produced
+          # exactly the same output as the successful run, and exit 0.
+          #
+          # So the audit's own exit code cannot tell "no vulnerabilities"
+          # from "the registry was never reached". The audit must not be
+          # able to pass by being unable to run.
+          #
+          # The probe: the registry's advisory endpoint must answer.
+          # A connection failure (curl exit 7) means the audit's answer
+          # was the cache, not the registry.
+          echo "--- probing the registry ---"
+          # `/-/ping` is the registry's liveness endpoint: 200 on a live
+          # registry, and a connection error (curl exit 7) on a dead one.
+          # It is used instead of the advisory endpoint because the
+          # advisory endpoint answers 405 to a GET -- it only accepts
+          # POST -- and a probe that fails against a HEALTHY registry is
+          # worse than no probe at all.
+          REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}"
+          REGISTRY="${REGISTRY%/}"
+          if ! curl -fsS --max-time 30 -o /dev/null "$REGISTRY/-/ping" 2>/dev/null; then
+            echo "::error::the npm registry ($REGISTRY) did not answer -- the audit below would report its CACHE, not the advisories. The gate did not run."
+            exit 1
+          fi
+          echo "  the registry answered"
+          echo ""
+
+          pnpm audit --audit-level=high
 
       - name: Apply schema to ephemeral DB
         run: |
@@ -636,10 +707,22 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0036_atlas_schema.sql
 
+      # The marker check: the gate prints ATLAS_SCHEMA_TESTS, and the
+      # workflow now checks that it PRINTED it. The exit code alone is
+      # not enough -- a gate whose assertion bodies are removed still
+      # exits 0 -- and before this change nothing in the workflow
+      # grepped for the marker at all. The human reading the log was
+      # the only thing reading it.
       - name: Test the ADR-004 atlas constraints
         run: |
+          # `set -o pipefail` is REQUIRED here: without it the step's
+          # exit code is tee's, which is 0, and the gate would stop
+          # being able to fail. With it, the step fails if EITHER psql
+          # OR tee fails.
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_schema.sql
+            -f scripts/test_atlas_schema.sql 2>&1 | tee /tmp/atlas_schema.log
+          bash scripts/check-ci-markers.sh "the atlas schema gate" "ATLAS_SCHEMA_TESTS" /tmp/atlas_schema.log
 
       # 0037 is the P2 backfill: the legacy places & traditions data moves
       # into dish_place_associations, and what cannot be decided goes to
@@ -676,8 +759,10 @@ jobs:
       # transitions need no credential.
       - name: Test the publish credential constraints
         run: |
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_schema.sql
+            -f scripts/test_atlas_schema.sql 2>&1 | tee /tmp/publish_credential.log
+          bash scripts/check-ci-markers.sh "the publish credential gate" "ATLAS_SCHEMA_TESTS" /tmp/publish_credential.log
 
       # 0039 queues the journey places that produced NO association.
       #
@@ -757,10 +842,12 @@ jobs:
       # inserter's privileges.
       - name: The credential escalation check
         run: |
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/mark_disposable_db.sql
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_trigger_escalation.sql
+            -f scripts/test_atlas_trigger_escalation.sql 2>&1 | tee /tmp/trigger_escalation.log
+          bash scripts/check-ci-markers.sh "the trigger escalation gate" "ATLAS_TRIGGER_ESCALATION" /tmp/trigger_escalation.log
 
       # 0043 — the taxonomy canonicalisation. Copies the 26 legacy
       # descriptions into the dimension rows that have none, and queues
@@ -816,8 +903,10 @@ jobs:
       # NON-ZERO baselines. A backfill that produced nothing fails it.
       - name: Assert the atlas backfill per dish
         run: |
+          set -o pipefail
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
-            -f scripts/test_atlas_backfill.sql
+            -f scripts/test_atlas_backfill.sql 2>&1 | tee /tmp/atlas_backfill.log
+          bash scripts/check-ci-markers.sh "the backfill gate" "ATLAS_COUNT_GUARD" /tmp/atlas_backfill.log
 
       - name: Run vitest
         working-directory: apps/api
@@ -1249,13 +1338,26 @@ jobs:
               WEB_RECIPES_IMAGE="$IMAGE_RECIPES"
               WEB_GEO_IMAGE="$IMAGE_GEO"
 
+              # The two images MUST have distinct tags. If they share
+              # one, a cached layer from one can be served for the
+              # other -- exactly the stale-sitemap failure this change
+              # exists to prevent.
+              if [ "$WEB_RECIPES_IMAGE" = "$WEB_GEO_IMAGE" ]; then
+                echo "::error::the two web images share a tag: $WEB_RECIPES_IMAGE"
+                echo "DEPLOY_FAILED_AT=web images share a tag" >> "$DEPLOY_LOG"
+                exit 1
+              fi
+              echo "--- The two web images have distinct tags ---"
+              echo "    the recipes image: $WEB_RECIPES_IMAGE"
+              echo "    the geo image:     $WEB_GEO_IMAGE"
+
               # The local rebuild just produced the images and pushed them
               # nowhere (GUSTALE_NO_PUSH=1 default). Tag them as :latest
               # locally so `docker image inspect` resolves the same way
               # the live data was built for.
               echo "--- Tagging local web images as live-data ---"
-              docker tag "$WEB_RECIPES_IMAGE" "gustale-web-recipes:live-data-$SHORT_SHA" 2>/dev/null || true
-              docker tag "$WEB_GEO_IMAGE"     "gustale-web-geo:live-data-$SHORT_SHA"      2>/dev/null || true
+              docker tag "$WEB_RECIPES_IMAGE" "gustale-web-recipes:live-data-$SHORT_SHA-recipes" 2>/dev/null || true
+              docker tag "$WEB_GEO_IMAGE"     "gustale-web-geo:live-data-$SHORT_SHA-geo"      2>/dev/null || true
 
               # Verify ALL THREE images are present locally before destroying
               # any running container.
@@ -1365,8 +1467,12 @@ jobs:
               echo ""
               echo "--- Check 2: docker inspect SHA ---"
               EXPECTED_API="gustale-api:${SHA}"  # full SHA
-              EXPECTED_RECIPES="gustale-web-recipes:live-data-${SHORT_SHA}"
-              EXPECTED_GEO="gustale-web-geo:live-data-${SHORT_SHA}"
+              # The two web images carry DISTINCT tags. They are
+              # different builds (different PUBLIC_DOMAIN), so one tag
+              # for both made them indistinguishable -- and let a stale
+              # cache layer masquerade as a fresh one.
+              EXPECTED_RECIPES="gustale-web-recipes:live-data-${SHORT_SHA}-recipes"
+              EXPECTED_GEO="gustale-web-geo:live-data-${SHORT_SHA}-geo"
 
               # Diagnostic dump first: if a container is on the wrong SHA,
               # the operator needs to see WHAT it is actually running and
@@ -1418,6 +1524,29 @@ jobs:
                 echo "  gustale.com/dishes/bakso/ contains '$PHRASE'  OK"
               else
                 echo "::error::gustale.com/dishes/bakso/ does not contain '$PHRASE' (live data not on the page)"
+                FAILED=1
+              fi
+
+              # --- Check 4: BOTH domains serve the expected sitemap ---
+              # gustale.com and gustale.recipes are TWO SEPARATE sites,
+              # served by TWO SEPARATE containers, built and deployed
+              # INDEPENDENTLY. They are the same app and the same commit,
+              # differing only in PUBLIC_DOMAIN -- but one can be a
+              # STALE build while the other is current.
+              #
+              # On 2026-11-02 that was exactly what happened: both
+              # containers reported the same image tag and were
+              # "healthy", while gustale.com served 1,531 sitemap URLs
+              # and gustale.recipes served 1,643. Checks 1-3 all passed.
+              # Only a check that looks at BOTH domains catches it.
+              #
+              # The check's expected count is 1,531: 1,474 published
+              # dishes + 43 content-bearing families + 12 content-bearing
+              # lineages + 2 static URLs.
+              echo ""
+              echo "--- Check 4: both domains' sitemaps ---"
+              if ! bash "$BUILD_DIR/scripts/check-live-sitemaps.sh" 1531; then
+                echo "::error::the sitemap check failed -- one of the two sites is serving a stale build"
                 FAILED=1
               fi
 
