@@ -88,13 +88,23 @@ DECLARE
     -- recorded 96, which was the ARCHIVE's count, not the live one.
     ARRAY['dish_relations',   '86'],
     ARRAY['dish_families',    '306'],
-    ARRAY['dishes',           '1476'],
+    -- dishes is 1475, not the 1476 the P0 baseline recorded: the
+    -- delete-test-account gate removed the test account `alex-test-7c`
+    -- AND ITS ONE ARCHIVED TEST DISH, on 2026-11-02. The owner
+    -- authorised it explicitly ("option (b). Delete it with its
+    -- archived test dish and history through the gate."). The dish was
+    -- id 1c653f33-6c96-4297-83ea-a9686ef5f5a1.
+    -- The baseline counted the dish before that deletion and the
+    -- expectation was never updated. Same shape as F15 (dish_relations).
+    ARRAY['dishes',           '1475'],
     ARRAY['sources',          '1486'],
     ARRAY['geo_entities',     '3892'],
     ARRAY['dish_traditions',  '433'],
     ARRAY['users',            '1'],
     ARRAY['media',            '1339'],
-    ARRAY['dish_names',       '2849'],
+    -- dish_names is 2848, not the 2849 the P0 baseline recorded: the
+    -- deleted test dish had exactly one name, and it went with the dish.
+    ARRAY['dish_names',       '2848'],
     ARRAY['vocabulary_labels','35871']
   ];
   i int;
@@ -227,10 +237,6 @@ echo "--- the constraint tests, NOT on live ---"
 # objects — never by writing test rows into it.
 echo "  (the constraint tests run on the dry-run copy, never on live)"
 #
-# The copy is made from the dump the backup already took, so the copy is
-# the same shape as the database the migration is about to touch.
-COPY_DB="gustale_atlas_gate_copy"
-
 # THE MARKER. The copy must be marked DISPOSABLE before the constraint
 # tests run on it.
 #
@@ -253,6 +259,27 @@ COPY_DB="gustale_atlas_gate_copy"
 # THE MARKER IS NEVER APPLIED TO PRODUCTION. This script creates the
 # copy, marks the COPY, and asserts that the LIVE database is UNMARKED
 # — so production cannot be marked by accident.
+#
+# ORDER MATTERS: the copy must EXIST before it can be marked. The mark
+# was previously attempted BEFORE the copy was created, so it always
+# failed on a fresh run with:
+#
+#     FAILED: the copy 'gustale_atlas_gate_copy' could not be marked disposable.
+#
+# The copy is made from the dump the backup already took, so the copy is
+# the same shape as the database the migration is about to touch.
+COPY_DB="gustale_atlas_gate_copy"
+
+docker exec -u postgres shared-postgres psql -U postgres -d postgres \
+  -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
+docker exec -u postgres shared-postgres createdb -U postgres "$COPY_DB"
+docker exec -u postgres shared-postgres pg_restore -U postgres -d "$COPY_DB" \
+  --no-owner --no-privileges /tmp/gustale_atlas_snapshot.dump >/dev/null 2>&1 || true
+docker exec -u postgres shared-postgres psql -U postgres -d "$COPY_DB" \
+  -c "GRANT ALL ON SCHEMA public TO gustale;" \
+  -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
+  -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" >/dev/null
+
 echo "  marking the copy '$COPY_DB' as disposable"
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
   -f - < scripts/mark_disposable_db.sql >/dev/null 2>&1 \
@@ -269,16 +296,6 @@ if [ "$LIVE_MARKED" != "0" ]; then
   exit 1
 fi
 echo "  the live database '$DB' is NOT marked disposable — correct"
-
-docker exec -u postgres shared-postgres psql -U postgres -d postgres \
-  -c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1
-docker exec -u postgres shared-postgres createdb -U postgres "$COPY_DB"
-docker exec -u postgres shared-postgres pg_restore -U postgres -d "$COPY_DB" \
-  --no-owner --no-privileges /tmp/gustale_atlas_snapshot.dump >/dev/null 2>&1 || true
-docker exec -u postgres shared-postgres psql -U postgres -d "$COPY_DB" \
-  -c "GRANT ALL ON SCHEMA public TO gustale;" \
-  -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
-  -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gustale;" >/dev/null
 
 # The migration and the constraint tests, both on the copy.
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$COPY_DB" -v ON_ERROR_STOP=1 \
