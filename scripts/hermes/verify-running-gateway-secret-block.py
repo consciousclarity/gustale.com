@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,6 +41,89 @@ def check(name: str, ok: bool, detail: str = "") -> None:
         print(f"  FAIL  {name}  {detail}")
 
 
+def check_running_process() -> list[tuple[str, bool, str]]:
+    """Is the LIVE gateway process running the code that is on disk?
+
+    This is the check that matters most, and the one that was missing:
+    Python binds a module's namespace at IMPORT time and never re-reads
+    the file. So patching adapter.py on disk does NOTHING for a process
+    that started earlier -- the running gateway keeps the OLD code,
+    silently, until it is restarted.
+
+    The proof that the running process has the fix is the process's own
+    START TIME versus the adapter's LAST MODIFICATION TIME. If the
+    adapter was modified after the process started, the process is
+    running stale code.
+    """
+    out: list[tuple[str, bool, str]] = []
+
+    pid = ""
+    try:
+        r = subprocess.run(
+            ["systemctl", "--user", "show", "hermes-gateway", "-p", "MainPID", "--value"],
+            capture_output=True, text=True, timeout=30,
+        )
+        pid = r.stdout.strip()
+    except Exception as exc:  # noqa: BLE001
+        out.append(("the gateway's PID can be read", False, f"{type(exc).__name__}: {exc}"))
+        return out
+
+    if not pid or pid == "0":
+        out.append(("the gateway is running", False, f"MainPID={pid!r}"))
+        return out
+    out.append(("the gateway is running", True, f"pid {pid}"))
+
+    # The process's start time.
+    start = ""
+    try:
+        r = subprocess.run(["ps", "-o", "lstart=", "-p", pid], capture_output=True, text=True, timeout=30)
+        start = r.stdout.strip()
+    except Exception:  # noqa: BLE001
+        pass
+
+    # The adapter's last modification time.
+    adapter_path = SITE / "plugins/platforms/telegram/adapter.py"
+    mtime = adapter_path.stat().st_mtime
+
+    if not start:
+        out.append(("the gateway's start time can be read", False, "ps gave nothing"))
+        return out
+
+    # Compare as text via `stat` in the same format, to avoid parsing
+    # ps's locale-dependent date format.
+    try:
+        r = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", pid, "--no-headers"],
+            capture_output=True, text=True, timeout=30,
+        )
+        proc_epoch = float(
+            subprocess.run(
+                ["date", "-d", start, "+%s"], capture_output=True, text=True, timeout=30
+            ).stdout.strip() or 0
+        )
+    except Exception:  # noqa: BLE001
+        proc_epoch = 0.0
+
+    if proc_epoch <= 0:
+        out.append(("the gateway's start time can be compared", False, start))
+        return out
+
+    stale = mtime > proc_epoch
+    if stale:
+        detail = (
+            f"the adapter was modified at {mtime:.0f} but the process started at "
+            f"{proc_epoch:.0f} -- the RUNNING gateway has the OLD code. "
+            "It must be restarted."
+        )
+    else:
+        detail = (
+            f"the process started at {proc_epoch:.0f}, the adapter was modified at "
+            f"{mtime:.0f} -- the running gateway has the current code."
+        )
+    out.append(("the running gateway has the code that is on disk", not stale, detail))
+    return out
+
+
 def main() -> int:
     adapter = importlib.import_module("plugins.platforms.telegram.adapter")
     base = importlib.import_module("gateway.platforms.base")
@@ -48,6 +132,10 @@ def main() -> int:
     # them from there (adapter.py line 254). The RUNNING adapter has
     # them bound as module attributes -- that is what the injection
     # site calls.
+    print("=== the LIVE process, not just the file on disk ===")
+    for name, ok, detail in check_running_process():
+        check(name, ok, detail)
+
     is_secret = getattr(adapter, "_is_secret_shaped_document", None)
     redact = getattr(adapter, "_redact_document_text", None)
     if not callable(is_secret):

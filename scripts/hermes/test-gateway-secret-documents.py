@@ -21,9 +21,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+# The package tree under test. It defaults to the installed gateway,
+# but can be pointed at a COPY with HERMES_GATEWAY_PKG -- which is how
+# the mutation tests prove this suite actually fails when the guard is
+# removed or the helper import is dropped.
 sys.path.insert(
     0,
-    "/home/gustale/.local/share/uv/tools/hermes-agent/lib/python3.12/site-packages",
+    os.environ.get(
+        "HERMES_GATEWAY_PKG",
+        "/home/gustale/.local/share/uv/tools/hermes-agent/lib/python3.12/site-packages",
+    ),
 )
 
 PASS, FAIL = "PASS", "FAIL"
@@ -92,6 +99,41 @@ def main() -> int:
             detail = f"{type(exc).__name__}: {exc}"
         check(
             "the adapter can CALL the helper the injection site calls",
+            resolved,
+            detail,
+        )
+
+    # The same defect -- and the same guard -- now exists in five
+    # adapters, not one. Every adapter that inlines a document must be
+    # able to RESOLVE the helper names, or its injection site raises
+    # NameError and document handling breaks silently.
+    print("\n=== 0c. EVERY adapter that inlines a document can resolve the helpers ===")
+    for label in ("telegram", "discord", "slack", "feishu", "whatsapp"):
+        try:
+            mod = __import__(
+                f"plugins.platforms.{label}.adapter", fromlist=["_is_secret_shaped_document"]
+            )
+        except Exception as exc:  # noqa: BLE001
+            check(f"{label}: the adapter imports", False, f"{type(exc).__name__}: {exc}")
+            continue
+        check(
+            f"{label}: namespace has _is_secret_shaped_document",
+            hasattr(mod, "_is_secret_shaped_document"),
+            "the injection site would raise NameError",
+        )
+        check(
+            f"{label}: namespace has _redact_document_text",
+            hasattr(mod, "_redact_document_text"),
+            "the injection site would raise NameError",
+        )
+        # And the call the injection site actually makes must work.
+        try:
+            mod._is_secret_shaped_document("/tmp/nonexistent.txt", "x.txt", "text/plain")
+            resolved, detail = True, ""
+        except Exception as exc:  # noqa: BLE001
+            resolved, detail = False, f"{type(exc).__name__}: {exc}"
+        check(
+            f"{label}: can CALL the helper the injection site calls",
             resolved,
             detail,
         )

@@ -82,6 +82,8 @@ TELEGRAM = PKG / "plugins/platforms/telegram/adapter.py"
 BASE = PKG / "gateway/platforms/base.py"
 DISCORD = PKG / "plugins/platforms/discord/adapter.py"
 SLACK = PKG / "plugins/platforms/slack/adapter.py"
+FEISHU = PKG / "plugins/platforms/feishu/adapter.py"
+WHATSAPP = PKG / "plugins/platforms/whatsapp/adapter.py"
 
 
 # ----------------------------------------------------------------------
@@ -335,6 +337,258 @@ BASE_NEW = '''    # Write with an explicit 0600 mode. The default umask creates 
 DISCORD_OLD_MARK = "ext in _TEXT_INJECT_EXTENSIONS"
 SLACK_OLD_MARK = "_is_text = ext in _TEXT_INJECT_EXTENSIONS"
 
+# ----------------------------------------------------------------------
+# The SAME guard, for the other four adapters that inline a document.
+#
+# Found by scanning every plugin adapter for the shape
+# `text_content = raw_bytes.decode("utf-8")` or
+# `Path(cached_path).read_text(...)` feeding a `[Content of ...]` block:
+#
+#   telegram  patched above
+#   discord   line ~7380   raw_bytes.decode("utf-8")   -> pending_text_injection
+#   slack     line ~3644   raw_bytes.decode("utf-8")   -> text
+#   feishu    line ~3870   Path(cached_path).read_text() -> return
+#   whatsapp  line ~1467   Path(doc_path).read_text()   -> body
+#
+# Each has the SAME defect: a secret-shaped file is inlined into the
+# user turn, and the user turn goes to the model provider verbatim.
+#
+# WhatsApp is disabled in this deployment and Feishu/Discord/Slack are
+# not connected, so these are not live attack surfaces HERE -- but the
+# patch is about the code, and the code is the same code on every
+# machine that installs this gateway.
+# ----------------------------------------------------------------------
+
+
+def _guard_block(indent: str, mime_expr: str, log_prefix: str, name_expr: str) -> str:
+    """The 'never inline a secret-shaped document' block, indented.
+
+    The block goes INSIDE the `if _is_text and len(raw_bytes) <= ...:`
+    body, so it must be indented one level deeper than that `if`.
+
+    `name_expr` is the adapter's OWN expression for the document's
+    original filename -- it differs per adapter (Discord uses
+    `att.filename`, Slack uses `original_filename`). Using the wrong one
+    raises NameError, which is the exact bug this patch exists to fix.
+    """
+    pad = indent
+    return (
+        f'{pad}# A document that holds a secret is NEVER inlined. The\n'
+        f'{pad}# agent gets the cached path and reads it with a tool;\n'
+        f'{pad}# the bytes must not enter the user turn, because the\n'
+        f'{pad}# user turn goes to the model provider verbatim.\n'
+        f'{pad}_secret = _is_secret_shaped_document(\n'
+        f'{pad}    cached_path, {name_expr}, {mime_expr}\n'
+        f'{pad})\n'
+        f'{pad}if _secret:\n'
+        f'{pad}    logger.info(\n'
+        f'{pad}        "[{log_prefix}] Document %s looks secret-shaped; NOT inlining "\n'
+        f'{pad}        "(path only)",\n'
+        f'{pad}        {name_expr} or cached_path,\n'
+        f'{pad}    )\n'
+        f'{pad}    _is_text = False\n'
+    )
+
+
+# --- Discord -------------------------------------------------------
+# The pattern is matched by ANCHOR + LINE RANGE, not by a big literal.
+# A literal is fragile: one level of backslash escaping lost between
+# the patcher source and the adapter source makes it silently fail to
+# match, and a silent no-op patch is the worst possible outcome.
+#
+# The anchors below are the two statements that bracket the block we
+# replace. Everything between them is replaced wholesale.
+DISCORD_ANCHOR_START = "                        MAX_TEXT_INJECT_BYTES = 100 * 1024"
+DISCORD_ANCHOR_END = "                            except UnicodeDecodeError:\n                                pass"
+DISCORD_LEAD = "                        MAX_TEXT_INJECT_BYTES = 100 * 1024\n"
+DISCORD_MIME = 'content_type or ""'
+DISCORD_NAME = "att.filename"
+DISCORD_INDENT = " " * 24
+# --- Slack ---------------------------------------------------------
+SLACK_ANCHOR_START = "                    MAX_TEXT_INJECT_BYTES = 100 * 1024"
+SLACK_ANCHOR_END = ("                        except UnicodeDecodeError:\n"
+                    "                            pass  # Binary content, skip injection")
+SLACK_LEAD = "                    MAX_TEXT_INJECT_BYTES = 100 * 1024\n"
+SLACK_MIME = 'mimetype or ""'
+SLACK_NAME = "original_filename"
+SLACK_INDENT = " " * 20
+
+# --- Feishu --------------------------------------------------------
+FEISHU_OLD = '''            content = Path(cached_path).read_text(encoding="utf-8")
+            display_name = self._display_name_from_cached_path(cached_path)
+            return f"[Content of {display_name}]:\\n{content}"
+'''
+
+FEISHU_NEW = '''            # A document that holds a secret is NEVER inlined. The agent
+            # gets the cached path and reads it with a tool; the bytes must
+            # not enter the user turn, because the user turn goes to the
+            # model provider verbatim.
+            if _is_secret_shaped_document(cached_path, "", media_type):
+                logger.info(
+                    "[Feishu] Document %s looks secret-shaped; NOT inlining "
+                    "(path only)",
+                    cached_path,
+                )
+                return ""
+            content = Path(cached_path).read_text(encoding="utf-8")
+            # Defence in depth: even an ordinary-looking document is
+            # redacted before it is inlined, so one key in a file of prose
+            # does not leak.
+            content = _redact_document_text(content)
+            display_name = self._display_name_from_cached_path(cached_path)
+            return f"[Content of {display_name}]:\\n{content}"
+'''
+
+# --- WhatsApp ------------------------------------------------------
+WHATSAPP_OLD = '''                            content = Path(doc_path).read_text(encoding="utf-8", errors="replace")
+                            fname = Path(doc_path).name
+'''
+
+WHATSAPP_NEW = '''                            # A document that holds a secret is NEVER inlined.
+                            # The agent gets the cached path and reads it with
+                            # a tool; the bytes must not enter the user turn,
+                            # because the user turn goes to the model provider
+                            # verbatim.
+                            if _is_secret_shaped_document(doc_path, "", ""):
+                                print(
+                                    f"[{self.name}] Document {doc_path} looks "
+                                    f"secret-shaped; NOT inlining (path only)",
+                                    flush=True,
+                                )
+                                continue
+                            content = Path(doc_path).read_text(encoding="utf-8", errors="replace")
+                            # Defence in depth: even an ordinary-looking
+                            # document is redacted before it is inlined, so one
+                            # key in a file of prose does not leak.
+                            content = _redact_document_text(content)
+                            fname = Path(doc_path).name
+'''
+
+# The import block each adapter uses. The helpers must be in the
+# adapter's OWN namespace or the call site raises NameError.
+ADAPTER_IMPORT_TEMPLATES = {
+    "discord": (
+        "    _TEXT_INJECT_EXTENSIONS,\n    _prefix_within_utf16_limit,\n",
+        "    _TEXT_INJECT_EXTENSIONS,\n    _prefix_within_utf16_limit,\n"
+        "    # Secret-shaped document handling. Added by\n"
+        "    # scripts/hermes/patch-gateway-secret-documents.py -- these live in\n"
+        "    # gateway.platforms.base and MUST be imported here, or the injection\n"
+        "    # site below raises NameError on every text document.\n"
+        "    _is_secret_shaped_document,\n"
+        "    _redact_document_text,\n",
+    ),
+    "slack": (
+        "    _TEXT_INJECT_EXTENSIONS,\n    is_host_excluded_by_no_proxy,\n",
+        "    _TEXT_INJECT_EXTENSIONS,\n"
+        "    # Secret-shaped document handling. Added by\n"
+        "    # scripts/hermes/patch-gateway-secret-documents.py -- these live in\n"
+        "    # gateway.platforms.base and MUST be imported here, or the injection\n"
+        "    # site below raises NameError on every text document.\n"
+        "    _is_secret_shaped_document,\n"
+        "    _redact_document_text,\n"
+        "    is_host_excluded_by_no_proxy,\n",
+    ),
+    "feishu": (
+        "    cache_document_from_bytes,\n    cache_image_from_url,\n",
+        "    cache_document_from_bytes,\n"
+        "    # Secret-shaped document handling. Added by\n"
+        "    # scripts/hermes/patch-gateway-secret-documents.py -- these live in\n"
+        "    # gateway.platforms.base and MUST be imported here, or the injection\n"
+        "    # site below raises NameError on every text document.\n"
+        "    _is_secret_shaped_document,\n"
+        "    _redact_document_text,\n"
+        "    cache_image_from_url,\n",
+    ),
+    "whatsapp": (
+        "    cache_image_from_url,\n    cache_audio_from_url,\n",
+        "    cache_image_from_url,\n"
+        "    # Secret-shaped document handling. Added by\n"
+        "    # scripts/hermes/patch-gateway-secret-documents.py -- these live in\n"
+        "    # gateway.platforms.base and MUST be imported here, or the injection\n"
+        "    # site below raises NameError on every text document.\n"
+        "    _is_secret_shaped_document,\n"
+        "    _redact_document_text,\n"
+        "    cache_audio_from_url,\n",
+    ),
+}
+
+
+def patch_by_anchor(path: Path, label: str, dry_run: bool) -> list[str]:
+    """Patch the Discord/Slack injection block, matched by ANCHOR.
+
+    A big literal is fragile: one level of backslash escaping lost
+    between this file and the adapter silently fails to match, and a
+    silent no-op patch is the worst outcome. So we anchor on two
+    statements and replace everything between them.
+    """
+    notes: list[str] = []
+    if not path.exists():
+        notes.append(f"SKIP  {path.name}: not found")
+        return notes
+
+    cfg = {
+        "discord": (DISCORD_ANCHOR_START, DISCORD_ANCHOR_END, DISCORD_LEAD,
+                    DISCORD_INDENT, DISCORD_MIME, DISCORD_NAME),
+        "slack": (SLACK_ANCHOR_START, SLACK_ANCHOR_END, SLACK_LEAD,
+                  SLACK_INDENT, SLACK_MIME, SLACK_NAME),
+    }[label]
+    a_start, a_end, lead, indent, mime, name = cfg
+
+    text = path.read_text()
+    i = text.find(a_start)
+    if i < 0:
+        notes.append(f"SKIP  {path.name}: start anchor not found")
+        return notes
+    j = text.find(a_end, i)
+    if j < 0:
+        notes.append(f"SKIP  {path.name}: end anchor not found")
+        return notes
+    j += len(a_end)
+
+    block = text[i:j]
+
+    # 1. Insert the guard as a SIBLING of the `if _is_text ...:` check,
+    #    at the SAME indent, so setting _is_text = False makes the
+    #    existing check skip the inline.
+    guard = _guard_block(indent, mime, label.capitalize(), name)
+    if_stmt = "if _is_text and len(raw_bytes) <= MAX_TEXT_INJECT_BYTES:"
+    if_off = block.find(if_stmt)
+    if if_off < 0:
+        notes.append(f"SKIP  {path.name}: the _is_text check was not found in the block")
+        return notes
+    line_start = block.rfind("\n", 0, if_off) + 1
+    block = block[:line_start] + guard + block[line_start:]
+
+    # 2. Redact what IS inlined, as defence in depth. The line is taken
+    #    from the adapter's OWN source so no escaping can go wrong.
+    decode_line = 'text_content = raw_bytes.decode("utf-8")'
+    d_off = block.find(decode_line)
+    if d_off >= 0:
+        dl_end = block.find("\n", d_off) + 1
+        pad = " " * (len(block[:d_off].split("\n")[-1]) - len(block[:d_off].split("\n")[-1].lstrip()))
+        block = (block[:dl_end]
+                 + pad + "# Defence in depth: even an ordinary-looking\n"
+                 + pad + "# document is redacted before it is inlined, so one\n"
+                 + pad + "# key in a file of prose does not leak.\n"
+                 + pad + "text_content = _redact_document_text(text_content)\n"
+                 + block[dl_end:])
+
+    replacement = lead + block
+    new_text = text[:i] + replacement + text[j:]
+    if new_text == text:
+        notes.append(f"SKIP  {path.name}: the block is already patched")
+        return notes
+    if dry_run:
+        notes.append(f"OK    {path.name}: would patch the injection site by anchor")
+        return notes
+
+    backup = path.with_suffix(path.suffix + ".orig")
+    if not backup.exists():
+        shutil.copy2(path, backup)
+    path.write_text(new_text)
+    notes.append(f"OK    {path.name}: patched the injection site by anchor")
+    return notes
+
 
 def patch_file(path: Path, replacements: list[tuple[str, str]], dry_run: bool) -> list[str]:
     """Apply (old, new) replacements to a file. Returns a list of notes."""
@@ -438,18 +692,47 @@ def main() -> int:
         else:
             all_notes.append(f"SKIP  {TELEGRAM.name}: no injection site to guard")
 
-    # 3. Discord and Slack: the same injection shape.
-    for adapter, label in ((DISCORD, "discord"), (SLACK, "slack")):
+    # 3. Discord, Slack, Feishu and WhatsApp: the same injection shape.
+    #    Each gets the same two-part guard (never inline a secret-shaped
+    #    document; redact what IS inlined) AND the helper import.
+    for label, adapter, old, new in (
+        ("discord", DISCORD, None, None),
+        ("slack", SLACK, None, None),
+        ("feishu", FEISHU, FEISHU_OLD, FEISHU_NEW),
+        ("whatsapp", WHATSAPP, WHATSAPP_OLD, WHATSAPP_NEW),
+    ):
         if not adapter.exists():
             all_notes.append(f"SKIP  {adapter.name}: not found")
             continue
+
+        # 3a. the guard at the injection site
+        if old is None:
+            # Discord and Slack are matched by ANCHOR, not by a literal.
+            all_notes += patch_by_anchor(
+                adapter, label, args.dry_run
+            )
+        else:
+            all_notes += patch_file(adapter, [(old, new)], args.dry_run)
+
+        # 3b. the IMPORT, without which the guard raises NameError and
+        #     document handling breaks silently.
+        imp_old, imp_new = ADAPTER_IMPORT_TEMPLATES[label]
         text = adapter.read_text()
-        # Find the injection block and wrap it the same way.
-        marker = (DISCORD_OLD_MARK if label == "discord" else SLACK_OLD_MARK)
-        if marker not in text:
-            all_notes.append(f"SKIP  {adapter.name}: injection site not found")
-            continue
-        all_notes.append(f"NOTE  {adapter.name}: injection site found; needs the same guard")
+        if "    _is_secret_shaped_document," in text:
+            all_notes.append(f"SKIP  {adapter.name}: helper import already present")
+        elif imp_old not in text:
+            all_notes.append(
+                f"SKIP  {adapter.name}: the import block was not found; "
+                "add the helper import by hand"
+            )
+        elif args.dry_run:
+            all_notes.append(f"OK    {adapter.name}: would import the secret-document helpers")
+        else:
+            backup = adapter.with_suffix(adapter.suffix + ".orig")
+            if not backup.exists():
+                shutil.copy2(adapter, backup)
+            adapter.write_text(text.replace(imp_old, imp_new, 1))
+            all_notes.append(f"OK    {adapter.name}: imported the secret-document helpers")
 
     print("\n".join(all_notes))
     print()
