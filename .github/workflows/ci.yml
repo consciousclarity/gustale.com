@@ -29,8 +29,18 @@ permissions:
   packages: write
 
 # Cancel in-progress runs for the same branch/PR.
+#
+# The group must include the EVENT and the PR number. On
+# `pull_request_target` (the live-approval gate), github.ref is the BASE
+# branch, refs/heads/main -- so a group of just `ci-${{ github.ref }}`
+# put every PR's gate run in the same group as main's push runs, and
+# opening or updating any PR cancelled main's in-progress build and
+# deploy. Keyed like this:
+#   push to main          -> ci-push-refs/heads/main
+#   pull_request #N       -> ci-pull_request-N
+#   pull_request_target #N -> ci-pull_request_target-N
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:

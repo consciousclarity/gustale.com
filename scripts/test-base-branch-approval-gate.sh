@@ -112,6 +112,22 @@ check "the gate still requires the approved-live label" \
 check "the gate still requires the owner's actor" \
   grep -q 'OWNER="consciousclarity"' "$REPO_ROOT/scripts/check-live-approval.sh"
 
+# ── 9. The gate's runs must not share a concurrency group with main ──
+# On pull_request_target, github.ref is the BASE branch (refs/heads/main).
+# A workflow-level group of just `ci-${{ github.ref }}` with
+# cancel-in-progress puts every PR's gate run in main's group, so any PR
+# activity cancels main's in-progress build and deploy. The group must
+# be keyed by the event and the PR number.
+check "the concurrency group is keyed by event and PR number" \
+  python3 - "$CI_YML" <<'PY'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+group = str((d.get("concurrency") or {}).get("group", ""))
+if "github.event_name" not in group or "github.event.pull_request.number" not in group:
+    raise SystemExit(f"concurrency group {group!r} lets PR runs cancel main's runs")
+raise SystemExit(0)
+PY
+
 echo
 echo "BASE_BRANCH_GATE: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
