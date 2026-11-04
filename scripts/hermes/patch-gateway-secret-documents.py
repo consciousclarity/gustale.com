@@ -260,6 +260,34 @@ TELEGRAM_NEW = '''                MAX_TEXT_INJECT_BYTES = 100 * 1024
 '''
 
 # ----------------------------------------------------------------------
+# The IMPORT patch.
+#
+# The helpers are defined in gateway/platforms/base.py, but the Telegram
+# adapter calls them as bare names. Without an import in the adapter's
+# own namespace, the injection site raises NameError on EVERY text
+# document -- which silently breaks document handling while the secret
+# is never inlined.
+#
+# This is why the guard import must be added, and why the regression
+# test checks the ADAPTER's namespace, not base.py's.
+# ----------------------------------------------------------------------
+
+ADAPTER_IMPORT_OLD = """    _TEXT_INJECT_EXTENSIONS,
+    utf16_len,
+)"""
+
+ADAPTER_IMPORT_NEW = """    _TEXT_INJECT_EXTENSIONS,
+    utf16_len,
+    # Secret-shaped document handling. Added by
+    # scripts/hermes/patch-gateway-secret-documents.py -- these live in
+    # gateway.platforms.base and MUST be imported here, or the injection
+    # site below raises NameError on every text document.
+    _is_secret_shaped_document,
+    _redact_document_text,
+)"""
+
+
+# ----------------------------------------------------------------------
 # The cache-mode patch (base.py) -- applies to EVERY platform, because
 # every platform saves its downloads through cache_document_from_bytes.
 # ----------------------------------------------------------------------
@@ -387,6 +415,28 @@ def main() -> int:
 
     # 2. Telegram: never inline a secret-shaped document; redact what is inlined.
     all_notes += patch_file(TELEGRAM, [(TELEGRAM_OLD, TELEGRAM_NEW)], args.dry_run)
+
+    # 2b. Telegram: IMPORT the helpers into the adapter's namespace.
+    #     Without this the injection site raises NameError on every text
+    #     document. It must come after the helper is in base.py.
+    if TELEGRAM.exists():
+        text = TELEGRAM.read_text()
+        if "_is_secret_shaped_document" in text and "    _is_secret_shaped_document," not in text:
+            if ADAPTER_IMPORT_OLD not in text:
+                all_notes.append(
+                    f"SKIP  {TELEGRAM.name}: the import block was not found; "
+                    "add the helper import by hand"
+                )
+            else:
+                if not args.dry_run:
+                    TELEGRAM.write_text(text.replace(ADAPTER_IMPORT_OLD, ADAPTER_IMPORT_NEW, 1))
+                    all_notes.append(f"OK    {TELEGRAM.name}: imported the secret-document helpers")
+                else:
+                    all_notes.append(f"OK    {TELEGRAM.name}: would import the secret-document helpers")
+        elif "    _is_secret_shaped_document," in text:
+            all_notes.append(f"SKIP  {TELEGRAM.name}: helper import already present")
+        else:
+            all_notes.append(f"SKIP  {TELEGRAM.name}: no injection site to guard")
 
     # 3. Discord and Slack: the same injection shape.
     for adapter, label in ((DISCORD, "discord"), (SLACK, "slack")):
