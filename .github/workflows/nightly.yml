@@ -82,9 +82,27 @@ jobs:
 
       # Drop the existing schema to prove migrations are reproducible
       # from a clean slate every night.
+      #
+      # THE CONNECTION IS AS `postgres`, NOT AS `gustale`.
+      #
+      # The service container's superuser is `postgres` (POSTGRES_USER:
+      # postgres — see the services block above), and the BOT role `gustale`
+      # DOES NOT EXIST YET at this point: the chain creates it, and the
+      # chain runs in the NEXT step.
+      #
+      # The old line connected with `-U gustale` and was the reason the
+      # Nightly failed on 2026-11-02 (run 41538875292):
+      #
+      #     psql: error: connection to server at "127.0.0.1", port 5432
+      #     failed: FATAL:  password authentication failed for user "gustale"
+      #
+      # The job that exists to catch drift was itself failing before it
+      # reached the drift check. `ci.yml` connects as `postgres` for the
+      # same reason, and the two workflows must not drift apart here
+      # either.
       - name: Reset database
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U gustale -d gustale -v ON_ERROR_STOP=1 <<'SQL'
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 <<'SQL'
             DROP SCHEMA IF EXISTS public CASCADE;
             CREATE SCHEMA public;
             GRANT ALL ON SCHEMA public TO gustale;
@@ -137,6 +155,43 @@ jobs:
           CHAIN_MODE: ci
           PGPASSWORD: gustale
         run: bash scripts/ci-migration-chain.sh gustale_nightly
+
+      # ── THE ATLAS REGRESSION DETECTOR ───────────────────────────────
+      #
+      # The chain proves the migrations APPLY. This proves the tests
+      # would CATCH a regression if one were introduced.
+      #
+      # These are different claims, and only the second one is the point
+      # of a test suite. A constraint that exists and is never exercised
+      # is indistinguishable from a constraint that does not exist, and
+      # nothing in the normal CI run can tell the difference — the suite
+      # passes either way.
+      #
+      # The detector makes the difference visible. For each constraint it
+      # takes a throwaway copy of the schema, DROPS the constraint, and
+      # re-runs the atlas suite. The suite MUST fail. If it passes with
+      # the constraint gone, the test is not testing that constraint, and
+      # the detector FAILS.
+      #
+      # THE EXIT CODE IS THE POINT.
+      #
+      # The first version of this script printed "NOT DETECTED <name>"
+      # and carried on — and it had no `exit` statement at all, so it
+      # ALWAYS exited 0. Wired into the Nightly as it stood, it could
+      # not fail: the workflow would have gone green on a proof that
+      # nothing was proven. The script now exits 1 when a regression is
+      # NOT detected, so the job fails, which is the only outcome in
+      # which this step is worth running.
+      #
+      # `CHAIN_MODE=ci` selects the Postgres SERVICE container at
+      # 127.0.0.1 — a GitHub runner has no `shared-postgres` container to
+      # `docker exec` into, which is the same reason the migration chain
+      # step above needs it.
+      - name: Prove the atlas tests detect a regression
+        env:
+          CHAIN_MODE: ci
+          PGPASSWORD: gustale
+        run: bash scripts/verify-atlas-tests-detect-regression.sh gustale_atlas_regress
 
       # The chain builds `gustale_nightly`; the tests below need
       # DATABASE_URL to point at it. The chain's own database is the
