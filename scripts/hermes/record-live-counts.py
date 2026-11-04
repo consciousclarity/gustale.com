@@ -7,9 +7,15 @@ shape of the objects 0046-0048 create, and the list of applied migrations.
 READ-ONLY: every statement is a SELECT or a catalog lookup. Nothing is
 written, and nothing is created.
 
+THIS SCRIPT READS THE LIVE DATABASE ON PURPOSE -- that is the whole
+point of it. It therefore goes through the shared guard, so live access
+is an explicit, per-invocation opt-in:
+
+    GUSTALE_LIVE_DB_ALLOW=1 python3 scripts/hermes/record-live-counts.py before
+
 Usage:
-  python3 scripts/hermes/record-live-counts.py before
-  python3 scripts/hermes/record-live-counts.py after
+  GUSTALE_LIVE_DB_ALLOW=1 python3 scripts/hermes/record-live-counts.py before
+  GUSTALE_LIVE_DB_ALLOW=1 python3 scripts/hermes/record-live-counts.py after
 """
 from __future__ import annotations
 
@@ -18,14 +24,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+import db_guard  # noqa: E402
+
 OUT = Path("/home/gustale/projects/gustale.com/.hermes/reports")
+
+#: The database this script reads. It is live by purpose, so it needs
+#: the guard's explicit opt-in -- and the guard refuses without it.
+DB_NAME = db_guard.resolve(
+    "gustale",
+    purpose="record-live-counts.py",
+)
 
 
 def psql(sql: str) -> str:
     """Run one read-only query against live. Returns the raw output."""
     proc = subprocess.run(
         ["docker", "exec", "-u", "postgres", "shared-postgres",
-         "psql", "-U", "postgres", "-d", "gustale", "-tA", "-F", "|", "-c", sql],
+         "psql", "-U", "postgres", "-d", DB_NAME, "-tA", "-F", "|", "-c", sql],
         capture_output=True, text=True, timeout=120)
     if proc.returncode != 0:
         return f"__ERROR__ {proc.stderr.strip()[:300]}"
