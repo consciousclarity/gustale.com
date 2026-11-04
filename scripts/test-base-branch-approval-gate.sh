@@ -17,6 +17,11 @@
 # BASE branch. This test asserts that structure is in place, and that
 # the base branch's copy of the gate is what runs.
 #
+# The gate lives in its own workflow, live-approval.yml. It must never
+# appear in ci.yml again: there it had to be skipped on `pull_request`
+# runs, and GitHub reports a skipped job as SUCCESS, which satisfies a
+# required status check of the same name.
+#
 # It is a STATIC test on the workflow definition — it cannot prove the
 # runtime behaves, but it does prove the configuration that makes the
 # runtime safe, and it fails loudly the moment someone moves the gate
@@ -25,7 +30,9 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CI_YML="$REPO_ROOT/.github/workflows/ci.yml"
+WF_DIR="$REPO_ROOT/.github/workflows"
+CI_YML="$WF_DIR/ci.yml"
+LIVE_YML="$WF_DIR/live-approval.yml"
 
 PASS=0
 FAIL=0
@@ -42,91 +49,89 @@ check() {
   fi
 }
 
+# Run a python snippet against a workflow file; the snippet exits non-zero
+# to fail the check.
+py() {
+  local file="$1" code="$2"
+  python3 - "$file" "$WF_DIR" <<PY
+import sys, glob, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+on = d.get("on", d.get(True, {})) or {}
+wf_dir = sys.argv[2]
+$code
+PY
+}
+
 echo "=== the base-branch live-approval gate ==="
 
-# ── 1. The workflow must fire on pull_request_target ─────────────────
-check "the workflow triggers on pull_request_target" \
-  grep -qE '^  pull_request_target:' "$CI_YML"
+# ── 1. The gate workflow fires on pull_request_target, and ONLY on it ─
+# On `pull_request` it would use the PR's own copy of the script, which
+# is the whole vulnerability.
+check "the gate workflow exists" test -f "$LIVE_YML"
+check "the gate workflow triggers only on pull_request_target" \
+  py "$LIVE_YML" 'raise SystemExit(0 if list(on) == ["pull_request_target"] else f"triggers: {list(on)}")'
 
-# ── 2. The gate job must run ONLY on pull_request_target ─────────────
-# If the gate ran on `pull_request` it would use the PR's own copy of
-# the script, which is the whole vulnerability.
-GATE_IF=$(python3 - "$CI_YML" <<'PY'
-import sys, yaml
-d = yaml.safe_load(open(sys.argv[1]))
-print(d["jobs"]["live-approval"].get("if", ""))
-PY
-)
-check "the gate job runs on pull_request_target (if: '$GATE_IF')" \
-  test "$GATE_IF" = "github.event_name == 'pull_request_target'"
+# ── 2. Applying or removing the label re-runs the gate ───────────────
+check "the gate re-runs on labeled and unlabeled" \
+  py "$LIVE_YML" 'types = (on["pull_request_target"] or {}).get("types", [])
+raise SystemExit(0 if {"labeled", "unlabeled"} <= set(types) else f"types: {types}")'
 
-# ── 3. The gate job must check out the BASE, not the PR head ─────────
-# `actions/checkout` without a `ref` in a pull_request_target run
-# checks out the base branch by default; pinning `ref:` to the base
-# SHA makes that explicit and immune to a default-branch change.
-check "the gate job checks out the base branch's code" \
-  grep -A8 'ref: ${{ github.event.pull_request.base.sha }}' "$CI_YML"
+# ── 3. The gate always runs: no path filter ─────────────────────────
+# A required check that is filtered out never reports, and the PR waits
+# forever.
+check "the gate trigger has no path filter" \
+  py "$LIVE_YML" 't = on["pull_request_target"] or {}
+raise SystemExit(0 if not ({"paths", "paths-ignore"} & set(t)) else "the gate is path-filtered")'
 
-# ── 4. The gate job must NOT check out the PR's head ─────────────────
-check "the gate job does NOT check out the PR head" \
-  bash -c "! grep -qE 'ref: \\\$\{\{ github.event.pull_request.head.sha \}\}' '$CI_YML'"
-
-# ── 5. No other job may run on pull_request_target ───────────────────
-# A pull_request_target token is powerful. If the build/test jobs ran
-# on it, a PR's code would execute with a privileged token. Only the
-# gate may see that event.
-check "no other job runs on pull_request_target" \
-  python3 - "$CI_YML" <<'PY'
-import sys, yaml
-d = yaml.safe_load(open(sys.argv[1]))
-for name, job in d["jobs"].items():
-    if name == "live-approval":
+# ── 4. Nothing else may produce a check named "Live approval gate" ───
+# A skipped job reports SUCCESS and satisfies a required check of the
+# same name. Only live-approval.yml may define a job with that name.
+check "no other workflow has a job named 'Live approval gate'" \
+  py "$LIVE_YML" 'bad = []
+for f in glob.glob(wf_dir + "/*.yml") + glob.glob(wf_dir + "/*.yaml"):
+    if f.endswith("/live-approval.yml"):
         continue
-    cond = job.get("if", "")
-    if "pull_request_target" in cond and "!=" not in cond:
-        raise SystemExit(f"job {name} would run on pull_request_target")
-raise SystemExit(0)
-PY
+    w = yaml.safe_load(open(f)) or {}
+    for jid, job in (w.get("jobs") or {}).items():
+        if jid == "live-approval" or (job or {}).get("name") == "Live approval gate":
+            bad.append(f"{f}:{jid}")
+raise SystemExit(0 if not bad else f"also defined in {bad}")'
 
-# ── 6. The gate job's permissions must stay minimal ─────────────────
-# The gate only reads the PR timeline. It does not need write access.
-check "the gate job has no write permissions" \
-  python3 - "$CI_YML" <<'PY'
-import sys, yaml
-d = yaml.safe_load(open(sys.argv[1]))
-perms = d["jobs"]["live-approval"].get("permissions", {})
-for scope, level in perms.items():
-    if level not in ("read", "none"):
-        raise SystemExit(f"the gate has {scope}: {level}")
-raise SystemExit(0)
-PY
+# ── 5. ci.yml never runs on pull_request_target ─────────────────────
+# Its build and test jobs execute the PR's code; with a
+# pull_request_target token that code would run privileged.
+check "ci.yml does not trigger on pull_request_target" \
+  py "$CI_YML" 'raise SystemExit(0 if "pull_request_target" not in on else "ci.yml runs on pull_request_target")'
 
-# ── 7. The gate script must still be present on the base branch ──────
+# ── 6. The gate checks out the BASE, never the PR head ──────────────
+check "the gate job checks out the base branch's code" \
+  grep -q 'ref: ${{ github.event.pull_request.base.sha }}' "$LIVE_YML"
+check "the gate job does NOT check out the PR head" \
+  bash -c "! grep -qE 'ref: \\\$\{\{ github.event.pull_request.head.(sha|ref) \}\}' '$LIVE_YML'"
+
+# ── 7. The gate's permissions stay minimal ──────────────────────────
+check "the gate workflow and job have no write permissions" \
+  py "$LIVE_YML" 'perms = dict(d.get("permissions") or {})
+perms.update(d["jobs"]["live-approval"].get("permissions") or {})
+bad = {k: v for k, v in perms.items() if v not in ("read", "none")}
+raise SystemExit(0 if perms and not bad else f"permissions: {perms}")'
+
+# ── 8. The gate script is present and still demands label + owner ───
 check "the gate script exists" test -f "$REPO_ROOT/scripts/check-live-approval.sh"
-
-# ── 8. The gate must still demand the label AND the owner's actor ───
-# The base-branch move must not have weakened the RULE, only changed
-# where the script is loaded from.
 check "the gate still requires the approved-live label" \
   grep -q 'LABEL="approved-live"' "$REPO_ROOT/scripts/check-live-approval.sh"
 check "the gate still requires the owner's actor" \
   grep -q 'OWNER="consciousclarity"' "$REPO_ROOT/scripts/check-live-approval.sh"
 
-# ── 9. The gate's runs must not share a concurrency group with main ──
-# On pull_request_target, github.ref is the BASE branch (refs/heads/main).
-# A workflow-level group of just `ci-${{ github.ref }}` with
-# cancel-in-progress puts every PR's gate run in main's group, so any PR
-# activity cancels main's in-progress build and deploy. The group must
-# be keyed by the event and the PR number.
-check "the concurrency group is keyed by event and PR number" \
-  python3 - "$CI_YML" <<'PY'
-import sys, yaml
-d = yaml.safe_load(open(sys.argv[1]))
-group = str((d.get("concurrency") or {}).get("group", ""))
-if "github.event_name" not in group or "github.event.pull_request.number" not in group:
-    raise SystemExit(f"concurrency group {group!r} lets PR runs cancel main's runs")
-raise SystemExit(0)
-PY
+# ── 9. Concurrency: PR runs never share a group with main's runs ─────
+# With cancel-in-progress, a shared group lets PR activity cancel main's
+# in-progress build and deploy.
+check "the gate's concurrency group is keyed by PR number" \
+  py "$LIVE_YML" 'g = str((d.get("concurrency") or {}).get("group", ""))
+raise SystemExit(0 if "github.event.pull_request.number" in g and "github.ref" not in g else f"group: {g}")'
+check "ci.yml's concurrency group is keyed by event and PR number" \
+  py "$CI_YML" 'g = str((d.get("concurrency") or {}).get("group", ""))
+raise SystemExit(0 if "github.event_name" in g and "github.event.pull_request.number" in g else f"group: {g}")'
 
 echo
 echo "BASE_BRANCH_GATE: $PASS passed, $FAIL failed"

@@ -15,30 +15,17 @@ on:
     paths-ignore:
       - '.hermes/**'
       - '**/*.md'
-  # The live-approval gate runs here, from the BASE branch, so a PR
-  # cannot weaken the gate that judges it. See the live-approval job.
-  pull_request_target:
-    branches: [main]
-    paths-ignore:
-      - '.hermes/**'
-      - '**/*.md'
+  # The live-approval gate is NOT here: it runs on pull_request_target
+  # from its own workflow, .github/workflows/live-approval.yml.
 
 # Grant the GITHUB_TOKEN permissions to write to ghcr.io
 permissions:
   contents: read
   packages: write
 
-# Cancel in-progress runs for the same branch/PR.
-#
-# The group must include the EVENT and the PR number. On
-# `pull_request_target` (the live-approval gate), github.ref is the BASE
-# branch, refs/heads/main -- so a group of just `ci-${{ github.ref }}`
-# put every PR's gate run in the same group as main's push runs, and
-# opening or updating any PR cancelled main's in-progress build and
-# deploy. Keyed like this:
-#   push to main          -> ci-push-refs/heads/main
-#   pull_request #N       -> ci-pull_request-N
-#   pull_request_target #N -> ci-pull_request_target-N
+# Cancel in-progress runs for the same branch/PR. Keyed by event and PR
+# number so a PR's runs can never share a group with main's push runs
+# (which would cancel main's build and deploy).
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -78,81 +65,10 @@ env:
   NODE_ENV: test
 
 jobs:
-  # ─── Job 0: the live-approval gate ─────────────────────────────────
-  #
-  # A PR that touches the live database's schema or data may not be
-  # merged until Alejandro has explicitly approved that PR for live.
-  #
-  # WHY THIS IS A SEPARATE JOB AND NOT A STEP: it must be a REQUIRED
-  # status check, so it cannot be a step inside a job that can be
-  # skipped. It has no database and no build — it reads the diff and the
-  # PR's label timeline, and that is all.
-  #
-  # It runs on PULL_REQUEST only. On a push to main it is skipped,
-  # because by then the merge has already happened and the approval was
-  # checked at merge time.
-  live-approval:
-    name: Live approval gate
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    # THIS JOB MUST RUN FROM THE BASE BRANCH.
-    #
-    # It used to run on `pull_request`, which checks out the PR's OWN
-    # code. That made the gate self-defeating: the gate script lives in
-    # the repo, so a PR that touches db/migrations/ could also edit
-    # scripts/check-live-approval.sh in the same diff, and CI would run
-    # the PR's weakened gate against the PR. The check that decides
-    # whether a migration may be merged was, in that case, written by
-    # the thing it was checking.
-    #
-    # `pull_request_target` runs the workflow from the BASE branch and
-    # gives the base's copy of the script, so the PR cannot weaken the
-    # gate that judges it.
-    #
-    # The token for `pull_request_target` is a powerful one, so this
-    # job deliberately does NOT check out the PR's code and does NOT run
-    # anything from the PR. It only runs the base branch's own gate
-    # script against the PR's metadata.
-    if: github.event_name == 'pull_request_target'
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The BASE branch's code — explicitly NOT the PR's head.
-          # `ref: ${{ github.event.pull_request.base.sha }}` pins the
-          # checkout to the base commit, so even a misconfigured
-          # default branch cannot pull the PR's code in.
-          ref: ${{ github.event.pull_request.base.sha }}
-          # The gate diffs the base against the head, so it needs the
-          # merge base's history, not a shallow clone.
-          fetch-depth: 0
-
-      - name: Check the live-approval gate
-        env:
-          # The gate reads the label timeline through the gh CLI.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          bash scripts/check-live-approval.sh \
-            "${{ github.event.pull_request.number }}" "$BASE_SHA" "$HEAD_SHA"
-
-      - name: The gate's own tests
-        run: bash scripts/test-live-approval-gate.sh
-
-      - name: The gate runs from the base branch
-        # A PR must not be able to weaken the gate that judges it.
-        # This asserts the workflow structure that makes that true.
-        run: bash scripts/test-base-branch-approval-gate.sh
-
   # ─── Job 1: Lint + typecheck ───────────────────────────────────────
   lint:
     name: Lint + typecheck
     runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request_target'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -326,7 +242,6 @@ jobs:
   test:
     name: Tests (vitest + postgis)
     runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request_target'
     timeout-minutes: 15
 
     services:
@@ -1001,7 +916,6 @@ jobs:
   build:
     name: Docker build (gustale-api)
     runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request_target'
     timeout-minutes: 20
     needs: [lint, test]  # only build once code passes
     steps:
@@ -1062,7 +976,6 @@ jobs:
   build-web:
     name: Docker build (gustale-web-${{ matrix.image }})
     runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request_target'
     timeout-minutes: 15
     needs: [lint, test]  # only build once code passes
     strategy:
