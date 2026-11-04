@@ -342,25 +342,35 @@ def main() -> int:
         from plugins.platforms.feishu import adapter as feishu_adapter
 
         feishu = feishu_adapter.FeishuAdapter.__new__(feishu_adapter.FeishuAdapter)
-        # A secret .txt must produce NO injected text.
+        # The helper returns (injected_text, withheld_reason).
+        # A secret .txt must produce NO injected text, and a reason.
         sec_txt = tmpdir / "feishu-secret.txt"
         sec_txt.write_text(secret_body)
-        got = await_run(feishu._maybe_extract_text_document(str(sec_txt), "text/plain"))
+        got, reason = await_run(
+            feishu._maybe_extract_text_document(str(sec_txt), "text/plain"))
         check("feishu: a secret document returns NO injected text", got == "",
               f"got {got[:120]!r}")
         check("feishu: the key body did not leak", marker not in got)
+        check("feishu: a secret document gives a reason", bool(reason),
+              f"reason={reason!r}")
+        check("feishu: the reason says it was withheld for being secret-shaped",
+              "secret" in (reason or ""), f"reason={reason!r}")
 
         # An ordinary .txt MUST still be injected.
         ok_txt = tmpdir / "feishu-ok.txt"
         ok_txt.write_text(ord_body)
-        got2 = await_run(feishu._maybe_extract_text_document(str(ok_txt), "text/plain"))
+        got2, reason2 = await_run(
+            feishu._maybe_extract_text_document(str(ok_txt), "text/plain"))
         check("feishu: an ordinary document IS still inlined", "agidi" in got2,
               f"got {got2[:120]!r}")
+        check("feishu: an ordinary document has NO withheld reason",
+              reason2 == "", f"reason={reason2!r}")
 
         # An ordinary document containing a key must have it redacted.
         mix_txt = tmpdir / "feishu-mixed.txt"
         mix_txt.write_text(mixed)
-        got3 = await_run(feishu._maybe_extract_text_document(str(mix_txt), "text/plain"))
+        got3, _reason3 = await_run(
+            feishu._maybe_extract_text_document(str(mix_txt), "text/plain"))
         # A document containing a key is content-classified as secret,
         # so it is path-only: nothing is inlined.
         check("feishu: a document containing a key inlines NOTHING",
