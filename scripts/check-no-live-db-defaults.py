@@ -102,6 +102,15 @@ ALLOWLIST: dict[str, str] = {
         "Applies a Pool A description batch THROUGH the live-approval "
         "gate, in named batches. The gate is the only path."
     ),
+    "scripts/delete-test-account.sh": (
+        "The gate for deleting a test account from LIVE. It is a "
+        "live-write gate, like check-live-approval.sh and "
+        "apply-migration-live.sh -- it applies the delete to live once "
+        "a disposable copy has proved the outcome. Its two DROP "
+        "DATABASE statements both target $COPY_DB, which is the "
+        "disposable copy named gustale_delacct_$$ -- never $DB, the "
+        "live target. It never drops the live database."
+    ),
     "scripts/find_source_candidates.py": (
         "The GUS-1010 candidate finder. Its writes are gated by the "
         "live-approval label, and its default target is a scratch copy."

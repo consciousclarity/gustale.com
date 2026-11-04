@@ -437,6 +437,29 @@ jobs:
           # dishes it had already inserted — and the failure is SILENT.
           # See the "the atlas reference dishes" step below.
 
+
+      # The ACCOUNT-DELETION GATE's regression test.
+      #
+      # The gate is the only thing stopping a delete that orphans a
+      # row: `dishes.created_by` and `edit_history.user_id` carry NO
+      # FOREIGN KEY, so Postgres does not stop it. The gate does, and
+      # this test proves the gate still does.
+      #
+      # It runs here, in the job that HAS postgres, and it leaves no
+      # disposable copy behind -- the test asserts that too.
+      - name: Test the account deletion gate
+        # CI's postgres is a service container on 127.0.0.1:5432, not
+        # a docker container, so the gate is told to use host mode.
+        # In docker mode it would look for a container called
+        # `shared-postgres`, which does not exist here.
+        env:
+          GUSTALE_PG_MODE: host
+          GUSTALE_PGHOST: 127.0.0.1
+          GUSTALE_PGPORT: "5432"
+          GUSTALE_PGUSER: postgres
+          GUSTALE_PGPASSWORD: gustale
+        run: bash scripts/test-delete-test-account.sh
+
       - name: Apply the GUS-242 data migrations
         run: |
           # These act on the seeded catalog, so they run AFTER the seed.
