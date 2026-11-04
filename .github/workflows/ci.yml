@@ -153,6 +153,18 @@ jobs:
       - name: The rebuild timer's fail-closed guards
         run: bash scripts/hermes/test-rebuild-fail-closed.sh
 
+      # The web build's image tags.
+      #
+      # Only the deploy (on main, after merge) used to run
+      # build-web-live.sh, so a broken version merged green and failed
+      # the deploy of cb12bfa on 2026-11-04 ("TAG: unbound variable", and
+      # images built without the -recipes/-geo suffix the tag file
+      # advertised). This runs the real script with docker and curl
+      # shimmed, so it builds nothing, and asserts the images it builds
+      # are exactly the ones it tells the deploy to use.
+      - name: The web build's image tags
+        run: bash scripts/hermes/test-build-web-live-tags.sh
+
       # The marker checker's own test.
       #
       # The marker check is what makes the gates' markers matter: it is
@@ -1437,6 +1449,11 @@ jobs:
               DEPLOY_LOG="/tmp/gustale-deploy-${GITHUB_RUN_ID}.log"
               SHA="${{ github.sha }}"
               SHORT_SHA="${SHA:0:7}"
+              # Check 4 runs the sitemap check from the build dir. This is
+              # a separate SSH session from the deploy step, so BUILD_DIR
+              # must be set here too -- under `set -u` its absence aborted
+              # the verify on 2026-11-04. Same value as the deploy step.
+              BUILD_DIR="${{ vars.GUSTALE_BUILD_DIR || '/home/deploy/gustale-build' }}"
               FAILED=0
               echo "--- Check 1: deploy log ---"
               if [ ! -f "$DEPLOY_LOG" ]; then

@@ -79,7 +79,12 @@ GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
 # So each build gets its own tag, suffixed with the domain:
 #   live-data-<short-sha>-recipes
 #   live-data-<short-sha>-geo
-TAG_SUFFIX="${GUSTALE_WEB_LIVE_TAG_SUFFIX:-}"
+#
+# TAG is the shared base; build_one appends the variant's suffix. TAG
+# itself must be set here: the deploy checks it against
+# live-data-<short-sha>, and `set -u` aborts on the first use if it is
+# missing (which is how the 2026-11-04 deploy of cb12bfa failed).
+TAG="live-data-${SHORT_SHA}"
 REGISTRY="ghcr.io/${REPO}"
 # The tag file is a per-run artefact. A fixed /tmp path collides between
 # concurrent runs, and a leftover file owned by another user makes the
@@ -138,8 +143,12 @@ fi
 build_one() {
   local domain="$1"
   local img_name="$2"
-  # The per-build tag: the shared TAG plus this build's suffix.
-  local tag="${TAG}${TAG_SUFFIX:+-$TAG_SUFFIX}"
+  # The per-build tag: the shared TAG plus THIS build's suffix (the third
+  # argument). It must match what the tag file below advertises
+  # ($TAG-recipes / $TAG-geo), or the deploy looks for an image that was
+  # never built.
+  local suffix="${3:?build_one needs a tag suffix}"
+  local tag="${TAG}-${suffix}"
   local img="${REGISTRY}/${img_name}:${tag}"
   echo ""
   echo "--- building $img (PUBLIC_DOMAIN=$domain, BUILD_DATA_SOURCE=live) ---"
