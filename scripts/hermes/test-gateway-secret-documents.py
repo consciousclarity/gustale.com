@@ -59,6 +59,43 @@ def main() -> int:
         print("\nABORT: the helper is not in place")
         return 1
 
+    # The helper living in base.py is NOT ENOUGH. The Telegram adapter
+    # calls these names bare, inside its own module namespace. If the
+    # adapter does not import them, the injection site raises NameError
+    # on EVERY text document -- the secret is never inlined, and document
+    # handling is silently broken.
+    #
+    # This check is the one that would have caught it.
+    print("\n=== 0b. the Telegram adapter can RESOLVE the helper names ===")
+    try:
+        from plugins.platforms.telegram import adapter as tadapter
+    except Exception as exc:  # noqa: BLE001
+        check("the Telegram adapter imports", False, str(exc))
+    else:
+        check(
+            "the adapter's namespace has _is_secret_shaped_document",
+            hasattr(tadapter, "_is_secret_shaped_document"),
+            "the injection site would raise NameError",
+        )
+        check(
+            "the adapter's namespace has _redact_document_text",
+            hasattr(tadapter, "_redact_document_text"),
+            "the injection site would raise NameError",
+        )
+        # And the call the injection site actually makes must work.
+        try:
+            tadapter._is_secret_shaped_document("/tmp/nonexistent.txt", "x.txt", "text/plain")
+            resolved = True
+            detail = ""
+        except Exception as exc:  # noqa: BLE001
+            resolved = False
+            detail = f"{type(exc).__name__}: {exc}"
+        check(
+            "the adapter can CALL the helper the injection site calls",
+            resolved,
+            detail,
+        )
+
     tmpdir = Path(tempfile.mkdtemp(prefix="gwtest-", dir="/tmp"))
     os.chmod(tmpdir, 0o700)
 
