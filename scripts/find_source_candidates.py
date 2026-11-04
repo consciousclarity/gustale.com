@@ -79,9 +79,32 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
+
+# The live-database guard. It refuses to let this script reach the live
+# database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS invocation.
+# See scripts/lib/db_guard.py for why the opt-in is a separate variable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import db_guard  # noqa: E402
 
 USER_AGENT = "gustale-reference-work/1.0 (https://gustale.com)"
 TIMEOUT = 30
+
+#: The target database. NOT live by default.
+#:
+#: The default is the scratch database (`gustale_dev`), and the live
+#: database requires the explicit `GUSTALE_LIVE_DB_ALLOW=1` opt-in for
+#: this invocation. The override is `GUSTALE_DB_NAME`, which is what
+#: every other script in this repo reads.
+#:
+#: This script WRITES -- it records candidates -- so a live default
+#: would have put candidate rows into production on the first run that
+#: forgot to pass `--db`. The guard is resolved once, here, so no
+#: later call can silently switch databases mid-run.
+DB_NAME = db_guard.resolve(
+    os.environ.get("GUSTALE_DB_NAME") or db_guard.scratch_database(),
+    purpose="find_source_candidates.py",
+)
 
 # The catalogues, and how each maps onto a source class.
 #
@@ -141,12 +164,11 @@ def fetch_text(url: str, retries: int = 1) -> str | None:
 def psql(sql: str) -> str:
     """Run SQL against the database and return the raw output.
 
-    The database is GUSTALE_DB_NAME, defaulting to the live one. The
-    override exists so the script can be exercised against a disposable
-    copy — the standing gate's dry-run step — before it is ever pointed
-    at production.
+    The database is DB_NAME, which was resolved through the guard at
+    import time: the scratch database by default, and the live one only
+    with the explicit `GUSTALE_LIVE_DB_ALLOW=1` opt-in.
     """
-    db = os.environ.get("GUSTALE_DB_NAME", "gustale")
+    db = DB_NAME
     cmd = [
         "docker", "exec", "-i", "-u", "postgres", "shared-postgres",
         "psql", "-U", "postgres", "-d", db, "-tAc", sql,

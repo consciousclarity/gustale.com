@@ -208,8 +208,47 @@ PY
 # The chain applies the REAL migration, which is what creates the
 # tables the broken versions need. Then each broken version is applied
 # OVER the top, and the proof that comes with it must fail.
+#
+# THE TARGET IS A DISPOSABLE DATABASE, AND THIS TEST DROPS IT TWICE.
+#
+# The base name comes from GUSTALE_SCRATCH_DB -- the same variable every
+# other diagnostic in this repo uses for its disposable target -- and the
+# test's own database is a DEDICATED name derived from it, so this test
+# never drops the shared scratch database that something else may be
+# using.
+#
+# The base name is resolved through the shared guard, which refuses the
+# live database. Then, because this script DROPs its target twice, there
+# is an explicit refusal that holds even with the guard's opt-in set:
+# dropping the live database is never acceptable here.
+DB_BASE="${GUSTALE_SCRATCH_DB:-gustale_dev}"
 
-DB="gustale_proofdetect_test"
+PYTHON_BIN="$(command -v python3 || true)"
+if [ -z "$PYTHON_BIN" ]; then
+  echo "::error::no python3 on PATH; cannot vet the test's target database."
+  exit 1
+fi
+RESOLVED_BASE="$("$PYTHON_BIN" scripts/lib/db_guard.py test_publish_proof_detects.sh "$DB_BASE")" || {
+  echo "::error::the test refuses to target the live database."
+  echo "::error::This test DROPs its target, so live must never be one."
+  echo "::error::Set GUSTALE_SCRATCH_DB to a disposable database."
+  exit 1
+}
+
+DB="${RESOLVED_BASE}_proofdetect_test"
+
+# Belt and braces. The guard permits live when GUSTALE_LIVE_DB_ALLOW=1 is
+# set -- which is right for a diagnostic that only READS -- but this
+# script DROPs its target twice, so a live target is never acceptable
+# here, opt-in or not. Both the base name and the derived name are
+# checked.
+for CANDIDATE in "$RESOLVED_BASE" "$DB"; do
+  if [ "$CANDIDATE" = "gustale" ]; then
+    echo "::error::the test database must never be the live database."
+    echo "::error::Refusing to run: this script DROPs '$CANDIDATE'."
+    exit 1
+  fi
+done
 
 run_chain() {
   docker exec -i -u postgres shared-postgres psql -U postgres -d postgres -tAc \
