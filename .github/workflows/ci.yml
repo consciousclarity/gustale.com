@@ -886,6 +886,50 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f db/migrations/0045_credential_guard_comment.sql
 
+      # ── 0046: the candidate-source table (GUS-1010) ──────────────────
+      #
+      # The table that holds CANDIDATE sources, awaiting review. It is
+      # NOT `sources` and NOT `claim_citations`, and nothing in it is
+      # ever verified. See db/migrations/0046_source_candidates.sql.
+      - name: Apply the source candidates table
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0046_source_candidates.sql
+
+      # ── 0047: the publish credential is bound to the session ────────
+      #
+      # The publisher is derived from the Better Auth session, never
+      # supplied by the caller. See
+      # docs/ADR-006-publish-credential-session-binding.md for what this
+      # does and does not protect against.
+      - name: Apply the publish credential session binding
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0047_publish_credential_session_binding.sql
+
+      # ── 0048: a BOT must never hold a publish credential ───────────
+      #
+      # 0047 moved the credential guard's account check from the
+      # editorial `users` byline table to Better Auth's `"user"` table.
+      # That was correct, but the bot account exists ONLY in `"user"`,
+      # so before 0047 it could not hold a credential at all. After
+      # 0047 it could. This migration adds the check that 0047's change
+      # made necessary.
+      #
+      # It must run AFTER 0047: 0047 REPLACES the guard function, and
+      # 0048 amends the replacement.
+      - name: Apply the bot credential guard
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0048_bot_credential_guard.sql
+
+      # The bot guard's REGRESSION TEST: it proves the bot's credential
+      # is REFUSED and a human's is ALLOWED.
+      - name: Test the bot credential guard
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f scripts/test_bot_credential_guard.sql
+
       # The FIXTURES — a SEED, not a migration.
       #
       # The brief's §12: the model is "demonstrated with isolated

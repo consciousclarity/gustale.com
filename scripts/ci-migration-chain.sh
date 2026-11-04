@@ -208,6 +208,11 @@ MIGRATION_0042=db/migrations/0042_credential_trigger_revocation.sql
 MIGRATION_0043=db/migrations/0043_taxonomy_canonicalisation.sql
 MIGRATION_0044=db/migrations/0044_not_a_dish_queue.sql
 MIGRATION_0045=db/migrations/0045_credential_guard_comment.sql
+MIGRATION_0046=db/migrations/0046_source_candidates.sql
+MIGRATION_0047=db/migrations/0047_publish_credential_session_binding.sql
+# 0048 refuses a publish credential for a BOT account. It is a
+# function and a trigger; it writes NO content rows.
+MIGRATION_0048=db/migrations/0048_bot_credential_guard.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
@@ -599,6 +604,45 @@ echo "--- the credential guard comment"
 run_pg -f - < "$MIGRATION_0045" >/tmp/m0045.log 2>&1 || { echo "FAILED: 0045"; grep -E 'ERROR|NOTICE' /tmp/m0045.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0045.log | head -8 || true
+
+# ── 0046: the candidate-source table (GUS-1010) ─────────────────────
+#
+# The table that holds CANDIDATE sources, awaiting review. It is NOT
+# `sources` and NOT `claim_citations`, and nothing in it is ever
+# verified.
+run_pg -f - < "$MIGRATION_0046" >/tmp/m0046.log 2>&1 || { echo "FAILED: 0046"; grep -E 'ERROR|NOTICE' /tmp/m0046.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0046.log | head -8 || true
+
+# ── 0047: the publish credential is bound to the session ────────────
+#
+# The publisher is derived from the Better Auth session, never supplied
+# by the caller. The migration carries its own behavioural proof and
+# FAILS if the caller-supplied actor is still accepted.
+run_pg -f - < "$MIGRATION_0047" >/tmp/m0047.log 2>&1 || { echo "FAILED: 0047"; grep -E 'ERROR|NOTICE' /tmp/m0047.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0047.log | head -8 || true
+
+# ── 0048: the bot credential guard ─────────────────────────────────
+#
+# It comes AFTER 0047, because 0047 REPLACES the guard function and
+# 0048 amends the replacement. Run 0048 first and 0047 would undo it.
+#
+# It writes NO content rows -- only a function and a trigger.
+echo "--- the bot credential guard"
+run_pg -f - < "$MIGRATION_0048" >/tmp/m0048.log 2>&1 || { echo "FAILED: 0048"; grep -E 'ERROR|NOTICE' /tmp/m0048.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'BOT_CREDENTIAL_GUARD_OK' /tmp/m0048.log | tail -1 || true
+
+# The bot guard's REGRESSION TEST. It proves the bot's credential is
+# REFUSED and a human's is ALLOWED -- and it FAILS when the guard is
+# absent.
+echo "--- the bot credential guard's regression test"
+run_pg -f - < "$(dirname "$0")/test_bot_credential_guard.sql" >/tmp/bot_guard_test.log 2>&1 || { echo "FAILED: the bot credential guard's test"; grep -E 'ERROR|NOTICE' /tmp/bot_guard_test.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'BOT_CREDENTIAL_GUARD_TEST_OK' /tmp/bot_guard_test.log | tail -1 || true
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m0047.log | head -8 || true
 
 # The FIXTURES — a seed, and NOT part of the migration chain.
 echo "--- the atlas fixtures (seed, never a migration)"
