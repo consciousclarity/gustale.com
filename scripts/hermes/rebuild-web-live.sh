@@ -214,8 +214,37 @@ fi
 # dir is owned by a different user.
 git config --global --add safe.directory "$BUILD_DIR" 2>/dev/null || true
 
-log "--- Fetching origin/main into $BUILD_DIR ---"
-git fetch --no-tags --depth=50 origin main
+# THE FETCH IS ANONYMOUS.
+#
+# The repository is PUBLIC, so a fetch needs no credential at all. It used
+# to need one: the remote was the SSH alias `github-gustale:`, which
+# authenticates with a deploy key, and the `gh` credential helper supplied
+# the personal access token for any https:// remote.
+#
+# The PAT was in the timer's EnvironmentFile (/home/deploy/gustale-rebuild.env)
+# for no reason at all: the script only mentions GITHUB_TOKEN in a comment
+# and never runs `docker login` or `docker push` -- it builds the web images
+# LOCALLY and tags them, and the deploy job on CI is what pushes to ghcr.
+#
+# So the fetch now uses an anonymous HTTPS URL, and the credential helper is
+# disabled for it, so no token is involved even if one is lying around in
+# the environment:
+#
+#   -c credential.helper=   -> git does not consult ~/.gitconfig's helper
+#   GIT_TERMINAL_PROMPT=0   -> git never asks for a password on stdin
+#   GIT_ASKPASS=            -> git never launches an askpass program
+#
+# A public fetch that needs a secret is a fetch waiting to break when the
+# secret is rotated.
+ANON_URL="https://github.com/consciousclarity/gustale.com.git"
+if ! git remote get-url origin 2>/dev/null | grep -qx "$ANON_URL"; then
+  log "  switching origin to the anonymous HTTPS URL"
+  git remote set-url origin "$ANON_URL"
+fi
+
+log "--- Fetching origin/main into $BUILD_DIR (anonymous) ---"
+GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/true \
+  git -c credential.helper= fetch --no-tags --depth=50 origin main
 git checkout --quiet --force origin/main
 BUILD_SHA=$(git rev-parse HEAD)
 BUILD_SHORT_SHA="${BUILD_SHA:0:7}"
