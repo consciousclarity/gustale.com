@@ -210,6 +210,23 @@ jobs:
           python3 scripts/test-check-no-live-db-defaults.py
           python3 scripts/check-no-live-db-defaults.py
           python3 scripts/test-db-guard.py
+
+      # The rebuild timer must FAIL CLOSED.
+      #
+      # A failed `git fetch` does not update origin/main -- it FREEZES
+      # the ref at its old value. The script's `git checkout --force
+      # origin/main` then succeeds against that stale ref and rolls the
+      # build dir BACKWARDS to an old commit. That is not theoretical:
+      # on 2026-11-03 the timer was rolling the build dir back to
+      # 86c0444 every 30 minutes while only reporting a fetch error.
+      #
+      # The test drives the real script against a real throwaway git
+      # repo and proves both guards fire: a failed fetch, and a
+      # fetched commit that is not a descendant of the deployed one.
+      # It builds no image and touches no container.
+      - name: The rebuild timer's fail-closed guards
+        run: bash scripts/hermes/test-rebuild-fail-closed.sh
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
