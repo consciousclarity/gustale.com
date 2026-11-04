@@ -270,6 +270,22 @@ jobs:
       - name: Test the description-similarity gate
         run: python3 scripts/test_description_similarity_gate.py
 
+      # The post-build sitemap gate.
+      #
+      # `apps/web/scripts/post-build.mjs` GENERATES the sitemap during the
+      # web build. It used to swallow a generation failure: the script
+      # logged the error and exited 0, so a build with NO sitemap shipped
+      # and reported success. The sitemaps were the last thing anyone
+      # looked at, so nothing else caught it.
+      #
+      # This test asserts the gate's actual property: when sitemap
+      # generation fails, the build FAILS. It is a standalone test
+      # because the failure mode is invisible from the outside -- you
+      # cannot tell a swallowed failure from a success by looking at the
+      # exit code alone.
+      - name: Test the post-build sitemap gate
+        run: node apps/web/scripts/test-post-build-sitemap-gate.mjs
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
