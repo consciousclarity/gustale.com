@@ -14,6 +14,7 @@ Run:  python3 scripts/test-check-no-live-db-defaults.py
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -102,6 +103,67 @@ def _is_destructive(line: str) -> bool:
     return any(pattern in upper for pattern in scanner.DESTRUCTIVE_NEEDS_GUARD)
 
 
+#: An allowlist entry is a PROMISE, and a promise needs a test.
+#:
+#: `scripts/delete-test-account.sh` was merged (PR #164) after the
+#: destructive-target rule (PR #168, commit 81114d6). Neither branch
+#: contained the other, so PR #164's CI was green, and main went red:
+#: the script DROPs a database and the scanner could not tell that it
+#: only ever drops the disposable COPY, never live.
+#:
+#: The fix was an allowlist entry with a reason. That entry is only
+#: honest as long as the script still drops the COPY and not the live
+#: target -- so this test checks BOTH: the script is allowlisted, and
+#: every DROP DATABASE in it still targets $COPY_DB, never $DB.
+ALLOWLISTED_DROP_TARGETS = {
+    "scripts/delete-test-account.sh": ("$COPY_DB",),
+}
+
+
+def _check_allowlisted_drop_targets() -> int:
+    """Every allowlisted DROP script must still drop only its copy."""
+    failures = 0
+    print("=== the allowlisted DROP scripts still drop only their copy ===")
+    for rel, allowed_vars in sorted(ALLOWLISTED_DROP_TARGETS.items()):
+        if rel not in scanner.ALLOWLIST:
+            print(f"  FAIL  {rel} is not on the allowlist")
+            failures += 1
+            continue
+        path = scanner.REPO / rel
+        if not path.is_file():
+            print(f"  FAIL  {rel} does not exist")
+            failures += 1
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+
+        # Every DROP DATABASE / DROP ROLE line must name one of the
+        # allowed variables and must NOT name the live target $DB.
+        offenders = []
+        for lineno, line in enumerate(text.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            upper = stripped.upper()
+            if not any(p in upper for p in scanner.DESTRUCTIVE_NEEDS_GUARD):
+                continue
+            if not any(var in stripped for var in allowed_vars):
+                offenders.append(f"{rel}:{lineno}: {stripped[:80]}")
+            # A DROP that names the live target is never acceptable,
+            # however it is spelled.
+            if re.search(r"\$DB\b", stripped) and not any(
+                var == "$DB" for var in allowed_vars
+            ):
+                offenders.append(f"{rel}:{lineno}: names the LIVE target $DB: {stripped[:80]}")
+
+        if offenders:
+            failures += len(offenders)
+            for off in offenders:
+                print(f"  FAIL  {off}")
+        else:
+            print(f"  OK    {rel} drops only {', '.join(allowed_vars)}")
+    return failures
+
+
 def main() -> int:
     print("=== the live-database scanner's own detection cases ===")
     failures = 0
@@ -126,11 +188,15 @@ def main() -> int:
         print(f"  {'OK  ' if ok else 'FAIL'}  want={want}  got={verdict}  {line[:72]}")
     failures += d_failures
     print()
+    failures += _check_allowlisted_drop_targets()
+    print()
     if failures:
         print(f"  FAIL  {failures} case(s) are wrong "
-              f"({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive)")
+              f"({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive "
+              f"+ {len(ALLOWLISTED_DROP_TARGETS)} allowlisted-drop)")
         return 1
-    print(f"  ALL PASS  ({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive)")
+    print(f"  ALL PASS  ({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive "
+          f"+ {len(ALLOWLISTED_DROP_TARGETS)} allowlisted-drop)")
     return 0
 
 
