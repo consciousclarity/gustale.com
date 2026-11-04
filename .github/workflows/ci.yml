@@ -237,6 +237,16 @@ jobs:
       - name: Test the CI marker checker
         run: bash scripts/test-check-ci-markers.sh
 
+      # The lint wrapper's own test.
+      #
+      # `biome check --no-errors-on-unmatched` can exit 0 while having
+      # checked NOTHING, so the lint runs through a wrapper that
+      # asserts biome actually examined some files. The wrapper needs a
+      # test too: a wrapper that failed against a HEALTHY tree would
+      # turn the lint gate off entirely.
+      - name: Test the lint wrapper
+        run: node scripts/test-lint-wrapper.mjs
+
       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
         # The backlog lives on the private/state branch, NOT on main —
         # .hermes/ was untracked from main on 2026-10-29 because it
