@@ -382,6 +382,20 @@ export const dishes = pgTable(
     originDateEarliest: integer("origin_date_earliest"),
     originDateLatest: integer("origin_date_latest"),
     status: text("status").$type<DishStatus>().notNull().default("draft"),
+    // `content_type` is an EXPLICIT EDITORIAL field: a human decided,
+    // per dish, whether this record is a dish or a drink.
+    //
+    // It is deliberately NOT derived from the 'drink' family tag, and
+    // there is no sync trigger. The two answer different questions,
+    // and a derived field cannot be corrected: Pelamushi carries the
+    // 'drink' family tag but is a Georgian dessert porridge, while
+    // koldskal is tagged 'drink' and genuinely is a drink.
+    //
+    // See db/migrations/0049_content_type.sql.
+    contentType: text("content_type")
+      .$type<"dish" | "drink">()
+      .notNull()
+      .default("dish"),
     // The frozen Pool A publication batch this dish belongs to (1-14),
     // or NULL for a dish that is not part of Pool A. Assigned once by
     // slug order and never changed, so a batch's membership cannot

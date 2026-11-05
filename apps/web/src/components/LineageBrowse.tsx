@@ -131,7 +131,8 @@ export function LineageBrowse({
     failed: false,
     count: visible.length,
     query: state.q || chips.map((c) => c.value).join(", "),
-    noun: "lineages",
+    noun: "lineage",
+    nounPlural: "lineages",
   });
 
   return (

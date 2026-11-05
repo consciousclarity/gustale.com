@@ -13,6 +13,8 @@ let initial: DishListResponse = {
   dishes: [],
   limit: 24,
   offset: 0,
+  total: null,
+  hasMore: null,
 };
 let buildFailed = false;
 
@@ -28,9 +30,15 @@ const domain = currentDomain();
 const recovery = recoveryLinks(domain);
 // PR 2 — the eyebrow must name THIS property, not the other one.
 const property = propertyName();
+// The number of published dishes that MATCH -- the API's real total,
+// not the size of the first page. The old "+" suffix was a guess that
+// read as a count and was not one.
+const total = initial.total;
 const countLabel =
   initial.dishes.length > 0
-    ? `${initial.dishes.length}${initial.dishes.length >= 24 ? "+" : ""} dishes`
+    ? typeof total === "number"
+      ? `${total} ${total === 1 ? "dish" : "dishes"}`
+      : `${initial.dishes.length}${initial.dishes.length >= 24 ? "+" : ""} dishes`
     : "Recipes";
 ---
 

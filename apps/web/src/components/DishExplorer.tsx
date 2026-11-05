@@ -71,9 +71,15 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
+  // The API reports `hasMore` against the REAL total, so it is
+  // authoritative. The short-page heuristic is the fallback for an
+  // API that does not report one.
   const [hasMore, setHasMore] = useState(
-    hasMorePages(initial.dishes.length, BROWSE_PAGE_SIZE),
+    initial.hasMore ?? hasMorePages(initial.dishes.length, BROWSE_PAGE_SIZE),
   );
+  // The number of dishes matching the filters -- NOT the number
+  // loaded so far. `null` until the API reports one.
+  const [total, setTotal] = useState<number | null>(initial.total);
   const [inputValue, setInputValue] = useState(state.q);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -216,7 +222,10 @@ export function DishExplorer({ initial }: DishExplorerProps) {
       if (!isCurrent(gen, ac)) return;
       commitDishes(res.dishes);
       loadedPageRef.current = 1;
-      setHasMore(hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE));
+      setTotal(res.total ?? null);
+      setHasMore(
+        res.hasMore ?? hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE),
+      );
       setState((s) => {
         const merged = { ...s, ...next, page: 1 };
         filtersKeyRef.current = browseFiltersKey(merged);
@@ -255,7 +264,10 @@ export function DishExplorer({ initial }: DishExplorerProps) {
         page = 1;
         loadedPageRef.current = 1;
         commitDishes(merged);
-        setHasMore(hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE));
+        setTotal(res.total ?? null);
+        setHasMore(
+          res.hasMore ?? hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE),
+        );
       }
 
       while (page < toPage) {
@@ -267,7 +279,8 @@ export function DishExplorer({ initial }: DishExplorerProps) {
           break;
         }
         merged = appendDishes(merged, res.dishes);
-        const more = hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
+        const more =
+          res.hasMore ?? hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
         page += 1;
         loadedPageRef.current = page;
         commitDishes(merged);
@@ -297,7 +310,8 @@ export function DishExplorer({ initial }: DishExplorerProps) {
       if (!isCurrent(gen, ac)) return;
       const merged = appendDishes(dishesRef.current, res.dishes);
       commitDishes(merged);
-      const more = hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
+      const more =
+        res.hasMore ?? hasMorePages(res.dishes.length, BROWSE_PAGE_SIZE);
       setHasMore(more);
       // Update loaded page BEFORE state.page so history effect noops.
       loadedPageRef.current = nextPage;
@@ -338,8 +352,13 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     loading: loading || loadingMore,
     failed,
     count: dishes.length,
+    // The total matching the filters. Without it the count would say
+    // "24 dishes" for a catalogue of 1,474 -- a number that reads as
+    // the whole and is not.
+    total,
     query: state.q || chips.map((c) => c.value).join(", "),
-    noun: "dishes",
+    noun: "dish",
+    nounPlural: "dishes",
   });
 
   return (

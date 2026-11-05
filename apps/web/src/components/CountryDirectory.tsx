@@ -61,7 +61,8 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
     failed: false,
     count: visible.length,
     query: q || activeLetter || "",
-    noun: "countries",
+    noun: "country",
+    nounPlural: "countries",
   });
 
   return (

@@ -88,7 +88,13 @@ const { name: familyName, description: familyDescription } = Astro.props as {
   description: string | null;
 };
 
-let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
+let initial: DishListResponse = {
+  dishes: [],
+  limit: 100,
+  offset: 0,
+  total: null,
+  hasMore: null,
+};
 let serverError: string | null = null;
 
 try {
