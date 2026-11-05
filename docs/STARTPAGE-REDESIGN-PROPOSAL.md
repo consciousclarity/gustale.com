@@ -13,10 +13,10 @@ Every number below is measured against **production** (gustale.com rendered DOM 
 |---|---|---|
 | `.atl-item` elements rendered on `/` | **1,474** | production DOM |
 | `.atl-region-h` group headings | **178** | production DOM |
-| Document body height | **~87,825 px** | production DOM |
+| Document body height | **~87,822 px** | production DOM |
 | Published dishes | 1,474 (1,475 total, 1 draft) | live DB |
 | Distinct origins on published dishes | 179 | live DB |
-| Dishes downloaded to render the Startpage | **1.11 MB** in 15 sequential requests | live API |
+| Dishes downloaded to render the Startpage | **1.15 MB** in 15 paged requests + 1 map request | live API |
 | `limit` accepted by `GET /api/dishes` | **max 100** (400 above that) | live API |
 
 **Cause (source-confirmed):** `apps/web/src/components/design/GustaleHomeIsland.tsx` loads the *entire* published catalogue on hydration (`listAllDishes` → 15 × 100 paged requests) and then renders every dish four times over — `IndexView`, `GalleryView`, `FeedView` and the `AtlasView` sidebar each map the **full** filtered array (`sorted.map(...)`, `dishes.map(...)`, `dishes.map((d, i) => ...)`). The `AtlasView` sidebar groups all 1,474 by origin into 178 headings with no pagination, no virtualization and no progressive boundary.
@@ -55,7 +55,7 @@ Root cause (source-confirmed). There are **three** vocabularies in play, and the
 |---|---|---|---|
 | A | `categories` where `kind = 'family'` (77 rows) | **the `family=` query filter** (`apps/api/src/routes/dishes.ts:189` and `:237`) | **1** |
 | B | `categories` where `kind = 'dish-type'` (28 rows) | **the payload's `familySlug`/`familyName`** (`apps/api/src/routes/dishes.ts:276-284`) | **121** (252 links, 25 slugs in use) |
-| C | `dish_families` + `dish_dish_families` (the current dimension) | **the `/api/atlas/counts` KPI** (`apps/api/src/routes/atlas-counts.ts:91-98`) | 1,474 (124 families in use) |
+| C | `dish_families` + `dish_dish_families` (the current dimension) | **the `/api/atlas/counts` KPI** (`apps/api/src/routes/atlas-counts.ts:91-98`) | 1,474 (**123** families in use) |
 
 The filter reads vocabulary **A**; the payload reads vocabulary **B**; the hero counter reads vocabulary **C**. A slug only resolves if the same string happens to exist in both A and B — and A holds exactly one published dish.
 
@@ -101,7 +101,7 @@ Vocabulary **C**, the current dimension, carries the real taxonomy:
 | `potato-dish` | 27 |
 | `salad` | 27 |
 
-The dimension table has **124 families in use** (124 distinct `value_id`s in `dish_dish_families` with `status='active'`). The KPI endpoint reports **123** — the one-family difference is the `human-food` pseudo-family, which links 28 dishes and is the food/non-food counterpart to the drink split discussed in §3.
+The dimension table has **124 families in use** (124 distinct `value_id`s in `dish_dish_families`, all links `status='active'`). The KPI endpoint reports **123** because it also requires the linked dish to be `published`. The one-family difference is **`manju`** — it is linked only to a draft dish, so it is counted in the dimension but not in the published KPI. (`human-food` is a different family: it links 28 *published* dishes and so is already inside the 123.)
 
 **So the filter points at a vocabulary holding 1 dish, the payload at a vocabulary holding 121, and the hero counter at a third holding 1,474.**
 
@@ -131,7 +131,7 @@ Note that `/families` reads the **same** vocabulary B as the dropdown (§2.5), s
 
 - **121** of 1,474 published dishes carry `origin_location` geometry (69 distinct points). The other **1,353 have no coordinates at all**.
 - `geo_entities.centroid` is **NULL for all 3,892 rows** — the geographic backbone is empty.
-- **All 2,713 `dish_place_associations` are `draft` / `unevidenced` / `unreviewed`**, so the published-association predicate returns **0 places**.
+- **All 2,713 `dish_place_associations` are `publication_state='draft'` and `evidence_status='unevidenced'`**, so the published-association predicate (`published_associations_for_dish()`) returns **0 places** and **0 communities**.
 - Consequence: the homepage hero renders **"— places"** (an em dash) while claiming 1,474 dishes, 123 families, 82 connections. The map shows 121 dots and the fallback text *"Your browser does not support WebGL…"* appears on machines without WebGL.
 
 ### 2.5 The family filter dropdown offers the wrong 22 values — and the page contradicts itself
@@ -170,20 +170,20 @@ Drinks are a **first-class peer content type** in the product (this is stated pr
 | `dish_families` row with `slug='drink'` | **8** published dishes | Buttermilk koldskål, Cendol, Champurrado, Pelamushi, bir pletok, es doger, es goyobod, neera |
 | Other drink families in controlled vocabulary | 9 values | Beverage, Drink, Tea, Coffee, Wine, Beer, Cocktail, Juice, Bubbletea — **0 published dishes** |
 | Legacy `categories` "Drinks" course-group | 1 group + 5 families | Coffee traditions, Cold drinks & refreshers, Fermented drinks, Herbal & tonic drinks, Hot brews & spiced drinks, Tea traditions — **0 published dishes** |
-| Published dishes whose *name* looks like a drink but are **not** tagged `Drink` | **0** | The name-based sweep found nothing untagged |
+| Published dishes whose *name* looks like a drink but are **not** tagged `Drink` | **1** | `lassi` — "A yogurt-based **drink** with a smoothie-like consistency" — is tagged `dish`. Every other keyword hit is a false positive (chocolate desserts, *bak kut teh*, *miyar zogale*, *Salisbury steak*, etc.). |
 
-That last row matters: **every** published drink-like dish is already tagged. So the 8 `Drink`-family records are not an arbitrary slice — they are the honest current total of drinks.
+That row matters, and it needs an honest reading: the tagging is **nearly** complete but **not** clean. `lassi` is a drink by its own description and is mis-tagged `dish`. So the 8 `Drink`-family records are a good approximation of the current drink total, not a guaranteed-exact one — **the real total is ≥ 8, and at least 9 once `lassi` is corrected.** The content_type backfill (§4.2) must therefore be derived *with* a review of the drink-like names, not blindly from the `drink` family tag, or it will inherit this error.
 
 ### 3.3 The honest problem with a "Drinks" entry point today
 
-A top-level **Drinks** tab showing 8 items against 1,466 dishes would look like a broken section, not a peer content type. And the richer drink families (Tea, Coffee, Wine, Beer, Cocktail, Juice) have **zero** published content, so a sub-taxonomy would be empty shelves.
+A top-level **Drinks** tab showing 8 items against ~1,465 dishes would look like a broken section, not a peer content type. And the richer drink families (Tea, Coffee, Wine, Beer, Cocktail, Juice) have **zero** published content, so a sub-taxonomy would be empty shelves.
 
-**This is a content gap, not a UI gap.** The UI can model drinks as a peer type *now* (the data supports it — 8 tagged, cleanly, with no contradictions), but the catalogue needs drink content before the section carries weight. The two honest paths:
+**This is a content gap, not a UI gap.** The UI can model drinks as a peer type *now* (the data supports it — 8 tagged cleanly, plus 1 mis-tagged dish to correct), but the catalogue needs drink content before the section carries weight. The two honest paths:
 
-- **(a) Ship the peer-type model now, label it honestly.** "Drinks (8)" appears as a peer entry point; the count is truthful and it grows as content is added.
+- **(a) Ship the peer-type model now, label it honestly.** "Drinks (9)" appears as a peer entry point — 8 tagged today plus the corrected `lassi`; the count is truthful and it grows as content is added.
 - **(b) Model the type, but gate the entry point on a threshold** (e.g. show it once ≥ 30 drinks exist) — avoids a thin first impression.
 
-**Recommendation: (a).** The type is real and correctly tagged; the section states its own size rather than pretending to be a full taxonomy, and it becomes useful the moment content lands.
+**Recommendation: (a).** The type is real and the tagging is trustworthy once `lassi` is corrected; the section states its own size rather than pretending to be a full taxonomy, and it becomes useful the moment content lands.
 
 ---
 
@@ -195,14 +195,14 @@ The principle: **the Startpage must never render the catalogue.** It renders *en
 
 ```
 ┌─ Atlas at a glance ─────────────────────────────────────┐
-│  1,474 dishes · 123 families · 179 origins · 8 drinks   │
+│  1,474 dishes · 123 families · 179 origins · 9 drinks   │
 │  (no more em-dash placeholders — omit the metric, don't  │
 │   render a dash)                                         │
 └──────────────────────────────────────────────────────────┘
 
 ┌─ Start here ────────────────────────────────────────────┐
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐ │
-│  │ 1,466    │  │ 8        │  │ 123      │  │ 179     │ │
+│  │ ~1,465   │  │ 9        │  │ 123      │  │ 179     │ │
 │  │ Dishes   │  │ Drinks   │  │ Families │  │ Origins │ │
 │  └──────────┘  └──────────┘  └──────────┘  └─────────┘ │
 │   Browse by region, by family, by course, by technique   │
@@ -229,7 +229,7 @@ This is the piece that must be built first, because everything else depends on i
 
 **New canonical field on `dishes`:** `content_type text NOT NULL DEFAULT 'dish' CHECK (content_type IN ('dish','drink'))`.
 
-- **Backfill:** the 8 `Drink`-family dishes → `'drink'`; the other 1,466 → `'dish'`. This is a pure backfill derived from existing tags, so it is verifiable: after backfill, `count(*) FILTER (WHERE content_type='drink')` must equal 8, and `content_type='drink'` must be a subset of `family='drink'` exactly.
+- **Backfill:** the 8 `Drink`-family dishes → `'drink'`; the other ~1,465 → `'dish'` (plus `lassi`, which is mis-tagged and must be corrected in the same pass — see §3.2). The backfill is verifiable: after backfill, `count(*) FILTER (WHERE content_type='drink')` must equal the number of `content_type='drink'` rows that carry the `drink` family tag **plus** the corrected `lassi` — i.e. **9**, not 8 — and `content_type='drink'` must be a superset of `family='drink'`, with `lassi` the only dish in the difference.
 - **API:** `GET /api/dishes?content_type=dish|drink`, and `content_type` included in every dish payload alongside `familySlug`.
 - **Family filter repaired at the same time** (§2.1) — the filter must resolve against `dish_families` (the dimension that actually holds 123 families), and the homepage's "Filter by category" dropdown must be rebuilt from the same source so the "22 families" vs "123 families" contradiction disappears.
 
@@ -268,8 +268,8 @@ Each is objectively checkable against production after implementation.
 | # | Criterion |
 |---|---|
 | AC1 | `/` renders **≤ 300 dish links** in the DOM (currently 1,474). |
-| AC2 | `/` document height ≤ **~15,000 px** (currently ~87,825 px). |
-| AC3 | The Startpage downloads **≤ 300 KB** on first load (currently 1.11 MB / 15 requests). |
+| AC2 | `/` document height ≤ **~15,000 px** (currently ~87,822 px). |
+| AC3 | The Startpage downloads **≤ 300 KB** on first load (currently 1.15 MB / 16 requests). |
 | AC4 | `/` shows a **Dishes** and a **Drinks** peer entry point, and the Drinks count equals the live `content_type='drink'` count. |
 | AC5 | `GET /api/dishes?family=dumpling` returns **> 0** dishes matching `dish_families.slug='dumpling'`. |
 | AC6 | `GET /api/dishes?family=<slug>` returns the same count as the live dimension for that slug. |
@@ -288,17 +288,17 @@ Each is objectively checkable against production after implementation.
 |---|---|---|
 | **P0** | Fix the `family=` filter to resolve against `dish_families` (§2.1); add `total` + `hasMore` to the list response (§2.2); add `content_type` column + backfill + sync trigger (§4.2) | Every other layer is blocked on the data contract being truthful. Also independently fixes a live search bug. |
 | **P0** | Rebuild the Startpage as entry points + curated features (§4.1) — no full list | This is the actual ask. |
-| **P1** | Rebuild `/families` from the 123-family dimension so it covers the catalogue | Currently 127/1,474 — it is the obvious destination for the new entry points and it is not ready. |
-| **P1** | Catalogue route on `DishExplorer`'s pagination pattern + `browse.ts` URL state (§4.3, §4.4) | Needed for "see all 1,466 dishes" and for shareable URLs. |
+| **P1** | Rebuild `/families` from the 123-family dimension so it covers the catalogue | Currently 97/1,474 — it is the obvious destination for the new entry points and it is not ready. |
+| **P1** | Catalogue route on `DishExplorer`'s pagination pattern + `browse.ts` URL state (§4.3, §4.4) | Needed for "see all ~1,465 dishes" and for shareable URLs. |
 | **P2** | Geo work: populate `geo_entities.centroid` / `dishes.origin_location` (currently 121/1,474), then decide the association-publication strategy | The map cannot be a primary discovery surface until 1,353 more dishes have coordinates. Also unblocks the "places" hero metric. |
-| **P2** | Drink content: publish content for Tea / Coffee / Wine / Beer / Cocktail / Juice families | 8 drinks is honest but thin; this is what makes the peer entry point carry weight. |
+| **P2** | Drink content: publish content for Tea / Coffee / Wine / Beer / Cocktail / Juice families | 9 drinks is honest but thin; this is what makes the peer entry point carry weight. |
 | **P3** | Unify `dish_categories` (121 dishes) into the dimension model | Two vocabularies is the root cause of §2.1; the legacy table should be retired once the dimension is authoritative. |
 
 ---
 
 ## 7. Open decisions for Alejandro
 
-1. **Drinks entry point at 8 items** — ship it labelled honestly (recommended), or gate it behind a content threshold until the drink catalogue is larger?
+1. **Drinks entry point at 9 items** (8 tagged + `lassi` corrected) — ship it labelled honestly (recommended), or gate it behind a content threshold until the drink catalogue is larger?
 2. **Curated "Featured" row** — 12 dishes + 12 drinks, hand-picked, on the Startpage. Or leave it out and make the Startpage purely entry points?
 3. **Family filter target** — re-point `family=` at `dish_families` (123 families, recommended) or migrate the legacy `categories` data into the dimension first and then re-point?
 4. **Drinks backfill trigger** — should `content_type` auto-follow a `drink` family tag (recommended), or stay an explicit editorial field?
