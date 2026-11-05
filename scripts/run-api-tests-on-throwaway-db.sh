@@ -54,9 +54,31 @@ docker exec -u postgres -i shared-postgres psql -U postgres -d postgres \
 echo "roles OK"
 
 echo
+echo "=== the family-dimension fixture ==="
+# The CI seed defines 28 families but attaches NONE of them to a
+# dish, so a test of the `family=` filter against the raw seed
+# measures nothing -- every slug returns zero because the dimension
+# is empty, not because the filter is broken.
+bash scripts/seed-family-dimension-for-tests.sh "$DB" >/tmp/pr3_fixture.log 2>&1 || {
+  echo "the family fixture FAILED; tail:"
+  tail -20 /tmp/pr3_fixture.log
+  exit 1
+}
+echo "fixture OK"
+
+echo
 echo "=== the content_type column on the built database ==="
 docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" \
   -c "SELECT slug, content_type FROM dishes ORDER BY slug;"
+
+echo
+echo "=== the PR 3 end-to-end API verification ==="
+export DATABASE_URL="postgres://gustale:${PW}@127.0.0.1:5432/${DB}"
+export GUSTALE_DB_IS_THROWAWAY=1
+python3 scripts/verify-pr3-api.py || {
+  echo "the PR 3 API verification FAILED"
+  exit 1
+}
 
 echo
 echo "=== vitest against $DB ==="
