@@ -5,14 +5,16 @@ import Layout from "../layouts/Layout.astro";
 // is built for gustale.recipes, where /map does not exist — so a
 // relative /map link is a 404. The link is absolute, to the property
 // that has the page.
-import { atlasUrl } from "../lib/domain";
+import { atlasUrl, siteName } from "../lib/domain";
+
+const site = siteName();
 ---
 
-<Layout title="About — gustale.recipes">
+<Layout title={`About — ${site}`}>
   <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'About' }]} />
   <article class="about-page inner">
     <h1 class="about-page h1">
-      About gustale.recipes
+      About {site}
     </h1>
 
     <p class="text-lg mb-8">

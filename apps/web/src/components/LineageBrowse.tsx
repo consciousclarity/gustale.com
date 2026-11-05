@@ -339,9 +339,23 @@ export function LineageBrowse({
                 <b>{lin.dishCount}</b> dishes
               </span>
             </div>
-            <a href={`/lineages/${lin.slug}`} className="lin-card__cta">
-              Open the lineage <span aria-hidden="true">→</span>
-            </a>
+            {/* PR 2 — ONE LINK PER CARD.
+                This card had TWO links to the SAME url: the title
+                (<a href={/lineages/slug}>{lin.name}</a>) and the
+                call-to-action ("Open the lineage →", same href). A
+                keyboard user tabbed twice to reach one page, and a
+                screen reader heard the destination twice.
+
+                The title link is the card's link. The call-to-action
+                is now a non-interactive affordance: the same arrow,
+                but not a link, so the card has exactly one. The
+                whole card is not a link — it holds a confidence badge,
+                a concept summary and a dish count, and making the
+                whole thing an <a> would swallow the badge's meaning
+                into the link text. */}
+            <span className="lin-card__cta" aria-hidden="true">
+              Open the lineage <span className="arr">→</span>
+            </span>
           </article>
         ))}
       </section>

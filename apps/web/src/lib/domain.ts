@@ -49,6 +49,38 @@ export function recipesUrl(path: string): string {
   return `${RECIPES_ORIGIN}${p}`;
 }
 
+/**
+ * The name of the site THIS build is serving.
+ *
+ * PR 2 — the branding leak fix.
+ *
+ * The brand wordmark is always "Gustale" on both properties (the
+ * Nav renders `<span class="gst-wordmark">Gustale</span>` plus a
+ * property switch). But a page TITLE and a page HEADING that name the
+ * OTHER property is a leak: gustale.com served
+ * `<title>About — gustale.recipes</title>` and an <h1> reading
+ * "About gustale.recipes", which told a reader on gustale.com that
+ * they had somehow landed on the recipes site.
+ *
+ * The canonical URL was always correct (gustale.com/about) — only the
+ * human-readable name was wrong.
+ */
+export function siteName(): string {
+  return isGeoDomain() ? "gustale.com" : "gustale.recipes";
+}
+
+/**
+ * The name of the property the reader is currently on, for use in an
+ * eyebrow or heading.
+ *
+ * The Atlas is "Gustale Atlas" and the Recipes site is "Gustale
+ * Recipes". PR 2 — the /dishes/ list page on gustale.com carried the
+ * eyebrow "Gustale Recipes", which is the OTHER property's name.
+ */
+export function propertyName(): string {
+  return isGeoDomain() ? "Gustale Atlas" : "Gustale Recipes";
+}
+
 /** Absolute URL on the Atlas host. */
 export function atlasUrl(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;

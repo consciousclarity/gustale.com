@@ -208,7 +208,16 @@ export function DishDetail({
         {/* ─── Body: ingredients + preparation ──────────────────────────── */}
         <div className="rec-body">
           {ingredients.length > 0 && (
-            <aside className="ing-col" aria-labelledby="ingredients-heading">
+            /* PR 2 — ONE COMPLEMENTARY LANDMARK.
+               This was an <aside className="ing-col"> nested inside
+               <div className="rec-body">, so it was NOT a top-level
+               complementary landmark and axe flagged it:
+                 landmark-complementary-is-top-level (moderate)
+               It is a labelled section of the page (ingredients), not a
+               tangential aside, so it becomes a <section> with the
+               same aria-labelledby. The class is unchanged, so the
+               two-column layout is untouched. */
+            <section className="ing-col" aria-labelledby="ingredients-heading">
               <h2 id="ingredients-heading" className="col-h">
                 Ingredients
               </h2>
@@ -236,7 +245,7 @@ export function DishDetail({
                   </div>
                 ))}
               </div>
-            </aside>
+            </section>
           )}
 
           {preparations.length > 0 && (
@@ -287,6 +296,16 @@ export function DishDetail({
 
         {/* ─── "You may also explore" ──────────────────────────────────── */}
         {(categories.length > 0 || preparations.length > 0 || origin) && (
+          /* PR 2 — UNIQUE LANDMARK.
+             The wrapper <section aria-label="You may also explore">
+             and the <section className="also-explore" aria-label="You
+             may also explore"> inside it carried the SAME accessible
+             name, so they were two landmarks with an identical
+             role/label pair — axe:
+               landmark-unique (moderate)
+             The wrapper keeps the accessible name; the inner element
+             becomes a plain <div>, which is what it was before it was
+             given a landmark role. */
           <section className="section" aria-label="You may also explore">
             <div className="sec-rule">
               <h2>You may also explore</h2>

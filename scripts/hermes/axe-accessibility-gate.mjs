@@ -101,16 +101,6 @@ const TAGS = [
  * not a silencer.
  */
 const RULE_EXCLUSIONS = {
-  // The Astro island wrapper renders a <main> of its own; the page
-  // template renders another. PR 2 owns "one main landmark".
-  "landmark-no-duplicate-main":
-    "PR 2 — one main landmark (structure, not contrast)",
-  "landmark-main-is-top-level":
-    "PR 2 — one main landmark (structure, not contrast)",
-  "landmark-unique": "PR 2 — one main landmark (structure, not contrast)",
-  "landmark-complementary-is-top-level":
-    "PR 2 — the aside is a real complementary region; top-level nesting is PR 2's call",
-
   // The recipe pages are not built by this job (the geo variant has no
   // recipe routes), and the dish page's alt-text work is PR 5.
   "image-alt": "PR 5 — dish page alt text in the page language",

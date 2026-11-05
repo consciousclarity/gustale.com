@@ -6,9 +6,14 @@ import Breadcrumbs from "../../components/Breadcrumbs.astro";
  */
 import Layout from "../../layouts/Layout.astro";
 import { type IngredientListItem, listIngredients } from "../../lib/api";
+import { propertyName } from "../../lib/domain";
 
 let ingredients: IngredientListItem[] = [];
 let fetchError: string | null = null;
+// PR 2 — the eyebrow and title must name THIS property, not the other
+// one. Computed in the frontmatter so the value is available to both
+// the <Layout> props and the template.
+const property = propertyName();
 
 try {
   const res = await listIngredients({ limit: 200 });
@@ -19,14 +24,14 @@ try {
 ---
 
 <Layout
-  title="Ingredients — Gustale Recipes"
+  title={`Ingredients — ${property}`}
   description="Browse the Gustale ingredient encyclopedia — the pantry behind world dishes."
 >
   <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Ingredients' }]} />
 
   <article class="wrap page ingredients-index">
     <header class="ing-hero">
-      <p class="eyebrow">Gustale Recipes</p>
+      <p class="eyebrow">{property}</p>
       <h1>Ingredients</h1>
       <p class="lede">
         The pantry behind the atlas — open entries that link dishes across regions.

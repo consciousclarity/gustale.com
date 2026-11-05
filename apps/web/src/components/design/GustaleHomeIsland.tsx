@@ -991,7 +991,16 @@ export default function GustaleHomeIsland() {
   );
 
   return (
-    <main className="gst">
+    // PR 2 — ONE MAIN.
+    // The Layout already renders <main> around the slot. This island
+    // used to render its OWN <main className="gst">, so the page had
+    // two <main> elements nested inside each other. A screen reader
+    // announces the main landmark twice and the inner one is a
+    // duplicate of the outer; axe does not flag it because the nested
+    // <main> is not a direct child of <body>, but it is still wrong.
+    // The island now renders a <div className="gst"> and the Layout's
+    // <main> is the page's single main landmark.
+    <div className="gst">
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <section className="gst-hero wrap">
         <div className="hero-content">
@@ -1005,16 +1014,20 @@ export default function GustaleHomeIsland() {
             Every dish has a country, but first it has a form. Explore Gustale
             by map, by name, by family, or by story.
           </p>
-          <div className="hero-search">
-            <input
-              type="search"
-              placeholder="Search dishes — ramen, Japan, stew…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search dishes"
-            />
-            <button aria-label="Search">⌕</button>
-          </div>
+          {/* PR 2 — ONE SEARCH.
+              The hero search and the filter-bar search were the SAME
+              state (`search` / `setSearch`), rendered twice on one
+              page: the hero copy at y=813 and the filter-bar copy at
+              y=1089, with the header's global search on top. Two
+              inputs, one value.
+
+              The filter-bar input is the one kept: it sits beside the
+              region and family selects, so it is where someone
+              narrows a result set. The hero copy was a second way to
+              do the same thing, 800px away from the filters it
+              duplicates.
+
+              The hero keeps its heading, its lede and its counters. */}
           <div className="hero-meta">
             <div>
               <b>{total}</b> dishes
@@ -1067,10 +1080,19 @@ export default function GustaleHomeIsland() {
         {/* Filter bar — stacks above the views on mobile, sits inline on
             desktop. Options are generated from the loaded data. */}
         <div className="ws-filters">
+          {/* PR 2 — ONE SEARCH (the page's single search input).
+              The hero's duplicate copy was removed; this is the one
+              search on the page, and it lives with the region and
+              family filters it narrows. The label is explicit so a
+              screen-reader user knows what it searches. */}
+          <label className="filt-search-sr" htmlFor="atlas-dish-search">
+            Search dishes
+          </label>
           <input
+            id="atlas-dish-search"
             className="filt-search"
             type="search"
-            placeholder="Search…"
+            placeholder="Search dishes — ramen, Japan, stew…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search dishes"
@@ -1291,6 +1313,6 @@ export default function GustaleHomeIsland() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

@@ -6,7 +6,7 @@ import ErrorBoundary from "../../components/ErrorBoundary.tsx";
 import Layout from "../../layouts/Layout.astro";
 import { listDishes } from "../../lib/api";
 import { recoveryLinks } from "../../lib/browse";
-import { currentDomain } from "../../lib/domain";
+import { currentDomain, propertyName } from "../../lib/domain";
 import type { DishListResponse } from "../../types/dish";
 
 let initial: DishListResponse = {
@@ -26,6 +26,8 @@ try {
 
 const domain = currentDomain();
 const recovery = recoveryLinks(domain);
+// PR 2 — the eyebrow must name THIS property, not the other one.
+const property = propertyName();
 const countLabel =
   initial.dishes.length > 0
     ? `${initial.dishes.length}${initial.dishes.length >= 24 ? "+" : ""} dishes`
@@ -36,7 +38,7 @@ const countLabel =
   <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Recipes' }]} />
 
   <BrowseHeader
-    eyebrow="Gustale Recipes"
+    eyebrow={property}
     title="Recipes"
     subtitle="Browse dishes by name, country, or family. Load more to keep exploring beyond the first page."
     countLabel={countLabel}

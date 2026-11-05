@@ -4109,13 +4109,18 @@ h4 {
   margin-top: auto;
   padding-top: 8px;
 }
-.lin-card__cta:hover {
+/* PR 2 — the call-to-action is no longer an <a> (the card's title link
+   is its one link), so :hover cannot be hung on the element itself.
+   The hover state moves to the CARD: hovering the card highlights the
+   affordance, which is the behaviour a reader expects from a card
+   whose whole point is that it leads somewhere. */
+.lin-card:hover .lin-card__cta {
   color: var(--accent-dark);
 }
 .lin-card__cta .arr {
   transition: transform 0.2s;
 }
-.lin-card__cta:hover .arr {
+.lin-card:hover .lin-card__cta .arr {
   transform: translateX(3px);
 }
 
@@ -4849,6 +4854,19 @@ body.nav-panel-open {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+/* PR 2 — visually-hidden label for the Atlas page's single search
+   input. The input already carries aria-label, so this label is
+   redundant for a screen reader; it exists so the visible control
+   has a programmatic <label> association too (and so the label text
+   cannot drift away from the aria-label). */
+.filt-search-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
 .browse-clear {
   height: 44px;
   padding: 0 14px;
@@ -5013,9 +5031,6 @@ body.nav-panel-open {
 .browse-dir-card:hover {
   border-color: var(--accent);
 }
-.browse-dir-card--static {
-  cursor: default;
-}
 .browse-dir-card__top {
   display: flex;
   align-items: baseline;
@@ -5048,21 +5063,6 @@ body.nav-panel-open {
   margin-top: 12px;
   color: var(--accent);
   font-size: 0.92rem;
-}
-.browse-dir-dishes {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-}
-.browse-dir-dishes a {
-  color: var(--accent);
-  text-decoration: none;
-}
-.browse-dir-dishes a:hover {
-  text-decoration: underline;
 }
 .browse-alpha {
   display: flex;
