@@ -49,18 +49,44 @@ family=fried-rice  → 1 dish        ← the single legacy-linked dish
 
 **Every family the public site links to returns zero results.** A user who clicks "Dumplings" on gustale.com and then "Bread" sees an empty page for both.
 
-Root cause (source-confirmed, `apps/api/src/routes/dishes.ts:189` and `:237`): the filter joins the **legacy** `categories` table with `c4.kind = 'family'`, but the response payload's `familySlug`/`familyName` come from the **current** dimension table `dish_families` (via `dish_dish_families`). Two different vocabularies under one parameter name.
+Root cause (source-confirmed). There are **three** vocabularies in play, and the filter and the payload do not even use the same one:
 
-Live DB proof of the split — the legacy vocabulary is essentially empty:
+| # | Vocabulary | How it is reached | published dishes covered |
+|---|---|---|---|
+| A | `categories` where `kind = 'family'` (77 rows) | **the `family=` query filter** (`apps/api/src/routes/dishes.ts:189` and `:237`) | **1** |
+| B | `categories` where `kind = 'dish-type'` (28 rows) | **the payload's `familySlug`/`familyName`** (`apps/api/src/routes/dishes.ts:276-284`) | **121** (252 links, 25 slugs in use) |
+| C | `dish_families` + `dish_dish_families` (the current dimension) | **the `/api/atlas/counts` KPI** (`apps/api/src/routes/atlas-counts.ts:91-98`) | 1,474 (124 families in use) |
 
-| Legacy `categories.kind='family'` | published dishes linked |
+The filter reads vocabulary **A**; the payload reads vocabulary **B**; the hero counter reads vocabulary **C**. A slug only resolves if the same string happens to exist in both A and B — and A holds exactly one published dish.
+
+Live DB proof that A is empty:
+
+```
+categories kind='family', published dishes linked:
+  fried-rice → 1
+  (all other 76 legacy families → 0)
+```
+
+Vocabulary **B** is the one the UI actually shows, and it covers only 121 of 1,474 dishes:
+
+| `categories.kind='dish-type'` | published dishes |
 |---|---|
-| `fried-rice` | **1** |
-| every other one of the 77 legacy families | **0** |
+| `main-course` | 97 |
+| `appetizer` | 25 |
+| `stew` | 12 |
+| `soup` | 12 |
+| `rice-dish` | 11 |
+| `street-snack` | 11 |
+| `noodle-soup` | 9 |
+| `curry` | 8 |
+| `kebab` | 8 |
+| `turkish-cuisine` | 7 |
 
-**Only 1 published dish in the whole catalogue** is linked to a legacy family. The current dimension table carries the real taxonomy:
+(25 slugs in use across 121 published dishes; 3 more slugs — `breaded-cutlet`, `pasta`, `egg-dish` — carry 1 dish each.)
 
-| Current `dish_families` (dimension) | published dishes |
+Vocabulary **C**, the current dimension, carries the real taxonomy:
+
+| `dish_families` (dimension) | published dishes |
 |---|---|
 | `dish` | 397 |
 | `dessert` | 96 |
@@ -75,9 +101,9 @@ Live DB proof of the split — the legacy vocabulary is essentially empty:
 | `potato-dish` | 27 |
 | `salad` | 27 |
 
-The dimension table has **124 families in use** (124 distinct `value_id`s in `dish_dish_families` with `status='active'`). The API's own KPI endpoint reports **123** (`apps/api/src/routes/atlas-counts.ts:91-98` counts `DISTINCT x.value_id` joined to published dishes) — the one-family difference is the `human-food` pseudo-family, which links 28 dishes and is the `human-food` counterpart to the drink/ingredient split discussed in §3.
+The dimension table has **124 families in use** (124 distinct `value_id`s in `dish_dish_families` with `status='active'`). The KPI endpoint reports **123** — the one-family difference is the `human-food` pseudo-family, which links 28 dishes and is the food/non-food counterpart to the drink split discussed in §3.
 
-So the filter points at a vocabulary holding **1 dish**, while the UI advertises 123.
+**So the filter points at a vocabulary holding 1 dish, the payload at a vocabulary holding 121, and the hero counter at a third holding 1,474.**
 
 ### 2.2 The list response cannot express "there is more"
 
@@ -99,6 +125,8 @@ The consequence is visible in the rendered page: **22 family cards, of which 3 s
 
 For contrast, the same 22 slugs in the *current* dimension table cover **387 published dishes** — so the page is understating by roughly 4×.
 
+Note that `/families` reads the **same** vocabulary B as the dropdown (§2.5), so its counts are consistent with the dropdown's 22 slugs but inconsistent with the hero's 123.
+
 ### 2.4 The map is a stub, and the hero says so
 
 - **121** of 1,474 published dishes carry `origin_location` geometry (69 distinct points). The other **1,353 have no coordinates at all**.
@@ -108,16 +136,22 @@ For contrast, the same 22 slugs in the *current* dimension table cover **387 pub
 
 ### 2.5 The family filter dropdown offers the wrong 22 values — and the page contradicts itself
 
-The homepage's "Filter by category" select offers 22 values (Appetizer, Bread, Casserole, Colombian cuisine, Dumpling, …). They come from the payload's `familySlug`, which is the **current dimension** table — so unlike the `family=` API filter (§2.1), these slugs *are* the right vocabulary. But they are the **distinct families present in the first 100 dishes only**, because the home island groups the paged list it fetched.
+The homepage's "Filter by category" select offers **22** values (verified in the rendered DOM via Playwright: Appetizer, Bread, Casserole, Colombian cuisine, Curry, Dessert, Dumpling, Ethiopian cuisine, Filipino cuisine, Kebab, Main course, Noodle soup, Pancake, Pasta, Rice dish, Salad, Sandwich, Sauce, Soup, Stew, Stir-fry, Turkish cuisine).
+
+Two problems, and they are different problems:
+
+**The values are vocabulary B, not C.** They come from the payload's `familySlug`, which the API populates from the **legacy** `categories` table with `kind='dish-type'` (§2.1). Vocabulary B holds **25 slugs across 121 published dishes** — so the dropdown can offer at most 25 values, and the site offers 22 of them. It cannot offer the 124 dimension families, because it never reads them.
+
+**The list is also truncated on top of that.** The home island derives the options from the rows it has loaded (`familyOptions` = distinct `d.family` over the paged dataset), so the 22 are the subset of vocabulary B that happens to appear in the fetched rows — 3 of vocabulary B's 25 slugs never appear.
 
 The same page then states two different family counts:
 
 - the hero KPI strip claims **"1,474 dishes — places 123 food families 82 connections"** (live `/api/atlas/counts` returns `{"dishes":1474,"places":0,"communities":0,"families":123,"techniques":16,"courses":3,"contexts":4,"connections":82,"claims":0}`)
-- the hero's own sub-strip, computed client-side from the loaded rows, claims **"22 families"**
+- the hero's own sub-strip, computed client-side from the loaded rows, claims **"22 families"** (verified in the rendered DOM)
 
-Note the hero also renders **`— places`** (an em dash) because `places` is genuinely 0, while claiming 1,474 dishes and 82 connections in the same breath.
+The hero also renders **`— places`** (an em dash) because `places` is genuinely 0, while claiming 1,474 dishes and 82 connections in the same breath.
 
-**The 22 dropdown values are a subset of the real 124.** They are not wrong as vocabulary — they are a truncated sample presented as complete.
+**The 22 dropdown values are a truncated sample of vocabulary B (121 dishes), presented next to a count of 123 drawn from vocabulary C.** The dropdown and the counter are reading two different taxonomies on one page.
 
 ---
 
