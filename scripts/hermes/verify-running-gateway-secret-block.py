@@ -30,6 +30,69 @@ from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: E402
 PASSED = 0
 FAILED = 0
 
+# The user-service bus lives under the runtime directory. `systemctl
+# --user` fails with "Failed to connect to bus: No medium found" when
+# XDG_RUNTIME_DIR is not set -- which is exactly what happens under
+# cron, under a CI runner, and in any non-login shell. The fix is to
+# point systemd at the right runtime directory instead of assuming the
+# environment already does.
+RUNTIME_DIR = f"/run/user/{os.getuid()}"
+
+
+def user_service_env() -> dict[str, str]:
+    """The environment for a `systemctl --user` call.
+
+    XDG_RUNTIME_DIR is set to the real runtime directory when it is
+    missing or points somewhere that does not exist. The caller's
+    environment is otherwise preserved.
+    """
+    env = dict(os.environ)
+    current = env.get("XDG_RUNTIME_DIR", "")
+    if not current or not Path(current).is_dir():
+        if Path(RUNTIME_DIR).is_dir():
+            env["XDG_RUNTIME_DIR"] = RUNTIME_DIR
+    return env
+
+
+def find_gateway_pid() -> tuple[str, str]:
+    """The running gateway's PID, and how it was found.
+
+    Two strategies, in order:
+
+      1. systemd --user, with a corrected XDG_RUNTIME_DIR.
+      2. A /proc scan, which needs no bus at all.
+
+    Returns (pid, how). The pid is "" when it cannot be determined.
+    """
+    try:
+        r = subprocess.run(
+            ["systemctl", "--user", "show", "hermes-gateway", "-p", "MainPID", "--value"],
+            capture_output=True, text=True, timeout=30, env=user_service_env(),
+        )
+        pid = r.stdout.strip()
+        if pid and pid != "0":
+            return pid, "systemd --user"
+    except Exception:  # noqa: BLE001
+        pass
+
+    # No bus (or no unit): fall back to scanning /proc for the gateway.
+    for proc in sorted(Path("/proc").glob("[0-9]*")):
+        try:
+            cmd = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode(
+                errors="replace"
+            )
+        except (OSError, PermissionError):
+            continue
+        if "hermes_cli.main" in cmd and "gateway" in cmd:
+            # Only this user's own gateway counts.
+            try:
+                if proc.stat().st_uid != os.getuid():
+                    continue
+            except OSError:
+                continue
+            return proc.name, "the /proc scan"
+    return "", "not found"
+
 
 def check(name: str, ok: bool, detail: str = "") -> None:
     global PASSED, FAILED
@@ -57,21 +120,12 @@ def check_running_process() -> list[tuple[str, bool, str]]:
     """
     out: list[tuple[str, bool, str]] = []
 
-    pid = ""
-    try:
-        r = subprocess.run(
-            ["systemctl", "--user", "show", "hermes-gateway", "-p", "MainPID", "--value"],
-            capture_output=True, text=True, timeout=30,
-        )
-        pid = r.stdout.strip()
-    except Exception as exc:  # noqa: BLE001
-        out.append(("the gateway's PID can be read", False, f"{type(exc).__name__}: {exc}"))
+    pid, how = find_gateway_pid()
+    if not pid:
+        out.append(("the gateway's PID can be read", False, how))
         return out
 
-    if not pid or pid == "0":
-        out.append(("the gateway is running", False, f"MainPID={pid!r}"))
-        return out
-    out.append(("the gateway is running", True, f"pid {pid}"))
+    out.append(("the gateway's PID can be read", True, f"pid {pid} (found via {how})"))
 
     # The process's start time.
     start = ""
