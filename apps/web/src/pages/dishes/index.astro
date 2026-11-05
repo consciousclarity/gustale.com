@@ -37,8 +37,14 @@ const total = initial.total;
 const countLabel =
   initial.dishes.length > 0
     ? typeof total === "number"
-      ? `${total} ${total === 1 ? "dish" : "dishes"}`
-      : `${initial.dishes.length}${initial.dishes.length >= 24 ? "+" : ""} dishes`
+      ? `${total.toLocaleString("en-US")} ${total === 1 ? "dish" : "dishes"}`
+      : // No total from the API: the page length is all we know, and
+        // it is a count of what is ON THE PAGE -- not a guess at the
+        // whole catalogue. The old code added a "+" here, which read
+        // as "at least this many" and was not true either.
+        `${initial.dishes.length.toLocaleString("en-US")} ${
+          initial.dishes.length === 1 ? "dish" : "dishes"
+        }`
     : "Recipes";
 ---
 

@@ -47,10 +47,16 @@ FROM (VALUES
 ) AS s(slug, name)
 ON CONFLICT (slug) DO NOTHING;
 
--- The 'drink' family, and its membership for the eight tagged ones.
+-- The 'drink' family, and its membership for the eight tagged ones
+-- (the seven drinks plus Pelamushi, which the migration must untag).
 INSERT INTO dish_families (id, slug, name, created_at)
 SELECT gen_random_uuid(), 'drink', 'Drink', now()
 WHERE NOT EXISTS (SELECT 1 FROM dish_families WHERE slug='drink');
+
+-- The 'dessert' family, which Pelamushi must END UP in.
+INSERT INTO dish_families (id, slug, name, created_at)
+SELECT gen_random_uuid(), 'dessert', 'Dessert', now()
+WHERE NOT EXISTS (SELECT 1 FROM dish_families WHERE slug='dessert');
 
 INSERT INTO dish_dish_families (id, dish_id, value_id, is_primary, created_at, status)
 SELECT gen_random_uuid(), d.id, f.id, true, now(), 'active'
@@ -73,6 +79,26 @@ docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR
 echo
 echo "=== the resulting typing ==="
 run_psql -c "SELECT slug, content_type FROM dishes WHERE slug IN ('bir-pletok','buttermilk-koldskal','cendol','champurrado','es-doger','es-goyobod','lassi','neera','pelamushi') ORDER BY content_type, slug;"
+
+echo
+echo "=== Pelamushi's FAMILY tag: the drink link must be GONE ==="
+run_psql -c "
+SELECT d.slug, f.slug AS family
+FROM dishes d
+JOIN dish_dish_families x ON x.dish_id = d.id
+JOIN dish_families f ON f.id = x.value_id
+WHERE d.slug = 'pelamushi' ORDER BY f.slug;
+"
+
+echo
+echo "=== the drink family now holds exactly the 7 real drinks ==="
+run_psql -c "
+SELECT count(*) AS published_in_drink_family
+FROM dishes d
+JOIN dish_dish_families x ON x.dish_id = d.id
+JOIN dish_families f ON f.id = x.value_id
+WHERE f.slug = 'drink' AND d.status = 'published';
+"
 
 echo
 echo "=== NOW BREAK IT: a tenth drink that was never verified ==="

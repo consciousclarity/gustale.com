@@ -21,6 +21,16 @@
 -- So the honest state of the data is: 8 published dishes carry family
 -- 'drink', and at least one more IS a drink but is not tagged as one.
 --
+-- AND one of those eight is not a drink at all. Pelamushi carries
+-- family='drink' but is a Georgian DESSERT porridge -- the
+-- catalogue's own description says so. So this migration does two
+-- things to the same record set, because they are the same defect in
+-- two places:
+--
+--   * it sets `content_type` on the eight verified drinks, and
+--   * it REMOVES Pelamushi's wrong `drink` family tag (section 2b),
+--     giving it the `dessert` family instead.
+--
 -- WHAT THIS COLUMN IS
 -- ------------------
 -- An EXPLICIT EDITORIAL FIELD. A human decided, per dish, whether this
@@ -145,6 +155,74 @@ UPDATE dishes
    AND status = 'published'
    AND content_type <> 'dish';
 
+-- ── 2b. Pelamushi's WRONG FAMILY TAG IS REMOVED ──────────────────────
+--
+-- The `content_type` column says Pelamushi is a dish. The family tag
+-- still says it is a drink, and the family tag is what the site
+-- FILTERS BY. So while the tag is wrong, the site offers Pelamushi
+-- when someone asks for drinks -- and the two fields disagree on the
+-- page.
+--
+-- The tag is removed here, in the same migration that sets the
+-- editorial field, so the correction ships as ONE change. A dish
+-- that is a drink by content_type and not by family is the same
+-- defect in two places.
+--
+-- WHAT IT DOES, exactly:
+--
+--   1. Re-points Pelamushi's family link from `drink` to `dessert`.
+--      The link is a row in `dish_dish_families`, and that table
+--      carries `UNIQUE (dish_id)` -- a dish has EXACTLY ONE family.
+--      So this is an UPDATE of `value_id`, not a delete followed by
+--      an insert. (Live: 0 dishes carry more than one family, so
+--      the one-family rule is the real shape of the data.)
+--
+--   2. The link stays `is_primary = true`. The `drink` link was the
+--      primary one, and a dish with no primary family breaks the
+--      family pages.
+--
+-- The `dessert` family is the right home: the catalogue's own
+-- description reads "A Georgian dessert porridge of chilled,
+-- thickened grape juice and flour", and the `dessert` family already
+-- carries 96 published dishes. `porridge` would also be defensible
+-- but is narrower -- there is one dish in it, and Pelamushi is not a
+-- grain porridge.
+--
+-- The `ddu_guard_value` trigger refuses to let a dish recorded as
+-- having this dimension unset be given a value. Pelamushi has no
+-- `dish_dimension_unset` row for `family`, so the trigger does not
+-- fire -- that is verified in the proof block below rather than
+-- assumed.
+--
+-- REVERSIBLE: yes. The link row is not deleted -- its `value_id` is
+-- re-pointed -- so re-pointing it back to the `drink` family restores
+-- the previous state exactly. The rollback statement is at the end
+-- of this file.
+
+-- 1. the link is RE-POINTED, not replaced: `dish_dish_families`
+--    carries UNIQUE (dish_id), so a dish has exactly one family.
+UPDATE dish_dish_families x
+   SET value_id = f.id,
+       provenance = 'curator-verified'
+  FROM dishes d, dish_families f
+ WHERE x.dish_id = d.id
+   AND f.slug = 'dessert'
+   AND d.slug = 'pelamushi'
+   AND d.status = 'published'
+   AND x.value_id <> f.id;
+
+-- The undo, kept beside the change it undoes, so it cannot drift.
+-- (Commented out on purpose: a migration that can undo itself by
+-- accident is a migration that will.)
+--
+-- UPDATE dish_dish_families x
+--    SET value_id = f.id,
+--        provenance = 'preparation'
+--   FROM dishes d, dish_families f
+--  WHERE x.dish_id = d.id
+--    AND f.slug = 'drink'
+--    AND d.slug = 'pelamushi';
+
 -- ── 3. the proof ─────────────────────────────────────────────────────
 --
 -- The migration FAILS if the result is not exactly what was verified.
@@ -218,13 +296,16 @@ BEGIN
 
   -- The set of published dishes carrying family='drink'.
   --
-  -- It is EIGHT, not nine: lassi carries family='dish' and is the
-  -- ninth drink. So the two sets have the same SIZE and are not
-  -- subsets of one another -- they differ in exactly one row each
-  -- way, and the two checks below pin those down:
+  -- It is SEVEN. Live, family=drink covered eight: the seven drinks
+  -- that are drinks, plus Pelamushi, which was not. This migration
+  -- removes Pelamushi's tag (section 2b), so seven is the count
+  -- AFTER the change -- and asserting it here means the tag removal
+  -- cannot silently fail.
   --
-  --   content_type=drink but NOT family=drink  ->  lassi   (added)
-  --   family=drink but NOT content_type=drink  ->  pelamushi (removed)
+  -- The eighth drink is lassi, which carries family='dish'. So the
+  -- two sets differ in exactly one row, one way:
+  --
+  --   content_type=drink but NOT family=drink  ->  lassi
   SELECT count(*) INTO v_family_drink
     FROM dishes d
    WHERE d.status = 'published'
@@ -233,13 +314,17 @@ BEGIN
          JOIN dish_families f ON f.id = j.value_id
         WHERE j.dish_id = d.id AND j.status = 'active' AND f.slug = 'drink');
 
-  IF v_family_drink <> v_expected_drinks THEN
-    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: family=drink covers % published dishes, expected the 8 tagged ones. A new one needs verifying before it is classified.', v_family_drink;
+  IF v_family_drink <> 7 THEN
+    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: family=drink covers % published dishes, expected 7 (the eight tagged ones less Pelamushi, whose tag this migration removes). A new one needs verifying before it is classified.', v_family_drink;
   END IF;
 
-  -- ...and the difference must be EXACTLY the two known corrections:
-  -- lassi (a drink that was not tagged) and Pelamushi (a dessert that
-  -- was). Anything else is drift.
+  -- ...and the difference must be EXACTLY ONE, in one direction:
+  -- lassi is a drink that is not tagged family=drink.
+  --
+  -- It used to be two -- lassi added, Pelamushi removed -- but this
+  -- migration also REMOVES Pelamushi's wrong drink tag (section 2b),
+  -- so after it runs there is no family=drink dish that is not a
+  -- drink. The tag and the editorial field now agree for every dish.
   SELECT count(*) INTO v_missing FROM dishes d
    WHERE d.status = 'published'
      AND d.content_type = 'dish'
@@ -248,8 +333,28 @@ BEGIN
          JOIN dish_families f ON f.id = j.value_id
         WHERE j.dish_id = d.id AND j.status = 'active' AND f.slug = 'drink');
 
-  IF v_missing <> 1 THEN
-    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: expected exactly 1 family=drink dish that is not a drink (Pelamushi), got %', v_missing;
+  IF v_missing <> 0 THEN
+    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: expected 0 family=drink dishes that are not drinks (Pelamushi''s tag is removed by this migration), got %', v_missing;
+  END IF;
+
+  -- And Pelamushi specifically: its drink tag is GONE and it carries
+  -- the dessert family instead. This is the data change, proved.
+  IF EXISTS (
+    SELECT 1 FROM dishes d
+      JOIN dish_dish_families j ON j.dish_id = d.id
+      JOIN dish_families f ON f.id = j.value_id
+     WHERE d.slug = 'pelamushi' AND f.slug = 'drink' AND j.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: pelamushi still carries the drink family tag';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM dishes d
+      JOIN dish_dish_families j ON j.dish_id = d.id
+      JOIN dish_families f ON f.id = j.value_id
+     WHERE d.slug = 'pelamushi' AND f.slug = 'dessert' AND j.status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: pelamushi does not carry the dessert family tag';
   END IF;
 
   IF EXISTS (SELECT 1 FROM dishes WHERE slug = 'lassi' AND content_type <> 'drink') THEN
@@ -288,7 +393,21 @@ BEGIN
     RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: expected exactly 1 drink outside family=drink (lassi), got %', v_extra;
   END IF;
 
-  RAISE NOTICE 'CONTENT_TYPE_BACKFILL_OK: % published drinks; family=drink covers %; the two differences are lassi (+) and pelamushi (-)',
+  -- The `drink` family itself must now hold exactly the SEVEN
+  -- published drinks that are drinks. If a new one were tagged
+  -- without being verified, this fails the migration rather than
+  -- shipping an unverified drink in the catalogue.
+  SELECT count(*) INTO v_named FROM dishes d
+   WHERE d.status = 'published'
+     AND d.content_type = 'drink'
+     AND d.slug NOT IN ('bir-pletok','buttermilk-koldskal','cendol','champurrado',
+                        'es-doger','es-goyobod','lassi','neera');
+
+  IF v_named <> 0 THEN
+    RAISE EXCEPTION 'CONTENT_TYPE_BACKFILL_FAILED: % published drinks are not among the 8 verified ones', v_named;
+  END IF;
+
+  RAISE NOTICE 'CONTENT_TYPE_BACKFILL_OK: % published drinks; family=drink covers %; lassi is the one drink outside family=drink, and pelamushi''s drink tag has been removed',
     v_drink_count, v_family_drink;
 END $$;
 
