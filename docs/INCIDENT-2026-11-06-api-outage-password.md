@@ -79,11 +79,23 @@ onset. The measured onset is **2026-11-02 23:28:06 UTC** (Nov 3 07:28 local):
 - first `FATAL: password authentication failed for user "gustale"` in the Postgres log
   for the *current* role state: `2026-11-02 23:28:06.566 UTC`;
 - the `ALTER ROLE` itself: `07:28:11` local = `23:28:11 UTC` — five seconds later;
-- the rebuild timer is an exact API-liveness oracle. Its last successful dish fetch was
-  `2026-11-02T15:41:44Z`; its first failure was `2026-11-02T23:43:12Z`. Every one of
-  its 45 runs since has failed.
+- the rebuild timer is an exact API-liveness oracle. Its last successful run was
+  `2026-11-02T06:39:49Z` ("No content change detected"); its first failure was
+  `2026-11-02T23:43:12Z` — and the Postgres `FATAL` at `23:43:12.831 UTC` is the same
+  connection to the second. Every run since has failed.
 
 So the API has been down for roughly **3.5 days**, not 14 hours.
+
+### 2.3a The failures were already continuous before that
+
+Authentication failures for `gustale` appear on every day of the log — 97 on Oct 29,
+89 on Oct 31, 195 on Nov 1, 249 on Nov 2, 324 on Nov 3, 1,206 on Nov 6 — so a *new*
+failure at 23:28:06Z is not by itself the onset. What changed at that moment is the
+**credential**: before it, the role accepted the 32-char value the deployment carries;
+after it, the role accepts only the CI-published value. The 23:43:12Z rebuild failure is
+the first *observable* API outage because the rebuild timer is the only thing that
+calls the API on a schedule. The two earlier `FATAL`s that day (23:28:06 and 23:43:12)
+bracket the `ALTER ROLE`.
 
 ### 2.4 Why "the 04:23Z container restart" looked like a cause
 
@@ -172,9 +184,24 @@ ALTER ROLE gustale WITH PASSWORD '<the deploy env's value>';   # the 32-hex valu
 - it is the inverse of the mutation that caused the outage.
 
 **Verified safe on the dedicated test cluster** (`gustale-test-postgres`, port 5434 —
-never the live one): before the `ALTER ROLE` the candidate was rejected; after it,
-authentication as `gustale` succeeded (`SELECT current_user` returned `gustale`). The
-mechanism is proven; only the live application is pending authorization.
+never the live one). The exact command shape was run there, twice:
+
+- set the role to a sentinel password → the sentinel then authenticated
+  (`SELECT current_user` → `gustale`);
+- set the role to the target value → the target authenticated and the **sentinel was
+  rejected** (`FATAL: password authentication failed for user "gustale"`);
+- the test role was then restored to the CI arrangement (`gustale`/`gustale`), and the
+  live role was confirmed still unchanged (`still accepts the literal 'gustale'`,
+  `still rejects the target`).
+
+So `ALTER ROLE ... WITH PASSWORD` behaves exactly as needed: it rotates the credential
+and invalidates the old one, without touching the role's attributes.
+
+**Why the target value is safe to use:** the 32-char value is **not** in the public
+repository's history. A `git log --all -S<value>` search over every reachable commit's
+tree returns **0** commits containing it. (The CI-published value that the role
+currently accepts *is* public — it is in `scripts/ci-migration-role.sql` — which is
+precisely why the live role must not hold it.)
 
 **Safety notes for the live run:**
 
@@ -185,8 +212,17 @@ mechanism is proven; only the live application is pending authorization.
   and no per-role settings are lost;
 - the role must keep `NOSUPERUSER NOCREATEDB NOCREATEROLE` and must remain a non-member
   of `gustale_credential_issuer` — `ALTER ROLE ... WITH PASSWORD` preserves all of that;
+  the live role is currently `rolsuper=f, rolcanlogin=t, rolcreatedb=f`;
 - **verify before/after**: the API's `DATABASE_URL` password must authenticate as
   `gustale` over the SCRAM path, then `GET /api/dishes` must return 200.
+
+**The re-break vector is already closed:** `scripts/ci-migration-role.sql` is the file
+that creates roles with the CI-published password, and it is what a subagent ran against
+live. As of PR #190 it only ever runs against the **dedicated test cluster**
+(`scripts/ci-migration-chain.sh` routes to `scripts/lib/test_pg.sh`, never to
+`shared-postgres`), and `scripts/check-no-production-db-drops.py` fails the build if any
+script can drop or create a database on the production cluster. It is still worth
+auditing that file for any path that could reach live.
 
 **Also required (separate, and not part of the one operation):**
 
