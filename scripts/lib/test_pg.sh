@@ -84,15 +84,15 @@ TEST_PG_PORT="${GUSTALE_TEST_PG_PORT:-5434}"
 TEST_PG_USER="${GUSTALE_TEST_PG_USER:-gustale}"
 TEST_PG_PASSWORD="${GUSTALE_TEST_PG_PASSWORD:-gustale}"
 
-#: The admin role, for CREATE/DROP DATABASE.
+#: The admin role, for CREATE/DROP DATABASE and for the migrations.
 #:
-#: It is the SAME role as TEST_PG_USER, because the container is created
-#: with POSTGRES_USER=gustale: the postgis image makes that role the
-#: cluster's superuser and does NOT create a separate `postgres` role.
-#: (Naming a `postgres` role here would fail with "role \"postgres\" does
-#: not exist" -- which is exactly what the first version of this
-#: helper did.)
-TEST_PG_ADMIN="${GUSTALE_TEST_PG_ADMIN:-${TEST_PG_USER}}"
+#: It is `postgres`, and the container is created with
+#: POSTGRES_USER=postgres, exactly as CI's service container is. The
+#: postgis image makes POSTGRES_USER the cluster's BOOTSTRAP superuser
+#: and does NOT create any other role -- so a container started with a
+#: different POSTGRES_USER has no `postgres` role at all, and every
+#: `-U postgres` fails with "role does not exist".
+TEST_PG_ADMIN="${GUSTALE_TEST_PG_ADMIN:-postgres}"
 
 #: The image. The SAME PostGIS build production uses, so a test
 #: database has exactly production's extension set.
@@ -150,6 +150,28 @@ test_pg_drop() {
   test_pg_psql postgres -c "DROP DATABASE IF EXISTS ${dbname};" >/dev/null
 }
 
+#: Make the container's roles match the CI's, so the CI-shaped scripts
+#: work UNCHANGED against the test container.
+#:
+#: The postgis image makes POSTGRES_USER the cluster's superuser and
+#: creates no `postgres` role; CI expects a `postgres` superuser with
+#: the password `gustale`, and the chain script alters roles (which
+#: needs superuser). So both are created here.
+#: The CI's role arrangement, so a test run against this container
+#: behaves like a CI run.
+#:
+#: CI's service container has exactly two relevant roles:
+#:   * `postgres` -- the bootstrap superuser, the admin that owns the
+#:     tables and runs the migrations;
+#:   * `gustale`  -- the ordinary role the app connects as, created by
+#:     the chain's own role setup.
+#:
+#: The container is created with `postgres` as the bootstrap user, so
+#: this only has to make sure the ordinary role exists.
+test_pg_match_ci_roles() {
+  test_pg_psql postgres -c "CREATE ROLE ${TEST_PG_USER} LOGIN NOSUPERUSER PASSWORD '${TEST_PG_PASSWORD}';" >/dev/null 2>&1 || true
+}
+
 test_pg_up() {
   if docker ps --format '{{.Names}}' | grep -qx "$TEST_PG_CONTAINER"; then
     echo "the test Postgres ($TEST_PG_CONTAINER) is already up"
@@ -157,9 +179,18 @@ test_pg_up() {
   fi
   echo "=== starting the test Postgres ($TEST_PG_CONTAINER) on 127.0.0.1:${TEST_PG_PORT} ==="
   docker rm -f "$TEST_PG_CONTAINER" >/dev/null 2>&1 || true
+  # POSTGRES_USER IS `postgres`, exactly as CI's service container has
+  # it. The postgis image makes POSTGRES_USER the cluster's BOOTSTRAP
+  # superuser, and Postgres only lets the bootstrap superuser alter a
+  # role's superuser attribute -- which the chain's role setup has to
+  # do (`ALTER ROLE gustale NOSUPERUSER`, deliberately, so the bot role
+  # is never a superuser).
+  #
+  # So the container's bootstrap user MUST be `postgres`, or the chain
+  # fails with "permission denied to alter role".
   docker run -d \
     --name "$TEST_PG_CONTAINER" \
-    -e POSTGRES_USER="$TEST_PG_USER" \
+    -e POSTGRES_USER="$TEST_PG_ADMIN" \
     -e POSTGRES_PASSWORD="$TEST_PG_PASSWORD" \
     -e POSTGRES_DB=postgres \
     -p "127.0.0.1:${TEST_PG_PORT}:5432" \
@@ -169,6 +200,9 @@ test_pg_up() {
   local i
   for i in $(seq 1 30); do
     if docker exec "$TEST_PG_CONTAINER" pg_isready -U "$TEST_PG_USER" -d postgres >/dev/null 2>&1; then
+      # The CI-shaped scripts expect CI's roles. Match them, so a test
+      # run against this container behaves like a CI run.
+      test_pg_match_ci_roles
       echo "the test Postgres is up"
       return 0
     fi

@@ -413,7 +413,7 @@ that was being checked.**
    the same guards, the same migrations — but the **name** now differs, so the
    live name is unique on every host and can be refused by name alone.
 3. **Test and throwaway databases move off `shared-postgres`** to a
-   dedicated test Postgres container (`gustale-test-postgres`, port 5433), so
+   dedicated test Postgres container (`gustale-test-postgres`, port 5434), so
    production is never the target of `DROP DATABASE` even by accident.
 4. **A new CI gate fails the build if any script can drop a database on the
    production cluster**: `scripts/check-no-production-db-drops.py`, with

@@ -20,7 +20,7 @@ the site was down and the data-loss window was real.
 The structural fix is that a throwaway database does not live on the
 production cluster at all: it lives on the DEDICATED TEST POSTGRES
 (`scripts/lib/test_pg.sh`, container `gustale-test-postgres`, port
-5433). This check makes that rule enforceable, so the fix cannot be
+5434). This check makes that rule enforceable, so the fix cannot be
 undone by a later script.
 
 THE RULE
@@ -309,7 +309,7 @@ def main() -> int:
         print(f"      the production cluster ({PRODUCTION_CONTAINER}).")
         print()
         print("  A throwaway database belongs on the dedicated test Postgres")
-        print(f"  ({TEST_CONTAINER}, port 5433) -- see scripts/lib/test_pg.sh.")
+        print(f"  ({TEST_CONTAINER}, port 5434) -- see scripts/lib/test_pg.sh.")
         return 0
 
     print("  FAIL  a script can drop a database on production:", file=sys.stderr)
