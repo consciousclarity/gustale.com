@@ -195,3 +195,84 @@ The pilot's "dangling" premise was false; all 50 pilot rows are MEDIUM and all r
   live API on every run, so its log shows exactly when the API broke.
 - Curator patches to the `gustale-deploy-vps` skill are **refused**. Put deploy lessons in
   the `quality-gate-integrity` skill instead.
+
+## 17. The private `gustale-state` repository
+
+`consciousclarity/gustale-state` is the **private** repo that holds the shared agent
+context: `.hermes/SHARED_STATE.md`, `.hermes/TASKS.md`, `.hermes/RULES.md`,
+`.hermes/KANBAN.md`, and the reports.
+
+**The branch is `state`, not `main`.** `CLAUDE.md` in the public repo states it
+explicitly, and the workflow is:
+
+```bash
+# pull the shared context
+git fetch https://github.com/consciousclarity/gustale-state.git state
+
+# commit updates to the PRIVATE repo, on its `state` branch
+cd ~/gustale-state
+git checkout state
+# edit .hermes/SHARED_STATE.md and .hermes/TASKS.md
+git push origin state
+```
+
+The `main` branch of that repo exists but is a different line of history; the shared
+context lives on `state`.
+
+**The GitHub App is NOT installed on it.** `GET /installation/repositories` reports
+`total_count: 1` — only `gustale.com`. A `GET /repos/consciousclarity/gustale-state`
+returns 404, and the deploy key cannot authenticate (`could not read Username for
+'https://github.com'`). So the App cannot push there and neither can this agent: only
+Alejandro can, with his own credentials.
+
+This is deliberate separation, not an oversight: it is what keeps shared agent context
+out of a **public** repository. A branch of a public repository is public; the
+repository's visibility is what makes it private.
+
+## 18. Where the long-form material lives
+
+This runbook is the long form. `MEMORY.md` holds one-line pointers to:
+
+| pointer | file |
+|---|---|
+| §1-3, §5-8, §11-17 | this file |
+| drinks / `content_type` | `docs/DRINK-CONTENT-TYPE-VERIFICATION.md` |
+| Hindsight write failure | `docs/HINDSIGHT-WRITE-FAILURE.md` |
+| the live DB wipe | `docs/INCIDENT-2026-11-06-live-db-drop.md` |
+| the API outage | `docs/INCIDENT-2026-11-06-api-outage-password.md` |
+| database safety policy | `docs/DATABASE-SAFETY.md` |
+| the CI workflow patch evidence | `docs/ci-workflow-patch-evidence.md` |
+
+The **full** incident reports — the ones that name credential values and fingerprints —
+also live in the **private** repo under `.hermes/REPORTS/`. The public copies carry
+one-way fingerprints only.
+
+## 19. Secrets hygiene
+
+**A credential value must never reach the PUBLIC `gustale.com` repository.** The public
+copy of an incident report carries one-way fingerprints (a truncated SHA-256 of the
+value) — never the value, never a prefix of it. The full report lives in the private
+`gustale-state` repo under `.hermes/REPORTS/`.
+
+Check before committing:
+
+```bash
+# does this file contain any prefix of a real credential?
+grep -noE '[0-9a-f]{8,}' <file>
+```
+
+Every hit must be a fingerprint, not a fragment. The `scripts/ci-migration-role.sql`
+value *is* public — it is in the repository — which is exactly why a live role must
+never hold it.
+
+**Pasted text and secret files reach the model provider verbatim** and are then
+persisted in `~/.hermes/state.db`. If a secret was pasted into a chat, it is in the
+session store. To redact it:
+
+1. `UPDATE` the row to replace the secret with a placeholder;
+2. rebuild the FTS5 index;
+3. `wal_checkpoint(TRUNCATE)`;
+4. `VACUUM`.
+
+`hermes gateway restart` runs **outside** the agent — it cannot be triggered from
+inside a session, so schedule it with the user rather than assuming it took effect.
