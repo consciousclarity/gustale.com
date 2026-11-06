@@ -1,0 +1,66 @@
+From e1622f6434e797b235f9ffc943241f3b77da4d05 Mon Sep 17 00:00:00 2001
+From: Hermes Agent <Hermes Agent hermes-agent@users.noreply.github.com>
+Date: Fri, 6 Nov 2026 12:00:49 +0800
+Subject: [PATCH] ci: apply migrations 0050 and 0051 in the CI chain
+
+The CI steps that apply the association review ledger (0050) and the
+family classification (0051).
+
+THIS COMMIT NEEDS A HUMAN. The GitHub App has no 'workflows' scope
+and cannot push it. Apply it with:
+
+  git cherry-pick <this-commit>
+
+or apply the patch directly:
+
+  git apply ci_yml.patch
+
+Ordering: 0050 runs after the atlas fixtures, because the pilot
+samples the association table the fixtures create. 0051 runs after
+0050. Both run after the seed.
+---
+ .github/workflows/ci.yml | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 84fbcde..f3e84d3 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -943,6 +943,34 @@ jobs:
+           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+             -f packages/db/seed-atlas-fixtures.sql
+ 
++      # ── 0050: the association review ledger (Option C) ──────────────
++      #
++      # Creates `association_review_log` (the ledger), `association_sources`
++      # (the association <-> source link), the entity-integrity trigger,
++      # and the 50-row pilot.
++      #
++      # It writes NO published rows and re-points nothing.
++      #
++      # It must run AFTER the atlas fixtures: the pilot samples the
++      # association table, and the fixtures are what create the
++      # association rows it samples.
++      - name: Apply the association review ledger
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++            -f db/migrations/0050_association_review_ledger.sql
++
++      # ── 0051: the family classification ─────────────────────────────
++      #
++      # Adds `dish_families.family_class` and applies the approved
++      # classification of all 306 families.
++      #
++      # It runs AFTER the atlas fixtures: its assertions count the
++      # families that carry a published dish.
++      - name: Apply the family classification
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++            -f db/migrations/0051_family_classification.sql
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
+-- 
+2.43.0
+
