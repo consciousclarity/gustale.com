@@ -22,6 +22,15 @@
 
 set -uo pipefail
 
+# The DEDICATED TEST POSTGRES, never `shared-postgres`.
+#
+# `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED, and the
+# production cluster hosts the live database and five other projects'
+# databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
+# destroyed the live database.
+# shellcheck source=scripts/lib/test_pg.sh
+source scripts/lib/test_pg.sh
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
@@ -251,7 +260,7 @@ for CANDIDATE in "$RESOLVED_BASE" "$DB"; do
 done
 
 run_chain() {
-  docker exec -i -u postgres shared-postgres psql -U postgres -d postgres -tAc \
+  docker exec -i -u postgres "$TEST_PG_CONTAINER" psql -U postgres -d postgres -tAc \
     "DROP DATABASE IF EXISTS ${DB};" >/dev/null 2>&1
   bash "$CHAIN" "$DB" > "$WORK/chain.log" 2>&1
   local code=$?
@@ -276,7 +285,7 @@ check_variant() {
 
   make_broken_migration "$variant_fn" "$broken"
 
-  docker exec -i -u postgres shared-postgres psql -U postgres -d "$DB" \
+  docker exec -i -u postgres "$TEST_PG_CONTAINER" psql -U postgres -d "$DB" \
     -v ON_ERROR_STOP=1 -f - < "$broken" > "$log" 2>&1
   local code=$?
 
@@ -323,7 +332,7 @@ check_variant "actor-from-token" variant_actor_from_token
 
 echo
 echo "--- the clean-up"
-docker exec -i -u postgres shared-postgres psql -U postgres -d postgres -tAc \
+docker exec -i -u postgres "$TEST_PG_CONTAINER" psql -U postgres -d postgres -tAc \
   "DROP DATABASE IF EXISTS ${DB};" >/dev/null 2>&1
 note "the test database is dropped"
 

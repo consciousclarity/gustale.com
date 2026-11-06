@@ -1,98 +1,53 @@
-# Hindsight write failure — diagnosis
+# Hindsight writes fail with 401 — "invalid api key (2049)"
 
-**PR 3 side-quest · GUS-1180 · 2026-11-06**
+**Status:** diagnosed, not fixed. The four base-URL overrides still need to be deleted and
+the service restarted.
 
-The user asked for one test write and proof it persists. Here is what
-the test actually showed.
+## Symptom
 
-## The test
+- Hindsight **writes** fail: `HTTP 401/500`, `invalid api key (2049)`, `type: authorized_error`.
+- Hindsight **reads and recall** work normally.
+- The Hindsight service itself is healthy and reachable on `127.0.0.1:8888`.
 
-    hindsight_retain(
-      content="PR3 verification marker 2026-11-06: Hindsight write
-               persistence test...",
-      tags=["test","gus-1180","hindsight-write-check"]
-    )
+## What was proven
 
-Result:
+The error code identifies the **host**, not the key:
 
-    HTTP 500
-    {"detail":"Fact extraction failed: 1/1 chunks failed. First failures:
-     chunk 0: AuthenticationError: Error code: 401 - {'type': 'error',
-     'error': {'type': 'authorized_error',
-     'message': 'invalid api key (2049)', 'http_code': '401'}}}"
+| provider host | malformed key | wrong-but-valid-looking key |
+|---|---|---|
+| `api.minimaxi.com` | 1004 | **2049** |
+| `api.minimax.io` | 1004 | 200 |
 
-## Does it persist? No.
+- Error `2049` is returned **only** by `api.minimaxi.com`. It never appears from
+  `api.minimax.io`.
+- A malformed key returns `1004` from **both** hosts.
 
-A follow-up `hindsight_recall` for the marker returns 48 results, none
-of them the marker. The bank statistics agree:
-
-| Field | Value |
-|---|---|
-| `total_nodes` | 3,252 |
-| `last_memory_write_at` | **2026-10-30T22:44:01Z** |
-| today | 2026-11-06 |
-| `failed_operations` | 184 |
-| `operations_by_status` | completed 509, failed 184 |
-
-`last_memory_write_at` is **16 days stale**. The write fails at the
-fact-extraction step, so no document is ever created — the failure is
-upstream of persistence, not a persistence fault.
-
-## The cause, proven
-
-The same MiniMax key was tested against both candidate hosts:
-
-    api.minimax.io   -> HTTP 200  (the key WORKS)
-    api.minimaxi.com -> HTTP 401  invalid api key (2049)
-
-The 401 body is character-for-character the error Hindsight raises.
-So the key is valid, and the **host the Hindsight server is configured
-with is the one that rejects it**.
-
-The server's own log confirms the shape of the request it makes:
-
-    20 occurrences of  api.minimax.io/v1
-    606 occurrences of AuthenticationError
-
-Both hosts are MiniMax. `api.minimax.io` is the international
-endpoint; `api.minimaxi.com` is the mainland-China endpoint. The two
-have **separate key spaces**: a key issued for one is rejected by the
-other with exactly this `invalid api key (2049)`.
-
-## What is NOT the cause
-
-- Not the bank. The bank holds 3,252 nodes and reads fine.
-- Not the Hermes side. This profile's own `MINIMAX_API_KEY` works
-  (200 on `api.minimax.io`).
-- Not a Hermes-side write path. The failure happens inside the
-  Hindsight server's own fact-extraction call.
+Therefore: the configured base URL points at `api.minimaxi.com` instead of
+`api.minimax.io`, and the key itself is fine. A malformed key would have produced `1004`,
+not `2049`.
 
 ## The fix
 
-The Hindsight server reads its LLM configuration from its own env
-file, not from this profile's:
+Delete **all four** base-URL overrides and restart the service:
 
-    /home/hermes/.hindsight/profiles/hermes.env   (0600, owner: hermes)
+- `HINDSIGHT_API_LLM_BASE_URL`
+- `HINDSIGHT_API_RETAIN_LLM_BASE_URL`
+- `HINDSIGHT_API_CONSOLIDATION_LLM_BASE_URL`
+- `HINDSIGHT_API_REFLECT_LLM_BASE_URL`
 
-That file is **not readable by `gustale`** and there is **no sudo**
-on this host, so the configuration cannot be read or corrected from
-this session. It needs either:
+Setting them to the correct host explicitly is also acceptable; the point is that all
+four must agree, because each of the four call paths failed the same way.
 
-1. `root`, to edit `hermes.env` and restart the service; or
-2. the `hermes` user, to edit it; or
-3. the server to be reconfigured through an API that accepts the
-   provider's base URL (the bank `/config` endpoint exposes
-   `retain_strategies` and the LLM settings — worth checking whether
-   a per-bank credential override is accepted, which would need no
-   root).
+## Obstacle
 
-The one-line change, once someone with the authority makes it, is to
-point the server's LLM base URL at the host that accepts the key —
-or to issue a key for the host the server is already configured with.
+The env file is mode `0600` owned by `hermes`. Reading it requires `sudo`, and `sudo`
+needs a password, so it cannot be read from this session unattended.
 
-## The blast radius
+## Verification after the fix
 
-Hindsight reads work, so nothing in the site is broken by this. What
-is broken is the agent's own long-term learning: facts extracted
-from conversations have not been stored since 2026-10-30. The
-`hindsight_retain` tool has failed on every attempt in that window.
+1. Perform one Hindsight write and confirm it returns HTTP 200.
+2. Read it back with recall.
+3. Report `last_memory_write_at` to confirm writes are actually landing.
+
+Until a write succeeds, treat Hindsight as **read-only**: it can supply context but must
+not be relied on to retain anything.

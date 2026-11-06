@@ -389,7 +389,9 @@ def main() -> int:
     # Vet the target BEFORE touching anything. This refuses the live
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
     # invocation.
-    args.db = db_guard.resolve(args.db, purpose="populate_description_sentences.py")
+    args.db = db_guard.resolve_target(
+        args.db, purpose="populate_description_sentences.py"
+    )
 
     if not can_connect(args.db):
         print(f"[populate] CANNOT REACH the database {args.db}.")
@@ -439,4 +441,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (db_guard.LiveDatabaseRefused,
+            db_guard.ProductionContainerRefused) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))

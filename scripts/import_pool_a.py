@@ -94,7 +94,7 @@ USER_AGENT = "gustale-pool-a-import/1.0 (https://gustale.com; hello@gustale.com)
 # writing to live first and checking afterwards is the wrong order.
 # NOT live by default. The live database requires the explicit
 # GUSTALE_LIVE_DB_ALLOW=1 opt-in for this invocation.
-DB_NAME = db_guard.resolve(
+DB_NAME = db_guard.resolve_target(
     os.environ.get("GUSTALE_DB_NAME") or db_guard.scratch_database(),
     purpose="import_pool_a.py",
 )
@@ -539,4 +539,9 @@ def insert_dish(
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (db_guard.LiveDatabaseRefused,
+            db_guard.ProductionContainerRefused) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))

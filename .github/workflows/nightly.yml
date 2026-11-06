@@ -11,7 +11,7 @@ concurrency:
 
 env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
-  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale
+  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale_ci
   SESSION_SECRET: nightly-session-secret-do-not-use-anywhere-real
   AUTH_SECRET: nightly-auth-secret-do-not-use-anywhere-real
   # Mirror the same env-validator-required dummies as ci.yml.
@@ -46,7 +46,7 @@ jobs:
           # the chain applies the migrations.
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: gustale
-          POSTGRES_DB: gustale
+          POSTGRES_DB: gustale_ci_ci
         ports:
           - 5432:5432
         options: >-
@@ -102,7 +102,7 @@ jobs:
       # either.
       - name: Reset database
         run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 <<'SQL'
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 <<'SQL'
             DROP SCHEMA IF EXISTS public CASCADE;
             CREATE SCHEMA public;
             GRANT ALL ON SCHEMA public TO gustale;
