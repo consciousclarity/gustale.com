@@ -98,7 +98,9 @@ def main() -> int:
     # Vet the target BEFORE touching anything. This refuses the live
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
     # invocation.
-    args.db = db_guard.resolve(args.db, purpose="backfill_pool_a_sample.py")
+    args.db = db_guard.resolve_target(
+        args.db, purpose="backfill_pool_a_sample.py"
+    )
 
     pool = json.loads(POOL_FILE.read_text())
     batches = [pool[i : i + BATCH_SIZE] for i in range(0, len(pool), BATCH_SIZE)]

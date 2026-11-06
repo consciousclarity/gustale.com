@@ -41,40 +41,16 @@ config({ path: resolve(here, "..", ".env") });
  *
  * This is DUPLICATED from scripts/lib/db_guard.py rather than imported:
  * that module is Python, and this file is TypeScript. The rule is the
- * same in both places -- the live database is reachable only by an
- * explicit, per-invocation opt-in (GUSTALE_LIVE_DB_ALLOW=1) -- and the
+ * same in both places -- the live NAME is refused ALWAYS -- and the
  * scanner in scripts/check-no-live-db-defaults.py holds this file to
  * it, so the two cannot drift apart silently.
  */
 const LIVE_DB = "gustale";
 
-/** Is live access permitted in this process? */
-function liveAllowed(): boolean {
-  return process.env.GUSTALE_LIVE_DB_ALLOW === "1";
-}
-
-/**
- * Is this process running against a throwaway server?
- *
- * The CI's Postgres service container is deliberately named `gustale`, so
- * the CI schema mirrors live's exactly. A name therefore cannot identify
- * the live database, and this rule mirrors the Python guard's:
- *
- *   the live database is live only when the dbname matches AND the
- *   server is not a declared throwaway.
- *
- * `GUSTALE_DB_IS_THROWAWAY` is set by .github/workflows/ci.yml. On a
- * GitHub runner, 127.0.0.1:5432 is the job's own service container --
- * it exists for one job and is never the production VPS's Postgres.
- */
-function serverIsThrowaway(): boolean {
-  return process.env.GUSTALE_DB_IS_THROWAWAY === "1";
-}
-
 /**
  * The database name in a postgres DSN.
  *
- * Handles the URL form (postgresql://user:pw@host:port/db?opts) and the
+ * Handles the URL form (postgresql://user:***@host:port/db?opts) and the
  * keyword form (dbname=x host=y).
  */
 function databaseNameFromDsn(dsn: string): string | null {
@@ -100,35 +76,42 @@ function databaseNameFromDsn(dsn: string): string | null {
 const dsn = process.env.DATABASE_URL ?? "";
 const dbName = databaseNameFromDsn(dsn);
 
-if (dbName === LIVE_DB && !serverIsThrowaway()) {
-  // The ONLY way past this is an explicit, per-invocation opt-in — the
-  // same variable the rest of the toolchain uses. It exists so that
-  // reaching live is always a deliberate act.
-  if (!liveAllowed()) {
-    console.error(
-      [
-        "",
-        "  REFUSED: the test suite would run against the LIVE database",
-        `  (${LIVE_DB}).`,
-        "",
-        "  The test suite must never run against production: it can write",
-        "  to it, and even a read-only test can change the numbers another",
-        "  test asserts on.",
-        "",
-        "  The DATABASE_URL resolved to the live database. This usually",
-        "  means a stale DATABASE_URL is set in the shell — dotenv does",
-        "  NOT override an existing one, so the shell wins silently.",
-        "",
-        "  Point the tests at a scratch database:",
-        "",
-        "      GUSTALE_SCRATCH_DB=gustale_dev <your test command>",
-        "",
-        "  ...or unset the stale variable so apps/api/.env is used:",
-        "",
-        "      env -u DATABASE_URL <your test command>",
-        "",
-      ].join("\n"),
-    );
-    process.exit(1);
-  }
+if (dbName === LIVE_DB) {
+  // THE LIVE NAME IS REFUSED ALWAYS.
+  //
+  // No environment variable can turn this off. In particular NOT
+  // GUSTALE_DB_IS_THROWAWAY=1, which is what allowed the live
+  // database to be dropped on 2026-11-06: a stale export of it in a
+  // production shell made the old rule ("live only when the server
+  // is not a declared throwaway") hand out the live name.
+  //
+  // The test suite must never run against production: it can write to
+  // it, and even a read-only test can change the numbers another test
+  // asserts on.
+  //
+  // The DATABASE_URL resolved to the live database. This usually means
+  // a stale DATABASE_URL is set in the shell — dotenv does NOT
+  // override an existing one, so the shell wins silently.
+  console.error(
+    [
+      "",
+      "  REFUSED: the test suite would run against the LIVE database",
+      `  (${LIVE_DB}).`,
+      "",
+      "  The live NAME is refused ALWAYS. No environment variable can",
+      "  override this — in particular NOT GUSTALE_DB_IS_THROWAWAY=1,",
+      "  which is what allowed the live database to be dropped on",
+      "  2026-11-06.",
+      "",
+      "  Point the tests at a scratch database:",
+      "",
+      "      GUSTALE_SCRATCH_DB=gustale_dev <your test command>",
+      "",
+      "  ...or unset the stale variable so apps/api/.env is used:",
+      "",
+      "      env -u DATABASE_URL <your test command>",
+      "",
+    ].join("\n"),
+  );
+  process.exit(1);
 }

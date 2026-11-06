@@ -389,7 +389,9 @@ def main() -> int:
     # Vet the target BEFORE touching anything. This refuses the live
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
     # invocation.
-    args.db = db_guard.resolve(args.db, purpose="populate_description_sentences.py")
+    args.db = db_guard.resolve_target(
+        args.db, purpose="populate_description_sentences.py"
+    )
 
     if not can_connect(args.db):
         print(f"[populate] CANNOT REACH the database {args.db}.")

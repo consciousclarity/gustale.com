@@ -172,6 +172,12 @@ def main() -> int:
     ap.add_argument("--no-write", action="store_true")
     args = ap.parse_args()
 
+    # Vet the target BEFORE touching anything. The live name needs the
+    # guard's full three-signal opt-in; see scripts/lib/db_guard.py.
+    args.db = db_guard.resolve_target(
+        args.db, purpose="gus-014-audit-relations.py", write=False
+    )
+
     # ---- every relation row with both dish slugs ----
     rows = psql(args.db, """
         SELECT dr.from_dish_id::text, f.slug, f.canonical_name,

@@ -589,6 +589,12 @@ def main() -> int:
                     help="do not write the report or SQL to disk (for the regression test)")
     args = ap.parse_args()
 
+    # Vet the target BEFORE touching anything. The live name needs the
+    # guard's full three-signal opt-in; see scripts/lib/db_guard.py.
+    args.db = db_guard.resolve_target(
+        args.db, purpose="gus-014-build-118-mapping.py", write=False
+    )
+
     # ---- verify the script's vocabulary matches the live tables ----
     table_for = {
         "dish_family": "dish_families", "dish_cuisine": "dish_cuisines",

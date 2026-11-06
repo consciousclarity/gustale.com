@@ -374,7 +374,9 @@ def main() -> int:
 
     # Vet the target BEFORE touching anything. This raises and exits
     # non-zero if the target is live and this invocation did not opt in.
-    TARGET_DATABASE = db_guard.resolve(args.database, purpose="cite_pool_a.py")
+    TARGET_DATABASE = db_guard.resolve_target(
+        args.database, purpose="cite_pool_a.py"
+    )
 
     if TARGET_DATABASE != db_guard.LIVE_DB:
         print(f"[cite] the target database: {TARGET_DATABASE}")

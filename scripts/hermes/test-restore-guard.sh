@@ -11,7 +11,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/gus-014-pilot-snapshot.sh"
 LIVE_DB="${LIVE_DB:-gustale}"
-PG_CONTAINER="${PG_CONTAINER:-shared-postgres}"
+# The DEDICATED TEST POSTGRES, not `shared-postgres`.
+#
+# `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED, and the
+# production cluster hosts the live database and five other projects'
+# databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
+# destroyed the live database. A throwaway test database belongs on
+# the test container.
+# shellcheck source=scripts/lib/test_pg.sh
+source "$REPO_ROOT/scripts/lib/test_pg.sh"
+PG_CONTAINER="${PG_CONTAINER:-$TEST_PG_CONTAINER}"
+
 PG_SUPERUSER="${PG_SUPERUSER:-postgres}"
 SNAPSHOT_DIR="${GUS014_SNAPSHOT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)/.hermes/snapshots/gus-014}"
 

@@ -22,11 +22,21 @@
 set -uo pipefail
 
 DB="${1:-gustale_ci_repro}"
-CONTAINER=shared-postgres
+
+# The DEDICATED TEST POSTGRES, never `shared-postgres`.
+#
+# `DROP DATABASE` is CLUSTER-SCOPED, and the production cluster hosts
+# the live database and five other projects' databases. On 2026-11-06
+# a `DROP DATABASE` aimed at this cluster destroyed the live database.
+# The CI reproduction runs on the test container, which is exactly what
+# the CI runner does (its own Postgres service).
+# shellcheck source=scripts/lib/test_pg.sh
+source scripts/lib/test_pg.sh
+CONTAINER="$TEST_PG_CONTAINER"
 
 echo "=== creating $DB ==="
-docker exec -u postgres "$CONTAINER" psql -U postgres -d postgres \
-  -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
+test_pg_up
+test_pg_create "$DB"
 
 # The ATLAS migrations run as the `postgres` SUPERUSER, exactly as they
 # run on live.

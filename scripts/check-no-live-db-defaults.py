@@ -197,10 +197,12 @@ GUARD_IMPORT = re.compile(r"db[-_]guard|from\s+lib\.db_guard|scripts\.lib\.db_gu
 NO_DB_SCRIPTS = {
     "scripts/lib/db_guard.py",
     "scripts/check-no-live-db-defaults.py",
-    # The scanner's OWN test file. It contains live-database strings on
+    # The scanners' OWN test files. They contain live-database strings on
     # purpose: they are the test cases. Flagging them would mean the
-    # scanner cannot be tested.
+    # scanners cannot be tested.
     "scripts/test-check-no-live-db-defaults.py",
+    "scripts/check-no-production-db-drops.py",
+    "scripts/test-check-no-production-db-drops.py",
 }
 
 #: Files under scripts/ that are not scripts.
@@ -356,21 +358,31 @@ def collect_files() -> list[Path]:
 def _guards_its_drop_target(text: str) -> bool:
     """Does this script already refuse the live database as a target?
 
-    Two shapes count:
+    Three shapes count:
 
       * it uses the shared guard -- `import db_guard` or `db_guard.`; and
       * it has its own check -- a comparison against the live db name in
         a condition, e.g. `if [ "$t" = "$LIVE_DB" ]`.
+      * it refuses the live name by NAME, in any form.
 
     The second shape matters: several scripts predate the shared guard
     and have their own refusal, which is just as safe. A scanner that
     only understood the shared guard would report them all as unsafe and
     get ignored for crying wolf.
+
+    The third shape is the same idea for the dedicated test Postgres
+    (scripts/lib/test_pg.sh): it refuses the live NAME before it will
+    create or drop anything, and the refusal is unconditional. A script
+    that does that is safe by construction, whatever container it runs
+    against.
     """
     if "import db_guard" in text or "db_guard." in text:
         return True
     # A live-db comparison: `= "$LIVE_DB"`, `== "gustale"`, etc.
     if re.search(r'LIVE_DB', text) and re.search(r'=\s*"?\$\{?LIVE_DB', text):
+        return True
+    # A refusal of the live NAME, by literal: `[ "$x" = "gustale" ]`.
+    if re.search(r'=\s*"gustale"', text) or re.search(r'=\s*\'gustale\'', text):
         return True
     if re.search(r'forbidden_target|refuse.*live|refus.*live', text, re.IGNORECASE):
         return True

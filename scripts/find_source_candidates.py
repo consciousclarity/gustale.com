@@ -101,7 +101,7 @@ TIMEOUT = 30
 #: would have put candidate rows into production on the first run that
 #: forgot to pass `--db`. The guard is resolved once, here, so no
 #: later call can silently switch databases mid-run.
-DB_NAME = db_guard.resolve(
+DB_NAME = db_guard.resolve_target(
     os.environ.get("GUSTALE_DB_NAME") or db_guard.scratch_database(),
     purpose="find_source_candidates.py",
 )

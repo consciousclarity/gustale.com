@@ -21,7 +21,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SNAPSHOT_DIR="${GUS014_SNAPSHOT_DIR:-$REPO_ROOT/.hermes/snapshots/gus-014}"
-PG_CONTAINER="${PG_CONTAINER:-shared-postgres}"
+# The DEDICATED TEST POSTGRES, not `shared-postgres`.
+#
+# `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED, and the
+# production cluster hosts the live database and five other projects'
+# databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
+# destroyed the live database. A throwaway test database belongs on
+# the test container.
+# shellcheck source=scripts/lib/test_pg.sh
+source "$REPO_ROOT/scripts/lib/test_pg.sh"
+PG_CONTAINER="${PG_CONTAINER:-$TEST_PG_CONTAINER}"
+
 PG_SUPERUSER="${PG_SUPERUSER:-postgres}"
 LIVE_DB="${LIVE_DB:-gustale}"
 TEST_DB="${GUS014_TEST_DB:-gustale_pilot_rollback_test}"

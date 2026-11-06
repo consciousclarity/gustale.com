@@ -609,7 +609,9 @@ def main() -> int:
     # Vet the target BEFORE touching anything. This refuses the live
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
     # invocation.
-    TARGET_DATABASE = db_guard.resolve(args.database, purpose="classify_pool_a_families.py")
+    TARGET_DATABASE = db_guard.resolve_target(
+        args.database, purpose="classify_pool_a_families.py"
+    )
     if TARGET_DATABASE != db_guard.LIVE_DB:
         print(f"[classify] the target database: {TARGET_DATABASE}")
 

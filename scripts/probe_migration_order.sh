@@ -26,15 +26,23 @@ set -euo pipefail
 # guard -- which refuses `gustale` unless the process has made the
 # explicit per-invocation opt-in.
 DB="$(python3 scripts/lib/db_guard.py probe_migration_order.sh gustale_order_probe)"
-DOCKER=(docker exec -u postgres -i shared-postgres)
+
+# The DEDICATED TEST POSTGRES, never `shared-postgres`.
+#
+# `DROP DATABASE` is CLUSTER-SCOPED, and the production cluster hosts
+# the live database and five other projects' databases. On 2026-11-06
+# a `DROP DATABASE` aimed at this cluster destroyed the live database.
+# shellcheck source=scripts/lib/test_pg.sh
+source scripts/lib/test_pg.sh
+DOCKER=(docker exec -u postgres -i "$TEST_PG_CONTAINER")
 
 psql_run() {
   "${DOCKER[@]}" psql -U postgres -d "$1" -v ON_ERROR_STOP=1 -f - "${@:2}"
 }
 
 echo "=== creating a fresh probe database ==="
-"${DOCKER[@]}" psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS ${DB};" >/dev/null
-"${DOCKER[@]}" psql -U postgres -d postgres -c "CREATE DATABASE ${DB};" >/dev/null
+test_pg_up
+test_pg_create "$DB"
 "${DOCKER[@]}" psql -U postgres -d "$DB" \
   -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
   -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" >/dev/null

@@ -122,8 +122,8 @@ def main() -> int:
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS
     # invocation. See scripts/lib/db_guard.py for why the opt-in is a
     # separate variable.
-    args.db = db_guard.resolve(
-        args.db, purpose="gus-014-check-other-dishes.py"
+    args.db = db_guard.resolve_target(
+        args.db, purpose="gus-014-check-other-dishes.py", write=False
     )
 
     snap = pathlib.Path(args.snapshot_dir)

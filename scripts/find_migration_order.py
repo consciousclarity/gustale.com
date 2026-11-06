@@ -33,6 +33,7 @@ fixed in place.
 Output: the working order, one path per line.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +46,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 import db_guard  # noqa: E402
 
 DB = db_guard.resolve("gustale_order_probe", purpose="find_migration_order.py")
+
+#: The DEDICATED TEST POSTGRES, never `shared-postgres`.
+#:
+#: `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED, and the
+#: production cluster hosts the live database and five other projects'
+#: databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
+#: destroyed the live database. This script creates and drops a probe
+#: database, so it must never touch the production cluster.
+TEST_PG_CONTAINER = os.environ.get("GUSTALE_TEST_PG_CONTAINER", "gustale-test-postgres")
 
 DRIZZLE = sorted(
     str(p) for p in Path("packages/db/drizzle").glob("*.sql")
@@ -60,7 +70,7 @@ SEEDS = [
 
 def d(sql: str, db: str = "postgres") -> str:
     r = subprocess.run(
-        ["docker", "exec", "-u", "postgres", "-i", "shared-postgres",
+        ["docker", "exec", "-u", "postgres", "-i", TEST_PG_CONTAINER,
          "psql", "-U", "postgres", "-d", db, "-tAc", sql],
         capture_output=True, text=True,
     )
@@ -70,7 +80,7 @@ def d(sql: str, db: str = "postgres") -> str:
 def apply(path: str) -> tuple[bool, str]:
     with open(path, "rb") as fh:
         r = subprocess.run(
-            ["docker", "exec", "-u", "postgres", "-i", "shared-postgres",
+            ["docker", "exec", "-u", "postgres", "-i", TEST_PG_CONTAINER,
              "psql", "-U", "postgres", "-d", DB, "-v", "ON_ERROR_STOP=1", "-f", "-"],
             stdin=fh, capture_output=True, text=True,
         )
