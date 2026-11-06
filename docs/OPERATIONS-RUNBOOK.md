@@ -39,11 +39,32 @@ Because the App lacks the `workflows` scope, a workflow change cannot be committ
 pushed by the agent. The established pattern is:
 
 1. Make the workflow change in the working tree.
-2. Generate it as a **file in the branch**: `docs/ci-workflow-live-db-guard.patch`.
+2. Generate it as a **file in the branch**, named `docs/ci-workflow-<what-it-fixes>.patch`.
 3. Keep a local-only cherry-pickable commit for the same change.
 4. The patch must apply cleanly against real `origin/main`.
 
 The owner applies the patch to the **PR branch**, never directly to `main`.
+
+### A patch artifact is SPENT once its change has landed
+
+A patch describes a diff against a specific base. Once that diff is merged,
+the patch no longer applies — and `git apply` fails with "patch does not
+apply", which reads like the patch is broken when it is simply obsolete.
+
+`docs/ci-workflow-live-db-guard.patch` is in this state: PR #190 merged its
+change on 2026-11-06, so the artifact no longer applies to `main`. It is kept
+as the record of how that change was delivered, not as something to apply.
+
+**Before applying any patch artifact, check it against the current `main`:**
+
+```bash
+TMP=$(mktemp -d) && git archive origin/main | tar -x -C "$TMP" \
+  && (cd "$TMP" && git init -q . && git apply --check /abs/path/to.patch)
+```
+
+Exit 0 means it applies. Anything else means either the base moved or the
+change already landed — read the artifact's own evidence doc before assuming
+it is broken.
 
 ### The chain validator's three lists
 

@@ -147,6 +147,26 @@ only `.github/workflows/nightly.yml`.
 **Apply it to the PR branch, not to `main`** — the same rule as the existing
 `docs/ci-workflow-live-db-guard.patch` (`docs/OPERATIONS-RUNBOOK.md` §3).
 
+### `main` needs it too, and it is broken there independently
+
+The Nightly is broken on `main` right now: every run since 2026-11-02 fails
+at "Reset database" with `ERROR: role "gustale" does not exist`. That is
+defect 1, and it predates PR #190 — it is not something this PR introduced.
+
+So the patch is needed in two places:
+
+1. **This PR's branch** — so the Nightly is correct when this merges.
+2. **`main` itself** — because the Nightly is broken there today. The
+   `gustale_ci` rename that `main` still needs is what
+   `docs/ci-workflow-live-db-guard.patch` carries; that artifact is **spent**
+   (its change merged in PR #190), so the rename must be applied by hand or
+   regenerated against the current `main`.
+
+Verified against the current `main` (63ca153): applying
+`docs/ci-workflow-nightly-fixes.patch` to a clean checkout of it exits 0 and
+produces a `nightly.yml` that parses and whose "Reset database" step runs the
+role setup before the GRANT.
+
 After it is applied, the Nightly's `Reset database` step runs:
 
 1. `scripts/ci-migration-role.sql` as the superuser → creates `gustale` as an
