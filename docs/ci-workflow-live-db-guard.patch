@@ -1,0 +1,392 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 84fbcde..a928342 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -35,21 +35,33 @@ env:
+   COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+   # Test against the real DATABASE_URL the app uses; the service container
+   # below provides postgis/postgis:16-3.4 on 127.0.0.1:5432.
+-  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale
+-  # The Postgres SERVICE container below is deliberately named `gustale`,
+-  # so that the CI schema mirrors live's exactly -- same dbname, same
+-  # roles, same guards. That makes the dbname alone unable to identify
+-  # the live database, so scripts/lib/db_guard.py also asks WHICH SERVER
+-  # it is talking to.
++  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale_ci
++  # The Postgres SERVICE container below is named `gustale_ci`, NOT
++  # `gustale`.
+   #
+-  # On a GitHub runner, 127.0.0.1:5432 is the job's own service
+-  # container -- it exists for one job and is never the production VPS's
+-  # Postgres. So the server here is a throwaway, and this says so.
++  # It used to be named `gustale`, so the CI schema mirrored live's
++  # exactly -- same dbname, same roles, same guards. That was a
++  # reasonable idea and it cost us the guard's safety.
+   #
+-  # This is a statement about the SERVER, not about the data. It does NOT
+-  # let a diagnostic write to live: on the production host the guard
+-  # still refuses the live database without GUSTALE_LIVE_DB_ALLOW=1.
+-  GUSTALE_DB_IS_THROWAWAY: "1"
++  # Because the CI's database had the LIVE NAME, a name could not
++  # identify the live database, so scripts/lib/db_guard.py had to ask
++  # WHICH SERVER it was talking to as well -- using
++  # GUSTALE_DB_IS_THROWAWAY. And on 2026-11-06 a stale
++  # GUSTALE_DB_IS_THROWAWAY=1 in a PRODUCTION shell made that check
++  # pass, so the guard handed out the live name to a script that then
++  # DROPPED the live database. It was restored from a backup.
++  #
++  # The lesson: a name that must never be dropped may not be protected
++  # by a flag that anyone can set. So the CI's database is now named
++  # `gustale_ci`, the live NAME `gustale` is unique on this host, and
++  # the guard refuses it by name alone -- with no environment variable
++  # able to widen that permission.
++  #
++  # The schema still mirrors live's exactly: the same roles, the same
++  # guards, the same migrations. Only the NAME differs.
++  #
++  # GUSTALE_DB_IS_THROWAWAY is gone. It existed only to say "this
++  # server is not production", which is now expressed by the name.
+   SESSION_SECRET: ci-session-secret-do-not-use-anywhere-real
+   AUTH_SECRET: ci-auth-secret-do-not-use-anywhere-real
+   # These must be set so env.ts's Zod schema passes — even though the
+@@ -137,6 +149,23 @@ jobs:
+           python3 scripts/check-no-live-db-defaults.py
+           python3 scripts/test-db-guard.py
+ 
++      # `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED: they
++      # act on the whole Postgres instance, not on one database. The
++      # production cluster (`shared-postgres`) is shared with other
++      # projects, so a script that drops a database there is a hazard
++      # for all of them -- and on 2026-11-06 it dropped the LIVE one.
++      #
++      # This step fails the build if any script can drop a database on
++      # the production cluster. A throwaway database belongs on the
++      # DEDICATED TEST Postgres (scripts/lib/test_pg.sh).
++      #
++      # The test comes FIRST, and it is the point: the scanner must be
++      # able to FAIL. A gate that cannot fail is not a gate.
++      - name: No script may drop a database on the production cluster
++        run: |
++          python3 scripts/test-check-no-production-db-drops.py
++          python3 scripts/check-no-production-db-drops.py
++
+       # The rebuild timer must FAIL CLOSED.
+       #
+       # A failed `git fetch` does not update origin/main -- it FREEZES
+@@ -283,7 +312,7 @@ jobs:
+           # checks answer the same way live's do.
+           POSTGRES_USER: postgres
+           POSTGRES_PASSWORD: gustale
+-          POSTGRES_DB: gustale
++          POSTGRES_DB: gustale_ci
+         ports:
+           - 5432:5432
+         options: >-
+@@ -399,7 +428,7 @@ jobs:
+           # administrative by accident. Now the superuser is `postgres`,
+           # the bot's role is an ordinary role, and this step is where the
+           # separation is actually established.
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/ci-migration-role.sql
+ 
+           # THE MIGRATIONS RUN AS `postgres` — THE ADMIN — EXACTLY AS
+@@ -443,7 +472,7 @@ jobs:
+           # scripts/find_migration_order.py, which applies the files to a
+           # fresh database and reports any that cannot be placed.
+           set -euo pipefail
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -c "CREATE EXTENSION IF NOT EXISTS postgis;" \
+             -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+ 
+@@ -454,7 +483,7 @@ jobs:
+           fi
+           for f in "${drizzle_files[@]}"; do
+             echo "Applying $f"
+-            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 -f "$f"
++            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 -f "$f"
+           done
+ 
+           # The GUS-xxx chain, in dependency order. See the list in
+@@ -481,12 +510,12 @@ jobs:
+               exit 1
+             fi
+             echo "Applying $f"
+-            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 -f "$f"
++            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 -f "$f"
+           done
+ 
+       - name: Apply seed
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f packages/db/seed-moussaka.sql \
+             -f packages/db/seed-journey.sql
+           # Mark the database as DISPOSABLE.
+@@ -505,7 +534,7 @@ jobs:
+       # creates it that way.
+       - name: Mark the database as disposable
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/mark_disposable_db.sql
+ 
+       # The FOUR REFERENCE DISHES are seeded in a LATER step, after
+@@ -589,7 +618,7 @@ jobs:
+               exit 1
+             fi
+             echo "Applying $f"
+-            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 -f "$f"
++            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 -f "$f"
+           done
+ 
+       # The API imports the schema tables from @gustale/db, which
+@@ -619,7 +648,7 @@ jobs:
+ 
+       - name: Apply the GUS-239 archive
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0032_gus239_archive_dish_translations.sql
+ 
+       # The English name for every dish that lacks one in dish_names.
+@@ -628,7 +657,7 @@ jobs:
+       # part of that coverage.
+       - name: Apply the GUS-239 English names
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0033_gus239_english_names.sql
+ 
+       # The FOUR REFERENCE DISHES — rendang, chicken-tikka-masala,
+@@ -664,7 +693,7 @@ jobs:
+       # That is what they are for.
+       - name: Apply the atlas reference dishes
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f packages/db/seed-atlas-references.sql
+ 
+       # 0034 fixes the one corrupted row in the 1e traditions load — a row
+@@ -677,7 +706,7 @@ jobs:
+       # are two copies of the same thing, and they had already diverged.
+       - name: Apply the corrupted-tradition fix
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0034_gus242_fix_corrupted_tradition.sql
+ 
+       # `categories.kind` — the column that was in the LIVE database since
+@@ -700,7 +729,7 @@ jobs:
+       # live too, where it is a no-op.
+       - name: Apply the categories.kind column
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0035_categories_kind.sql
+ 
+       # 0036 is ADR-004's additive schema: the three evidence axes on
+@@ -716,7 +745,7 @@ jobs:
+       # exists but does not hold is worse than no schema.
+       - name: Apply the ADR-004 atlas schema
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0036_atlas_schema.sql
+ 
+       # The marker check: the gate prints ATLAS_SCHEMA_TESTS, and the
+@@ -732,7 +761,7 @@ jobs:
+           # being able to fail. With it, the step fails if EITHER psql
+           # OR tee fails.
+           set -o pipefail
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/test_atlas_schema.sql 2>&1 | tee /tmp/atlas_schema.log
+           bash scripts/check-ci-markers.sh "the atlas schema gate" "ATLAS_SCHEMA_TESTS" /tmp/atlas_schema.log
+ 
+@@ -748,7 +777,7 @@ jobs:
+       # legacy tables — and refuses to be trusted if the numbers differ.
+       - name: Apply the ADR-004 atlas backfill
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0037_atlas_backfill.sql
+ 
+       # 0038 is the publish credential. The `verified` and `published`
+@@ -760,7 +789,7 @@ jobs:
+       # Additive and idempotent: one table, one function.
+       - name: Apply the publish credential
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0038_publish_credential.sql
+ 
+       # The constraint tests AGAIN, now with the D9 publish-credential
+@@ -772,7 +801,7 @@ jobs:
+       - name: Test the publish credential constraints
+         run: |
+           set -o pipefail
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/test_atlas_schema.sql 2>&1 | tee /tmp/publish_credential.log
+           bash scripts/check-ci-markers.sh "the publish credential gate" "ATLAS_SCHEMA_TESTS" /tmp/publish_credential.log
+ 
+@@ -788,7 +817,7 @@ jobs:
+       # reviewer decides. It creates no association and decides nothing.
+       - name: Apply the journey place queue
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0039_journey_place_queue.sql
+ 
+       # 0040 is the PUBLICATION PREDICATE (ADR-004 D8.2). It writes NO
+@@ -805,7 +834,7 @@ jobs:
+       # database by another route must not be served.
+       - name: Apply the publication predicate
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0040_atlas_publication_predicate.sql
+ 
+       # 0041 is the ROLE SEPARATION for the publish credential.
+@@ -820,7 +849,7 @@ jobs:
+       # strengthens the trigger so the check is on the WRITER.
+       - name: Apply the credential role separation
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0041_credential_role_separation.sql
+ 
+       # 0042 revokes TRIGGER and REFERENCES on publish_credential from the
+@@ -838,7 +867,7 @@ jobs:
+       # it reads the credential row AS ITS CALLER, and the bot calls it.
+       - name: Apply the credential trigger revocation
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0042_credential_trigger_revocation.sql
+ 
+       # The escalation check — a separate file, run after 0042.
+@@ -855,9 +884,9 @@ jobs:
+       - name: The credential escalation check
+         run: |
+           set -o pipefail
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/mark_disposable_db.sql
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/test_atlas_trigger_escalation.sql 2>&1 | tee /tmp/trigger_escalation.log
+           bash scripts/check-ci-markers.sh "the trigger escalation gate" "ATLAS_TRIGGER_ESCALATION" /tmp/trigger_escalation.log
+ 
+@@ -866,14 +895,14 @@ jobs:
+       # the unmatched dish-type and course-group rows for a reviewer.
+       - name: Apply the taxonomy canonicalisation
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0043_taxonomy_canonicalisation.sql
+ 
+       # 0044 — the queue item for `yukkuri-shite-itte-ne`, the one entry
+       # in the 1,354-row Pool A batch that is not a food.
+       - name: Apply the not-a-dish queue item
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0044_not_a_dish_queue.sql
+ 
+       # 0045 — corrects the credential guard function's comment, which
+@@ -883,7 +912,7 @@ jobs:
+       # guard does and does not guarantee.
+       - name: Apply the credential guard comment
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0045_credential_guard_comment.sql
+ 
+       # ── 0046: the candidate-source table (GUS-1010) ──────────────────
+@@ -893,7 +922,7 @@ jobs:
+       # ever verified. See db/migrations/0046_source_candidates.sql.
+       - name: Apply the source candidates table
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0046_source_candidates.sql
+ 
+       # ── 0047: the publish credential is bound to the session ────────
+@@ -904,7 +933,7 @@ jobs:
+       # does and does not protect against.
+       - name: Apply the publish credential session binding
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0047_publish_credential_session_binding.sql
+ 
+       # ── 0048: a BOT must never hold a publish credential ───────────
+@@ -920,14 +949,14 @@ jobs:
+       # 0048 amends the replacement.
+       - name: Apply the bot credential guard
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0048_bot_credential_guard.sql
+ 
+       # The bot guard's REGRESSION TEST: it proves the bot's credential
+       # is REFUSED and a human's is ALLOWED.
+       - name: Test the bot credential guard
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/test_bot_credential_guard.sql
+ 
+       # The FIXTURES — a SEED, not a migration.
+@@ -940,7 +969,7 @@ jobs:
+       # what keeps the live migration chain from ever running it.
+       - name: Apply the atlas fixtures
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f packages/db/seed-atlas-fixtures.sql
+ 
+       # The PER-DISH backfill assertions. LAST, because they assert the
+@@ -960,7 +989,7 @@ jobs:
+       - name: Assert the atlas backfill per dish
+         run: |
+           set -o pipefail
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f scripts/test_atlas_backfill.sql 2>&1 | tee /tmp/atlas_backfill.log
+           bash scripts/check-ci-markers.sh "the backfill gate" "ATLAS_COUNT_GUARD" /tmp/atlas_backfill.log
+ 
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+index 26a4b83..d9f8bfc 100644
+--- a/.github/workflows/nightly.yml
++++ b/.github/workflows/nightly.yml
+@@ -11,7 +11,7 @@ concurrency:
+ 
+ env:
+   COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+-  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale
++  DATABASE_URL: postgres://gustale:gustale@127.0.0.1:5432/gustale_ci
+   SESSION_SECRET: nightly-session-secret-do-not-use-anywhere-real
+   AUTH_SECRET: nightly-auth-secret-do-not-use-anywhere-real
+   # Mirror the same env-validator-required dummies as ci.yml.
+@@ -46,7 +46,7 @@ jobs:
+           # the chain applies the migrations.
+           POSTGRES_USER: postgres
+           POSTGRES_PASSWORD: gustale
+-          POSTGRES_DB: gustale
++          POSTGRES_DB: gustale_ci_ci
+         ports:
+           - 5432:5432
+         options: >-
+@@ -102,7 +102,7 @@ jobs:
+       # either.
+       - name: Reset database
+         run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 <<'SQL'
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 <<'SQL'
+             DROP SCHEMA IF EXISTS public CASCADE;
+             CREATE SCHEMA public;
+             GRANT ALL ON SCHEMA public TO gustale;
