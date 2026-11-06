@@ -391,6 +391,23 @@ run_pg -f - < "$(dirname "$0")/../scripts/test_bot_credential_guard.sql" > /tmp/
   || { echo "  FAILED: the bot credential guard's test"; grep -E 'ERROR' /tmp/repro_bot_guard.log | head -6; fail=1; }
 grep -E 'BOT_CREDENTIAL_GUARD_TEST_OK' /tmp/repro_bot_guard.log | tail -1 || true
 
+# 0049 — adds `dishes.content_type`, an EXPLICIT EDITORIAL field with
+# a verified backfill, and re-points Pelamushi's family from 'drink' to
+# 'dessert'.
+#
+# It must run BEFORE the API tests: `GET /api/dishes` and
+# `GET /api/dishes/:slug` both SELECT `dishes.content_type`, so
+# without this column every dish query returns 500:
+#
+#     ERROR: column "content_type" does not exist
+#
+# The migration carries its own behavioural proof and FAILS if the
+# backfill does not land.
+step "the content_type column and its verified backfill"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0049_content_type.sql" > /tmp/repro_0049.log 2>&1 \
+  || { echo "  FAILED: 0049"; grep -E 'ERROR' /tmp/repro_0049.log | head -6; fail=1; }
+grep -E 'CONTENT_TYPE_BACKFILL_OK' /tmp/repro_0049.log | tail -1 || true
+
 step "the atlas fixtures"
 run_pg -f - < "$(dirname "$0")/../packages/db/seed-atlas-fixtures.sql" > /tmp/repro_fixtures.log 2>&1 \
   || { echo "  FAILED: the atlas fixtures"; grep -E 'ERROR' /tmp/repro_fixtures.log | head -6; fail=1; }
