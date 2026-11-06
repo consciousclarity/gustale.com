@@ -9,6 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SCRIPT="$SCRIPT_DIR/gus-014-pilot-snapshot.sh"
 LIVE_DB="${LIVE_DB:-gustale}"
 # The DEDICATED TEST POSTGRES, not `shared-postgres`.
@@ -20,7 +21,18 @@ LIVE_DB="${LIVE_DB:-gustale}"
 # the test container.
 # shellcheck source=scripts/lib/test_pg.sh
 source "$REPO_ROOT/scripts/lib/test_pg.sh"
-PG_CONTAINER="${PG_CONTAINER:-$TEST_PG_CONTAINER}"
+# The container is NOT settable from the environment, and that is the
+# point. `PG_CONTAINER="${PG_CONTAINER:-$TEST_PG_CONTAINER}"` looked
+# safe -- the default was the test container -- but it is NOT: the
+# environment wins, so a stale `PG_CONTAINER=shared-postgres` in a
+# production shell aimed this script's `DROP DATABASE` at the
+# PRODUCTION cluster. That is the 2026-11-06 incident.
+#
+# So the container here is a CONSTANT, not a default. A test script
+# that can be pointed at production by an environment variable is a
+# test script that can destroy production.
+PG_CONTAINER="$TEST_PG_CONTAINER"
+export PG_CONTAINER
 
 PG_SUPERUSER="${PG_SUPERUSER:-postgres}"
 SNAPSHOT_DIR="${GUS014_SNAPSHOT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)/.hermes/snapshots/gus-014}"

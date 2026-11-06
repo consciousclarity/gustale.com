@@ -333,10 +333,15 @@ def _is_scannable(path: Path) -> bool:
 
 
 def _rel(path: Path) -> str:
+    # POSIX separators, ALWAYS. `str(Path)` uses the platform's
+    # separator, so on Windows this returned `scripts\\dbq.sh` while
+    # every allowlist key is `scripts/dbq.sh` -- the allowlist lookup
+    # missed EVERY entry, and the scanner reported allowlisted scripts
+    # as violations on a developer machine.
     try:
-        return str(path.relative_to(REPO))
+        return path.relative_to(REPO).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 def collect_files() -> list[Path]:

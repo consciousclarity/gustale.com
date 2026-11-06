@@ -26,7 +26,21 @@ SNAPSHOT_DIR="${GUS014_SNAPSHOT_DIR:-$REPO_ROOT/.hermes/snapshots/gus-014}"
 # the test container.
 # shellcheck source=scripts/lib/test_pg.sh
 source "$REPO_ROOT/scripts/lib/test_pg.sh"
-PG_CONTAINER="${PG_CONTAINER:-$TEST_PG_CONTAINER}"
+#: The DEDICATED TEST POSTGRES.
+#:
+#: The container is NOT settable from the environment, and that is the
+#: point. `PG_CONTAINER="${PG_CONTAINER:-$TEST_PG_CONTAINER}"` looked
+#: safe -- the default was the test container -- but it is NOT: the
+#: environment wins, so a stale `PG_CONTAINER=shared-postgres` in a
+#: production shell aimed every `DROP DATABASE` in this script at the
+#: PRODUCTION cluster. That is the 2026-11-06 incident, and this
+#: script's `cleanup` runs it.
+#:
+#: So the container here is a CONSTANT, not a default. A test script
+#: that can be pointed at production by an environment variable is a
+#: test script that can destroy production.
+PG_CONTAINER="$TEST_PG_CONTAINER"
+export PG_CONTAINER
 
 PG_SUPERUSER="${PG_SUPERUSER:-postgres}"
 LIVE_DB="${LIVE_DB:-gustale}"

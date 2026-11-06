@@ -22,6 +22,16 @@ The cases:
   6. a script that only mentions the words in a comment          -> ALLOWED
   7. a script that only mentions the words in a docstring        -> ALLOWED
   8. an allowlisted script (a copy of live)                     -> ALLOWED
+  9. a variable whose DEFAULT is the production container        -> CAUGHT
+ 10. a variable the ENVIRONMENT can point at production          -> CAUGHT
+ 11. a variable pointing at the TEST container                   -> ALLOWED
+ 12. the destructive statement in a FUNCTION it calls             -> CAUGHT
+
+Cases 9 to 12 are the ones the first version of this scanner got
+wrong. It asked whether a line NAMED the production container, and
+a line that says `docker exec "$PG_CONTAINER"` names nothing -- so
+it passed. That is the 2026-11-06 incident in script form, and a
+gate that passes it is a gate that is not there.
 """
 from __future__ import annotations
 
@@ -104,6 +114,45 @@ def main() -> int:
     return 0
 ''',
         False,
+    ),
+    (
+        "a variable whose DEFAULT is the production container",
+        """#!/usr/bin/env bash
+PG_CONTAINER="${PG_CONTAINER:-shared-postgres}"
+docker exec -u postgres "$PG_CONTAINER" psql -U postgres -d postgres \\
+  -c "DROP DATABASE IF EXISTS gustale_scratch;"
+""",
+        True,
+    ),
+    (
+        "a variable the ENVIRONMENT can point at production",
+        """#!/usr/bin/env bash
+PG_CONTAINER="${PG_CONTAINER:-gustale-test-postgres}"
+docker exec -u postgres "$PG_CONTAINER" psql -U postgres -d postgres \\
+  -c "DROP DATABASE IF EXISTS gustale_scratch;"
+""",
+        True,
+    ),
+    (
+        "a variable pointing at the TEST container",
+        """#!/usr/bin/env bash
+PG_CONTAINER="gustale-test-postgres"
+docker exec -u postgres "$PG_CONTAINER" psql -U postgres -d postgres \\
+  -c "DROP DATABASE IF EXISTS gustale_scratch;"
+""",
+        False,
+    ),
+    (
+        "the destructive statement in a FUNCTION it calls",
+        """#!/usr/bin/env bash
+PG_CONTAINER="shared-postgres"
+psql_run() {
+  local db="$1"; shift
+  docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d "$db" "$@"
+}
+psql_run postgres -c "DROP DATABASE IF EXISTS gustale_scratch;"
+""",
+        True,
     ),
 ]
 

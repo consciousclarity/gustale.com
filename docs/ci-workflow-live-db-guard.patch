@@ -382,7 +382,7 @@ index 26a4b83..d9f8bfc 100644
            POSTGRES_USER: postgres
            POSTGRES_PASSWORD: gustale
 -          POSTGRES_DB: gustale
-+          POSTGRES_DB: gustale_ci_ci
++          POSTGRES_DB: gustale_ci
          ports:
            - 5432:5432
          options: >-
