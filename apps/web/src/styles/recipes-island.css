@@ -27,9 +27,21 @@ body {
   --sub: #6b6052;
   --line: rgba(33, 28, 22, 0.14);
   --line-strong: rgba(33, 28, 22, 0.28);
-  --accent: #b04e29; /* darkened for WCAG AA on the cream background — see global.css */
+  /* Herb green. The ratios are within 0.01 of the Atlas terracotta, so
+     the two properties read at the same visual weight -- this is a
+     palette swap, not a redesign. Measured and re-checked by
+     scripts/hermes/recipes-accent-verify.py.
+
+     Accent-coloured TEXT on an --accent-soft tint does not reach
+     4.5:1 (4.14:1 for this green, 4.13:1 for the Atlas terracotta it
+     replaces). The Atlas has the same defect; it is a property of
+     tinting a surface with the accent's own colour. Those places use
+     --accent-dark instead (5.72:1 on the tint), which is the darker
+     variant the proposal already defined. */
+  --accent: #327a2f;
+  --accent-dark: #286226;
   --accent-ink: #fbefe6;
-  --accent-soft: rgba(176, 78, 41, 0.1);
+  --accent-soft: rgba(50, 122, 47, 0.1);
   --display: "Instrument Serif", Georgia, serif;
   --radius: 6px;
   --radius-lg: 10px;
@@ -389,7 +401,9 @@ body {
   letter-spacing: 0.5px;
 }
 .variant[data-on="1"] .rg {
-  color: var(--accent);
+  /* --accent-dark, not --accent: on the --accent-soft tint the accent
+     itself is only 4.14:1, and this is normal-size text. */
+  color: var(--accent-dark);
 }
 
 /* ---------- customize bar (sticky) ---------- */
@@ -653,7 +667,8 @@ body {
   border-radius: 999px;
 }
 .step .stime b {
-  color: var(--accent);
+  /* --accent-dark, not --accent: this sits on an --accent-soft tint. */
+  color: var(--accent-dark);
   font-weight: 500;
 }
 
