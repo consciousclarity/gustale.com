@@ -29,7 +29,11 @@ const AFTER_BASE = process.env.AFTER_BASE || "http://127.0.0.1:8899";
 const BEFORE_BASE = process.env.BEFORE_BASE || "https://gustale.com";
 
 const PAGES = [
-  { slug: "dishes-index", path: "/dishes/", wait: ".dish-card, .atl-item, main" },
+  {
+    slug: "dishes-index",
+    path: "/dishes/",
+    wait: ".dish-card, .atl-item, main",
+  },
   { slug: "families", path: "/families/", wait: "main" },
   { slug: "home", path: "/", wait: "main" },
 ];
@@ -48,9 +52,7 @@ async function shoot(browser, base, tag, pages) {
         waitUntil: "networkidle",
         timeout: 45000,
       });
-      await page
-        .waitForSelector(p.wait, { timeout: 15000 })
-        .catch(() => {});
+      await page.waitForSelector(p.wait, { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(1200);
 
       const file = path.join(OUT, `${tag}-${p.slug}.png`);
@@ -61,13 +63,16 @@ async function shoot(browser, base, tag, pages) {
         const text = document.body.innerText;
         const counts = [];
         // Any "N dishes", "N results", "N families" style phrase.
-        const re = /\b\d[\d,]*\s+(?:dishes?|results?|famil(?:y|ies)|places?|connections?)\b/gi;
+        const re =
+          /\b\d[\d,]*\s+(?:dishes?|results?|famil(?:y|ies)|places?|connections?)\b/gi;
         let m;
         while ((m = re.exec(text)) !== null && counts.length < 12) {
           counts.push(m[0].trim());
         }
         // The dash-as-a-counter defect: a lone em dash in a stat slot.
-        const dashes = (text.match(/—\s*(?:places|dishes|families|connections)/gi) || []).length;
+        const dashes = (
+          text.match(/—\s*(?:places|dishes|families|connections)/gi) || []
+        ).length;
         return {
           counts: [...new Set(counts)],
           dashCounters: dashes,
@@ -75,7 +80,13 @@ async function shoot(browser, base, tag, pages) {
         };
       });
 
-      results.push({ page: p.slug, url, status: resp?.status(), file, ...facts });
+      results.push({
+        page: p.slug,
+        url,
+        status: resp?.status(),
+        file,
+        ...facts,
+      });
       console.log(
         `  ${tag}/${p.slug}: HTTP ${resp?.status()}  ` +
           `counts=${JSON.stringify(facts.counts)}  dashes=${facts.dashCounters}`,

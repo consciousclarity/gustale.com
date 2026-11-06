@@ -19,7 +19,9 @@ const BEFORE_BASE = process.env.BEFORE_BASE || "https://gustale.com";
 const PAGES = ["/dishes/", "/families/", "/"];
 
 async function read(browser, base, tag) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+  const ctx = await browser.newContext({
+    viewport: { width: 1280, height: 1000 },
+  });
   console.log(`\n=== ${tag} (${base}) ===`);
   for (const p of PAGES) {
     const page = await ctx.newPage();
