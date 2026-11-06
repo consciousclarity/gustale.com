@@ -929,6 +929,11 @@ jobs:
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
             -f scripts/test_bot_credential_guard.sql
+      # ── 0049: dishes.content_type, an explicit editorial field ──────
+      - name: Apply the content_type column
+       run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale -v ON_ERROR_STOP=1 \
+            -f db/migrations/0049_content_type.sql
 
       # The FIXTURES — a SEED, not a migration.
       #

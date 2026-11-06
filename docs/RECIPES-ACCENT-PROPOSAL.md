@@ -1,9 +1,76 @@
 # Recipes accent — herb green proposal
 
-**Status:** proposal for Alejandro's approval. Nothing is applied yet.
+**Status:** **APPROVED** by Alejandro on 2026-11-06 ("I approve the 5
+approvals") and **applied** to `apps/web/src/styles/recipes-island.css`.
 **Scope:** the `--accent` / `--accent-dark` / `--accent-ink` tokens for
 the **recipes** property (gustale.recipes). The Atlas (gustale.com)
 keeps its terracotta.
+
+### What was actually applied, and the one thing that changed
+
+The palette is as proposed:
+
+```
+--accent      #327a2f
+--accent-dark #286226
+--accent-ink  #fbefe6
+--accent-soft rgba(50, 122, 47, 0.1)
+```
+
+**The contrast caveat in this document turned out to be a live defect,
+not a hypothetical one.** The caveat says the accent must not be used
+as normal-size text on its own `--accent-soft` tint, because it only
+reaches 4.14:1 there. Checking the stylesheet showed **three** places
+where accent-coloured text does exactly that:
+
+| place | what it is |
+|---|---|
+| `.variant[data-on="1"] .rg` | the selected variant's region label, on the tinted selected-variant card |
+| `.step .stime b` | the step's time value, on the tinted time chip |
+
+(`.variant[data-on="1"]` sets the tint; `.step .stime` sets the tint.
+The third hit in the first draft of the checker was a false positive —
+`border-color: var(--accent)` matched a plain substring search for
+`color: var(--accent)`.)
+
+Those now use `--accent-dark` (`#286226`), which measures **5.72:1**
+on the tinted surface. The pre-existing terracotta had the same defect
+(4.13:1) — so this is the Atlas's pattern being inherited, and fixed
+in the recipes property at the same time.
+
+**The Atlas was NOT changed.** It keeps its terracotta and keeps its
+own 4.13:1 defect; fixing that is the separate `--accent-on-soft`
+work this document already flagged.
+
+### The verification
+
+`scripts/hermes/recipes-accent-verify.py` recomputes every ratio from
+the WCAG relative-luminance definition, reading the tokens out of the
+stylesheet, and reports:
+
+- the seven accent-on-surface ratios (all PASS),
+- the accent-on-its-own-tint ratios (the known 4.14:1 / 4.38:1
+  failures — a property of the pattern, inherited faithfully),
+- and **every place in the stylesheet where accent-coloured text
+  actually sits on an accent-soft tint** — currently zero.
+
+`scripts/hermes/recipes-accent-selftest.sh` proves the checker can
+fail: it reverts one `--accent-dark` to `--accent` and confirms the
+tint check fires, then sets a pale green and confirms the ratio check
+fires, then asserts the stylesheet is byte-identical to its saved copy.
+
+The recomputed ratios match this document's table to within 0.01:
+
+```
+                          THIS DOC    RECOMPUTED
+  accent on white           5.30         5.30
+  accent on cream (--bg)    4.71         4.71
+  accent on card (--card)   5.00         5.00
+  accent-ink on accent      4.69         4.69
+  accent-dark on white      7.33         7.33
+  accent vs bg (non-text)   4.71         4.71
+  accent vs card (non-text) 5.00         5.00
+```
 
 ---
 
