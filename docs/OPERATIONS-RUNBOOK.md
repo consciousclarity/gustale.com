@@ -92,6 +92,70 @@ matches the SCRAM rule, and use `psql -w` so it can never fall back to a prompt.
 - `scripts/lib/test_pg.sh` is the helper. It must not call `set -e`, because sourcing it
   would impose `errexit` on the caller.
 
+### 6a. The three database rules
+
+These are the rules that follow from the 2026-11-06 accidental drop and from the
+production leak found on 2026-11-07. They are absolute; nothing in the environment
+can widen them.
+
+**1. No `DROP DATABASE`, `CREATE DATABASE`, `DROP ROLE` or `CREATE ROLE` on
+`shared-postgres` — ever.**
+
+Those statements are **cluster-scoped**: they act on a whole Postgres instance, not
+on one database. `shared-postgres` hosts the live `gustale` database *and* five other
+projects' databases (bali, dewata, n8n, scribe), so a throwaway database created there
+is a hazard for all of them. `scripts/check-no-production-db-drops.py` fails the build
+if any script can do this; `scripts/test-check-no-production-db-drops.py` proves the
+gate can fail.
+
+**2. The live name `gustale` is refused unconditionally.**
+
+No environment variable, CLI flag or config file may turn that refusal off. A guard
+that can be switched off is not a guard: a stale `GUSTALE_DB_IS_THROWAWAY=1` in a
+production shell is exactly what caused the incident. The guard is
+`scripts/lib/db_guard.py`; `resolve("gustale")` always raises. The live name is
+refused **by name**, so CI's own database was renamed `gustale` → `gustale_ci` rather
+than weakening the guard.
+
+**3. The container follows the TARGET, not the machine.**
+
+A script must decide *where* it connects by looking at *what it is targeting*, never
+by asking what the machine happens to have. The bug this rule kills is real:
+`scripts/populate_description_sentences.py` used to ask "is the `shared-postgres`
+container here?", and on the production host — which is the host that has that
+container — every target resolved to `docker exec shared-postgres`. A throwaway
+database was therefore created and written **on the production cluster**.
+
+The shape now:
+
+| the target | where it connects |
+|---|---|
+| the live `gustale` | the production container, and only through the guard (three signals) plus the live-approval gate |
+| a throwaway database | the dedicated test PostgreSQL, never production — whatever the machine looks like |
+| `CHAIN_MODE=ci` | the CI's own service on `PG_HOST:PG_PORT` |
+
+A host that has the production container and no test container **refuses** rather
+than guessing, because the only local Postgres there is production's.
+
+The general form: **if a value can be aimed at the wrong thing by an environment
+variable, it must be a constant.** `scripts/find_migration_order.py` and
+`scripts/populate_description_sentences.py` both hold their container name as a
+constant for this reason.
+
+### 6b. Verifying that a script did not touch production
+
+A static scanner is necessary but not sufficient: it cannot see a decision made at
+runtime. Before and after running anything that creates or writes a database, snapshot
+the production cluster and diff it:
+
+```bash
+docker exec -u postgres shared-postgres psql -U postgres -d postgres -tAc \
+  "select datname from pg_database where not datistemplate order by datname;"
+```
+
+Compare the database list *and* the row counts of every scratch database on the
+cluster, not just the list — a leaked write leaves the list unchanged.
+
 ## 7. The CI database rename
 
 The CI PostgreSQL service database was renamed `gustale` → `gustale_ci`. A same-named CI
@@ -110,8 +174,10 @@ existed for CI.
   `DELETE FROM dish_families` is pathologically slow. Drop the constraint for a
   throwaway load.
 - `pg_dump` COPY aborts on the **first** duplicate. Truncate the targets first.
-- `scripts/prove-0049-assertions.sh` must use the shared guard before destructive
-  operations and must never be allowlisted as a live-target exception.
+- `scripts/prove-0049-assertions.sh` uses the shared guard before destructive
+  operations, runs on the dedicated test PostgreSQL (`scripts/lib/test_pg.sh`), and
+  is never allowlisted as a live-target exception. It must not be allowlisted at
+  all: the correct repair is to move it off the production cluster, not to exempt it.
 
 ## 9. Taxonomy — three family vocabularies
 
