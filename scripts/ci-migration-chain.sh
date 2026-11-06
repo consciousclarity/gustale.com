@@ -29,12 +29,15 @@ cd "$(dirname "$0")/.."
 # scripts/apply-migration-live.sh, which goes through the live-approval
 # gate.
 #
-# The guard also knows about the CI's service container, which is
-# deliberately named `gustale` so the CI schema mirrors live's. On a
-# GitHub runner that database is disposable, and the workflow sets
-# GUSTALE_DB_IS_THROWAWAY=1 to say so. Here, on the live host, that
-# variable is NOT set, so `gustale` means the live database and is
-# refused.
+# The guard refuses the live NAME (`gustale`) outright, with no
+# environment-variable escape. That was not always so: the CI's service
+# container used to be named `gustale` too, so the guard had to ask
+# WHICH SERVER it was talking to -- and a stale GUSTALE_DB_IS_THROWAWAY=1
+# in a production shell let it hand out the live name, which this
+# script then DROPPED on 2026-11-06.
+#
+# The CI's database is now named `gustale_ci`, so the live NAME is
+# unique on every host and can be refused by name alone.
 # The Python that runs the guard. Resolved before the guard is called,
 # because the guard decides whether this script may touch the database
 # it is about to DROP.
@@ -257,7 +260,10 @@ run_pg() {
     # is the proof that the bot is not an admin.
     PGPASSWORD="${PGPASSWORD:-gustale}" "$PSQL_BIN" -h "$PG_HOST" -p "$PG_PORT" -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
   else
-    docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@"
+    # The DEDICATED TEST POSTGRES, never `shared-postgres`.
+    # `DROP DATABASE` is cluster-scoped, and the production cluster
+    # hosts the live database and five other projects' databases.
+    test_pg_run "$DB" "$@"
   fi
 }
 
@@ -276,6 +282,13 @@ run_pg() {
 # not the same question as "which host do I run on" — the Nightly and the
 # CI both run on a GitHub runner, and the live host is the one with the
 # container.
+# The DEDICATED TEST POSTGRES. Sourced here so both modes can use it:
+# the CI mode does NOT need it (it has a service container), but the
+# container mode does, and the container mode's container is NEVER
+# `shared-postgres`.
+# shellcheck source=scripts/lib/test_pg.sh
+source scripts/lib/test_pg.sh
+
 if [ "${CHAIN_MODE:-}" = "ci" ]; then
   echo "=== creating $DB (CI mode: Postgres service on 127.0.0.1) ==="
   # AS `postgres`, THE SUPERUSER.
@@ -287,9 +300,20 @@ if [ "${CHAIN_MODE:-}" = "ci" ]; then
     -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
 
 else
-  echo "=== creating $DB (container mode: shared-postgres) ==="
-  docker exec -u postgres shared-postgres psql -U postgres -d postgres \
-    -c "DROP DATABASE IF EXISTS $DB;" -c "CREATE DATABASE $DB;" >/dev/null
+  # THE PRODUCTION CONTAINER IS NOT A TEST TARGET.
+  #
+  # `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED, and
+  # `shared-postgres` hosts the LIVE database and five other projects'
+  # databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
+  # destroyed the live database.
+  #
+  # So the chain's local mode uses the DEDICATED TEST POSTGRES
+  # (scripts/lib/test_pg.sh) on its own port. Production is not an
+  # option here, and there is no environment variable that can make it
+  # one.
+  echo "=== creating $DB (container mode: the dedicated test Postgres) ==="
+  test_pg_up
+  test_pg_create "$DB"
 fi
 
 # THE ROLE SETUP, IN THE CHAIN ITSELF — IN BOTH MODES.
@@ -336,7 +360,7 @@ else
   # `docker exec -f` reads the file from inside the container, and the
   # chain's migration files live on the HOST. Every other migration in
   # this script is piped in with `-f -` for exactly that reason.
-  docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+  test_pg_run "$DB" -f - \
     -f - < "$CI_MIGRATION_ROLE" >/tmp/ci_role_setup.log 2>&1 \
     || { echo "FAILED: the role setup"; grep -E 'ERROR|NOTICE' /tmp/ci_role_setup.log | tail -12; exit 1; }
 fi

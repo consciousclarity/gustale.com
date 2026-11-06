@@ -411,7 +411,9 @@ def main() -> int:
     # The guard vets it: the live database needs the explicit
     # GUSTALE_LIVE_DB_ALLOW=1 opt-in, and this script has its own,
     # stricter rule below (it never writes to live at all).
-    target = db_guard.resolve(db_name(), purpose="seed_statements_from_dish_content.py")
+    target = db_guard.resolve_target(
+        db_name(), purpose="seed_statements_from_dish_content.py"
+    )
     os.environ["GUSTALE_DB_NAME"] = target
 
     # A LIVE WRITE MUST BE IMPOSSIBLE BY ACCIDENT. The claims data is
@@ -534,4 +536,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (
+        db_guard.LiveDatabaseRefused,
+        db_guard.ProductionContainerRefused,
+    ) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))

@@ -33,9 +33,10 @@ OUT = Path("/home/gustale/projects/gustale.com/.hermes/reports")
 
 #: The database this script reads. It is live by purpose, so it needs
 #: the guard's explicit opt-in -- and the guard refuses without it.
-DB_NAME = db_guard.resolve(
+DB_NAME = db_guard.resolve_target(
     "gustale",
     purpose="record-live-counts.py",
+    write=False,
 )
 
 
@@ -272,4 +273,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (db_guard.LiveDatabaseRefused,
+            db_guard.ProductionContainerRefused) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))

@@ -191,7 +191,13 @@ def main() -> int:
     )
     check(
         "the refusal fires only on --apply",
-        re.search(r"if args\.apply and target == \"gustale\":", src) is not None,
+        # The seeder compares against the guard's LIVE_DB constant, not
+        # the literal "gustale" -- which is the better form, because the
+        # constant is what the guard actually refuses. This check used
+        # to require the literal, so it failed against a script that
+        # was doing the right thing.
+        re.search(r"if args\.apply and target == (\"gustale\"|db_guard\.LIVE_DB):", src)
+        is not None,
         "the refusal is not conditioned on args.apply",
     )
     check(
