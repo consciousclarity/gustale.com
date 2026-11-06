@@ -74,6 +74,19 @@
   --accent-dark: #94391e; /* hover state for accent */
   --accent-ink: #fbefe6; /* text on top of accent */
   --accent-soft: rgba(176, 78, 41, 0.1);
+  /* PR 1 — focus ring token.
+     WCAG 2.2 SC 2.4.11 "Focus Not Obscured" and SC 1.4.11 (non-text
+     contrast, 3:1) both apply to the focus indicator. --accent already
+     clears 3:1 against every public surface (bg 4.70, card 4.99, white
+     5.29), so the ring can use it directly; --focus-ring names the
+     intent so the ring can be re-tuned without touching every rule
+     that draws one. */
+  --focus-ring: var(--accent);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 3px;
+  /* PR 1 — the minimum hit area for any interactive control
+     (WCAG 2.2 SC 2.5.8 Target Size, Minimum: 24x24 CSS px). */
+  --target-min: 24px;
   --display: "Instrument Serif", Georgia, serif;
   --body: "Work Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", monospace;
@@ -154,10 +167,48 @@ html {
 }
 
 /* ── Focus styles ── */
+/* PR 1 — one focus ring, everywhere.
+   The old rule hard-coded `outline: 2px solid var(--accent)` and left
+   `border-radius: var(--radius)` on the element, which rounded the
+   outline corners to the control's radius and made the ring read as a
+   hairline on pill-shaped inputs.
+
+   Two rules now:
+     1. The base ring for every focusable element.
+     2. A `:focus-visible` ring for the controls that used to opt out
+        with `outline: none` and rely on a `:focus` border-colour
+        change — which is invisible to a keyboard user on the input
+        itself (the border belongs to the wrapper, not the input).
+
+   The wrapper-level `:focus-within` glows are kept: they are a second,
+   redundant cue, and removing them would change the look of the search
+   field for everyone. */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius);
+}
+
+/* Inputs whose visual chrome lives on a wrapper (the search field, the
+   hero search, the lineage search) set `outline: none` on the control
+   itself. The wrapper's `:focus-within` glow does not satisfy SC 2.4.7
+   for the control, so the control draws its own ring too. */
+.gs-input:focus-visible,
+.hero-search input:focus-visible,
+.lin-search:focus-visible,
+.filt-search:focus-visible,
+.filt-select:focus-visible,
+.browse-search-field:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* The native checkbox in the filter toggle is 13x13. It is a real
+   control, so it needs a ring — and the ring must not be clipped by
+   the label's line box. */
+.filt-toggle input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* ── Links ── */
@@ -338,6 +389,26 @@ h4 {
 .gst-navlinks {
   display: flex;
   gap: 28px;
+  /* PR 1 — the header overlap fix.
+     `.gst-navlinks` was `flex: 0 1 auto`, so at 1280px it shrank to
+     432px while its five links — which have `white-space: nowrap` and
+     do not shrink — overflowed the shrunken box by 55px. The overflow
+     slid under `.gst-navr`, so "About" sat underneath the "Sign in"
+     button. axe reported the button as "partially obscured" on every
+     page (39.4px x 2px of clear space).
+
+     `flex: 0 0 auto` stops the links from being squeezed: the row
+     keeps its natural width and the overflow disappears. The
+     downside is that the header needs more room than 1280px, so the
+     mobile breakpoint moves from 960px to 1200px — below that the
+     primary nav collapses into the menu button, which is where it
+     already went on phones.
+
+     The brand and the search field are the two elements that give up
+     space instead (both already had `flex-shrink: 1`), so they lose
+     width gracefully rather than overlapping. */
+  flex: 0 0 auto;
+  min-width: 0;
 }
 .gst-navlinks a {
   color: var(--ink);
@@ -4038,13 +4109,18 @@ h4 {
   margin-top: auto;
   padding-top: 8px;
 }
-.lin-card__cta:hover {
+/* PR 2 — the call-to-action is no longer an <a> (the card's title link
+   is its one link), so :hover cannot be hung on the element itself.
+   The hover state moves to the CARD: hovering the card highlights the
+   affordance, which is the behaviour a reader expects from a card
+   whose whole point is that it leads somewhere. */
+.lin-card:hover .lin-card__cta {
   color: var(--accent-dark);
 }
 .lin-card__cta .arr {
   transition: transform 0.2s;
 }
-.lin-card__cta:hover .arr {
+.lin-card:hover .lin-card__cta .arr {
   transform: translateX(3px);
 }
 
@@ -4438,7 +4514,20 @@ h4 {
   flex: 0 0 auto;
   background: transparent;
   border: 0;
-  padding: 0 0 0 8px;
+  /* PR 1 — WCAG 2.2 SC 2.5.8 Target Size (Minimum).
+     The button was 22x14: the icon is 14px and the padding only added
+     8px on the left, so the icon itself was the whole hit area. axe
+     flagged it on every page. The fix is a 24x24 hit box with the
+     glyph centred inside it — the visible icon stays 14px, so the
+     search field looks exactly as it did, but the button now meets
+     the 24px minimum in both axes.
+
+     `margin: -4px 0` pulls the extra height back out of the row, so
+     the compact header search does not grow. */
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  margin: -4px 0;
+  padding: 5px;
   color: var(--sub, #6b6052);
   cursor: pointer;
   display: inline-flex;
@@ -4765,6 +4854,19 @@ body.nav-panel-open {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+/* PR 2 — visually-hidden label for the Atlas page's single search
+   input. The input already carries aria-label, so this label is
+   redundant for a screen reader; it exists so the visible control
+   has a programmatic <label> association too (and so the label text
+   cannot drift away from the aria-label). */
+.filt-search-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
 .browse-clear {
   height: 44px;
   padding: 0 14px;
@@ -4929,9 +5031,6 @@ body.nav-panel-open {
 .browse-dir-card:hover {
   border-color: var(--accent);
 }
-.browse-dir-card--static {
-  cursor: default;
-}
 .browse-dir-card__top {
   display: flex;
   align-items: baseline;
@@ -4964,21 +5063,6 @@ body.nav-panel-open {
   margin-top: 12px;
   color: var(--accent);
   font-size: 0.92rem;
-}
-.browse-dir-dishes {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-}
-.browse-dir-dishes a {
-  color: var(--accent);
-  text-decoration: none;
-}
-.browse-dir-dishes a:hover {
-  text-decoration: underline;
 }
 .browse-alpha {
   display: flex;

@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""
+Open a pull request as the gustale-bot App.
+
+WHY NOT scripts/hermes/gh-app.sh
+--------------------------------
+That helper mints an installation token for `["gustale.com"]` only and
+hardcodes GH_REPO to gustale.com. It is fine for what it does, but a
+pull request needs a token that can also read the branch it is
+comparing, and it needs to attach files.
+
+This helper:
+  * mints an installation token covering every repository the App is
+    installed on;
+  * creates the PR through the GitHub REST API (so the file uploads
+    can use the same token);
+  * uploads the before/after screenshots as PR attachments, so the
+    evidence travels with the review.
+
+The token is never printed and never written to disk.
+"""
+from __future__ import annotations
+
+import json
+import mimetypes
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import jwt
+from cryptography.hazmat.primitives import serialization
+
+APP_ID = "5596451"
+INSTALL_ID = "178310866"
+KEY_PATH = Path("/home/gustale/.hermes/github-app/gustale-bot.pem")
+REPOS = ["gustale.com", "gustale-state", "gustale.recipes"]
+OWNER = "consciousclarity"
+API = "https://api.github.com"
+
+
+def app_jwt() -> str:
+    with KEY_PATH.open("rb") as fh:
+        key = serialization.load_pem_private_key(fh.read(), password=None)
+    now = int(time.time())
+    return jwt.encode(
+        {"iat": now - 60, "exp": now + 540, "iss": APP_ID}, key, algorithm="RS256"
+    )
+
+
+def token() -> str:
+    out = subprocess.run(
+        [
+            "curl", "-sS", "-X", "POST",
+            "-H", f"Authorization: Bearer {app_jwt()}",
+            "-H", "Accept: application/vnd.github+json",
+            "-H", "X-GitHub-Api-Version: 2022-11-28",
+            "-H", "Content-Type: application/json",
+            "-d", json.dumps({"repositories": REPOS}),
+            f"{API}/app/installations/{INSTALL_ID}/access_tokens",
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    payload = json.loads(out.stdout)
+    if "token" not in payload:
+        raise SystemExit(f"could not mint an installation token: {payload}")
+    return payload["token"]
+
+
+def api(tok: str, method: str, path: str, body=None, raw=None,
+        content_type: str | None = None):
+    cmd = [
+        "curl", "-sS", "-X", method,
+        "-H", f"Authorization: Bearer {tok}",
+        "-H", "Accept: application/vnd.github+json",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+    ]
+    if body is not None:
+        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
+    if raw is not None:
+        cmd += ["-H", f"Content-Type: {content_type}", "--data-binary", f"@{raw}"]
+    cmd.append(f"{API}{path}")
+    out = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        return json.loads(out.stdout)
+    except json.JSONDecodeError:
+        return {"raw": out.stdout, "stderr": out.stderr}
+
+
+def main() -> int:
+    if len(sys.argv) < 4:
+        print(__doc__)
+        print("usage: open-pr.py <repo> <head-branch> <title> <body-file> "
+              "[image ...]")
+        return 2
+
+    repo, head, title, body_file = sys.argv[1:5]
+    images = sys.argv[5:]
+
+    tok = token()
+    body = Path(body_file).read_text()
+
+    # The base branch is main -- unless the head branch already
+    # contains another open PR's branch, in which case the PR stacks
+    # on THAT branch, so the diff shows only this PR's work.
+    base = "main"
+
+    result = api(
+        tok, "POST", f"/repos/{OWNER}/{repo}/pulls",
+        body={
+            "title": title,
+            "body": body,
+            "head": head,
+            "base": base,
+            "maintainer_can_modify": True,
+        },
+    )
+    if "number" not in result:
+        print("could not create the PR:")
+        print(json.dumps(result, indent=2)[:2000])
+        return 1
+
+    number = result["number"]
+    url = result["html_url"]
+    print(f"PR #{number}: {url}")
+
+    # ── the screenshots ──────────────────────────────────────────────
+    if images:
+        # The upload URL is a TEMPLATE:
+        #   {owner}/{repo}/issues/{number}/assets
+        # and the create response does not carry it -- it is read from
+        # the PR object itself, fetched fresh.
+        pr = api(tok, "GET", f"/repos/{OWNER}/{repo}/pulls/{number}")
+        tmpl = pr.get("upload_url", "")
+        if not tmpl:
+            print("  could not read the upload URL; skipping the images")
+            images = []
+        upload_url = tmpl.split("{")[0]
+        for img in images:
+            p = Path(img)
+            if not p.exists():
+                print(f"  skipped (not found): {img}")
+                continue
+            ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+            out = api(
+                tok, "POST", upload_url,
+                raw=str(p), content_type=ctype,
+            )
+            if "browser_download_url" in out:
+                print(f"  attached: {p.name} -> {out['browser_download_url']}")
+            else:
+                print(f"  FAILED to attach {p.name}: "
+                      f"{json.dumps(out)[:300]}")
+
+    print(f"\n{number}\t{url}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

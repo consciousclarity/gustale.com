@@ -959,6 +959,11 @@ jobs:
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
             -f scripts/test_bot_credential_guard.sql
+      # ── 0049: dishes.content_type, an explicit editorial field ──────
+      - name: Apply the content_type column
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0049_content_type.sql
 
       # The FIXTURES — a SEED, not a migration.
       #
@@ -997,6 +1002,87 @@ jobs:
       - name: Run vitest
         working-directory: apps/api
         run: pnpm test -- --reporter=verbose
+
+  # ─── Job 2b: Accessibility gate (axe-core) ─────────────────────────
+  #
+  # WHY THIS JOB EXISTS
+  # -------------------
+  # The Startpage redesign found three WCAG 2.2 defects that had been
+  # shipping to production for months and that no other check caught:
+  # the header search button was 22x14px (SC 2.5.8 Target Size), the
+  # "Sign in" button was partially obscured by the overflowing nav
+  # (SC 2.5.8 again), and seven form controls had `outline: none` with
+  # no replacement (SC 2.4.7 Focus Visible).
+  #
+  # This job builds the site and runs axe-core against the BUILT
+  # output, so the gate is reproducible and does not depend on what
+  # production currently serves. It runs the geo variant because that
+  # is the domain with the Atlas home page.
+  #
+  # It is a separate job, not a step in `test`, for two reasons:
+  #   - it needs a browser and a full static build, which the API
+  #     vitest job has no reason to pay for;
+  #   - when it fails, the log says "accessibility" instead of burying
+  #     an a11y failure inside a test job.
+  #
+  # It does NOT continue-on-error. A gate that can fail silently is
+  # worse than no gate: it teaches everyone to ignore the red X.
+  a11y:
+    name: Accessibility gate (axe)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # PINNED, for the same reason as the lint job: Astro 7.4.2
+          # requires node >=22.23.4 and refuses to build otherwise.
+          node-version: "22.23.4"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Playwright's Chromium. The a11y gate is the first CI job that
+      # needs a browser, so this is where the download happens. The
+      # `--with-deps` flag installs the system libraries Chromium
+      # needs on ubuntu-24.04.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The site is built against the in-repo mock API, exactly as the
+      # Docker build does: GHA runner IPs are blocked by the VPS
+      # firewall, so the build cannot reach the production API.
+      - name: Build the geo site
+        run: |
+          node apps/web/scripts/mock-api.mjs --port 8742 &
+          MOCK_PID=$!
+          trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
+          node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742
+          PUBLIC_DOMAIN=geo PUBLIC_API_BASE=http://127.0.0.1:8742 \
+            pnpm --filter @gustale/web run build:geo
+
+      - name: Run the axe gate
+        run: pnpm run a11y:gate
+
+      # The gate writes a JSON report and a screenshot per page. They
+      # are uploaded whether the gate passed or failed: when it fails,
+      # the report is what tells you WHICH element broke.
+      - name: Upload the axe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: axe-report
+          path: /tmp/axe-gate
+          retention-days: 14
 
   # ─── Job 3: Docker build smoke test ────────────────────────────────
   build:

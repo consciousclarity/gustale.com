@@ -343,7 +343,12 @@ const server = http.createServer((req, res) => {
       ? Math.max(0, Math.min(10000, rawOffset))
       : 0;
     const page = dishes.slice(offset, offset + limit);
-    res.end(JSON.stringify({ dishes: page, limit, offset }));
+    // The total that MATCHES the filters, and whether more rows exist
+    // past this page -- the same two fields the real API returns, so
+    // the front-end's count logic is exercised by the fixture too.
+    const total = dishes.length;
+    const hasMore = offset + page.length < total;
+    res.end(JSON.stringify({ dishes: page, limit, offset, total, hasMore }));
     return;
   }
 

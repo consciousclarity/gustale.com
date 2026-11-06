@@ -55,7 +55,8 @@ export function FamilyDirectory({
     failed: false,
     count: visible.length,
     query: q,
-    noun: "families",
+    noun: "family",
+    nounPlural: "families",
   });
 
   return (

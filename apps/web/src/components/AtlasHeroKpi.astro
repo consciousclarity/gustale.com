@@ -101,8 +101,43 @@ async function fetchCounts(): Promise<Counts> {
 
 const counts = await fetchCounts();
 
-const fmt = (n: number): string =>
-  n > 0 ? new Intl.NumberFormat("en-US").format(n) : "—";
+// PR 3 — A COUNTER IS NEVER A DASH, AND A ZERO IS NOT A KPI.
+//
+// The old formatter returned "—" for any zero, which put a dash on
+// the page exactly where a reader expects a number. A dash reads as
+// "this is a metric and its value is not available", and on a page
+// whose whole claim is that it has numbers, that is worse than not
+// showing the metric at all.
+//
+// The rules now, in full:
+//
+//   * a metric with NO DATA is not rendered at all;
+//   * a metric whose value is a real ZERO is not rendered either --
+//     because "0 places" in a KPI band is a claim, and a claim of
+//     zero next to three real numbers reads as a defect. A "0"
+//     belongs in an EMPTY STATE that has an action attached ("0
+//     places yet — add one"), and this band is not that;
+//   * a metric with a real number is rendered as that number.
+//
+// The degraded build is the same rule: there the numbers are unknown,
+// not zero, so nothing is claimed and the band says so in words.
+const fmt = (n: number): string => new Intl.NumberFormat("en-US").format(n);
+
+// Which stats have a value worth showing.
+//
+// The distinction between "no data" and "zero" matters here: the
+// counts endpoint returns a NUMBER for every key, so a zero here is
+// a real zero (the catalogue genuinely has no such entities), while
+// a missing key means the API did not answer. The degraded branch
+// covers the second case.
+const visibleStats = STATS.filter((stat) => {
+  const n = counts[stat.key];
+  if (typeof n !== "number") return false;
+  // A real zero is not a KPI. Neither is an unknown value on a
+  // degraded build.
+  if (n === 0) return false;
+  return true;
+});
 ---
 
 <section
@@ -121,7 +156,7 @@ const fmt = (n: number): string =>
     </h2>
 
     <div class="atlas-kpi__stats" role="list">
-      {STATS.map((stat) => (
+      {visibleStats.map((stat) => (
         <div role="listitem" title={counts.definitions?.[stat.key] ?? ""}>
           <b>{fmt(counts[stat.key])}</b>
           <span>{stat.label}</span>

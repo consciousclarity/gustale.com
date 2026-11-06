@@ -61,7 +61,15 @@ const listQuerySchema = z.object({
   region: z.string().max(100).optional(), // legacy alias for country
   category: z.string().max(100).optional(), // legacy alias for cuisine
   period: z.string().max(100).optional(), // historical era e.g. 1920-1950
-  family: z.string().max(100).optional(), // kind='family' category slug (Dumplings, Noodle soups…)
+  // A `dish_families` slug -- the canonical family dimension (123 in
+  // use by published dishes). This used to read the legacy
+  // `categories` kind='family' vocabulary, which has ONE published
+  // dish in it, so the filter returned nothing for every value the
+  // site offered.
+  family: z.string().max(100).optional(),
+  // The editorial dish/drink classification. See
+  // db/migrations/0049_content_type.sql.
+  content_type: z.enum(["dish", "drink"]).optional(),
 });
 
 const slugParamSchema = z.object({
@@ -184,10 +192,21 @@ export function registerDishRoutes(app: FastifyInstance): void {
     }
 
     if (params.family) {
-      // Match by kind='family' category slug (Dumplings, Noodle soups…)
+      // A `dish_families` slug -- the canonical family dimension.
+      //
+      // It used to read the legacy `categories` kind='family' rows,
+      // which have ONE published dish between them, so the filter
+      // returned an empty list for every value the site offered. The
+      // site now points at `dish_families`, the same dimension the
+      // `family=` dropdown and the atlas counts read.
       whereClauses.push(
-        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = dishes.id AND c4.slug = ${params.family} AND c4.kind = 'family')`,
+        sql`EXISTS (SELECT 1 FROM dish_dish_families df5 JOIN dish_families f5 ON f5.id = df5.value_id WHERE df5.dish_id = dishes.id AND f5.slug = ${params.family} AND df5.status = 'active')`,
       );
+    }
+
+    if (params.content_type) {
+      // The editorial dish/drink classification.
+      whereClauses.push(sql`dishes.content_type = ${params.content_type}`);
     }
 
     // Build dynamic WHERE conditions as raw SQL fragments.
@@ -233,9 +252,19 @@ export function registerDishRoutes(app: FastifyInstance): void {
       );
     }
     if (params.family) {
+      // A `dish_families` slug -- the canonical family dimension.
+      //
+      // It used to read the legacy `categories` kind='family' rows,
+      // which have ONE published dish between them, so the filter
+      // returned an empty list for every value the site offered. The
+      // site now points at `dish_families`, the same dimension the
+      // `family=` dropdown and the atlas counts read.
       whereFragments.push(
-        sql`EXISTS (SELECT 1 FROM dish_categories dc4 JOIN categories c4 ON c4.id = dc4.category_id WHERE dc4.dish_id = d.id AND c4.slug = ${params.family} AND c4.kind = 'family')`,
+        sql`EXISTS (SELECT 1 FROM dish_dish_families df5 JOIN dish_families f5 ON f5.id = df5.value_id WHERE df5.dish_id = d.id AND f5.slug = ${params.family} AND df5.status = 'active')`,
       );
+    }
+    if (params.content_type) {
+      whereFragments.push(sql`d.content_type = ${params.content_type}`);
     }
     if (params.period) {
       const parts = params.period.replace(/_/g, "-").split("-").filter(Boolean);
@@ -260,6 +289,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
         d.origin_geo_id        AS origin_geo_id,
         g.name                AS origin_name,
         d.status,
+        d.content_type        AS content_type,
         d.view_count          AS view_count,
         d.updated_at           AS updated_at,
         fam.slug              AS family_slug,
@@ -339,6 +369,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       origin_geo_id: string | null;
       origin_name: string | null;
       status: string;
+      content_type: string | null;
       view_count: number;
       updated_at: Date;
       family_slug: string | null;
@@ -352,6 +383,21 @@ export function registerDishRoutes(app: FastifyInstance): void {
       cover_height: number | null;
     }[];
 
+    // The TOTAL for this query -- the number of dishes that MATCH the
+    // filters, not the number returned in this page.
+    //
+    // It is a second query rather than a window function, because the
+    // page query's LEFT JOIN LATERALs (cover image, family, method)
+    // would have to be reproduced exactly for a window count to match,
+    // and a mismatch would produce a total that contradicts the list
+    // next to it. This counts the same WHERE, with no joins.
+    const countRow = (await db.execute(sql`
+      SELECT count(*)::int AS total
+      FROM dishes d
+      WHERE ${whereClause.length > 1 ? sql.join(whereClause, sql` AND `) : whereClause[0]}
+    `)) as { total: number }[];
+    const total = countRow[0]?.total ?? 0;
+
     const result = rows.map((row) => ({
       id: row.id,
       slug: row.slug,
@@ -360,6 +406,9 @@ export function registerDishRoutes(app: FastifyInstance): void {
       originGeoId: row.origin_geo_id,
       originName: row.origin_name,
       status: row.status as "draft" | "published" | "archived",
+      // The editorial dish/drink classification. It is an explicit
+      // field on the row, not derived from the family tag.
+      contentType: (row.content_type ?? "dish") as "dish" | "drink",
       viewCount: row.view_count,
       updatedAt:
         typeof row.updated_at === "string"
@@ -393,7 +442,18 @@ export function registerDishRoutes(app: FastifyInstance): void {
       })(),
     }));
 
-    return { dishes: result, limit: params.limit, offset: params.offset };
+    return {
+      dishes: result,
+      limit: params.limit,
+      offset: params.offset,
+      // The number of dishes that MATCH the filters, not the number
+      // in this page. The front-end shows it as the result count, so
+      // it has to be the real total or the count contradicts the list.
+      total,
+      // Whether more rows exist past this page. Computed from `total`,
+      // so it cannot disagree with it.
+      hasMore: params.offset + result.length < total,
+    };
   });
 
   // Map view: flat list of all published dishes with origin coordinates.

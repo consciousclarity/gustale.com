@@ -782,19 +782,43 @@ export function familyDetailHref(slug: string): string {
   return `/family/${encodeURIComponent(slug)}/`;
 }
 
+/**
+ * The one-line result count for a browse surface.
+ *
+ * `total` is the number of records that MATCH the filters. It is
+ * separate from `count`, which is how many are loaded so far — showing
+ * `count` alone would say "24 dishes" for a catalogue of 1,474, a
+ * number that reads as the whole and is not.
+ *
+ * When `total` is null the caller does not know it, and the loaded
+ * count is the best available answer. It is not a dash and not a
+ * guess.
+ *
+ * The noun comes in both numbers because the sentence needs both:
+ * "1 dish" but "No dishes match". Guessing the plural from the
+ * singular would give "No dish match" and "2 dishes".
+ */
 export function browseStatusMessage(opts: {
   loading: boolean;
   failed: boolean;
   count: number;
+  total?: number | null;
   query: string;
+  /** Singular form: "dish", "country", "family", "lineage". */
   noun: string;
+  /** Plural form: "dishes", "countries", "families", "lineages". */
+  nounPlural?: string;
 }): string {
   if (opts.loading) return "Updating results…";
   if (opts.failed) return "Browse data is temporarily unavailable.";
+  const plural = opts.nounPlural ?? `${opts.noun}s`;
   if (opts.count === 0) {
     return opts.query
-      ? `No ${opts.noun} match “${opts.query}”.`
-      : `No ${opts.noun} to show.`;
+      ? `No ${plural} match “${opts.query}”.`
+      : `No ${plural} to show.`;
   }
-  return `${opts.count} ${opts.noun}`;
+  // A known total is the truthful number. Fall back to the loaded
+  // count only when the total is unknown.
+  const n = typeof opts.total === "number" ? opts.total : opts.count;
+  return `${n} ${n === 1 ? opts.noun : plural}`;
 }

@@ -678,7 +678,17 @@ window.addEventListener('pagehide', () => {
   display: none;
 }
 
-@media (max-width: 960px) {
+/* PR 1 — the breakpoint moves from 960px to 1200px.
+   `.gst-navlinks` is now `flex: 0 0 auto` (see global.css): the five
+   primary links need 432px of their own, plus the brand, the property
+   switch, the search field and the right-hand auth block. Below 1200px
+   there is not enough room for all of that, so the primary nav, the
+   header search and the property switch collapse into the mobile
+   menu — the same thing that already happened below 960px.
+
+   Above 1200px nothing collapses and nothing overlaps: the nav links
+   keep their natural width and the brand/search give up space. */
+@media (max-width: 1200px) {
   .gst-navlinks {
     display: none;
   }

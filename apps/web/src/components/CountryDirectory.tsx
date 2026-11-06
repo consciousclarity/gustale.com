@@ -4,7 +4,6 @@ import {
   buildCountryDirectory,
   type CountryEntry,
   countryAlphaIndex,
-  dishDetailHref,
   filterCountryDirectory,
   type LikeableDish,
   mapBrowseHref,
@@ -62,7 +61,8 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
     failed: false,
     count: visible.length,
     query: q || activeLetter || "",
-    noun: "countries",
+    noun: "country",
+    nounPlural: "countries",
   });
 
   return (
@@ -159,30 +159,42 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
             key={c.name}
             id={`country-${c.letter}-${c.name.replace(/\s+/g, "-")}`}
           >
-            <article className="browse-dir-card browse-dir-card--static">
+            <a
+              className="browse-dir-card"
+              href={`/dishes?region=${encodeURIComponent(c.name)}`}
+            >
               <div className="browse-dir-card__top">
+                {/* PR 2 — ONE LINK PER CARD.
+                    This card had NO link of its own: the country name
+                    was a bare <h2> and the only links were the dish
+                    names below it. So the card had no single link to
+                    itself, and a reader could not get from "Mexico" to
+                    "the dishes from Mexico" — they had to pick one
+                    dish.
+
+                    The card now follows the SAME pattern the families
+                    directory already uses (FamilyDirectory.tsx): the
+                    whole card is ONE link, and the dish names are
+                    plain text, not links. That is the pattern this
+                    site already established — the regions card was the
+                    outlier.
+
+                    The card is an <a>, and the dish names are text
+                    inside it, so there is no nested anchor. */}
                 <h2>{c.name}</h2>
                 <span className="browse-dir-card__count">
                   {c.count} {c.count === 1 ? "dish" : "dishes"}
                 </span>
               </div>
               {c.dishNames.length > 0 && (
-                <ul className="browse-dir-dishes">
-                  {c.dishNames.slice(0, 5).map((name) => {
-                    const dish = dishes.find((d) => d.canonicalName === name);
-                    return (
-                      <li key={name}>
-                        {dish?.slug ? (
-                          <a href={dishDetailHref(dish.slug)}>{name}</a>
-                        ) : (
-                          name
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <p className="browse-dir-card__meta">
+                  {c.dishNames.slice(0, 5).join(" · ")}
+                </p>
               )}
-            </article>
+              <span className="browse-dir-card__go">
+                Open the dishes <span aria-hidden="true">→</span>
+              </span>
+            </a>
           </li>
         ))}
       </ul>

@@ -194,7 +194,17 @@ export interface ListDishesParams {
   region?: string; // legacy alias for country
   category?: string; // legacy alias for cuisine
   period?: string; // historical era e.g. 1920-1950
-  family?: string; // kind='family' category slug (Dumplings, Noodle soups…)
+  /**
+   * A `dish_families` slug -- the canonical family dimension (123 in
+   * use by published dishes).
+   *
+   * It used to read the legacy `categories` kind='family' vocabulary,
+   * which has ONE published dish in it, so the filter returned nothing
+   * for every value the site offered.
+   */
+  family?: string;
+  /** The editorial dish/drink classification. */
+  content_type?: "dish" | "drink";
 }
 
 export function listDishes(
@@ -214,6 +224,7 @@ export function listDishes(
   if (params.category) qs.set("category", params.category);
   if (params.period) qs.set("period", params.period);
   if (params.family) qs.set("family", params.family);
+  if (params.content_type) qs.set("content_type", params.content_type);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<DishListResponse>(`/api/dishes${suffix}`);
 }
@@ -231,6 +242,12 @@ export async function listAllDishes(
 ): Promise<DishListResponse> {
   const dishes: DishListResponse["dishes"] = [];
   let offset = 0;
+  // The FIRST page's reported total is the total for the whole
+  // filtered set -- it does not change with the offset. Keeping it
+  // means the caller gets the real count, not "however many we
+  // happened to accumulate".
+  let total: number | null = null;
+  let hasMore: boolean | null = null;
 
   for (let page = 0; page < DISH_LIST_MAX_PAGES; page++) {
     const res = await listDishes({
@@ -240,12 +257,18 @@ export async function listAllDishes(
     });
     const batch = res.dishes ?? [];
     dishes.push(...batch);
-    if (batch.length < DISH_LIST_PAGE_LIMIT) break;
+    if (total === null && typeof res.total === "number") total = res.total;
+    if (batch.length < DISH_LIST_PAGE_LIMIT) {
+      // The last page. If the API told us whether more existed, keep
+      // its answer; otherwise the short page IS the answer.
+      hasMore = typeof res.hasMore === "boolean" ? res.hasMore : false;
+      break;
+    }
     offset += batch.length;
     if (offset >= 10000) break;
   }
 
-  return { dishes, limit: DISH_LIST_PAGE_LIMIT, offset: 0 };
+  return { dishes, limit: DISH_LIST_PAGE_LIMIT, offset: 0, total, hasMore };
 }
 
 // ─── Dish detail (GET /api/dishes/:slug) ─────────────────────────────────

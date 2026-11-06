@@ -8,6 +8,17 @@
 
 export type DishStatus = "draft" | "published" | "archived";
 
+/**
+ * The editorial dish/drink classification.
+ *
+ * It is an EXPLICIT field on the record, set by a human — it is NOT
+ * derived from the family tag, and there is no sync trigger. The two
+ * answer different questions: Pelamushi carries the `drink` family
+ * tag but is a Georgian dessert porridge, so a derived field could
+ * not express it correctly.
+ */
+export type DishContentType = "dish" | "drink";
+
 // ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
 
 export interface CategoryListItem {
@@ -32,6 +43,8 @@ export interface DishSummary {
   canonicalName: string;
   shortDescription: string | null;
   status: DishStatus;
+  /** The editorial dish/drink classification. */
+  contentType: DishContentType;
   originGeoId: string | null;
   originName: string | null;
   viewCount: number;
@@ -72,6 +85,23 @@ export interface DishListResponse {
   dishes: DishSummary[];
   limit: number;
   offset: number;
+  /**
+   * The number of dishes that MATCH the filters — not the number in
+   * this page. The API computes it against the same WHERE clause the
+   * list uses, so the two cannot disagree.
+   *
+   * `null` means "the API did not report a total" (an older API, or a
+   * fixture). Callers must then fall back to counting the page.
+   */
+  total: number | null;
+  /**
+   * Whether more rows exist past this page. The API computes it from
+   * `total`, so it cannot disagree with the count shown next to it.
+   *
+   * `null` means "unknown" — the caller falls back to the
+   * short-page heuristic.
+   */
+  hasMore: boolean | null;
 }
 
 // ─── Detail view (GET /api/dishes/:slug) ──────────────────────────────────

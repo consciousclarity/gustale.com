@@ -96,15 +96,84 @@ describe("GET /api/dishes — the list route", () => {
     }
   });
 
-  it("filters by family (reads c.kind = 'family')", async () => {
-    // The `family=` filter matches on c4.kind = 'family'. If the column is
-    // missing this is a 500, not an empty list — so assert on the status.
+  it("filters by family (reads the dish_families dimension)", async () => {
+    // PR 3 (GUS-1180): `family=` was re-pointed at `dish_families`.
+    //
+    // It used to read the legacy `categories` kind='family' vocabulary,
+    // which has ONE published dish between its 77 slugs -- so every
+    // value the site offered returned an empty list. It now reads the
+    // same dimension the atlas counts and the family dropdown read.
+    //
+    // The assertion is that the filter runs and that it FILTERS: a
+    // filter that returns the whole catalogue is just as broken as one
+    // that returns nothing.
     const res = await app.inject({
       method: "GET",
       url: "/api/dishes?family=moussaka&limit=5",
     });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json().dishes)).toBe(true);
+  });
+
+  it("returns a total that matches the filters, not the page size", async () => {
+    // The count next to a result list has to be the number of records
+    // that MATCH, or it reads as the whole catalogue and is not.
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes?limit=1" })
+    ).json();
+
+    expect(body).toHaveProperty("total");
+    expect(typeof body.total).toBe("number");
+    // A total can only be as large as the catalogue, and with a
+    // one-row page it must be at least what was returned.
+    expect(body.total).toBeGreaterThanOrEqual(body.dishes.length);
+  });
+
+  it("reports hasMore consistently with the total", async () => {
+    // hasMore is computed from the total, so the two cannot disagree.
+    // A page that holds every matching record must report false.
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes?limit=100" })
+    ).json();
+
+    expect(body).toHaveProperty("hasMore");
+    expect(typeof body.hasMore).toBe("boolean");
+    expect(body.hasMore).toBe(body.total > body.dishes.length);
+  });
+
+  it("filters by content_type", async () => {
+    // `content_type` is the editorial dish/drink classification
+    // (db/migrations/0049_content_type.sql). It is an explicit field,
+    // NOT derived from the family tag, so it is filtered on directly.
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/dishes?content_type=drink&limit=50",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const dish of body.dishes) {
+      expect(dish.contentType).toBe("drink");
+    }
+  });
+
+  it("returns contentType on every dish", async () => {
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes?limit=20" })
+    ).json();
+    for (const dish of body.dishes) {
+      expect(dish).toHaveProperty("contentType");
+      expect(["dish", "drink"]).toContain(dish.contentType);
+    }
+  });
+
+  it("rejects an unknown content_type", async () => {
+    // The vocabulary is enforced by the query schema, so a bad value
+    // is a 400 rather than a silently empty list.
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/dishes?content_type=cake",
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("searches with q=", async () => {

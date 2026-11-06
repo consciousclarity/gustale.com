@@ -217,6 +217,11 @@ MIGRATION_0047=db/migrations/0047_publish_credential_session_binding.sql
 # function and a trigger; it writes NO content rows.
 MIGRATION_0048=db/migrations/0048_bot_credential_guard.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
+# 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
+# no sync trigger (Alejandro's decision), and a verified backfill of the
+# nine drinks. It writes CONTENT rows (it backfills a column), so it
+# runs in the chain and not in the fixture seed.
+MIGRATION_0049=db/migrations/0049_content_type.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
@@ -667,6 +672,20 @@ run_pg -f - < "$(dirname "$0")/test_bot_credential_guard.sql" >/tmp/bot_guard_te
 grep -E 'BOT_CREDENTIAL_GUARD_TEST_OK' /tmp/bot_guard_test.log | tail -1 || true
 [ $fail -eq 0 ] || exit 1
 grep -E 'NOTICE' /tmp/m0047.log | head -8 || true
+
+# ── 0049: the content_type column and its verified backfill ───────────
+#
+# It comes LAST, because it reads `dish_dish_families` and
+# `dish_families` -- the taxonomy the earlier migrations establish --
+# and because it backfills a column on `dishes`, which the atlas
+# fixtures seed also touches.
+#
+# It carries its own behavioural proof and FAILS if the backfill is not
+# exactly the nine verified drinks.
+echo "--- the content_type column and its verified drink backfill"
+run_pg -f - < "$MIGRATION_0049" >/tmp/m0049.log 2>&1 || { echo "FAILED: 0049"; grep -E 'ERROR|NOTICE' /tmp/m0049.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'CONTENT_TYPE_BACKFILL_OK' /tmp/m0049.log | tail -1 || true
 
 # The FIXTURES — a seed, and NOT part of the migration chain.
 echo "--- the atlas fixtures (seed, never a migration)"

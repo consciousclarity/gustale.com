@@ -68,7 +68,21 @@ export function AlsoExplore({
   if (links.length === 0) return null;
 
   return (
-    <aside className="also-explore" aria-label="You may also explore">
+    /* PR 2 — ONE COMPLEMENTARY LANDMARK, then ONE UNIQUE LANDMARK.
+       This was an <aside className="also-explore">, nested inside the
+       dish page's <main> but not directly inside it, so it was not a
+       top-level complementary landmark:
+         landmark-complementary-is-top-level (moderate)
+       It became a <section> — and then the dish page's wrapper
+       <section aria-label="You may also explore"> turned out to carry
+       the SAME accessible name, which axe reported as:
+         landmark-unique (moderate)
+
+       The wrapper is the landmark (it holds the <h2>). So this
+       element is a plain <div> again — the layout class is unchanged,
+       and it is no longer a landmark at all, which removes both
+       violations. */
+    <div className="also-explore">
       <p className="mono-sub">You may also explore</p>
       <ul>
         {links.map((l, i) => (
@@ -81,6 +95,6 @@ export function AlsoExplore({
           </li>
         ))}
       </ul>
-    </aside>
+    </div>
   );
 }

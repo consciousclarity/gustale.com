@@ -9,7 +9,13 @@ import { buildFamilyDirectory, recoveryLinks } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
 import type { DishListResponse } from "../types/dish";
 
-let initial: DishListResponse = { dishes: [], limit: 100, offset: 0 };
+let initial: DishListResponse = {
+  dishes: [],
+  limit: 100,
+  offset: 0,
+  total: null,
+  hasMore: null,
+};
 let buildFailed = false;
 
 try {

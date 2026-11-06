@@ -45,6 +45,31 @@ from split_sentences import split_sentences  # noqa: E402
 FIELDS = (("short_description", "short"), ("long_description", "long"))
 
 
+#: The PRODUCTION Postgres container. It hosts the live database and
+#: five other PROJECTS' databases (bali, dewata, n8n, scribe).
+#:
+#: It is a CONSTANT, never a default, because an environment variable
+#: that could aim a write at the production cluster is a variable that
+#: will eventually be set to it. See scripts/find_migration_order.py,
+#: which made the same decision for the same reason.
+PRODUCTION_CONTAINER = "shared-postgres"
+
+#: The DEDICATED test Postgres. Every throwaway database belongs here.
+#:
+#: Same reasoning, same shape: a constant, and a refusal as well.
+TEST_PG_CONTAINER = "gustale-test-postgres"
+
+
+def _psql_client() -> str:
+    """The `psql` binary, on PATH or under /usr/lib/postgresql."""
+    psql = shutil.which("psql")
+    if not psql:
+        import glob
+        candidates = sorted(glob.glob("/usr/lib/postgresql/*/bin/psql"))
+        psql = candidates[-1] if candidates else "psql"
+    return psql
+
+
 def psql_command(db: str) -> list[str]:
     """The psql invocation for this environment.
 
@@ -56,53 +81,127 @@ def psql_command(db: str) -> list[str]:
     - The CI runner: Postgres is a service on 127.0.0.1 with
       PGPASSWORD=gustale, and there is NO container. `docker exec`
       fails there.
-    - A scratch database on the host: the container, but the database
-      is not `gustale`, so it is read as the postgres superuser.
-    - CHAIN_MODE=ci: a service on 127.0.0.1, whatever else is on the
-      machine.
+    - A scratch database on the host: the DEDICATED TEST POSTGRES.
+    - CHAIN_MODE=ci: a service on 127.0.0.1, whatever else is on
+      the machine.
 
-    THE PROBE IS NOT "IS THERE A CONTAINER". It is "am I in CI mode",
-    and only then "is there a container".
+    THE CONTAINER FOLLOWS THE TARGET, NOT THE MACHINE
+    ------------------------------------------------
+    This used to be decided by asking a question about the MACHINE:
+    "is the `shared-postgres` container here?". That is the wrong
+    question, and it wrote to production by accident.
 
-    That distinction matters because the probe was "is there a
-    container", which is a question about the MACHINE, not about the
-    JOB. A developer running the chain locally on a host that happens
-    to run the `shared-postgres` container — which is this one — got
-    `docker exec` for a database that the container does not have, and
-    the step failed with "CANNOT REACH the database".
+    The production host HAS the `shared-postgres` container -- it is
+    the live VPS. So on this host EVERY target -- including a
+    throwaway database named `gustale_pr3_assert_test` -- resolved to
+    `docker exec shared-postgres`. The script then created and wrote
+    a scratch database ON THE PRODUCTION CLUSTER, which hosts the live
+    database and five other projects' databases.
 
-    CHAIN_MODE=ci says what the CALLER is doing: it is running a CI
-    simulation against a service. When it is set, the container is
-    irrelevant — the service is at PG_HOST:PG_PORT.
+    That is the same class of defect as the 2026-11-06 incident, one
+    layer down: the incident dropped the LIVE database because the
+    target was the live name, and this writes a THROWAWAY database to
+    the production cluster because the target was a throwaway NAME and
+    the container was inferred from the machine.
+
+    So the container is now decided by the TARGET:
+
+      * the LIVE database  -> the production container. That is the
+        only thing that legitimately writes there, and it gets there
+        through the guard (which requires three independent signals)
+        and the live-approval gate.
+      * a THROWAWAY target -> the DEDICATED TEST POSTGRES. Never the
+        production cluster, whatever the machine looks like.
+
+    The probe "is there a container" is gone, because a machine's
+    answer to it is not this script's business. `CHAIN_MODE=ci` still
+    selects the CI's service path, because a CI runner has no
+    container of either kind and the service is at PG_HOST:PG_PORT.
 
     The password and the port come from the environment, as they do
     everywhere else in the CI.
     """
     if os.environ.get("CHAIN_MODE") == "ci":
-        psql = shutil.which("psql")
-        if not psql:
-            import glob
-            candidates = sorted(glob.glob("/usr/lib/postgresql/*/bin/psql"))
-            psql = candidates[-1] if candidates else "psql"
         return [
-            psql, "-h", os.environ.get("PG_HOST", "127.0.0.1"),
+            _psql_client(), "-h", os.environ.get("PG_HOST", "127.0.0.1"),
             "-p", os.environ.get("PG_PORT", "5432"),
             "-U", os.environ.get("PGUSER", "postgres"), "-d", db,
             "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
         ]
-    if shutil.which("docker") and _has_container():
+
+    # THE LIVE TARGET: the production container, and only then.
+    if db == db_guard.LIVE_DB:
         return [
-            "docker", "exec", "-u", "postgres", "-i", "shared-postgres",
+            "docker", "exec", "-u", "postgres", "-i", PRODUCTION_CONTAINER,
             "psql", "-U", "postgres", "-d", db,
             "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
         ]
-    psql = shutil.which("psql")
-    if not psql:
-        import glob
-        candidates = sorted(glob.glob("/usr/lib/postgresql/*/bin/psql"))
-        psql = candidates[-1] if candidates else "psql"
+
+    # A THROWAWAY TARGET: the dedicated test Postgres. NEVER production.
+    #
+    # The refusal is by NAME and is unconditional, and it happens
+    # BEFORE the first connection is attempted. Two independent
+    # refusals stand between this script and the production cluster:
+    # the constant above, and this one.
+    if PRODUCTION_CONTAINER in (os.environ.get("GUSTALE_TEST_PG_CONTAINER") or ""):
+        raise db_guard.ProductionContainerRefused(
+            f"\n"
+            f"  REFUSED: populate_description_sentences.py would run against the\n"
+            f"  PRODUCTION Postgres container ({PRODUCTION_CONTAINER!r}), because\n"
+            f"  GUSTALE_TEST_PG_CONTAINER names it.\n"
+            f"\n"
+            f"  A throwaway database must never be created on the production\n"
+            f"  cluster -- it hosts the live database and five other projects'\n"
+            f"  databases. There is no environment variable that can make it\n"
+            f"  one.\n"
+        )
+
+    if shutil.which("docker"):
+        if _container_exists(TEST_PG_CONTAINER):
+            return [
+                "docker", "exec", "-u", "postgres", "-i", TEST_PG_CONTAINER,
+                "psql", "-U", "postgres", "-d", db,
+                "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
+            ]
+        # Docker is here, but the dedicated test Postgres is not. That is
+        # the CI RUNNER: it has docker, and its Postgres is a SERVICE on
+        # 127.0.0.1 -- the CI's own instance, which is not production.
+        #
+        # It is only safe to use a local port when this machine is
+        # demonstrably NOT the production host. The production cluster IS
+        # the `shared-postgres` container, so its absence is the proof.
+        # On the production host the container IS present, so this branch
+        # is unreachable there -- and the throwaway target can never land
+        # on production's port.
+        if not _container_exists(PRODUCTION_CONTAINER):
+            return [
+                _psql_client(), "-h", "127.0.0.1",
+                "-p", os.environ.get("PG_PORT", "5432"),
+                "-U", os.environ.get("PGUSER", "gustale"), "-d", db,
+                "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
+            ]
+        # The production host, and no test container. Refuse rather than
+        # guess: the only local Postgres here is production's, on 5432.
+        raise db_guard.ProductionContainerRefused(
+            f"\n"
+            f"  REFUSED: populate_description_sentences.py would write the\n"
+            f"  throwaway database {db!r} to a local Postgres on this host,\n"
+            f"  and this host runs the PRODUCTION container "
+            f"({PRODUCTION_CONTAINER!r}).\n"
+            f"\n"
+            f"  A throwaway database must never be created on the production\n"
+            f"  cluster. Start the dedicated test Postgres first:\n"
+            f"\n"
+            f"      bash scripts/lib/test_pg.sh up\n"
+        )
+
+    # No docker on this machine: a local psql client. The port is the
+    # test Postgres's own published port (5434), never production's
+    # 5432 -- so a stray client cannot land on the production cluster.
     return [
-        psql, "-h", "127.0.0.1", "-U", "gustale", "-d", db,
+        _psql_client(), "-h", "127.0.0.1",
+        "-p", os.environ.get("GUSTALE_TEST_PG_PORT", "5434"),
+        "-U", "postgres", "-d", db,
         "-v", "ON_ERROR_STOP=1", "-X", "-tAc",
     ]
 
@@ -158,15 +257,25 @@ def can_connect(db: str) -> bool:
         return False
 
 
-def _has_container() -> bool:
+def _container_exists(name: str) -> bool:
+    """Is this container present on this machine?
+
+    Used to decide whether the DEDICATED TEST POSTGRES is available,
+    and -- on the CI runner, which has docker but no test container --
+    to prove that this machine is NOT the production host.
+
+    It is NOT used to decide which container a write goes to. That
+    decision follows the TARGET; see :func:`psql_command`.
+    """
     try:
         result = subprocess.run(
-            ["docker", "inspect", "shared-postgres"],
+            ["docker", "inspect", name],
             capture_output=True, text=True, timeout=20,
         )
         return result.returncode == 0
     except Exception:
         return False
+
 
 def fetch_descriptions(db: str = "gustale") -> list[dict]:
     sql = """

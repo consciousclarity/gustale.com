@@ -296,13 +296,109 @@ Each is objectively checkable against production after implementation.
 
 ---
 
-## 7. Open decisions for Alejandro
+## 7. Decisions — Alejandro, 2026-11-06
 
-1. **Drinks entry point at 9 items** (8 tagged + `lassi` corrected) — ship it labelled honestly (recommended), or gate it behind a content threshold until the drink catalogue is larger?
-2. **Curated "Featured" row** — 12 dishes + 12 drinks, hand-picked, on the Startpage. Or leave it out and make the Startpage purely entry points?
-3. **Family filter target** — re-point `family=` at `dish_families` (123 families, recommended) or migrate the legacy `categories` data into the dimension first and then re-point?
-4. **Drinks backfill trigger** — should `content_type` auto-follow a `drink` family tag (recommended), or stay an explicit editorial field?
-5. **Map priority** — is the map in scope for this redesign, or should the Startpage treat geography as text/region browsing until the geo data is populated?
+These **replace** the open questions this section previously held.
+They are decisions, not proposals: the work below follows them.
+
+### 7.1 Drinks
+
+**`content_type` is an explicit editorial field.** A person sets it. It
+is not derived from the family tag, and **there is no sync trigger** —
+no database trigger, no application-side mirroring. If the family tag
+and the editorial field disagree, the editorial field wins, because
+that is the one a human looked at.
+
+**The backfill happens only after each drink is verified
+individually.** Nine candidates were checked against three
+independent sources each (Wikipedia's lead sentence, Wikidata's P31
+claims, and Wikipedia's category tree), plus the catalogue's own
+descriptions. The record is in
+[`DRINK-CONTENT-TYPE-VERIFICATION.md`](DRINK-CONTENT-TYPE-VERIFICATION.md).
+
+The result: **8 drinks**, not 9. Pelamushi was checked and is a
+dessert — a Georgian milk porridge with plum and honey — despite
+carrying the `drink` family tag. It is set `content_type='dish'`.
+Buttermilk koldskål *is* a drink and needed no correction.
+
+**No Drinks entry point on the Startpage** until there are about 40
+verified drinks. At 8, a Drinks row would be a promise the catalogue
+cannot keep. `/browse?type=drink` may exist in the meantime — it is
+reachable but unpromoted.
+
+### 7.2 Startpage
+
+**Featured: 12 dishes, chosen by rule** — a dish qualifies when it has
+a photo, a definition, an origin, and a family. No drinks row in
+Featured.
+
+**`family=` is re-pointed at `dish_families`** (123 families in use).
+The legacy `categories` vocabulary is retired in P3.
+
+**The map is out of scope.** The fallback is a text list of places.
+
+**Counters never show a dash.** A metric with no data is hidden, not
+rendered as `—`. A `0` appears only inside an empty state that has an
+action attached. Plurals are correct.
+
+### 7.3 Associations (P0-6)
+
+**Publish nothing now.** The dish page gets a server-rendered empty
+state, with no "Loading…" text.
+
+**There is no review column**, so the way to record review is itself
+a decision: the proposal is [`ASSOCIATION-REVIEW-PROPOSAL.md`](ASSOCIATION-REVIEW-PROPOSAL.md)
+— a column or a ledger table — and it goes to Alejandro as a
+migration for approval before anything is applied.
+
+**Then the 50-association pilot** runs with real sources and
+confidence labels. The list is in
+[`ASSOCIATION-PILOT-50.md`](ASSOCIATION-PILOT-50.md).
+
+### 7.4 Families
+
+One table: all 123 values classified form / course / cuisine / content
+type, merged with the 109-orphan map. Delivered in
+[`FAMILY-TAXONOMY-REVIEW.md`](FAMILY-TAXONOMY-REVIEW.md), for a single
+approval pass.
+
+### 7.5 Recipes
+
+**Accent: herb green.** Values proposed in
+[`RECIPES-ACCENT-PROPOSAL.md`](RECIPES-ACCENT-PROPOSAL.md) at the
+same contrast ratios as the Atlas. Nothing is applied until it is
+approved.
+
+**An ADR for the recipe schema comes before any R4+ work** —
+[`ADR-007-recipe-schema.md`](ADR-007-recipe-schema.md). It is a
+proposal.
+
+The scope now is **R1–R3**:
+
+- **R1** — a minimal own home for recipes.
+- **R2** — 301s, plus a separate sitemap.
+- **R3** — remove "Add a dish" from recipes. **No "Add a recipe"** until
+  the schema exists.
+
+### 7.6 The open questions that were asked, answered
+
+**Hindsight: does a write persist?** No. A test write failed with
+HTTP 500 / `invalid api key (2049)`, and a follow-up recall does not
+find the marker. `last_memory_write_at` is 2026-10-30 — 16 days
+stale. The same key returns 200 on `api.minimax.io` and 401 on
+`api.minimaxi.com`, which is the error shape the server raises. The
+server is pointed at a host that rejects the key. Full diagnosis in
+[`HINDSIGHT-WRITE-FAILURE.md`](HINDSIGHT-WRITE-FAILURE.md).
+
+**Why does memory say it's full?** A character budget on two local
+files — `MEMORY.md` (6,000) and `USER.md` (3,500) — not Hindsight and
+not tokens. It was full at the old 2,200 / 1,375 limits; the limits
+were raised on 2026-11-05. It is now at 89.8% and 36.9%. Full
+explanation in [`HERMES-MEMORY-FULL.md`](HERMES-MEMORY-FULL.md).
+
+**GitHub:** the 5 commits to `gustale-state` are ready and will be
+pushed as soon as the App is installed on that repository. The local
+deploy key is per-repo and cannot reach it; the App is the only path.
 
 ---
 
