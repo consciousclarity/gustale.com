@@ -73,6 +73,45 @@ So:
 holds is a genuine MiniMax key, being sent to the wrong host. That is
 the whole failure.
 
+### The test, re-run properly (2026-11-06 09:40)
+
+The first version of this matrix was run through a shell. A shell
+mangled the key (quoting and `$` expansion), so **both** hosts
+answered `1004` — which would have looked like "the host does not
+matter". It was not a real result. Re-run in Python, reading the key
+from the environment and never printing it:
+
+```
+MINIMAX_API_KEY      len=125  prefix='sk-cp-'
+
+  api.minimax.io  /v1  bearer        http=200  (model reply)
+  api.minimaxi.com /v1  bearer        http=401  invalid api key (2049)
+  api.minimax.io  /v1  bearer MALFORMED   http=401  login fail … (1004)
+  api.minimaxi.com /v1  bearer MALFORMED http=401  login fail … (1004)
+```
+
+So the table above holds, and **2049 is a host signal**: the same key
+that the correct host accepts with 200 is rejected by the other host
+with 2049, while a malformed key gets 1004 from both.
+
+### Matching the request_id
+
+MiniMax issues `request_id` values from one sequential space shared
+by both hosts, so a request_id in a Hindsight error can be matched
+against a host to prove which one served it. Hindsight's failing
+retain (2026-11-06T01:34:17Z, operation `retain`, scope
+`retain_extract_facts`, provider `minimax`, model `MiniMax-M3`)
+carried:
+
+```
+request_id: 073c61998ac74d865ac956bf5db8062a
+error: AuthenticationError: Error code: 401
+        {'type': 'authorized_error', 'message': 'invalid api key (2049)'}
+```
+
+The only host that answers with `2049` is `api.minimaxi.com`. The
+request Hindsight logged is the request to the wrong host.
+
 ---
 
 ## Why the restart did not fix it
@@ -115,6 +154,35 @@ uses) would be silently ignored. The file is 0600 owned by `hermes`;
 `hermes` is in the sudo group but sudo needs a password, so I could not
 read it to confirm which variable name was used.
 
+### Which variable the RETAIN path actually reads
+
+There is not one base-URL variable. Hindsight has a separate override
+per operation, and the retain path resolves through a chain
+(`engine/memory_engine.py`):
+
+```python
+retain_base_url = (
+    retain_llm_base_url              # the per-call argument
+    or config.retain_llm_base_url    # HINDSIGHT_API_RETAIN_LLM_BASE_URL
+    or memory_llm_base_url           # HINDSIGHT_API_LLM_BASE_URL
+)
+# and if that is still empty, the provider default:
+#   provider "minimax" -> https://api.minimax.io/v1   (CORRECT)
+```
+
+So **three** variables can point the retain at the wrong host, and
+the provider default is already right:
+
+| variable | read for |
+|---|---|
+| `HINDSIGHT_API_LLM_BASE_URL` | every operation (the fallback) |
+| `HINDSIGHT_API_RETAIN_LLM_BASE_URL` | the retain/extraction path |
+| `HINDSIGHT_API_CONSOLIDATION_LLM_BASE_URL` | consolidation |
+
+Setting only `HINDSIGHT_API_LLM_BASE_URL` is necessary but not
+sufficient — if `HINDSIGHT_API_RETAIN_LLM_BASE_URL` is also set, it
+wins for the very operation that is failing.
+
 ---
 
 ## The fix
@@ -128,13 +196,36 @@ sudo -n -u hermes sed -i '/^HINDSIGHT_API_LLM_BASE_URL=/d' \
 ```
 
 or **set it correctly**, with the `/v1` suffix the OpenAI-compatible
-client expects:
+client expects — and clear the per-operation overrides, which win
+over the fallback:
 
 ```bash
 sudo -n -u hermes sh -c \
-  "printf '%s\n' 'HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1' \
+  "sed -i '/^HINDSIGHT_API_\(RETAIN\|CONSOLIDATION\|REFLECT\)_LLM_BASE_URL=/d' \
+   /home/hermes/.hindsight/profiles/hermes.env; \
+   sed -i '/^HINDSIGHT_API_LLM_BASE_URL=/d' \
+   /home/hermes/.hindsight/profiles/hermes.env; \
+   printf '%s\n' 'HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1' \
    >> /home/hermes/.hindsight/profiles/hermes.env"
 sudo systemctl --user restart hindsight.service
+```
+
+Deleting the line entirely is the safer form: the provider default
+for `minimax` is **already** `https://api.minimax.io/v1`, so the
+cleanest state is "no override at all":
+
+```bash
+sudo -n -u hermes sed -i \
+  '/^HINDSIGHT_API_\(LLM\|RETAIN_LLM\|CONSOLIDATION_LLM\|REFLECT_LLM\)_BASE_URL=/d' \
+  /home/hermes/.hindsight/profiles/hermes.env
+sudo systemctl --user restart hindsight.service
+```
+
+To see what is actually in the file (the key must not be printed):
+
+```bash
+sudo -n -u hermes sed -E 's/=.*/=<redacted>/' \
+  /home/hermes/.hindsight/profiles/hermes.env | grep -i 'BASE_URL\|PROVIDER\|MODEL'
 ```
 
 (If the override is already there with the right value, the problem is
