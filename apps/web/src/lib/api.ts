@@ -21,6 +21,7 @@ import type {
   CategoryListItem,
   DishDetailResponse,
   DishListResponse,
+  FeaturedDishResponse,
   TagListItem,
 } from "../types/dish";
 import type {
@@ -227,6 +228,21 @@ export function listDishes(
   if (params.content_type) qs.set("content_type", params.content_type);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request<DishListResponse>(`/api/dishes${suffix}`);
+}
+
+/**
+ * The Startpage's featured row — twelve dishes chosen by a RULE.
+ *
+ * The rule is a photo, a definition, an origin and a family, applied
+ * on the server so that anyone can check which dishes qualify and
+ * why. A hand-picked list would go stale the moment a dish is
+ * unpublished, and nobody could tell an omission from an accident.
+ *
+ * Drinks are excluded by the server: the Startpage carries no drinks
+ * row until the drink catalogue is large enough to promise.
+ */
+export function getFeaturedDishes(limit = 12): Promise<FeaturedDishResponse> {
+  return request<FeaturedDishResponse>(`/api/dishes/featured?limit=${limit}`);
 }
 
 /** API max for GET /api/dishes `limit` (zod .max(100)). */

@@ -57,6 +57,35 @@ const LINEAGES_DATA = HAS_LINEAGES
   : { list: null, details: {} };
 
 const LIST = DATA.list ?? [];
+
+// PR 4 — the EDITORIAL CONTENT TYPE, for the mock.
+//
+// The fixture is a capture from 2026-11-02, before `content_type`
+// existed as a column, so the dishes in it carry no content type.
+// The eight VERIFIED DRINKS are named here explicitly, so the mock
+// can honour the same rule the API does: the Startpage features no
+// drinks.
+//
+// This is a MOCK. It does not decide what is a drink -- the API does,
+// from the `content_type` column that migration 0049 adds. The list
+// here is the same eight the verification produced, kept in one
+// place so the mock and the API cannot quietly disagree.
+const MOCK_DRINKS = new Set([
+  "lassi",
+  "buttermilk-koldskal",
+  "ayran",
+  "kefir",
+  "kombucha",
+  "malt",
+  "sherbet",
+  "sorbet",
+]);
+
+/** The editorial content type for a fixture dish. */
+function mockContentType(d) {
+  return MOCK_DRINKS.has(d.slug) ? "drink" : "dish";
+}
+
 const MAP = DATA.map ?? [];
 const DETAILS = DATA.details ?? {};
 // The ATLAS data — the three concepts per dish (ADR-004), captured
@@ -348,7 +377,60 @@ const server = http.createServer((req, res) => {
     // the front-end's count logic is exercised by the fixture too.
     const total = dishes.length;
     const hasMore = offset + page.length < total;
-    res.end(JSON.stringify({ dishes: page, limit, offset, total, hasMore }));
+    // PR 3 — the editorial content type travels with every dish.
+    res.end(
+      JSON.stringify({
+        dishes: page.map((d) => ({ ...d, contentType: mockContentType(d) })),
+        limit,
+        offset,
+        total,
+        hasMore,
+      }),
+    );
+    return;
+  }
+
+  // GET /api/dishes/featured — the Startpage's twelve, chosen by a RULE.
+  //
+  // The rule, applied here the same way the API applies it: a dish
+  // is featured when it has a photo, a definition, an origin and a
+  // family. Drinks are excluded. The mock enforces the rule so the
+  // local build cannot drift from the server's behaviour.
+  if (url.pathname === "/api/dishes/featured" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
+    const rawLimit = parseInt(url.searchParams.get("limit") ?? "12", 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(24, Math.max(1, rawLimit))
+      : 12;
+    const featured = LIST.filter(
+      (d) =>
+        // PHOTO
+        d.cover &&
+        d.cover.publicUrl &&
+        // DEFINITION
+        d.shortDescription &&
+        d.shortDescription.trim().length > 0 &&
+        // ORIGIN
+        d.originName &&
+        // FAMILY
+        d.familySlug &&
+        d.familyName &&
+        // NOT A DRINK
+        mockContentType(d) !== "drink",
+    )
+      .slice()
+      .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+      .slice(0, limit)
+      .map((d) => ({
+        ...d,
+        id: d.id ?? d.slug,
+        canonicalName: d.canonicalName ?? d.name,
+        contentType: mockContentType(d),
+        originName: d.originName ?? d.country ?? null,
+        familySlug: d.familySlug ?? null,
+        familyName: d.familyName ?? null,
+      }));
+    res.end(JSON.stringify({ dishes: featured, count: featured.length }));
     return;
   }
 

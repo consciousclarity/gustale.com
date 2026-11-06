@@ -30,7 +30,12 @@ import {
   useState,
 } from "react";
 import type { MapDish } from "../../lib/api";
-import { getMapDishes, listAllDishes } from "../../lib/api";
+import {
+  getAtlasCounts,
+  getFeaturedDishes,
+  getMapDishes,
+  listAllDishes,
+} from "../../lib/api";
 import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
@@ -44,9 +49,10 @@ import {
   expandToCoincidentStack,
   parseCoord,
 } from "../../lib/mapCoincident";
-import type { DishSummary } from "../../types/dish";
+import type { DishSummary, FeaturedDish } from "../../types/dish";
 import type { FoodRegionFeature } from "../../types/map";
-import { HeroDensityMap } from "./HeroDensityMap";
+import { FeaturedRow } from "./FeaturedRow";
+import { buildPlaceList, PlacesList } from "./PlacesList";
 
 type ViewMode = "atlas" | "index" | "gallery" | "feed";
 type SortKey = "name" | "origin" | "family";
@@ -897,6 +903,26 @@ export default function GustaleHomeIsland() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // PR 4 — the featured row. Twelve dishes, chosen by a rule that
+  // the server applies. It is a SEPARATE fetch from the dish list:
+  // the list loads every published dish so the filters can narrow it,
+  // and the featured row needs twelve specific ones. Folding the
+  // featured row into the list would mean picking twelve out of the
+  // list on the client, which is the hand-picked list the rule was
+  // meant to replace.
+  const [featured, setFeatured] = useState<FeaturedDish[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+
+  // The CANONICAL family count.
+  //
+  // The dropdown options come from the loaded dishes' familySlug, and
+  // that vocabulary (categories kind='dish-type') holds only 121
+  // dishes across 25 slugs — so counting it produced "22 families"
+  // when the canonical dimension has 123 in use. The count belongs to
+  // the dimension that actually classifies dishes, which is
+  // /api/atlas/counts.
+  const [familyCount, setFamilyCount] = useState<number | null>(null);
+
   // Filters
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("");
@@ -937,6 +963,52 @@ export default function GustaleHomeIsland() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The featured row, fetched on its own.
+  //
+  // A failure here must NOT blank the page: the featured row is one
+  // section, and the rest of the Startpage -- the filters, the
+  // dishes, the places -- does not depend on it. So a failure leaves
+  // the row empty, and the row's empty state offers a way onward.
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingFeatured(true);
+    getFeaturedDishes(12)
+      .then((res) => {
+        if (cancelled) return;
+        setFeatured(res.dishes ?? []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.warn("[GustaleHome] featured fetch failed:", err);
+        setFeatured([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFeatured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The canonical family count. A failure here hides the counter
+  // rather than guessing it: the count is either right or absent.
+  useEffect(() => {
+    let cancelled = false;
+    getAtlasCounts()
+      .then((res) => {
+        if (cancelled) return;
+        const n = res?.counts?.families;
+        setFamilyCount(typeof n === "number" ? n : null);
+      })
+      .catch(() => {
+        if (!cancelled) setFamilyCount(null);
       });
     return () => {
       cancelled = true;
@@ -990,6 +1062,17 @@ export default function GustaleHomeIsland() {
     [dishes],
   );
 
+  // The places, for the text list that replaced the map.
+  const placeList = useMemo(
+    () =>
+      buildPlaceList(
+        dishes
+          .filter((d) => d.hasLocation)
+          .map((d) => ({ country: d.country, slug: d.slug })),
+      ),
+    [dishes],
+  );
+
   return (
     // PR 2 — ONE MAIN.
     // The Layout already renders <main> around the slot. This island
@@ -1028,41 +1111,73 @@ export default function GustaleHomeIsland() {
               duplicates.
 
               The hero keeps its heading, its lede and its counters. */}
+          {/* PR 4 — COUNTERS.
+              A metric with no data is HIDDEN, not shown as a dash and
+              not shown as a zero. A dash reads as "there is a metric
+              here and its value is unavailable", which is a different
+              claim from "there is nothing to count".
+
+              And the plurals are the nouns, not a conditional: "1
+              dish", "2 dishes", "1 family", "2 families". The old
+              code said "dishes" unconditionally, which is wrong for
+              exactly one case -- and the one case is the one a reader
+              notices. */}
           <div className="hero-meta">
-            <div>
-              <b>{total}</b> dishes
-            </div>
-            <div>
-              <b>{familyOptions.length}</b> families
-            </div>
-            <div>
-              <b>{countryOptions.length}</b> origins
-            </div>
+            {total > 0 ? (
+              <div>
+                <b>{total.toLocaleString()}</b>{" "}
+                {total === 1 ? "dish" : "dishes"}
+              </div>
+            ) : null}
+            {familyCount !== null && familyCount > 0 ? (
+              <div>
+                <b>{familyCount.toLocaleString()}</b>{" "}
+                {familyCount === 1 ? "family" : "families"}
+              </div>
+            ) : null}
+            {countryOptions.length > 0 ? (
+              <div>
+                <b>{countryOptions.length.toLocaleString()}</b>{" "}
+                {countryOptions.length === 1 ? "origin" : "origins"}
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="hero-frame">
-          <HeroDensityMap
-            dishes={dishes.map((d) => ({
-              slug: d.slug,
-              name: d.name,
-              country: d.country,
-              lat: d.lat,
-              lng: d.lng,
-            }))}
-            plottedCount={plottedCount}
-          />
-        </div>
+        {/* PR 4 — NO MAP ON THE STARTPAGE.
+            The map was removed by decision. The fallback is a text
+            list of places, rendered by <PlacesList> below the
+            workspace, and it costs no JavaScript at all. */}
       </section>
+
+      {/* ── Featured: twelve dishes, chosen by a rule ────────────── */}
+      <div className="wrap">
+        <FeaturedRow dishes={featured} loading={loadingFeatured} />
+      </div>
+
+      {/* ── Places: the map's replacement ────────────────────────── */}
+      {/* PR 4 — MAP OUT OF SCOPE. A text list of places is the
+          fallback, and this is it. It is a list of links, it works
+          without JavaScript, and it is what a screen reader and a
+          search engine both want. */}
+      <div className="wrap">
+        <PlacesList places={placeList} locatedCount={plottedCount} />
+      </div>
 
       {/* ── Workspace ────────────────────────────────────────────── */}
       <section className="workspace wrap">
         <div className="ws-head">
           <div>
             <h2>Explore</h2>
+            {/* PR 4 — THE COUNT IS TRUTHFUL AND THE PLURAL IS RIGHT.
+                "1 of 1 dish", not "1 of 1 dishes". And while the
+                data is loading, the line says so plainly rather than
+                showing a count of nothing. */}
             <p>
               {loading
                 ? "Loading…"
-                : `${shown} of ${total} dish${total !== 1 ? "es" : ""}`}
+                : `${shown.toLocaleString()} of ${total.toLocaleString()} ${
+                    total === 1 ? "dish" : "dishes"
+                  }`}
             </p>
           </div>
           <span className="ws-count">

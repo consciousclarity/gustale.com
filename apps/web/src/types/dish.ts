@@ -81,6 +81,40 @@ export interface DishCover {
   altText: string | null;
 }
 
+/**
+ * One dish in the Startpage's featured row.
+ *
+ * The row is chosen by a RULE — a photo, a definition, an origin and
+ * a family — and the rule is applied on the server, so these four
+ * facts are always present. That is why `cover`, `shortDescription`,
+ * `originName` and `familyName` are not optional here: if the server
+ * returns a dish, it met the rule.
+ */
+export interface FeaturedDish {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  shortDescription: string;
+  /** The editorial classification. Never "drink" in the featured row. */
+  contentType: DishContentType | null;
+  viewCount: number;
+  originName: string;
+  familySlug: string;
+  familyName: string;
+  cover: {
+    publicUrl: string;
+    variantsUrls: Record<string, string>;
+    width: number | null;
+    height: number | null;
+    altText: string | null;
+  } | null;
+}
+
+export interface FeaturedDishResponse {
+  dishes: FeaturedDish[];
+  count: number;
+}
+
 export interface DishListResponse {
   dishes: DishSummary[];
   limit: number;

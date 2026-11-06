@@ -91,19 +91,32 @@ def main() -> int:
     if len(sys.argv) < 4:
         print(__doc__)
         print("usage: open-pr.py <repo> <head-branch> <title> <body-file> "
-              "[image ...]")
+              "[--base <branch>] [image ...]")
         return 2
 
     repo, head, title, body_file = sys.argv[1:5]
     images = sys.argv[5:]
 
+    # An optional base branch, for a STACKED PR.
+    #
+    # A PR that builds on another PR must have that PR's branch as its
+    # base, or the diff shows the whole stack instead of this PR's
+    # own work. The base is given as the last argument that is not an
+    # image path, after "--base".
+    base = "main"
+    rest: list[str] = []
+    i = 0
+    while i < len(images):
+        if images[i] == "--base" and i + 1 < len(images):
+            base = images[i + 1]
+            i += 2
+            continue
+        rest.append(images[i])
+        i += 1
+    images = rest
+
     tok = token()
     body = Path(body_file).read_text()
-
-    # The base branch is main -- unless the head branch already
-    # contains another open PR's branch, in which case the PR stacks
-    # on THAT branch, so the diff shows only this PR's work.
-    base = "main"
 
     result = api(
         tok, "POST", f"/repos/{OWNER}/{repo}/pulls",
