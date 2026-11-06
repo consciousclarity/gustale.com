@@ -570,6 +570,7 @@ jobs:
           GUSTALE_PGPORT: "5432"
           GUSTALE_PGUSER: postgres
           GUSTALE_PGPASSWORD: gustale
+          GUSTALE_DB_NAME: gustale_ci
         run: bash scripts/test-delete-test-account.sh
 
       - name: Apply the GUS-242 data migrations
