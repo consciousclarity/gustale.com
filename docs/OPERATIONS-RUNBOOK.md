@@ -276,3 +276,27 @@ session store. To redact it:
 
 `hermes gateway restart` runs **outside** the agent — it cannot be triggered from
 inside a session, so schedule it with the user rather than assuming it took effect.
+
+## 20. The approval gate
+
+The live approval gate is configured as:
+
+- `mode: smart`
+- `cron_mode: deny`
+- `bypass: false` — LIVE, not a dry run
+- no restart was performed, because `load_config` caches on mtime
+
+**Known defect:** a single-line regex for `tools.approval: Hardline block:` **drops 4
+multi-line records**. The gate's own audit trail is therefore incomplete — a block that
+spans multiple lines is not recorded.
+
+**The GitHub Actions "Live approval gate" job fails BY DESIGN** until the owner applies
+the `approved-live` label to the pull request. The App cannot apply it: it has
+`issues: read` and no write permission on issues.
+
+**The live database name is refused unconditionally**, with no environment override.
+`GUSTALE_DB_IS_THROWAWAY=1` used to make `scripts/lib/db_guard.py` treat `gustale` as
+DISPOSABLE — a stale value in a shell environment once caused a live wipe on
+2026-11-06 (see `docs/INCIDENT-2026-11-06-live-db-drop.md`). PR #190 fixes it: the
+live name is refused ALWAYS, and a refusal prints a message and exits 1 rather than
+raising a traceback.
