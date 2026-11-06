@@ -54,7 +54,23 @@ DB = db_guard.resolve("gustale_order_probe", purpose="find_migration_order.py")
 #: databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
 #: destroyed the live database. This script creates and drops a probe
 #: database, so it must never touch the production cluster.
-TEST_PG_CONTAINER = os.environ.get("GUSTALE_TEST_PG_CONTAINER", "gustale-test-postgres")
+#:
+#: The container is a CONSTANT, not a default. An environment variable
+#: would let an ambient `GUSTALE_TEST_PG_CONTAINER=shared-postgres`
+#: aim every DROP DATABASE below at the production cluster, and nothing
+#: in the environment says that is what happened -- the script simply
+#: does the wrong thing. The check below refuses production anyway, so
+#: the constant and the check are two independent guards.
+TEST_PG_CONTAINER = "gustale-test-postgres"
+
+#: Refuse production BEFORE the first cluster-scoped statement.
+#:
+#: `main()` drops and creates a database, so the refusal has to happen
+#: before anything runs -- not after. The check is by container name
+#: and it is unconditional.
+db_guard.refuse_production_container(
+    TEST_PG_CONTAINER, purpose="find_migration_order.py"
+)
 
 DRIZZLE = sorted(
     str(p) for p in Path("packages/db/drizzle").glob("*.sql")

@@ -375,13 +375,58 @@ def _is_allowed_live_script() -> str | None:
 
     The match is on the FILE the process is running as. A string the
     caller passes in is not a signal — it is a claim.
+
+    WHY NOT `caller.endswith(allowed_path)`
+    ---------------------------------------
+    The allowlist keys are REPO-RELATIVE paths (`scripts/cite_pool_a.py`)
+    and the call stack holds ABSOLUTE paths, so a suffix match is the
+    obvious way to compare them. It is also a hole: a file at
+    `/tmp/anything/scripts/cite_pool_a.py` ends with the same suffix,
+    so a script that merely LOOKS like an allowlisted one -- copied
+    into a scratch directory, or checked out somewhere else -- would
+    inherit the permission to reach the live database.
+
+    So the caller's path is resolved RELATIVE TO THE REPO ROOT and
+    compared exactly. A file outside the repo cannot be allowlisted
+    by resemblance, and a file inside it must be the named script,
+    not a copy of it.
     """
     allowed = _allowed_live_scripts()
+    root = _repo_root()
     for caller in _calling_scripts():
         for allowed_path in allowed:
-            if caller.endswith(allowed_path):
+            if _relative_to_repo(caller, root) == allowed_path:
                 return allowed_path
     return None
+
+
+def _repo_root() -> str:
+    """The root of the checkout this guard module belongs to.
+
+    `scripts/lib/db_guard.py` -> the directory two levels up, which is
+    the repo root. The allowlist keys are relative to it.
+    """
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _relative_to_repo(path: str, root: str) -> str | None:
+    """The path relative to the repo root, in POSIX form, or None.
+
+    None means the path is NOT inside the repo -- and a path outside
+    the repo is never allowlisted, whatever it is named.
+    """
+    try:
+        absolute = os.path.abspath(path)
+    except (OSError, ValueError):
+        return None
+    try:
+        relative = os.path.relpath(absolute, root)
+    except ValueError:
+        return None
+    if relative.startswith(".."):
+        return None
+    # POSIX separators, so the comparison is the same on every platform.
+    return relative.replace(os.sep, "/")
 
 
 def scratch_database() -> str:

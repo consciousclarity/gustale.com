@@ -236,6 +236,53 @@ def check_production_container() -> tuple[bool, str]:
     return (not failures), "; ".join(failures)
 
 
+def check_allowlist_matching() -> tuple[bool, str]:
+    """Does the allowlist match the NAMED script, and not a copy of it?
+
+    The allowlist keys are repo-relative and the call stack holds
+    absolute paths, so a suffix match is the obvious comparison. It is
+    also a hole: `/tmp/anything/scripts/cite_pool_a.py` ends with the
+    same suffix, so a COPY of an allowlisted script would inherit the
+    permission to reach the live database.
+
+    Two cases:
+      1. the real script, in this checkout -> allowlisted
+      2. a file OUTSIDE the checkout, with the same name -> NOT
+    """
+    failures = []
+    allowed = db_guard._allowed_live_scripts()
+    if not allowed:
+        return False, "the allowlist is empty, so this check proves nothing"
+
+    # Pick a script that actually exists in this checkout.
+    root = db_guard._repo_root()
+    real = None
+    for rel in sorted(allowed):
+        if os.path.isfile(os.path.join(root, rel)):
+            real = rel
+            break
+    if real is None:
+        return False, "no allowlisted script exists in this checkout"
+
+    # Case 1: the real script, resolved from the repo root.
+    got = db_guard._relative_to_repo(os.path.join(root, real), root)
+    if got != real:
+        failures.append(
+            f"the real script {real!r} resolved to {got!r} instead of matching"
+        )
+
+    # Case 2: a copy of the same name, outside the checkout.
+    outside = os.path.join("/tmp/somewhere-else", real)
+    got = db_guard._relative_to_repo(outside, root)
+    if got is not None:
+        failures.append(
+            f"a copy of {real!r} outside the checkout resolved to {got!r}, "
+            "so it would have inherited the live-database permission"
+        )
+
+    return (not failures), "; ".join(failures)
+
+
 def main() -> int:
     print("=== the live-database guard's own behaviour cases ===")
     failures = 0
@@ -267,10 +314,17 @@ def main() -> int:
         failures += 1
 
     print()
+    print("=== the allowlist matches the NAMED script, not a copy of it ===")
+    ok, why = check_allowlist_matching()
+    print(f"  {'OK  ' if ok else 'FAIL'}  {why or 'a copy outside the checkout is not allowlisted'}")
+    if not ok:
+        failures += 1
+
+    print()
     if failures:
-        print(f"  FAIL  {failures} of {len(CASES) + 2} checks are wrong")
+        print(f"  FAIL  {failures} of {len(CASES) + 3} checks are wrong")
         return 1
-    print(f"  ALL PASS  ({len(CASES) + 2} checks)")
+    print(f"  ALL PASS  ({len(CASES) + 3} checks)")
     return 0
 
 

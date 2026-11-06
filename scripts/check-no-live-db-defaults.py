@@ -386,8 +386,28 @@ def _guards_its_drop_target(text: str) -> bool:
     # A live-db comparison: `= "$LIVE_DB"`, `== "gustale"`, etc.
     if re.search(r'LIVE_DB', text) and re.search(r'=\s*"?\$\{?LIVE_DB', text):
         return True
-    # A refusal of the live NAME, by literal: `[ "$x" = "gustale" ]`.
-    if re.search(r'=\s*"gustale"', text) or re.search(r'=\s*\'gustale\'', text):
+    # A refusal of the live NAME, by literal.
+    #
+    # It has to be a COMPARISON, not an assignment. `= "gustale"` on its
+    # own matches three very different things:
+    #
+    #   [ "$dbname" = "gustale" ]   a refusal -- the live name is
+    #                               checked and the script backs off
+    #   LIVE_DB = "gustale"         a MENTION -- the script names the
+    #                               live database and then does
+    #                               whatever it likes with it
+    #   SVC_USER = "gustale"        neither -- a role name
+    #
+    # Treating the second as the first is how a script that merely
+    # mentions the live database got its DROP DATABASE treated as
+    # safe. So the comparison needs a VARIABLE on the left: in shell
+    # that is `"$var"`, in Python it is `==`.
+    if re.search(r'["\']\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?["\']\s*=\s*["\']gustale["\']', text):
+        return True
+    # Python's equality: `if dbname == "gustale":`
+    if re.search(r'==\s*"gustale"', text) or re.search(r"==\s*'gustale'", text):
+        return True
+    if re.search(r'"gustale"\s*==', text) or re.search(r"'gustale'\s*==", text):
         return True
     if re.search(r'forbidden_target|refuse.*live|refus.*live', text, re.IGNORECASE):
         return True

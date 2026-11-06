@@ -154,6 +154,46 @@ psql_run postgres -c "DROP DATABASE IF EXISTS gustale_scratch;"
 """,
         True,
     ),
+    (
+        "a PYTHON script that shells out to docker exec",
+        """#!/usr/bin/env python3
+import os
+import subprocess
+
+TEST_PG_CONTAINER = os.environ.get("GUSTALE_TEST_PG_CONTAINER", "gustale-test-postgres")
+
+def d(sql: str) -> None:
+    r = subprocess.run(
+        ["docker", "exec", "-u", "postgres", "-i", TEST_PG_CONTAINER,
+         "psql", "-U", "postgres", "-d", "postgres", "-tAc", sql],
+        capture_output=True, text=True,
+    )
+
+def main() -> None:
+    d("DROP DATABASE IF EXISTS gustale_scratch;")
+    d("CREATE DATABASE gustale_scratch;")
+""",
+        True,
+    ),
+    (
+        "a PYTHON script whose container is a constant test container",
+        """#!/usr/bin/env python3
+import subprocess
+
+TEST_PG_CONTAINER = "gustale-test-postgres"
+
+def d(sql: str) -> None:
+    r = subprocess.run(
+        ["docker", "exec", "-u", "postgres", "-i", TEST_PG_CONTAINER,
+         "psql", "-U", "postgres", "-d", "postgres", "-tAc", sql],
+        capture_output=True, text=True,
+    )
+
+def main() -> None:
+    d("DROP DATABASE IF EXISTS gustale_scratch;")
+""",
+        False,
+    ),
 ]
 
 

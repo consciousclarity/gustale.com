@@ -254,6 +254,37 @@ _ASSIGN_DEFAULTED = re.compile(
 #: token that is not a flag and not a flag's value.
 _EXEC_RE = re.compile(r"docker\s+exec\s+(?P<rest>[^\n]*)")
 
+#: Python's list form: `["docker", "exec", "-u", "postgres", "-i", NAME, ...]`
+#:
+#: The shell form above does not match it, because the words are
+#: separated by QUOTES AND COMMAS, not spaces. A Python script that
+#: shells out to `docker exec` was therefore invisible to the
+#: scanner -- and `scripts/find_migration_order.py` is exactly that:
+#: it DROPs and CREATEs a database through `subprocess.run` with a
+#: list argument.
+_PY_EXEC_RE = re.compile(
+    r"""\[\s*["']docker["']\s*,\s*["']exec["'](?P<rest>[^\]]*)""",
+    re.IGNORECASE,
+)
+
+#: Python's environment read: `NAME = os.environ.get("VAR", "default")`
+#:
+#: The default is what the name is when the environment is silent, and
+#: the ENVIRONMENT can change it -- which is the whole risk. The shell
+#: form is `NAME="${NAME:-default}"`.
+_PY_ENV_ASSIGN = re.compile(
+    r"""^\s*(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*"""
+    r"""(?:os\.environ\.get|environ\.get)\(\s*"""
+    r"""["'](?P<env>[A-Za-z_][A-Za-z0-9_]*)["']\s*"""
+    r"""(?:,\s*["'](?P<default>[^"']*)["'])?\s*\)""",
+)
+
+#: Python's plain assignment: `NAME = "value"`.
+_PY_ASSIGN_LITERAL = re.compile(
+    r"""^\s*(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*"""
+    r"""["'](?P<value>[^"']*)["']\s*$""",
+)
+
 #: Flags of `docker exec` that take a value of their own.
 _EXEC_VALUE_FLAGS = {"-u", "--user", "-e", "--env", "-w", "--workdir"}
 
@@ -295,6 +326,18 @@ def _repo_variable_map() -> None:
                 env_over.add(m.group("name"))
                 continue
             m = _ASSIGN_LITERAL.match(code)
+            if m:
+                local.setdefault(m.group("name"), set()).add(m.group("value"))
+                continue
+            # Python's environment read: the ENVIRONMENT can change it.
+            m = _PY_ENV_ASSIGN.match(code)
+            if m:
+                default = m.group("default")
+                if default:
+                    local.setdefault(m.group("name"), set()).add(default)
+                env_over.add(m.group("name"))
+                continue
+            m = _PY_ASSIGN_LITERAL.match(code)
             if m:
                 local.setdefault(m.group("name"), set()).add(m.group("value"))
 
@@ -365,6 +408,47 @@ def _exec_containers(code: str) -> set[str]:
     return out
 
 
+def _py_exec_containers(code: str) -> set[str]:
+    """The containers a Python `["docker", "exec", ...]` list names.
+
+    Same rule as the shell form: the container is the first element
+    that is not a flag and not a flag's value. The elements are
+    separated by commas and quoted, so they are split apart first.
+
+    A QUOTED element is a literal -- `["shared-postgres", ...]` names
+    the production container. A BARE element is a Python NAME, so it
+    is returned as `$NAME` and resolved like a shell variable.
+    """
+    out: set[str] = set()
+    for m in _PY_EXEC_RE.finditer(code):
+        rest = m.group("rest")
+        elements = [e.strip() for e in rest.split(",")]
+        i = 0
+        while i < len(elements):
+            raw = elements[i]
+            if not raw:
+                i += 1
+                continue
+            quoted = raw[0] in "\"'"
+            element = raw.strip("\"'").strip()
+            if not element:
+                i += 1
+                continue
+            if element.startswith("-"):
+                if element in _EXEC_VALUE_FLAGS:
+                    i += 2
+                    continue
+                i += 1
+                continue
+            if quoted:
+                out.add(element)
+            else:
+                # A Python name: resolve it as a variable.
+                out.add("$" + element)
+            break
+    return out
+
+
 def _local_assignments(lines: list[str]) -> dict[str, set[str]]:
     """The variables THIS file assigns, and their possible values."""
     out: dict[str, set[str]] = {}
@@ -378,6 +462,19 @@ def _local_assignments(lines: list[str]) -> dict[str, set[str]]:
             out.setdefault("__env__" + m.group("name"), set()).add(ANY_CONTAINER)
             continue
         m = _ASSIGN_LITERAL.match(code)
+        if m:
+            out.setdefault(m.group("name"), set()).add(m.group("value"))
+            continue
+        # Python's environment read: the ENVIRONMENT can change it.
+        m = _PY_ENV_ASSIGN.match(code)
+        if m:
+            default = m.group("default")
+            if default:
+                out.setdefault(m.group("name"), set()).add(default)
+            out.setdefault("__env__" + m.group("name"), set()).add(ANY_CONTAINER)
+            continue
+        # Python's plain assignment.
+        m = _PY_ASSIGN_LITERAL.match(code)
         if m:
             out.setdefault(m.group("name"), set()).add(m.group("value"))
     return out
@@ -408,8 +505,60 @@ def _function_body(lines: list[str], name: str) -> list[str]:
     return body
 
 
+def _python_function_body(lines: list[str], name: str) -> list[str]:
+    """The lines of a Python `def name(...)` in this file, if any.
+
+    Python's functions are not shell's: the body is defined by
+    INDENTATION, and a call like `d(f"DROP DATABASE ...")` reaches the
+    `docker exec` several lines away inside the function it calls. A
+    scanner that only reads the statement's own line never sees the
+    container -- which is why a Python script could run a
+    cluster-scoped DROP with nothing to show for it.
+
+    The body ends at the next line that is not indented under the
+    `def`. Bracket depth is tracked, because a call that spans lines
+    can close its bracket at the `def`'s own indentation.
+    """
+    start = None
+    for i, line in enumerate(lines):
+        if re.match(rf"^\s*def\s+{re.escape(name)}\s*\(", line):
+            start = i
+            break
+    if start is None:
+        return []
+
+    def_indent = len(lines[start]) - len(lines[start].lstrip())
+    body = [lines[start]]
+    depth = lines[start].count("(") - lines[start].count(")")
+    for line in lines[start + 1 :]:
+        stripped = line.strip()
+        if depth > 0:
+            body.append(line)
+            depth += line.count("(") - line.count(")")
+            depth += line.count("[") - line.count("]")
+            continue
+        if not stripped:
+            body.append(line)
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= def_indent:
+            break
+        body.append(line)
+    return body
+
+
 def _called_local_function(line: str, lines: list[str]) -> list[str]:
     """If this line calls a function defined in this file, its body."""
+    # Python's call form: `d(f"DROP DATABASE ...")`. It has to be
+    # tried FIRST: the shell form's pattern needs WHITESPACE after the
+    # name, and a Python call has a bracket there instead, so the
+    # shell pattern does not match and the Python body was never
+    # looked for.
+    m2 = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(", line)
+    if m2:
+        python_body = _python_function_body(lines, m2.group(1))
+        if python_body:
+            return python_body
     m = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s", line)
     if not m:
         return []
@@ -484,9 +633,9 @@ def _containers_of_statement(
 
 
 def _resolve_containers(code: str, local: dict[str, set[str]]) -> set[str]:
-    """The containers a chunk of shell names, with variables resolved."""
+    """The containers a chunk of code names, with variables resolved."""
     out: set[str] = set()
-    for token in _exec_containers(code):
+    for token in _exec_containers(code) | _py_exec_containers(code):
         if token.startswith("$"):
             out |= _resolve_var(token.lstrip("$").strip("{}"), local)
         elif token.startswith("{"):
