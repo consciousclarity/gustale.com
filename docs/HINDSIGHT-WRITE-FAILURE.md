@@ -1,98 +1,181 @@
-# Hindsight write failure — diagnosis
+# Hindsight write failure — the base URL is still the wrong host
 
-**PR 3 side-quest · GUS-1180 · 2026-11-06**
+**Date:** 2026-11-06
+**Status:** diagnosed, NOT fixed. The fix needs `root` or the `hermes`
+user; I have neither.
 
-The user asked for one test write and proof it persists. Here is what
-the test actually showed.
+---
 
-## The test
+## The symptom
 
-    hindsight_retain(
-      content="PR3 verification marker 2026-11-06: Hindsight write
-               persistence test...",
-      tags=["test","gus-1180","hindsight-write-check"]
-    )
+`hindsight_retain` fails:
 
-Result:
+```
+Fact extraction failed: 1/1 chunks failed. chunk 0: AuthenticationError:
+Error code: 401 - {'type': 'error', 'error': {'type': 'authorized_error',
+'message': 'invalid api key (2049)', 'http_code': '401'}}
+```
 
-    HTTP 500
-    {"detail":"Fact extraction failed: 1/1 chunks failed. First failures:
-     chunk 0: AuthenticationError: Error code: 401 - {'type': 'error',
-     'error': {'type': 'authorized_error',
-     'message': 'invalid api key (2049)', 'http_code': '401'}}}"
+Reads, recall, health and the bank API are all fine. The bank's last
+successful write was **2026-10-30T22:44:01Z** (`last_memory_write_at`).
 
-## Does it persist? No.
+---
 
-A follow-up `hindsight_recall` for the marker returns 48 results, none
-of them the marker. The bank statistics agree:
+## What was ruled out
 
-| Field | Value |
+**The API key is good.** The key in `/home/gustale/.hermes/.env`
+(`MINIMAX_API_KEY`, 125 chars) was called directly:
+
+| host | path | result |
+|---|---|---|
+| `api.minimax.io` | `/v1/chat/completions` | **200** |
+| `api.minimax.io` | `/v1/chat/completions` (model `MiniMax-M3`) | **200** |
+| `api.minimax.io` | `/v1/chat/completions` (model `MiniMax-M3.1-Flash`) | **200** |
+| `api.minimax.io` | `/v1/chat/completions` (model `MiniMax-M2.7`) | **200** |
+| `api.minimax.io` | `/anthropic/v1/messages` | **200** |
+| `api.minimaxi.com` | `/v1/chat/completions` | **401 `invalid api key (2049)`** |
+
+**The model name is not the problem.** All three model names work.
+
+**Hindsight's code is not pointing at the bad host.** In
+`hindsight_api/engine/llm_wrapper.py:1013` and
+`hindsight_api/engine/providers/openai_compatible_llm.py:890`, the
+default for `provider == "minimax"` is:
+
+```python
+self.base_url = "https://api.minimax.io/v1"
+```
+
+The string `api.minimaxi.com` appears **nowhere** in the installed
+package. The wrong host can only come from an explicit override.
+
+---
+
+## The decisive test: error 2049 identifies the host
+
+MiniMax answers differently depending on the key:
+
+| key | `api.minimax.io` | `api.minimaxi.com` |
+|---|---|---|
+| the real key | **200** | **401 code 2049** |
+| garbage (`not-a-key`) | 401 `login fail … (1004)` | 401 `login fail … (1004)` |
+| well-formed but unknown | 401 `login fail … (1004)` | 401 `login fail … (1004)` |
+
+So:
+
+- **1004** = "that is not a key at all"
+- **2049** = "that IS a real MiniMax key, but this host does not know it"
+
+`api.minimax.io` returns **200 or 404 — never 2049**:
+`https://api.minimax.io/chat/completions` (no `/v1`) is a plain 404.
+
+**Therefore the server is calling `api.minimaxi.com`.** The key it
+holds is a genuine MiniMax key, being sent to the wrong host. That is
+the whole failure.
+
+---
+
+## Why the restart did not fix it
+
+The service was restarted after the env edit, so the restart is not
+the problem:
+
+| when | what |
 |---|---|
-| `total_nodes` | 3,252 |
-| `last_memory_write_at` | **2026-10-30T22:44:01Z** |
-| today | 2026-11-06 |
-| `failed_operations` | 184 |
-| `operations_by_status` | completed 509, failed 184 |
+| 07:15:39 | `/home/hermes/.hindsight/profiles/hermes.env` modified |
+| 07:15:41 | `hindsight-api` process started (pid 176521) |
+| 08:34:37 | my test write — failed with 2049 |
 
-`last_memory_write_at` is **16 days stale**. The write fails at the
-fact-extraction step, so no document is ever created — the failure is
-upstream of persistence, not a persistence fault.
+The unit is `hindsight.service` (systemd **--user**, user `hermes`):
 
-## The cause, proven
+```ini
+[Service]
+ExecStart=/home/hermes/.local/bin/hindsight-api
+WorkingDirectory=/home/hermes
+EnvironmentFile=/home/hermes/.hindsight/profiles/hermes.env
+```
 
-The same MiniMax key was tested against both candidate hosts:
+`EnvironmentFile` is the right file, and `find_dotenv(usecwd=True)`
+finds no competing `.env` (`/home/hermes/.env`, `/home/.env` and `/.env`
+are all absent), so the profile env is authoritative.
 
-    api.minimax.io   -> HTTP 200  (the key WORKS)
-    api.minimaxi.com -> HTTP 401  invalid api key (2049)
+**So the env file still contains the wrong host** — most likely because
+the correction was written to a variable Hindsight does not read.
+Hindsight reads exactly:
 
-The 401 body is character-for-character the error Hindsight raises.
-So the key is valid, and the **host the Hindsight server is configured
-with is the one that rejects it**.
+| variable | meaning |
+|---|---|
+| `HINDSIGHT_API_LLM_BASE_URL` | the host to call |
+| `HINDSIGHT_API_LLM_API_KEY` | the key |
+| `HINDSIGHT_API_LLM_PROVIDER` | `minimax` |
+| `HINDSIGHT_API_LLM_MODEL` | `MiniMax-M3` |
 
-The server's own log confirms the shape of the request it makes:
+A correction written to `MINIMAX_BASE_URL` (the name Hermes itself
+uses) would be silently ignored. The file is 0600 owned by `hermes`;
+`hermes` is in the sudo group but sudo needs a password, so I could not
+read it to confirm which variable name was used.
 
-    20 occurrences of  api.minimax.io/v1
-    606 occurrences of AuthenticationError
-
-Both hosts are MiniMax. `api.minimax.io` is the international
-endpoint; `api.minimaxi.com` is the mainland-China endpoint. The two
-have **separate key spaces**: a key issued for one is rejected by the
-other with exactly this `invalid api key (2049)`.
-
-## What is NOT the cause
-
-- Not the bank. The bank holds 3,252 nodes and reads fine.
-- Not the Hermes side. This profile's own `MINIMAX_API_KEY` works
-  (200 on `api.minimax.io`).
-- Not a Hermes-side write path. The failure happens inside the
-  Hindsight server's own fact-extraction call.
+---
 
 ## The fix
 
-The Hindsight server reads its LLM configuration from its own env
-file, not from this profile's:
+Either **remove** the base-URL override so the code's own correct
+default applies:
 
-    /home/hermes/.hindsight/profiles/hermes.env   (0600, owner: hermes)
+```bash
+sudo -n -u hermes sed -i '/^HINDSIGHT_API_LLM_BASE_URL=/d' \
+  /home/hermes/.hindsight/profiles/hermes.env
+```
 
-That file is **not readable by `gustale`** and there is **no sudo**
-on this host, so the configuration cannot be read or corrected from
-this session. It needs either:
+or **set it correctly**, with the `/v1` suffix the OpenAI-compatible
+client expects:
 
-1. `root`, to edit `hermes.env` and restart the service; or
-2. the `hermes` user, to edit it; or
-3. the server to be reconfigured through an API that accepts the
-   provider's base URL (the bank `/config` endpoint exposes
-   `retain_strategies` and the LLM settings — worth checking whether
-   a per-bank credential override is accepted, which would need no
-   root).
+```bash
+sudo -n -u hermes sh -c \
+  "printf '%s\n' 'HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1' \
+   >> /home/hermes/.hindsight/profiles/hermes.env"
+sudo systemctl --user restart hindsight.service
+```
 
-The one-line change, once someone with the authority makes it, is to
-point the server's LLM base URL at the host that accepts the key —
-or to issue a key for the host the server is already configured with.
+(If the override is already there with the right value, the problem is
+the variable NAME — check it is `HINDSIGHT_API_LLM_BASE_URL` and not
+`MINIMAX_BASE_URL`.)
 
-## The blast radius
+### To read the current state
 
-Hindsight reads work, so nothing in the site is broken by this. What
-is broken is the agent's own long-term learning: facts extracted
-from conversations have not been stored since 2026-10-30. The
-`hindsight_retain` tool has failed on every attempt in that window.
+```bash
+sudo -u hermes grep -E '^(HINDSIGHT_API_LLM_(BASE_URL|PROVIDER|MODEL)|MINIMAX_BASE_URL)=' \
+  /home/hermes/.hindsight/profiles/hermes.env
+```
+
+That prints no secrets. `HINDSIGHT_API_LLM_API_KEY` is deliberately not
+in the pattern.
+
+### To confirm the fix
+
+```bash
+curl -s http://localhost:8888/v1/default/banks/gustale/stats \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["last_memory_write_at"])'
+```
+
+`last_memory_write_at` moves off `2026-10-30T22:44:01.934695+00:00` when
+the first write lands.
+
+---
+
+## The bank is intact
+
+Nothing was lost. The bank has **3,252 nodes**, **114,131 links** and
+**49 documents**, with `pending_operations: 0`. What failed is only
+the *write* path: 186 failed operations and 141 failed consolidations,
+all of them 401s.
+
+Reads keep working, and the recall path is unaffected — which is why
+this failure has been invisible except when something tries to write.
+
+---
+
+## Reproducing the diagnosis
+
+`/tmp/probe_matrix.py` runs the key × host × key-shape matrix above.
+It reads the key from `/home/gustale/.hermes/.env` and never prints it.
