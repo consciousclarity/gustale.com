@@ -1,10 +1,68 @@
 # Association review — the migration proposal, and the 50-association pilot
 
-**Status:** proposal for Alejandro's approval. **Nothing is written.**
-No `review_state` was updated, no row was inserted, no migration was
-applied.
+**Status:** **Option C APPROVED** by Alejandro on 2026-11-06 ("I
+approve the 5 approvals") and implemented as
+`db/migrations/0050_association_review_ledger.sql`. The migration is
+committed and tested but **NOT applied to production** — that is a
+separate operation needing its own approval, as every migration here
+does.
 
-**Measured against the live database**, 2026-11-05.
+**Measured against the live database**, 2026-11-05 (the proposal) and
+2026-11-06 (the implementation).
+
+---
+
+## A CORRECTION THE IMPLEMENTATION FOUND
+
+The proposal and the pilot doc both described the 1,235
+`entity_kind = 'community'` rows as **dangling** — "the dangling half",
+"the entity_id is dangling". That was wrong, and the implementation is
+where it was found.
+
+`entity_id` is **polymorphic**, and both branches resolve:
+
+```sql
+entity_kind = 'place'     -> geo_entities.id     -- a PLACE
+entity_kind = 'community' -> dish_traditions.id  -- a CULTURE
+```
+
+Measured on live, 2026-11-06:
+
+| entity_kind | relationship_type | rows | resolve? |
+|---|---|---|---|
+| `place` | `legacy_unreviewed` | 1,478 | all of them |
+| `community` | `established_tradition` | 1,235 | all of them |
+| | **total** | **2,713** | **zero dangle** |
+
+A `community` row pointing at a `dish_traditions` row is a **correct**
+row. It asserts "this dish belongs to the Indonesian culinary
+tradition" — a claim about a culture, not about a country. The API
+already models this: `atlas.ts` exposes `entityKind` and says, in a
+comment, *"a community is a people or a practice, NOT a place, and the
+client must not render it as one."*
+
+The first draft of the migration acted on the wrong reading and
+re-pointed those rows at the country implied by the dish's cuisine
+tag. **Testing against the live shape is what caught it** — on the CI
+seed database (13 rows, none dangling) the migration passed; on live's
+2,713 rows it failed its own assertion. Had it not been caught:
+
+- 1,235 accurate "established tradition" claims would have become
+  1,235 weaker "legacy unreviewed" origin claims, silently, with no
+  reviewer and no source;
+- the place/culture distinction the model depends on would have been
+  destroyed.
+
+**So the migration re-points nothing.** The `entity_repointed` action
+stays in the ledger's enum — the operation is legitimate when a
+reviewer decides it, with a source behind it — but this migration
+does not perform it. What it does instead is add the trigger that
+catches a genuinely dangling row from now on.
+
+The pilot's confidence labels changed with the correction: the rows are
+**all MEDIUM**, not 25 MEDIUM + 25 LOW, because every association
+resolves. What separates the two halves of the pilot is the *kind of
+claim*, not resolvability.
 
 ---
 

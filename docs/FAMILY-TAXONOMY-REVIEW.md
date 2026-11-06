@@ -5,11 +5,57 @@ the **123** families that carry published dishes, each classified
 FORM / COURSE / CUISINE / CONTENT TYPE; and the **109-orphan map**
 — the legacy `categories` rows that carry no published dish.
 
-**Status:** proposal. Nothing is applied. The classification is
-**rule-derived**, and every rule is printed below so it can be
-audited rather than trusted.
+**Status:** **the classification is APPROVED** by Alejandro on
+2026-11-06 ("I approve the 5 approvals") and applied by
+`db/migrations/0051_family_classification.sql`, which adds
+`dish_families.family_class` and fills it in for all 306 families.
 
-**Measured against the live database**, 2026-11-05.
+The document's own closing question — *"Whether the classification is
+applied to the schema. The classes are currently editorial — they are
+not a column anywhere. If they should become one, that is a
+migration."* — is settled: **it is a migration, and it is written.**
+
+The classification is **rule-derived**, and every rule is printed below
+so it can be audited rather than trusted. The transcription from this
+document into the migration is checked by
+`scripts/hermes/extract-family-classification.py`, which re-parses
+these tables and verifies the parse against the class split this
+document prints (`FORM 83 · COURSE 21 · CUISINE 4 · CONTENT TYPE 15`
+for the 123 that carry a published dish).
+
+**Measured against the live database**, 2026-11-05 (this document) and
+2026-11-06 (the implementation).
+
+---
+
+## What the implementation found
+
+The document's 306 classifications and the database's 306 families are
+the **same 306, in both directions** — checked, not assumed:
+
+| check | result |
+|---|---|
+| classified in the document | 306 |
+| `dish_families` rows | 306 |
+| document slugs missing from the database | **0** |
+| database families not classified | **0** |
+| families carrying a published dish | **123** |
+
+Two class splits exist, and the migration asserts both:
+
+| | FORM | COURSE | CUISINE | CONTENT TYPE | total |
+|---|---|---|---|---|---|
+| the 123 with a published dish | 83 | 21 | 4 | 15 | 123 |
+| all 306 | 172 | 59 | 5 | 70 | 306 |
+
+The document prints only the first split, because only the first
+table has a "dishes" column. The second is what the migration
+actually applies to the whole table.
+
+The column is **nullable**, deliberately. A family that is not yet
+classified is a real state, and a `NOT NULL` column with an empty
+default would hide the difference between "not classified yet" and
+"classified as nothing".
 
 ---
 
@@ -357,9 +403,11 @@ The user's decision: **legacy categories are retired in P3.** So:
 
 ## What this table does NOT decide
 
-- **Whether the classification is applied to the schema.** The
-  classes are currently *editorial* — they are not a column
-  anywhere. If they should become one, that is a migration.
+- ~~**Whether the classification is applied to the schema.**~~ —
+  **settled 2026-11-06: it is applied.** `dish_families.family_class`
+  holds the class for all 306 families, and the CHECK constraint
+  enforces the four values. See
+  `db/migrations/0051_family_classification.sql`.
 - **The `dish_families` → `categories` mapping** for the 43 live
   legacy categories.
 - **The 183 `dish_families` with no published dishes** (they are
