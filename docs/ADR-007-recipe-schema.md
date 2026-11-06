@@ -1,12 +1,22 @@
 # ADR-007: The recipe schema
 
-**Status:** Proposed — **awaiting Alejandro's approval. Nothing is
-implemented on the strength of this document.**
-**Date:** 2026-11-05
+**Status:** **ACCEPTED** — approved by Alejandro on 2026-11-06
+("I approve the 5 approvals"). This ADR is now binding: R4+ work
+proceeds against the schema it specifies.
+**Date:** 2026-11-05 (proposed) / 2026-11-06 (accepted)
 **Deciders:** Alejandro (product owner), Hermes (author)
 **Related:** ADR-001 (dish persistence and publishing), ADR-002 (claims
 model), ADR-004 (atlas amendments), ADR-005 (live approval gate),
 ADR-006 (publish credential session binding)
+
+> **What the acceptance authorises, precisely.**
+> It authorises the SCHEMA — the six decisions below are now settled
+> and R4+ may be designed and built against them. It does **not**
+> authorise a migration to production: the schema still has to be
+> written as a migration, and applying that migration is a separate
+> operation that needs its own approval, as every migration here does.
+> The current recipe scope is still **R1–R3**, which needs no schema
+> at all.
 
 ---
 
@@ -184,7 +194,7 @@ recipe's `content_type` is one of `recipe`, `variation`, `technique`,
 
 ---
 
-## The schema (proposed)
+## The schema (accepted)
 
 ```sql
 -- The recipe itself.
@@ -413,16 +423,25 @@ evidenced`. The publish gate deliberately keys on `status`, not on
 
 ## The recommendation
 
-**Approve Decision 1 (recipe is a first-class entity, a dish has
-many), Decision 3 (draft-first, own publish gate) and Decision 4
-(sentences, not a blob).**
+**Approved by Alejandro on 2026-11-06** — all six decisions, as
+recommended:
 
-Decisions 2, 5 and 6 follow from the existing model and are low-risk.
+| # | decision | status |
+|---|---|---|
+| 1 | A recipe is a first-class entity, and a dish has many | **accepted** |
+| 2 | The recipe inherits the dish's identity and provenance | **accepted** |
+| 3 | Draft-first, with its own publish gate | **accepted** |
+| 4 | Text is stored as sentences | **accepted** |
+| 5 | Quantities are text plus unit | **accepted** |
+| 6 | Editorial `content_type` is `recipe` / `variation` / `technique`, with **no** sync trigger | **accepted** |
 
-**Then, and only then:** implement the schema as a migration, wire the
+**Next, and separately:** implement the schema as a migration, wire the
 publish gate, and ship "Add a recipe" alongside a curated set of
-complete recipes. R1–R3 do not wait for this — they are about the
-recipes property's *shell* (its home, its URLs, its honesty about
-what it offers), and they are exactly right to go first. R3's job is
-to make sure the property stops promising something it cannot deliver
-until the schema exists.
+complete recipes. That migration still needs its own approval before
+it is applied.
+
+R1–R3 do not wait for this — they are about the recipes property's
+*shell* (its home, its URLs, its honesty about what it offers), and
+they are exactly right to go first. R3's job is to make sure the
+property stops promising something it cannot deliver until the schema
+exists.

@@ -122,8 +122,8 @@ def main() -> int:
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for THIS
     # invocation. See scripts/lib/db_guard.py for why the opt-in is a
     # separate variable.
-    args.db = db_guard.resolve(
-        args.db, purpose="gus-014-check-other-dishes.py"
+    args.db = db_guard.resolve_target(
+        args.db, purpose="gus-014-check-other-dishes.py", write=False
     )
 
     snap = pathlib.Path(args.snapshot_dir)
@@ -216,4 +216,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (
+        db_guard.LiveDatabaseRefused,
+        db_guard.ProductionContainerRefused,
+    ) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))

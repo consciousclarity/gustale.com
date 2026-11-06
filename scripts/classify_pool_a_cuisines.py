@@ -366,7 +366,9 @@ def main() -> int:
     # Vet the target BEFORE touching anything. This refuses the live
     # database unless GUSTALE_LIVE_DB_ALLOW=1 was set for this
     # invocation.
-    TARGET_DATABASE = db_guard.resolve(args.database, purpose="classify_pool_a_cuisines.py")
+    TARGET_DATABASE = db_guard.resolve_target(
+        args.database, purpose="classify_pool_a_cuisines.py"
+    )
     if TARGET_DATABASE != db_guard.LIVE_DB:
         print(f"[cuisine] the target database: {TARGET_DATABASE}")
 
@@ -430,4 +432,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (db_guard.LiveDatabaseRefused,
+            db_guard.ProductionContainerRefused) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))

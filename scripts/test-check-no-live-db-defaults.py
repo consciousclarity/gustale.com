@@ -164,6 +164,41 @@ def _check_allowlisted_drop_targets() -> int:
     return failures
 
 
+GUARD_CASES = [
+    # A refusal: the live name is COMPARED against a variable, and the
+    # script backs off when they match.
+    ('if [ "$dbname" = "gustale" ]; then', True),
+    ("if [ \"${dbname}\" = 'gustale' ]; then", True),
+    # Python's equality is a refusal too.
+    ('if dbname == "gustale":', True),
+    # A MENTION is not a refusal. The script names the live database
+    # and then does whatever it likes with it -- the DROP was reported
+    # as safe because of this line.
+    ('LIVE_DB = "gustale"', False),
+    ('DB_NAME = os.environ.get("GUSTALE_DB_NAME", "gustale")', False),
+    # A role name is not a refusal either.
+    ('SVC_USER="gustale"', False),
+    # The guard's own vocabulary.
+    ('if forbidden_target; then', True),
+    ('refuse_live_container()', True),
+]
+
+
+def _check_guard_detection() -> int:
+    """Does the refusal rule accept a COMPARISON and reject a MENTION?"""
+    failures = 0
+    print("=== the refusal rule: a comparison is a refusal, a mention is not ===")
+    for line, expect in GUARD_CASES:
+        got = scanner._guards_its_drop_target(line)
+        ok = got == expect
+        if not ok:
+            failures += 1
+        verdict = "GUARD" if got else "skip"
+        want = "GUARD" if expect else "skip"
+        print(f"  {'OK  ' if ok else 'FAIL'}  want={want}  got={verdict}  {line[:68]}")
+    return failures
+
+
 def main() -> int:
     print("=== the live-database scanner's own detection cases ===")
     failures = 0
@@ -188,15 +223,17 @@ def main() -> int:
         print(f"  {'OK  ' if ok else 'FAIL'}  want={want}  got={verdict}  {line[:72]}")
     failures += d_failures
     print()
+    failures += _check_guard_detection()
+    print()
     failures += _check_allowlisted_drop_targets()
     print()
     if failures:
         print(f"  FAIL  {failures} case(s) are wrong "
               f"({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive "
-              f"+ {len(ALLOWLISTED_DROP_TARGETS)} allowlisted-drop)")
+              f"+ {len(GUARD_CASES)} guard + {len(ALLOWLISTED_DROP_TARGETS)} allowlisted-drop)")
         return 1
     print(f"  ALL PASS  ({len(CASES)} detection + {len(DESTRUCTIVE_CASES)} destructive "
-          f"+ {len(ALLOWLISTED_DROP_TARGETS)} allowlisted-drop)")
+          f"+ {len(GUARD_CASES)} guard + {len(ALLOWLISTED_DROP_TARGETS)} allowlisted-drop)")
     return 0
 
 

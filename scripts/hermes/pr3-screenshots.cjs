@@ -21,8 +21,8 @@
  * node_modules is at the root.
  */
 const { chromium } = require("playwright");
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const OUT = process.env.SHOT_DIR || "/tmp/pr3-shots";
 const AFTER_BASE = process.env.AFTER_BASE || "http://127.0.0.1:8899";
@@ -65,9 +65,11 @@ async function shoot(browser, base, tag, pages) {
         // Any "N dishes", "N results", "N families" style phrase.
         const re =
           /\b\d[\d,]*\s+(?:dishes?|results?|famil(?:y|ies)|places?|connections?)\b/gi;
-        let m;
-        while ((m = re.exec(text)) !== null && counts.length < 12) {
+        // The assignment is NOT in the condition -- see pr3-counters.cjs.
+        let m = re.exec(text);
+        while (m !== null && counts.length < 12) {
           counts.push(m[0].trim());
+          m = re.exec(text);
         }
         // The dash-as-a-counter defect: a lone em dash in a stat slot.
         const dashes = (

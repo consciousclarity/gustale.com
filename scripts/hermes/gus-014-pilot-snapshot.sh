@@ -14,7 +14,42 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SNAPSHOT_DIR="${GUS014_SNAPSHOT_DIR:-$REPO_ROOT/.hermes/snapshots/gus-014}"
-PG_CONTAINER="${PG_CONTAINER:-shared-postgres}"
+# The DEDICATED TEST POSTGRES, where the THROWAWAY COPY lives.
+#
+# `DROP DATABASE` and `CREATE DATABASE` are CLUSTER-SCOPED, and the
+# production cluster hosts the live database and five other projects'
+# databases. On 2026-11-06 a `DROP DATABASE` aimed at this cluster
+# destroyed the live database.
+# shellcheck source=scripts/lib/test_pg.sh
+source "$REPO_ROOT/scripts/lib/test_pg.sh"
+#
+# TWO CONTAINERS, AND THE DIFFERENCE IS THE WHOLE POINT
+# -----------------------------------------------------
+#
+# This tool reads live and it writes a copy, and those two must not
+# be the same container:
+#
+#   LIVE_CONTAINER    where the LIVE database is. READ-ONLY: the
+#                     dump and the baselines come from here. A dump
+#                     is a FILE, so it can be restored anywhere.
+#
+#   TARGET_CONTAINER  where the THROWAWAY COPY is created, verified
+#                     and dropped. The cluster-scoped statements run
+#                     here, so this is the container that must never
+#                     be production.
+#
+# Before this split, both were `$PG_CONTAINER`, and its default was
+# `shared-postgres` -- so the `DROP DATABASE` and `CREATE DATABASE`
+# in the restore path ran on the PRODUCTION cluster. The scanner
+# (scripts/check-no-production-db-drops.py) now RESOLVES the container
+# a cluster-scoped statement reaches, and it caught this.
+#
+# TARGET_CONTAINER is a CONSTANT, not a default: the environment must
+# not be able to aim a cluster-scoped DROP at production.
+LIVE_CONTAINER="${LIVE_CONTAINER:-shared-postgres}"
+TARGET_CONTAINER="$TEST_PG_CONTAINER"
+export LIVE_CONTAINER TARGET_CONTAINER
+
 PG_SUPERUSER="${PG_SUPERUSER:-postgres}"
 LIVE_DB="${LIVE_DB:-gustale}"
 PILOT_SLUGS="'rendang','chicken-tikka-masala','tacos-al-pastor'"
@@ -47,9 +82,18 @@ forbidden_target() {
   esac
 }
 
+# Run psql against the LIVE container. READ-ONLY use: the dump and the
+# baselines are read from live, and a read cannot destroy anything.
+psql_live() {
+  local db="$1"; shift
+  docker exec -i "$LIVE_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_SUPERUSER" -d "$db" "$@"
+}
+
+# Run psql against the TARGET container, where the throwaway copy lives.
+# The cluster-scoped statements (DROP/CREATE DATABASE) run here.
 psql_run() {
   local db="$1"; shift
-  docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_SUPERUSER" -d "$db" "$@"
+  docker exec -i "$TARGET_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_SUPERUSER" -d "$db" "$@"
 }
 
 # Canonical per-dish content digest. Covers every table the pilot touches:
@@ -116,22 +160,22 @@ cmd_snapshot() {
   echo "==> snapshot '$label'"
 
   echo "    dumping database '$LIVE_DB'..."
-  docker exec "$PG_CONTAINER" pg_dump -U "$PG_SUPERUSER" -Fc "$LIVE_DB" > "$dir/db.dump"
+  docker exec "$LIVE_CONTAINER" pg_dump -U "$PG_SUPERUSER" -Fc "$LIVE_DB" > "$dir/db.dump"
   echo "    -> $dir/db.dump ($(du -h "$dir/db.dump" | cut -f1))"
 
   echo "    dumping schema..."
-  docker exec "$PG_CONTAINER" pg_dump -U "$PG_SUPERUSER" --schema-only --no-owner --no-privileges "$LIVE_DB" > "$dir/schema.sql"
+  docker exec "$LIVE_CONTAINER" pg_dump -U "$PG_SUPERUSER" --schema-only --no-owner --no-privileges "$LIVE_DB" > "$dir/schema.sql"
 
   echo "    capturing pilot-dish baseline..."
-  psql_run "$LIVE_DB" -tA -F $'\t' -c "$(pilot_baseline_sql)" > "$dir/pilot-baseline.tsv"
+  psql_live "$LIVE_DB" -tA -F $'\t' -c "$(pilot_baseline_sql)" > "$dir/pilot-baseline.tsv"
   echo "    -> $dir/pilot-baseline.tsv ($(wc -l < "$dir/pilot-baseline.tsv") rows)"
 
   echo "    capturing full-catalog baseline..."
-  psql_run "$LIVE_DB" -tA -F $'\t' -c "$(cat_digest_sql)" > "$dir/catalog-baseline.tsv"
+  psql_live "$LIVE_DB" -tA -F $'\t' -c "$(cat_digest_sql)" > "$dir/catalog-baseline.tsv"
   echo "    -> $dir/catalog-baseline.tsv ($(wc -l < "$dir/catalog-baseline.tsv") dishes)"
 
   echo "    capturing edit_history high-water mark..."
-  psql_run "$LIVE_DB" -tA -F $'\t' -c "SELECT coalesce(max(created_at)::text,'none') FROM edit_history;" > "$dir/edit-history-max-created-at.txt"
+  psql_live "$LIVE_DB" -tA -F $'\t' -c "SELECT coalesce(max(created_at)::text,'none') FROM edit_history;" > "$dir/edit-history-max-created-at.txt"
 
   ( cd "$dir" && sha256sum db.dump schema.sql pilot-baseline.tsv catalog-baseline.tsv edit-history-max-created-at.txt > SHA256SUMS )
   cat > "$dir/MANIFEST.txt" <<EOF
@@ -168,9 +212,9 @@ cmd_restore() {
   psql_run postgres -c "CREATE DATABASE \"$target\";"
 
   echo "    pg_restore..."
-  docker cp "$dir/db.dump" "$PG_CONTAINER":/tmp/gus014_restore.dump
-  docker exec "$PG_CONTAINER" pg_restore -U "$PG_SUPERUSER" -d "$target" --no-owner --no-privileges --exit-on-error /tmp/gus014_restore.dump
-  docker exec "$PG_CONTAINER" rm -f /tmp/gus014_restore.dump
+  docker cp "$dir/db.dump" "$TARGET_CONTAINER":/tmp/gus014_restore.dump
+  docker exec "$TARGET_CONTAINER" pg_restore -U "$PG_SUPERUSER" -d "$target" --no-owner --no-privileges --exit-on-error /tmp/gus014_restore.dump
+  docker exec "$TARGET_CONTAINER" rm -f /tmp/gus014_restore.dump
 
   echo "    verifying row counts..."
   local restored
