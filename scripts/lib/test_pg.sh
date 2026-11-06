@@ -32,17 +32,20 @@
 # WHAT THIS PROVIDES
 # ------------------
 #   * `gustale-test-postgres` — a container of its own, with PostGIS,
-#     on 127.0.0.1:5433, so it CANNOT collide with production's 5432.
+#     on 127.0.0.1:5434, so it CANNOT collide with production's 5432.
 #   * A superuser role `gustale` with password `gustale`, matching the
 #     shape CI uses, so the CI-shaped scripts work unchanged.
 #   * A `postgres` superuser for the migration chain.
 #
 # THE PORT IS DELIBERATE
 # ----------------------
-# 5433, not 5432. Production is on 5432. A script that means "the test
+# 5434, not 5432. Production is on 5432. A script that means "the test
 # container" and a script that means "production" therefore differ in
 # their PORT as well as their container name, and a mistake in one is
 # not a mistake in the other.
+#
+# (5433 is the Hindsight memory database's port on this host, so the test
+# Postgres takes 5434.)
 #
 # USAGE
 # -----
@@ -51,14 +54,30 @@
 #   bash scripts/lib/test_pg.sh down       # stop and remove it
 #   bash scripts/lib/test_pg.sh status     # is it up?
 #   bash scripts/lib/test_pg.sh psql "SELECT 1"   # run a query
-set -euo pipefail
+#: NOTE ON `set`:
+#: This file is SOURCED, not executed, so it must NOT set `errexit` in
+#: the caller's shell. A sourced `set -e` changes the semantics of
+#: everything the caller does afterwards -- in particular, it makes a
+#: refused call (which correctly returns 1) abort the caller's script
+#: before it can report the refusal. The refusal is the interesting
+#: outcome, so the caller must be able to see it.
+#:
+#: The functions here check their own preconditions and return 1.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  # Executed, not sourced: then the strict mode applies to us.
+  set -euo pipefail
+fi
 
 #: The container's name. It is NOT `shared-postgres`, and the guard
 #: refuses that one by name.
 TEST_PG_CONTAINER="gustale-test-postgres"
 
-#: The host port. Production is on 5432; this is 5433, deliberately.
-TEST_PG_PORT="${GUSTALE_TEST_PG_PORT:-5433}"
+#: The host port. Production is on 5432; this is 5434, deliberately.
+#:
+#: Not 5433: that port is taken by the Hindsight memory database, which
+#: Hermes runs on this host. A test container that could not start is a
+#: test container nobody sets up.
+TEST_PG_PORT="${GUSTALE_TEST_PG_PORT:-5434}"
 
 #: The superuser role, and its password. CI uses the same pair, so the
 #: CI-shaped scripts work unchanged.
@@ -66,7 +85,14 @@ TEST_PG_USER="${GUSTALE_TEST_PG_USER:-gustale}"
 TEST_PG_PASSWORD="${GUSTALE_TEST_PG_PASSWORD:-gustale}"
 
 #: The admin role, for CREATE/DROP DATABASE.
-TEST_PG_ADMIN="${GUSTALE_TEST_PG_ADMIN:-postgres}"
+#:
+#: It is the SAME role as TEST_PG_USER, because the container is created
+#: with POSTGRES_USER=gustale: the postgis image makes that role the
+#: cluster's superuser and does NOT create a separate `postgres` role.
+#: (Naming a `postgres` role here would fail with "role \"postgres\" does
+#: not exist" -- which is exactly what the first version of this
+#: helper did.)
+TEST_PG_ADMIN="${GUSTALE_TEST_PG_ADMIN:-${TEST_PG_USER}}"
 
 #: The image. The SAME PostGIS build production uses, so a test
 #: database has exactly production's extension set.

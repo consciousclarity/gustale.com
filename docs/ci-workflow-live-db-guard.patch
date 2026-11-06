@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index 84fbcde..a928342 100644
+index 84fbcde..a959c4a 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
 @@ -35,21 +35,33 @@ env:
@@ -142,7 +142,12 @@ index 84fbcde..a928342 100644
            done
  
        # The API imports the schema tables from @gustale/db, which
-@@ -619,7 +648,7 @@ jobs:
+@@ -615,11 +644,11 @@ jobs:
+       - name: Populate the description sentences
+         working-directory: .
+         run: |
+-          python3 scripts/populate_description_sentences.py --apply --db gustale
++          python3 scripts/populate_description_sentences.py --apply --db gustale_ci
  
        - name: Apply the GUS-239 archive
          run: |

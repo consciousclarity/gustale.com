@@ -51,7 +51,7 @@ is no variable that widens it.
 ## 3. Test and throwaway databases live on the dedicated test Postgres
 
 A throwaway database does not live on the production cluster at all. It lives
-on `gustale-test-postgres`, port **5433** (production is 5432), with the same
+on `gustale-test-postgres`, port **5434** (production is 5432), with the same
 PostGIS image production uses.
 
 ```bash

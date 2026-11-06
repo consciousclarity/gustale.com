@@ -234,6 +234,24 @@ class ProductionContainerRefused(RuntimeError):
     """Raised when a throwaway database is aimed at the production cluster."""
 
 
+def refuse(message: str) -> "NoReturn":  # type: ignore[valid-type]
+    """Print a refusal cleanly and exit 1.
+
+    The guard's refusal is the CORRECT outcome for a script, so it
+    should read as a decision, not as a crash. Without this, every
+    script that calls the guard prints a Python traceback -- which reads
+    like a bug, and trains people to ignore it.
+
+    Call it as::
+
+        db_guard.refuse(str(exc))
+    """
+    import sys
+
+    print(str(message).rstrip(), file=sys.stderr)
+    raise SystemExit(1)
+
+
 def _dbname_from_dsn(dsn: str) -> str | None:
     """Extract the database name from a postgres DSN.
 

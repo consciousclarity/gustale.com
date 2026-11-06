@@ -770,4 +770,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (
+        db_guard.LiveDatabaseRefused,
+        db_guard.ProductionContainerRefused,
+    ) as exc:
+        # A refusal is the CORRECT outcome, not a crash.
+        db_guard.refuse(str(exc))
