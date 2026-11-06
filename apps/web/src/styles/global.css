@@ -1168,6 +1168,169 @@ h4 {
   align-items: center;
   padding: 76px 0 60px;
 }
+/* PR 4 — the hero has ONE column now. The map that filled the right
+   half is gone, and a two-column grid with an empty second column
+   would leave the heading stranded against a void. */
+@media (min-width: 900px) {
+  .gst-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Featured row ───────────────────────────────────────────────────
+   PR 4: twelve dishes, chosen by a rule the server applies. */
+.featured {
+  padding: 8px 0 64px;
+}
+.featured-head {
+  margin-bottom: 26px;
+}
+.featured-heading {
+  font-family: var(--display);
+  font-size: clamp(28px, 3.4vw, 40px);
+  letter-spacing: -0.5px;
+  margin: 0 0 8px;
+}
+.featured-note,
+.places-note {
+  font-size: 15px;
+  color: var(--sub);
+  margin: 0;
+}
+.featured-status {
+  font-size: 15px;
+  color: var(--sub);
+  margin: 0;
+}
+.featured-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 26px;
+}
+.featured-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+}
+.featured-img {
+  display: block;
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  background: var(--bg-2, var(--card));
+}
+.featured-img-placeholder {
+  background: linear-gradient(135deg, var(--card), var(--bg-2, var(--card)));
+}
+.featured-txt {
+  padding: 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+.featured-family {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--accent);
+  margin: 0;
+}
+.featured-name {
+  font-family: var(--display);
+  font-size: 21px;
+  line-height: 1.2;
+  margin: 0;
+}
+.featured-name a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.featured-name a:hover {
+  text-decoration: underline;
+}
+.featured-origin {
+  font-size: 13px;
+  color: var(--sub);
+  margin: 0;
+}
+.featured-def {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--sub);
+  margin: 6px 0 0;
+}
+/* The empty state carries an ACTION, which is what makes a "no
+   dishes meet the criteria" message useful rather than a dead end. */
+.featured-empty,
+.places-empty {
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  padding: 26px 28px;
+}
+.featured-empty p,
+.places-empty p {
+  margin: 0 0 12px;
+  color: var(--sub);
+}
+.featured-empty-action,
+.places-empty-action {
+  display: inline-block;
+  font-weight: 600;
+  color: var(--accent);
+  min-height: 24px;
+}
+
+/* ── Places: the map's replacement ────────────────────────────────
+   PR 4: the map is out of scope; a text list of places is the
+   fallback. */
+.places {
+  padding: 8px 0 64px;
+}
+.places-head {
+  margin-bottom: 20px;
+}
+.places-heading {
+  font-family: var(--display);
+  font-size: clamp(24px, 2.8vw, 32px);
+  letter-spacing: -0.4px;
+  margin: 0 0 6px;
+}
+.places-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.places-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: var(--card);
+}
+.places-item a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.places-item a:hover {
+  text-decoration: underline;
+}
+.places-count {
+  font-size: 13px;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
 .gst-hero .hero-content {
   min-width: 0;
 }

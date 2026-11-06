@@ -1103,6 +1103,134 @@ export function registerDishRoutes(app: FastifyInstance): void {
     };
   });
 
+  // ─── Featured (the Startpage's 12) ─────────────────────────────────
+  // GET /api/dishes/featured
+  //
+  // The rule is a RULE, not a hand-picked list: a dish is featured
+  // when it has a PHOTO, a DEFINITION, an ORIGIN and a FAMILY. Every
+  // dish that meets the rule is a candidate; the twelve shown are the
+  // candidates with the most attention, and the rule is applied in the
+  // query so anyone can check it.
+  //
+  // Why the rule and not a hand-picked list: a hand-picked list goes
+  // stale the moment a dish is unpublished, and nobody can tell
+  // whether a dish that is missing from it was left out on purpose.
+  // With a rule, the twelve are reproducible and the exclusions are
+  // explicable.
+  //
+  // The rule, in full:
+  //
+  //   PHOTO      a cover media attachment that can actually be served
+  //   DEFINITION a non-empty short_description
+  //   ORIGIN     an origin_geo_id
+  //   FAMILY     an active link in dish_dish_families
+  //
+  // Measured on live, 2026-11-06: 1,474 published dishes, of which
+  // 1,309 meet the rule.
+  //
+  // WHY `dish_families` AND NOT `categories`
+  // --------------------------------------
+  // `dish_families` is the family dimension the atlas counts read and
+  // the dimension the `family=` filter is re-pointed at. The legacy
+  // `categories` vocabulary has ONE published dish between its 77
+  // slugs, so a rule that read it would qualify almost nothing.
+  //
+  // DRINKS ARE EXCLUDED. The Startpage has no drinks row until the
+  // drink catalogue is large enough to promise (about 40 verified
+  // drinks; there are 8). `content_type` is the editorial field that
+  // says so, and it is read here -- not a family tag, because
+  // Pelamushi proves the two can disagree.
+  //
+  // The order is deterministic: the most-viewed first, then the name,
+  // so the same twelve come back for the same data.
+  app.get("/api/dishes/featured", async (request) => {
+    const schema = z.object({
+      limit: z.coerce.number().int().min(1).max(24).default(12),
+    });
+    const params = schema.parse(request.query);
+
+    const rows = await db.execute(sql`
+      SELECT
+        d.id,
+        d.slug,
+        d.canonical_name      AS canonical_name,
+        d.short_description   AS short_description,
+        d.content_type        AS content_type,
+        d.view_count          AS view_count,
+        g.name                AS origin_name,
+        f.slug                AS family_slug,
+        f.name                AS family_name,
+        cov.cover_storage_key AS cover_storage_key,
+        cov.cover_variants    AS cover_variants,
+        cov.cover_alt_text    AS cover_alt_text,
+        cov.cover_width       AS cover_width,
+        cov.cover_height      AS cover_height
+      FROM dishes d
+      JOIN geo_entities g ON g.id = d.origin_geo_id
+      JOIN dish_dish_families j ON j.dish_id = d.id AND j.status = 'active'
+      JOIN dish_families f ON f.id = j.value_id
+      LEFT JOIN LATERAL (
+        -- The cover row, chosen by what it can actually SERVE: a
+        -- public storage key with known dimensions. The same rule the
+        -- list route uses, so a featured card and a list thumbnail
+        -- cannot disagree about which image is the cover.
+        SELECT
+          m.storage_key AS cover_storage_key,
+          m.variants AS cover_variants,
+          m.alt_text AS cover_alt_text,
+          m.width    AS cover_width,
+          m.height   AS cover_height
+        FROM media_attachments ma
+        JOIN media m ON m.id = ma.media_id
+        WHERE ma.target_type = 'dish'
+          AND ma.target_id = d.id
+          AND ma.role = 'cover'
+        ORDER BY
+          (m.storage_key LIKE 'dishes/%')::int DESC,
+          (m.width IS NOT NULL AND m.height IS NOT NULL)::int DESC,
+          ma.id
+        LIMIT 1
+      ) cov ON true
+      WHERE d.status = 'published'
+        -- PHOTO
+        AND cov.cover_storage_key IS NOT NULL
+        -- DEFINITION
+        AND d.short_description IS NOT NULL
+        AND length(trim(d.short_description)) > 0
+        -- ORIGIN
+        AND d.origin_geo_id IS NOT NULL
+        -- FAMILY
+        AND j.status = 'active'
+        -- DRINKS ARE NOT FEATURED
+        AND COALESCE(d.content_type, 'dish') = 'dish'
+      ORDER BY d.view_count DESC, d.canonical_name ASC
+      LIMIT ${params.limit}
+    `);
+
+    const dishes = (rows as any[]).map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      canonicalName: row.canonical_name,
+      shortDescription: row.short_description,
+      contentType: row.content_type,
+      viewCount: row.view_count,
+      originName: row.origin_name,
+      familySlug: row.family_slug,
+      familyName: row.family_name,
+      cover: row.cover_storage_key
+        ? {
+            publicUrl: `/media/${row.cover_storage_key}`,
+            variantsUrls: (row.cover_variants as Record<string, string>) ?? {},
+            width: row.cover_width,
+            height: row.cover_height,
+            altText: row.cover_alt_text,
+          }
+        : null,
+    }));
+
+    return { dishes, count: dishes.length };
+  });
+
   // Search by origin (geo proximity) — for the globe
   app.get("/api/dishes-by-region", async (request, reply) => {
     const schema = z.object({
