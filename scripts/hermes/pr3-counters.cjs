@@ -71,9 +71,13 @@ async function read(browser, base, tag) {
         const re =
           /(\d[\d,]*)\s+(dishes?|results?|famil(?:y|ies)|places?|connections?|recipes?|items?|entries?)\b/gi;
         const body = document.body.innerText;
-        let m;
-        while ((m = re.exec(body)) !== null) {
+        // The assignment is NOT in the condition: `while ((m = re.exec(b)) !== null)`
+        // reads as an expression, and biome's noAssignInExpressions is right to
+        // flag it. The loop is the same either way.
+        let m = re.exec(body);
+        while (m !== null) {
           phrases.push(m[0].replace(/\s+/g, " "));
+          m = re.exec(body);
         }
 
         return { counts, dashes, phrases: [...new Set(phrases)] };

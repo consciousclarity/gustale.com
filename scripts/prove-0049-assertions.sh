@@ -12,6 +12,44 @@ cd "$(dirname "$0")/.."
 
 DB="${1:-gustale_pr3_assert_test}"
 
+# THE LIVE DATABASE IS NOT A TARGET.
+#
+# This script DROPs the database it is given and recreates it:
+#
+#     DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB;
+#
+# So `bash scripts/prove-0049-assertions.sh gustale` would DROP THE LIVE
+# DATABASE AND RECREATE IT EMPTY. The default is a disposable database,
+# but the default is not the guard -- the guard is the guard.
+#
+# This is the SAME guard, in the SAME shape, as scripts/ci-migration-chain.sh
+# uses. The shared guard decides: it refuses the live database by name on
+# the live host, and it knows that the CI's service container is
+# deliberately named `gustale` too (the workflow sets
+# GUSTALE_DB_IS_THROWAWAY=1 to say that one is disposable).
+#
+# Live is only reachable with the explicit per-invocation opt-in, and
+# even then this script's DROP makes it a terrible idea -- use
+# scripts/apply-migration-live.sh, which goes through the live-approval
+# gate.
+#
+# The Python that runs the guard. Resolved before the guard is called,
+# because the guard decides whether this script may touch the database
+# it is about to DROP.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+  echo "::error::no python3 on PATH; cannot vet this script's target database."
+  exit 1
+}
+
+GUSTALE_ASSERT_DB="$("$PYTHON_BIN" scripts/lib/db_guard.py prove-0049-assertions.sh "$DB")" || {
+  echo "::error::the 0049 assertion prover refuses to target the live database."
+  echo "::error::It DROPs and recreates its target, so live must never be one."
+  echo "::error::Use a throwaway database, or scripts/apply-migration-live.sh."
+  exit 1
+}
+DB="$GUSTALE_ASSERT_DB"
+
 run_psql() {
   docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" \
     -v ON_ERROR_STOP=1 "$@"
