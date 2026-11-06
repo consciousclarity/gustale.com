@@ -72,6 +72,11 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
       definition: text(c.querySelector(".featured-def")),
       hasImg: !!c.querySelector("img.featured-img"),
       links: c.querySelectorAll("a").length,
+      // The editorial content type, read off the element. The API
+      // excludes drinks from this row; this reads that decision back
+      // out of the RENDERED page, so the rule is checked where it
+      // matters and not only where it is written.
+      contentType: c.getAttribute("data-content-type"),
     }));
 
     // ── the map, in the hero band ────────────────────────────────
@@ -288,6 +293,14 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
     result.drinksRows.length ? result.drinksRows : "none",
   );
   console.log(
+    "featured cards that are drinks: ",
+    result.featured.filter((c) => c.contentType === "drink").length,
+  );
+  console.log(
+    "featured cards with no content type: ",
+    result.featured.filter((c) => !c.contentType).length,
+  );
+  console.log(
     "\nconsole errors:      ",
     errors.length ? errors.slice(0, 5) : "none",
   );
@@ -314,6 +327,21 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
   if (pluralErrors.length) failures.push("a counter has the wrong plural");
   if (result.drinksRows.length)
     failures.push("there is a drinks row on the Startpage");
+  // NO FEATURED CARD IS A DRINK. The API excludes drinks from this
+  // row; this reads the exclusion back out of the rendered page.
+  const drinkCards = result.featured.filter((c) => c.contentType === "drink");
+  if (drinkCards.length)
+    failures.push(
+      `a featured card is a drink: ${drinkCards.map((c) => c.name).join(", ")}`,
+    );
+  // And every card must SAY what it is. A card with no content type
+  // cannot be checked, so a missing attribute is a gap in the proof,
+  // not a pass.
+  const untypedCards = result.featured.filter((c) => !c.contentType);
+  if (untypedCards.length)
+    failures.push(
+      `${untypedCards.length} featured card(s) carry no content type, so the drink rule cannot be checked`,
+    );
 
   console.log(
     "\n" +

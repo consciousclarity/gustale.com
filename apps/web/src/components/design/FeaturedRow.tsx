@@ -143,7 +143,15 @@ export function FeaturedRow({ dishes, loading }: FeaturedRowProps) {
         {dishes.map((dish) => {
           const src = coverSrc(dish);
           return (
-            <li key={dish.id} className="featured-card">
+            <li
+              key={dish.id}
+              className="featured-card"
+              /* The editorial content type, on the element, so the
+                 DOM proof can ASSERT that no featured card is a
+                 drink. Without it the rule is only true in the
+                 query, and the proof cannot see it. */
+              data-content-type={dish.contentType}
+            >
               {/* ONE LINK PER CARD. The whole card is the link's
                   target through the title link, and nothing else on
                   the card is a link -- so a screen reader hears one
