@@ -49,9 +49,8 @@ import {
   expandToCoincidentStack,
   parseCoord,
 } from "../../lib/mapCoincident";
-import type { DishSummary } from "../../types/dish";
+import type { DishSummary, FeaturedDish } from "../../types/dish";
 import type { FoodRegionFeature } from "../../types/map";
-import type { FeaturedDish } from "../../types/dish";
 import { FeaturedRow } from "./FeaturedRow";
 import { buildPlaceList, PlacesList } from "./PlacesList";
 

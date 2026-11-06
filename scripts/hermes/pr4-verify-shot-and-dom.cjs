@@ -35,22 +35,32 @@ const OUT = process.argv[3] ?? "/tmp/pr4-shots";
   });
 
   await page.goto(BASE + "/", { waitUntil: "networkidle", timeout: 60000 });
-  await page.waitForSelector(".featured-grid .featured-card", { timeout: 30000 });
+  await page.waitForSelector(".featured-grid .featured-card", {
+    timeout: 30000,
+  });
   await page.waitForTimeout(2500);
 
   // The facts, read out of the live document.
   const facts = await page.evaluate(() => {
     const t = (el) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
-    const cards = Array.from(document.querySelectorAll(".featured-grid .featured-card"));
+    const cards = Array.from(
+      document.querySelectorAll(".featured-grid .featured-card"),
+    );
     return {
       title: document.title,
       featuredCards: cards.length,
       cardNames: cards.map((c) => t(c.querySelector(".featured-name"))),
-      heroMeta: Array.from(document.querySelectorAll(".hero-meta > div")).map((el) => t(el)),
-      heroMetaValues: Array.from(document.querySelectorAll(".hero-meta b")).map((el) => t(el)),
+      heroMeta: Array.from(document.querySelectorAll(".hero-meta > div")).map(
+        (el) => t(el),
+      ),
+      heroMetaValues: Array.from(document.querySelectorAll(".hero-meta b")).map(
+        (el) => t(el),
+      ),
       heroFramePresent: !!document.querySelector(".hero-frame"),
       canvasCount: document.querySelectorAll("canvas").length,
-      mapLikeClasses: Array.from(document.querySelectorAll("[class*='map'],[class*='atlas']"))
+      mapLikeClasses: Array.from(
+        document.querySelectorAll("[class*='map'],[class*='atlas']"),
+      )
         .map((el) => el.className)
         .filter((c) => typeof c === "string")
         .slice(0, 6),

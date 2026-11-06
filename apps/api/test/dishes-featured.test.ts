@@ -52,7 +52,10 @@ describe("GET /api/dishes/featured — the Startpage's twelve", () => {
     // would be a 404 for a dish whose slug is "featured" — which is
     // indistinguishable from "the route does not exist" to anyone
     // reading the logs.
-    const res = await app.inject({ method: "GET", url: "/api/dishes/featured" });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/dishes/featured",
+    });
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -61,7 +64,9 @@ describe("GET /api/dishes/featured — the Startpage's twelve", () => {
   });
 
   it("returns at most the default twelve", async () => {
-    const body = (await app.inject({ method: "GET", url: "/api/dishes/featured" })).json();
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes/featured" })
+    ).json();
     expect(body.dishes.length).toBeLessThanOrEqual(12);
   });
 
@@ -81,7 +86,9 @@ describe("GET /api/dishes/featured — the Startpage's twelve", () => {
   });
 
   it("features only dishes that meet ALL FOUR parts of the rule", async () => {
-    const body = (await app.inject({ method: "GET", url: "/api/dishes/featured" })).json();
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes/featured" })
+    ).json();
 
     for (const dish of body.dishes) {
       // PHOTO
@@ -102,7 +109,9 @@ describe("GET /api/dishes/featured — the Startpage's twelve", () => {
     // The Startpage carries no drinks row yet: there are 8 verified
     // drinks and the threshold is about 40. `content_type` is the
     // editorial field that says so.
-    const body = (await app.inject({ method: "GET", url: "/api/dishes/featured" })).json();
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes/featured" })
+    ).json();
 
     for (const dish of body.dishes) {
       expect(dish.contentType).not.toBe("drink");
@@ -110,8 +119,12 @@ describe("GET /api/dishes/featured — the Startpage's twelve", () => {
   });
 
   it("is deterministic: the same request returns the same order", async () => {
-    const first = (await app.inject({ method: "GET", url: "/api/dishes/featured" })).json();
-    const second = (await app.inject({ method: "GET", url: "/api/dishes/featured" })).json();
+    const first = (
+      await app.inject({ method: "GET", url: "/api/dishes/featured" })
+    ).json();
+    const second = (
+      await app.inject({ method: "GET", url: "/api/dishes/featured" })
+    ).json();
 
     expect(first.dishes.map((d: any) => d.slug)).toEqual(
       second.dishes.map((d: any) => d.slug),
@@ -119,7 +132,9 @@ describe("GET /api/dishes/featured — the Startpage's twelve", () => {
   });
 
   it("orders by attention, most-viewed first", async () => {
-    const body = (await app.inject({ method: "GET", url: "/api/dishes/featured" })).json();
+    const body = (
+      await app.inject({ method: "GET", url: "/api/dishes/featured" })
+    ).json();
 
     const counts = body.dishes.map((d: any) => d.viewCount);
     for (let i = 1; i < counts.length; i++) {

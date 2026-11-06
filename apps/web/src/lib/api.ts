@@ -241,9 +241,7 @@ export function listDishes(
  * Drinks are excluded by the server: the Startpage carries no drinks
  * row until the drink catalogue is large enough to promise.
  */
-export function getFeaturedDishes(
-  limit = 12,
-): Promise<FeaturedDishResponse> {
+export function getFeaturedDishes(limit = 12): Promise<FeaturedDishResponse> {
   return request<FeaturedDishResponse>(`/api/dishes/featured?limit=${limit}`);
 }
 

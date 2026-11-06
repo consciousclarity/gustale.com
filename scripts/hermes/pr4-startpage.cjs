@@ -42,7 +42,9 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
 
 (async () => {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+  });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => {
@@ -60,7 +62,9 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
     const text = (el) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 
     // ── the featured row ────────────────────────────────────────
-    const cards = Array.from(document.querySelectorAll(".featured-grid .featured-card"));
+    const cards = Array.from(
+      document.querySelectorAll(".featured-grid .featured-card"),
+    );
     const featured = cards.map((c) => ({
       name: text(c.querySelector(".featured-name")),
       family: text(c.querySelector(".featured-family")),
@@ -72,17 +76,17 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
 
     // ── the map, in the hero band ────────────────────────────────
     // The HERO BAND. This is what the decision covers.
-    const heroBand = document.querySelector(".gst-hero, .hero-content")?.closest(
-      "section",
-    );
+    const heroBand = document
+      .querySelector(".gst-hero, .hero-content")
+      ?.closest("section");
     const heroFrame = document.querySelector(".hero-frame");
     const heroCanvases = heroBand
       ? heroBand.querySelectorAll("canvas")
       : document.querySelectorAll("canvas");
     // The WORKSPACE map, reported but not judged. See the header.
     const workspaceMap = document.querySelector(".atl-map");
-    const mapButtons = Array.from(document.querySelectorAll("button")).filter((b) =>
-      /map|globe/i.test(text(b)),
+    const mapButtons = Array.from(document.querySelectorAll("button")).filter(
+      (b) => /map|globe/i.test(text(b)),
     );
 
     // ── the places list ─────────────────────────────────────────
@@ -110,10 +114,13 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
       ".atlas-kpi__stat b",
       ".featured-count",
     ].join(",");
-    const counters = Array.from(document.querySelectorAll(counterSelectors)).map(
-      (el) => text(el),
-    );
-    const dashCounters = counters.filter((t) => /[—–]/.test(t));
+    const counters = Array.from(
+      document.querySelectorAll(counterSelectors),
+    ).map((el) => text(el));
+    // The dashes, as escape sequences. A literal em dash in a regex
+    // literal is a control-character lint error; \u2014 and \u2013 are
+    // the same characters and the rule can see what they are.
+    const dashCounters = counters.filter((t) => /[\u2014\u2013]/.test(t));
 
     // And, for the record: every counter that IS a number, with the
     // number, so the plural can be checked against it.
@@ -135,7 +142,9 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
     ).filter((el) => /drinks/i.test(text(el)) && text(el).length < 200);
 
     // ── the hero meta counters, with their numbers ──────────────
-    const heroMeta = Array.from(document.querySelectorAll(".hero-meta > div")).map((el) => {
+    const heroMeta = Array.from(
+      document.querySelectorAll(".hero-meta > div"),
+    ).map((el) => {
       const b = el.querySelector("b");
       return {
         value: b ? Number(text(b).replace(/[^0-9]/g, "")) : null,
@@ -164,61 +173,154 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8899";
 
   console.log("=== PR 4 — the Startpage, read from the DOM ===\n");
   console.log("featured cards:", result.featuredCount);
-  console.log("cards missing a photo:   ", result.featured.filter((c) => !c.hasImg).length);
-  console.log("cards missing a family:  ", result.featured.filter((c) => !c.family).length);
-  console.log("cards missing an origin: ", result.featured.filter((c) => !c.origin).length);
-  console.log("cards missing a definition:", result.featured.filter((c) => !c.definition).length);
-  console.log("cards with more than one link:", result.featured.filter((c) => c.links !== 1).length);
+  console.log(
+    "cards missing a photo:   ",
+    result.featured.filter((c) => !c.hasImg).length,
+  );
+  console.log(
+    "cards missing a family:  ",
+    result.featured.filter((c) => !c.family).length,
+  );
+  console.log(
+    "cards missing an origin: ",
+    result.featured.filter((c) => !c.origin).length,
+  );
+  console.log(
+    "cards missing a definition:",
+    result.featured.filter((c) => !c.definition).length,
+  );
+  console.log(
+    "cards with more than one link:",
+    result.featured.filter((c) => c.links !== 1).length,
+  );
   console.log("\nthe twelve:");
   for (const c of result.featured) {
-    console.log(`  ${c.name.padEnd(24)} ${c.family.padEnd(14)} ${c.origin.padEnd(16)} links=${c.links}`);
+    console.log(
+      `  ${c.name.padEnd(24)} ${c.family.padEnd(14)} ${c.origin.padEnd(16)} links=${c.links}`,
+    );
   }
 
-  console.log("\nmap in the HERO BAND: ", result.hasHeroFrame || result.heroCanvasCount > 0 ? "PRESENT" : "absent");
+  console.log(
+    "\nmap in the HERO BAND: ",
+    result.hasHeroFrame || result.heroCanvasCount > 0 ? "PRESENT" : "absent",
+  );
   console.log("hero canvases:       ", result.heroCanvasCount);
-  console.log("workspace map tab:   ", result.workspaceMapPresent ? "present (left alone — the decision covers the Startpage band)" : "absent");
-  console.log("map buttons:         ", result.mapButtonLabels.length ? result.mapButtonLabels.join(", ") : "none");
+  console.log(
+    "workspace map tab:   ",
+    result.workspaceMapPresent
+      ? "present (left alone — the decision covers the Startpage band)"
+      : "absent",
+  );
+  console.log(
+    "map buttons:         ",
+    result.mapButtonLabels.length ? result.mapButtonLabels.join(", ") : "none",
+  );
   console.log("places in the list:  ", result.placesCount);
   console.log("places are links:    ", result.placesAreLinks);
-  console.log("sample places:       ", result.placesSample.map((p) => p.name).join(", "));
+  console.log(
+    "sample places:       ",
+    result.placesSample.map((p) => p.name).join(", "),
+  );
 
   console.log("\ncounters found:      ", JSON.stringify(result.counters));
-  console.log("counters with a DASH:", result.dashCounters.length, result.dashCounters);
+  console.log(
+    "counters with a DASH:",
+    result.dashCounters.length,
+    result.dashCounters,
+  );
   console.log("hero meta:           ", JSON.stringify(result.heroMeta));
 
-  // The plural must agree with the number. "1 dishes" is wrong, and
-  // it is wrong in exactly the case a reader notices.
+  // The plural must agree with the number: "1 dishes" is wrong, and it
+  // is wrong in exactly the case a reader notices.
+  //
+  // Split into tokens rather than matching with a regex: the lint
+  // rule that governs this repo flags a word-boundary escape, and a
+  // token split says the same thing more plainly.
+  const COUNTER_WORDS = ["dish", "family", "origin", "place"];
+  // The rendered word is the PLURAL ("dishes", "families"), so the
+  // list of known counter words holds the SINGULAR and the rendered
+  // word is reduced to it before matching. Without this step the
+  // check matched nothing at all and reported "0 wrong plurals" on
+  // every page — a gate that cannot fail.
+  const stemOf = (word) => {
+    if (word.endsWith("ies")) return `${word.slice(0, -3)}y`;
+    // "-es" is the plural of a stem that already ends in s/x/z/ch/sh
+    // ("dishes" -> "dish", "boxes" -> "box") and of the -o verbs
+    // ("tomatoes" -> "tomato"). The s is simply dropped.
+    if (word.endsWith("es")) return word.slice(0, -2);
+    if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+    return word;
+  };
   const pluralErrors = result.counterFacts
     .filter((c) => Number.isFinite(c.number))
     .filter((c) => {
-      const t = c.text.toLowerCase();
-      const one = /1 (dish|family|origin|place)s?/.test(t);
-      const many = /[2-9]\d* (dish|family|origin|place)/.test(t);
-      if (one && !/1 (dish|family|origin|place)/.test(t)) return true;
-      if (many && !/[2-9]\d* (dish|family|origin|place)s/.test(t)) return true;
-      return false;
+      const tokens = c.text
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean);
+      const idx = tokens.findIndex((t) => COUNTER_WORDS.includes(stemOf(t)));
+      if (idx < 0) return false;
+      const word = tokens[idx];
+      const numberToken = idx > 0 ? tokens[idx - 1] : "";
+      const n = Number(numberToken.replace(/[^0-9]/g, ""));
+      if (!Number.isFinite(n)) return false;
+      // Correct English: a number of 1 takes a singular word, any
+      // other number takes a plural word.
+      //
+      //   "1 dish"   correct   -> 1 is singular, "dish" is singular
+      //   "1 dishes" WRONG     -> 1 is singular, "dishes" is plural
+      //   "12 dishes" correct   -> 12 is plural, "dishes" is plural
+      //   "2 dish"   WRONG     -> 2 is plural, "dish" is singular
+      //
+      // So the error is when the two DISAGREE.
+      const numberIsSingular = n === 1;
+      const wordIsPlural = word !== stemOf(word);
+      return numberIsSingular === wordIsPlural;
     })
     .map((c) => c.text);
-  console.log("counters with a WRONG plural:", pluralErrors.length, pluralErrors);
-  console.log("drinks rows on page: ", result.drinksRows.length ? result.drinksRows : "none");
-  console.log("\nconsole errors:      ", errors.length ? errors.slice(0, 5) : "none");
+  console.log(
+    "counters with a WRONG plural:",
+    pluralErrors.length,
+    pluralErrors,
+  );
+  console.log(
+    "drinks rows on page: ",
+    result.drinksRows.length ? result.drinksRows : "none",
+  );
+  console.log(
+    "\nconsole errors:      ",
+    errors.length ? errors.slice(0, 5) : "none",
+  );
 
   // ── the verdict ──────────────────────────────────────────────
   const failures = [];
-  if (result.featuredCount !== 12) failures.push(`featured is ${result.featuredCount}, not 12`);
-  if (result.featured.some((c) => !c.hasImg)) failures.push("a featured card has no photo");
-  if (result.featured.some((c) => !c.family)) failures.push("a featured card has no family");
-  if (result.featured.some((c) => !c.origin)) failures.push("a featured card has no origin");
-  if (result.featured.some((c) => !c.definition)) failures.push("a featured card has no definition");
-  if (result.featured.some((c) => c.links !== 1)) failures.push("a featured card does not have exactly one link");
-  if (result.hasHeroFrame || result.heroCanvasCount > 0) failures.push("the map is still in the hero band");
+  if (result.featuredCount !== 12)
+    failures.push(`featured is ${result.featuredCount}, not 12`);
+  if (result.featured.some((c) => !c.hasImg))
+    failures.push("a featured card has no photo");
+  if (result.featured.some((c) => !c.family))
+    failures.push("a featured card has no family");
+  if (result.featured.some((c) => !c.origin))
+    failures.push("a featured card has no origin");
+  if (result.featured.some((c) => !c.definition))
+    failures.push("a featured card has no definition");
+  if (result.featured.some((c) => c.links !== 1))
+    failures.push("a featured card does not have exactly one link");
+  if (result.hasHeroFrame || result.heroCanvasCount > 0)
+    failures.push("the map is still in the hero band");
   if (result.placesCount === 0) failures.push("there is no places list");
   if (!result.placesAreLinks) failures.push("a place is not a link");
   if (result.dashCounters.length) failures.push("a counter renders as a dash");
   if (pluralErrors.length) failures.push("a counter has the wrong plural");
-  if (result.drinksRows.length) failures.push("there is a drinks row on the Startpage");
+  if (result.drinksRows.length)
+    failures.push("there is a drinks row on the Startpage");
 
-  console.log("\n" + (failures.length ? "FAILURES:\n  " + failures.join("\n  ") : "ALL CHECKS PASSED"));
+  console.log(
+    "\n" +
+      (failures.length
+        ? "FAILURES:\n  " + failures.join("\n  ")
+        : "ALL CHECKS PASSED"),
+  );
   await browser.close();
   process.exit(failures.length ? 1 : 0);
 })();

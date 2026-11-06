@@ -116,8 +116,8 @@ export function FeaturedRow({ dishes, loading }: FeaturedRowProps) {
         </h2>
         <div className="featured-empty">
           <p>
-            No dish meets all four of the featured criteria yet — a
-            photo, a definition, an origin and a family.
+            No dish meets all four of the featured criteria yet — a photo, a
+            definition, an origin and a family.
           </p>
           <a className="featured-empty-action" href="/dishes/">
             Browse all dishes instead
