@@ -216,6 +216,13 @@ MIGRATION_0047=db/migrations/0047_publish_credential_session_binding.sql
 # 0048 refuses a publish credential for a BOT account. It is a
 # function and a trigger; it writes NO content rows.
 MIGRATION_0048=db/migrations/0048_bot_credential_guard.sql
+# 0050 is the association review ledger (Option C): the ledger table,
+# the association <-> source link table, the entity-integrity trigger
+# and the 50-row pilot. It writes no published rows.
+MIGRATION_0050=db/migrations/0050_association_review_ledger.sql
+# 0051 is the family CLASSIFICATION: the class becomes a column on
+# dish_families. It writes no content rows.
+MIGRATION_0051=db/migrations/0051_family_classification.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -692,6 +699,28 @@ echo "--- the atlas fixtures (seed, never a migration)"
 run_pg -f - < "$ATLAS_FIXTURE_SEED" >/tmp/atlas_fixtures.log 2>&1 || { echo "FAILED: the atlas fixtures"; grep -E 'ERROR|NOTICE' /tmp/atlas_fixtures.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_FIXTURES_OK' /tmp/atlas_fixtures.log | tail -1 || true
+
+# ── 0050: the association review ledger (Option C) ─────────────────
+#
+# It comes AFTER the seed, because the pilot samples the association
+# table and the seed is what creates the fixture associations. Run it
+# before the seed and the pilot would have nothing to sample.
+#
+# It writes no published rows and re-points nothing.
+echo "--- the association review ledger"
+run_pg -f - < "$MIGRATION_0050" >/tmp/m0050.log 2>&1 || { echo "FAILED: 0050"; grep -E 'ERROR|NOTICE' /tmp/m0050.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0050: ok' /tmp/m0050.log | tail -1 || true
+
+# ── 0051: the family classification ────────────────────────────────
+#
+# It comes AFTER the seed, because its assertions count the families
+# that carry a published dish, and the seed is what creates the
+# fixture dishes and their family links.
+echo "--- the family classification"
+run_pg -f - < "$MIGRATION_0051" >/tmp/m0051.log 2>&1 || { echo "FAILED: 0051"; grep -E 'ERROR|NOTICE' /tmp/m0051.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0051: ok' /tmp/m0051.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

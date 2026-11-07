@@ -423,6 +423,21 @@ run_pg -f - < "$(dirname "$0")/../packages/db/seed-atlas-fixtures.sql" > /tmp/re
   || { echo "  FAILED: the atlas fixtures"; grep -E 'ERROR' /tmp/repro_fixtures.log | head -6; fail=1; }
 grep -E 'ATLAS_FIXTURES_OK' /tmp/repro_fixtures.log | tail -1 || true
 
+# 0050 — the association review ledger (Option C). It runs AFTER the
+# atlas fixtures, because the pilot samples the association table and
+# the fixtures are what create those rows.
+step "the association review ledger"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0050_association_review_ledger.sql" > /tmp/repro_0050.log 2>&1 \
+  || { echo "  FAILED: 0050"; grep -E 'ERROR' /tmp/repro_0050.log | head -6; fail=1; }
+grep -E '0050: ok' /tmp/repro_0050.log | tail -1 || true
+
+# 0051 — the family classification. It runs AFTER the seed, because
+# its assertions count the families carrying a published dish.
+step "the family classification"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0051_family_classification.sql" > /tmp/repro_0051.log 2>&1 \
+  || { echo "  FAILED: 0051"; grep -E 'ERROR' /tmp/repro_0051.log | head -6; fail=1; }
+grep -E '0051: ok' /tmp/repro_0051.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.

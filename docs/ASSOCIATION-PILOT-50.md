@@ -1,8 +1,8 @@
 # The 50-association pilot — the full list
 
 **Sampled 25 of each `entity_kind`** from the 2,713 rows in
-`dish_place_associations`, so both the resolving `place` rows and
-the dangling `community` rows are represented.
+`dish_place_associations`, so both the `place` rows and the
+`community` rows are represented.
 
 **Nothing was written.** These are *proposed* verdicts, produced
 by the mechanical rule below. The `review_state` column was not
@@ -18,7 +18,7 @@ First match wins:
 
 | label | condition |
 |---|---|
-| **HIGH** | the entity resolves to a real `geo_entities` row, AND ≥1 source row supports the dish/place pair, AND the `relationship_type` is substantive (not `legacy_unreviewed`) |
+| **HIGH** | the entity resolves, AND ≥1 source row supports the dish/entity pair, AND the `relationship_type` is substantive (not `legacy_unreviewed`) |
 | **MEDIUM** | the entity resolves, but no source row supports the pair |
 | **LOW** | the `entity_id` is dangling — it resolves to no row |
 
@@ -26,16 +26,51 @@ First match wins:
 `in_review`; LOW → `in_review` if the value is recoverable from
 `legacy_value` / `qualifiers->>'legacyCuisine'`, else `rejected`.
 
-## The result
+### A correction to this document, found while implementing it
+
+This document originally reported **25 LOW and 25 MEDIUM**, and
+described the `community` half as "the dangling half". That was
+**wrong**.
+
+`entity_id` is polymorphic, and `community` resolves to
+`dish_traditions.id` — a CULTURE, not a place:
+
+```sql
+entity_kind = 'place'     -> geo_entities.id     -- a PLACE
+entity_kind = 'community' -> dish_traditions.id  -- a CULTURE
+```
+
+Measured on live, 2026-11-06:
+
+| entity_kind | rows | resolve? | distinct entities |
+|---|---|---|---|
+| `place` | 1,478 | all of them | — |
+| `community` | 1,235 | **all of them** | 108 traditions |
+| **total** | **2,713** | **zero dangle** | |
+
+So **no row is LOW**, and the corrected result is:
 
 | confidence | count |
 |---|---|
-| LOW | **25** |
-| MEDIUM | **25** |
+| MEDIUM | **50** |
 
 | proposed review_state | count |
 |---|---|
 | `in_review` | **50** |
+
+The two halves of the pilot are still worth sampling together — they
+are two different KINDS OF CLAIM (`legacy_unreviewed`: "this dish's
+origin is this country", discovery data; versus
+`established_tradition`: "this dish belongs to this culinary
+tradition", a cultural claim) — but the difference is not
+resolvability. Every row in both halves resolves, and every row in
+both halves is `unevidenced`.
+
+The implementation found this by testing against live's actual shape:
+the first draft of the migration re-pointed the `community` rows on
+the assumption that they dangled, and it passed on the CI seed
+database (13 rows, none dangling) while failing its own assertion on
+live's 2,713 rows. See `docs/ASSOCIATION-REVIEW-PROPOSAL.md`.
 
 **No association reaches HIGH, and not one has a source.** Every
 `place` row is `legacy_unreviewed` with `provenance =
@@ -354,366 +389,376 @@ claim. The `explanation` on those rows says so explicitly.
 
 ---
 
-## Rows 26–50 — `community` (the entity is dangling)
+## Rows 26–50 — `community` (the entity is a CULTURE, not a place)
 
-Every one of these has an `entity_id` that resolves to **no row**
-in `geo_entities`, `food_regions` or `categories`. The readable
-value survives only in `legacy_value` and
-`qualifiers->>'legacyCuisine'`.
+Every one of these has an `entity_id` that resolves to a
+**`dish_traditions` row** — a culinary tradition, 108 of them across
+the 1,235 `community` rows. A culture is not a place, and the API
+already says so: `atlas.ts` exposes `entityKind` and warns that "a
+community is a people or a practice, NOT a place, and the client must
+not render it as one."
+
+The readable value also survives in `legacy_value` and
+`qualifiers->>'legacyCuisine'`, which is what the table shows here.
+
+These are `established_tradition` claims, not origin claims: "this
+dish belongs to the Greek culinary tradition" is a different and
+stronger statement than "this dish's origin is Greece". Every one is
+`unevidenced`, and none has a source.
 
 | # | Dish | Legacy value | Relationship | Provenance | Evidence | Sources | Confidence | Proposed |
 |---|---|---|---|---|---|---|---|---|
-| 26 | Moussaka | `greek` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 27 | Taco al pastor | `mexican` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 28 | Arook | `iraqi` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 29 | krówki | `polish` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 30 | corn fritter | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 31 | Revuelto Gramajo | `argentine` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 32 | cabbage stew a la Székely | `hungarian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 33 | Udon | `japanese` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 34 | Unnakai | `indian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 35 | Struffoli | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 36 | Pizzarello | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 37 | Putu piring | `singaporean` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 38 | aletria | `portuguese` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 39 | serviettenknödel | `austrian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 40 | Pasta con le sarde | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 41 | Focaccia | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 42 | karedok | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 43 | lawar | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 44 | tablet | `british` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 45 | Ming'oko | `tanzanian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 46 | Hawawshi | `egyptian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 47 | hamburger | `german` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 48 | Kampot fish sauce | `cambodian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 49 | Mazamorra | `spanish` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
-| 50 | Kemplang | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **LOW** | `in_review` |
+| 26 | Moussaka | `greek` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 27 | Taco al pastor | `mexican` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 28 | Arook | `iraqi` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 29 | krówki | `polish` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 30 | corn fritter | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 31 | Revuelto Gramajo | `argentine` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 32 | cabbage stew a la Székely | `hungarian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 33 | Udon | `japanese` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 34 | Unnakai | `indian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 35 | Struffoli | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 36 | Pizzarello | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 37 | Putu piring | `singaporean` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 38 | aletria | `portuguese` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 39 | serviettenknödel | `austrian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 40 | Pasta con le sarde | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 41 | Focaccia | `italian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 42 | karedok | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 43 | lawar | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 44 | tablet | `british` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 45 | Ming'oko | `tanzanian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 46 | Hawawshi | `egyptian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 47 | hamburger | `german` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 48 | Kampot fish sauce | `cambodian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 49 | Mazamorra | `spanish` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
+| 50 | Kemplang | `indonesian` | `established_tradition` | `legacy_dish_cuisines` | unevidenced | 0 | **MEDIUM** | `in_review` |
 
 ### Row detail
 
 **26. Moussaka** (`moussaka-greek`) → community `greek`
 
-- entity_id: `1133bbcb…` — **resolves to no row**
+- entity_id: `1133bbcb…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `greek`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "greek", "legacyIsPrimary": true, "legacyProvenance": "preparation"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **27. Taco al pastor** (`al-pastor`) → community `mexican`
 
-- entity_id: `0a9fc578…` — **resolves to no row**
+- entity_id: `0a9fc578…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `mexican`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "mexican", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **28. Arook** (`arook`) → community `iraqi`
 
-- entity_id: `df5d514c…` — **resolves to no row**
+- entity_id: `df5d514c…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `iraqi`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "iraqi", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **29. krówki** (`krowki`) → community `polish`
 
-- entity_id: `193beb7a…` — **resolves to no row**
+- entity_id: `193beb7a…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `polish`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "polish", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **30. corn fritter** (`corn-fritter`) → community `indonesian`
 
-- entity_id: `5b79c745…` — **resolves to no row**
+- entity_id: `5b79c745…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `indonesian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "indonesian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **31. Revuelto Gramajo** (`revuelto-gramajo`) → community `argentine`
 
-- entity_id: `73aca6db…` — **resolves to no row**
+- entity_id: `73aca6db…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `argentine`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "argentine", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **32. cabbage stew a la Székely** (`szekelykaposzta`) → community `hungarian`
 
-- entity_id: `0c28a25b…` — **resolves to no row**
+- entity_id: `0c28a25b…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `hungarian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "hungarian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **33. Udon** (`udon`) → community `japanese`
 
-- entity_id: `1c1512bb…` — **resolves to no row**
+- entity_id: `1c1512bb…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `japanese`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "japanese", "legacyIsPrimary": false, "legacyProvenance": "preparation"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **34. Unnakai** (`unnakai`) → community `indian`
 
-- entity_id: `304c9499…` — **resolves to no row**
+- entity_id: `304c9499…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `indian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "indian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **35. Struffoli** (`struffoli`) → community `italian`
 
-- entity_id: `cd77a0ad…` — **resolves to no row**
+- entity_id: `cd77a0ad…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `italian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "italian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **36. Pizzarello** (`pizzarello-food`) → community `italian`
 
-- entity_id: `271fc9ba…` — **resolves to no row**
+- entity_id: `271fc9ba…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `italian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "italian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **37. Putu piring** (`putu-piring`) → community `singaporean`
 
-- entity_id: `37d5ccef…` — **resolves to no row**
+- entity_id: `37d5ccef…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `singaporean`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "singaporean", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **38. aletria** (`aletria`) → community `portuguese`
 
-- entity_id: `d460c969…` — **resolves to no row**
+- entity_id: `d460c969…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `portuguese`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "portuguese", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **39. serviettenknödel** (`serviettenknodel`) → community `austrian`
 
-- entity_id: `611211e3…` — **resolves to no row**
+- entity_id: `611211e3…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `austrian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "austrian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **40. Pasta con le sarde** (`pasta-con-le-sarde`) → community `italian`
 
-- entity_id: `ad0c0557…` — **resolves to no row**
+- entity_id: `ad0c0557…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `italian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "italian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **41. Focaccia** (`focaccia`) → community `italian`
 
-- entity_id: `9170f328…` — **resolves to no row**
+- entity_id: `9170f328…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `italian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "italian", "legacyIsPrimary": false, "legacyProvenance": "preparation"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **42. karedok** (`karedok`) → community `indonesian`
 
-- entity_id: `3f70504b…` — **resolves to no row**
+- entity_id: `3f70504b…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `indonesian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "indonesian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **43. lawar** (`lawar-food`) → community `indonesian`
 
-- entity_id: `b0b5a532…` — **resolves to no row**
+- entity_id: `b0b5a532…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `indonesian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "indonesian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **44. tablet** (`tablet-confectionery`) → community `british`
 
-- entity_id: `388afdd7…` — **resolves to no row**
+- entity_id: `388afdd7…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `british`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "british", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **45. Ming'oko** (`ming-oko`) → community `tanzanian`
 
-- entity_id: `244e4696…` — **resolves to no row**
+- entity_id: `244e4696…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `tanzanian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "tanzanian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **46. Hawawshi** (`hawawshi`) → community `egyptian`
 
-- entity_id: `21a78a04…` — **resolves to no row**
+- entity_id: `21a78a04…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `egyptian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "egyptian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **47. hamburger** (`hamburger`) → community `german`
 
-- entity_id: `4b450814…` — **resolves to no row**
+- entity_id: `4b450814…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `german`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "german", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **48. Kampot fish sauce** (`kampot-fish-sauce`) → community `cambodian`
 
-- entity_id: `f1496295…` — **resolves to no row**
+- entity_id: `f1496295…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `cambodian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "cambodian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **49. Mazamorra** (`mazamorra`) → community `spanish`
 
-- entity_id: `8f381a0a…` — **resolves to no row**
+- entity_id: `8f381a0a…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `spanish`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "spanish", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 **50. Kemplang** (`kemplang`) → community `indonesian`
 
-- entity_id: `026a586a…` — **resolves to no row**
+- entity_id: `026a586a…` — resolves to a `dish_traditions` row (a culinary tradition)
 - relationship: `established_tradition`
 - provenance: `legacy_dish_cuisines`
 - legacy_value: `indonesian`
 - qualifiers: `{"legacyStatus": "active", "legacyCuisine": "indonesian", "legacyIsPrimary": true, "legacyProvenance": "wikidata-country-of-origin"}`
 - evidence_status: `unevidenced`  ·  current review_state: `unreviewed`
 - sources: 0 (none)
-- **confidence: LOW** → proposed `in_review`
-- why: the entity_id is DANGLING (resolves to no row), but the value survives as legacy_value/legacyCuisine and can be re-pointed
+- **confidence: MEDIUM** → proposed `in_review`
+- why: the entity resolves to a culinary tradition, but no source row supports the dish/tradition pair, so the confidence is MEDIUM. The readable value also survives as legacy_value/legacyCuisine
 - note: Migrated from the legacy dish_cuisines assignment. The cuisine '<cuisine>' has a matching tradition row '<tradition>'; the original cuisine value is preserved in legacy_value.
 
 ---
@@ -729,13 +774,14 @@ value survives only in `legacy_value` and
    `legacy_unreviewed` from `legacy_origin_geo_id` — the dish's
    origin country. The rows say so themselves: *"DISCOVERY DATA,
    not a reviewed historical claim."*
-3. **The `community` half is dangling.** All 25 have an
-   `entity_id` that resolves to nothing, because
-   `dish_place_associations.entity_id` has no foreign key.
-   The values are recoverable from `legacy_value`.
+3. **The `community` half is a CULTURE, not a place.** All 25 have
+   an `entity_id` that resolves to a `dish_traditions` row — a
+   culinary tradition. `entity_id` has no foreign key (it is
+   polymorphic), so nothing in the schema says so; the trigger in
+   migration 0050 is what makes it explicit from now on. The values
+   are also recoverable from `legacy_value`.
 4. **So the review's real job** is to promote a
    `legacy_unreviewed` origin into a substantive
-   `relationship_type` with a source behind it — and to
-   re-point the dangling half. Both need somewhere to record
-   what was found, which is what
-   `docs/ASSOCIATION-REVIEW-PROPOSAL.md` proposes.
+   `relationship_type` with a source behind it — and to source the
+   cultural claims. Both need somewhere to record what was found,
+   which is what `docs/ASSOCIATION-REVIEW-PROPOSAL.md` proposes.

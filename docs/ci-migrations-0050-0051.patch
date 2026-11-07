@@ -1,0 +1,78 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hermes Agent <hermes-agent@users.noreply.github.com>
+Date: Fri, 7 Nov 2026 10:15:00 +0800
+Subject: [PATCH] ci: apply migrations 0050 and 0051 in the CI chain
+
+The CI steps that apply the association review ledger (0050) and the
+family classification (0051).
+
+THIS COMMIT NEEDS A HUMAN. The GitHub App has no 'workflows' scope and
+cannot push it. Apply it with:
+
+    git apply docs/ci-migrations-0050-0051.patch
+
+Ordering: 0050 runs after the atlas fixtures, because the pilot samples
+the association table the fixtures create. 0051 runs after 0050. Both
+run after the seed.
+
+REGENERATED 2026-11-07. The previous version of this patch was wrong in
+two ways, and neither was visible until it was applied to main:
+
+  1. It targeted `gustale` -- the LIVE database name. Every other
+     migration step in this workflow targets `gustale_ci`, the CI
+     service database. This was exactly the class of mistake the
+     database-safety work removed from CI: a migration step that
+     silently points at production. The steps now target `gustale_ci`.
+
+  2. Its hunk header did not match main, so `git apply` failed
+     outright. It had been generated against an older ci.yml.
+
+The patch is now generated from main's actual .github/workflows/ci.yml
+and verified with `git apply --check` against a pristine copy of it.
+
+VERIFIED:
+  * `git apply --check` against pristine main's ci.yml: clean.
+  * Every `-d` target in the patched file is `gustale_ci` (35 of them);
+    the live name appears zero times.
+
+---
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 560104d..d0c7107 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -978,6 +978,34 @@ jobs:
+           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f packages/db/seed-atlas-fixtures.sql
+ 
++      # ── 0050: the association review ledger (Option C) ──────────────
++      #
++      # Creates `association_review_log` (the ledger), `association_sources`
++      # (the association <-> source link), the entity-integrity trigger,
++      # and the 50-row pilot.
++      #
++      # It writes NO published rows and re-points nothing.
++      #
++      # It must run AFTER the atlas fixtures: the pilot samples the
++      # association table, and the fixtures are what create the
++      # association rows it samples.
++      - name: Apply the association review ledger
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0050_association_review_ledger.sql
++
++      # ── 0051: the family classification ─────────────────────────────
++      #
++      # Adds `dish_families.family_class` and applies the approved
++      # classification of all 306 families.
++      #
++      # It runs AFTER the atlas fixtures: its assertions count the
++      # families that carry a published dish.
++      - name: Apply the family classification
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0051_family_classification.sql
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
+

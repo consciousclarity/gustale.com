@@ -87,6 +87,38 @@ def api(tok: str, method: str, path: str, body=None, raw=None,
         return {"raw": out.stdout, "stderr": out.stderr}
 
 
+def existing_open_pr(tok: str, repo: str, head: str):
+    """Return the html_url of an already-open PR for this head, or None.
+
+    GitHub's create-PR endpoint does NOT refuse a duplicate: a re-run
+    of this helper against a branch that already has an open PR opens
+    PR #2 for the same head. So the check happens BEFORE the create.
+
+    It is a GET, so it is safe to run against any repo the App is on.
+    """
+    owner = repo.split("/")[0] if "/" in repo else OWNER
+    name = repo.split("/")[-1]
+    cmd = [
+        "curl", "-sS", "-X", "GET",
+        "-H", f"Authorization: Bearer {tok}",
+        "-H", "Accept: application/vnd.github+json",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+        "-w", "\n%{http_code}",
+        f"{API}/repos/{owner}/{name}/pulls?head={owner}:{head}&state=open",
+    ]
+    out = subprocess.run(cmd, capture_output=True, text=True)
+    parts = out.stdout.rsplit("\n", 1)
+    if len(parts) != 2 or parts[1].strip() != "200":
+        return None
+    try:
+        payload = json.loads(parts[0])
+    except json.JSONDecodeError:
+        return None
+    if isinstance(payload, list) and payload:
+        return payload[0].get("html_url")
+    return None
+
+
 def main() -> int:
     if len(sys.argv) < 4:
         print(__doc__)
@@ -116,6 +148,13 @@ def main() -> int:
     images = rest
 
     tok = token()
+
+    # A re-run must NOT open a SECOND PR for the same branch.
+    already = existing_open_pr(tok, repo, head)
+    if already:
+        print(f"  a PR for {head} already exists: {already}")
+        return 0
+
     body = Path(body_file).read_text()
 
     result = api(
