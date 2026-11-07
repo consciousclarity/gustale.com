@@ -91,6 +91,21 @@ const primaryLinks = isGeo
     ];
 
 const addDishHref = authoringHref("/dishes/new");
+
+// R3 — "Add a dish" belongs to the ATLAS only.
+//
+// The brief's R tier: "Add a dish" on geo; "Add a recipe" on recipes.
+// There is no "Add a recipe" yet — there is no recipe to add — so on
+// the recipes property the control is REMOVED rather than renamed.
+// Offering a link to a form that does not exist is worse than offering
+// nothing, and inventing a second authoring surface is not this
+// change's job.
+//
+// The authoring form itself is a RECIPES-ONLY path
+// (`RECIPES_ONLY_PATH_PREFIXES` in lib/domain.ts), and on the Atlas
+// `authoringHref()` sends it to the recipes host. So the Atlas's
+// "Add a dish" still works; it just lives at the recipes origin.
+const showAddDish = isGeo;
 ---
 
 <header class="gst-header" data-domain={domain}>
@@ -155,7 +170,9 @@ const addDishHref = authoringHref("/dishes/new");
 
       <div class="gst-navr" id="nav-right">
         <AuthMenu client:load />
-        <a href={addDishHref} class="btn-accent gst-nav-add-dish">Add a dish</a>
+        {showAddDish && (
+          <a href={addDishHref} class="btn-accent gst-nav-add-dish">Add a dish</a>
+        )}
 
         <button
           class="nav-mobile-search"
@@ -281,7 +298,9 @@ const addDishHref = authoringHref("/dishes/new");
         <div class="nav-mobile-auth">
           <AuthMenu client:load variant="mobile" />
         </div>
-        <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
+        {showAddDish && (
+          <a href={addDishHref} class="nav-mobile-link nav-mobile-link--accent">Add a dish</a>
+        )}
       </div>
     </div>
   </div>
