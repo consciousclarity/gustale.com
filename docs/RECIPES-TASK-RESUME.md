@@ -14,16 +14,72 @@ something conflicts with existing code or an ADR, **report it, don't decide it**
 | item | what | state |
 |---|---|---|
 | **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **code done**, PR #199 open, waiting on the owner's label |
-| 1 | ADR-007 amendment (docs only) | **not started** — the next thing to do |
-| 2 | schema migration (recipes + confidence + contributor trust) | not started |
+| **1** | ADR-007 amendment (docs only) | **DONE** — `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, 12 sections. **5 open decisions for the owner** (§10) |
+| 2 | schema migration (recipes + confidence + contributor trust) | not started — **blocked on 2 of the owner's decisions** (service account, trusted-contributor standard) |
 | 3 | ingredient backfill plan, then a pilot | not started |
 | 4 | API: hub + recipe endpoints, publish gate, kill switch | not started |
 | 5 | gustale.recipes hub + recipe page v1, empty-state noindex | not started |
 | 6 | Atlas button + "Recipes for this dish" block | not started |
-| 7 | revised 6c: redirects + recipes sitemap | not started |
+| 7 | revised 6c: redirects + recipes sitemap | not started — the exact 301 path set is now known (§5.3 of the amendment) |
 | 8 | content pipeline: drafting, confidence, daily digest | not started |
 
 PR 6b (R1, recipes home) is running in parallel and is not part of this list.
+
+---
+
+## Item 1 — the ADR-007 amendment (DONE)
+
+**File:** `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`
+
+**Status: PROPOSED — awaiting the owner's approval.** Docs only; no code,
+no migration, no live write.
+
+It covers the five things the owner decided on 2026-11-07:
+
+| § | what |
+|---|---|
+| §1 | **Confidence** — HIGH/MEDIUM/LOW, computed from the rows, not a flag. HIGH is a **conjunction**: 2+ *independent* sources, every ingredient published, every sentence sourced |
+| §2 | **Conflict 1** — auto-publish as a **server-side rule** (`recipe_auto_publish()`), not the agent publishing |
+| §3 | **Conflict 2** — the ingredient backfill, in three stages with a review gate at each |
+| §4 | **Conflict 3** — original-language-first, and the `en`-source constraint it collides with |
+| §5 | **The URL scheme** — the three URLs, the hub's empty state, the revised 6c, the sitemap and canonicals |
+| §6 | **Contributor trust** — the ladder, and what a trusted contributor may publish on |
+| §7 | **The safeguards** — kill switch, daily cap of 20, daily digest |
+| §8 | **The schema it implies** — the new tables, the changes to existing tables, the confidence computation |
+
+**Three findings the owner should know about:**
+
+1. **Every one of the 1,486 sources in the live database is `S6`**
+   (Wikipedia). There is not one `S1`–`S5`. All 1,354 statements sit at
+   `research_pending`, so the `verified` gate is unreachable for all of
+   them. **Consequence: with today's data no recipe can be HIGH, and
+   nothing auto-publishes.** The auto-publish path is dormant until real
+   sources arrive. That is correct behaviour, but the pipeline (item 8) is
+   what eventually turns it on.
+2. **The ingredient count is 5, not 4** — the brief's "4" is the number
+   of *used* ingredients; all 5 rows are published (the fifth,
+   `bechamel-sauce`, is an unused near-duplicate of `bechamel`).
+3. **The 301 path set in the brief does not match the live routes.**
+   The recipes sitemap holds **55 Atlas pages** — 43 `/family/<slug>` and
+   12 `/lineages/<slug>` — and `/family` (the index) is a **404**. Every
+   candidate target was checked to exist on the Atlas (all 200).
+
+**The five open decisions (§10)** — items 2 and 4 need the first two
+before the migration can be written:
+
+1. **The service account for auto-publish.** `statement_set_status()`
+   needs a session token for an actor holding a verified `publisher`
+   credential, and 0048 refuses bot accounts. The recommendation is a
+   dedicated human-named service account — which needs the owner's
+   explicit approval, because it is exactly what the `-bot` rule exists
+   to prevent. The alternative is to amend 0048 so the rule is an
+   explicit service-account list rather than an email-suffix heuristic.
+2. **The trusted-contributor standard** — content conditions only
+   (proposed), or also the source-independence condition?
+3. **The 301 path set** — the three index paths, or also the 55 detail
+   pages?
+4. **The kill switch's default** — `disabled` is proposed.
+5. **The daily cap of 20** — confirm.
 
 ---
 
@@ -111,7 +167,12 @@ visible in an open session.
 
 ---
 
-## Item 1 — the next thing to do
+## Item 1 — the ADR-007 amendment (DONE)
+
+**Written.** `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`
+— see the section above for what it covers and the five open decisions.
+
+<details><summary>The original brief for item 1 (kept for the record)</summary>
 
 The **ADR-007 amendment**. Docs only, no code. It must cover the three
 conflicts the owner listed, plus the new rules:
@@ -138,6 +199,22 @@ indexable automatically at ≥1 published recipe. **PR 6c is revised: no 301 for
 `/dishes/*` on gustale.recipes**; still 301 `/regions`, `/families`,
 `/lineages` to gustale.com. The recipes sitemap lists indexable hubs and
 published recipes only. Every page self-canonicals on its own site.
+
+</details>
+
+**What the amendment adds on top of the brief** — the brief's own words
+are above; these are the parts the live database forced:
+
+- the **independence** condition (§1.2), because `statements.independence`
+  exists and is unused;
+- the **`S1`–`S5` source-class rule** (§1.3), because every source today
+  is `S6`;
+- the **service-account conflict** (§2.4), because `publish_credential`
+  is empty and 0048 refuses bot accounts;
+- the **language-first CHECK for `recipe_sentences`** (§4.3), the mirror
+  image of `description_sentences`' English-source CHECK;
+- the **55 Atlas pages in the recipes sitemap** (§5.3), which the brief's
+  three-path 301 does not cover.
 
 ---
 
