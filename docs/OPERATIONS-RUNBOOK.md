@@ -59,6 +59,37 @@ things it gets right:
 To push a *specific* commit to a branch, use `push_sha_as_app.py` with
 `--force-with-lease` semantics rather than `push_as_app.py`.
 
+### 1a. NEVER force-push a branch the owner may have pushed to
+
+`--force-with-lease` protects against changes made **after** the remote SHA you
+recorded — it does **not** protect against commits that were already on the
+remote when you recorded that SHA but are **not** in your local branch.
+
+On 2026-11-08 the owner's own commit `061e597` ("ci: every migration must be
+wrapped in a transaction", pushed 06:49) was the item-0 branch tip. A
+`--force-with-lease` push at 07:40 **silently dropped it** from the branch.
+
+**Before every push to a branch the owner might touch:**
+
+```bash
+git fetch origin <branch>
+git log --oneline HEAD..origin/<branch>     # anything listed = owner's work
+```
+
+If that lists commits, **merge or cherry-pick them — never overwrite them.**
+
+**After the push, verify by patch-id, not by SHA** (a cherry-pick gets a new SHA):
+
+```bash
+git show <original-sha>  | git patch-id --stable
+git show <restored-sha>  | git patch-id --stable   # must be identical
+```
+
+**If a commit was dropped:** it is usually still reachable via `main` (the merge
+commit), or via the PR's recorded `head.sha` — `GET /repos/…/pulls/<N>` keeps the
+old `head.sha` even after the branch is rewritten. `git fsck --lost-found` finds
+the rest.
+
 ## 2. When CI fires
 
 - CI fires only on `pull_request: branches: [main]`.

@@ -13,8 +13,8 @@ something conflicts with existing code or an ADR, **report it, don't decide it**
 
 | item | what | state |
 |---|---|---|
-| **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **code done**, PR #199 open, waiting on the owner's label |
-| **1** | ADR-007 amendment (docs only) | **DONE** — `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, 12 sections. **5 open decisions for the owner** (§10) |
+| **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **MERGED** — PR #199 merged 2026-11-07 22:55 UTC (owner applied `approved-live`). `main` CI green. |
+| **1** | ADR-007 amendment (docs only) | **DONE** — `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, 12 sections. PR #200 open, green, clean. **5 open decisions for the owner** (§10) |
 | 2 | schema migration (recipes + confidence + contributor trust) | not started — **blocked on 2 of the owner's decisions** (service account, trusted-contributor standard) |
 | 3 | ingredient backfill plan, then a pilot | not started |
 | 4 | API: hub + recipe endpoints, publish gate, kill switch | not started |
@@ -83,15 +83,23 @@ before the migration can be written:
 
 ---
 
-## Item 0 — PR #199
+## Item 0 — PR #199 — **MERGED**
 
 **Branch:** `fix/item0-dryrun-test-postgres-and-transactional-migrations`
-**Commits (pushed, local == remote at `7413981`):**
+**Merge commit:** `98eea60` (2026-11-07 22:55 UTC), owner applied `approved-live`.
+`main` CI: green.
+
+**Commits (all now in `main`):**
 
 - `bd1c697` — fix(db-safety): the dry-run runs on the test Postgres; every
   migration must be transactional
 - `7413981` — docs(runbook): §8a every migration must be transactional; §8b the
   dry-run's copy is on the test Postgres
+- `6b0c573`, `794599b`, `564cc8b`, `d24124d` — the resume doc, the GitHub API
+  helper, and the runbook notes
+- `061e597` — **the owner's own commit**, "ci: every migration must be wrapped
+  in a transaction", adding the transactional-migration CI step to
+  `.github/workflows/ci.yml`
 
 **What changed**
 
@@ -122,20 +130,24 @@ before the migration can be written:
   (exit 1) on a migration whose wrapper was stripped;
 - every gate this PR touches is exit 0, and `pnpm lint` is exit 0.
 
-**Two things the owner must do**
+**Two things the owner must do — BOTH DONE**
 
-1. Apply the `approved-live` label to PR #199. The **Live approval gate**
-   is failing because `scripts/dryrun-migration.sh` is a protected path under
-   ADR-005 — and the label only counts when the owner applies it.
-2. Apply the CI step, which ships as a patch because the App has no
-   `workflows` scope:
+1. ~~Apply the `approved-live` label to PR #199.~~ **Done** — applied and
+   merged 2026-11-07 22:55 UTC.
+2. ~~Apply the CI step, which ships as a patch because the App has no
+   `workflows` scope:~~ **Done** — the owner committed the CI step directly
+   as `061e597`, so the patch file is no longer needed. The step is now live
+   in `.github/workflows/ci.yml` on `main`:
 
    ```
-   git apply docs/ci-transactional-migration-check.patch
+   - name: Every migration must be wrapped in a transaction
+     run: |
+       python3 scripts/test-check-migrations-are-transactional.py
+       python3 scripts/check-migrations-are-transactional.py
    ```
 
-   It applies cleanly, the patched workflow is valid YAML with the step in the
-   `lint` job, and the step was verified in a scratch checkout.
+   `docs/ci-transactional-migration-check.patch` is kept in the repo as the
+   record of how it was shipped, but applying it now would duplicate the step.
 
 **No live database write** happened in this PR.
 
@@ -229,21 +241,35 @@ are above; these are the parts the live database forced:
 
 ---
 
-## Hindsight (separate thread, owner is on it)
+## Hindsight (separate thread — ROOT CAUSE FOUND)
 
-Writes fail with `invalid api key (2049)`; reads work. 2049 comes **only** from
-`api.minimaxi.com` — the global host returns 200/1004/404 and never 2049 — so
-the daemon is calling a China-region host while the key itself is valid. The bad
-value is **inherited**: systemd's `EnvironmentFile=` only shadows variables it
-defines, so deleting the base-URL line *exposed* an inherited one.
+**The write failure is an INVALID MiniMax key, not a wrong host.** Proven
+2026-11-08:
 
-The owner is fixing it. When he says to test:
+- The owner's edit was correct: all four `HINDSIGHT_API_*_BASE_URL` lines read
+  `https://api.minimax.io/v1`, and the daemon restarted 35 s after the edit
+  (06:58:08 vs mtime 06:57:33). The URL was never the cause.
+- The key in `hermes.env` (fingerprint `dd774d302bbd`) is rejected with 2049
+  by **both** hosts, on every model and every endpoint. The key in
+  `/home/gustale/.hermes/.env` (`b47bd6931ae2`) returns HTTP 200 on
+  `api.minimax.io`. That key is unchanged in all three env backups, so it has
+  been invalid since the first 2049 on **2026-11-06 07:23Z**.
+- Last successful bank write: **2026-10-30 22:44:01Z**. `llm-requests` has
+  **0** success rows and **246** failed operations. Recall still works (it
+  needs no LLM); only retain and reflect are broken.
+- **Trap:** MiniMax's legacy endpoint answers HTTP 200 with
+  `base_resp.status_code=2049`. A status-only probe reads a false success.
+- The earlier claim "2049 comes only from the China host" was **wrong** — it
+  came from the working key happening to be global-only.
 
-1. one write,
-2. one recall,
-3. report the new `last_memory_write_at`.
+**The fix needs the owner** (the env file is mode 600, owner `hermes`; `gustale`
+cannot write it and has no passwordless sudo): put the working key in
+`HINDSIGHT_API_LLM_API_KEY` and restart `hindsight.service`.
 
-Full write-up: `docs/HINDSIGHT-WRITE-FAILURE.md`.
+After he says to test: one write, one recall, report the new
+`last_memory_write_at`.
+
+Full write-up: `docs/HINDSIGHT-WRITE-FAILURE.md` (PR #201).
 
 ---
 
@@ -264,7 +290,7 @@ Memory is at **79%** and holds only a thin index into these documents.
 
 ---
 
-## The two push traps (write these down before the next push)
+## The three push traps (write these down before the next push)
 
 1. **`push_as_app.py` pushes `HEAD`, not the branch you name.** If the
    working tree is on a different branch, the wrong commit lands on the
@@ -277,5 +303,25 @@ Memory is at **79%** and holds only a thin index into these documents.
    returns `None` without an explicit `SourceFileLoader` — and its `api`
    mode builds the URL with no slash, so the path must start with `/` or
    curl exits 6.
+3. **NEVER force-push a branch the owner may have pushed to.** On
+   2026-11-08 the owner's own commit `061e597` ("ci: every migration must
+   be wrapped in a transaction", pushed 06:49) sat on the item-0 branch
+   tip. A `--force-with-lease` push at 07:40 **silently dropped it**,
+   because the lease only protects against changes made *after* the
+   recorded remote SHA was read — and the owner's commit was already in
+   that SHA's history but *not* in the local branch.
 
-Both are written up in `docs/OPERATIONS-RUNBOOK.md` §1.
+   **The rule:** before pushing, run
+   `git fetch origin <branch>` and
+   `git log --oneline HEAD..origin/<branch>`. If that lists anything, the
+   owner pushed commits you do not have — **merge or cherry-pick them, do
+   not overwrite them.** Verify afterwards with
+   `git patch-id --stable` on both commits, not by SHA (a cherry-pick gets
+   a new SHA).
+
+   If a commit *was* dropped: it is usually still in `main` via the merge
+   commit, or recoverable from `git fsck --lost-found` / the PR's
+   `head.sha`. `GET /repos/…/pulls/<N>` keeps the old `head.sha` even
+   after the branch is rewritten.
+
+All three are written up in `docs/OPERATIONS-RUNBOOK.md` §1.
