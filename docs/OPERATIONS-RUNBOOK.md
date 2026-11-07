@@ -262,6 +262,82 @@ The pilot's "dangling" premise was false; all 50 pilot rows are MEDIUM and all r
 - Curator patches to the `gustale-deploy-vps` skill are **refused**. Put deploy lessons in
   the `quality-gate-integrity` skill instead.
 
+### 16a. The timer and the CI deploy share ONE lock
+
+Both sides swap the same two containers (`gustale-web-recipes`, `gustale-web-geo`), so both
+must take the **same** lock: `/tmp/gustale-deploy.lock`.
+
+**Two different lock files do not exclude each other.** Until 2026-11-07 the CI deploy locked
+`/tmp/gustale-deploy.lock` and the timer locked `/var/lock/gustale-rebuild.lock`. They raced
+for real: CI run `42314759004` (as `root`) and the timer (as `gustale`) built the same image
+tag at the same time. The timer then swapped the containers with **its own** build *after* the
+CI's "Real verify" had already passed — so the verified build was silently replaced by an
+unverified one, with no error anywhere.
+
+**Why the lock is in `/tmp`, and why `gustale` cannot write it.** The CI deploy runs as root
+and creates the lock as `root:root` mode `0644`. The timer runs as `gustale` and can only
+*read* it. That is fine: `flock()` locks the **inode**, not the mode, so an exclusive flock on
+a read-only descriptor conflicts with an exclusive flock on a write descriptor. The timer
+therefore opens the lock read-only and flocks that. Proven in both directions by
+`scripts/hermes/test-shared-deploy-lock.sh`.
+
+**The fix is script-only on purpose.** The obvious fix is to change *both* sides to a new path,
+but the deploy side lives in `.github/workflows/ci.yml` and the App cannot push
+`.github/workflows/` files. So the timer takes the lock the deploy **already** takes, and the
+workflow does not change. The test asserts the two paths still agree, so a later edit cannot
+silently split them again.
+
+**The installed scripts must be refreshed.** The timer runs the copy in
+`/home/deploy/gustale-rebuild/`, not the repo. On 2026-11-07 that copy was from 2026-11-02 and
+was missing the fail-closed fetch guard, the ancestry guard, and the `-recipes`/`-geo` image
+tag suffixes. A merge alone does not install anything:
+
+```bash
+sudo GUSTALE_SRC_DIR=/home/gustale/gustale-rebuild-checkout \
+  bash scripts/hermes/install-rebuild-timer.sh
+```
+
+**Do not merge during a timer run.** The timer starts about every 30 minutes (it drifts; it is
+not on a fixed minute). Check before merging:
+
+```bash
+systemctl list-timers --all | grep gustale-rebuild-web
+```
+
+### 16b. The systemd unit files are ROOT-OWNED
+
+`/etc/systemd/system/gustale-rebuild-web.service` and its `.timer` must be owned by
+**`root:root`**. The service still **runs** as `gustale` — that is set by `User=` inside the
+unit, not by who owns the file. Those are two different things, and only the second one is a
+privilege boundary.
+
+**A unit file owned by a normal user is an escalation to root.** systemd reads the unit as root
+and executes what it says, so whoever can *write* the file can put `ExecStartPre=/bin/sh` in it
+and have root run it. The `User=` directive does not protect the file: the file is parsed as
+root *before* the privilege drop happens. Since `gustale` is also the account the operator logs
+in as, "gustale can rewrite the unit" means "any write primitive that reaches gustale is root".
+
+Until 2026-11-07 `scripts/hermes/install-rebuild-timer.sh` installed both units with
+`-o "$SVC_USER"`, so every re-install put the escalation back. The install now:
+
+1. installs the two unit files with `-o root -g root`;
+2. **asserts** the ownership afterwards with `stat -c '%U:%G'` and **exits non-zero** if it is
+   not `root:root` — a stale unit left over from an earlier install is corrected or refused, not
+   silently kept;
+3. takes the same ownership for the `.service.d` drop-in directories and their `.conf` files,
+   because a drop-in is a unit file fragment and systemd executes what it says.
+
+The check is static and needs no root: `scripts/hermes/test-systemd-unit-ownership.sh`
+(9 assertions), run in CI from `scripts/hermes/test-rebuild-fail-closed.sh`.
+
+**Verify after any install:**
+
+```bash
+ls -l /etc/systemd/system/gustale-rebuild-web.service \
+      /etc/systemd/system/gustale-rebuild-web.timer
+# both must be: -rw-r--r-- 1 root root
+```
+
 ## 17. The private `gustale-state` repository
 
 `consciousclarity/gustale-state` is the **private** repo that holds the shared agent

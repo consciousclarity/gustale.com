@@ -311,4 +311,71 @@ if [ "$fail" -eq 0 ]; then
 else
   echo "SOME FAILED"
 fi
+
+# ===========================================================================
+# The timer's OTHER guard: it must share ONE lock with the CI deploy.
+#
+# This is invoked from here, rather than from its own CI step, because
+# the CI step that runs this file is the only one that already exists
+# for the timer's guards -- and adding a CI step means editing
+# .github/workflows/ci.yml, which the GitHub App cannot push (no
+# `workflows` scope). Invoking it from an existing script keeps the
+# whole fix pushable by the App.
+#
+# The shared-lock test also asserts that the two lock paths still
+# agree, so it reads .github/workflows/ci.yml (read-only) to find the
+# deploy's DEPLOY_LOCK.
+# ===========================================================================
+echo ""
+echo "--- the shared deploy lock ---"
+if bash "$SCRIPT_DIR/test-shared-deploy-lock.sh"; then
+  ok "the rebuild timer and the CI deploy share one lock"
+else
+  bad "the rebuild timer and the CI deploy do NOT share one lock"
+fi
+
+# ===========================================================================
+
+# The recipes accent gate.
+#
+# The herb-green accent was APPROVED on 2026-11-06 and held in
+# recipes-island.css, but that file was never imported, so the accent
+# never reached a build. It now ships in recipes-theme.css.
+#
+# The gate checks the approved accent's contrast ratios, that no
+# accent-coloured text sits on an accent-soft tint, and that the
+# SHIPPED theme still matches the APPROVED accent -- plus a selftest
+# proving the gate can fail.
+#
+# Invoked from here for the same reason as the shared-lock test: the
+# App cannot push .github/workflows/, so a new CI step is not
+# available. An existing script that CI already runs is.
+# ===========================================================================
+echo ""
+echo "--- the recipes accent ---"
+if bash "$SCRIPT_DIR/test-recipes-accent.sh"; then
+  ok "the recipes accent passes its contrast gate and matches the approved values"
+else
+  bad "the recipes accent does NOT pass its gate"
+fi
+
+# ===========================================================================
+# The systemd units must be ROOT-OWNED.
+#
+# A unit file owned by a normal user is an escalation to root: systemd
+# reads the unit as root and executes what it says, so whoever can write
+# the file gets root. The service runs as `gustale` -- which is also the
+# account the operator logs in as -- so this is a real boundary.
+#
+# The test is static: it reads the installer. It writes nothing and
+# needs no root.
+# ===========================================================================
+echo ""
+echo "--- the systemd unit ownership ---"
+if bash "$SCRIPT_DIR/test-systemd-unit-ownership.sh"; then
+  ok "the systemd units are installed root:root"
+else
+  bad "the systemd units are NOT installed root:root"
+fi
+
 exit "$fail"

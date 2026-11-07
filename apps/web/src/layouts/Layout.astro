@@ -1,5 +1,16 @@
 ---
 import "../styles/global.css";
+// The recipes theme (the approved herb-green accent).
+//
+// It is imported UNCONDITIONALLY, and that is safe: every rule in it
+// is scoped to `body[data-domain="recipes"]`, and the attribute is set
+// by this component. The Atlas build ships the same few bytes of CSS
+// and matches none of them, so the Atlas keeps its terracotta.
+//
+// It cannot be a conditional import: Astro hoists imports, so
+// `if (isGeo) await import(...)` is not a thing in a frontmatter. The
+// attribute is what makes the scoping work, not the import.
+import "../styles/recipes-theme.css";
 import { LocaleSuggestion } from "../components/LocaleSuggestion";
 import LocaleSwitcher from "../components/LocaleSwitcher.astro";
 import Nav from "../components/Nav.astro";
@@ -157,7 +168,7 @@ const canonicalUrl =
       noindex && <meta name="robots" content="noindex, follow" />
     }
   </head>
-  <body class="gst">
+  <body class="gst" data-domain={isGeo ? "geo" : "recipes"}>
     <Nav />
 
     {

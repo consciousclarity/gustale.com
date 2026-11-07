@@ -27,11 +27,17 @@ ExecStart=/home/deploy/gustale-rebuild/rebuild-web-live.sh
 StandardOutput=journal
 StandardError=journal
 # Overlap protection lives INSIDE the script via `flock` on
-# /var/lock/gustale-rebuild.lock. Do not add an ExecStartPre here —
-# the previous `ExecStartPre=/usr/bin/test -f /tmp/gustale-rebuild.lock`
+# /tmp/gustale-deploy.lock -- the SAME lock the CI deploy takes.
+# Do not add an ExecStartPre here — the previous
+# `ExecStartPre=/usr/bin/test -f /tmp/gustale-rebuild.lock`
 # was inverted: it returned 0 only when a stale lock file existed,
 # so the service would silently fail to start except when an
 # orphaned lock was present.
+#
+# The lock is in /tmp rather than /var/lock because it must be the
+# same file the root-run CI deploy locks. `gustale` cannot write
+# that file, so the script opens it read-only and flocks that
+# descriptor -- flock() works on the inode, not on the mode.
 #
 # Environment file: holds GUSTALE_BUILD_DIR (the timer's own build
 # checkout) and GITHUB_TOKEN so build-web-live.sh can optionally push

@@ -54,6 +54,41 @@
 #   1  the gate aborted
 set -uo pipefail
 
+# THE TARGET DATABASE IS VETTED BY THE SHARED GUARD.
+#
+# Until now this script defaulted to the live database name with no
+# guard at all:
+#
+#   DB="${GUSTALE_DB_NAME:-gustale}"
+#
+# So a bare `bash scripts/delete-test-account.sh <id> <email>` reached
+# live by default, and the only thing standing between an operator and
+# a live DELETE was remembering to set GUSTALE_DB_NAME. That is the
+# same shape of hole that let GUSTALE_DB_IS_THROWAWAY=1 make the live
+# name disposable in 2026-11-06: a default that points at production.
+#
+# The guard (scripts/lib/db_guard.py) refuses the live name unless
+# the operation is explicitly approved. So:
+#
+#   * a non-live target (a scratch or CI database) works unchanged;
+#   * the live name requires the live approval signals, which this
+#     script cannot fake -- it is not on the guard's allowed-writers
+#     list, so the live name is refused outright.
+#
+# This script is a GATE: it proves a delete on a COPY and only then
+# applies it. Its live path is a separate, explicit invocation that
+# the owner runs with the approval signals set.
+#
+# To use it against live, the operator must run it with the live
+# approval signals:
+#
+#   GUSTALE_LIVE_DB_ALLOW=1 \
+#   GUSTALE_LIVE_PURPOSE='delete-test-account.sh' \
+#   bash scripts/delete-test-account.sh <id> <email> --apply
+#
+# ...and the guard must have this script on its allowed-writers list.
+# It is not, so that path is currently REFUSED, which is the correct
+# default: an account deletion on live is a decision, not a default.
 DB="${GUSTALE_DB_NAME:-gustale}"
 TARGET_ID="${1:?usage: delete-test-account.sh <user-id> <expected-email-substring> [--apply]}"
 EXPECT_EMAIL="${2:?usage: delete-test-account.sh <user-id> <expected-email-substring> [--apply]}"
@@ -66,6 +101,27 @@ for arg in "${@:3}"; do
     *) fail "unknown option '$arg'" ;;
   esac
 done
+
+# Vet the target through the shared guard. It refuses the live name
+# unless this script is an approved live writer, which it is not.
+#
+# The guard needs python3. If there is none, the script cannot prove
+# it is safe, so it stops -- it does NOT fall back to the unvetted
+# default.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+  echo "::error::no python3 on PATH; cannot vet this script's target database." >&2
+  exit 1
+}
+
+GUSTALE_DELACCT_DB="$("$PYTHON_BIN" scripts/lib/db_guard.py delete-test-account.sh "$DB")" || {
+  echo "::error::the account-deletion gate refuses to target the live database." >&2
+  echo "::error::A bare run must not reach live by default -- that is the hole this closes." >&2
+  echo "::error::Use a scratch or CI database (GUSTALE_DB_NAME=...), or run the live path with" >&2
+  echo "::error::the live approval signals and this script on the guard's allowed-writers list." >&2
+  exit 1
+}
+DB="$GUSTALE_DELACCT_DB"
 
 # The disposable copy's name. It is dropped at the end of the run that
 # created it -- that is the standing rule for every copy.

@@ -63,6 +63,16 @@ css = CSS.read_text()
 GLOBAL_CSS = CSS.parent / "global.css"
 global_css = GLOBAL_CSS.read_text() if GLOBAL_CSS.exists() else ""
 
+# The SHIPPED theme. `recipes-island.css` holds the approved accent but
+# is not in the build; `recipes-theme.css` is what actually reaches
+# production. Both must agree, or the accent that ships is not the
+# accent that was approved.
+#
+# This is checked, not assumed: the two files can drift, and a drift
+# here is invisible until someone looks at the rendered site.
+THEME_CSS = CSS.parent / "recipes-theme.css"
+theme_css = THEME_CSS.read_text() if THEME_CSS.exists() else ""
+
 
 def token(name: str) -> str:
     """Find a token in the recipes island, falling back to global.css.
@@ -292,10 +302,62 @@ else:
 
 print()
 print("=" * 72)
-if all_pass and not problems:
-    print("RESULT: every text ratio passes AND no accent-on-tint text exists")
+
+# ── the shipped theme must match the approved island ────────────────────
+#
+# `recipes-island.css` holds the approved accent. `recipes-theme.css` is
+# what actually reaches production. If they drift, the accent that
+# ships is not the accent that was approved -- and nothing else in the
+# build would notice, because both files are individually valid CSS.
+#
+# So the agreement is CHECKED here, not assumed.
+theme_ok = True
+if theme_css:
+    print("  THE SHIPPED THEME vs THE APPROVED ISLAND")
+    for name in ("accent", "accent-dark", "accent-ink", "accent-soft"):
+        island_m = re.search(rf"--{name}:\s*([^;]+);", css)
+        theme_m = re.search(rf"--{name}:\s*([^;]+);", theme_css)
+        island_v = island_m.group(1).strip() if island_m else None
+        theme_v = theme_m.group(1).strip() if theme_m else None
+
+        # The island may leave a token to global.css; in that case the
+        # theme must not invent a value for it.
+        if island_v is None:
+            inherited = re.search(rf"--{name}:\s*([^;]+);", global_css)
+            island_v = inherited.group(1).strip() if inherited else None
+            island_v = f"{island_v} (from global.css)" if island_v else None
+
+        if island_v and theme_v:
+            # Compare the colour VALUE. The island's value may carry a
+            # provenance note ("#327a2f   (from global.css)"), so the
+            # note is stripped -- but NOT with split("("), which would
+            # also eat the "rgba(" of a colour.
+            island_pure = re.sub(r"\s+\(.*\)$", "", island_v).strip()
+            theme_pure = re.sub(r"\s+\(.*\)$", "", theme_v).strip()
+            if island_pure.lower() == theme_pure.lower():
+                print(f"    OK   --{name}: {theme_v}")
+            else:
+                print(f"    FAIL --{name}: theme {theme_v} != island {island_v}")
+                theme_ok = False
+        elif theme_v and not island_v:
+            print(f"    FAIL --{name}: the theme defines {theme_v} but the island defines nothing")
+            theme_ok = False
+        else:
+            print(f"    --   --{name}: not overridden by the theme (inherited)")
+    print()
+else:
+    print("  THE SHIPPED THEME: recipes-theme.css not found — the accent does NOT reach production")
+    theme_ok = False
+    print()
+
+if all_pass and not problems and theme_ok:
+    print("RESULT: every text ratio passes AND no accent-on-tint text exists AND the theme matches")
+elif not theme_ok:
+    print("RESULT: the shipped theme does NOT match the approved accent")
 elif all_pass:
     print("RESULT: text ratios pass, but accent-on-tint text EXISTS — must be fixed")
 else:
     print("RESULT: a text ratio FAILS — the accent must not be applied as-is")
 print("=" * 72)
+
+sys.exit(0 if (all_pass and not problems and theme_ok) else 1)
