@@ -10,11 +10,24 @@
 # parent and is pathologically slow. The way round it is to drop the
 # constraint for the duration of the load and put it back after --
 # which is safe here because this is a throwaway database.
+#
+# THE DEDICATED TEST POSTGRES, never `shared-postgres`.
+#
+# `DROP DATABASE` is CLUSTER-SCOPED, and the production cluster hosts
+# the live database and five other projects' databases. On 2026-11-06 a
+# `DROP DATABASE` aimed at that cluster destroyed the live database.
+# This script creates and drops a throwaway database, so it runs on the
+# test container (127.0.0.1:5434) -- the same container the CI
+# reproduction and the migration chain use.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
+
+# shellcheck source=scripts/lib/test_pg.sh
+source scripts/lib/test_pg.sh
+
 DB=gustale_t51_live
 
-run_pg() { docker exec -u postgres shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 "$@" 2>&1; }
+run_pg() { test_pg_run "$DB" "$@"; }
 
 echo "=== 1. build the throwaway database ==="
 bash scripts/ci-migration-chain.sh "$DB" >/tmp/chain51.log 2>&1 || { echo "  chain FAILED"; tail -8 /tmp/chain51.log; exit 1; }
@@ -30,14 +43,14 @@ echo "=== 2. load the LIVE family and dish rows ==="
 # load is safe here: this is a throwaway database.
 run_pg -c "ALTER TABLE dish_families DROP CONSTRAINT dish_families_parent_id_fkey;" >/dev/null
 run_pg -c "DELETE FROM dish_families;" >/dev/null
-docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=0 \
+docker exec -u postgres -i "$TEST_PG_CONTAINER" psql -U "$TEST_PG_ADMIN" -d "$DB" -v ON_ERROR_STOP=0 \
   < /tmp/live_fam.sql > /tmp/restore51.log 2>&1
 echo "  family restore errors: $(grep -ci error /tmp/restore51.log)"
 
 # The published-dish count needs the dishes and the links.
 run_pg -c "DELETE FROM dish_dish_families;" >/dev/null
 run_pg -c "DELETE FROM dishes;" >/dev/null
-docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=0 \
+docker exec -u postgres -i "$TEST_PG_CONTAINER" psql -U "$TEST_PG_ADMIN" -d "$DB" -v ON_ERROR_STOP=0 \
   < /tmp/live_dishes.sql > /tmp/restore51b.log 2>&1
 echo "  dish restore errors: $(grep -ci error /tmp/restore51b.log)"
 
@@ -49,7 +62,7 @@ run_pg -c "SELECT count(*) AS families, count(*) FILTER (WHERE family_class IS N
 
 echo
 echo "=== 4. apply 0051 ==="
-docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+docker exec -u postgres -i "$TEST_PG_CONTAINER" psql -U "$TEST_PG_ADMIN" -d "$DB" -v ON_ERROR_STOP=1 \
   < db/migrations/0051_family_classification.sql 2>&1 | tail -6
 rc=${PIPESTATUS[0]}
 [ $rc -eq 0 ] || { echo "  FAILED: 0051 did not apply (rc=$rc)"; exit 1; }
@@ -60,13 +73,12 @@ run_pg -c "SELECT family_class, count(*) FROM dish_families GROUP BY 1 ORDER BY 
 echo
 run_pg -c "SELECT count(*) AS unclassified FROM dish_families WHERE family_class IS NULL;" | tail -4
 echo
-echo "=== 5b. the ledger ==="
 run_pg -c "SELECT count(*) AS ledger_rows FROM family_classification_ledger;" | tail -4
 
 echo
 echo "=== 6. IDEMPOTENCY: re-applying must not change anything ==="
 before=$(run_pg -t -c "SELECT count(*) FROM family_classification_ledger;" | tr -d ' ')
-docker exec -u postgres -i shared-postgres psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 \
+docker exec -u postgres -i "$TEST_PG_CONTAINER" psql -U "$TEST_PG_ADMIN" -d "$DB" -v ON_ERROR_STOP=1 \
   < db/migrations/0051_family_classification.sql > /tmp/reapply51.log 2>&1
 rc=$?
 after=$(run_pg -t -c "SELECT count(*) FROM family_classification_ledger;" | tr -d ' ')
@@ -79,5 +91,5 @@ run_pg -c "UPDATE dish_families SET family_class='NONSENSE' WHERE slug='dish';" 
 
 echo
 echo "=== 8. cleanup ==="
-docker exec -u postgres shared-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS $DB;" >/dev/null 2>&1
+test_pg_drop "$DB" || echo "  WARNING: could not drop $DB"
 echo "  dropped $DB"
