@@ -35,6 +35,16 @@ const recipesProperty = {
 const currentProperty = isGeo ? atlasProperty : recipesProperty;
 
 /**
+ * The OTHER property — the one this build is not.
+ *
+ * The mobile drawer's cross-property link points here. The brief
+ * (P0-4) asks for a quiet "Recipes ↗️" / "Atlas ↗️" link instead of
+ * the boxed two-cell switch, so the link always names the
+ * destination rather than offering a choice between two.
+ */
+const otherProperty = isGeo ? recipesProperty : atlasProperty;
+
+/**
  * Primary nav — only routes that exist in the corresponding post-build
  * dist.
  *
@@ -236,27 +246,35 @@ const addDishHref = authoringHref("/dishes/new");
 
         <div class="nav-mobile-divider" role="presentation"></div>
 
-        <p class="nav-mobile-section" id="nav-mobile-switch-label">Switch property</p>
-        <div class="property-switch property-switch--mobile" role="group" aria-labelledby="nav-mobile-switch-label">
-          <a
-            href={atlasProperty.href}
-            class="property-switch__opt"
-            data-active={isGeo ? 'true' : undefined}
-            aria-current={isGeo ? 'true' : undefined}
-          >
-            <span class="property-switch__name">Atlas</span>
-            <span class="property-switch__hint">{atlasProperty.description}</span>
-          </a>
-          <a
-            href={recipesProperty.href}
-            class="property-switch__opt"
-            data-active={!isGeo ? 'true' : undefined}
-            aria-current={!isGeo ? 'true' : undefined}
-          >
-            <span class="property-switch__name">Recipes</span>
-            <span class="property-switch__hint">{recipesProperty.description}</span>
-          </a>
-        </div>
+        {/* The cross-property link.
+
+           The brief (design-brief-discovery-2026-11-05.md, P0-4) asks
+           for a QUIET "Recipes / Atlas" link with an arrow, instead of
+           the boxed two-cell switch that used to be here. The reason is
+           that the header switch and the footer links were two
+           mechanisms for the same job, and the switch was the loud
+           one: a segmented control in a drawer that is already a stack
+           of sections.
+
+           So this is ONE link, to the OTHER property, with an arrow
+           that says "you are leaving this site". The link points at
+           the other property, so the reader always knows where it goes
+           before tapping.
+
+           Both absolute destinations are still present in the nav (the
+           desktop switch and this link), which is what
+           apps/web/scripts/validate-build.mjs checks for.
+
+           This is a JSX-style comment on purpose: an HTML comment
+           would be shipped into every built page. */}
+        <a
+          href={otherProperty.href}
+          class="nav-mobile-property-link"
+          aria-label={`${otherProperty.label} — ${otherProperty.description}`}
+        >
+          {otherProperty.label}
+          <span class="nav-mobile-property-arrow" aria-hidden="true">↗️</span>
+        </a>
 
         <div class="nav-mobile-divider" role="presentation"></div>
 
@@ -501,21 +519,6 @@ window.addEventListener('pagehide', () => {
      visibly secondary: it is 10px, and the property NAME beside it is
      monospaced and uppercase. */
 }
-.property-switch--mobile {
-  width: calc(100% - 36px);
-  margin: 0 18px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-.property-switch--mobile .property-switch__opt {
-  min-width: 0;
-  padding: 10px 12px;
-}
-.property-switch--mobile .property-switch__hint {
-  font-size: 11px;
-  white-space: normal;
-}
-
 .gst-navlinks {
   display: flex;
   align-items: center;
@@ -629,6 +632,52 @@ window.addEventListener('pagehide', () => {
   letter-spacing: 0.9px;
   text-transform: uppercase;
   color: var(--sub);
+}
+
+/* The quiet cross-property link (P0-4).
+   It replaces a boxed two-cell segmented control with ONE link to
+   the other property, marked with ↗ so the reader knows the tap
+   leaves this site.
+
+   QUIET means quiet: --sub, not --ink. The drawer's other links are
+   --ink and 16px; this one is deliberately the same size but a
+   step down in colour, so it reads as a footnote to the drawer
+   rather than as another destination competing with the nav.
+
+   The colour still passes WCAG AA: --sub measures 5.45:1 against the
+   page background (--bg #f6f1e7), 5.79:1 against the card surface,
+   and 5.06:1 against --accent-soft over the card. All three are above
+   the 4.5 threshold for normal-size text. It is not dimmed with
+   opacity, which is what pushed the old hint text down to 3.0-3.2:1.
+
+   The arrow is decorative, so it is aria-hidden: a screen reader
+   announces "Recipes — Cook and contribute recipes." from the
+   aria-label on the link itself, and the emoji is not read as a
+   stray glyph. */
+.nav-mobile-property-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 18px;
+  padding: 10px 0;
+  font-size: 16px;
+  color: var(--sub);
+  text-decoration: none;
+  min-height: 44px;
+  box-sizing: border-box;
+  transition: color 0.12s;
+}
+.nav-mobile-property-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.nav-mobile-property-link:focus-visible {
+  color: var(--accent);
+}
+.nav-mobile-property-arrow {
+  font-size: 13px;
+  line-height: 1;
 }
 .nav-mobile-link {
   display: block;
