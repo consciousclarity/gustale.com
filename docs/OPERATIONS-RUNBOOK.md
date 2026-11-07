@@ -27,6 +27,38 @@ Companion documents:
 - `gh-app.sh api GET /installation/repositories` reports `push: false` even when a push
   has just succeeded. Do not read it as a permission failure — just push and verify.
 
+### The two push traps
+
+**`push_as_app.py` pushes `HEAD`, not the branch you name.** If the working tree is on a
+different branch when you call it, the *wrong* commit lands on the remote branch — and
+the local repository looks perfectly correct, so nothing warns you. This happened on
+2026-11-07: the item-1 branch was pushed with the item-0 tip, and PR #200 briefly
+showed 13 changed files instead of 1.
+
+**The check that catches it** — after every push, read the PR's own file list back:
+
+```bash
+python3 scripts/hermes/app_api.py GET "/repos/consciousclarity/gustale.com/pulls/<N>/files"
+```
+
+and compare `changed_files` against what you committed. Also compare the remote ref:
+
+```bash
+git ls-remote origin refs/heads/<branch>
+```
+
+`scripts/hermes/app_api.py` is a thin wrapper over `gh-app.sh` for exactly this. Two
+things it gets right:
+
+- `gh-app.sh` is Python with a `.sh` suffix, so `importlib.util.spec_from_file_location`
+  returns **None** unless the loader is given explicitly
+  (`importlib.machinery.SourceFileLoader`).
+- `gh-app.sh`'s `api` mode builds `https://api.github.com{path}` with **no slash**, so
+  the path must start with `/`. Without it curl exits **6** (could not resolve host).
+
+To push a *specific* commit to a branch, use `push_sha_as_app.py` with
+`--force-with-lease` semantics rather than `push_as_app.py`.
+
 ## 2. When CI fires
 
 - CI fires only on `pull_request: branches: [main]`.
@@ -384,6 +416,8 @@ This runbook is the long form. `MEMORY.md` holds one-line pointers to:
 | the API outage | `docs/INCIDENT-2026-11-06-api-outage-password.md` |
 | database safety policy | `docs/DATABASE-SAFETY.md` |
 | the CI workflow patch evidence | `docs/ci-workflow-patch-evidence.md` |
+| the Hermes/MiniMax configuration | `docs/HERMES-MINIMAX-CONFIG.md` |
+| the Recipes task (ADR-007 amendment, resume state) | `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, `docs/RECIPES-TASK-RESUME.md` |
 
 The **full** incident reports — the ones that name credential values and fingerprints —
 also live in the **private** repo under `.hermes/REPORTS/`. The public copies carry

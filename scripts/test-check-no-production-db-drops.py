@@ -177,7 +177,7 @@ def main() -> None:
     ),
     (
         "a PYTHON script whose container is a constant test container",
-        """#!/usr/bin/env python3
+        '''#!/usr/bin/env python3
 import subprocess
 
 TEST_PG_CONTAINER = "gustale-test-postgres"
@@ -191,6 +191,31 @@ def d(sql: str) -> None:
 
 def main() -> None:
     d("DROP DATABASE IF EXISTS gustale_scratch;")
+''',
+        False,
+    ),
+    (
+        "the DRY-RUN regressing to the production cluster",
+        # The exact shape scripts/dryrun-migration.sh used to have: it
+        # created and dropped its copy on `shared-postgres`. The
+        # exemption was removed on 2026-11-07, so the scanner must
+        # catch it now. If this case ever passes, the exemption is
+        # back and the rule is unenforced.
+        """#!/usr/bin/env bash
+docker exec -u postgres shared-postgres psql -U postgres -d postgres \\
+  -c "DROP DATABASE IF EXISTS gustale_atlas_dryrun;"
+docker exec -u postgres shared-postgres createdb -U postgres gustale_atlas_dryrun
+""",
+        True,
+    ),
+    (
+        "the DRY-RUN as it is NOW: its copy lives on the test container",
+        """#!/usr/bin/env bash
+source scripts/lib/test_pg.sh
+test_pg_create gustale_atlas_dryrun
+docker exec -u postgres shared-postgres pg_dump -U postgres -d gustale \\
+  --format=custom --file=/tmp/gustale_atlas_snapshot.dump
+test_pg_drop gustale_atlas_dryrun
 """,
         False,
     ),
@@ -252,11 +277,27 @@ def main() -> int:
         else:
             print(f"  OK    {path}")
 
+    # The dry-run must NOT be allowlisted. It used to be, and the
+    # exemption is what let it create and drop a database on the
+    # production cluster. This assertion is the belt to the test
+    # case's braces: if someone re-adds the exemption, the scanner
+    # would silently stop catching the dry-run, and this fails first.
+    print()
+    print("=== the dry-run is NOT exempt from the production-cluster rule ===")
+    if "scripts/dryrun-migration.sh" in scanner.ALLOWLIST:
+        print(
+            "  FAIL  scripts/dryrun-migration.sh is allowlisted -- its copy "
+            "would go back on the production cluster"
+        )
+        failures += 1
+    else:
+        print("  OK    scripts/dryrun-migration.sh is not allowlisted")
+
     print()
     if failures:
-        print(f"  FAIL  {failures} of {len(CASES) + 2} checks are wrong")
+        print(f"  FAIL  {failures} of {len(CASES) + 3} checks are wrong")
         return 1
-    print(f"  ALL PASS  ({len(CASES) + 2} checks)")
+    print(f"  ALL PASS  ({len(CASES) + 3} checks)")
     return 0
 
 
