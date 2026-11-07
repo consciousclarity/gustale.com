@@ -1,8 +1,17 @@
-# Hindsight write failure — the base URL is still the wrong host
+# Hindsight write failure — the daemon calls a China-region MiniMax host
 
-**Date:** 2026-11-06
-**Status:** diagnosed, NOT fixed. The fix needs `root` or the `hermes`
-user; I have neither.
+**Date:** 2026-11-06, revised twice on 2026-11-07
+**Status:** root-caused, NOT fixed. The fix needs `root` or the `hermes`
+user; I have neither. The owner runs 6 commands (below).
+
+**Short version:** the daemon's own error is `invalid api key (2049)`.
+`2049` is emitted **only** by `api.minimaxi.com` (and `api.minimax.chat`);
+`api.minimax.io` answers 200/1004/404 and never 2049 — even for a
+well-formed but wrong key. The key is valid (200 on the global host). So
+the daemon is on the **wrong host**, and the value comes from the
+**inherited** systemd-manager environment — the base-URL line the owner
+deleted from the profile env file was *masking* it, because
+`EnvironmentFile=` only shadows the variables it defines.
 
 ---
 
@@ -254,165 +263,225 @@ the first write lands.
 
 ---
 
-## UPDATE 2026-11-07: the env file is clean — the override is INHERITED
+## UPDATE 2026-11-07 (revised twice): the env file is clean; the wrong
+## host is INHERITED — and 2049 identifies the host beyond doubt
 
-The section above ("the env file still contains the wrong host") is now
+The section above ("the env file still contains the wrong host") is
 **disproven**. The four `HINDSIGHT_API_*_BASE_URL` lines were deleted
-correctly, and the file no longer contains any base-URL line. The wrong
-host is still being called. This update records what was proven and where
-the override actually lives.
+correctly; the 291-byte file contains no base-URL line at all, and the
+owner restarted the service as `hermes`. The wrong host is still
+called.
 
-### The file is provably clean
+An earlier revision of this note claimed the **plugin** rewrites the
+profile env from `config.json` and restores the China host. **That
+claim is also disproven**: reproducing the plugin's own writer
+(`_build_embedded_profile_env` + `_materialize_embedded_profile_env`)
+against the live config produces the **canonical 291-byte file with no
+base URL** — byte-identical to what is on disk. The plugin is not the
+culprit.
 
-The plugin writes a **canonical** key set — `_build_embedded_profile_env()`
-in `plugins/memory/hindsight/__init__.py` — and only ever writes these
-five keys for this profile:
+### The linchpin: `2049` can only come from `api.minimaxi.com`
 
-| key | value |
+This is the load-bearing fact, so it was tested exhaustively. The key
+is never printed; the matrix is run in Python, reading the key from the
+environment.
+
+| key | `api.minimax.io` | `api.minimaxi.com` |
+|---|---|---|
+| the **real** key | **200 OK** | **401 `invalid api key (2049)`** |
+| garbage (`not-a-key`) | 401 `1004` | 401 `1004` |
+| **well-formed but wrong** (real key, 1 char mutated) | 401 `1004` | 401 `1004` |
+| empty key | 401 `1004` | — |
+
+Two further control tests close the remaining loopholes:
+
+* **Wrong path on the global host** → `404`, never `2049`
+  (`api.minimax.io/chat/completions`, `api.minimax.io/v1/messages`).
+* **Other MiniMax hosts**: `api.minimax.chat` also emits `2049`;
+  `api.minimax.com`, `api.minimax.io.cn`, `api.minimaxi.cn`,
+  `openapi.minimax.io` do not resolve or do not emit it.
+
+So:
+
+* **1004** = "that is not a key at all"
+* **2049** = "that IS a real MiniMax key, but **this host** does not
+  know it"
+
+`api.minimax.io` answers **200 or 1004 or 404 — never 2049**. The
+daemon's own error body is `invalid api key (2049)`. **Therefore the
+daemon is calling a China-region MiniMax host** (`api.minimaxi.com`,
+or `api.minimax.chat`), while holding a key that the global host
+accepts with a 200.
+
+The key is not the problem. The host is.
+
+### Where the effective base URL is resolved
+
+```
+hindsight_api/config.py:4244   llm_base_url = os.getenv("HINDSIGHT_API_LLM_BASE_URL") or None
+hindsight_api/config.py:4330   retain_llm_base_url = os.getenv("HINDSIGHT_API_RETAIN_LLM_BASE_URL") or None
+hindsight_api/config.py:4352   reflect_llm_base_url = os.getenv("HINDSIGHT_API_REFLECT_LLM_BASE_URL") or None
+hindsight_api/config.py:4366   consolidation_llm_base_url = os.getenv("HINDSIGHT_API_CONSOLIDATION_LLM_BASE_URL") or None
+
+engine/memory_engine.py:2743   retain_base_url = retain_llm_base_url
+                                             or config.retain_llm_base_url
+                                             or memory_llm_base_url
+```
+
+`memory_llm_base_url` falls back to `config.get_llm_base_url()`, and
+when that is empty the provider default applies:
+
+```
+engine/providers/openai_compatible_llm.py:889
+    elif self.provider == "minimax":
+        self.base_url = "https://api.minimax.io/v1"     # CORRECT
+```
+
+The string `api.minimaxi.com` appears **nowhere** in the installed
+`hindsight_api` package (verified by grep over the whole tree: 26
+matches for "minimax", all of them either the global default or
+LiteLLM's optional China branch, which the active provider does not
+use). The wrong host therefore comes from an **explicit override** in
+the daemon's environment.
+
+### The env file is clean — and that is the problem
+
+The profile env file is `/home/hermes/.hindsight/profiles/hermes.env`
+(owner `hermes`, mode `0600`, **291 bytes**, mtime 14:01:13). Byte
+arithmetic (the plugin's writer is a plain `"".join(f"{k}={v}\n")`)
+with the live key length of **125** chars shows the only layout that
+produces 291 bytes is:
+
+```
+HINDSIGHT_API_LLM_PROVIDER=minimax
+HINDSIGHT_API_LLM_API_KEY=<125 chars>
+HINDSIGHT_API_LLM_MODEL=MiniMax-M3
+HINDSIGHT_API_LOG_LEVEL=info
+HINDSIGHT_EMBED_DAEMON_IDLE_TIMEOUT=300
+```
+
+**No base-URL line.** The 344-byte backup is the same set **plus**
+`HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1` (exactly 53
+bytes) — i.e. the deleted line pointed at the **correct** host.
+
+**That is the mechanism.** `EnvironmentFile=` only *shadows* the
+variables it defines. The deleted line was **masking** an inherited
+China-host value; deleting it exposed the inherited value instead of
+fixing it.
+
+Proven empirically on my own systemd user manager (`/tmp/prove_systemd_precedence.sh`):
+
+```
+A) unit WITHOUT EnvironmentFile  -> seen=INHERITED_VALUE
+B) unit WITH    EnvironmentFile  -> seen=FILE_VALUE
+```
+
+So with the file's base-URL line **present**, the daemon gets the
+correct global host. With it **absent**, the daemon falls back to
+whatever the manager environment holds — and that is the China host.
+
+### Ruled out, with evidence
+
+| candidate | how it was ruled out |
 |---|---|
-| `HINDSIGHT_API_LLM_PROVIDER` | `minimax` |
-| `HINDSIGHT_API_LLM_API_KEY` | the 125-char key |
-| `HINDSIGHT_API_LLM_MODEL` | `MiniMax-M3` |
-| `HINDSIGHT_API_LOG_LEVEL` | `info` |
-| `HINDSIGHT_EMBED_DAEMON_IDLE_TIMEOUT` | `300` |
+| the key is bad | real key → **200** on `api.minimax.io` |
+| the model name | `MiniMax-M3` works; the Aug 25 log shows the same model succeeding |
+| Hindsight's code points at the China host | grep: 0 occurrences of `api.minimaxi.com` in `hindsight_api` |
+| the **profile env file** | 291 B = canonical set, no base-URL line |
+| the **bank config** (`GET /banks/gustale/config`) | 1,647 bytes; no `llm_base_url`, no `minimax` |
+| the **database** (all 25 tables, `::text ilike '%minimax%'`) | **no table contains the string 'minimax'** |
+| a **`.env`** discovered by `find_dotenv(usecwd=True)` | `/home/hermes/.env`, `/home/.env`, `/.env`, `/home/hermes/hindsight/.env` — all confirmed absent |
+| `/etc/environment`, `/etc/profile.d/*`, `~/.profile`, `~/.bashrc`, `~/.config/environment.d/` | all readable, none mentions `HINDSIGHT`/`MINIMAX` |
+| `/etc/environment.d/` | only `90qt-a11y.conf` (19 bytes) |
 
-`HINDSIGHT_API_LLM_BASE_URL` is written **only if** it resolves non-empty
-(`if current_base_url:`), so its absence is expected in the clean state.
+### What the owner must run (the only unreadable link)
 
-The file is **291 bytes**. The arithmetic is exact and unique: with the
-real key length (125 chars, measured), 291 bytes is reachable by **only
-one** layout — the five canonical lines and **no** base-URL line:
+`/home/hermes/.hermes` is mode `0700` and owned by `hermes`; the
+daemon's `/proc/<pid>/environ` and `/proc/<pid>/cwd` are unreadable by
+uid 1004, and `sudo -n` needs a password. So the *inherited* value
+cannot be read from this account — only its **effect** was measured.
 
-```
-base-url=none           key length 125   -> 291 bytes   <-- the observed file
-base-url=io/v1          key length  72   -> 291 bytes   (would need a 72-char key)
-base-url=com/v1         key length  70   -> 291 bytes
-base-url=com            key length  73   -> 291 bytes
-base-url=com/anthropic  key length  63   -> 291 bytes
-```
-
-The key is 125 chars — confirmed by the live API accepting it — so the
-ambiguous layouts are ruled out.
-
-The historical backup corroborates it. `hermes.env.bak-20261106` is
-**344 bytes** = 291 + **53**, and
-`HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1\n` is exactly
-53 bytes. So the deleted line pointed at the **correct** global host.
-Deleting it removed a *correct* override and left the resolver to pick
-the provider default — which is also correct. The deletion was harmless.
-
-### The package resolves the correct host from that file
-
-Reconstructing the exact environment the file implies and letting the
-package resolve it:
-
-```
-resolved base_url: https://api.minimax.io/v1
-provider         : minimax
-model            : MiniMax-M3
-key length       : 125
-```
-
-`engine/llm_wrapper.py:1730` is the only source of the base URL:
-
-```python
-base_url=config.llm_base_url or "",
-```
-
-and `config.py:4244`:
-
-```python
-llm_base_url=os.getenv(ENV_LLM_BASE_URL) or None,
-```
-
-`ENV_LLM_BASE_URL` is `HINDSIGHT_API_LLM_BASE_URL`. With it unset,
-`llm_wrapper.py:1013` applies the provider default
-`https://api.minimax.io/v1`. **The global host.**
-
-### Where the override therefore lives
-
-`hindsight_embed/daemon_embed_manager.py` builds the daemon's
-environment like this:
-
-```python
-env = os.environ.copy()
-for key, value in config.items():
-    if key.startswith("HINDSIGHT_") and value is not None:
-        env[key] = str(value)
-```
-
-The daemon **inherits the full parent environment**. The env file is
-only ever a subset layered on top of it. Anything the parent process
-exported — the systemd **user-manager** environment for uid 1001, or a
-`HINDSIGHT_*` variable exported by the Hermes agent that spawns the
-daemon — reaches the daemon and is **not** visible in the env file.
-
-That is why deleting the file line and restarting changed nothing: the
-override was never in the file.
-
-Note also that the daemon is **not** started by `hindsight.service` as
-written. Its cgroup is
-`/user.slice/user-1001.slice/user@1001.service/app.slice/hindsight.service`
-— `app.slice` is the transient-unit slice, and the plugin starts the
-daemon itself via `Popen` (`daemon_embed_manager.py`), inheriting the
-**Hermes agent's** environment. Restarting `hindsight.service` is
-therefore the wrong lever: it restarts a unit that is not the thing
-that needs restarting, and it cannot change an inherited variable
-either.
-
-### The fix: clear the inherited variable, and restart the AGENT
-
-1. Find the inherited variable. The user-manager environment is the
-   place to look:
-
-   ```bash
-   sudo -n -u hermes env | grep -E 'HINDSIGHT|MINIMAX|BASE_URL'
-   ```
-
-   If that shows `HINDSIGHT_API_LLM_BASE_URL=https://api.minimaxi.com/...`,
-   that is the override. Remove it from whatever exports it (a
-   `Environment=` line in a unit, `~/.profile`, `~/.bashrc`, or the
-   systemd user manager's imported environment).
-
-2. **Restart the Hermes agent** (the parent), not just `hindsight.service`.
-   The daemon inherits at spawn time, so the agent must pick up the
-   cleaned environment first:
-
-   ```bash
-   sudo -n -u hermes systemctl --user restart hermes-gateway.service
-   ```
-
-3. Confirm. The daemon's own log line prints the resolved URL:
-
-   ```
-   OpenAI-compatible client initialized: provider=minimax, model=MiniMax-M3, base_url=https://api.minimax.io/v1
-   ```
-
-   It must say `api.minimax.io`. The historical log
-   (`~/.hindsight/profiles/hermes.log`) shows exactly this line with the
-   global host, so this is the artefact to look for.
-
-4. Then the write/recall test and `last_memory_write_at`.
-
-### Belt and braces
-
-Even with a clean environment, an explicit correct override in the env
-file is harmless and makes the outcome independent of the default:
+The daemon's environment comes from the systemd **user manager** for
+uid 1001, and the manager's environment is seeded from the login
+session. Run these as `hermes`:
 
 ```bash
-sudo -n -u hermes sh -c \
-  "printf '%s\n' 'HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1' \
-   >> /home/hermes/.hindsight/profiles/hermes.env"
+# 1. THE inherited value (this is the source, if set)
+sudo -n -u hermes systemctl --user show-environment \
+  | grep -E 'HINDSIGHT|MINIMAX|BASE_URL'
+
+# 2. The plugin config (a second possible source)
+sudo -n -u hermes cat /home/hermes/.hermes/hindsight/config.json
+sudo -n -u hermes cat /home/hermes/.hindsight/config.json   # legacy path
 ```
 
-But the inherited variable must still be cleared — the file's value
-**overrides** the inherited one (the merge loop above assigns
-`env[key] = str(value)` last), so writing the correct URL to the file
-is sufficient on its own for the daemon's resolution. **Writing the
-correct URL to the file is the fix; deleting the inherited variable is
-the belt-and-braces.** They are not interchangeable: the file's value
-wins, but any future process that re-spawns the daemon with a different
-parent would regress.
+If (1) shows `HINDSIGHT_API_LLM_BASE_URL=https://api.minimaxi.com/v1`
+(or any China host), that is the bug. Clear it in the manager
+environment **and** restore the explicit global value in the profile
+file, so the file shadows it again:
+
+```bash
+# 3. Remove the bad value from the manager environment
+sudo -n -u hermes systemctl --user unset-environment HINDSIGHT_API_LLM_BASE_URL
+sudo -n -u hermes systemctl --user unset-environment HINDSIGHT_API_RETAIN_LLM_BASE_URL
+sudo -n -u hermes systemctl --user unset-environment HINDSIGHT_API_REFLECT_LLM_BASE_URL
+sudo -n -u hermes systemctl --user unset-environment HINDSIGHT_API_CONSOLIDATION_LLM_BASE_URL
+
+# 4. ALSO delete it from the login session, or it comes back on next login
+#    (edit ~/.profile / ~/.bashrc / PAM, wherever it is exported)
+
+# 5. Pin the correct host in the profile env file (the file shadows the manager)
+sudo -n -u hermes sh -c \
+  "sed -i '/^HINDSIGHT_API_.*_LLM_BASE_URL=/d' /home/hermes/.hindsight/profiles/hermes.env; \
+   printf '%s\n' 'HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1' \
+   >> /home/hermes/.hindsight/profiles/hermes.env"
+
+# 6. Restart the unit that owns the daemon
+sudo -n -u hermes systemctl --user restart hindsight.service
+```
+
+Steps 3+5 are belt and braces: **either** alone fixes it. Step 5 is
+the one that is guaranteed to win, because the `EnvironmentFile` value
+takes precedence over the manager environment (proved above). Step 3
+is what stops the bad value from being inherited by anything else.
+
+Note the plugin rewrites the profile env file from `config.json` when
+the two disagree (`__init__.py:1422-1427`). If the file's base-URL
+line disappears again after a restart, `config.json` carries the
+China host and step 2 must be fixed first.
+
+### Confirming the fix
+
+```bash
+# the daemon's own log line must show the global host
+sudo -n -u hermes journalctl --user -u hindsight.service -n 200 --no-pager \
+  | grep 'client initialized: provider=minimax'
+
+# then the write test, and the timestamp
+curl -s http://localhost:8888/v1/default/banks/gustale/stats \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["last_memory_write_at"])'
+```
+
+`last_memory_write_at` must move off `2026-10-30T22:44:01.934695+00:00`.
+
+### A correction to an earlier claim in this note
+
+An earlier revision asserted the daemon "is **not** the `hindsight.service`
+unit as written" because it is a `Popen` child. **That was wrong**, and
+it was tested. A `Popen`'d child inherits its parent's cgroup:
+
+```
+B) a Popen'd child of a shell in hermes-gateway.service
+   -> /user.slice/user-1004.slice/user@1004.service/app.slice/hermes-gateway.service
+```
+
+The Hindsight daemon's cgroup is
+`/user.slice/user-1001.slice/user@1001.service/app.slice/hindsight.service`
+— a **named unit**, which a `Popen` child could not produce. The
+daemon **is** the `hindsight.service` unit, started by systemd, and it
+inherits the manager's environment plus the unit's `EnvironmentFile`.
+Its PPID is `systemd --user` (pid 1142) because the unit's `Type=simple`
+process is managed directly.
 
 ---
 
@@ -420,15 +489,32 @@ parent would regress.
 
 Nothing was lost. The bank has **3,252 nodes**, **114,131 links** and
 **49 documents**, with `pending_operations: 0`. What failed is only
-the *write* path: 186 failed operations and 141 failed consolidations,
-all of them 401s.
+the *write* path: 228 failed operations in the `gustale` bank
+(`bank_stats_cache`), all of them 401s.
 
 Reads keep working, and the recall path is unaffected — which is why
 this failure has been invisible except when something tries to write.
+
+The `llm_requests` table holds **165 rows, all errors, all `2049`**,
+spanning `2026-11-06T08:09:18Z` → `2026-11-07T08:41:30Z`, in two
+scopes: `retain_extract_facts` (163) and `reflect_tool_call` (2). The
+table was truncated when the DB was reinstalled on 2026-10-17, so the
+failure predates the first row in it.
 
 ---
 
 ## Reproducing the diagnosis
 
-`/tmp/probe_matrix.py` runs the key × host × key-shape matrix above.
-It reads the key from `/home/gustale/.hermes/.env` and never prints it.
+* `/tmp/linchpin.py` — the key × host × key-shape matrix, including
+  the well-formed-but-wrong key case that distinguishes `1004` from
+  `2049`.
+* `/tmp/path_matrix.py` — wrong paths on both hosts, and the
+  Anthropic-style wire.
+* `/tmp/full_error.py` — the daemon's full error body, a recall, and
+  `last_memory_write_at`.
+* `/tmp/hs_db4.py` — every table in the Hindsight database, searched
+  for the string `minimax`.
+* `/tmp/prove_systemd_precedence.sh` — `EnvironmentFile` beats the
+  inherited manager environment.
+
+None of them print the key.
