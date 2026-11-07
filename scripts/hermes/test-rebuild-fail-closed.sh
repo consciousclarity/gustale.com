@@ -358,4 +358,23 @@ else
   bad "the recipes accent does NOT pass its gate"
 fi
 
+# ===========================================================================
+# The systemd units must be ROOT-OWNED.
+#
+# A unit file owned by a normal user is an escalation to root: systemd
+# reads the unit as root and executes what it says, so whoever can write
+# the file gets root. The service runs as `gustale` -- which is also the
+# account the operator logs in as -- so this is a real boundary.
+#
+# The test is static: it reads the installer. It writes nothing and
+# needs no root.
+# ===========================================================================
+echo ""
+echo "--- the systemd unit ownership ---"
+if bash "$SCRIPT_DIR/test-systemd-unit-ownership.sh"; then
+  ok "the systemd units are installed root:root"
+else
+  bad "the systemd units are NOT installed root:root"
+fi
+
 exit "$fail"
