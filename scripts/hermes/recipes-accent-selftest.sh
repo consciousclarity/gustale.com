@@ -17,7 +17,13 @@
 
 set -euo pipefail
 
-cd /home/gustale/projects/gustale.com
+# The repo root, derived from this script's own location -- NOT a
+# hardcoded absolute path. CI checks the repo out somewhere else
+# entirely (/home/runner/work/<repo>/<repo>), so a hardcoded path made
+# this script's `cd` fail, and `set -e` turned that into exit 1, which
+# failed CI's "Lint + typecheck" step. Deriving the root from
+# "$(dirname "$0")" is what every sibling script here already does.
+cd "$(dirname "$0")/../.."
 CSS=apps/web/src/styles/recipes-island.css
 THEME=apps/web/src/styles/recipes-theme.css
 CHECK=scripts/hermes/recipes-accent-verify.py

@@ -16,7 +16,11 @@ import struct
 import sys
 import zlib
 
-DIR = pathlib.Path("/home/gustale/projects/gustale.com/docs/screenshots/pr6a")
+# The screenshot directory, derived from this script's own location --
+# NOT a hardcoded absolute path. CI checks the repo out somewhere else
+# entirely (/home/runner/work/<repo>/<repo>), so a hardcoded path
+# pointed at a directory that does not exist there.
+DIR = pathlib.Path(__file__).resolve().parents[2] / "docs" / "screenshots" / "pr6a"
 
 
 def read_png(path: pathlib.Path) -> tuple[int, int, int, bytes]:
