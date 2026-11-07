@@ -17,9 +17,15 @@
 #   /home/deploy/gustale-rebuild/        the installed scripts
 #   /home/deploy/gustale-rebuild.env     the env file (mode 0600)
 #   /var/lib/gustale-rebuild/            the state file
-#   /var/lock/gustale-rebuild.lock       the lock
 #
 # `hermes` owns NOTHING in the deploy chain. That is deliberate.
+#
+# THE LOCK IS NOT IN THAT LIST, and that is deliberate too. The lock is
+# /tmp/gustale-deploy.lock -- the SAME file the CI deploy (running as
+# root) locks. It cannot be owned by `gustale` and it must not be a
+# second, private lock: two different lock files do not exclude each
+# other, and both sides swap the same two web containers. See
+# scripts/hermes/rebuild-web-live.sh, Step 1.
 #
 # WHY THE TIMER GETS ITS OWN CHECKOUT
 #
@@ -103,16 +109,22 @@ fi
 install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/gustale-rebuild-web.service" "$SERVICE_FILE"
 install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/gustale-rebuild-web.timer"    "$TIMER_FILE"
 
-# Lock + state dirs. The script uses flock on /var/lock/gustale-rebuild.lock
-# and writes state to /var/lib/gustale-rebuild/state.json. Both must be
-# writable by the service user (gustale).
-install -d -o "$SVC_USER" -g "$SVC_GROUP" -m 0755 /var/lock/gustale-rebuild
+# Lock + state dirs. The script uses flock on the SHARED deploy lock
+# (/tmp/gustale-deploy.lock -- the same one the CI deploy takes) and
+# writes state to /var/lib/gustale-rebuild/state.json. The state dir
+# must be writable by the service user (gustale).
+#
+# The LOCK lives in /tmp, not here: it must be the SAME file the CI
+# deploy (which runs as root) locks, and /tmp is where the deploy
+# creates it. There is no lock file to install -- the timer creates it
+# on first use, and falls back to a read-only open when the root-owned
+# file is not writable by `gustale`.
 install -d -o "$SVC_USER" -g "$SVC_GROUP" -m 0755 /var/lib/gustale-rebuild
 
 # State file may be left over from a previous install with bad perms.
 # Touch it as the service user so the first run can write to it.
 [ -f /var/lib/gustale-rebuild/state.json ] || install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" /dev/null /var/lib/gustale-rebuild/state.json
-chown -R "$SVC_USER:$SVC_GROUP" /var/lock/gustale-rebuild /var/lib/gustale-rebuild
+chown -R "$SVC_USER:$SVC_GROUP" /var/lib/gustale-rebuild
 
 # The CI deploy's build dir must stay writable by the deploy path
 # (root) and by the service user, so that a `git fetch` from either

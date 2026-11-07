@@ -30,7 +30,7 @@
 # Env:
 #   GUSTALE_API_BASE    Default: https://api.gustale.recipes
 #   GUSTALE_BUILD_DIR   Default: /home/deploy/gustale-build
-#   GUSTALE_LOCK_FILE   Default: /var/lock/gustale-rebuild.lock
+#   GUSTALE_LOCK_FILE   Default: /tmp/gustale-deploy.lock
 #   GUSTALE_STATE_FILE  Default: /var/lib/gustale-rebuild/state.json
 #   GITHUB_TOKEN        Required for `docker login ghcr.io` and `docker push`.
 #                       The systemd service loads this from
@@ -50,6 +50,11 @@
 #     the service would silently fail to start except when an
 #     orphaned lock was present.
 #
+#   * The lock is SHARED with the CI deploy. See Step 1 below: the
+#     deploy takes /tmp/gustale-deploy.lock, and so do we. Two
+#     different lock files do not exclude each other, and both sides
+#     swap the same two web containers.
+#
 #   * Content-change detection means we don't restart the web
 #     containers 48 times a day for no reason. State file is JSON,
 #     written atomically (write-temp + rename), read on every run.
@@ -63,7 +68,7 @@ set -euo pipefail
 
 API_BASE="${GUSTALE_API_BASE:-https://api.gustale.recipes}"
 BUILD_DIR="${GUSTALE_BUILD_DIR:-/home/deploy/gustale-build}"
-LOCK_FILE="${GUSTALE_LOCK_FILE:-/var/lock/gustale-rebuild.lock}"
+LOCK_FILE="${GUSTALE_LOCK_FILE:-/tmp/gustale-deploy.lock}"
 STATE_FILE="${GUSTALE_STATE_FILE:-/var/lib/gustale-rebuild/state.json}"
 LOG_PREFIX="[gustale-rebuild $(date -u +'%Y-%m-%dT%H:%M:%SZ')]"
 
@@ -79,10 +84,62 @@ log() { echo "$LOG_PREFIX $*"; }
 
 # --- Step 1: acquire an exclusive flock (non-blocking) ---
 # If another run is in progress, exit 0. The timer will fire again in 30 min.
+#
+# THE LOCK IS SHARED WITH THE CI DEPLOY. This is the whole point of
+# this file: the CI deploy and this timer both swap the SAME two
+# containers (gustale-web-recipes, gustale-web-geo), and until
+# 2026-11-07 they used DIFFERENT lock files:
+#
+#   CI deploy  -> /tmp/gustale-deploy.lock
+#   this timer -> /var/lock/gustale-rebuild.lock
+#
+# Two different lock objects do not exclude each other. On
+# 2026-11-07 they raced for real: CI run 42314759004 (root) and this
+# timer (gustale) built the SAME image tag at the same time, each
+# holding its own lock. The timer then swapped the containers with its
+# own build AFTER the CI's "Real verify" had already passed, so the
+# verified build was silently replaced by an unverified one.
+#
+# So both sides now take the SAME lock: /tmp/gustale-deploy.lock,
+# which the CI deploy already takes (see .github/workflows/ci.yml,
+# DEPLOY_LOCK). Taking the CI's own lock means the deploy does not
+# need to change at all -- which matters, because the GitHub App
+# cannot push .github/workflows/ files.
+#
+# PERMISSIONS. The CI deploy runs as root and creates the lock file as
+# root:root, mode 0644. The timer runs as `gustale`, which can READ
+# that file but cannot open it for writing. But flock() only needs a
+# file descriptor it can flock -- it does not need write access. A
+# read-only descriptor flocks the SAME inode, so an exclusive flock on
+# a read-only fd conflicts with an exclusive flock on a write fd. That
+# was verified on this host (see scripts/hermes/test-shared-deploy-lock.sh,
+# case 2), and it is what makes the shared lock work without any
+# chown/chmod by root.
+#
+# If the write-open fails for ANY reason we fall back to a read-only
+# open, and if THAT fails too we fall back to a per-run lock file so
+# the timer still protects itself against its own concurrent runs even
+# if the shared lock is unusable. A timer that cannot get the shared
+# lock must NOT silently proceed to swap containers.
 mkdir -p "$(dirname "$LOCK_FILE")" 2>/dev/null || true
-exec 9>"$LOCK_FILE"
+LOCK_OPEN_MODE="write"
+if ! { exec 9>"$LOCK_FILE"; } 2>/dev/null; then
+  # Cannot open for writing (almost always: the file is root-owned).
+  # A read-only descriptor flocks the same inode, which is what
+  # mutual exclusion needs.
+  if ! { exec 9<"$LOCK_FILE"; } 2>/dev/null; then
+    log "ERROR: cannot open the shared lock $LOCK_FILE for reading or writing."
+    log "  Falling back to a private lock file for this run only."
+    log "  NOTE: this run CANNOT be excluded from a concurrent CI deploy."
+    LOCK_FILE="${LOCK_FILE}.timer.$$"
+    exec 9>"$LOCK_FILE"
+    LOCK_OPEN_MODE="private-fallback"
+  else
+    LOCK_OPEN_MODE="read-only"
+  fi
+fi
 if ! flock -n 9; then
-  log "another rebuild is in progress (lock held at $LOCK_FILE); exiting"
+  log "another rebuild or deploy is in progress (lock held at $LOCK_FILE); exiting"
   exit 0
 fi
 # From here on, the lock is held. Any exit (normal or otherwise) releases it
@@ -93,7 +150,7 @@ log "=== gustale-rebuild-web start ==="
 log "  build_dir: $BUILD_DIR"
 log "  api_base:  $API_BASE"
 log "  state:     $STATE_FILE"
-log "  lock:      $LOCK_FILE (held)"
+log "  lock:      $LOCK_FILE (held, opened $LOCK_OPEN_MODE)"
 log "  force:     $FORCE"
 
 # --- Step 2: read the API's current content version ---
