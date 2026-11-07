@@ -535,11 +535,35 @@ check(
   "found Contribute CTA in baked nav",
 );
 
-check(
-  "Add a dish CTA matches domain helper",
-  navHtml.includes(`href="${addDishHref(resolveGustaleDomain(DOMAIN))}"`),
-  `expected href=${addDishHref(resolveGustaleDomain(DOMAIN))}`,
-);
+// R3 — "Add a dish" is the ATLAS's control.
+//
+// The brief's R tier: "Add a dish" on geo; "Add a recipe" on recipes.
+// There is no "Add a recipe" yet — there is no recipe to add — so on
+// the recipes property the control is REMOVED rather than renamed.
+//
+// This check used to require the CTA on BOTH properties, which
+// encoded the defect the brief describes ("Add a dish" is in the nav
+// on both sites). It now asserts the requirement in both directions:
+// the Atlas HAS it, and the recipes property does NOT.
+if (DOMAIN === "geo") {
+  check(
+    "the Atlas nav HAS the Add a dish CTA",
+    navHtml.includes(`href="${addDishHref(resolveGustaleDomain("geo"))}"`) &&
+      /Add a dish/.test(navHtml),
+    `expected href=${addDishHref(resolveGustaleDomain("geo"))} and the label`,
+  );
+} else {
+  check(
+    "the recipes nav does NOT have an Add a dish CTA",
+    !/Add a dish/.test(navHtml),
+    "found an 'Add a dish' CTA in the recipes nav",
+  );
+  check(
+    "the recipes nav does NOT link to the dish authoring form",
+    !navHtml.includes('href="/dishes/new"'),
+    "found a link to /dishes/new in the recipes nav",
+  );
+}
 
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
