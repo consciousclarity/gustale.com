@@ -15,7 +15,9 @@ const TARGETS = [
 
 (async () => {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const page = await browser.newPage({
+    viewport: { width: 1440, height: 900 },
+  });
   await page.goto("http://127.0.0.1:8904/", { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
 
@@ -23,7 +25,14 @@ const TARGETS = [
     const out = [];
     for (const el of document.querySelectorAll("*")) {
       const cs = getComputedStyle(el);
-      for (const prop of ["color", "backgroundColor", "borderTopColor", "borderBottomColor", "fill", "stroke"]) {
+      for (const prop of [
+        "color",
+        "backgroundColor",
+        "borderTopColor",
+        "borderBottomColor",
+        "fill",
+        "stroke",
+      ]) {
         const v = cs[prop];
         if (!v) continue;
         for (const [name, rgb] of targets) {
@@ -53,7 +62,10 @@ const TARGETS = [
   console.log("  the accent-coloured elements in the RECIPES build:");
   for (const [k, texts] of groups) {
     console.log(`    ${k}`);
-    if (texts.length) console.log(`        text: ${[...new Set(texts)].slice(0, 5).join(" | ")}`);
+    if (texts.length)
+      console.log(
+        `        text: ${[...new Set(texts)].slice(0, 5).join(" | ")}`,
+      );
   }
 
   // The SVG logo: is it an <img> (a file) or inline?
@@ -62,14 +74,22 @@ const TARGETS = [
     for (const s of document.querySelectorAll("svg, img")) {
       const cs = getComputedStyle(s);
       if (cs.fill !== "rgb(0, 0, 0)" && cs.fill !== "none") {
-        out.push({ tag: s.tagName, cls: (s.className.baseVal ?? s.className ?? "").toString().slice(0, 40), fill: cs.fill, src: s.getAttribute("src") || "(inline)" });
+        out.push({
+          tag: s.tagName,
+          cls: (s.className.baseVal ?? s.className ?? "")
+            .toString()
+            .slice(0, 40),
+          fill: cs.fill,
+          src: s.getAttribute("src") || "(inline)",
+        });
       }
     }
     return out;
   });
   console.log("");
   console.log("  svg/img with a fill:");
-  for (const s of svgs.slice(0, 12)) console.log(`    ${s.tag}.${s.cls} fill=${s.fill} src=${s.src}`);
+  for (const s of svgs.slice(0, 12))
+    console.log(`    ${s.tag}.${s.cls} fill=${s.fill} src=${s.src}`);
 
   await browser.close();
 })();

@@ -46,7 +46,8 @@ async function probe(page) {
       accentDark: cs.getPropertyValue("--accent-dark").trim(),
       bodyDomain: document.body.getAttribute("data-domain"),
       hasAddDish: navText.includes("Add a dish"),
-      addDishLinks: [...document.querySelectorAll('a[href="/dishes/new"]')].length,
+      addDishLinks: [...document.querySelectorAll('a[href="/dishes/new"]')]
+        .length,
     };
   });
 }
@@ -67,7 +68,7 @@ async function shoot(browser, { url, file, viewport, label }) {
       `  ${label.padEnd(34)} accent=${probeResult.accent.padEnd(9)} ` +
         `domain=${String(probeResult.bodyDomain).padEnd(8)} ` +
         `addDish=${probeResult.hasAddDish ? "YES" : "no "} ` +
-        `-> ${file}`
+        `-> ${file}`,
     );
   } catch (e) {
     console.log(`  ${label.padEnd(34)} FAILED: ${e.message.split("\n")[0]}`);
@@ -119,12 +120,27 @@ async function shoot(browser, { url, file, viewport, label }) {
   const before = results["before-recipes-desktop"];
   const after = results["after-recipes-desktop"];
 
-  check(after?.accent?.toLowerCase() === "#327a2f", "the recipes build's --accent is the herb green #327a2f");
-  check(after?.bodyDomain === "recipes", "the recipes build's body carries data-domain=recipes");
+  check(
+    after?.accent?.toLowerCase() === "#327a2f",
+    "the recipes build's --accent is the herb green #327a2f",
+  );
+  check(
+    after?.bodyDomain === "recipes",
+    "the recipes build's body carries data-domain=recipes",
+  );
   check(after?.hasAddDish === false, "the recipes nav has NO 'Add a dish'");
-  check(after?.addDishLinks === 0, "the recipes page has NO link to /dishes/new");
-  check(before?.hasAddDish === true, "BEFORE the change, the recipes nav DID have 'Add a dish' (the defect)");
-  check(before?.accent?.toLowerCase() !== "#327a2f", "BEFORE the change, the recipes site was NOT herb green");
+  check(
+    after?.addDishLinks === 0,
+    "the recipes page has NO link to /dishes/new",
+  );
+  check(
+    before?.hasAddDish === true,
+    "BEFORE the change, the recipes nav DID have 'Add a dish' (the defect)",
+  );
+  check(
+    before?.accent?.toLowerCase() !== "#327a2f",
+    "BEFORE the change, the recipes site was NOT herb green",
+  );
 
   console.log("");
   console.log(`  screenshots in ${OUT}`);

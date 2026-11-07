@@ -29,7 +29,7 @@ const OUT = process.env.SHOT_DIR || "/tmp/pr6a-shots";
         clip: { x: 0, y: 0, width: 1440, height: 420 },
       });
       const accent = await page.evaluate(() =>
-        getComputedStyle(document.body).getPropertyValue("--accent").trim()
+        getComputedStyle(document.body).getPropertyValue("--accent").trim(),
       );
       console.log(`  ${label.padEnd(24)} --accent=${accent}`);
     } catch (e) {
