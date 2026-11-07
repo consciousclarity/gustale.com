@@ -1,0 +1,66 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hermes Agent <hermes-agent@users.noreply.github.com>
+Date: Sat 07 Nov 2026 21:25:13 
+Subject: [PATCH] ci: every migration must be wrapped in a transaction
+
+The CI step that runs the transactional-migration check.
+
+THIS COMMIT NEEDS A HUMAN. The GitHub App has no 'workflows' scope and
+cannot push it. Apply it with:
+
+    git apply docs/ci-transactional-migration-check.patch
+
+The check:
+
+  * fails the build if any migration that is not explicitly
+    grandfathered is not wrapped in BEGIN/COMMIT;
+  * does NOT grep for the word BEGIN -- it tells a transaction wrapper
+    from a PL/pgSQL block, because 0050 contains the word BEGIN twice
+    and both of those are block openers. A grep-based check would have
+    passed the exact file this rule exists for;
+  * has a test that proves it can FAIL, and the test comes FIRST in
+    the step, for the same reason the production-drop scanner's does.
+
+The thirteen grandfathered migrations are named explicitly, each with
+its reason, in scripts/check-migrations-are-transactional.py. The list
+is frozen: it only ever shrinks.
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index d0c7107..b9f711b 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -166,6 +166,34 @@ jobs:
+           python3 scripts/test-check-no-production-db-drops.py
+           python3 scripts/check-no-production-db-drops.py
+ 
++      # Every migration must be wrapped in a transaction.
++      #
++      # An unwrapped migration runs in AUTOCOMMIT: each statement is
++      # its own transaction and commits the moment it succeeds. That is
++      # fine when it works, and a data-loss event when it does not --
++      # a failure part-way through leaves partial state that no
++      # ROLLBACK can undo, and the only recovery is a restore from a
++      # backup.
++      #
++      # 0050 is the case in point. It ran in AUTOCOMMIT on live on
++      # 2026-11-07. It succeeded, so live is consistent -- but it
++      # contains the word BEGIN twice, and both are PL/pgSQL BLOCK
++      # openers, not transaction control. A `grep BEGIN` says it is
++      # wrapped. It is not.
++      #
++      # So this check does not grep for the word: it tells a
++      # transaction wrapper from a PL/pgSQL block, which is the check
++      # that would have caught 0050. Thirteen migrations predate the
++      # rule and are on a FROZEN, explicit grandfathered list, with
++      # the reason for each.
++      #
++      # The test comes FIRST, and it is the point: the checker must be
++      # able to FAIL. A gate that cannot fail is not a gate.
++      - name: Every migration must be wrapped in a transaction
++        run: |
++          python3 scripts/test-check-migrations-are-transactional.py
++          python3 scripts/check-migrations-are-transactional.py
++
+       # The rebuild timer must FAIL CLOSED.
+       #
+       # A failed `git fetch` does not update origin/main -- it FREEZES

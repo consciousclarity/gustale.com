@@ -73,20 +73,54 @@ Every gate was checked before the first write:
 | live baseline matches the plan's §4 | `2713 / 0 / 0 / 306 / 1475 / 1235` |
 | `approved-live` label, applied by the owner | present on #189 |
 
-### The commit proof mattered
+### 0050 ran in AUTOCOMMIT — and that is a finding
 
-`0050` contains a `BEGIN` and **no `COMMIT`**. A migration that
-begins a transaction and never commits is silently discarded on
-disconnect — and the dry-run script reads its results back in the
-*same* session, so the dry-run would have passed while the live apply
-persisted nothing.
+**Correction (2026-11-07, by the owner).** An earlier version of this
+receipt said that `0050` "contains a `BEGIN` and no `COMMIT`", and
+called the commit proof a guard against a transaction that would be
+silently discarded. **That was wrong.** `0050` contains **no
+transaction wrapper at all** — no `BEGIN`, no `COMMIT`.
 
-So the commit was proven separately: the dump was restored into a
-throwaway database on the test container, `0050` then `0051` were
-applied exactly as the live apply would apply them (`psql -v
-ON_ERROR_STOP=1`), and the result was read back **from a new
-session**. It read `2713 | 50 | 2663 | 0 | 306 | 306 | 306 | 50` —
-the rows are on disk, not merely in an open transaction.
+It contains the *word* `BEGIN` twice, at lines 266 and 500, and both
+are **PL/pgSQL block openers** (`BEGIN … END $$;`), not transaction
+control. A `grep BEGIN` says the migration is wrapped. It is not.
+`0051` is wrapped: `BEGIN;` at line 57, `COMMIT;` at line 606.
+
+So `0050` ran in **AUTOCOMMIT**: every statement was its own
+transaction, and each committed the moment it succeeded.
+
+**What that actually means for live.** The migration *succeeded*, so
+live is consistent — the end state below is exactly what the plan
+predicted, and every number was verified by independent read-back. But
+the exposure is real and worth stating plainly: had `0050` failed
+part-way through on live, it would have left the three tables created,
+the trigger installed, and only *some* of the 50 pilot rows updated —
+with **no `ROLLBACK` able to undo any of it**, because in autocommit
+there is no transaction to roll back. The only recovery would have
+been a restore from the §1 dump.
+
+**The commit proof was still worth doing, for a different reason.** The
+dry-run script reads its results back in the *same* session it applied
+them in. For `0051` — which is transactional — that is a sound check,
+because a `BEGIN` without a `COMMIT` would show up as an empty
+read-back. For `0050` it proved something different: that the rows are
+on disk and not merely visible in an open session. So the proof was
+restored into a throwaway database on the test container, `0050` then
+`0051` were applied exactly as the live apply would apply them
+(`psql -v ON_ERROR_STOP=1`), and the result was read back **from a new
+session**. It read `2713 | 50 | 2663 | 0 | 306 | 306 | 306 | 50`.
+
+The proof stands. Its stated *reason* was wrong, and is corrected
+here.
+
+**What now prevents a repeat.** `scripts/check-migrations-are-transactional.py`
+fails the build if any migration that is not explicitly grandfathered
+is not wrapped in `BEGIN`/`COMMIT`. It does not grep for the word
+`BEGIN`; it distinguishes a transaction wrapper from a PL/pgSQL block,
+which is the check that would have caught `0050`. `0050` and `0048`
+are on a frozen, explicit grandfathered list, with the reason for each
+— and neither is rewritten, because rewriting an applied migration
+changes its checksum and breaks the chain's idempotence check.
 
 ---
 
@@ -104,7 +138,8 @@ docker exec -i -u postgres shared-postgres psql -U postgres -d gustale \
 | 0050 | **0** | `0050: ok -- 50 pilot rows in_review, 0 associations dangling, 0 published` |
 | 0051 | **0** | `0051: ok -- 306 families classified (all: FORM 172 COURSE 59 CUISINE 5 CONTENT TYPE 70; the 123 with a published dish: FORM 83 COURSE 21 CUISINE 4 CONTENT TYPE 15)` |
 
-Both are transactional and both committed (§2).
+Both committed. `0051` is wrapped in `BEGIN;`/`COMMIT;`; `0050` ran in
+autocommit (§2) and was verified from a separate session.
 
 ---
 
@@ -242,18 +277,33 @@ run by the owner, with the dump verified, and it is **not** scripted.
 
 * The production cluster now carries **only** `gustale` (plus the other
   projects' databases and `postgres`). The `gustale_atlas_dryrun` copy
-  that `dryrun-migration.sh` leaves behind — it drops its copy at the
+  that `dryrun-migration.sh` left behind — it dropped its copy at the
   *start* of a run, not the end — was dropped after the verification.
 * Both throwaway proof databases on the **test** container
   (`gustale_dump_restore_proof`, `gustale_t50_commitproof`) were
   dropped.
 * Live was re-read after every cleanup: `2713 | 50 | 0 | 306 | 306`.
-* No repository file was changed. The migrations were applied from
-  `main` as merged; the working tree is clean.
+* No repository file was changed by the apply itself. The migrations
+  were applied from `main` as merged.
 
-> **A note for the next run:** `scripts/dryrun-migration.sh` leaves its
-> copy on the **production** cluster. It is 42 MB per run and it is
-> not a throwaway container — it is the production cluster that hosts
-> live and five other projects' databases. The copy should be dropped
-> by the script at the end, or the script should be pointed at the
-> dedicated test Postgres. Worth a small follow-up PR.
+> **Two process problems this run exposed, both fixed in item 0.**
+>
+> **1. The dry-run created its copy on the PRODUCTION cluster.**
+> `scripts/dryrun-migration.sh` ran `DROP DATABASE` and `CREATE
+> DATABASE` against `shared-postgres` — which violates
+> `docs/DATABASE-SAFETY.md` §1, because those statements are
+> cluster-scoped and `shared-postgres` hosts live plus five other
+> projects' databases. It went well, which is exactly why it is
+> dangerous: "it worked once" is not a defence for a rule. The script
+> now runs its copy on the dedicated test Postgres
+> (`gustale-test-postgres`, port 5434), its allowlist exemption in
+> `scripts/check-no-production-db-drops.py` has been **removed**, and
+> the scanner now has a test case that proves it would catch the
+> regression. The script also drops its copy and its snapshots at the
+> end, so it leaves nothing behind.
+>
+> **2. `0050` ran in autocommit.** See §2. The fix is
+> `scripts/check-migrations-are-transactional.py`, which fails the
+> build for any new migration that is not wrapped in `BEGIN`/`COMMIT`,
+> and which — unlike a `grep BEGIN` — tells a transaction wrapper from
+> a PL/pgSQL block.
