@@ -978,6 +978,34 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
             -f packages/db/seed-atlas-fixtures.sql
 
+      # ── 0050: the association review ledger (Option C) ──────────────
+      #
+      # Creates `association_review_log` (the ledger), `association_sources`
+      # (the association <-> source link), the entity-integrity trigger,
+      # and the 50-row pilot.
+      #
+      # It writes NO published rows and re-points nothing.
+      #
+      # It must run AFTER the atlas fixtures: the pilot samples the
+      # association table, and the fixtures are what create the
+      # association rows it samples.
+      - name: Apply the association review ledger
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0050_association_review_ledger.sql
+
+      # ── 0051: the family classification ─────────────────────────────
+      #
+      # Adds `dish_families.family_class` and applies the approved
+      # classification of all 306 families.
+      #
+      # It runs AFTER the atlas fixtures: its assertions count the
+      # families that carry a published dish.
+      - name: Apply the family classification
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0051_family_classification.sql
+
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.
