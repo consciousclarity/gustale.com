@@ -257,6 +257,25 @@ Full write-up: `docs/HINDSIGHT-WRITE-FAILURE.md`.
 | the Hindsight 2049 root cause | `docs/HINDSIGHT-WRITE-FAILURE.md` |
 | the 2026-11-06 live-drop incident | `docs/INCIDENT-2026-11-06-live-db-drop.md` |
 | the live approval gate | `docs/ADR-005-live-approval-gate.md` |
-| the recipes ADR being amended | `docs/ADR-007*.md` |
+| the recipes ADR and its amendment | `docs/ADR-007*.md` |
+| the Hermes / MiniMax configuration | `docs/HERMES-MINIMAX-CONFIG.md` |
 
-Memory is at **68%** and holds only a thin index into these documents.
+Memory is at **79%** and holds only a thin index into these documents.
+
+---
+
+## The two push traps (write these down before the next push)
+
+1. **`push_as_app.py` pushes `HEAD`, not the branch you name.** If the
+   working tree is on a different branch, the wrong commit lands on the
+   remote branch and the local repo looks perfectly correct. It happened
+   on 2026-11-07: PR #200 briefly showed 13 changed files instead of 1.
+   **After every push, read the PR's file list back**
+   (`GET /repos/…/pulls/<N>/files`) and compare `git ls-remote` against
+   what you committed.
+2. **`gh-app.sh` is Python with a `.sh` suffix** — `spec_from_file_location`
+   returns `None` without an explicit `SourceFileLoader` — and its `api`
+   mode builds the URL with no slash, so the path must start with `/` or
+   curl exits 6.
+
+Both are written up in `docs/OPERATIONS-RUNBOOK.md` §1.
