@@ -1,9 +1,14 @@
 # Migration plan — 0050 and 0051
 
 **Date:** 2026-11-07
-**Status:** PROPOSED. Nothing has been applied to live. This document is
-the approval request, not a receipt.
-**PR:** #189 (`feat/family-taxonomy-classification`, head `16710cf`)
+**Status:** **APPROVED AND APPLIED** to live on 2026-11-07, on
+Alejandro's explicit `go`. The receipt — the dump's path and size, the
+pre-apply gate, the commit proof, the apply, and the verification
+against the §4 baseline and the §6 expectation — is
+`docs/MIGRATION-RECEIPT-0050-0051.md`. This document is the approval
+request; the receipt is the record.
+**PR:** #189 (`feat/family-taxonomy-classification`), merged with the
+`approved-live` label applied by `consciousclarity`
 
 ---
 
