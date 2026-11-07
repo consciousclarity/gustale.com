@@ -334,4 +334,28 @@ else
   bad "the rebuild timer and the CI deploy do NOT share one lock"
 fi
 
+# ===========================================================================
+# The recipes accent gate.
+#
+# The herb-green accent was APPROVED on 2026-11-06 and held in
+# recipes-island.css, but that file was never imported, so the accent
+# never reached a build. It now ships in recipes-theme.css.
+#
+# The gate checks the approved accent's contrast ratios, that no
+# accent-coloured text sits on an accent-soft tint, and that the
+# SHIPPED theme still matches the APPROVED accent -- plus a selftest
+# proving the gate can fail.
+#
+# Invoked from here for the same reason as the shared-lock test: the
+# App cannot push .github/workflows/, so a new CI step is not
+# available. An existing script that CI already runs is.
+# ===========================================================================
+echo ""
+echo "--- the recipes accent ---"
+if bash "$SCRIPT_DIR/test-recipes-accent.sh"; then
+  ok "the recipes accent passes its contrast gate and matches the approved values"
+else
+  bad "the recipes accent does NOT pass its gate"
+fi
+
 exit "$fail"
