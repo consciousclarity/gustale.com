@@ -254,6 +254,168 @@ the first write lands.
 
 ---
 
+## UPDATE 2026-11-07: the env file is clean — the override is INHERITED
+
+The section above ("the env file still contains the wrong host") is now
+**disproven**. The four `HINDSIGHT_API_*_BASE_URL` lines were deleted
+correctly, and the file no longer contains any base-URL line. The wrong
+host is still being called. This update records what was proven and where
+the override actually lives.
+
+### The file is provably clean
+
+The plugin writes a **canonical** key set — `_build_embedded_profile_env()`
+in `plugins/memory/hindsight/__init__.py` — and only ever writes these
+five keys for this profile:
+
+| key | value |
+|---|---|
+| `HINDSIGHT_API_LLM_PROVIDER` | `minimax` |
+| `HINDSIGHT_API_LLM_API_KEY` | the 125-char key |
+| `HINDSIGHT_API_LLM_MODEL` | `MiniMax-M3` |
+| `HINDSIGHT_API_LOG_LEVEL` | `info` |
+| `HINDSIGHT_EMBED_DAEMON_IDLE_TIMEOUT` | `300` |
+
+`HINDSIGHT_API_LLM_BASE_URL` is written **only if** it resolves non-empty
+(`if current_base_url:`), so its absence is expected in the clean state.
+
+The file is **291 bytes**. The arithmetic is exact and unique: with the
+real key length (125 chars, measured), 291 bytes is reachable by **only
+one** layout — the five canonical lines and **no** base-URL line:
+
+```
+base-url=none           key length 125   -> 291 bytes   <-- the observed file
+base-url=io/v1          key length  72   -> 291 bytes   (would need a 72-char key)
+base-url=com/v1         key length  70   -> 291 bytes
+base-url=com            key length  73   -> 291 bytes
+base-url=com/anthropic  key length  63   -> 291 bytes
+```
+
+The key is 125 chars — confirmed by the live API accepting it — so the
+ambiguous layouts are ruled out.
+
+The historical backup corroborates it. `hermes.env.bak-20261106` is
+**344 bytes** = 291 + **53**, and
+`HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1\n` is exactly
+53 bytes. So the deleted line pointed at the **correct** global host.
+Deleting it removed a *correct* override and left the resolver to pick
+the provider default — which is also correct. The deletion was harmless.
+
+### The package resolves the correct host from that file
+
+Reconstructing the exact environment the file implies and letting the
+package resolve it:
+
+```
+resolved base_url: https://api.minimax.io/v1
+provider         : minimax
+model            : MiniMax-M3
+key length       : 125
+```
+
+`engine/llm_wrapper.py:1730` is the only source of the base URL:
+
+```python
+base_url=config.llm_base_url or "",
+```
+
+and `config.py:4244`:
+
+```python
+llm_base_url=os.getenv(ENV_LLM_BASE_URL) or None,
+```
+
+`ENV_LLM_BASE_URL` is `HINDSIGHT_API_LLM_BASE_URL`. With it unset,
+`llm_wrapper.py:1013` applies the provider default
+`https://api.minimax.io/v1`. **The global host.**
+
+### Where the override therefore lives
+
+`hindsight_embed/daemon_embed_manager.py` builds the daemon's
+environment like this:
+
+```python
+env = os.environ.copy()
+for key, value in config.items():
+    if key.startswith("HINDSIGHT_") and value is not None:
+        env[key] = str(value)
+```
+
+The daemon **inherits the full parent environment**. The env file is
+only ever a subset layered on top of it. Anything the parent process
+exported — the systemd **user-manager** environment for uid 1001, or a
+`HINDSIGHT_*` variable exported by the Hermes agent that spawns the
+daemon — reaches the daemon and is **not** visible in the env file.
+
+That is why deleting the file line and restarting changed nothing: the
+override was never in the file.
+
+Note also that the daemon is **not** started by `hindsight.service` as
+written. Its cgroup is
+`/user.slice/user-1001.slice/user@1001.service/app.slice/hindsight.service`
+— `app.slice` is the transient-unit slice, and the plugin starts the
+daemon itself via `Popen` (`daemon_embed_manager.py`), inheriting the
+**Hermes agent's** environment. Restarting `hindsight.service` is
+therefore the wrong lever: it restarts a unit that is not the thing
+that needs restarting, and it cannot change an inherited variable
+either.
+
+### The fix: clear the inherited variable, and restart the AGENT
+
+1. Find the inherited variable. The user-manager environment is the
+   place to look:
+
+   ```bash
+   sudo -n -u hermes env | grep -E 'HINDSIGHT|MINIMAX|BASE_URL'
+   ```
+
+   If that shows `HINDSIGHT_API_LLM_BASE_URL=https://api.minimaxi.com/...`,
+   that is the override. Remove it from whatever exports it (a
+   `Environment=` line in a unit, `~/.profile`, `~/.bashrc`, or the
+   systemd user manager's imported environment).
+
+2. **Restart the Hermes agent** (the parent), not just `hindsight.service`.
+   The daemon inherits at spawn time, so the agent must pick up the
+   cleaned environment first:
+
+   ```bash
+   sudo -n -u hermes systemctl --user restart hermes-gateway.service
+   ```
+
+3. Confirm. The daemon's own log line prints the resolved URL:
+
+   ```
+   OpenAI-compatible client initialized: provider=minimax, model=MiniMax-M3, base_url=https://api.minimax.io/v1
+   ```
+
+   It must say `api.minimax.io`. The historical log
+   (`~/.hindsight/profiles/hermes.log`) shows exactly this line with the
+   global host, so this is the artefact to look for.
+
+4. Then the write/recall test and `last_memory_write_at`.
+
+### Belt and braces
+
+Even with a clean environment, an explicit correct override in the env
+file is harmless and makes the outcome independent of the default:
+
+```bash
+sudo -n -u hermes sh -c \
+  "printf '%s\n' 'HINDSIGHT_API_LLM_BASE_URL=https://api.minimax.io/v1' \
+   >> /home/hermes/.hindsight/profiles/hermes.env"
+```
+
+But the inherited variable must still be cleared — the file's value
+**overrides** the inherited one (the merge loop above assigns
+`env[key] = str(value)` last), so writing the correct URL to the file
+is sufficient on its own for the daemon's resolution. **Writing the
+correct URL to the file is the fix; deleting the inherited variable is
+the belt-and-braces.** They are not interchangeable: the file's value
+wins, but any future process that re-spawns the daemon with a different
+parent would regress.
+
+---
+
 ## The bank is intact
 
 Nothing was lost. The bank has **3,252 nodes**, **114,131 links** and
