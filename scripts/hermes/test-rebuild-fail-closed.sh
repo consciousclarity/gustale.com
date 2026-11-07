@@ -335,6 +335,7 @@ else
 fi
 
 # ===========================================================================
+
 # The recipes accent gate.
 #
 # The herb-green accent was APPROVED on 2026-11-06 and held in

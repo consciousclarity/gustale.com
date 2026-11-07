@@ -8,8 +8,8 @@
 #
 # ---------------------------------------------------------------------------
 # OWNERSHIP MODEL — read this before changing anything
-# ---------------------------------------------------------------------------
-# The service runs as `gustale`. `gustale` owns EVERYTHING the rebuild
+#
+# The service runs as `gustale`. `gustale` owns everything the rebuild
 # touches:
 #
 #   /home/deploy/gustale-build          the CI deploy's build checkout
@@ -19,6 +19,22 @@
 #   /var/lib/gustale-rebuild/            the state file
 #
 # `hermes` owns NOTHING in the deploy chain. That is deliberate.
+#
+# THE UNIT FILES ARE THE EXCEPTION, AND THEY MUST STAY THAT WAY.
+#
+# /etc/systemd/system/gustale-rebuild-web.service and its .timer are
+# ROOT-OWNED. The service still RUNS as `gustale` — that is set by
+# `User=` inside the unit, not by who owns the file. The two are
+# different things and only the second one is a privilege boundary.
+#
+# A unit file that a normal user owns is an escalation to root: systemd
+# reads the unit as root and executes what it says, so anyone who can
+# write the file can have root run whatever they like. Since `gustale`
+# is also the account the operator logs in as, "gustale can edit the
+# unit" means "anything that reaches gustale is root".
+#
+# So: the units and their drop-in directories are installed root:root,
+# and the install asserts it afterwards rather than assuming it.
 #
 # THE LOCK IS NOT IN THAT LIST, and that is deliberate too. The lock is
 # /tmp/gustale-deploy.lock -- the SAME file the CI deploy (running as
@@ -106,8 +122,54 @@ if [ -f "$SRC_DIR/scripts/check-live-sitemaps.sh" ]; then
   install -m 0755 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/check-live-sitemaps.sh" "$DEPLOY_DIR/scripts/check-live-sitemaps.sh"
 fi
 
-install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/gustale-rebuild-web.service" "$SERVICE_FILE"
-install -m 0644 -o "$SVC_USER" -g "$SVC_GROUP" "$SRC_DIR/scripts/hermes/gustale-rebuild-web.timer"    "$TIMER_FILE"
+# THE SYSTEM UNITS ARE ROOT-OWNED. ALWAYS.
+#
+# The service runs as `gustale`, but the unit FILES are system units
+# and belong to root. A unit file that a normal user owns is an
+# escalation to root: systemd reads the unit as root, so anyone who can
+# WRITE the file can put `ExecStartPre=/bin/sh` (or
+# `ExecStart=/bin/sh -c ...`) in it and have root execute it.
+#
+# This is not theoretical. `gustale` is a service account for the
+# rebuild, but it is also the account the operator (and this agent)
+# logs in as, so `gustale` being able to rewrite a root-executed unit
+# turns any write primitive for that account into root.
+#
+# The units are therefore installed as root:root, and the ownership is
+# asserted AFTER the install: a stale unit left over from an earlier
+# install with the wrong owner is fixed here rather than silently
+# kept.
+install -m 0644 -o root -g root "$SRC_DIR/scripts/hermes/gustale-rebuild-web.service" "$SERVICE_FILE"
+install -m 0644 -o root -g root "$SRC_DIR/scripts/hermes/gustale-rebuild-web.timer"    "$TIMER_FILE"
+
+# Fail closed if the units are not root-owned. `install -o root` should
+# guarantee it, but an existing file's ownership is not always what
+# `install` reports afterwards on every filesystem, and the cost of
+# being wrong here is total compromise. Check, do not assume.
+for unit in "$SERVICE_FILE" "$TIMER_FILE"; do
+  owner="$(stat -c '%U:%G' "$unit")"
+  if [ "$owner" != "root:root" ]; then
+    echo "ERROR: $unit is owned by $owner, not root:root." >&2
+    echo "  A system unit owned by a non-root user can be edited to run" >&2
+    echo "  arbitrary code as root. Fix it with:" >&2
+    echo "      chown root:root $unit" >&2
+    exit 1
+  fi
+done
+
+# The drop-in directories must be root-owned too, for the same reason.
+# A drop-in is a unit file fragment and systemd executes what it says.
+for dir in /etc/systemd/system/gustale-rebuild-web.service.d \
+           /etc/systemd/system/gustale-backup.service.d; do
+  if [ -d "$dir" ]; then
+    chown root:root "$dir"
+    chmod 0755 "$dir"
+    for frag in "$dir"/*.conf; do
+      [ -e "$frag" ] || continue
+      chown root:root "$frag"
+    done
+  fi
+done
 
 # Lock + state dirs. The script uses flock on the SHARED deploy lock
 # (/tmp/gustale-deploy.lock -- the same one the CI deploy takes) and
