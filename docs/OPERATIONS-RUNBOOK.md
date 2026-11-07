@@ -304,6 +304,40 @@ not on a fixed minute). Check before merging:
 systemctl list-timers --all | grep gustale-rebuild-web
 ```
 
+### 16b. The systemd unit files are ROOT-OWNED
+
+`/etc/systemd/system/gustale-rebuild-web.service` and its `.timer` must be owned by
+**`root:root`**. The service still **runs** as `gustale` — that is set by `User=` inside the
+unit, not by who owns the file. Those are two different things, and only the second one is a
+privilege boundary.
+
+**A unit file owned by a normal user is an escalation to root.** systemd reads the unit as root
+and executes what it says, so whoever can *write* the file can put `ExecStartPre=/bin/sh` in it
+and have root run it. The `User=` directive does not protect the file: the file is parsed as
+root *before* the privilege drop happens. Since `gustale` is also the account the operator logs
+in as, "gustale can rewrite the unit" means "any write primitive that reaches gustale is root".
+
+Until 2026-11-07 `scripts/hermes/install-rebuild-timer.sh` installed both units with
+`-o "$SVC_USER"`, so every re-install put the escalation back. The install now:
+
+1. installs the two unit files with `-o root -g root`;
+2. **asserts** the ownership afterwards with `stat -c '%U:%G'` and **exits non-zero** if it is
+   not `root:root` — a stale unit left over from an earlier install is corrected or refused, not
+   silently kept;
+3. takes the same ownership for the `.service.d` drop-in directories and their `.conf` files,
+   because a drop-in is a unit file fragment and systemd executes what it says.
+
+The check is static and needs no root: `scripts/hermes/test-systemd-unit-ownership.sh`
+(9 assertions), run in CI from `scripts/hermes/test-rebuild-fail-closed.sh`.
+
+**Verify after any install:**
+
+```bash
+ls -l /etc/systemd/system/gustale-rebuild-web.service \
+      /etc/systemd/system/gustale-rebuild-web.timer
+# both must be: -rw-r--r-- 1 root root
+```
+
 ## 17. The private `gustale-state` repository
 
 `consciousclarity/gustale-state` is the **private** repo that holds the shared agent
