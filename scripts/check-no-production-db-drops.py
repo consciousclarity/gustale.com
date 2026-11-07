@@ -31,12 +31,18 @@ THE RULE
     dedicated test container (or the CI's own service, which is not
     the production container at all).
   * The scripts that legitimately make a COPY of the live database --
-    the live-migration gate, the account-deletion gate, the dry-run
-    and the atlas regression detector -- are exempt, and each states
-    WHY in the allowlist below. Their copies are made FROM live, so
-    they must live on the same cluster to be restorable into it; they
-    create and drop only the COPY, never the live database, and each
-    one's target is checked against the live name separately.
+    the live-migration gate, the account-deletion gate and the atlas
+    regression detector -- are exempt, and each states WHY in the
+    allowlist below. Their copies are made FROM live, so they must
+    live on the same cluster to be restorable into it; they create and
+    drop only the COPY, never the live database, and each one's target
+    is checked against the live name separately.
+  * The DRY-RUN is NOT exempt. It used to be, with the reason "the
+    copy must be on the same cluster to be faithful". That reason was
+    wrong: a `pg_dump | pg_restore` copy is faithful wherever it is
+    restored. It now runs its copy on the dedicated test Postgres, so
+    it needs no exemption -- and this scanner is what keeps it that
+    way, by catching it if it ever regresses.
 
 WHAT IT CHECKS
 --------------
@@ -96,11 +102,6 @@ ALLOWLIST: dict[str, str] = {
         "gustale_delacct_$$ -- a COPY of live -- and applies the "
         "delete to live only after the copy has proved the outcome. "
         "It never drops the live database."
-    ),
-    "scripts/dryrun-migration.sh": (
-        "The dry-run. It restores a pg_dump of live into a copy and "
-        "drops the copy. The copy is made FROM live, so it must be on "
-        "the same cluster to be a faithful copy."
     ),
     "scripts/verify-atlas-tests-detect-regression.sh": (
         "Proves the atlas constraint detector can FAIL. It snapshots "

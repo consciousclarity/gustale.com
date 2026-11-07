@@ -179,6 +179,50 @@ existed for CI.
   is never allowlisted as a live-target exception. It must not be allowlisted at
   all: the correct repair is to move it off the production cluster, not to exempt it.
 
+### 8a. Every migration must be wrapped in a transaction
+
+A migration that is not wrapped in `BEGIN`/`COMMIT` runs in **AUTOCOMMIT**: each
+statement is its own transaction, and it commits the moment it succeeds. That is
+fine when it works, and a data-loss event when it does not — a failure part-way
+through leaves partial state that **no `ROLLBACK` can undo**, and the only
+recovery is a restore from a backup.
+
+`scripts/check-migrations-are-transactional.py` fails the build for any migration
+that is not wrapped. It does **not** grep for the word `BEGIN`:
+
+- `0050_association_review_ledger.sql` contains the word `BEGIN` twice, and both
+  are **PL/pgSQL block openers** (`BEGIN … END $$;`), not transaction control. A
+  grep-based check would have passed the exact file this rule exists for.
+- `0051_family_classification.sql` is the shape to copy: `BEGIN;` at the top,
+  `COMMIT;` at the bottom.
+
+**0050 ran in autocommit on live on 2026-11-07.** It succeeded, so live is
+consistent, and the end state was verified independently. Had it failed part-way
+through, the three tables would have been created, the trigger installed, and only
+some of the 50 pilot rows updated. Thirteen migrations predate the rule and are on
+a **frozen, explicit** grandfathered list, each with its reason, in the checker
+itself. The list only ever shrinks. `0050` and `0048` are on it and are **not**
+rewritten — rewriting an applied migration changes its checksum and breaks the
+chain's idempotence check.
+
+### 8b. The dry-run's copy lives on the TEST Postgres
+
+`scripts/dryrun-migration.sh` restores its copy on `gustale-test-postgres`
+(port **5434**), never on the production cluster. It used to create and drop its
+copy on `shared-postgres`, which violated `docs/DATABASE-SAFETY.md` §1 — those
+statements are cluster-scoped, and `shared-postgres` hosts live plus five other
+projects' databases. The exemption it had in
+`scripts/check-no-production-db-drops.py` has been **removed**, and the
+scanner's test now drives it with the dry-run's old shape to prove it is caught.
+
+Two mechanics worth remembering:
+
+- the **host has no `pg_dump`/`pg_restore`** — the snapshot is taken inside the
+  production container (where the binary is) and copied out with `docker cp`,
+  because the host and the container do not share `/tmp`;
+- the script drops its copy and both snapshots when it finishes, so it leaves
+  nothing behind on either cluster.
+
 ## 9. Taxonomy — three family vocabularies
 
 | # | where | what it is | used for |

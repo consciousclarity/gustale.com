@@ -82,7 +82,9 @@ ALLOWLIST: dict[str, str] = {
     ),
     "scripts/dryrun-migration.sh": (
         "Its LIVE usage is a READ-ONLY pg_dump snapshot of live, used as "
-        "the base for a throwaway copy. It never WRITES to live."
+        "the base for a throwaway copy. The copy itself is restored on "
+        "the DEDICATED TEST Postgres (gustale-test-postgres, 5434), not "
+        "on the production cluster. It never WRITES to live."
     ),
     "scripts/verify-atlas-tests-detect-regression.sh": (
         "Snapshots live READ-ONLY (CREATE DATABASE ... TEMPLATE) to "

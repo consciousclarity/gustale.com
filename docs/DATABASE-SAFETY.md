@@ -66,8 +66,8 @@ The helper refuses the live name itself, unconditionally.
 
 ## 4. A copy of the live database is still a copy
 
-Some scripts must make a copy of the live database — the live-migration gate,
-the account-deletion gate, the dry-run. Those copies are made **on
+Some scripts must make a copy of the live database — the live-migration gate
+and the account-deletion gate. Those copies are made **on
 `shared-postgres`**, because a `pg_dump | pg_restore` copy, and a
 `CREATE DATABASE ... TEMPLATE` copy, have to be on the same cluster to be
 faithful.
@@ -79,6 +79,31 @@ Those scripts:
 - must never name the live database as their drop target;
 - are listed, with their reasons, in the allowlist of
   [`scripts/check-no-production-db-drops.py`](scripts/check-no-production-db-drops.py).
+
+### The dry-run is NOT one of them
+
+`scripts/dryrun-migration.sh` used to make its copy on `shared-postgres`
+too, and used to be exempt from the production-cluster scanner. Both
+were wrong, and both were corrected on **2026-11-07**.
+
+The exemption's reason was "the copy must be on the same cluster to be
+a faithful copy". That is not true: a `pg_dump | pg_restore` copy is
+faithful **wherever** it is restored. The dry-run now restores its copy
+on the **dedicated test Postgres** (`gustale-test-postgres`, port 5434),
+and drops the copy and both snapshots when it finishes, so it leaves
+nothing behind.
+
+The live database is only ever **read** by the dry-run, and only by
+`pg_dump`. The snapshot is taken inside the production container —
+because that is where the `pg_dump` binary is — and copied out with
+`docker cp`, because the host and the container do not share `/tmp`.
+
+Its exemption has been **removed** from
+[`scripts/check-no-production-db-drops.py`](scripts/check-no-production-db-drops.py),
+and
+[`scripts/test-check-no-production-db-drops.py`](scripts/test-check-no-production-db-drops.py)
+has a case that drives the scanner with the dry-run's old shape and
+proves it is caught. So the rule is now enforced, not just written down.
 
 ## 5. Approval for a live action is per operation and must be explicit
 
@@ -109,6 +134,8 @@ A live write goes through:
 | …and that gate can fail | `scripts/test-check-no-production-db-drops.py` |
 | No script defaults to the live DB | `scripts/check-no-live-db-defaults.py` |
 | …and that gate can fail | `scripts/test-check-no-live-db-defaults.py` |
+| Every new migration is transactional | `scripts/check-migrations-are-transactional.py` |
+| …and that gate can fail | `scripts/test-check-migrations-are-transactional.py` |
 
 All of these run in CI. A gate that cannot fail is not a gate, so each scanner
 has a test that drives it with the cases it must catch.
