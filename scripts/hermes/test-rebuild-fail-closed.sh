@@ -311,4 +311,27 @@ if [ "$fail" -eq 0 ]; then
 else
   echo "SOME FAILED"
 fi
+
+# ===========================================================================
+# The timer's OTHER guard: it must share ONE lock with the CI deploy.
+#
+# This is invoked from here, rather than from its own CI step, because
+# the CI step that runs this file is the only one that already exists
+# for the timer's guards -- and adding a CI step means editing
+# .github/workflows/ci.yml, which the GitHub App cannot push (no
+# `workflows` scope). Invoking it from an existing script keeps the
+# whole fix pushable by the App.
+#
+# The shared-lock test also asserts that the two lock paths still
+# agree, so it reads .github/workflows/ci.yml (read-only) to find the
+# deploy's DEPLOY_LOCK.
+# ===========================================================================
+echo ""
+echo "--- the shared deploy lock ---"
+if bash "$SCRIPT_DIR/test-shared-deploy-lock.sh"; then
+  ok "the rebuild timer and the CI deploy share one lock"
+else
+  bad "the rebuild timer and the CI deploy do NOT share one lock"
+fi
+
 exit "$fail"
