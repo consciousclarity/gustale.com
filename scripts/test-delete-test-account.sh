@@ -212,4 +212,16 @@ fi
 
 echo "  === $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1
+
+# ── the live-default guard ──────────────────────────────────────────
+#
+# The gate must not DEFAULT to the live database. This is a SEPARATE
+# script because it needs no database at all: the guard refuses before
+# any connection is attempted, so every case is decided by the guard
+# alone. Running it here keeps it in CI without a workflow change.
+#
+bash scripts/test-delete-test-account-guard.sh
+GUARD_RC=$?
+[ "$GUARD_RC" -eq 0 ] || exit "$GUARD_RC"
+
 exit 0
