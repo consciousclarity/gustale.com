@@ -166,6 +166,34 @@ jobs:
           python3 scripts/test-check-no-production-db-drops.py
           python3 scripts/check-no-production-db-drops.py
 
+      # Every migration must be wrapped in a transaction.
+      #
+      # An unwrapped migration runs in AUTOCOMMIT: each statement is
+      # its own transaction and commits the moment it succeeds. That is
+      # fine when it works, and a data-loss event when it does not --
+      # a failure part-way through leaves partial state that no
+      # ROLLBACK can undo, and the only recovery is a restore from a
+      # backup.
+      #
+      # 0050 is the case in point. It ran in AUTOCOMMIT on live on
+      # 2026-11-07. It succeeded, so live is consistent -- but it
+      # contains the word BEGIN twice, and both are PL/pgSQL BLOCK
+      # openers, not transaction control. A `grep BEGIN` says it is
+      # wrapped. It is not.
+      #
+      # So this check does not grep for the word: it tells a
+      # transaction wrapper from a PL/pgSQL block, which is the check
+      # that would have caught 0050. Thirteen migrations predate the
+      # rule and are on a FROZEN, explicit grandfathered list, with
+      # the reason for each.
+      #
+      # The test comes FIRST, and it is the point: the checker must be
+      # able to FAIL. A gate that cannot fail is not a gate.
+      - name: Every migration must be wrapped in a transaction
+        run: |
+          python3 scripts/test-check-migrations-are-transactional.py
+          python3 scripts/check-migrations-are-transactional.py
+
       # The rebuild timer must FAIL CLOSED.
       #
       # A failed `git fetch` does not update origin/main -- it FREEZES
