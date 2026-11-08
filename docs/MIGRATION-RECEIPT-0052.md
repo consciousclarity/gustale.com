@@ -213,9 +213,124 @@ This is the only reading under which §8.4's function can ever succeed,
 and it is consistent with ADR-007's own rule that "a recipe sentence
 with no verified statement cannot be published".
 
-**This is a deviation from the ADR's literal wording and it needs the
-owner's confirmation.** It is flagged here rather than buried in the
-migration.
+**This is a deviation from the ADR's literal wording, and the owner
+CONFIRMED the reading on 2026-11-08**: the evidence must be present
+**before** the transition, and the transition function **lifts** the
+statement. The reading is now recorded in ADR-007-A1 §8.3 ("Condition
+4: the reading, and the scope restriction") and §8.5.
+
+**Condition 4 is restricted to the recipe's OWN statements** — the
+statement must have `subject_type = 'recipe'` and `subject_id` = the
+recipe. That restriction is the owner's confirmation too, and it is
+what makes the reading safe: without it, an Atlas statement could
+satisfy condition 4 and carry a recipe to HIGH. See §4.1 below.
+
+---
+
+## 4.1 The scope rule — the shared `statements` table
+
+**The hole, as reported by the owner on 2026-11-08.**
+`recipe_claims.statement_id` may reference **any** statement,
+including an Atlas dish or place statement — `statements` is shared.
+`recipe_auto_publish()` verifies and publishes every statement behind
+the recipe's claims, so a HIGH recipe linked to an Atlas statement
+would publish that Atlas claim with no review.
+
+**Reproduced end to end before the fix**, in the sandbox:
+
+```
+recipe + claim -> an Atlas 'dish' statement
+recipe made HIGH (2 independent S1-S5 sources)
+recipe_auto_publish()
+=> the Atlas statement: draft -> published, published_by = system:auto-publish
+```
+
+**The rule.** A recipe claim may only name a statement about **that
+recipe**: `subject_type = 'recipe'` AND `subject_id` = the id of the
+recipe that owns the linked sentence.
+
+**Enforced in four layers**, each covering a path the others do not:
+
+| # | layer | covers |
+|---|---|---|
+| 1 | the trigger on `recipe_claims` | a claim that NAMES a foreign statement — on INSERT **and** on UPDATE |
+| 2 | the trigger on `statements` | a claimed statement MOVED out from under its claim — to another subject, or to another recipe |
+| 3 | `statement_set_status()`'s system-actor branch | the transition itself — the **authorisation**, which must not depend on a trigger being present |
+| 4 | condition 4 and the publish loop | the evidence gate and the publication loop |
+
+Layer 2 exists because layer 1 watches `recipe_claims` and does **not**
+fire when the *statement* is edited. Layer 3 exists because a trigger
+can be dropped — by a superuser, by `session_replication_role =
+replica`, or by a later migration.
+
+### 4.1.1 The proof cases
+
+| case | what it establishes |
+|---|---|
+| (a) | a claim naming an Atlas statement is refused on INSERT and on UPDATE |
+| (b) | with the claim **forced in** (`ALTER TABLE ... DISABLE TRIGGER`), a **valid** token presented for the Atlas statement is refused, and the statement does not move |
+| (c) | the control — a claim naming the recipe's **own** statement still publishes |
+| (d) | a claimed statement cannot be moved to another subject, nor to another recipe |
+
+**Case (b) was wrong the first time it was written.** The first version
+built a recipe whose claim named the Atlas statement and asserted the
+Atlas statement did not move. It passed — **for the wrong reason**: the
+recipe computed `medium`, so `recipe_auto_publish()` refused it on the
+confidence gate and never reached the publish loop. The assertion would
+have passed with the scope rule deleted.
+
+The second attempt, a differential (publish the same recipe twice,
+once with each claim), hit the same wall from the other side: with
+condition 4 scoped, a recipe holding an out-of-scope claim can never be
+HIGH, so the two calls could never differ the way the differential
+needed.
+
+So case (b) now tests the authorisation **directly**: a token that is
+valid in every respect — real row, this transaction, this recipe,
+minted by the owner — presented for the Atlas statement. The only
+thing wrong with the call is the statement it names. If the scope
+clause were missing from `statement_set_status()`, that call would
+verify and publish the Atlas statement.
+
+### 4.1.2 The proof is mutation-tested
+
+A proof that cannot fail proves nothing. Each layer of the rule was
+removed in turn, and the proof re-run:
+
+| mutation | the proof must fail | it did |
+|---|---|---|
+| remove the `recipe_claims` trigger | yes | **yes** — "a recipe claim naming an Atlas dish statement was ACCEPTED" |
+| remove the authorisation clause from `statement_set_status()` | yes | **yes** — "a VALID token authorised a transition on the Atlas statement" |
+| remove the `statements` trigger | yes | **yes** — "a statement named by a recipe claim was MOVED out from under that claim" |
+| unscope condition 4 | yes | **yes** — "the recipe computes high with an Atlas claim in place" |
+| remove the scope filter from the publish loop | — | **no**, and this is a fact about the code, not a gap |
+
+The last row is stated rather than papered over. Condition 4 (scoped)
+is an `EXISTS` over the **same join** the publish loop uses, and it
+fails the moment any row of that join is out of scope. By the time the
+loop is reached — only for a HIGH recipe — every row is already in
+scope, so the clause filters nothing and **no test can distinguish
+it**. It is kept deliberately as defence in depth, with a comment in
+the migration saying so, rather than being claimed to be proven.
+
+### 4.1.3 A real bug found on the way
+
+`recipe_auto_publish()`'s audit formatting had an operator-precedence
+bug:
+
+```sql
+key || ': ' || value ->> 'detail'
+```
+
+PostgreSQL parses this as `(key || ': ' || value) ->> 'detail'`, because
+`||` binds tighter than `->>`. The intended form is:
+
+```sql
+key || ': ' || (value ->> 'detail')
+```
+
+Fixed in this migration. It is a display bug, not an authorisation bug,
+but it was in the code the owner was reading.
 
 ---
 
