@@ -1,13 +1,33 @@
 # ADR-007 (Amendment 1) — Recipes: confidence, auto-publish, contributors, language, URLs
 
-**Status:** **PROPOSED** — for Alejandro's approval. Docs only; no code,
-no migration, no live write.
-**Date:** 2026-11-07
+**Status:** **APPROVED — the owner's five decisions are recorded below.**
+Docs only; no code, no migration, no live write.
+**Date:** 2026-11-07 (drafted) · **2026-11-08 (the owner's five decisions
+recorded; the amendment is now settled)**
 **Amends:** ADR-007 (`docs/ADR-007-recipe-schema.md`, accepted 2026-11-06)
 **Related:** ADR-002 (claims model), ADR-004 §14 (publish credential),
 ADR-005 (live approval gate), ADR-006 (publish-credential session
 binding), migration 0048 (bot credential guard)
 **Deciders:** Alejandro (product owner), Hermes (author)
+
+> **The owner's decisions, recorded 2026-11-08.** The five open decisions
+> of §10 are now **closed**, and this document is written to match them.
+> Where this document previously said "proposed" or "the owner must
+> confirm", the owner's answer is now the text.
+>
+> | # | decision | the owner's answer |
+> |---|---|---|
+> | 1 | the auto-publish actor | **amend 0048** so the rule is an explicit list, not an email-suffix heuristic (§2.4) |
+> | 2 | the trusted-contributor standard | a trusted contributor **also** needs **2 independent sources**; without them it goes to **Alejandro's review queue** (§6.2) |
+> | 3 | the 301 path set | **the full set** — the three indexes **and** all 55 Atlas detail pages (§5.3) |
+> | 4 | the kill switch's default | **OFF at launch** (§7.1) |
+> | 5 | the daily cap / the digest | **cap 20**, and the **digest from day one** (§7.2, §7.3) |
+>
+> The decision on **source classes** is also now fixed, and it is
+> **stricter** than the draft proposed: a **Wikipedia-only** recipe is
+> **never HIGH**, and a recipe's **own wording only** — the agent's
+> paraphrase, with no quoted source text — is **never HIGH** either.
+> Both are now encoded in §1.3 and §1.4.
 
 ---
 
@@ -84,7 +104,7 @@ the recipe is MEDIUM. This is the single most important rule in this
 section: it is what stops the auto-publish path from publishing
 plagiarism.
 
-### 1.3 Which source classes count
+### 1.3 Which source classes count — **DECIDED 2026-11-08**
 
 `source_class` is `S1`–`S7` (`S1` primary historical, `S2` scholarly,
 `S3` institutional, `S4` practitioner, `S5` specialist, `S6` reference
@@ -101,7 +121,90 @@ gates.** A recipe's HIGH condition reuses them:
 **`S6` and `S7` never contribute to HIGH.** `S6` is Wikipedia; `S7` is
 unverified. This is the existing policy, not a new one.
 
-### 1.4 The blocker, stated plainly
+**The owner's decision, now explicit: a Wikipedia-only recipe is NEVER
+HIGH.** Not "usually not HIGH" — **never**. A recipe whose every source
+is `S6` is **MEDIUM at best**, whatever else it satisfies. This is now
+a hard condition on the HIGH predicate, not a consequence of the source
+classes:
+
+```
+HIGH requires: every contributing source_class IN ('S1','S2','S3','S4','S5')
+```
+
+**Why this is stated as its own rule rather than left implicit:** the
+live database is 100% `S6` (§1.5), so without this rule the natural
+reading of "2+ independent sources" would let two unrelated Wikipedia
+articles produce a HIGH recipe. Two Wikipedia articles that copy each
+other are `dependent` and already fail §1.2 — but two that do *not*
+copy each other would otherwise pass. The independence condition alone
+is not enough; the class condition is what makes it safe.
+
+**And the tiers the owner named, as a table of what a recipe's sources
+may be:**
+
+| tier | source classes | can it support HIGH? |
+|---|---|---|
+| **cookbook** | `S4` (practitioner), `S5` (specialist) | **yes** — with a second *independent* source |
+| **institution** | `S3` (institutional) | **yes** — with a second *independent* source |
+| **established site** | `S1` (primary historical), `S2` (scholarly) | **yes** — with a second *independent* source |
+| **reference only** | `S6` (Wikipedia) | **NO** — never HIGH on its own, never HIGH as the only support |
+
+A recipe may cite across tiers; the rule is about the **floor**, not
+about uniformity. A cookbook source plus an institutional source is a
+fine pair. A cookbook source plus a Wikipedia source is **not** — the
+Wikipedia source contributes to the citation but **not** to the HIGH
+condition, so the recipe would still be MEDIUM unless a second
+non-`S6` independent source is present.
+
+### 1.4 "Own wording only" — **DECIDED 2026-11-08: never HIGH**
+
+The owner's fourth point in the same decision: a recipe's **own wording
+only** is never HIGH.
+
+"Own wording" means the agent's own prose — the recipe text as the
+drafter wrote it, with **no quoted source text** behind it. The
+distinction the owner is drawing is between a sentence that a source
+**says** and a sentence the agent **composed**.
+
+**The rule:**
+
+> A recipe whose core claims rest on **the drafter's own wording**, with
+> no quoted source text, is **never HIGH**.
+
+This is a **different condition** from §1.2 (independence) and §1.3
+(source classes), and it is checked **per claim**, not per recipe:
+
+| claim | quoted source text present? | contributes to HIGH? |
+|---|---|---|
+| ingredient list | **yes** — the source states the ingredients | **yes** |
+| method step | **yes** — the source states the method | **yes** |
+| quantity | **yes** | **yes** |
+| the agent's own framing, gloss, or generalisation | **no** | **no** |
+
+**Why it is a separate condition.** §1.2 asks "do two sources agree
+independently?". §1.3 asks "are those sources the right kind?". Neither
+asks "**is the sentence actually in the source**?". A recipe could
+satisfy both and still be the agent's own prose wearing citations: two
+good sources exist, and the sentence about them was composed rather
+than quoted. That is exactly the failure the owner is ruling out.
+
+**How it is stored.** ADR-002's claims model already distinguishes a
+**quoted** claim from a **derived** one. The recipe's core claims must
+carry a **`quoted` provenance** — the text is present in the cited
+source — and a `derived` claim does **not** contribute to HIGH.
+
+**What this does not do:** it does not forbid the agent from writing
+the recipe. The drafter still writes the sentence; it just cannot claim
+HIGH for a sentence it did not find in a source. The drafting work
+(item 8) therefore has to **retrieve and quote**, not merely
+paraphrase — which is the right shape for it anyway, because the
+digest (§7.3) has to show the reader the source text.
+
+**Effect on §1.5:** the blocker gets *worse*, not better. With the live
+data — 1,486 `S6` sources, 0 quoted claims, 0 `independence` values — a
+recipe cannot satisfy §1.2, §1.3 or §1.4. That is the correct state.
+
+### 1.5 The blocker, stated plainly
 
 **Every one of the 1,486 sources in the live database is `S6`.**
 There is not one `S1`–`S5` source. All 1,354 statements sit at
@@ -118,7 +221,7 @@ content pipeline) meeting in the middle: the pipeline's source-gathering
 is what eventually turns the switch on. **No recipe will be auto-published
 by accident in the meantime.**
 
-### 1.5 Where the level is stored, and who sets it
+### 1.6 Where the level is stored, and who sets it
 
 The confidence level is a **computed column**, not a hand-set flag. A
 human may *override* it downward, never upward. The reason is the same
@@ -208,49 +311,71 @@ It:
    `statement_set_status()`**, with a **session token** for a **service
    account that holds a verified `publisher` credential**.
 
-### 2.4 The one thing this needs, and it is the owner's to give
+### 2.4 The actor — the owner's decision: **amend 0048**
 
-`statement_set_status()` requires a session token belonging to an actor
-who holds a **verified `publisher` credential**. That is a
-**human account** — 0048 refuses bot accounts — and it is an account
-that does not exist yet: `publish_credential` currently holds **0 rows**.
+**DECIDED 2026-11-08.** The auto-publish actor is a **dedicated service
+account on an explicit list**, and **0048 is amended** so the rule is
+*explicit* rather than *heuristic*.
 
-So the design needs **one service account**, owned by a human, that
-holds the credential. Options, for the owner to choose:
+The draft offered three options and proposed option 2 (a human-named
+service account). The owner chose the **cleaner alternative the draft
+described alongside it**: amend 0048 so that a publish credential is
+refused to any account on a `service_accounts` list, and the recipes
+service account is on that list.
 
-| option | what it means | what it costs |
-|---|---|---|
-| **1. Alejandro's own account holds the credential** | the service function acts under Alejandro's session | the audit trail names **Alejandro** as the publisher of every auto-published recipe. Honest, but it says "Alejandro published this" for content he did not read |
-| **2. A dedicated human-named service account** | e.g. `recipes-publisher@gustale.com` — a **human-shaped account**, not a `-bot` account | it must be a real account with a real owner, and 0048's `-bot` pattern means the name must **not** end in `-bot`. It is a service account wearing a human name, which is a deliberate, disclosed exception |
-| **3. The owner approves each auto-publish, in bulk** | the HIGH recipes are queued and Alejandro releases them | this is **not** auto-publish. It is "publish with one click instead of N". It is the safest option and it contradicts the owner's stated rule |
+**What changes in 0048:**
 
-**This amendment proposes option 2**, because option 1 misattributes
-publication, and option 3 is not what "auto-publish" means.
+| before | after |
+|---|---|
+| the rule is inferred from the **email suffix** (`-bot`), so a service account wearing a human name slips through | the rule is an **explicit list**: a publish credential is refused to any account on `service_accounts`, **regardless of its name** |
+| a bot-shaped account is refused by a name convention | a bot-shaped account is refused **and** a listed service account is refused — the two are separate, explicit checks |
+| the intent is machine-checked only by accident of naming | the intent is machine-checked **by construction** |
 
-**The conflict to report:** option 2 requires creating an account whose
-email does **not** end in `-bot` but which is not a person. That is a
-deliberate weakening of 0048's *shape* — 0048's **rule** ("no bot
-publishes") stays completely intact, but its *detection heuristic*
-(email suffix) does not catch a service account that is not named like a
-bot. **The owner must approve this explicitly**, because it is exactly
-the kind of thing the `-bot` rule exists to prevent, and it should be
-decided by the person who wrote the rule rather than by the agent.
+**Why this is better than the alternative, and not merely different:**
+the `-bot` heuristic has a hole exactly where the auto-publish path
+needs a hole. Under the amendment, the service account is **named in the
+schema as a service account**, so:
 
-A cleaner alternative the owner may prefer: **amend 0048** so that the
-rule is *explicit* rather than *heuristic* — a publish credential is
-refused to any account that is on a `service_accounts` list, and the
-recipes service account is on that list. That keeps the intent machine-
-checked instead of relying on a name convention. **The amendment is
-written to work either way**; which of the two is used is the owner's
-call, and it is recorded as an open decision in §10.
+- it is refused a credential **like any other account on the list**, by
+  name-in-a-table, not by guessing;
+- the audit trail can say `service_account = recipes-publisher` because
+  that is a **fact in the database**, not an inference from a string;
+- adding a second service account later is a **row**, not a **new regex**.
 
-### 2.5 The audit trail is not optional
+**The amendment keeps 0048's rule completely intact.** 0048's *rule* is
+"no bot publishes". The amendment changes only its *detection*: from
+"the name looks like a bot" to "the account is on a list of service
+accounts, and separately, the name looks like a bot". Both refusals
+stand. The service account is refused **by the list**, not by being
+allowed through a hole.
+
+**Migration:** 0048 is amended in the item-2 migration, in the same
+transaction as the recipe schema. The amendment is additive — a new
+table, a new check function, and the credential trigger widened to
+consult it. **No existing behaviour changes**: an account that is
+neither on the list nor bot-shaped behaves exactly as it does today.
+
+**The owner still has to create the account** — a human-named
+`recipes-publisher@gustale.com` on `service_accounts`, with the
+credential issued under ADR-006. The account's **name must not** end in
+`-bot`; that is no longer what makes it safe, but it remains the
+convention the owner's brief asks for.
+
+**What this needs, and it is the owner's to give:** the go-ahead to
+amend 0048 — **given 2026-11-08** — and the creation of the service
+account itself, which needs the owner's action on the live side.
+
+### 2.4a What the audit trail records
 
 Every auto-publish writes to `statement_status_log` (the function
 already does) **and** to a new `recipe_publish_log`, which records:
 the recipe, the computed confidence, the conditions evaluated, the
 sources that satisfied the independence condition, the kill-switch
 state at that moment, and the service account that acted.
+
+Because the service account is on an explicit list, the log records the
+account **as a service account** — `service_account_id`, not an email
+that a reader has to interpret.
 
 **There is no path by which a recipe becomes `published` without a row
 in `recipe_publish_log`.** That is what makes the daily digest (§7.3)
@@ -514,12 +639,27 @@ hub template emits `noindex` when the count is zero and omits the meta
 tag (indexable) when it is ≥1. There is no manual "now index this" step
 and no state that can drift.
 
-### 5.3 The revision to PR 6c
+### 5.3 The revision to PR 6c — **DECIDED 2026-11-08: the full set**
 
 **There is NO 301 for `/dishes/*` on gustale.recipes.** The recipes
 property keeps its own `/dishes/<slug>` hubs.
 
-Still 301 to `gustale.com`: **`/regions`, `/families`, `/lineages`.**
+**The owner's decision: the FULL set.** The three index paths **and**
+all 55 Atlas detail pages are 301'd to `gustale.com`:
+
+| from (gustale.recipes) | to (gustale.com) | count |
+|---|---|---|
+| `/regions` | `/regions` | 1 |
+| `/families` | `/families` | 1 |
+| `/lineages` | `/lineages` | 1 |
+| `/family/<slug>` | `/family/<slug>` | **43** |
+| `/lineages/<slug>` | `/lineages/<slug>` | **12** |
+
+**Total: 58 paths.** Every target was verified to return **200** on
+`gustale.com` before being listed.
+
+**`/family` (the index) is NOT in the set** — it is a **404** on both
+properties, so a 301 to a 404 is not shipped. The index is `/families`.
 
 > **A fact on the ground, reported because it affects the work.**
 > The live routes are **not** the three the brief names. Verified on
@@ -539,21 +679,24 @@ Still 301 to `gustale.com`: **`/regions`, `/families`, `/lineages`.**
 > contains **55 URLs that are Atlas content served on the recipes
 > domain**, and they are exactly the pages the brief wants redirected.
 >
-> Two things follow, and both are the owner's call:
+> **The owner's decision closes this.** The full set means:
 >
-> 1. **The brief's three paths are the three *index* pages.** But the
->    detail pages under `/family/` and `/lineages/` are the ones actually
->    in the sitemap, and they are Atlas content ("History & connections",
->    "Food families"). If only the three index paths are 301'd, **55
->    Atlas pages stay on gustale.recipes and stay in its sitemap** —
->    which contradicts "No history/places/families copied from the Atlas".
-> 2. **A redirect whose target is itself redirected is a chain.** `/family`
->    is 404, so it must not be added to the 301 set; and a 301 of
->    `/families` → `gustale.com/families` is fine only because that
->    target exists (verified 200).
->
-> Every candidate target was checked to **exist on the Atlas** — a 301
-> whose target 404s is reported, not shipped.
+> 1. **All 55 Atlas pages leave the recipes sitemap.** The sitemap
+>    becomes 1 home + 1,475 `/dishes/<slug>` = **1,476 URLs**, and it
+>    holds **no** Atlas content. That satisfies "No history/places/
+>    families copied from the Atlas" completely.
+> 2. **No redirect chains.** `/family` is excluded because it 404s; the
+>    three index paths redirect to themselves on the other property, and
+>    the 55 detail paths redirect to their own Atlas counterparts. Every
+>    target is a **200**, verified.
+> 3. **The 301s ship only with the owner's go** (ADR-005). This
+>    section authorises the *set*; item 7 implements it, and the
+>    implementation PR carries the label.
+
+**What this costs, stated plainly:** 55 URLs that currently rank on the
+recipes domain will move to the Atlas. That is the intended outcome —
+they are Atlas content and belong on the Atlas. The recipes property
+keeps its own `/dishes/<slug>` pages, which is the content it is for.
 
 ### 5.4 The sitemap and canonicals
 
@@ -602,32 +745,99 @@ exact failure R2's 301s were meant to end).
 theirs publish immediately.** The count is of **approved** recipes, not
 submitted ones — a rejected recipe does not move the ladder.
 
-### 6.2 Why the ladder is about the contributor, not the confidence
+### 6.2 The trusted-contributor standard — **DECIDED 2026-11-08**
 
-A trusted contributor's MEDIUM recipe publishes immediately. That is
-what the owner decided, and it is a deliberate trade: **the contributor's
-reputation substitutes for the source evidence** that the confidence
-level measures.
+**The owner's answer: a trusted contributor ALSO needs 2 independent
+sources. Without them, the recipe goes to Alejandro's review queue.**
 
-It is worth being explicit about what that means, because it is the one
-place in this amendment where a recipe can publish on something other
-than HIGH confidence:
+The draft asked the owner to confirm one of two readings, and it
+presented the "content conditions only" reading as the proposal. **The
+owner chose the stricter one.** The draft's reading is therefore
+**superseded**.
 
-- **trusted contributor** → publishes on the same content conditions,
-  but **not** on the confidence level, and **not** on the source-independence
-  condition;
-- **agent-drafted** → publishes only at HIGH.
+**The ladder, as decided:**
 
-**This means a trusted contributor's recipe does not need two independent
-sources.** It needs the *content* conditions: the dish is published,
-every ingredient is published, every sentence is sourced (one source is
-enough), and the recipe has passed the review that made it trusted.
+| recipes by this contributor | state | what happens |
+|---|---|---|
+| 0–2 | **probation** | every recipe goes to Alejandro's review; it does **not** publish on its own, **whatever its confidence** |
+| 3 or more **approved** | **trusted** | their recipes publish immediately — **but only if they meet the source conditions** |
 
-**The owner should confirm this reading.** It is the natural reading of
-"after 3 approved, theirs publish immediately", but it is the
-difference between "trusted contributors get the review queue skipped"
-and "trusted contributors get the source standard lowered", and those are
-different standards.
+**What "the source conditions" means for a trusted contributor** — this
+is the part that changed, and it is the whole substance of the decision:
+
+> A trusted contributor's recipe publishes automatically **only if** it
+> satisfies the same **source** conditions as any other auto-publish:
+> **2+ independent sources**, from the **right classes** (`S1`–`S5`,
+> never Wikipedia-only), with **quoted source text** rather than the
+> drafter's own wording.
+>
+> **If a trusted contributor's recipe does not meet them, it goes to
+> Alejandro's review queue** — the same queue a probationary
+> contributor's recipe goes to.
+
+**The trust ladder therefore skips the review queue only when the
+evidence is there. It does not lower the evidence bar.** The
+contributor's reputation buys them a **faster path to publication when
+the evidence supports it**; it does not buy a publication without
+evidence.
+
+**What trust *does* change.** The trust ladder is about the
+**contributor**, not the confidence (§6.2 in the original draft, now
+corrected). The differences between a trusted contributor and an
+agent-drafted recipe are:
+
+| | agent-drafted | trusted contributor |
+|---|---|---|
+| review | the review queue **unless HIGH** | the review queue **unless HIGH** |
+| source conditions | required for HIGH | **required for HIGH — the same ones** |
+| review | if it fails the source conditions, it waits | if it fails the source conditions, **it waits** |
+| the ladder | n/a | 3 approved recipes to reach trusted |
+
+**So what does the ladder buy?** This is the honest question, and the
+answer is: **the review queue is not skipped on evidence — it is
+skipped on the *human* axis.** A trusted contributor's recipe that
+meets the source conditions publishes without a human reading it,
+because the contributor has already been vetted by three prior
+approvals. An agent-drafted recipe that meets the same conditions also
+publishes without a human reading it — because the *evidence* is
+sufficient. **Neither path gets a recipe published without 2
+independent, correctly-classed, quoted sources.**
+
+The difference is in what happens when the evidence is *missing*. In
+both cases the recipe waits for Alejandro. The ladder does not change
+that.
+
+**Why this is the right shape, and why it is not a contradiction.** A
+trusted contributor is a real risk-reducer, but the risk being reduced
+is **"is this person making things up?"**, not "is this text in the
+sources?". Trust answers the first question and does not answer the
+second. The owner's decision keeps the two separate: trust affects
+**review**, evidence affects **publication**.
+
+**The one thing this makes cheaper:** a trusted contributor's MEDIUM
+recipe still waits. But a trusted contributor who can produce two
+independent, correctly-classed, quoted sources gets a recipe published
+**immediately**, whereas the same recipe from an unknown contributor
+also gets published immediately (it is HIGH) — or, if it is not HIGH,
+waits. **The ladder's real effect is that a trusted contributor's
+recipe does not need to clear the *confidence* bar to be trusted with
+an auto-publish, but it does need the *source* bar.** In practice the
+trusted contributor with real sources and the agent with real sources
+are in the same place.
+
+> **A note on the original draft's reading, for the record.** The draft
+> said a trusted contributor's recipe needed "one source is enough".
+> **That is now wrong and is replaced by the above.** It is recorded
+> here because an ADR is a record of decisions, including the ones that
+> changed.
+
+**The owner still creates the first trusted contributors.** The ladder
+needs no decision from the owner; it needs accounts. A trusted
+contributor must hold a **verified `publisher` credential** to publish
+through any path other than the auto-publish function — and **a bot
+cannot hold a credential, so a bot cannot be a trusted contributor**
+(0048 still refuses it, and the ladder inherits that refusal for
+free).
 
 ### 6.3 How "Contributor" is shown
 
@@ -659,24 +869,44 @@ credentials, so it inherits that refusal for free.
 
 ## 7. Auto-publish safeguards
 
-### 7.1 The kill switch
+### 7.1 The kill switch — **DECIDED 2026-11-08: OFF at launch**
 
 **One switch, off by default, that stops all auto-publishing
 immediately.**
 
-It is a **server-side** setting, not an environment variable and not a
-code change — the owner must be able to flip it without a deploy, and
-without waiting for CI. The design:
+**The owner's decision: the switch ships OFF at launch.** The
+auto-publish path is therefore **dormant** on day one. It stays off
+until the owner flips it — a deliberate, server-side action, with no
+deploy and no CI wait.
+
+The switch is a **server-side** setting, not an environment variable and
+not a code change — the owner must be able to flip it without a deploy,
+and without waiting for CI. The design:
 
 - a single-row settings table (`recipe_settings`), read by the
   auto-publish function **on every invocation**;
 - the switch has three positions, not two: `enabled` / `disabled` /
   `enabled_with_cap`;
-- flipping it to `disabled` takes effect on the **next invocation** —
+- **the initial value is `disabled`** — the migration seeds it that way,
+  and the function refuses to publish while it reads `disabled`;
+- flipping it to `enabled` takes effect on the **next invocation** —
   no restart, no cache to expire;
 - the kill switch stops **auto-publish only**. It does not stop a
   human from publishing through the ordinary review queue, and it does
   not unpublish anything already published.
+
+**What "OFF at launch" means in practice, so there is no
+misunderstanding:** the auto-publish job runs from day one (it is part
+of item 8's pipeline), and it **publishes nothing** because the switch
+reads `disabled`. Turning it on is one row-update. Until then, the only
+way a recipe publishes is **a human publishing it through the review
+queue**.
+
+**This is also the right safety property given §1.5.** With today's
+data nothing could be HIGH anyway, so a live switch would be a no-op
+regardless. Shipping it OFF means the *switch-on* moment is a
+deliberate act by the owner on a system whose data is known-good, not
+an accident of a deploy.
 
 **The kill switch is checked BEFORE the recipe is touched**, not after.
 A recipe that is mid-publish when the switch flips finishes; the switch
@@ -687,9 +917,10 @@ is worse than a slightly-late refusal.
 switch state at each publish), so "was it on when this went live?" is
 answerable afterwards.
 
-### 7.2 The daily cap
+### 7.2 The daily cap — **DECIDED 2026-11-08: 20**
 
-**Maximum 20 auto-published recipes per day, to start.**
+**Maximum 20 auto-published recipes per day.** The owner's number,
+confirmed.
 
 - the counter is **per calendar day, per property** (there is one
   property);
@@ -701,12 +932,36 @@ answerable afterwards.
   to the kill switch;
 - the cap is a **setting**, so the owner can change it without a deploy.
 
-### 7.3 The daily digest
+**The cap and the kill switch are separate.** The switch is a binary
+gate; the cap bounds the volume when the gate is open. `enabled_with_cap`
+is the third position (§7.1) for the case where the owner wants the
+machine publishing but at a lower ceiling.
+
+### 7.3 The daily digest — **DECIDED 2026-11-08: from day one**
 
 **A daily digest listing everything that went live, with its sources.**
+The owner's decision: the digest ships **from day one**, not after the
+auto-publish path is switched on.
 
-The digest is the owner's audit of the machine's work. It must contain,
-per published recipe:
+**"From day one" is a stronger requirement than it looks**, and it is
+the right one: the digest is the audit of the machine's work, and an
+audit that starts when the machine starts producing is worthless. So
+from launch, the digest runs **every day** and reports:
+
+- everything that went live — **including recipes published by
+  Alejandro through the review queue**, because the digest's job is to
+  be the complete record of what the recipes property published on a
+  given day;
+- and, when the kill switch is off, that fact is itself reported: the
+  digest says **"the switch was off; 0 auto-published"** rather than
+  being silent.
+
+**A silent digest is a broken digest.** A day with no auto-publishes
+still produces a digest, and that digest states the switch state and
+the count. Otherwise "the digest is missing today" and "the digest is
+empty today" are indistinguishable, and only one of them is a fault.
+
+The digest must contain, per published recipe:
 
 - the recipe's title, slug, and URL;
 - the dish it belongs to;
@@ -715,12 +970,11 @@ per published recipe:
   class (`S1`–`S7`) and title;
 - **the independence finding** — which sources were judged independent
   of each other, and on what basis;
+- **the quoted source text** for the claims that count toward HIGH
+  (§1.4) — the reader must be able to see the text the recipe claims to
+  be quoting;
 - the service account that performed the publish;
 - the kill-switch state and the day's auto-publish count at the time.
-
-**The digest covers auto-published recipes, and only those.** It is a
-report on the machine's output. A human-published recipe is visible in
-the ordinary review queue and does not need to be in a daily digest.
 
 **Delivery:** the digest is generated by the same job that runs
 auto-publish, and delivered to the owner (Telegram, the channel the
@@ -740,7 +994,46 @@ shape, because the auto-publish rule and the confidence levels are
 ### 8.1 New tables
 
 ```sql
+-- The explicit list that amends 0048's email-suffix heuristic.
+--
+-- 0048 refuses a publish credential to any account whose email looks
+-- like a bot. That heuristic has a hole exactly where the auto-publish
+-- path needs one: a service account that is NOT named like a bot
+-- slips through. The owner's decision (ADR-007-A1 §2.4) is to amend
+-- 0048 so the rule is explicit instead of inferred.
+--
+-- So: an account ON THIS LIST is refused a publish credential, by
+-- name-in-a-table, regardless of what its email looks like. 0048's
+-- own refusal stays completely intact and is checked separately.
+-- The two checks are independent:
+--
+--   refuse if email looks like a bot        (0048, unchanged)
+--   refuse if account is on service_accounts (the amendment)
+CREATE TABLE service_accounts (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         text NOT NULL UNIQUE,
+  -- What this service account is for. The audit trail reads this, not
+  -- an email a reader has to interpret.
+  purpose       text NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  created_by    text NOT NULL,
+  revoked_at    timestamptz
+);
+
+-- The recipes service account. Inserted by the owner, not by the
+-- migration, because it is an ACCOUNT -- a row in `user` with a
+-- credential issued under ADR-006. The migration creates the table
+-- and the function that consults it; it does not create the account.
+--
+-- The name must not end in '-bot'. That is no longer what makes it
+-- safe -- being on this list is -- but it is the convention the
+-- owner's brief asks for, and 0048's own check is checked too.
+
 -- The recipe's own settings: the kill switch and the daily cap.
+--
+-- auto_publish_enabled DEFAULT false is the owner's decision (§7.1):
+-- the switch ships OFF at launch, and the auto-publish function
+-- refuses to publish while it reads false.
 CREATE TABLE recipe_settings (
   id                     boolean PRIMARY KEY DEFAULT true CHECK (id),
   auto_publish_enabled   boolean NOT NULL DEFAULT false,
@@ -776,6 +1069,9 @@ CREATE TABLE recipe_publish_log (
   conditions_met    jsonb NOT NULL,
   sources           jsonb NOT NULL,
   actor             text NOT NULL,
+  -- The service account, as a fact in the database rather than an
+  -- email a reader has to interpret (§2.4a).
+  service_account_id uuid REFERENCES service_accounts(id),
   kill_switch_on    boolean NOT NULL,
   daily_count_at_publish integer NOT NULL,
   published_at      timestamptz NOT NULL DEFAULT now()
@@ -813,20 +1109,45 @@ so the publish path and the UI read the same number:
 The conditions, in the order they are evaluated (first failure decides
 the level, and the reason is recorded):
 
-| # | condition | fails to |
-|---|---|---|
-| 1 | the dish is `published` | medium (or low if the dish is missing) |
-| 2 | every `recipe_ingredients.ingredient_id` is a **published** ingredient | medium |
-| 3 | the recipe has at least one `recipe_sentences` row | low |
-| 4 | every sentence has a claim with a statement at `status IN ('verified','published')` | medium |
-| 5 | every claim's statement has at least one `supports` citation from an `S1`–`S5` source | medium |
-| 6 | **independence**: ≥2 independent sources on the core claims (§1.2) | medium |
-| 7 | the recipe is not a draft-only stub (has servings/time or an explicit omission) | low |
+| # | condition | fails to | source |
+|---|---|---|---|
+| 1 | the dish is `published` | medium (or low if the dish is missing) | — |
+| 2 | every `recipe_ingredients.ingredient_id` is a **published** ingredient | medium | — |
+| 3 | the recipe has at least one `recipe_sentences` row | low | — |
+| 4 | every sentence has a claim with a statement at `status IN ('verified','published')` | medium | — |
+| 5 | every claim's statement has at least one `supports` citation from an `S1`–`S5` source | medium | §1.3 |
+| 5a | **no contributing source is `S6`/`S7`** — a Wikipedia-only recipe is never HIGH | medium | §1.3 (owner, 2026-11-08) |
+| 6 | **independence**: ≥2 independent sources on the core claims | medium | §1.2 |
+| 7 | **quoted provenance**: every claim that counts toward HIGH carries **quoted** source text, not the drafter's own wording | medium | §1.4 (owner, 2026-11-08) |
+| 8 | the recipe is not a draft-only stub (has servings/time or an explicit omission) | low | — |
+
+**Conditions 5a and 7 are the owner's 2026-11-08 additions**, and they
+are not merely restatements of 5 and 6:
+
+- **5a** is not implied by 5. Condition 5 asks "does the recipe have at
+  least one `S1`–`S5` source?"; 5a asks "are **all** of its
+  contributing sources `S1`–`S5`?" A recipe with one cookbook source
+  and three Wikipedia citations satisfies 5 and fails 5a — it is
+  MEDIUM, because the Wikipedia text would otherwise be carrying weight
+  it is not allowed to carry.
+- **7** is not implied by 4 or 6. Both of those ask about the *sources*;
+  7 asks about the **text** — whether the sentence in the recipe is
+  actually in the source, or whether the drafter composed it. A recipe
+  can have two independent, correctly-classed sources and still be
+  entirely the drafter's own wording.
 
 **Every failing condition is recorded in `conditions_met`**, so a MEDIUM
 recipe can say exactly which condition it failed. That is what the
 owner reviews, and it is why the level is stored as JSON rather than as
 a single enum.
+
+**For a trusted contributor, the same conditions apply** (§6.2). The
+confidence computation does not have a "trusted" branch: a trusted
+contributor's recipe that fails 5a, 6 or 7 is MEDIUM, and MEDIUM goes
+to the review queue. What trust changes is that a trusted contributor's
+MEDIUM recipe is **not** re-drafted and re-queued by the pipeline — it
+waits for a human, which is a different thing from being blocked by
+the pipeline.
 
 ### 8.4 The auto-publish function
 
@@ -840,11 +1161,13 @@ CREATE OR REPLACE FUNCTION recipe_auto_publish(p_recipe_id uuid) RETURNS text;
 Its contract:
 
 1. evaluates the conditions from §8.3 against the **rows**;
-2. checks the kill switch and the cap;
+2. checks the kill switch and the cap — **the switch is checked FIRST,
+   before the recipe is touched** (§7.1);
 3. on success, transitions the recipe's statements to `verified` then
    `published` **through `statement_set_status()`**, with the service
-   account's session token;
-4. writes `recipe_publish_log`;
+   account's session token — the service account being one on
+   `service_accounts` (§2.4);
+4. writes `recipe_publish_log`, including `service_account_id`;
 5. returns a string: the publish reason on success, or the failing
    condition on refusal.
 
@@ -853,49 +1176,68 @@ published because its statements are published — the same direction of
 dependency ADR-007 already has, and the same reason the
 `statements_status_gate_trg` trigger exists.
 
+**It has no contributor branch.** The function evaluates the rows and
+publishes on the HIGH conditions, full stop. A trusted contributor's
+recipe goes through the same function (§6.2): if it is HIGH it
+publishes; if it is MEDIUM it waits for a human, exactly like any other
+MEDIUM recipe. **Trust is not a parameter of this function**, because
+making it one would be the mechanism by which the evidence bar got
+lowered.
+
 ---
 
 ## 9. What this amendment conflicts with, in one place
 
 So the owner can see the whole conflict surface at once:
 
-| # | conflict | where | resolution | still needs a decision? |
+| # | conflict | where | resolution | decided? |
 |---|---|---|---|---|
-| 1 | bot publish credential | 0048 | server-side function (§2) | **yes** — which service account (§2.4), or amend 0048 to be explicit |
+| 1 | bot publish credential | 0048 | server-side function (§2); **0048 amended** to use an explicit `service_accounts` list (§2.4) | **YES — 2026-11-08** |
 | 2 | only 5 published ingredients | ADR-007's publish gate | staged backfill (§3) | no — the plan is here; the *vocabulary* is approved per stage |
 | 3 | `description_sentences` is English-source | live CHECK | recipes get a language-first model; the Atlas is untouched (§4) | no |
-| 4 | trusted contributors may publish below HIGH | §2 vs §6.2 | **proposed**: content conditions, not confidence | **yes** — confirm the reading (§6.2) |
-| 5 | `/family/*` and `/lineages/*` are in the sitemap and are Atlas content | live sitemap vs §5.3 | item 7 must resolve | **yes** — the exact 301 path set (§5.3) |
+| 4 | trusted contributors may publish below HIGH | §2 vs §6.2 | **they may not**: a trusted contributor also needs 2 independent sources, else the review queue (§6.2) | **YES — 2026-11-08** |
+| 5 | `/family/*` and `/lineages/*` are in the sitemap and are Atlas content | live sitemap vs §5.3 | **the full set** — 58 paths, all 55 Atlas pages leave the recipes sitemap (§5.3) | **YES — 2026-11-08** |
 | 6 | the recipes pages would be served on both properties | `post-build.mjs` `RECIPES_ONLY = []` | the strip list gains `/recipes` (§5.5) | no |
 
-**Conflicts 1 and 4 need the owner's answer before the migration
-(item 2) can be written.** Conflict 1 because it decides whether
-`recipe_auto_publish()` gets a session token at all. Conflict 4 because
-it decides the shape of the publish predicate.
+**No conflict now blocks item 2.** Conflicts 1 and 4 were the two the
+owner had to answer before the migration could be written, and both are
+answered (§2.4, §6.2). Conflict 2's *plan* is settled and its per-stage
+vocabulary is approved as the stages run; it does not block the schema
+migration.
 
 ---
 
-## 10. Open decisions for the owner
+## 10. The owner's decisions — **ALL FIVE CLOSED 2026-11-08**
 
-1. **The service account for auto-publish** (§2.4) — option 1
-   (Alejandro's account, misattributes the audit trail), option 2 (a
-   dedicated human-named account — **recommended**), or option 3
-   (owner approves in bulk, which is not auto-publish). And if option 2:
-   **do we amend 0048** so the rule is an explicit service-account list
-   rather than an email-suffix heuristic?
-2. **The trusted-contributor standard** (§6.2) — does a trusted
-   contributor's recipe publish on the **content** conditions only
-   (proposed), or does it also need the source-independence condition?
-3. **The 301 path set** (§5.3) — the brief names `/regions`,
-   `/families`, `/lineages`, but the live sitemap's Atlas content lives
-   at `/family/<slug>` (43) and `/lineages/<slug>` (12), and `/family`
-   itself is a 404. Confirm the exact path set — in particular whether
-   the **detail** pages are redirected too, or the recipes property keeps
-   55 Atlas pages in its own sitemap.
-4. **The kill switch's default** (§7.1) — `disabled` is proposed, so
-   the very first auto-publish only happens after the owner turns it on.
-   Confirm.
-5. **The daily cap of 20** — confirm, or set a different number.
+**There are no open decisions.** The five the draft left open, and the
+answers:
+
+| # | the question | the answer | where |
+|---|---|---|---|
+| 1 | **the auto-publish actor** — whose credential does the function use, and do we amend 0048? | **Amend 0048.** The rule becomes an explicit `service_accounts` list rather than an email-suffix heuristic. The actor is a dedicated human-named service account on that list. | §2.4 |
+| 2 | **the trusted-contributor standard** — does a trusted contributor also need the source-independence condition? | **Yes.** A trusted contributor needs **2 independent sources**, same as anyone. Without them, the recipe goes to Alejandro's review queue. The ladder does not lower the evidence bar. | §6.2 |
+| 3 | **the 301 path set** — the three indexes, or the 55 detail pages too? | **The full set.** `/regions`, `/families`, `/lineages`, all 43 `/family/<slug>` and all 12 `/lineages/<slug>` — **58 paths**. `/family` itself is excluded (404). | §5.3 |
+| 4 | **the kill switch's default** | **OFF at launch.** The migration seeds `disabled`; the owner flips it when ready. | §7.1 |
+| 5 | **the daily cap and the digest** | **Cap 20** auto-publishes per day, and the **digest from day one** — every day, including days with zero auto-publishes, and including recipes published by hand. | §7.2, §7.3 |
+
+**And the three source rules that came with decision 2**, stated
+separately because they are conditions on HIGH rather than decisions
+about process:
+
+| rule | effect | where |
+|---|---|---|
+| **a Wikipedia-only recipe is never HIGH** | every contributing source must be `S1`–`S5`; `S6` never supports HIGH | §1.3 |
+| **the source tiers** | cookbook (`S4`/`S5`), institution (`S3`), established site (`S1`/`S2`) may support HIGH; reference (`S6`) may not | §1.3 |
+| **own wording only is never HIGH** | a claim must carry **quoted** source text, not the drafter's prose | §1.4 |
+
+**What the owner still has to do** (these are actions, not decisions):
+
+1. **Create the service account** — `recipes-publisher@gustale.com`, on
+   `service_accounts`, with a credential issued under ADR-006 (§2.4).
+2. **Create the trusted contributors** — accounts with a verified
+   `publisher` credential (§6.2).
+3. **Give the go for the item-2 migration** — `approved-live` plus a
+   separate go, per ADR-005.
 
 ---
 
