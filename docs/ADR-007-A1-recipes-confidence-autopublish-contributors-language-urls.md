@@ -244,7 +244,8 @@ stale stored value can never cause a publish.
 
 Migration 0048 (`db/migrations/0048_bot_credential_guard.sql`) installs
 `is_bot_publish_actor()` and refuses a publish credential to any account
-whose email local part ends in `-bot` — including `hermes-bot@gustale.com`.
+whose email local part ends in `-bot` — including the existing
+`hermes-bot` account.
 
 > **THE BOT MUST NEVER HOLD A PUBLISH CREDENTIAL.**
 > A publish credential may NOT be held by a bot account.
