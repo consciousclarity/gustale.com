@@ -238,22 +238,43 @@ to be forgotten.
 
 ---
 
-## 5. Open questions for the owner
+## 5. The owner's answers — 2026-11-08
 
-1. **Which host runs the Telegram gateway after the move?** The GEEKOM,
-   or here?
-2. **Is the memory service exposed to the GEEKOM** (LAN/public URL), or
-   does the GEEKOM get its own instance? If the latter, the **bank
-   `gustale`** and its **45+ memories** should be copied too — that is
-   a second database, and it is not in this profile.
-3. **Does `state.db` (897 MB) come along?** My recommendation: yes.
-4. **Do the `.env` backups come along, or get deleted here?** My
-   recommendation: delete them here.
-5. **Does the `gustale` repo working tree come along?** My
-   recommendation: no — clone it fresh on the GEEKOM.
-6. **Should the GEEKOM also take the cron job** (the provider health
-   probe, `17 7 * * *`)? It is the only scheduled job, and it delivers
-   to Telegram — so it must not run in two places.
+The three questions in §0 are **answered**, and the step-by-step plan
+is in **`docs/GEEKOM-MIGRATION-PLAN.md`**.
+
+| # | question | the answer |
+|---|---|---|
+| 1 | **Which host runs the Telegram gateway after the move?** | **The GEEKOM, only.** Start it there, verify it answers, then stop and disable the VPS's. The plan's §4 enforces that order. |
+| 2 | **Is the memory service exposed to the GEEKOM, or does the GEEKOM get its own instance?** | **The GEEKOM gets its OWN instance.** The `gustale` bank is copied across with `hindsight-admin export-bank` → `import-bank`. **The VPS's memory port is not exposed.** |
+| 3 | **Does `state.db` (897 MB) come along?** | **Yes.** `hermes backup` takes a consistent SQLite snapshot of it. |
+
+### Two findings from writing the plan
+
+**The `pg0` marker trap.** `hindsight-admin` defaults to
+`HINDSIGHT_API_DATABASE_URL=pg0`, and `pg0` resolves against
+**`~/.pg0/instances/` of the invoking user**. The VPS's Hindsight
+Postgres belongs to the **`hermes`** user, so running the export as
+`gustale` with the default fails with
+`relation "public.documents" does not exist`. **The fix is an explicit
+URL**, and it needs **no sudo**:
+
+```bash
+# Read the pg0 instance's own credentials from its instance.json rather
+# than typing them here -- this document is in a PUBLIC repo.
+PG0=/home/hermes/.pg0/instances/hindsight/instance.json
+export HINDSIGHT_API_DATABASE_URL="postgresql://$(python3 -c "import json;d=json.load(open('$PG0'));print(d['username']+':'+d['password'])")@127.0.0.1:5433/hindsight"
+```
+
+**This was run as a probe on 2026-11-08 and it works**: 51 documents,
+1231 observations, 764 operations, a 1.7 MB / 63-file archive. The
+probe archive was deleted afterwards.
+
+**The cron ticker lives inside the gateway.** `hermes cron status` says
+*"Gateway is running — cron jobs will fire automatically"* — there is
+no separate cron daemon. Stopping and uninstalling the VPS's gateway
+therefore stops its cron too, which is the right way to guarantee the
+"Provider health probe" runs in exactly one place.
 
 ---
 

@@ -256,37 +256,64 @@ the document is written to match them.
 
 | # | decision | the owner's answer | where |
 |---|---|---|---|
-| 1 | the auto-publish actor | **amend 0048** — an explicit `service_accounts` list replaces the email-suffix heuristic | §2.4 |
+| 1 | the auto-publish actor | **the system actor `system:auto-publish`** — no login, no email, no password, no session, no credential; acts only inside `recipe_auto_publish()`. **No account creation.** | §2.4 |
 | 2 | the trusted-contributor standard | a trusted contributor **also** needs **2 independent sources**; without them → **Alejandro's review queue** | §6.2 |
-| 3 | the 301 path set | **the full set** — 3 indexes + 43 `/family/<slug>` + 12 `/lineages/<slug>` = **58 paths** | §5.3 |
+| 3 | the 301 path set | the **full set** — 3 indexes + 43 `/family/<slug>` + 12 `/lineages/<slug>` = **58 paths** | §5.3 |
 | 4 | the kill switch's default | **OFF at launch** | §7.1 |
 | 5 | the daily cap / the digest | **cap 20**, and the **digest from day one** | §7.2, §7.3 |
 
-**Plus three source rules that came with decision 2**, all now hard
-conditions on HIGH:
+**Two of the five were inverted in the first draft and were corrected on
+2026-11-08.** Both corrections are recorded in the ADR itself, because
+an ADR is a record of decisions *including the ones that changed*:
 
-- **a Wikipedia-only recipe is never HIGH** (§1.3, condition 5a);
-- the source tiers — cookbook `S4`/`S5`, institution `S3`, established
-  site `S1`/`S2` may support HIGH; reference `S6` may not (§1.3);
-- **"own wording only" is never HIGH** — a claim must carry **quoted**
-  source text, not the drafter's prose (§1.4, condition 7).
+**1. The publisher — the actor is `system:auto-publish`, not an account.**
+The first draft proposed a human-named service account
+(`recipes-publisher@gustale.com`) holding a publish credential — and
+then contradicted itself by saying listed accounts are *refused*
+credentials. Both are deleted. The actor is now a **row** on
+`service_accounts` with **no login, no email, no password, no session
+and no credential**, and it acts **only** inside `recipe_auto_publish()`
+(`SECURITY DEFINER`), which re-checks every HIGH condition, the kill
+switch and the cap before performing the transition. The amended 0048
+refuses a credential to **any** listed system actor and says exactly
+how the system actor publishes anyway: through its own function, not
+through the credential path. No human and no bot can use it. **The
+item-2 migration needs no account creation at all.**
 
-**The effect on the schema** (§8): `service_accounts` is a new table;
-`recipe_publish_log` gains `service_account_id`;
-`recipe_settings.auto_publish_enabled` defaults to `false` and
-`auto_publish_daily_cap` to `20` — both already matched the decisions,
-but the *reason* is now written down.
+**2. The wording — published text is in OUR OWN WORDS, never copied.**
+The first draft said "own wording is never HIGH", which had it
+backwards: it required quoting source text in order to reach HIGH, and
+quoting is exactly what the owner forbids. The corrected rule:
+
+- **published recipe text MUST be in our own words, never copied**;
+- **provenance = each core claim links to its source with an exact
+  locator** (page / section / URL);
+- at most a **one-sentence verification excerpt** is stored internally —
+  **never rendered, never published**;
+- **HIGH depends on 2 independent `S1`–`S5` sources supporting the
+  claims**, not on stored quotes.
+
+Condition 7 in §8.3 is replaced by **7′ (locator provenance)**, and the
+daily digest (§7.3) now shows the **locator**, not the source text.
+
+**Plus the other source rule that stands**, a hard condition on HIGH:
+**a Wikipedia-only recipe is never HIGH** (§1.3, condition 5a), with the
+source tiers — cookbook `S4`/`S5`, institution `S3`, established site
+`S1`/`S2` may support HIGH; reference `S6` may not.
+
+**The effect on the schema** (§8): `service_accounts` is a new table
+(`actor`, `kind='system'` — a CHECK that makes it impossible for the
+table to hold a person); `recipe_publish_log` gains
+`service_account_id`; `recipe_settings.auto_publish_enabled` defaults
+to `false` and `auto_publish_daily_cap` to `20`.
 
 **The effect on the auto-publish function** (§8.4): it has **no
 contributor branch**. Trust is not a parameter of it, because making it
 one would be the mechanism by which the evidence bar got lowered.
 
-**Item 2 is now unblocked** — the two conflicts that blocked it (1 and
-4) are both answered. What the owner still has to *do* (actions, not
-decisions): create the service account `recipes-publisher@gustale.com`
-on `service_accounts` with a credential under ADR-006; create the
-trusted contributors; give the `approved-live` + a separate go for the
-item-2 migration.
+**Item 2 is unblocked.** What the owner still has to *do*: give the
+`approved-live` label and a separate go for the item-2 migration.
+**That is all** — no account, no credential, no secret.
 
 ---
 
