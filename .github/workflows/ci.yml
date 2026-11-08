@@ -1034,6 +1034,31 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
             -f db/migrations/0051_family_classification.sql
 
+      # ── 0052: the recipes schema ──────────────────────────────────
+      #
+      # The recipes property's schema: the five recipe tables, the
+      # service accounts, the kill switch, the confidence computation
+      # and the auto-publish function.
+      #
+      # It runs AFTER 0051, because it amends `statement_set_status()`
+      # -- the function 0047 wrote and 0048 amended -- and widens the
+      # `statements_subject_type_check` constraint to accept 'recipe'.
+      # Both must be in their FINAL shape before 0052 widens them.
+      #
+      # It writes NO content rows: no recipe, no ingredient, no
+      # statement. The kill switch it creates ships `disabled`, so the
+      # auto-publish path is dormant on arrival.
+      #
+      # It carries its own behavioural proof and FAILS if any of it
+      # does not hold: the system actor has no credential, a forged
+      # token is refused, a real HIGH recipe is published, and the
+      # migration leaves no content rows behind.
+      - name: Apply the recipes schema
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0052_recipes_schema.sql 2>&1 | tee /tmp/m0052.log
+          bash scripts/check-ci-markers.sh "the recipes schema" "RECIPES_SCHEMA_OK" /tmp/m0052.log
+
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.
