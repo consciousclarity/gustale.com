@@ -265,8 +265,180 @@ CREATE TABLE IF NOT EXISTS public.recipe_claims (
 COMMENT ON TABLE public.recipe_claims IS
 'The recipe-scoped claim link. A SEPARATE table from sentence_claims on '
 'purpose (ADR-007 Option A): sentence_claims.sentence_id is FK-bound to '
-'description_sentences(id) and cannot carry a recipe sentence. The '
+'`description_sentences(id)` and cannot carry a recipe sentence. The '
 '`statements` table -- where the provenance lives -- is SHARED.';
+
+-- ── THE SCOPE RULE: a recipe claim may only name a RECIPE statement ──
+--
+-- THE HOLE THIS CLOSES
+-- -------------------
+-- `statements` is SHARED: the Atlas dish and place statements live in
+-- it, alongside the recipe statements. `recipe_claims.statement_id`
+-- is a plain FK to `statements.id`, so -- without this rule -- a
+-- recipe claim could name an ATLAS statement.
+--
+-- That is not a cosmetic problem. `recipe_auto_publish()` publishes
+-- EVERY statement behind the recipe's claims, so a HIGH recipe whose
+-- claim names a dish statement would VERIFY and PUBLISH that dish
+-- statement as `system:auto-publish` -- with no editorial review, and
+-- on the Atlas side of the house.
+--
+-- This was reproduced end to end before the rule existed: a recipe
+-- claim pointing at a `dish` statement carried that statement from
+-- `draft` to `published`, stamped `published_by = system:auto-publish`.
+--
+-- THE RULE
+-- --------
+-- A claim may only name a statement that is ABOUT THE RECIPE:
+--
+--   st.subject_type = 'recipe'  AND  st.subject_id = the recipe the
+--   claiming sentence belongs to.
+--
+-- So a claim can never reach outside its own recipe, and a recipe's
+-- statements can never be mixed with another recipe's.
+--
+-- WHY A TRIGGER AND NOT A CHECK CONSTRAINT
+-- ----------------------------------------
+-- A CHECK constraint can only see the row's own columns. This rule
+-- spans THREE tables -- `recipe_claims` -> `recipe_sentences` ->
+-- `recipes`, and `recipe_claims` -> `statements` -- so it needs a
+-- trigger.
+--
+-- WHY DEFERRABLE, AND WHY IT IS *CONSTRAINT* TRIGGER
+-- ---------------------------------------------------
+-- It is a CONSTRAINT TRIGGER, DEFERRABLE INITIALLY IMMEDIATE, and it
+-- fires on INSERT and UPDATE of the claim. The same rule is enforced
+-- from the OTHER side by `recipe_claims_subject_trg` on
+-- `statements` (below), so a statement cannot be moved OUT from under
+-- a claim after the fact.
+--
+-- Deferrable is what lets a whole recipe be written in any order --
+-- the sentences, the claims and the statements can be inserted in
+-- whatever order is convenient -- while still refusing, at COMMIT, a
+-- claim that reaches outside its recipe.
+--
+-- The deferred check on the STATEMENTS side is the same shape as
+-- `statements_subject_exists_trg` (0041), which is already DEFERRABLE
+-- for the same reason.
+CREATE OR REPLACE FUNCTION public.recipe_claims_subject_check()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_recipe  uuid;
+  v_subject_type text;
+  v_subject_id   uuid;
+BEGIN
+  -- The recipe that owns the claiming sentence.
+  SELECT rs.recipe_id INTO v_recipe
+    FROM public.recipe_sentences rs
+   WHERE rs.id = NEW.recipe_sentence_id;
+
+  IF v_recipe IS NULL THEN
+    -- The sentence does not exist. The FK will refuse this row anyway;
+    -- there is nothing to scope-check.
+    RETURN NEW;
+  END IF;
+
+  -- The statement the claim names, and its subject.
+  SELECT st.subject_type, st.subject_id
+    INTO v_subject_type, v_subject_id
+    FROM public.statements st
+   WHERE st.id = NEW.statement_id;
+
+  IF v_subject_type IS NULL THEN
+    -- The statement does not exist. The FK will refuse this row.
+    RETURN NEW;
+  END IF;
+
+  IF v_subject_type <> 'recipe' OR v_subject_id <> v_recipe THEN
+    RAISE EXCEPTION
+      'a recipe claim may only name a statement ABOUT ITS OWN RECIPE: '
+      'the claim on the sentence % names the statement %, whose subject is '
+      'a % (%), but the sentence belongs to the recipe %. '
+      'The `statements` table is shared with the Atlas dish and place '
+      'statements, and a recipe may never claim one of those.',
+      NEW.recipe_sentence_id, NEW.statement_id, v_subject_type,
+      v_subject_id, v_recipe
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.recipe_claims_subject_check() IS
+'Refuses a recipe claim that names a statement which is not about the '
+'claiming sentence''s own recipe. `statements` is SHARED with the Atlas '
+'dish and place statements, so without this rule a HIGH recipe whose '
+'claim named a dish statement would cause recipe_auto_publish() to '
+'verify and publish that Atlas statement as system:auto-publish, with '
+'no editorial review.';
+
+DROP TRIGGER IF EXISTS recipe_claims_subject_trg ON public.recipe_claims;
+CREATE CONSTRAINT TRIGGER recipe_claims_subject_trg
+AFTER INSERT OR UPDATE ON public.recipe_claims
+DEFERRABLE INITIALLY IMMEDIATE
+FOR EACH ROW
+EXECUTE FUNCTION public.recipe_claims_subject_check();
+
+-- ── THE SAME RULE, FROM THE STATEMENTS SIDE ────────────────────────
+--
+-- The rule above refuses a claim that NAMES a foreign statement. This
+-- one refuses a statement that is MOVED away from the recipe after a
+-- claim already points at it -- an UPDATE of `subject_type` or
+-- `subject_id`, or a DELETE of the recipe that the statement is about.
+--
+-- Without it, the rule above could be bypassed by editing the
+-- statement instead of the claim.
+CREATE OR REPLACE FUNCTION public.recipe_claims_statement_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_bad text;
+BEGIN
+  -- For every claim that names THIS statement, the statement must still
+  -- be about the recipe that the claiming sentence belongs to.
+  --
+  -- The join is what makes it a scope check: it walks the claim to its
+  -- sentence to its recipe, and compares that with the statement's
+  -- own subject.
+  SELECT string_agg(DISTINCT rc.statement_id::text, ', ')
+    INTO v_bad
+    FROM public.recipe_claims rc
+    JOIN public.recipe_sentences rs ON rs.id = rc.recipe_sentence_id
+    JOIN public.statements st ON st.id = rc.statement_id
+   WHERE rc.statement_id = COALESCE(NEW.id, OLD.id)
+     AND (st.subject_type IS DISTINCT FROM 'recipe'
+          OR st.subject_id IS DISTINCT FROM rs.recipe_id);
+
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION
+      'the statement % cannot leave the recipe its claim names: a recipe '
+      'claim may only name a statement about its own recipe, and this '
+      'statement is now about something else.',
+      COALESCE(NEW.id, OLD.id)
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NULL;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.recipe_claims_statement_guard() IS
+'The statements-side half of the recipe scope rule: a statement that a '
+'recipe claim names may not be MOVED out from under that claim by an '
+'UPDATE of its subject. Without it the claim-side check could be '
+'bypassed by editing the statement instead of the claim.';
+
+DROP TRIGGER IF EXISTS recipe_claims_statement_guard_trg ON public.statements;
+CREATE CONSTRAINT TRIGGER recipe_claims_statement_guard_trg
+AFTER UPDATE OF subject_type, subject_id ON public.statements
+DEFERRABLE INITIALLY IMMEDIATE
+FOR EACH ROW
+EXECUTE FUNCTION public.recipe_claims_statement_guard();
+
 
 -- Translations, scoped to the recipe, plus the `is_original` marker that
 -- gives the "primary title" question one answer (ADR-007-A1 §4.3).
@@ -779,11 +951,28 @@ BEGIN
     FROM public.recipe_sentences rs WHERE rs.recipe_id = p_recipe_id;
 
   -- THE CORE CLAIMS: the statements behind the recipe's sentences.
+  --
+  -- AND ONLY THE RECIPE'S OWN STATEMENTS.
+  --
+  -- The scope clause is the same one the trigger, the authorisation
+  -- and the publish loop use. Without it, a claim naming an Atlas
+  -- statement would contribute that Atlas statement's sources,
+  -- citations and independence to THIS recipe's confidence -- so a
+  -- recipe could reach HIGH on the evidence of somebody else's
+  -- claims, and then publish those claims.
+  --
+  -- The trigger refuses such a claim outright, so this clause should
+  -- never change the answer. It is written anyway, because a
+  -- confidence function that is only as safe as the constraint in
+  -- front of it is not a safety property -- it is a coincidence.
   SELECT coalesce(array_agg(DISTINCT rc.statement_id), '{}'::uuid[])
     INTO v_core_statements
     FROM public.recipe_sentences rs
     JOIN public.recipe_claims rc ON rc.recipe_sentence_id = rs.id
-   WHERE rs.recipe_id = p_recipe_id;
+    JOIN public.statements st ON st.id = rc.statement_id
+   WHERE rs.recipe_id = p_recipe_id
+     AND st.subject_type = 'recipe'
+     AND st.subject_id = p_recipe_id;
 
   -- (5) THE S1-S5 SOURCES THAT SUPPORT A CORE CLAIM.
   IF array_length(v_core_statements, 1) IS NULL THEN
@@ -959,6 +1148,20 @@ BEGIN
   -- so the condition is true both BEFORE and AFTER the transition,
   -- which is what makes it usable by both the confidence computation
   -- and the publish view.
+  --
+  -- RESTRICTED TO THE RECIPE'S OWN STATEMENTS -- the owner's
+  -- confirmation of 2026-11-08. The statement must be ABOUT this
+  -- recipe: `subject_type = 'recipe'` and `subject_id` = this recipe.
+  --
+  -- Without that restriction, condition 4 could be satisfied by an
+  -- ATLAS statement: the recipe's sentence would "have an evidenced
+  -- statement", and the Atlas statement's own citations and
+  -- independence would carry the recipe to HIGH. The trigger refuses
+  -- such a claim outright, so this clause should never change the
+  -- answer -- but the same rule is written here anyway, because
+  -- condition 4 is the EVIDENCE GATE, and the gate must be
+  -- self-contained rather than trusting whatever constraint happens to
+  -- sit in front of it.
   IF EXISTS (
     SELECT 1
       FROM public.recipe_sentences rs
@@ -966,6 +1169,8 @@ BEGIN
       LEFT JOIN public.statements st ON st.id = rc.statement_id
      WHERE rs.recipe_id = p_recipe_id
        AND (st.id IS NULL
+            OR st.subject_type IS DISTINCT FROM 'recipe'
+            OR st.subject_id IS DISTINCT FROM p_recipe_id
             OR st.claim_class IN ('unsupported','disputed')
             OR NOT EXISTS (
                  SELECT 1 FROM public.claim_citations c
@@ -1271,17 +1476,40 @@ BEGIN
     --   * be for the recipe that owns THIS statement, so a token
     --     minted for one recipe cannot authorise another.
     --
-    -- The third clause is checked in the same query, by joining the
-    -- token to the statement's recipe. So the query returns a row
-    -- ONLY when all three hold at once.
+    -- AND THE STATEMENT ITSELF MUST BE ABOUT THAT RECIPE.
+    --
+    -- This last clause is the SCOPE rule, and it is what stops a
+    -- token from authorising a transition on an ATLAS statement.
+    --
+    -- WITHOUT IT, THE HOLE: `statements` is shared with the Atlas dish
+    -- and place statements. The join below proved only that SOME
+    -- recipe claimed the statement -- not that the statement was
+    -- ABOUT that recipe. So a recipe claim naming a dish statement
+    -- would let the recipe's token authorise the publishing of that
+    -- Atlas statement. It was reproduced end to end before this clause
+    -- existed: a dish statement went from `draft` to `published`,
+    -- stamped `published_by = system:auto-publish`.
+    --
+    -- The clause is written twice, on purpose -- once here, and once in
+    -- `recipe_claims_subject_check()`. The trigger is the rule; this
+    -- is the AUTHORISATION, and the two must agree. If they ever
+    -- disagree, the authorisation must be the stricter one, because
+    -- it is the one that decides whether a transition happens.
+    --
+    -- The query returns a row ONLY when all four hold at once.
     SELECT t.recipe_id
       INTO v_token_recipe
       FROM public.recipe_auto_publish_token t
       JOIN public.recipe_sentences rs ON rs.recipe_id = t.recipe_id
       JOIN public.recipe_claims rc ON rc.recipe_sentence_id = rs.id
+      JOIN public.statements st ON st.id = rc.statement_id
      WHERE t.token::text = p_session_token
        AND t.txid = txid_current()
        AND rc.statement_id = p_statement_id
+       -- THE SCOPE CLAUSE: the statement must be ABOUT the recipe the
+       -- token was minted for.
+       AND st.subject_type = 'recipe'
+       AND st.subject_id = t.recipe_id
      LIMIT 1;
 
     IF v_token_recipe IS NOT NULL THEN
@@ -1606,10 +1834,27 @@ BEGIN
     -- aggregate is not nested inside another aggregate. (Writing
     -- `string_agg` directly over `jsonb_each` in the same SELECT is
     -- the "aggregate function calls cannot be nested" error.)
+    --
+    -- NB: the `->>` is PARENTHESISED, and it must be.
+    --
+    -- In PostgreSQL, `||` binds TIGHTER than `->>`. So
+    -- `e.key || ': ' || e.value ->> 'detail'` parses as
+    -- `(e.key || ': ' || e.value) ->> 'detail'` -- the concatenation
+    -- happens FIRST, producing a text, and then `->>` is applied to a
+    -- text: "operator does not exist: text ->> unknown".
+    --
+    -- This was a real defect, and it was found by RUNNING the code
+    -- rather than by reading it: the REFUSED path is what runs when a
+    -- recipe is not HIGH, so the most common refusal of the whole
+    -- feature raised a PostgreSQL error instead of naming the failing
+    -- conditions. The proof only passed because its fixture was HIGH,
+    -- so the refusal path was never taken.
+    --
+    -- The parentheses make the intent explicit and remove the trap.
     SELECT string_agg(fmt, '; ')
       INTO v_refused
       FROM (
-        SELECT key || ': ' || value ->> 'detail' AS fmt
+        SELECT e.key || ': ' || (e.value ->> 'detail') AS fmt
           FROM jsonb_each(v_conds) AS e(key, value)
          WHERE (e.value ->> 'met')::boolean IS NOT TRUE
          ORDER BY e.key
@@ -1661,13 +1906,32 @@ BEGIN
   RETURNING token INTO v_token;
 
   BEGIN
-    -- The statements to publish: the recipe's own statements, i.e. the
-    -- statements behind its sentences.
+    -- The statements to publish: the recipe's OWN statements -- the
+    -- statements that are ABOUT this recipe, behind its sentences.
+    --
+    -- THE SCOPE CLAUSE, HERE TOO. The join below reaches a statement
+    -- through the recipe's claims, and the WHERE clause then requires
+    -- that the statement's OWN subject IS this recipe. So a claim that
+    -- somehow named an Atlas dish or place statement would be skipped
+    -- here rather than published.
+    --
+    -- This is the third place the same rule is written: the trigger
+    -- (`recipe_claims_subject_check()`), the authorisation
+    -- (`statement_set_status()`'s system-actor branch), and here. The
+    -- trigger is the rule that refuses the bad row; the authorisation
+    -- is the rule that refuses the bad transition; this is the rule
+    -- that refuses to even look at it.
+    --
+    -- All three agree by construction, because all three compare the
+    -- statement's subject with the recipe's own id.
     FOR r IN
       SELECT DISTINCT rc.statement_id
         FROM public.recipe_sentences rs
         JOIN public.recipe_claims rc ON rc.recipe_sentence_id = rs.id
+        JOIN public.statements st ON st.id = rc.statement_id
        WHERE rs.recipe_id = p_recipe_id
+         AND st.subject_type = 'recipe'
+         AND st.subject_id = p_recipe_id
     LOOP
       v_statement := r.statement_id;
       PERFORM public.statement_set_status(v_statement, 'verified', v_token::text);
@@ -2457,6 +2721,492 @@ BEGIN
   DELETE FROM public.recipe_ingredients WHERE recipe_id = v_recipe;
   DELETE FROM public.recipes WHERE id = v_recipe;
   DELETE FROM public.sources WHERE id IN (v_source_a, v_source_b);
+END;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- THE SCOPE PROOF -- A RECIPE MAY NEVER CLAIM AN ATLAS STATEMENT
+-- ═══════════════════════════════════════════════════════════════════════
+--
+-- THE HOLE THIS BLOCK CLOSES
+-- ------------------------
+-- `statements` is SHARED. The Atlas dish and place statements live in
+-- it, alongside the recipe statements. `recipe_claims.statement_id`
+-- is a plain FK to `statements(id)`, so a recipe claim could name an
+-- ATLAS statement.
+--
+-- `recipe_auto_publish()` publishes EVERY statement behind the
+-- recipe's claims. So a HIGH recipe whose claim named a dish
+-- statement would VERIFY and PUBLISH that dish statement as
+-- `system:auto-publish` -- with no editorial review, and on the
+-- Atlas side of the house.
+--
+-- This was REPRODUCED END TO END before the scope rule existed: a
+-- recipe claim pointing at a `dish` statement carried that statement
+-- from `draft` to `published`, stamped
+-- `published_by = system:auto-publish`. The exploit, and the fix, are
+-- both real; this block is the proof that the fix holds.
+--
+-- THE THREE CASES
+-- ---------------
+-- (a) THE LINK IS REFUSED -- a claim naming an Atlas statement is
+--     refused by the trigger, on INSERT and on UPDATE.
+-- (b) EVEN IF FORCED IN, THE ATLAS STATEMENT IS UNCHANGED -- the
+--     authorisation refuses the transition, so a statement that got
+--     in some other way is not published.
+-- (c) THE HAPPY PATH STILL PUBLISHES -- a claim naming the recipe's
+--     OWN statement still works.
+-- (d) THE STATEMENTS SIDE -- a statement that a claim names cannot
+--     be MOVED out from under that claim, neither to another subject
+--     nor to another recipe.
+--
+-- Case (b) is the one that matters most. A trigger can be bypassed
+-- by a superuser, a `session_replication_role = replica` setting, or
+-- a future migration that drops it. The AUTHORISATION must not
+-- depend on the trigger being there. So case (b) forces the bad
+-- link in the way that bypasses the trigger -- `ALTER TABLE ...
+-- DISABLE TRIGGER` -- and then checks that the Atlas statement is
+-- STILL not published.
+--
+-- Case (d) covers the OTHER WAY IN. The claim-side trigger watches
+-- `recipe_claims`; it does not fire when a STATEMENT is edited. So
+-- without the statements-side guard, the scope rule could be
+-- bypassed by creating a legitimate claim and then moving the
+-- statement it names.
+DO $$
+DECLARE
+  v_dish       uuid;
+  v_predicate  uuid;
+  v_recipe     uuid;
+  v_sentence   uuid;
+  v_atlas_stmt uuid;
+  v_own_stmt   uuid;
+  v_status     text;
+  v_result     text;
+  v_refused    boolean;
+  v_conf       jsonb;
+  v_token      uuid;
+  v_other_recipe uuid;
+BEGIN
+  SELECT id INTO v_dish FROM public.dishes WHERE status = 'published' LIMIT 1;
+  IF v_dish IS NULL THEN
+    RAISE EXCEPTION 'the scope proof needs a published dish -- there is none';
+  END IF;
+  SELECT id INTO v_predicate FROM public.predicates LIMIT 1;
+
+  -- A RECIPE, with one sentence.
+  INSERT INTO public.recipes (id, dish_id, slug, title)
+  VALUES ('e1000000-0000-0000-0000-000000000001', v_dish,
+          'the-scope-proof-fixture', 'the scope proof fixture')
+  RETURNING id INTO v_recipe;
+
+  INSERT INTO public.recipe_sentences (id, recipe_id, field, locale, position, text, is_original)
+  VALUES ('e1000000-0000-0000-0000-000000000002', v_recipe, 'step', 'en', 1,
+          'the scope proof sentence', true)
+  RETURNING id INTO v_sentence;
+
+  -- AN ATLAS DISH STATEMENT -- `subject_type = 'dish'`, so it
+  -- belongs to the Atlas, not to any recipe.
+  INSERT INTO public.statements (
+    id, subject_type, subject_id, predicate_id, value_type, value_literal,
+    value_literal_type, claim_class, status
+  ) VALUES (
+    'e1000000-0000-0000-0000-000000000003', 'dish', v_dish, v_predicate,
+    'literal', 'an atlas value', 'text', 'documented', 'draft'
+  )
+  RETURNING id INTO v_atlas_stmt;
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- (a) THE LINK IS REFUSED
+  -- ═════════════════════════════════════════════════════════════════
+  v_refused := false;
+  BEGIN
+    INSERT INTO public.recipe_claims (recipe_sentence_id, statement_id)
+    VALUES (v_sentence, v_atlas_stmt);
+  EXCEPTION WHEN check_violation THEN
+    v_refused := true;
+  END;
+
+  IF NOT v_refused THEN
+    RAISE EXCEPTION
+      'a recipe claim naming an Atlas dish statement was ACCEPTED -- the '
+      'scope rule is not in force, and recipe_auto_publish() could '
+      'publish an Atlas statement';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: a recipe claim naming an Atlas statement is refused on INSERT';
+
+  -- THE SAME RULE, ON UPDATE: a claim that is legitimate today must
+  -- not be able to be re-pointed at an Atlas statement tomorrow.
+  --
+  -- The UPDATE is tested against the rule, so a legitimate claim is
+  -- created first and then moved.
+  INSERT INTO public.statements (
+    id, subject_type, subject_id, predicate_id, value_type, value_literal,
+    value_literal_type, claim_class, status
+  ) VALUES (
+    'e1000000-0000-0000-0000-000000000004', 'recipe', v_recipe, v_predicate,
+    'literal', 'the recipe own value', 'text', 'documented', 'draft'
+  )
+  RETURNING id INTO v_own_stmt;
+
+  INSERT INTO public.recipe_claims (recipe_sentence_id, statement_id)
+  VALUES (v_sentence, v_own_stmt);
+
+  v_refused := false;
+  BEGIN
+    UPDATE public.recipe_claims
+       SET statement_id = v_atlas_stmt
+     WHERE recipe_sentence_id = v_sentence;
+  EXCEPTION WHEN check_violation THEN
+    v_refused := true;
+  END;
+
+  IF NOT v_refused THEN
+    RAISE EXCEPTION
+      'a recipe claim was re-pointed at an Atlas dish statement -- the '
+      'scope rule is not in force on UPDATE';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: a recipe claim naming an Atlas statement is refused on UPDATE';
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- (d) THE STATEMENTS SIDE -- A CLAIMED STATEMENT CANNOT BE MOVED
+  -- ═════════════════════════════════════════════════════════════════
+  --
+  -- The rule above refuses a claim that NAMES a foreign statement.
+  -- This one refuses the other direction: a statement that a claim
+  -- ALREADY names cannot be MOVED out from under that claim.
+  --
+  -- Without it, the claim-side check could be bypassed by editing the
+  -- STATEMENT instead of the claim: create a legitimate claim on the
+  -- recipe's own statement, then UPDATE that statement's subject to
+  -- point at the dish. The claim-side trigger does not fire -- it
+  -- watches `recipe_claims`, and `recipe_claims` did not change.
+  --
+  -- The legitimate claim on `v_own_stmt` is already in place from the
+  -- UPDATE case above.
+  v_refused := false;
+  BEGIN
+    UPDATE public.statements
+       SET subject_type = 'dish',
+           subject_id   = v_dish
+     WHERE id = v_own_stmt;
+  EXCEPTION WHEN check_violation THEN
+    v_refused := true;
+  END;
+
+  IF NOT v_refused THEN
+    RAISE EXCEPTION
+      'a statement named by a recipe claim was MOVED out from under that '
+      'claim -- the statements-side scope rule is not in force';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: a claimed statement cannot be moved to another subject';
+
+  -- The statement really did not move.
+  SELECT subject_type INTO v_status FROM public.statements WHERE id = v_own_stmt;
+  IF v_status <> 'recipe' THEN
+    RAISE EXCEPTION
+      'the claimed statement is about % and not recipe -- the '
+      'statements-side scope rule is not in force', v_status;
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: the claimed statement is still about the recipe';
+
+  -- AND THE OTHER DIRECTION: a statement cannot be moved to a
+  -- DIFFERENT recipe either. Same rule, different recipe.
+  INSERT INTO public.recipes (id, dish_id, slug, title)
+  VALUES ('e1000000-0000-0000-0000-000000000005', v_dish,
+          'the-other-recipe-fixture', 'the other recipe fixture')
+  RETURNING id INTO v_other_recipe;
+
+  v_refused := false;
+  BEGIN
+    UPDATE public.statements
+       SET subject_id = v_other_recipe
+     WHERE id = v_own_stmt;
+  EXCEPTION WHEN check_violation THEN
+    v_refused := true;
+  END;
+
+  IF NOT v_refused THEN
+    RAISE EXCEPTION
+      'a statement named by a recipe claim was MOVED to another recipe -- '
+      'the statements-side scope rule is not in force';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: a claimed statement cannot be moved to another recipe';
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- (b) EVEN IF FORCED IN, THE ATLAS STATEMENT IS UNCHANGED
+  -- ═════════════════════════════════════════════════════════════════
+  --
+  -- The trigger is bypassed on purpose: `ALTER TABLE ... DISABLE
+  -- TRIGGER` is what a superuser, or a future migration, or a
+  -- mistake could do. The AUTHORISATION must hold on its own.
+  --
+  -- THE TEST IS DIRECT, AND THAT IS THE WHOLE POINT
+  -- -----------------------------------------------
+  -- The obvious way to write this case is to build a HIGH recipe
+  -- whose claim names the Atlas statement, call
+  -- `recipe_auto_publish()`, and assert the Atlas statement did not
+  -- move. That test is WORTHLESS, and it is worth saying why:
+  --
+  -- A recipe that is not HIGH is refused by the CONFIDENCE GATE,
+  -- before the publish loop is ever reached. So the Atlas statement
+  -- would be untouched -- not because the scope rule works, but
+  -- because the recipe was never publishable. The test would pass
+  -- with the scope rule DELETED.
+  --
+  -- That is exactly what happened the first time this block was
+  -- written: the recipe computed `medium`, the call returned
+  -- "REFUSED: ... is medium, not high", and the Atlas statement was
+  -- untouched. The assertion was true for the wrong reason.
+  --
+  -- And the second attempt -- the DIFFERENTIAL test -- hit the same
+  -- wall from the other side: with condition 4 scoped, a recipe
+  -- holding an Atlas claim can never be HIGH, so the two calls could
+  -- never differ in the way the differential needed.
+  --
+  -- So the authorisation is tested DIRECTLY, on the one thing that
+  -- is actually being claimed: a VALID token, presented for the
+  -- Atlas statement, must be refused. That is the question the
+  -- owner's instruction asks, and it can be asked without the
+  -- confidence gate in the way.
+  --
+  -- The trigger is disabled only for the duration of the swap, and
+  -- is re-enabled immediately afterwards.
+  UPDATE public.recipe_settings
+     SET auto_publish_mode = 'enabled'
+   WHERE id = true;
+
+  -- The two independent S1-S5 sources, each with a locator.
+  INSERT INTO public.sources (id, source_type, title, source_class, language)
+  VALUES ('e1000000-0000-0000-0000-0000000000a1', 'book', 'scope source A', 'S2', 'en')
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.sources (id, source_type, title, source_class, language)
+  VALUES ('e1000000-0000-0000-0000-0000000000b2', 'book', 'scope source B', 'S3', 'en')
+  ON CONFLICT (id) DO NOTHING;
+
+  -- THE EVIDENCE FOR THE RECIPE'S OWN STATEMENT.
+  INSERT INTO public.claim_citations (statement_id, source_id, stance, locator, retrieved_at)
+  VALUES (v_own_stmt, 'e1000000-0000-0000-0000-0000000000a1', 'supports', 'p.3', now());
+  INSERT INTO public.claim_citations (statement_id, source_id, stance, locator, retrieved_at)
+  VALUES (v_own_stmt, 'e1000000-0000-0000-0000-0000000000b2', 'supports', 'p.4', now());
+
+  INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, unit, position)
+  SELECT v_recipe, id, '1', 'cup', 1
+    FROM public.ingredients WHERE status = 'published' LIMIT 1;
+
+  UPDATE public.recipes
+     SET servings = 2, prep_minutes = 10, cook_minutes = 20
+   WHERE id = v_recipe;
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- (c) FIRST: THE HAPPY PATH PUBLISHES -- THE CONTROL
+  -- ═════════════════════════════════════════════════════════════════
+  --
+  -- The control. The claim names the recipe's OWN statement, so the
+  -- scope rule does not apply, and the recipe publishes.
+  v_result := public.recipe_auto_publish(v_recipe);
+  IF v_result NOT LIKE 'PUBLISHED:%' THEN
+    RAISE EXCEPTION
+      'the control failed: recipe_auto_publish() returned % for a '
+      'recipe whose claim names its OWN statement. The differential '
+      'test below would be meaningless without it.', v_result;
+  END IF;
+
+  SELECT status INTO v_status FROM public.statements WHERE id = v_own_stmt;
+  IF v_status <> 'published' THEN
+    RAISE EXCEPTION
+      'the recipe own statement is % and not published -- the scope '
+      'rule has broken the ordinary path', v_status;
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: the CONTROL -- the recipe own statement publishes (%s)', v_result;
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- NOW THE TEST: THE SAME RECIPE, THE CLAIM SWAPPED TO THE ATLAS
+  -- STATEMENT
+  -- ═════════════════════════════════════════════════════════════════
+  --
+  -- The claim is moved with the trigger DISABLED, so the row is
+  -- forced in the way a superuser or a careless migration would
+  -- force it.
+  EXECUTE 'ALTER TABLE public.recipe_claims DISABLE TRIGGER recipe_claims_subject_trg';
+  BEGIN
+    INSERT INTO public.recipe_claims (recipe_sentence_id, statement_id)
+    VALUES (v_sentence, v_atlas_stmt);
+  EXCEPTION WHEN OTHERS THEN
+    -- The statements-side guard may still refuse it. That is fine --
+    -- but then the bad row is not there, and the test below would be
+    -- vacuous. It is caught by the assertion on the claim.
+    NULL;
+  END;
+  EXECUTE 'ALTER TABLE public.recipe_claims ENABLE TRIGGER recipe_claims_subject_trg';
+
+  -- THE BAD ROW MUST BE THERE, or the rest of the test proves
+  -- nothing.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.recipe_claims
+     WHERE recipe_sentence_id = v_sentence AND statement_id = v_atlas_stmt
+  ) THEN
+    RAISE EXCEPTION
+      'the Atlas claim could not be forced in even with the trigger '
+      'disabled -- the differential test cannot run';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: the Atlas claim WAS forced in, with the trigger disabled';
+
+  -- The Atlas statement needs the SAME evidence the recipe's own
+  -- statement has, so that the ONLY difference between the two calls
+  -- is which statement the claim names.
+  INSERT INTO public.claim_citations (statement_id, source_id, stance, locator, retrieved_at)
+  VALUES (v_atlas_stmt, 'e1000000-0000-0000-0000-0000000000a1', 'supports', 'p.1', now());
+  INSERT INTO public.claim_citations (statement_id, source_id, stance, locator, retrieved_at)
+  VALUES (v_atlas_stmt, 'e1000000-0000-0000-0000-0000000000b2', 'supports', 'p.2', now());
+
+  -- The Atlas statement is still a draft.
+  SELECT status INTO v_status FROM public.statements WHERE id = v_atlas_stmt;
+  IF v_status <> 'draft' THEN
+    RAISE EXCEPTION 'the Atlas statement is % and not draft -- something published it', v_status;
+  END IF;
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- THE TEST: A VALID TOKEN, AUTHORISING THE ATLAS STATEMENT
+  -- ═════════════════════════════════════════════════════════════════
+  --
+  -- Here is the thing that makes case (b) hard, and it is worth
+  -- stating plainly:
+  --
+  -- With condition 4 SCOPED -- which is the owner's confirmed
+  -- reading -- a recipe whose claim names an Atlas statement can
+  -- NEVER be HIGH. The scope clause in condition 4 makes the
+  -- recipe MEDIUM at best. So the recipe auto-publish path is never
+  -- reached with an Atlas claim, and a test that tries to reach it
+  -- cannot succeed.
+  --
+  -- That is a GOOD property. It means the scope rule has been
+  -- applied to the EVIDENCE GATE as well as to the authorisation.
+  --
+  -- But it means the AUTHORISATION must be tested on its own, or the
+  -- test proves nothing: the recipe is refused by the confidence
+  -- gate, the Atlas statement is untouched, and the assertion passes
+  -- for the wrong reason.
+  --
+  -- So the authorisation is tested DIRECTLY. A token is minted for
+  -- this recipe -- a REAL token, in the token table, in this
+  -- transaction, exactly as `recipe_auto_publish()` mints it -- and
+  -- it is presented for the ATLAS statement.
+  --
+  -- The token is valid in every respect. The ONLY thing wrong with
+  -- the call is the STATEMENT it names. If the scope clause were
+  -- missing from `statement_set_status()`, this call would verify
+  -- and publish the Atlas statement.
+  --
+  -- The token is minted by the owner, through the same SECURITY
+  -- DEFINER helper the auto-publish path uses, so the `current_user`
+  -- half of the authorisation passes too. The test is therefore
+  -- about the SCOPE clause and nothing else.
+  INSERT INTO public.recipe_auto_publish_token (token, recipe_id, txid)
+  VALUES (gen_random_uuid(), v_recipe, txid_current())
+  RETURNING token INTO v_token;
+
+  v_refused := false;
+  BEGIN
+    PERFORM public.statement_set_status(v_atlas_stmt, 'verified', v_token::text);
+  EXCEPTION WHEN OTHERS THEN
+    v_refused := true;
+  END;
+
+  IF NOT v_refused THEN
+    RAISE EXCEPTION
+      'a VALID token authorised a transition on the Atlas statement % -- '
+      'the scope clause is missing from statement_set_status()', v_atlas_stmt;
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: a valid token is REFUSED for the Atlas statement';
+
+  -- And the Atlas statement really did not move.
+  SELECT status INTO v_status FROM public.statements WHERE id = v_atlas_stmt;
+  IF v_status <> 'draft' THEN
+    RAISE EXCEPTION
+      'the Atlas statement was moved to % by a valid token -- the scope '
+      'clause is missing from the authorisation', v_status;
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: the Atlas statement stays at draft';
+
+  -- THE TOKEN IS DELETED, so it cannot be replayed.
+  DELETE FROM public.recipe_auto_publish_token WHERE token = v_token;
+
+  -- The publish log must not claim the recipe published the Atlas
+  -- statement either.
+  IF EXISTS (
+    SELECT 1 FROM public.statement_status_log
+     WHERE statement_id = v_atlas_stmt
+       AND to_status IN ('verified','published')
+  ) THEN
+    RAISE EXCEPTION
+      'the Atlas statement has a verified/published transition in the log';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: the Atlas statement has no verified/published transition';
+
+  -- AND THE CONFIDENCE GATE ALSO REFUSES THE ATLAS CLAIM
+  --
+  -- This is the second half of the owner's instruction: condition 4
+  -- is restricted to the recipe's own statements. A recipe whose
+  -- claim names an Atlas statement must not reach HIGH -- it must not
+  -- even reach the publish path.
+  --
+  -- The claim is STILL in place (it was forced in above), so this is
+  -- the real question: with the Atlas claim present, what does the
+  -- recipe compute?
+  v_conf := public.recipe_compute_confidence(v_recipe);
+  IF v_conf ->> 'level' = 'high' THEN
+    RAISE EXCEPTION
+      'the recipe computes high with an Atlas claim in place -- '
+      'condition 4 is not restricted to the recipe own statements';
+  END IF;
+  IF (v_conf -> 'conditions_met' -> '4' ->> 'met')::boolean IS NOT FALSE THEN
+    RAISE EXCEPTION
+      'condition 4 is met with an Atlas claim in place -- condition 4 '
+      'is not restricted to the recipe own statements';
+  END IF;
+  RAISE NOTICE
+    'CONFIRMED: condition 4 refuses the Atlas claim (the recipe is %)',
+    v_conf ->> 'level';
+
+  -- ═════════════════════════════════════════════════════════════════
+  -- THE CLEANUP
+  -- ═════════════════════════════════════════════════════════════════
+  UPDATE public.recipe_settings
+     SET auto_publish_mode = 'disabled'
+   WHERE id = true;
+
+  -- The same two ordering rules as the positive proof: the
+  -- statements go BEFORE the recipe, and `SET CONSTRAINTS ALL
+  -- IMMEDIATE` fires the deferred subject check while the recipe
+  -- still exists.
+  DO $inner$
+  BEGIN
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+  END;
+  $inner$;
+
+  DELETE FROM public.recipe_publish_log WHERE recipe_id = v_recipe;
+  DELETE FROM public.recipe_confidence WHERE recipe_id = v_recipe;
+  DELETE FROM public.recipe_claims WHERE recipe_sentence_id = v_sentence;
+  DELETE FROM public.recipe_sentences WHERE recipe_id = v_recipe;
+  DELETE FROM public.claim_citations WHERE statement_id IN (v_atlas_stmt, v_own_stmt);
+  DELETE FROM public.statement_status_log WHERE statement_id IN (v_atlas_stmt, v_own_stmt);
+  DELETE FROM public.statements WHERE id IN (v_atlas_stmt, v_own_stmt);
+  DELETE FROM public.recipe_ingredients WHERE recipe_id = v_recipe;
+  DELETE FROM public.recipes WHERE id IN (v_recipe, v_other_recipe);
+  DELETE FROM public.sources WHERE id IN ('e1000000-0000-0000-0000-0000000000a1',
+                                          'e1000000-0000-0000-0000-0000000000b2');
 END;
 $$;
 

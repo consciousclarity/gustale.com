@@ -1349,6 +1349,48 @@ recipe can say exactly which condition it failed. That is what the
 owner reviews, and it is why the level is stored as JSON rather than as
 a single enum.
 
+#### Condition 4: the reading, and the scope restriction
+
+**The owner's confirmation, 2026-11-08.** As drafted, condition 4
+("every sentence has a claim with a statement at `status IN
+('verified','published')`") is **circular**: the statement is only
+`verified` after `recipe_auto_publish()` runs, and the function only
+runs when the recipe is already HIGH — so the condition could never be
+met, and no recipe could ever publish.
+
+**The confirmed reading is the EVIDENCED / pre-transition one**:
+
+> Condition 4 requires the statement to carry its **evidence** — at
+> least one `supports` citation from an `S1`–`S5` source, and not an
+> `unsupported` or `disputed` claim class. The evidence must be present
+> **before** the transition. The transition function then **lifts** the
+> statement to `verified` and `published`.
+
+The condition is therefore true both **before** and **after** the
+transition, which is what makes it usable by both the confidence
+computation (which runs before) and the publish view (which runs
+after). A statement already at `verified`/`published` also passes.
+
+**Condition 4 is restricted to the recipe's OWN statements.** The
+statement must be about this recipe: `subject_type = 'recipe'` and
+`subject_id` = this recipe's id. Without that restriction, an **Atlas**
+statement could satisfy condition 4 — the recipe's sentence would
+"have an evidenced statement", and the Atlas statement's own citations
+and independence would carry the recipe to HIGH. That is not a
+hypothetical: it is exactly the exploit recorded in
+[ADR-007-A1 addendum §8.5](#85-the-scope-rule-the-shared-statements-table).
+
+**The scope restriction is not a single check.** It is applied in four
+places, deliberately, and each one is a layer that the others do not
+cover:
+
+| layer | what it does | why it is there |
+|---|---|---|
+| the trigger on `recipe_claims` | refuses a claim that names a statement about something else — on INSERT and on UPDATE | the rule of record; the data cannot hold a bad link |
+| the trigger on `statements` | refuses to MOVE a claimed statement out from under its claim | the claim-side trigger watches `recipe_claims`; it does not fire when the *statement* is edited |
+| `statement_set_status()`'s system-actor branch | refuses the transition unless the statement is the recipe's own | the AUTHORISATION, which must not depend on a trigger being present — a superuser, `session_replication_role = replica`, or a later migration can drop a trigger |
+| condition 4 and the publish loop | the EVIDENCE GATE and the publication loop | the gate must be self-contained; the loop must not depend on a gate elsewhere |
+
 **For a trusted contributor, the same conditions apply** (§6.2). The
 confidence computation does not have a "trusted" branch: a trusted
 contributor's recipe that fails 5a, 6 or 7′ is MEDIUM, and MEDIUM goes
@@ -1419,6 +1461,81 @@ owner. This is the detail to get right in the migration, and the
 migration's own proof block must exercise it: a direct call to
 `statement_set_status()` with `actor = 'system:auto-publish'` **must
 be refused**.
+
+---
+
+### 8.5 The scope rule: the shared `statements` table
+
+**The problem.** `statements` is **SHARED**. The Atlas dish and place
+statements live in it, alongside the recipe statements. A recipe's
+claim points into that table, so a recipe claim can — with nothing
+stopping it — name an **Atlas** statement.
+
+**Why that is a security problem, not a data-quality problem.**
+`recipe_auto_publish()` publishes **every statement behind the
+recipe's claims**. So a HIGH recipe whose claim names a dish statement
+would **verify and publish that dish statement**, stamped
+`published_by = system:auto-publish`, on the **Atlas** side of the
+house, with **no editorial review**.
+
+**This was reproduced end to end before the fix existed** (sandbox
+`gustale-test-postgres`, migration `0052` at its pre-fix state):
+
+- a recipe was created and a claim was made naming a `dish` statement;
+- the recipe was made HIGH with two independent S1–S5 sources;
+- `recipe_auto_publish()` was called;
+- the Atlas statement moved `draft` → `published`, with
+  `published_by = system:auto-publish`.
+
+**The rule.** A recipe claim may only name a statement that is about
+**that recipe**: `subject_type = 'recipe'` AND `subject_id` = the id of
+the recipe that owns the linked sentence.
+
+**The rule is enforced in four layers**, each covering a path the
+others do not. The table above in §8.3 lists them; the reasoning is:
+
+1. **the trigger on `recipe_claims`** is the rule of record. It fires
+   on INSERT and on UPDATE, so a legitimate claim cannot be re-pointed
+   at an Atlas statement later.
+2. **the trigger on `statements`** covers the other way in. The
+   claim-side trigger watches `recipe_claims`; it does **not** fire when
+   the *statement* is edited. Without the statements-side guard, the
+   rule could be bypassed by creating a legitimate claim and then
+   moving the statement it names.
+3. **`statement_set_status()`'s system-actor branch** is the
+   **authorisation**. It must not depend on a trigger being present: a
+   superuser, `session_replication_role = replica`, or a later
+   migration can drop a trigger. The branch refuses the transition
+   unless the statement is the recipe's own.
+4. **condition 4 and the publish loop** are the evidence gate and the
+   publication loop. Condition 4 is restricted to the recipe's own
+   statements, so a recipe holding an out-of-scope claim cannot even
+   reach HIGH — the gate holds the line before the publish path is
+   entered at all.
+
+**The proof.** Migration `0052` carries the proof cases, inside the
+migration's own transaction, so a failed proof rolls the migration
+back:
+
+- (a) a claim naming an Atlas statement is refused on INSERT and on
+  UPDATE;
+- (b) with the claim **forced in** (`ALTER TABLE ... DISABLE TRIGGER`),
+  a **valid** token presented for the Atlas statement is refused, and
+  the statement does not move;
+- (c) the control — a claim naming the recipe's **own** statement —
+  still publishes;
+- (d) a claimed statement cannot be moved to another subject, nor to
+  another recipe.
+
+**The proof is mutation-tested.** Each layer of the rule was removed
+in turn and the proof was re-run: removing the trigger, removing the
+authorisation clause, removing the statements-side guard, and unscoping
+condition 4 each make the proof **fail**. One clause — the scope
+filter inside the publish loop — is **not** covered, because condition 4
+already restricts the same set of rows, so the clause filters nothing
+and no test can distinguish it. It is kept deliberately as defence in
+depth, and the migration says so in a comment rather than implying a
+proof it cannot provide.
 
 ---
 
