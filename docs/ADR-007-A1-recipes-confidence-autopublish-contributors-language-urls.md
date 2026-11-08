@@ -17,7 +17,7 @@ binding), migration 0048 (bot credential guard)
 >
 > | # | decision | the owner's answer |
 > |---|---|---|
-> | 1 | the auto-publish actor | **amend 0048** so the rule is an explicit list, not an email-suffix heuristic (§2.4) |
+> | 1 | the auto-publish actor | **`system:auto-publish`** — a system actor with **no login, no email, no password, no session and no credential**, acting **only inside `recipe_auto_publish()`**. **No account creation.** 0048 is amended to refuse a credential to any listed system actor, and to say exactly how the system actor publishes anyway (§2.4) |
 > | 2 | the trusted-contributor standard | a trusted contributor **also** needs **2 independent sources**; without them it goes to **Alejandro's review queue** (§6.2) |
 > | 3 | the 301 path set | **the full set** — the three indexes **and** all 55 Atlas detail pages (§5.3) |
 > | 4 | the kill switch's default | **OFF at launch** (§7.1) |
@@ -27,7 +27,16 @@ binding), migration 0048 (bot credential guard)
 > **stricter** than the draft proposed: a **Wikipedia-only** recipe is
 > **never HIGH**, and a recipe's **own wording only** — the agent's
 > paraphrase, with no quoted source text — is **never HIGH** either.
-> Both are now encoded in §1.3 and §1.4.
+>
+> **CORRECTED 2026-11-08, later the same day — the wording rule was
+> inverted and is now stated correctly in §1.4.** The published text is
+> in **our own words, never copied**; the draft's "own wording is never
+> HIGH" is **deleted**. Provenance is by **locator** (page / section /
+> URL), and HIGH depends on **2 independent `S1`–`S5` sources**, not on
+> stored quotes. The publisher is likewise corrected: the actor is the
+> **system actor `system:auto-publish`** — no login, no email, no
+> password, no session token, no credential (§2.4) — and **no account
+> creation is needed**.
 
 ---
 
@@ -156,53 +165,86 @@ Wikipedia source contributes to the citation but **not** to the HIGH
 condition, so the recipe would still be MEDIUM unless a second
 non-`S6` independent source is present.
 
-### 1.4 "Own wording only" — **DECIDED 2026-11-08: never HIGH**
+### 1.4 Published text is in **our own words** — **DECIDED 2026-11-08**
 
-The owner's fourth point in the same decision: a recipe's **own wording
-only** is never HIGH.
+**The rule, as the owner stated it:**
 
-"Own wording" means the agent's own prose — the recipe text as the
-drafter wrote it, with **no quoted source text** behind it. The
-distinction the owner is drawing is between a sentence that a source
-**says** and a sentence the agent **composed**.
+> **Published recipe text MUST be in our own words, never copied.**
+> Published recipe text MUST be in our own words, never copied.
 
-**The rule:**
+This is a **copyright and originality rule**, and it is the opposite
+direction from the draft's "own wording is never HIGH". The draft had it
+backwards. The correct statement is:
 
-> A recipe whose core claims rest on **the drafter's own wording**, with
-> no quoted source text, is **never HIGH**.
+- **the published text is always ours** — it is written by us, in our own
+  words, and it is **never copied** from a source;
+- **HIGH does not depend on stored quotes.** It depends on **2
+  independent `S1`–`S5` sources that support the claims** (§1.2, §1.3).
 
-This is a **different condition** from §1.2 (independence) and §1.3
-(source classes), and it is checked **per claim**, not per recipe:
+**The deletion.** The draft's rule — *"'own wording only' is never
+HIGH"* — is **deleted**. It is not merely restated differently; it is
+**wrong**, and it was wrong in a consequential way: it required the
+drafter to *retrieve and quote* source text in order to reach HIGH, and
+quoting source text is exactly what this rule forbids.
 
-| claim | quoted source text present? | contributes to HIGH? |
+**What replaces it: provenance by locator, not by stored text.**
+
+> **Provenance = each core claim links to its source with an exact
+> locator** — page, section, or URL.
+
+| what | where it lives | rendered to the reader? |
 |---|---|---|
-| ingredient list | **yes** — the source states the ingredients | **yes** |
-| method step | **yes** — the source states the method | **yes** |
-| quantity | **yes** | **yes** |
-| the agent's own framing, gloss, or generalisation | **no** | **no** |
+| the recipe text | the recipe, in **our own words** | **yes** — this is the page |
+| the claim → source link | `claim_citations` (ADR-002) | yes, as a citation |
+| the **locator** | the citation: **page / section / URL** | yes, as part of the citation |
+| the **verification excerpt** | internal only | **NO — never rendered, never published** |
 
-**Why it is a separate condition.** §1.2 asks "do two sources agree
-independently?". §1.3 asks "are those sources the right kind?". Neither
-asks "**is the sentence actually in the source**?". A recipe could
-satisfy both and still be the agent's own prose wearing citations: two
-good sources exist, and the sentence about them was composed rather
-than quoted. That is exactly the failure the owner is ruling out.
+**The verification excerpt.** At most **one short sentence** per
+citation may be stored internally, to let a reviewer confirm the source
+actually says what the claim says. It is:
 
-**How it is stored.** ADR-002's claims model already distinguishes a
-**quoted** claim from a **derived** one. The recipe's core claims must
-carry a **`quoted` provenance** — the text is present in the cited
-source — and a `derived` claim does **not** contribute to HIGH.
+- **internal only** — never rendered on any page, never in the digest,
+  never in the API response for a published recipe;
+- **one sentence** at most;
+- **not** the basis of the HIGH predicate. HIGH depends on the
+  **independence and class of the supporting sources**, not on whether a
+  quote is stored.
 
-**What this does not do:** it does not forbid the agent from writing
-the recipe. The drafter still writes the sentence; it just cannot claim
-HIGH for a sentence it did not find in a source. The drafting work
-(item 8) therefore has to **retrieve and quote**, not merely
-paraphrase — which is the right shape for it anyway, because the
-digest (§7.3) has to show the reader the source text.
+**Why this is better than the draft's rule, and not merely different.**
+The draft's rule bought provenance by storing source text — which meant
+that publishing a recipe meant *reproducing* it, and the published page
+would have been partly the source's words. The owner's rule keeps the
+**provenance** (the link, the locator, the class, the independence
+finding) and drops the **text**, so the page is entirely ours and the
+audit trail is entirely sound. It is a strictly better audit model: a
+locator is verifiable on demand by a reader with the source, whereas a
+stored excerpt is a snapshot that can be wrong or stale.
 
-**Effect on §1.5:** the blocker gets *worse*, not better. With the live
-data — 1,486 `S6` sources, 0 quoted claims, 0 `independence` values — a
-recipe cannot satisfy §1.2, §1.3 or §1.4. That is the correct state.
+**What this changes downstream:**
+
+- **§8.3**, condition 7 ("quoted provenance") is **deleted** and replaced
+  by condition 7′ — **locator provenance**: every core claim has a
+  citation carrying a **locator**, and the supporting sources satisfy
+  §1.2 and §1.3.
+- **§8.1** — the excerpt column, if the citation table has one, is
+  **internal-only** and is excluded from every published projection.
+- **§7.3** — the digest shows the **citation with its locator**, not the
+  source text. The digest's purpose is to let the owner check the
+  claim, and a locator does that better than a paraphrase would.
+- **§6.2** — the trusted-contributor standard refers to the **source
+  conditions** (§1.2, §1.3, §1.4), not to quoted text.
+
+**One consequence worth stating.** Because the text is ours, two
+recipes of the same dish can legitimately differ in wording while
+citing the same sources. **Independence is judged on the SOURCES, not
+on the wording** — two sources that share no lineage and no common
+upstream citation are independent, regardless of whether our two
+sentences happen to read alike. §1.2 is unchanged in substance.
+
+**Effect on §1.5:** the blocker is unchanged. With the live data —
+1,486 `S6` sources, 0 `independence` values — a recipe cannot satisfy
+§1.2 or §1.3. That is the correct state, and it is now the *only*
+reason nothing can be HIGH.
 
 ### 1.5 The blocker, stated plainly
 
@@ -289,6 +331,17 @@ safe:
 | **B. A direct `UPDATE`** | the job writes `status='published'` itself | **refused by `statements_status_gate_trg`**. It would also need the trigger disabled, which is exactly the unforgeability guarantee |
 | **C. A server-side rule** | a **database function** evaluates the HIGH conditions and performs the transition through the sanctioned path | **adopted** |
 
+**How C satisfies the four requirements of `statement_set_status()`.**
+This is the part that was wrong in the draft, and the owner's correction
+fixes it cleanly:
+
+| `statement_set_status()` requires | how `system:auto-publish` meets it |
+|---|---|
+| 1. derive the actor from a **session token** | **it has no session, because it is not a login.** The function gains one narrow internal branch that recognises the system actor *only* when the caller is `recipe_auto_publish()` itself (§2.4.3). No session is faked, and no session is needed |
+| 2. the actor holds a verified `publisher` credential | **it holds no credential, and never will.** The `SECURITY DEFINER` function performs the transition itself and is the actor; the credential path is not involved, so there is nothing to issue, rotate or leak |
+| 3. run the **evidence gate** | **unchanged.** The system actor is **not** exempt from the gates. Every gate still runs |
+| 4. set `gustale.statement_gate` for the write | **unchanged.** The unforgeability guarantee is exactly the same: a direct `UPDATE` is still refused by `statements_status_gate_trg` |
+
 ### 2.3 The decision — a server-side rule, in the database
 
 **Auto-publish is a database function, owned by the server, that
@@ -309,74 +362,190 @@ It:
    fails, or if the **kill switch** is off (§7.1), or if today's
    auto-publish count has reached the cap (§7.2).
 3. On success, performs the transition **through
-   `statement_set_status()`**, with a **session token** for a **service
-   account that holds a verified `publisher` credential**.
+   `statement_set_status()`**, **as `system:auto-publish`** — the system
+   actor, which is **not** a login, holds **no** credential, and has
+   **no** session token (§2.4).
 
-### 2.4 The actor — the owner's decision: **amend 0048**
+### 2.4 The actor — the owner's decision: **`system:auto-publish`**
 
-**DECIDED 2026-11-08.** The auto-publish actor is a **dedicated service
-account on an explicit list**, and **0048 is amended** so the rule is
-*explicit* rather than *heuristic*.
+**DECIDED 2026-11-08 (corrected the same day).** The auto-publish actor
+is the **system actor `system:auto-publish`**. It is **not** a
+human-named account, and it uses **no session token**.
 
-The draft offered three options and proposed option 2 (a human-named
-service account). The owner chose the **cleaner alternative the draft
-described alongside it**: amend 0048 so that a publish credential is
-refused to any account on a `service_accounts` list, and the recipes
-service account is on that list.
+**The earlier draft of this section was wrong**, and it was wrong in two
+ways that the owner corrected:
 
-**What changes in 0048:**
+1. it proposed a **human-named service account**
+   (`recipes-publisher@gustale.com`) holding a publish credential —
+   the owner chose **no account at all**;
+2. it then said listed accounts are **refused** credentials while that
+   same account **needed** one — a direct contradiction.
 
-| before | after |
+**Both are deleted.** There is no `recipes-publisher@gustale.com`
+account, no human-named service account, and no credential for either.
+
+### 2.4.1 What `system:auto-publish` is
+
+| property | value | why |
+|---|---|---|
+| identity | the string `system:auto-publish` | a **fact in the database**, not an email to be interpreted |
+| a row in `"user"` (Better Auth)? | **NO** | it is **not a login**. It cannot sign in, because there is nothing to sign in with |
+| an email | **NONE** | no address, so no `-bot` heuristic can ever match it, and no address can leak |
+| a password | **NONE** | there is no credential to steal or rotate |
+| a session token | **NONE** | it never authenticates. ADR-006's session binding is not bypassed — there is simply no session |
+| a `publish_credential` row | **NONE** | it holds **no publish credential**, exactly like every other non-human |
+| where it lives | a row on `service_accounts`, with `kind='system'` | an explicit list, not a naming convention |
+
+**The point of the correction.** A human-named service account is a
+*person-shaped account that is not a person*: it needs an email, a
+password, a credential, a session, and eventually a rotation. Every one
+of those is a thing that can leak, be phished, be replayed, or be
+handed to a human by accident. `system:auto-publish` has **none of
+them**. It is a name in a table, and the only thing that can act as it
+is the function that owns it.
+
+### 2.4.2 How it acts — and the only way it can act
+
+`system:auto-publish` acts **only inside `recipe_auto_publish()`**, which
+is `SECURITY DEFINER` and owned by the migration role. The function
+re-checks **every** HIGH condition, the kill switch and the cap, and
+**only then** performs the transition with `actor = 'system:auto-publish'`,
+and logs it.
+
+**The call chain is the whole security property:**
+
+```
+recipe_auto_publish(p_recipe_id uuid)          -- SECURITY DEFINER
+  ├─ re-evaluate EVERY HIGH condition from the rows      (§8.3)
+  ├─ check the kill switch                                 (§7.1)
+  ├─ check the daily cap                                   (§7.2)
+  ├─ statement_set_status(..., actor = 'system:auto-publish')
+  └─ write recipe_publish_log                              (§2.5)
+```
+
+**No other code path can act as it.** Concretely:
+
+- **`statement_set_status()` refuses it.** The function's own
+  authorisation is *derive the actor from the session, then require a
+  verified `publisher` credential* (ADR-006, migration 0047). A
+  `system:auto-publish` actor has **no session** and **no credential**,
+  so the ordinary path refuses it — and it must.
+- **The only exception is the one this function opens, and it is
+  narrow.** `recipe_auto_publish()` is the single caller permitted to
+  perform the transition as the system actor. It is `SECURITY DEFINER`,
+  it re-derives every condition itself, and it is the only code that
+  can reach that branch.
+- **`REVOKE EXECUTE ... FROM PUBLIC`** on `recipe_auto_publish()` is
+  **not** enough on its own, because PostgreSQL grants `EXECUTE` to
+  `PUBLIC` by default and the function must be callable by the job.
+  The grant is therefore **explicit and narrow**: `EXECUTE` is revoked
+  from `PUBLIC` and granted only to the role that runs the auto-publish
+  job, and the function's body is the only thing that consults
+  `service_accounts`.
+- **A human cannot borrow it.** There is no session for it to present,
+  and no credential to hold, so no human can act as
+  `system:auto-publish` — and equally, it cannot act as a human.
+
+### 2.4.3 How the amended 0048 says this — exactly
+
+The owner asked for the amendment to state this precisely. The
+contradiction is resolved by **separating three things that the earlier
+draft had merged**:
+
+| question | answer |
 |---|---|
-| the rule is inferred from the **email suffix** (`-bot`), so a service account wearing a human name slips through | the rule is an **explicit list**: a publish credential is refused to any account on `service_accounts`, **regardless of its name** |
-| a bot-shaped account is refused by a name convention | a bot-shaped account is refused **and** a listed service account is refused — the two are separate, explicit checks |
-| the intent is machine-checked only by accident of naming | the intent is machine-checked **by construction** |
+| **Can a listed system actor hold a publish credential?** | **NO.** Never. The credential trigger refuses **any** account on `service_accounts`, the system actor included. It holds no credential and needs none. |
+| **Then how does a listed system actor publish at all?** | **Only through `recipe_auto_publish()`**, and by **no other route**. The function is `SECURITY DEFINER` and performs the transition itself, as the system actor, after re-checking every condition. It does not need a credential because it is not acting through the credential path at all. |
+| **Can a human or a bot use the system actor?** | **NO.** The system actor has no login, no email, no password and no session, so neither can authenticate as it. Nor can the system actor authenticate as them: it is confined to its own function. |
 
-**Why this is better than the alternative, and not merely different:**
-the `-bot` heuristic has a hole exactly where the auto-publish path
-needs a hole. Under the amendment, the service account is **named in the
-schema as a service account**, so:
+**The amended 0048 in terms.** The amendment adds to 0048's rule, and
+does not weaken it:
 
-- it is refused a credential **like any other account on the list**, by
-  name-in-a-table, not by guessing;
-- the audit trail can say `service_account = recipes-publisher` because
-  that is a **fact in the database**, not an inference from a string;
-- adding a second service account later is a **row**, not a **new regex**.
+```sql
+-- The system actors. A row here means: this identity is a SYSTEM
+-- ACTOR, not a person. It has no login, no email, no password, no
+-- session and no publish credential -- and it may act ONLY inside the
+-- function that owns it.
+CREATE TABLE service_accounts (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor      text NOT NULL UNIQUE,   -- e.g. 'system:auto-publish'
+  kind       text NOT NULL CHECK (kind IN ('system')),
+  purpose    text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz
+);
+```
 
-**The amendment keeps 0048's rule completely intact.** 0048's *rule* is
-"no bot publishes". The amendment changes only its *detection*: from
-"the name looks like a bot" to "the account is on a list of service
-accounts, and separately, the name looks like a bot". Both refusals
-stand. The service account is refused **by the list**, not by being
-allowed through a hole.
+and the credential guard gains a fourth check, alongside 0048's existing
+three:
 
-**Migration:** 0048 is amended in the item-2 migration, in the same
-transaction as the recipe schema. The amendment is additive — a new
-table, a new check function, and the credential trigger widened to
-consult it. **No existing behaviour changes**: an account that is
-neither on the list nor bot-shaped behaves exactly as it does today.
+```sql
+-- (4) THE ACTOR MUST NOT BE A LISTED SYSTEM ACTOR.
+--
+-- A system actor is not a login and holds no credential. It publishes
+-- only through the SECURITY DEFINER function that owns it, which
+-- re-checks every condition itself. A credential would give it a
+-- second, far weaker route to publishing -- and would make it a thing
+-- that can be issued, copied, rotated and leaked.
+IF EXISTS (SELECT 1 FROM service_accounts s
+            WHERE s.actor = NEW.actor AND s.revoked_at IS NULL) THEN
+  RAISE EXCEPTION
+    'the publish credential for % is refused: it is a listed system actor. '
+    'A system actor publishes only through recipe_auto_publish().',
+    NEW.actor;
+END IF;
+```
 
-**The owner still has to create the account** — a human-named
-`recipes-publisher@gustale.com` on `service_accounts`, with the
-credential issued under ADR-006. The account's **name must not** end in
-`-bot`; that is no longer what makes it safe, but it remains the
-convention the owner's brief asks for.
+**0048's original rule is untouched.** "A publish credential may NOT be
+held by a bot account" still holds, and is still checked by the same
+email-pattern check. The amendment **adds** a rule; it relaxes
+nothing. A bot is refused because it looks like a bot. A system actor
+is refused because it is on a list. A human is refused only if they
+have no credential — as always.
 
-**What this needs, and it is the owner's to give:** the go-ahead to
-amend 0048 — **given 2026-11-08** — and the creation of the service
-account itself, which needs the owner's action on the live side.
+**And the transition itself.** `statement_set_status()` must accept the
+system actor on **exactly one** path. The amendment to that function is
+narrow and explicit:
 
-### 2.4a What the audit trail records
+- the function gains an internal branch that recognises
+  `'system:auto-publish'` **only** when the caller is
+  `recipe_auto_publish()` itself — verified by a transaction-local flag
+  that only the `SECURITY DEFINER` function can set, and which is
+  cleared before the function returns;
+- every other caller, with any actor string, is refused exactly as it
+  is today;
+- the branch still runs **the full evidence gate**. The system actor is
+  not exempt from the gates; it is only exempt from *having a
+  credential*.
+
+### 2.4.4 What the owner does NOT have to do
+
+**No account creation. No credential issuance. No human-named account.**
+The migration creates the `service_accounts` table and inserts the one
+row:
+
+```sql
+INSERT INTO service_accounts (actor, kind, purpose)
+VALUES ('system:auto-publish', 'system',
+        'The recipes auto-publish function. Acts only inside recipe_auto_publish().');
+```
+
+That is the whole of the owner's involvement on the actor question. The
+item-2 migration needs **no** live account, **no** credential, and
+**no** session — which is why item 2 is not blocked on anything.
+
+### 2.5 What the audit trail records
 
 Every auto-publish writes to `statement_status_log` (the function
 already does) **and** to a new `recipe_publish_log`, which records:
 the recipe, the computed confidence, the conditions evaluated, the
 sources that satisfied the independence condition, the kill-switch
-state at that moment, and the service account that acted.
+state at that moment, and the **system actor** that acted.
 
-Because the service account is on an explicit list, the log records the
-account **as a service account** — `service_account_id`, not an email
-that a reader has to interpret.
+Because the actor is a row on `service_accounts`, the log records the
+actor **as a system actor** — `service_account_id`, not an email that a
+reader has to interpret, and not a human's name. The audit trail says
+`system:auto-publish` and nothing else.
 
 **There is no path by which a recipe becomes `published` without a row
 in `recipe_publish_log`.** That is what makes the daily digest (§7.3)
@@ -769,8 +938,8 @@ is the part that changed, and it is the whole substance of the decision:
 > A trusted contributor's recipe publishes automatically **only if** it
 > satisfies the same **source** conditions as any other auto-publish:
 > **2+ independent sources**, from the **right classes** (`S1`–`S5`,
-> never Wikipedia-only), with **quoted source text** rather than the
-> drafter's own wording.
+> never Wikipedia-only), with an exact **locator** on every citation,
+> and with the text written in our own words (§1.4).
 >
 > **If a trusted contributor's recipe does not meet them, it goes to
 > Alejandro's review queue** — the same queue a probationary
@@ -802,7 +971,7 @@ because the contributor has already been vetted by three prior
 approvals. An agent-drafted recipe that meets the same conditions also
 publishes without a human reading it — because the *evidence* is
 sufficient. **Neither path gets a recipe published without 2
-independent, correctly-classed, quoted sources.**
+independent, correctly-classed sources that support the claims.**
 
 The difference is in what happens when the evidence is *missing*. In
 both cases the recipe waits for Alejandro. The ladder does not change
@@ -817,7 +986,7 @@ second. The owner's decision keeps the two separate: trust affects
 
 **The one thing this makes cheaper:** a trusted contributor's MEDIUM
 recipe still waits. But a trusted contributor who can produce two
-independent, correctly-classed, quoted sources gets a recipe published
+independent, correctly-classed sources gets a recipe published
 **immediately**, whereas the same recipe from an unknown contributor
 also gets published immediately (it is HIGH) — or, if it is not HIGH,
 waits. **The ladder's real effect is that a trusted contributor's
@@ -971,10 +1140,12 @@ The digest must contain, per published recipe:
   class (`S1`–`S7`) and title;
 - **the independence finding** — which sources were judged independent
   of each other, and on what basis;
-- **the quoted source text** for the claims that count toward HIGH
-  (§1.4) — the reader must be able to see the text the recipe claims to
-  be quoting;
-- the service account that performed the publish;
+- **the locator** for each claim's citation — page, section, or URL
+  (§1.4) — so the reader can go and check the claim. **The source text
+  itself is never shown**: the published text is ours, and the excerpt
+  is internal-only;
+- the **system actor** that performed the publish — `system:auto-publish`,
+  which is what the audit trail records (§2.5);
 - the kill-switch state and the day's auto-publish count at the time.
 
 **Delivery:** the digest is generated by the same job that runs
@@ -995,40 +1166,39 @@ shape, because the auto-publish rule and the confidence levels are
 ### 8.1 New tables
 
 ```sql
--- The explicit list that amends 0048's email-suffix heuristic.
+-- The system actors.
 --
--- 0048 refuses a publish credential to any account whose email looks
--- like a bot. That heuristic has a hole exactly where the auto-publish
--- path needs one: a service account that is NOT named like a bot
--- slips through. The owner's decision (ADR-007-A1 §2.4) is to amend
--- 0048 so the rule is explicit instead of inferred.
+-- A row here means: this identity is a SYSTEM ACTOR, not a person.
+-- It has NO login in "user", NO email, NO password, NO session and NO
+-- publish credential -- and it may act ONLY inside the function that
+-- owns it (recipe_auto_publish(), SECURITY DEFINER).
 --
--- So: an account ON THIS LIST is refused a publish credential, by
--- name-in-a-table, regardless of what its email looks like. 0048's
--- own refusal stays completely intact and is checked separately.
--- The two checks are independent:
+-- The owner's decision (ADR-007-A1 §2.4): the auto-publish actor is
+-- `system:auto-publish`. It is NOT a human-named account, and no
+-- account creation is needed for the item-2 migration.
 --
---   refuse if email looks like a bot        (0048, unchanged)
---   refuse if account is on service_accounts (the amendment)
+-- 0048 is amended so that a publish credential is REFUSED to any
+-- account on this list. A system actor needs no credential, because it
+-- does not act through the credential path at all: it acts inside its
+-- own SECURITY DEFINER function, which re-checks every condition
+-- itself (§2.4.3).
 CREATE TABLE service_accounts (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         text NOT NULL UNIQUE,
-  -- What this service account is for. The audit trail reads this, not
-  -- an email a reader has to interpret.
-  purpose       text NOT NULL,
-  created_at    timestamptz NOT NULL DEFAULT now(),
-  created_by    text NOT NULL,
-  revoked_at    timestamptz
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- The actor string used as statements.published_by / verified_by.
+  -- e.g. 'system:auto-publish'.
+  actor      text NOT NULL UNIQUE,
+  -- Only 'system' for now. The CHECK is the point: there is no
+  -- 'human' kind, so this table can never hold a person.
+  kind       text NOT NULL CHECK (kind IN ('system')),
+  purpose    text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz
 );
 
--- The recipes service account. Inserted by the owner, not by the
--- migration, because it is an ACCOUNT -- a row in `user` with a
--- credential issued under ADR-006. The migration creates the table
--- and the function that consults it; it does not create the account.
---
--- The name must not end in '-bot'. That is no longer what makes it
--- safe -- being on this list is -- but it is the convention the
--- owner's brief asks for, and 0048's own check is checked too.
+-- The one row. Inserted by the migration; it is a row, not an account.
+INSERT INTO service_accounts (actor, kind, purpose)
+VALUES ('system:auto-publish', 'system',
+        'The recipes auto-publish function. Acts only inside recipe_auto_publish().');
 
 -- The recipe's own settings: the kill switch and the daily cap.
 --
@@ -1070,14 +1240,22 @@ CREATE TABLE recipe_publish_log (
   conditions_met    jsonb NOT NULL,
   sources           jsonb NOT NULL,
   actor             text NOT NULL,
-  -- The service account, as a fact in the database rather than an
-  -- email a reader has to interpret (§2.4a).
+  -- The system actor, as a fact in the database rather than an
+  -- email a reader has to interpret (§2.5).
   service_account_id uuid REFERENCES service_accounts(id),
   kill_switch_on    boolean NOT NULL,
   daily_count_at_publish integer NOT NULL,
   published_at      timestamptz NOT NULL DEFAULT now()
 );
 ```
+
+**On the verification excerpt (§1.4).** If the citation table carries
+an excerpt column, it is **internal-only**: it is **never** rendered on
+a page, **never** in the digest, and **never** in the API response for
+a published recipe. At most one short sentence per citation, stored so a
+reviewer can confirm the source says what the claim says. The **locator**
+— page / section / URL — is the part that is rendered, because that is
+the part a reader can check.
 
 Plus, on the existing `recipes` table:
 
@@ -1119,23 +1297,52 @@ the level, and the reason is recorded):
 | 5 | every claim's statement has at least one `supports` citation from an `S1`–`S5` source | medium | §1.3 |
 | 5a | **no contributing source is `S6`/`S7`** — a Wikipedia-only recipe is never HIGH | medium | §1.3 (owner, 2026-11-08) |
 | 6 | **independence**: ≥2 independent sources on the core claims | medium | §1.2 |
-| 7 | **quoted provenance**: every claim that counts toward HIGH carries **quoted** source text, not the drafter's own wording | medium | §1.4 (owner, 2026-11-08) |
+| 7′ | **locator provenance**: every core claim has a citation carrying an exact **locator** (page / section / URL), and the supporting sources satisfy §1.2 and §1.3 | medium | §1.4 (owner, 2026-11-08) |
 | 8 | the recipe is not a draft-only stub (has servings/time or an explicit omission) | low | — |
 
-**Conditions 5a and 7 are the owner's 2026-11-08 additions**, and they
+**Condition 7′ replaces the draft's condition 7 ("quoted provenance").
+The change is not cosmetic.** The draft's condition 7 required a claim
+to carry **quoted source text** — which meant reaching HIGH demanded
+storing the source's words, and therefore meant the published page
+would have been partly the source's text. The owner's rule (§1.4) is
+that **published text is in our own words, never copied**, so the
+condition had to change with it.
+
+**What 7′ actually requires, per core claim:**
+
+1. a **citation** to a source (ADR-002's `claim_citations`), with
+   `stance = 'supports'`;
+2. an exact **locator** on that citation — a page number, a section
+   reference, or a URL anchor;
+3. the source's **class** to be `S1`–`S5` (§1.3);
+4. **≥2 such sources that are independent of each other** (§1.2).
+
+**No stored quote is required, and none may be published.** A
+verification excerpt may be stored internally (§1.4) for a reviewer,
+but it is **not** part of the predicate: HIGH depends on the
+**independence and class of the sources**, not on whether a quote is
+stored.
+
+**Why the locator is the right unit of provenance.** A locator is
+**checkable by a reader** — they open the source and go to the place
+that is cited. A stored excerpt is a snapshot: it can be wrong, it can
+be stale, and it is the source's words sitting in our database. The
+locator gives the same auditability with none of that.
+
+**Conditions 5a and 7′ are the owner's 2026-11-08 additions**, and they
 are not merely restatements of 5 and 6:
 
-- **5a** is not implied by 5. Condition 5 asks "does the recipe have at
-  least one `S1`–`S5` source?"; 5a asks "are **all** of its
+- **5a** is not implied by 5. Condition 5 asks "does the recipe have
+  at least one `S1`–`S5` source?"; 5a asks "are **all** of its
   contributing sources `S1`–`S5`?" A recipe with one cookbook source
   and three Wikipedia citations satisfies 5 and fails 5a — it is
   MEDIUM, because the Wikipedia text would otherwise be carrying weight
   it is not allowed to carry.
-- **7** is not implied by 4 or 6. Both of those ask about the *sources*;
-  7 asks about the **text** — whether the sentence in the recipe is
-  actually in the source, or whether the drafter composed it. A recipe
-  can have two independent, correctly-classed sources and still be
-  entirely the drafter's own wording.
+- **7′** is not implied by 4 or 6. Both of those ask about the
+  *sources*; 7′ asks about the **pointer to the evidence** — whether a
+  reader can be sent to the exact place that supports the claim. A
+  recipe can have two independent, correctly-classed sources and still
+  cite them with no locator, so that a reader cannot check anything.
 
 **Every failing condition is recorded in `conditions_met`**, so a MEDIUM
 recipe can say exactly which condition it failed. That is what the
@@ -1144,7 +1351,7 @@ a single enum.
 
 **For a trusted contributor, the same conditions apply** (§6.2). The
 confidence computation does not have a "trusted" branch: a trusted
-contributor's recipe that fails 5a, 6 or 7 is MEDIUM, and MEDIUM goes
+contributor's recipe that fails 5a, 6 or 7′ is MEDIUM, and MEDIUM goes
 to the review queue. What trust changes is that a trusted contributor's
 MEDIUM recipe is **not** re-drafted and re-queued by the pipeline — it
 waits for a human, which is a different thing from being blocked by
@@ -1156,7 +1363,14 @@ the pipeline.
 -- Publishes a recipe if, and only if, every HIGH condition is met,
 -- the kill switch is on, and the daily cap is not reached.
 -- Returns the reason on refusal; never raises for a policy refusal.
-CREATE OR REPLACE FUNCTION recipe_auto_publish(p_recipe_id uuid) RETURNS text;
+--
+-- SECURITY DEFINER, and it is the ONLY thing that may act as
+-- 'system:auto-publish'. It has no session and holds no credential:
+-- it IS the actor (§2.4).
+CREATE OR REPLACE FUNCTION recipe_auto_publish(p_recipe_id uuid)
+RETURNS text
+SECURITY DEFINER
+SET search_path = public, pg_temp;
 ```
 
 Its contract:
@@ -1165,9 +1379,9 @@ Its contract:
 2. checks the kill switch and the cap — **the switch is checked FIRST,
    before the recipe is touched** (§7.1);
 3. on success, transitions the recipe's statements to `verified` then
-   `published` **through `statement_set_status()`**, with the service
-   account's session token — the service account being one on
-   `service_accounts` (§2.4);
+   `published` **through `statement_set_status()`**, with
+   `actor = 'system:auto-publish'` — the system actor, which has no
+   session and no credential (§2.4);
 4. writes `recipe_publish_log`, including `service_account_id`;
 5. returns a string: the publish reason on success, or the failing
    condition on refusal.
@@ -1185,6 +1399,27 @@ MEDIUM recipe. **Trust is not a parameter of this function**, because
 making it one would be the mechanism by which the evidence bar got
 lowered.
 
+**Its grants are narrow, and that matters.** `EXECUTE` is revoked from
+`PUBLIC` — which PostgreSQL grants by default — and granted only to
+the role that runs the auto-publish job. The function is the **only**
+caller permitted to perform a transition as the system actor, and it
+recognises the system actor **only** when the caller is itself (§2.4.3).
+
+**The flag that makes "only when the caller is itself" true.** The
+function sets a **transaction-local** marker that only a
+`SECURITY DEFINER` function of the migration's ownership can set, and
+`statement_set_status()` checks that marker before honouring the
+system actor. The marker is cleared before the function returns, and
+because it is transaction-local it cannot leak into another
+transaction. A caller that sets it by hand cannot: `set_config` on a
+custom GUC can be called by any role, so the marker is **not** a plain
+GUC — it is checked against `current_user` **and** the marker together,
+and the branch additionally requires that the caller is the function's
+owner. This is the detail to get right in the migration, and the
+migration's own proof block must exercise it: a direct call to
+`statement_set_status()` with `actor = 'system:auto-publish'` **must
+be refused**.
+
 ---
 
 ## 9. What this amendment conflicts with, in one place
@@ -1193,12 +1428,13 @@ So the owner can see the whole conflict surface at once:
 
 | # | conflict | where | resolution | decided? |
 |---|---|---|---|---|
-| 1 | bot publish credential | 0048 | server-side function (§2); **0048 amended** to use an explicit `service_accounts` list (§2.4) | **YES — 2026-11-08** |
+| 1 | bot publish credential | 0048 | server-side function (§2); **0048 amended** so the actor is the **system actor `system:auto-publish`** — no login, no email, no session, no credential, acting only inside `recipe_auto_publish()` (§2.4) | **YES — 2026-11-08** |
 | 2 | only 5 published ingredients | ADR-007's publish gate | staged backfill (§3) | no — the plan is here; the *vocabulary* is approved per stage |
 | 3 | `description_sentences` is English-source | live CHECK | recipes get a language-first model; the Atlas is untouched (§4) | no |
 | 4 | trusted contributors may publish below HIGH | §2 vs §6.2 | **they may not**: a trusted contributor also needs 2 independent sources, else the review queue (§6.2) | **YES — 2026-11-08** |
 | 5 | `/family/*` and `/lineages/*` are in the sitemap and are Atlas content | live sitemap vs §5.3 | **the full set** — 58 paths, all 55 Atlas pages leave the recipes sitemap (§5.3) | **YES — 2026-11-08** |
 | 6 | the recipes pages would be served on both properties | `post-build.mjs` `RECIPES_ONLY = []` | the strip list gains `/recipes` (§5.5) | no |
+| 7 | the draft's "own wording is never HIGH" required quoting source text | §1.4 | **deleted** — published text is in our own words, never copied; provenance is by **locator**, and HIGH depends on 2 independent `S1`–`S5` sources (§1.4) | **YES — 2026-11-08** |
 
 **No conflict now blocks item 2.** Conflicts 1 and 4 were the two the
 owner had to answer before the migration could be written, and both are
@@ -1215,7 +1451,7 @@ answers:
 
 | # | the question | the answer | where |
 |---|---|---|---|
-| 1 | **the auto-publish actor** — whose credential does the function use, and do we amend 0048? | **Amend 0048.** The rule becomes an explicit `service_accounts` list rather than an email-suffix heuristic. The actor is a dedicated human-named service account on that list. | §2.4 |
+| 1 | **the auto-publish actor** — whose credential does the function use, and do we amend 0048? | **Amend 0048.** The rule becomes an explicit `service_accounts` list rather than an email-suffix heuristic. The actor is a **system actor** on that list — `system:auto-publish`, with **no login, no email, no password, no session and no credential** — and it acts **only inside `recipe_auto_publish()`**. **No account creation is needed.** | §2.4 |
 | 2 | **the trusted-contributor standard** — does a trusted contributor also need the source-independence condition? | **Yes.** A trusted contributor needs **2 independent sources**, same as anyone. Without them, the recipe goes to Alejandro's review queue. The ladder does not lower the evidence bar. | §6.2 |
 | 3 | **the 301 path set** — the three indexes, or the 55 detail pages too? | **The full set.** `/regions`, `/families`, `/lineages`, all 43 `/family/<slug>` and all 12 `/lineages/<slug>` — **58 paths**. `/family` itself is excluded (404). | §5.3 |
 | 4 | **the kill switch's default** | **OFF at launch.** The migration seeds `disabled`; the owner flips it when ready. | §7.1 |
@@ -1229,16 +1465,25 @@ about process:
 |---|---|---|
 | **a Wikipedia-only recipe is never HIGH** | every contributing source must be `S1`–`S5`; `S6` never supports HIGH | §1.3 |
 | **the source tiers** | cookbook (`S4`/`S5`), institution (`S3`), established site (`S1`/`S2`) may support HIGH; reference (`S6`) may not | §1.3 |
-| **own wording only is never HIGH** | a claim must carry **quoted** source text, not the drafter's prose | §1.4 |
+| **published text is in our own words, never copied** | the recipe text is written by us and is never copied from a source; provenance is by **locator** (page / section / URL), and at most a one-sentence verification excerpt is stored internally and is **never rendered** | §1.4 |
 
 **What the owner still has to do** (these are actions, not decisions):
 
-1. **Create the service account** — `recipes-publisher@gustale.com`, on
-   `service_accounts`, with a credential issued under ADR-006 (§2.4).
-2. **Create the trusted contributors** — accounts with a verified
-   `publisher` credential (§6.2).
-3. **Give the go for the item-2 migration** — `approved-live` plus a
+1. **Give the go for the item-2 migration** — `approved-live` plus a
    separate go, per ADR-005.
+
+**And what the owner no longer has to do.** The earlier draft of this
+document asked the owner to **create a service account** and to **issue
+it a credential**. That is **deleted** (§2.4). The auto-publish actor is
+`system:auto-publish`: a **row** on `service_accounts` that the
+migration inserts, with **no login, no email, no password, no session
+and no credential**. There is no account to create, no credential to
+issue, and no secret to rotate. **The item-2 migration is not blocked
+on anything the owner has to do in the live database.**
+
+The trusted contributors (item 6, §6.2) are a **later** matter — they
+are people with publish credentials, and the recipe feature is not
+launching with contributors.
 
 ---
 
