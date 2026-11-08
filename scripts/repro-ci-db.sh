@@ -80,6 +80,29 @@ run_pg -c 'CREATE EXTENSION IF NOT EXISTS postgis;' \
 # database, and never to production.
 run_pg -f - < "$(dirname "$0")/mark_disposable_db.sql" >/dev/null 2>&1 \
   || { echo "  FAILED: the disposable marker"; fail=1; }
+step "the CI migration role setup"
+#
+# This step was MISSING, and it made the local reproduction drift from
+# CI.
+#
+# The CI's migration chain runs `scripts/ci-migration-role.sql` before
+# the migrations. That file creates the `gustale_migrator` role, the
+# `gustale_credential_issuer` role, and the bot's role as an ORDINARY
+# login (not a superuser) -- and it asserts that arrangement.
+#
+# Without it, this script failed at migration 0045 with:
+#
+#     ERROR:  role "gustale_migrator" does not exist
+#
+# The failure was a setup gap, not a migration bug, and it made the
+# local reproduction unusable for the migrations that follow.
+#
+# IT RUNS BEFORE THE MIGRATIONS, because the migrations depend on the
+# arrangement it establishes. It is idempotent, so a re-run is safe.
+run_pg -f - < "$(dirname "$0")/ci-migration-role.sql" > /tmp/repro_ci_migration_role.log 2>&1 \
+  || { echo "  FAILED: the CI migration role setup"; grep -E 'ERROR' /tmp/repro_ci_migration_role.log | head -6; fail=1; }
+grep -E 'CI_MIGRATION_ROLE_OK' /tmp/repro_ci_migration_role.log | tail -1 || true
+
 step "the grants"
 run_pg -c "GRANT ALL ON SCHEMA public TO gustale;" \
        -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gustale;" \
@@ -437,6 +460,25 @@ step "the family classification"
 run_pg -f - < "$(dirname "$0")/../db/migrations/0051_family_classification.sql" > /tmp/repro_0051.log 2>&1 \
   || { echo "  FAILED: 0051"; grep -E 'ERROR' /tmp/repro_0051.log | head -6; fail=1; }
 grep -E '0051: ok' /tmp/repro_0051.log | tail -1 || true
+
+# 0052 — the RECIPES schema (ADR-007 + ADR-007-A1 §8).
+#
+# It is the recipes property's schema: the five recipe tables, the
+# service accounts, the confidence function, the auto-publish function
+# and its authorisation token table.
+#
+# It runs LAST, because it amends `statement_set_status()` -- the
+# function 0047 wrote and 0048 amended -- and it widens the
+# `statements_subject_type_check` constraint to accept 'recipe'.
+#
+# It carries its own behavioural proof and FAILS if any of it does not
+# hold: the system actor has no credential, a forged token is refused,
+# a real HIGH recipe is published, and the migration leaves no content
+# rows behind.
+step "the recipes schema"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0052_recipes_schema.sql" > /tmp/repro_0052.log 2>&1 \
+  || { echo "  FAILED: 0052"; grep -E 'ERROR' /tmp/repro_0052.log | head -6; fail=1; }
+grep -E 'RECIPES_SCHEMA_OK' /tmp/repro_0052.log | tail -1 || true
 
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND

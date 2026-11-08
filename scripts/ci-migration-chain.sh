@@ -223,6 +223,10 @@ MIGRATION_0050=db/migrations/0050_association_review_ledger.sql
 # 0051 is the family CLASSIFICATION: the class becomes a column on
 # dish_families. It writes no content rows.
 MIGRATION_0051=db/migrations/0051_family_classification.sql
+# 0052 is the RECIPES schema (item 2 of the recipes task): the five
+# recipes tables, the system actors, the kill switch, the confidence
+# computation and the auto-publish function. It writes NO content rows.
+MIGRATION_0052=db/migrations/0052_recipes_schema.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -721,6 +725,21 @@ echo "--- the family classification"
 run_pg -f - < "$MIGRATION_0051" >/tmp/m0051.log 2>&1 || { echo "FAILED: 0051"; grep -E 'ERROR|NOTICE' /tmp/m0051.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E '0051: ok' /tmp/m0051.log | tail -1 || true
+
+# ── 0052: the recipes schema (item 2) ─────────────────────────────
+#
+# It comes AFTER 0051, because it amends the `statements` subject-type
+# CHECK and the 0048 credential guard -- both of which must be in their
+# FINAL shape before 0052 widens them. And it comes after the seed,
+# because its proof asserts against a real statement and a real dish.
+#
+# It writes NO content rows: no recipe, no ingredient, no statement.
+# The kill switch it creates ships `disabled`, so the auto-publish path
+# is dormant on arrival.
+echo "--- the recipes schema"
+run_pg -f - < "$MIGRATION_0052" >/tmp/m0052.log 2>&1 || { echo "FAILED: 0052"; grep -E 'ERROR|NOTICE' /tmp/m0052.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'RECIPES_SCHEMA_OK' /tmp/m0052.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #
