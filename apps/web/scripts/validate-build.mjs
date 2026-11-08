@@ -565,6 +565,79 @@ if (DOMAIN === "geo") {
   );
 }
 
+// ─── 15. PR 6b — the recipes property's OWN home (R1) ─────────────────────
+//
+// Before 6b, `gustale.recipes/` served the ATLAS home: the same
+// `AtlasHeroKpi` band and the same `GustaleHomeIsland` workspace that
+// `gustale.com/` serves. ADR-007 recorded that as the thing R1 fixes —
+// "a minimal own home for the recipes property".
+//
+// These checks assert the separation in BOTH directions, the same way
+// the R3 check above does: the Atlas home keeps the Atlas home, and the
+// recipes property does NOT serve it.
+if (DOMAIN === "geo") {
+  check(
+    "the Atlas home is still the Atlas home",
+    /atlas-kpi/.test(homeHtml ?? "") && !/recipes-home/.test(homeHtml ?? ""),
+    "the geo home is missing the Atlas KPI band, or carries the recipes home",
+  );
+  check(
+    "the Atlas home still mounts the interactive workspace",
+    /GustaleHomeIsland/.test(homeHtml ?? ""),
+    "the geo home no longer mounts the home island",
+  );
+} else {
+  check(
+    "the recipes home is its OWN page, not the Atlas home",
+    /recipes-home/.test(homeHtml ?? "") &&
+      !/atlas-kpi/.test(homeHtml ?? "") &&
+      !/GustaleHomeIsland/.test(homeHtml ?? ""),
+    "the recipes home is serving the Atlas home (atlas-kpi / home island)",
+  );
+  check(
+    "the recipes home names the recipes property",
+    /Gustale Recipes/.test(homeHtml ?? ""),
+    'expected "Gustale Recipes" on the recipes home',
+  );
+  check(
+    "the recipes home self-canonicals on gustale.recipes",
+    (homeHtml ?? "").includes(
+      '<link rel="canonical" href="https://gustale.recipes/"',
+    ),
+    "the recipes home canonical is not its own URL on gustale.recipes",
+  );
+  // R3, again, on the recipes HOME (not just the nav): the recipes
+  // property must not offer the Atlas's "Add a dish", and must not
+  // link to the dish authoring form.
+  check(
+    "the recipes home does NOT offer Add a dish",
+    !/Add a dish/.test(homeHtml ?? ""),
+    "found an 'Add a dish' CTA on the recipes home",
+  );
+  check(
+    "the recipes home does NOT link to the dish authoring form",
+    !homeHtml?.includes('href="/dishes/new"'),
+    "found a link to /dishes/new on the recipes home",
+  );
+  // The recipes home must point at the ATLAS for the history — and it
+  // must do so with an ABSOLUTE url, because the two properties are
+  // different origins and a relative /dishes would land on the
+  // recipes listing instead.
+  check(
+    "the recipes home links to the Atlas for the dish history",
+    (homeHtml ?? "").includes('href="https://gustale.com/dishes"'),
+    "no absolute gustale.com/dishes link on the recipes home",
+  );
+  // And it must NOT claim the Atlas's catalogue counts as its own.
+  // A count that belongs to the other property is not this page's to
+  // display.
+  check(
+    "the recipes home does not claim the Atlas's catalogue counts",
+    !/atlas-kpi__stats/.test(homeHtml ?? ""),
+    "the recipes home renders the Atlas KPI counts",
+  );
+}
+
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
   check(

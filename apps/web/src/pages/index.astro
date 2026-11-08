@@ -1,16 +1,41 @@
 ---
 import AtlasHeroKpi from "../components/AtlasHeroKpi.astro";
 import GustaleHomeIsland from "../components/design/GustaleHomeIsland.tsx";
+import RecipesHome from "../components/RecipesHome.astro";
 import Layout from "../layouts/Layout.astro";
+import { isGeoDomain } from "../lib/domain";
+
+// ONE APP, TWO HOMES.
+//
+// The Atlas home is the map workspace: the hero KPI band and the
+// interactive island. The recipes property gets its OWN home (PR 6b,
+// R1) — the same dish corpus re-framed is not a second property, and
+// ADR-007 recorded that as the thing R1 fixes.
+//
+// `PUBLIC_DOMAIN` is baked at build time, so this is a build-time
+// branch, not a runtime one. The geo build ships the Atlas home; the
+// recipes build ships the recipes home. Neither build ships both.
+const isGeo = isGeoDomain();
 ---
 
-<Layout
-  title="Gustale — Browse the atlas your way"
-  description="Explore the world's dishes by map, by name, by family, or by story."
->
-  {/* P0-1: SSR'd catalog counts visible on first paint, BEFORE the React
-      island hydrates below. See AtlasHeroKpi.astro. */}
-  <AtlasHeroKpi />
+{
+  isGeo ? (
+    <Layout
+      title="Gustale — Browse the atlas your way"
+      description="Explore the world's dishes by map, by name, by family, or by story."
+    >
+      {/* P0-1: SSR'd catalog counts visible on first paint, BEFORE the React
+          island hydrates below. See AtlasHeroKpi.astro. */}
+      <AtlasHeroKpi />
 
-  <GustaleHomeIsland client:only="react" />
-</Layout>
+      <GustaleHomeIsland client:only="react" />
+    </Layout>
+  ) : (
+    <Layout
+      title="Gustale Recipes — How the world's dishes are actually made"
+      description="Recipes for the world's dishes: quantities, times, methods, and a source for every claim."
+    >
+      <RecipesHome />
+    </Layout>
+  )
+}
