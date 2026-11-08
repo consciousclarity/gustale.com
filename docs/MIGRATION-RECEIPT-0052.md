@@ -497,10 +497,20 @@ $ git checkout -- db/migrations/0019_gus242_traditions_1e.sql
 ```
 
 The full chain was re-run after the revert and still passes
-(`FULL_CI_CHAIN_OK=1`). The script is a one-time authoring tool and is
-not run by CI, so the hazard is dormant — but it is a trap for
-whoever next runs it. **It is reported, not fixed**, because fixing it
-would touch a migration that has already run on live.
+(`FULL_CI_CHAIN_OK=1`).
+
+**This hazard is FIXED.** `scripts/guard_data_migrations.py` is now
+**check-only**: it reports whether each GUS-242 migration carries an
+intact guard and **exits 1** when one does not — and it **never
+writes**. The fix ships in a **separate PR** (the owner asked for it to
+be separate from the 0052 work). The guard block to add by hand is
+documented in
+[`docs/MIGRATION-GUARD-REFERENCE.md`](MIGRATION-GUARD-REFERENCE.md).
+
+The fix was verified by hashing all five GUS-242 migration files before
+and after running the script: **identical**. `0019` and `0018` are
+reported as needing a guard, and are left alone — `0019` is applied on
+live, so it must not be edited.
 
 ---
 

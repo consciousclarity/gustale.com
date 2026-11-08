@@ -14,16 +14,29 @@ something conflicts with existing code or an ADR, **report it, don't decide it**
 | item | what | state |
 |---|---|---|
 | **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **MERGED** — PR #199 merged 2026-11-07 22:55 UTC (owner applied `approved-live`). `main` CI green. |
-| **1** | ADR-007 amendment (docs only) | **DONE** — `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, 12 sections. PR #200 open, green, clean. **5 open decisions for the owner** (§10) |
-| 2 | schema migration (recipes + confidence + contributor trust) | not started — **blocked on 2 of the owner's decisions** (service account, trusted-contributor standard) |
+| **1** | ADR-007 amendment (docs only) | **MERGED** — PR #200 merged 2026-11-07. The owner's 5 decisions are IN (§10 of the ADR). |
+| 2 | schema migration (recipes + confidence + contributor trust) | **MERGED, then FIXED** — PR #202 merged 2026-11-08 (migration `0052`). The owner found a **security hole** in it (a recipe claim could name an **Atlas** statement, and auto-publish would publish it). Fixed in **PR #203** — see below. |
 | 3 | ingredient backfill plan, then a pilot | not started |
-| 4 | API: hub + recipe endpoints, publish gate, kill switch | not started |
+| 4 | API: hub + recipe endpoints, publish gate, kill switch | not started — **and the Drizzle schema goes HERE**, not in item 2. See the note below. |
 | 5 | gustale.recipes hub + recipe page v1, empty-state noindex | not started |
 | 6 | Atlas button + "Recipes for this dish" block | not started |
 | 7 | revised 6c: redirects + recipes sitemap | not started — the exact 301 path set is now known (§5.3 of the amendment) |
 | 8 | content pipeline: drafting, confidence, daily digest | not started |
 
 PR 6b (R1, recipes home) is running in parallel and is not part of this list.
+
+### The Drizzle schema belongs to item 4, not item 2 (owner, 2026-11-08)
+
+`CLAUDE.md` requires the schema in **two places**:
+`packages/db/src/schema/index.ts` AND `db/schema.sql`. Item 2 (the
+migration `0052`) does **NOT** touch either — the migration is the
+database side of it, and the owner explicitly deferred the TypeScript
+schema to item 4 (the API work). So item 4 carries BOTH halves of the
+Drizzle schema, and they must land together.
+
+**Also note:** `db/schema.sql` is a *dump* of the live schema, so it
+cannot be regenerated until `0052` is applied to live. That is one more
+reason item 4 waits on the live application of `0052`.
 
 ---
 
@@ -80,6 +93,65 @@ before the migration can be written:
    pages?
 4. **The kill switch's default** — `disabled` is proposed.
 5. **The daily cap of 20** — confirm.
+
+---
+
+## Item 2 — the schema migration `0052` — MERGED, then FIXED
+
+**PR #202** (migration `0052`) was **merged 2026-11-08 at `6b51e44`**,
+with the owner's own commit `a9e2279` (the CI workflow step) applied
+first. The owner applied `approved-live`.
+
+**Then the owner found a security hole in it**, and it was real:
+
+> `recipe_claims.statement_id` may reference ANY statement, including
+> Atlas dish/place statements (`statements` is shared).
+> `recipe_auto_publish()` then verifies + publishes every statement
+> behind the recipe's claims, so a HIGH recipe linked to an Atlas
+> statement would publish that Atlas claim with no review.
+
+**Reproduced end to end in the sandbox before the fix**: the Atlas
+statement moved `draft` → `published`, `published_by =
+system:auto-publish`.
+
+**The fix is PR #203** (`fix/recipes-claims-scope-0052`), which adds:
+
+1. a trigger on `recipe_claims` — a claim may only name a statement with
+   `subject_type = 'recipe'` AND `subject_id` = the recipe that owns the
+   linked sentence; enforced on INSERT **and** UPDATE;
+2. a trigger on `statements` — a claimed statement cannot be moved out
+   from under its claim (the claim-side trigger does not fire when the
+   *statement* is edited, so this covers the other way in);
+3. `statement_set_status()`'s system-actor branch — the transition is
+   refused unless the statement is the recipe's own (the
+   **authorisation**, which must not depend on a trigger being present);
+4. condition 4 and the publish loop — restricted to the recipe's own
+   statements.
+
+**Condition 4 — the owner's confirmed reading (2026-11-08):** the
+evidence must be present **BEFORE** the transition, and the transition
+function **lifts** the statement to verified/published. That is what
+makes the ADR's literal wording non-circular. Recorded in ADR-007-A1
+§8.3 and the new §8.5.
+
+**The proof** is inside the migration's own transaction, so a failed
+proof rolls the migration back: (a) the link is refused on INSERT and
+UPDATE, (b) with the link **forced in**, a valid token for the Atlas
+statement is refused and the statement does not move, (c) the control —
+the recipe's OWN statement — still publishes, (d) a claimed statement
+cannot be moved. It is **mutation-tested**: removing the trigger, the
+authorisation clause, the statements-side trigger, or condition 4's
+scope each makes it fail.
+
+**Also fixed:** an operator-precedence bug in auto-publish's audit
+formatting — `key || ': ' || value ->> 'detail'` parses as
+`(key || ': ' || value) ->> 'detail'`, because `||` binds tighter than
+`->>`.
+
+**The receipt:** `docs/MIGRATION-RECEIPT-0052.md`.
+
+**Not done:** `0052` is **not applied to live**. That is a separate go,
+and it needs `pg_dump` first.
 
 ---
 
