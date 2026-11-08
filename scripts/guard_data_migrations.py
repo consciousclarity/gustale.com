@@ -1,29 +1,40 @@
 #!/usr/bin/env python3
-"""Make the GUS-242 data migrations safe on an empty database.
+"""REPORT on the GUS-242 data migrations. It never writes.
 
-CI applies the whole committed migration chain to a FRESH, EMPTY database
-(`.github/workflows/ci.yml`, "Apply schema to ephemeral DB"). The GUS-242
-migrations 0015-0019 are DATA migrations: they assert the state of the
-seeded catalog and then fix it. On an empty database there is nothing to
-fix, and the assertions correctly fail — which breaks CI.
+WHY THIS SCRIPT IS CHECK-ONLY
+-----------------------------
+This script used to REWRITE the GUS-242 data migrations in place,
+inserting a "CI GUARD" block into each one so that it would skip
+cleanly on an empty database.
 
-The established pattern in this repo is that migrations are idempotent
-and data-agnostic (see 0010_surrogate_pks.sql and
-0011_dish_ingredients_pk.sql, which guard on the existence of the
-constraint rather than on the row count).
+That was a footgun, and it bit twice:
 
-The fix follows that pattern: each data migration gets a GUARD at the
-top of its transaction. If the data it acts on is not present, the
-migration skips cleanly — no error, no write — and the migration chain
-continues. On the seeded/live database the data IS present, the guard
-passes, and every assertion runs exactly as before.
+  1. It rewrote **0019**, a migration that is **already applied on
+     live**. Rewriting an applied migration means the file on disk no
+     longer matches what ran. The committed chain and the applied
+     chain diverge, and nothing in the repo records that.
+  2. It inserted the guard at a fixed offset and could land it in the
+     wrong place -- in one run it produced a file whose BEGIN/COMMIT
+     nesting was wrong.
 
-The guard is written so it cannot mask a real problem on the live
-database: it checks for the SPECIFIC rows the migration acts on, not
-merely "the database is non-empty". A partially-migrated live database
-would fail the guard and the assertions would run and fail loudly.
+So the writing is gone. **This script now only reports.** It never
+modifies a migration file, it never modifies anything at all, and it
+exits 1 when a migration it inspects is not in the expected shape.
 
-This script rewrites the guard block in each affected file in place.
+WHAT IT REPORTS
+---------------
+For each GUS-242 data migration, whether it already carries the CI
+guard. A migration with the guard is fine. A migration without it is
+REPORTED, not fixed -- and the exit code is 1, so CI or a human
+notices.
+
+WHAT A HUMAN DOES ABOUT A REPORT
+--------------------------------
+Edit the migration file **by hand**, and only if the migration is NOT
+yet applied anywhere. The guard block is documented in
+`docs/MIGRATION-GUARD-REFERENCE.md`. If the migration is already
+applied on live, it must not be edited at all: the applied chain and
+the committed chain must stay identical.
 """
 
 import re
@@ -72,9 +83,9 @@ GUARD = """
 -- database would NOT skip -- it would run the assertions and fail
 -- loudly, which is the intended behaviour.
 -- =====================================================================
-SELECT {condition} AS have_data \gset
-\if :have_data
-\echo 'GUS-242: the seeded data is present - running this migration'
+SELECT {condition} AS have_data \\gset
+\\if :have_data
+\\echo 'GUS-242: the seeded data is present - running this migration'
 """
 GUARD_END = r"""
 \else
@@ -82,49 +93,91 @@ GUARD_END = r"""
 \endif
 """
 
+# The guard must be present, AND the transaction must still be intact:
+# a BEGIN; before the guard and a COMMIT; after it.
+RE_BEGIN = re.compile(r"^BEGIN;\s*$", re.MULTILINE)
+RE_COMMIT = re.compile(r"^COMMIT;\s*$", re.MULTILINE)
+# The `\gset` is often on a CONTINUATION line -- the SELECT is written
+# across several lines and `AS have_data \gset` ends the last one. So
+# the marker is matched anywhere on a line, not only at the start.
+RE_GUARD = re.compile(r"AS have_data\s+\\gset")
+
+
+def inspect(fname: str, condition: str) -> str:
+    """Return one of: 'ok', 'missing-guard', 'malformed'.
+
+    This function is PURE. It reads a file and returns a verdict. It
+    does not write, and it does not modify anything.
+    """
+    path = BASE / fname
+    if not path.exists():
+        return "missing-file"
+
+    text = path.read_text()
+
+    if "CI GUARD" not in text:
+        return "missing-guard"
+
+    # The guard is present. Now check the transaction is still sound:
+    # the guard's \if must sit between a BEGIN; and a COMMIT;, and the
+    # \if / \else / \endif must all be there.
+    m = RE_BEGIN.search(text)
+    end = RE_COMMIT.search(text)
+    if not m:
+        return "malformed: no BEGIN;"
+    if not end or end.start() < m.end():
+        return "malformed: no COMMIT; after BEGIN;"
+    if not RE_GUARD.search(text):
+        return "malformed: the guard has no \\gset"
+    if "\\if :have_data" not in text:
+        return "malformed: the guard has no \\if"
+    if "\\else" not in text:
+        return "malformed: the guard has no \\else"
+    if "\\endif" not in text:
+        return "malformed: the guard has no \\endif"
+
+    return "ok"
+
 
 def main() -> int:
     ok = True
+    missing = []
+
+    print("=== the GUS-242 data migrations: CI GUARD report ===")
+    print("This script is CHECK-ONLY. It does not write any file.")
+    print("")
+
     for fname, condition in MIGRATIONS:
-        path = BASE / fname
-        if not path.exists():
-            print(f"ERROR: {path} not found")
+        verdict = inspect(fname, condition)
+        if verdict == "ok":
+            print(f"  ok          {fname}: the guard is present and the transaction is intact")
+        elif verdict == "missing-file":
+            print(f"  MISSING     {fname}: the file does not exist")
             ok = False
-            continue
-
-        text = path.read_text()
-
-        if "CI GUARD" in text:
-            print(f"skip {fname}: guard already present")
-            continue
-
-        # Wrap the whole body: BEGIN ... COMMIT, plus everything between.
-        m = re.search(r"^BEGIN;\s*$", text, re.MULTILINE)
-        if not m:
-            print(f"ERROR: {fname}: no BEGIN; found")
+        elif verdict == "missing-guard":
+            print(f"  NO GUARD    {fname}: the CI guard is NOT present")
+            print(f"              -> this migration will FAIL on an empty database")
+            print(f"              -> add the guard BY HAND; see docs/MIGRATION-GUARD-REFERENCE.md")
+            print(f"              -> do NOT edit it if it is already applied on live")
+            missing.append(fname)
             ok = False
-            continue
-        end = re.search(r"^COMMIT;\s*$", text, re.MULTILINE)
-        if not end or end.start() < m.end():
-            print(f"ERROR: {fname}: no COMMIT; after BEGIN;")
+        else:
+            print(f"  MALFORMED   {fname}: {verdict}")
             ok = False
-            continue
 
-        head = text[:m.start()]
-        body = text[m.start():end.end()]
-        tail = text[end.end():]
+    print("")
+    if ok:
+        print("RESULT: every GUS-242 data migration carries an intact CI guard.")
+        return 0
 
-        guarded = (
-            head
-            + GUARD.format(condition=condition)
-            + body
-            + GUARD_END
-            + tail
-        )
-        path.write_text(guarded)
-        print(f"guarded {fname}")
-
-    return 0 if ok else 1
+    if missing:
+        print(f"RESULT: {len(missing)} migration(s) need the CI guard, added BY HAND:")
+        for f in missing:
+            print(f"  - {f}")
+    else:
+        print("RESULT: at least one GUS-242 data migration is malformed.")
+    print("No file was modified.")
+    return 1
 
 
 if __name__ == "__main__":
