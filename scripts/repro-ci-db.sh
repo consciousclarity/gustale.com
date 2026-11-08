@@ -480,6 +480,22 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0052_recipes_schema.sql" > /tmp/
   || { echo "  FAILED: 0052"; grep -E 'ERROR' /tmp/repro_0052.log | head -6; fail=1; }
 grep -E 'RECIPES_SCHEMA_OK' /tmp/repro_0052.log | tail -1 || true
 
+# 0053 — the recipes PUBLISHED VIEW (ADR-007-A1 §8.4).
+#
+# It is the API's read model: a recipe is live because its STATEMENTS
+# are published, not because a column says so, so the published-ness is
+# a derived view. The view also carries the SCOPE clause -- every
+# statement must be about THIS recipe -- so a shared Atlas statement
+# can never make a recipe look published.
+#
+# It runs after 0052, because it reads the tables 0052 creates. It is a
+# view plus indexes; it writes no content rows, and its proof runs
+# inside its own transaction.
+step "the recipes published view"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0053_recipes_published_view.sql" > /tmp/repro_0053.log 2>&1 \
+  || { echo "  FAILED: 0053"; grep -E 'ERROR' /tmp/repro_0053.log | head -6; fail=1; }
+grep -E 'RECIPES_PUBLISHED_VIEW_OK' /tmp/repro_0053.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
