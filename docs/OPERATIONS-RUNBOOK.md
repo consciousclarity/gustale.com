@@ -56,18 +56,26 @@ things it gets right:
 - `gh-app.sh`'s `api` mode builds `https://api.github.com{path}` with **no slash**, so
   the path must start with `/`. Without it curl exits **6** (could not resolve host).
 
-To push a *specific* commit to a branch, use `push_sha_as_app.py` with
-`--force-with-lease` semantics rather than `push_as_app.py`.
+To push a *specific* commit to a branch, use `push_sha_as_app.py` rather than
+`push_as_app.py`. It still uses `--force-with-lease` semantics internally, so
+**read §1a first** — and on any branch the owner may have touched, the safe
+path is a plain fast-forward push.
 
-### 1a. NEVER force-push a branch the owner may have pushed to
+### 1a. NEVER force-push. Absolute — no `--force-with-lease`, no `--force`.
+
+> **RULE 2 in `docs/RULES.md` is absolute.** No force-push of any kind to a
+> branch that has a commit from the owner. If history needs fixing, push a
+> **NEW** commit (a revert, a merge, a cherry-pick) or **ask the owner**.
+> Never rewrite.
+
+On 2026-11-08 the owner's own commit `061e597` ("ci: every migration must
+be wrapped in a transaction", pushed 06:49) was the item-0 branch tip. A
+`--force-with-lease` push at 07:40 **silently dropped it** from the branch.
 
 `--force-with-lease` protects against changes made **after** the remote SHA you
 recorded — it does **not** protect against commits that were already on the
-remote when you recorded that SHA but are **not** in your local branch.
-
-On 2026-11-08 the owner's own commit `061e597` ("ci: every migration must be
-wrapped in a transaction", pushed 06:49) was the item-0 branch tip. A
-`--force-with-lease` push at 07:40 **silently dropped it** from the branch.
+remote when you recorded that SHA but are **not** in your local branch. That
+is exactly the case it must never be used in.
 
 **Before every push to a branch the owner might touch:**
 
