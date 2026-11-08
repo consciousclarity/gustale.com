@@ -163,6 +163,42 @@ transcribed, not re-litigated.
 
 ---
 
+## Rule 11 — An applied migration is IMMUTABLE. Fixes go into a new number.
+
+**Owner, 2026-11-08.**
+
+Once a migration has been **applied on live**, its file is frozen. It is
+never edited again — not to fix a bug, not to reformat, not to change a
+comment.
+
+**Why.** The committed file is the record of what ran. If an applied
+migration's file changes, the repository says one thing happened and the
+database says another, and **nothing in the repo records the
+divergence**. A later reader — a human or an agent — cannot tell whether
+the migration was re-run, whether the fix was applied by hand, or whether
+it was never applied at all. That ambiguity is the whole failure.
+
+**What to do instead.** A fix goes into a **NEW migration**, numbered
+after the last one. The new migration is the fix; the old file stays as
+the historical record of what actually ran.
+
+**The line is the apply, not the commit.** A migration that is **not yet
+applied on live** may still be edited — that is normal development, and
+it is exactly what happened to `0052`: it was merged, then a security
+hole was found and the file was corrected before it ever ran. Once the
+apply happens, the file is frozen and Rule 11 applies to it forever.
+
+**How to tell.** The live receipt: `drizzle.__drizzle_migrations` on the
+live database lists what has been applied. A migration in that table is
+frozen. A migration absent from it may still be edited.
+
+**Corollary.** A tool that rewrites migration files is a hazard, not a
+helper. `scripts/guard_data_migrations.py` used to rewrite them in
+place — including `0019`, which was already applied. It is now
+check-only (`docs/MIGRATION-GUARD-REFERENCE.md`).
+
+---
+
 ## Where these rules live in the rest of the repo
 
 | rule | also documented in |
@@ -172,6 +208,7 @@ transcribed, not re-litigated.
 | Rule 3 | this file only — **new** |
 | Rule 5 | `docs/OPERATIONS-RUNBOOK.md` §12 |
 | Rule 6 | `docs/OPERATIONS-RUNBOOK.md` §16 |
+| Rule 11 | `docs/MIGRATION-GUARD-REFERENCE.md`, `docs/DATABASE-SAFETY.md` §1 |
 
 `docs/OPERATIONS-RUNBOOK.md` §1a was written **before** Rule 2 was
 absolute. It says "never overwrite them" but still describes

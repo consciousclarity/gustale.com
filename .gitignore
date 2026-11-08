@@ -131,3 +131,12 @@ __pycache__/
 data/cover_images.json
 data/cover_images_poola.json
 data/pool_a_descriptions.json
+
+# The kanban workers' git worktrees.
+#
+# The recipes board creates one worktree per card, under .worktrees/.
+# They are SEPARATE checkouts of this repo -- committing them would
+# commit a nested repository, and `git add -A` from the main checkout
+# would sweep them in. The workers branch from origin/main and push
+# from inside their own worktree, so nothing here needs to be tracked.
+.worktrees/
