@@ -9,6 +9,52 @@ something conflicts with existing code or an ADR, **report it, don't decide it**
 
 ---
 
+## The status table
+
+**Updated with every push.** If a row is stale, the table is wrong — fix
+it in the same commit as the push it describes.
+
+| item | status | PR | blocked on |
+|---|---|---|---|
+| **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **MERGED** — #199 | — |
+| **1** | ADR-007 amendment (docs only) | **MERGED** — #200 | — |
+| **2** | schema migration `0052` | **MERGED** — #202, then **FIXED** — #203 (the shared-`statements` security hole) | `0052` is **not applied to live** — the owner runs it, with `pg_dump` first |
+| **3** | ingredient backfill plan + the S1–S7 source tier list | **IN PROGRESS** — kanban `t_ea058a91` (research lane) | — |
+| **4** | API: hub + recipe endpoints, publish gate, kill switch **+ the Drizzle schema in both places** | **IN PROGRESS** — kanban `t_5c002b54` (DB lane) | — |
+| **5** | gustale.recipes recipe page v1, empty-state noindex | **READY** — kanban `t_3e0078b3` (FE lane), after 6b | 6b first; then the item-4 API |
+| **6** | Atlas button + "Recipes for this dish" block | not started | — |
+| **7** | revised 6c: redirects + recipes sitemap | not started | the exact 301 path set is known (§5.3 of the amendment) |
+| **8** | content pipeline: drafting, confidence, daily digest | not started | real S1–S5 sources — today **all 1,486 sources are S6**, so nothing can reach HIGH |
+| **6b** | the recipes home (runs in parallel, not part of the 8) | **READY** — kanban `t_3e0078b3` (FE lane) | the item-4 API |
+
+### The kanban board
+
+**Board: `recipes`** — `hermes kanban boards switch recipes`, then
+`hermes kanban list`. The web view is the Hermes dashboard's kanban
+plugin at `http://127.0.0.1:9119/plugins/kanban/` (the dashboard runs
+locally: `hermes dashboard --port 9119 --host 127.0.0.1 --no-open`).
+
+**Three lanes, at most three workers.** A lane is a Hermes profile; the
+gateway's dispatcher claims the card and runs the worker in its own
+worktree.
+
+| lane | profile | card | may create a migration? |
+|---|---|---|---|
+| **DB** | `recipes-db` | item 4 (API + Drizzle) | **YES — the only lane that may** |
+| **Frontend** | `recipes-fe` | 6b, then item 5 | **NO** |
+| **Research** | `research` | item 3 (docs only) | **NO** |
+
+Every worker's rules: its own git worktree and branch, its own test DB
+on port 5434 named after the card and **dropped when done**, no SSH, no
+live DB, no deploy, no force-push. The output is **a PR**.
+
+The lane boundary is enforced by the **card body**, not by convention:
+the DB card says it is the only lane that may create a migration, and
+the other two say a schema need is a *report*, not an edit. A lane that
+crosses the boundary has failed its card even if the code is perfect.
+
+---
+
 ## Where the task stands
 
 | item | what | state |
