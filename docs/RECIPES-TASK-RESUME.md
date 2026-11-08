@@ -230,7 +230,67 @@ are above; these are the parts the live database forced:
 
 ---
 
-## Standing rules for the whole task
+## The standing rules now live in `docs/RULES.md`
+
+`docs/RULES.md` is the repo-wide standing-rules file, created 2026-11-08
+from two rule breaks. **Read it before any push, any docker call, and
+any live-database operation.** The three push traps below are also
+written up in `docs/OPERATIONS-RUNBOOK.md` §1 and §1a.
+
+**Rule 2 (absolute): never force-push.** `--force-with-lease` is
+included. If history needs fixing, push a NEW commit or ask.
+
+**Rule 3 (new): docker is not a back door.** Using docker to reach
+files, users, containers or processes I otherwise could not is
+forbidden — docker access *is* root access. Docker is allowed **only**
+for the test Postgres container (`gustale-test-postgres`) and the
+documented build/deploy scripts (`/home/deploy/gustale-rebuild/`).
+
+---
+
+## Item 1 — the ADR-007 amendment (DONE — the owner's 5 decisions are IN)
+
+**Status 2026-11-08: PR #200 carries the owner's five decisions and is
+ready for the owner to merge.** The five open decisions are **closed**;
+the document is written to match them.
+
+| # | decision | the owner's answer | where |
+|---|---|---|---|
+| 1 | the auto-publish actor | **amend 0048** — an explicit `service_accounts` list replaces the email-suffix heuristic | §2.4 |
+| 2 | the trusted-contributor standard | a trusted contributor **also** needs **2 independent sources**; without them → **Alejandro's review queue** | §6.2 |
+| 3 | the 301 path set | **the full set** — 3 indexes + 43 `/family/<slug>` + 12 `/lineages/<slug>` = **58 paths** | §5.3 |
+| 4 | the kill switch's default | **OFF at launch** | §7.1 |
+| 5 | the daily cap / the digest | **cap 20**, and the **digest from day one** | §7.2, §7.3 |
+
+**Plus three source rules that came with decision 2**, all now hard
+conditions on HIGH:
+
+- **a Wikipedia-only recipe is never HIGH** (§1.3, condition 5a);
+- the source tiers — cookbook `S4`/`S5`, institution `S3`, established
+  site `S1`/`S2` may support HIGH; reference `S6` may not (§1.3);
+- **"own wording only" is never HIGH** — a claim must carry **quoted**
+  source text, not the drafter's prose (§1.4, condition 7).
+
+**The effect on the schema** (§8): `service_accounts` is a new table;
+`recipe_publish_log` gains `service_account_id`;
+`recipe_settings.auto_publish_enabled` defaults to `false` and
+`auto_publish_daily_cap` to `20` — both already matched the decisions,
+but the *reason* is now written down.
+
+**The effect on the auto-publish function** (§8.4): it has **no
+contributor branch**. Trust is not a parameter of it, because making it
+one would be the mechanism by which the evidence bar got lowered.
+
+**Item 2 is now unblocked** — the two conflicts that blocked it (1 and
+4) are both answered. What the owner still has to *do* (actions, not
+decisions): create the service account `recipes-publisher@gustale.com`
+on `service_accounts` with a credential under ADR-006; create the
+trusted contributors; give the `approved-live` + a separate go for the
+item-2 migration.
+
+---
+
+## The standing rules for the whole task
 
 - **No live database writes without the owner's explicit go, per operation.**
 - Exit codes captured **without a pipe** (`cmd > file; RC=$?`).
