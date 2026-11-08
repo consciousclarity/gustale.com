@@ -13,8 +13,8 @@ something conflicts with existing code or an ADR, **report it, don't decide it**
 
 | item | what | state |
 |---|---|---|
-| **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **code done**, PR #199 open, waiting on the owner's label |
-| **1** | ADR-007 amendment (docs only) | **DONE** — `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, 12 sections. **5 open decisions for the owner** (§10) |
+| **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **MERGED** — PR #199 merged 2026-11-07 22:55 UTC (owner applied `approved-live`). `main` CI green. |
+| **1** | ADR-007 amendment (docs only) | **DONE** — `docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`, 12 sections. PR #200 open, green, clean. **5 open decisions for the owner** (§10) |
 | 2 | schema migration (recipes + confidence + contributor trust) | not started — **blocked on 2 of the owner's decisions** (service account, trusted-contributor standard) |
 | 3 | ingredient backfill plan, then a pilot | not started |
 | 4 | API: hub + recipe endpoints, publish gate, kill switch | not started |
@@ -83,15 +83,23 @@ before the migration can be written:
 
 ---
 
-## Item 0 — PR #199
+## Item 0 — PR #199 — **MERGED**
 
 **Branch:** `fix/item0-dryrun-test-postgres-and-transactional-migrations`
-**Commits (pushed, local == remote at `7413981`):**
+**Merge commit:** `98eea60` (2026-11-07 22:55 UTC), owner applied `approved-live`.
+`main` CI: green.
+
+**Commits (all now in `main`):**
 
 - `bd1c697` — fix(db-safety): the dry-run runs on the test Postgres; every
   migration must be transactional
 - `7413981` — docs(runbook): §8a every migration must be transactional; §8b the
   dry-run's copy is on the test Postgres
+- `6b0c573`, `794599b`, `564cc8b`, `d24124d` — the resume doc, the GitHub API
+  helper, and the runbook notes
+- `061e597` — **the owner's own commit**, "ci: every migration must be wrapped
+  in a transaction", adding the transactional-migration CI step to
+  `.github/workflows/ci.yml`
 
 **What changed**
 
@@ -122,20 +130,24 @@ before the migration can be written:
   (exit 1) on a migration whose wrapper was stripped;
 - every gate this PR touches is exit 0, and `pnpm lint` is exit 0.
 
-**Two things the owner must do**
+**Two things the owner must do — BOTH DONE**
 
-1. Apply the `approved-live` label to PR #199. The **Live approval gate**
-   is failing because `scripts/dryrun-migration.sh` is a protected path under
-   ADR-005 — and the label only counts when the owner applies it.
-2. Apply the CI step, which ships as a patch because the App has no
-   `workflows` scope:
+1. ~~Apply the `approved-live` label to PR #199.~~ **Done** — applied and
+   merged 2026-11-07 22:55 UTC.
+2. ~~Apply the CI step, which ships as a patch because the App has no
+   `workflows` scope:~~ **Done** — the owner committed the CI step directly
+   as `061e597`, so the patch file is no longer needed. The step is now live
+   in `.github/workflows/ci.yml` on `main`:
 
    ```
-   git apply docs/ci-transactional-migration-check.patch
+   - name: Every migration must be wrapped in a transaction
+     run: |
+       python3 scripts/test-check-migrations-are-transactional.py
+       python3 scripts/check-migrations-are-transactional.py
    ```
 
-   It applies cleanly, the patched workflow is valid YAML with the step in the
-   `lint` job, and the step was verified in a scratch checkout.
+   `docs/ci-transactional-migration-check.patch` is kept in the repo as the
+   record of how it was shipped, but applying it now would duplicate the step.
 
 **No live database write** happened in this PR.
 
@@ -218,7 +230,94 @@ are above; these are the parts the live database forced:
 
 ---
 
-## Standing rules for the whole task
+## The standing rules now live in `docs/RULES.md`
+
+`docs/RULES.md` is the repo-wide standing-rules file, created 2026-11-08
+from two rule breaks. **Read it before any push, any docker call, and
+any live-database operation.** The three push traps below are also
+written up in `docs/OPERATIONS-RUNBOOK.md` §1 and §1a.
+
+**Rule 2 (absolute): never force-push.** `--force-with-lease` is
+included. If history needs fixing, push a NEW commit or ask.
+
+**Rule 3 (new): docker is not a back door.** Using docker to reach
+files, users, containers or processes I otherwise could not is
+forbidden — docker access *is* root access. Docker is allowed **only**
+for the test Postgres container (`gustale-test-postgres`) and the
+documented build/deploy scripts (`/home/deploy/gustale-rebuild/`).
+
+---
+
+## Item 1 — the ADR-007 amendment (DONE — the owner's 5 decisions are IN)
+
+**Status 2026-11-08: PR #200 carries the owner's five decisions and is
+ready for the owner to merge.** The five open decisions are **closed**;
+the document is written to match them.
+
+| # | decision | the owner's answer | where |
+|---|---|---|---|
+| 1 | the auto-publish actor | **the system actor `system:auto-publish`** — no login, no email, no password, no session, no credential; acts only inside `recipe_auto_publish()`. **No account creation.** | §2.4 |
+| 2 | the trusted-contributor standard | a trusted contributor **also** needs **2 independent sources**; without them → **Alejandro's review queue** | §6.2 |
+| 3 | the 301 path set | the **full set** — 3 indexes + 43 `/family/<slug>` + 12 `/lineages/<slug>` = **58 paths** | §5.3 |
+| 4 | the kill switch's default | **OFF at launch** | §7.1 |
+| 5 | the daily cap / the digest | **cap 20**, and the **digest from day one** | §7.2, §7.3 |
+
+**Two of the five were inverted in the first draft and were corrected on
+2026-11-08.** Both corrections are recorded in the ADR itself, because
+an ADR is a record of decisions *including the ones that changed*:
+
+**1. The publisher — the actor is `system:auto-publish`, not an account.**
+The first draft proposed a human-named service account
+(`recipes-publisher@gustale.com`) holding a publish credential — and
+then contradicted itself by saying listed accounts are *refused*
+credentials. Both are deleted. The actor is now a **row** on
+`service_accounts` with **no login, no email, no password, no session
+and no credential**, and it acts **only** inside `recipe_auto_publish()`
+(`SECURITY DEFINER`), which re-checks every HIGH condition, the kill
+switch and the cap before performing the transition. The amended 0048
+refuses a credential to **any** listed system actor and says exactly
+how the system actor publishes anyway: through its own function, not
+through the credential path. No human and no bot can use it. **The
+item-2 migration needs no account creation at all.**
+
+**2. The wording — published text is in OUR OWN WORDS, never copied.**
+The first draft said "own wording is never HIGH", which had it
+backwards: it required quoting source text in order to reach HIGH, and
+quoting is exactly what the owner forbids. The corrected rule:
+
+- **published recipe text MUST be in our own words, never copied**;
+- **provenance = each core claim links to its source with an exact
+  locator** (page / section / URL);
+- at most a **one-sentence verification excerpt** is stored internally —
+  **never rendered, never published**;
+- **HIGH depends on 2 independent `S1`–`S5` sources supporting the
+  claims**, not on stored quotes.
+
+Condition 7 in §8.3 is replaced by **7′ (locator provenance)**, and the
+daily digest (§7.3) now shows the **locator**, not the source text.
+
+**Plus the other source rule that stands**, a hard condition on HIGH:
+**a Wikipedia-only recipe is never HIGH** (§1.3, condition 5a), with the
+source tiers — cookbook `S4`/`S5`, institution `S3`, established site
+`S1`/`S2` may support HIGH; reference `S6` may not.
+
+**The effect on the schema** (§8): `service_accounts` is a new table
+(`actor`, `kind='system'` — a CHECK that makes it impossible for the
+table to hold a person); `recipe_publish_log` gains
+`service_account_id`; `recipe_settings.auto_publish_enabled` defaults
+to `false` and `auto_publish_daily_cap` to `20`.
+
+**The effect on the auto-publish function** (§8.4): it has **no
+contributor branch**. Trust is not a parameter of it, because making it
+one would be the mechanism by which the evidence bar got lowered.
+
+**Item 2 is unblocked.** What the owner still has to *do*: give the
+`approved-live` label and a separate go for the item-2 migration.
+**That is all** — no account, no credential, no secret.
+
+---
+
+## The standing rules for the whole task
 
 - **No live database writes without the owner's explicit go, per operation.**
 - Exit codes captured **without a pipe** (`cmd > file; RC=$?`).
@@ -229,21 +328,35 @@ are above; these are the parts the live database forced:
 
 ---
 
-## Hindsight (separate thread, owner is on it)
+## Hindsight (separate thread — ROOT CAUSE FOUND)
 
-Writes fail with `invalid api key (2049)`; reads work. 2049 comes **only** from
-`api.minimaxi.com` — the global host returns 200/1004/404 and never 2049 — so
-the daemon is calling a China-region host while the key itself is valid. The bad
-value is **inherited**: systemd's `EnvironmentFile=` only shadows variables it
-defines, so deleting the base-URL line *exposed* an inherited one.
+**The write failure is an INVALID MiniMax key, not a wrong host.** Proven
+2026-11-08:
 
-The owner is fixing it. When he says to test:
+- The owner's edit was correct: all four `HINDSIGHT_API_*_BASE_URL` lines read
+  `https://api.minimax.io/v1`, and the daemon restarted 35 s after the edit
+  (06:58:08 vs mtime 06:57:33). The URL was never the cause.
+- The key in `hermes.env` (fingerprint `dd774d302bbd`) is rejected with 2049
+  by **both** hosts, on every model and every endpoint. The key in
+  `/home/gustale/.hermes/.env` (`b47bd6931ae2`) returns HTTP 200 on
+  `api.minimax.io`. That key is unchanged in all three env backups, so it has
+  been invalid since the first 2049 on **2026-11-06 07:23Z**.
+- Last successful bank write: **2026-10-30 22:44:01Z**. `llm-requests` has
+  **0** success rows and **246** failed operations. Recall still works (it
+  needs no LLM); only retain and reflect are broken.
+- **Trap:** MiniMax's legacy endpoint answers HTTP 200 with
+  `base_resp.status_code=2049`. A status-only probe reads a false success.
+- The earlier claim "2049 comes only from the China host" was **wrong** — it
+  came from the working key happening to be global-only.
 
-1. one write,
-2. one recall,
-3. report the new `last_memory_write_at`.
+**The fix needs the owner** (the env file is mode 600, owner `hermes`; `gustale`
+cannot write it and has no passwordless sudo): put the working key in
+`HINDSIGHT_API_LLM_API_KEY` and restart `hindsight.service`.
 
-Full write-up: `docs/HINDSIGHT-WRITE-FAILURE.md`.
+After he says to test: one write, one recall, report the new
+`last_memory_write_at`.
+
+Full write-up: `docs/HINDSIGHT-WRITE-FAILURE.md` (PR #201).
 
 ---
 
@@ -264,7 +377,7 @@ Memory is at **79%** and holds only a thin index into these documents.
 
 ---
 
-## The two push traps (write these down before the next push)
+## The three push traps (write these down before the next push)
 
 1. **`push_as_app.py` pushes `HEAD`, not the branch you name.** If the
    working tree is on a different branch, the wrong commit lands on the
@@ -277,5 +390,25 @@ Memory is at **79%** and holds only a thin index into these documents.
    returns `None` without an explicit `SourceFileLoader` — and its `api`
    mode builds the URL with no slash, so the path must start with `/` or
    curl exits 6.
+3. **NEVER force-push a branch the owner may have pushed to.** On
+   2026-11-08 the owner's own commit `061e597` ("ci: every migration must
+   be wrapped in a transaction", pushed 06:49) sat on the item-0 branch
+   tip. A `--force-with-lease` push at 07:40 **silently dropped it**,
+   because the lease only protects against changes made *after* the
+   recorded remote SHA was read — and the owner's commit was already in
+   that SHA's history but *not* in the local branch.
 
-Both are written up in `docs/OPERATIONS-RUNBOOK.md` §1.
+   **The rule:** before pushing, run
+   `git fetch origin <branch>` and
+   `git log --oneline HEAD..origin/<branch>`. If that lists anything, the
+   owner pushed commits you do not have — **merge or cherry-pick them, do
+   not overwrite them.** Verify afterwards with
+   `git patch-id --stable` on both commits, not by SHA (a cherry-pick gets
+   a new SHA).
+
+   If a commit *was* dropped: it is usually still in `main` via the merge
+   commit, or recoverable from `git fsck --lost-found` / the PR's
+   `head.sha`. `GET /repos/…/pulls/<N>` keeps the old `head.sha` even
+   after the branch is rewritten.
+
+All three are written up in `docs/OPERATIONS-RUNBOOK.md` §1.
