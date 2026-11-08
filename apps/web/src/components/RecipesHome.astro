@@ -1,0 +1,350 @@
+---
+/**
+ * PR 6b (R1) — the recipes property's OWN home.
+ *
+ * WHAT THIS IS
+ * ------------
+ * Until this page, `gustale.recipes/` served the ATLAS home: the same
+ * `AtlasHeroKpi` band and the same `GustaleHomeIsland` workspace that
+ * `gustale.com/` serves. ADR-007 recorded that as the problem R1 exists
+ * to fix — "What gustale.recipes serves today is the same dish corpus,
+ * re-framed". Two properties, one body of content, one presentation.
+ *
+ * R1 is "a minimal own home for the recipes property" (ADR-007, §"R1–R3
+ * are, in order"). This is that minimal own home.
+ *
+ * WHAT IT IS NOT
+ * --------------
+ * It is NOT the per-dish recipe hub. That is item 5, it is a different
+ * URL (`/dishes/<slug>` on the recipes origin), and it is built after
+ * this one. The two are often confused because ADR §5.2 calls the
+ * per-dish page "the hub"; here "the hub" means the recipes property's
+ * own entry point, which is what the resume doc's task table and the
+ * Nav both point at ("On the recipes domain 'Explore' is the recipes
+ * home, which is the recipes LISTING — the site's entry point on this
+ * domain").
+ *
+ * THE CONTRACT THIS PAGE KEEPS
+ * ----------------------------
+ * 1. It is a RECIPES page. It says so, and it does not pretend to be
+ *    the Atlas. No Atlas history, places or families are copied here
+ *    (ADR-007-A1 §5.3's "No history/places/families copied from the
+ *    Atlas").
+ * 2. It does NOT have "Add a dish" and does NOT link to `/dishes/new`.
+ *    That control is the Atlas's (PR 6a, R3). "Add a recipe" is not
+ *    offered either: there is no recipe to add until the schema and the
+ *    API land (item 4), and offering a link to a form that does not
+ *    exist is worse than offering nothing.
+ * 3. It renders correctly and usefully with ZERO recipes — which is
+ *    what every visitor sees today, because live has zero recipes. It
+ *    does NOT fake content to look populated.
+ * 4. It links to the Atlas for the thing the Atlas is for (history,
+ *    origins, connections), and it links to the recipes listing for the
+ *    thing this property is for (the recipes).
+ */
+import { atlasUrl, propertyName } from "../lib/domain";
+
+// The recipes listing is this property's entry point for the recipes
+// themselves. It is a recipes-domain route, so it is a local link.
+const recipesHref = "/dishes";
+// The Atlas dish, for a dish the reader wants the HISTORY of.
+const atlasHref = atlasUrl("/dishes");
+
+// The counts. They are the ATLAS's counts (dishes, places, families) —
+// this page must not claim them as the recipes property's own numbers,
+// so they are not fetched here. A count that belongs to the other
+// property is not this page's to display.
+//
+// What this page CAN honestly count is the recipes, and that count is
+// zero today. The API that would serve it (item 4) does not exist yet,
+// so the page renders the zero it knows, in words, with an action
+// attached — the rule the Atlas's own KPI band follows ("a zero belongs
+// in an EMPTY STATE that has an action attached").
+
+// "Add a recipe" is deliberately NOT offered: see the header note.
+// The link to the authoring surface is only reachable once the recipe
+// schema and its API exist (item 4). Offering a dead form is the
+// defect R3 was about — so there is no authoring href here to keep
+// alive, and no "Add a dish" control to inherit from the Atlas.
+---
+
+<section class="recipes-home" aria-labelledby="recipes-home-title">
+  <div class="wrap">
+
+    <p class="recipes-home__kicker">{propertyName()}</p>
+
+    <h1 id="recipes-home-title" class="recipes-home__title">
+      Recipes for the world's dishes.
+    </h1>
+
+    <p class="recipes-home__lede">
+      The Atlas records where a dish came from — its history, its origins,
+      its family, the connections it carries. This is the other half:
+      <strong>how it is actually made</strong>. A recipe is one way of
+      cooking a dish, with quantities, times, and a source for every
+      claim it makes.
+    </p>
+
+    {/*
+      THE EMPTY STATE — and today it is not an edge case.
+
+      There are zero published recipes, because the recipe schema and
+      its API are still being built (item 4). So this is what every
+      visitor sees first, and it has to be worth reading on its own.
+
+      It says three true things:
+        * how many recipes there are (zero);
+        * where the dish's history lives (the Atlas);
+        * that the recipes are not here yet, without pretending they are.
+    */}
+    <div class="recipes-home__empty" role="status">
+      <p class="recipes-home__count">
+        <b>0</b>{" "}
+        <span>published recipes</span>
+      </p>
+      <p class="recipes-home__emptynote">
+        The recipe collection is being built. Nothing is here yet — so
+        nothing is shown here yet. The dishes themselves are already
+        documented on the Atlas.
+      </p>
+      <div class="recipes-home__emptyactions">
+        <a href={atlasHref} class="btn-accent">
+          Browse dishes on the Atlas ↗️
+        </a>
+        <a href={recipesHref} class="btn-ghost">
+          See the recipe list →
+        </a>
+      </div>
+    </div>
+
+    {/*
+      WHAT THIS PROPERTY WILL HOLD.
+
+      Three entries, each saying what it will be. They are not links to
+      pages that do not exist: the only links here are to the recipes
+      listing and to the Atlas. The rest is a statement of intent, which
+      is honest and costs nothing.
+    */}
+    <div class="recipes-home__what">
+      <h2 class="recipes-home__sectiontitle">What lands here</h2>
+      <ul class="recipes-home__cards">
+        <li class="recipes-home__card">
+          <p class="recipes-home__cardnum">01</p>
+          <h3 class="recipes-home__cardtitle">One recipe per variation</h3>
+          <p class="recipes-home__cardbody">
+            Nasi goreng kampung and nasi goreng jawa are two recipes, not
+            one recipe with two names. Each carries its own quantities,
+            times and method.
+          </p>
+        </li>
+        <li class="recipes-home__card">
+          <p class="recipes-home__cardnum">02</p>
+          <h3 class="recipes-home__cardtitle">Every claim carries a source</h3>
+          <p class="recipes-home__cardbody">
+            A recipe is a set of claims about how to do something. An
+            unsourced recipe looks authoritative, so every claim is
+            sourced or marked as the contributor's own.
+          </p>
+        </li>
+        <li class="recipes-home__card">
+          <p class="recipes-home__cardnum">03</p>
+          <h3 class="recipes-home__cardtitle">History stays on the Atlas</h3>
+          <p class="recipes-home__cardbody">
+            A recipe inherits its dish's identity — it does not duplicate
+            it. Origins and history are not copied here; the Atlas keeps
+            them, and each recipe links back.
+          </p>
+        </li>
+      </ul>
+    </div>
+
+    {/*
+      THE CONTRIBUTION INVITATION.
+
+      The Atlas is where a dish is documented; this is where a recipe is
+      written. The one control that exists today is the Atlas's "Add a
+      dish", and this page does not carry it — it points at the Atlas
+      instead. That is the R3 rule: the recipes property stops
+      promising a control it cannot deliver.
+
+      When item 4 lands the recipe schema and its API, the "Write a
+      recipe" control comes here and the link below becomes the recipe
+      authoring surface. It is NOT in the markup now, and not behind a
+      flag: a switch that is currently false is a promise the page
+      cannot keep, and R3 was exactly about that.
+    */}
+    <div class="recipes-home__contribute">
+      <h2 class="recipes-home__sectiontitle">Write a recipe</h2>
+      <p class="recipes-home__contributelede">
+        Recipes are added from the dish itself, and each one is reviewed
+        before it goes live. Until that form exists, dishes are
+        documented on the Atlas.
+      </p>
+      <a href={atlasHref} class="btn-ghost">
+        Start with a dish on the Atlas ↗️
+      </a>
+    </div>
+
+  </div>
+</section>
+
+<style>
+  /* ── Page-local: the recipes home ─────────────────────────────────── */
+  .recipes-home {
+    padding: 56px 0 96px;
+  }
+  .recipes-home .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .recipes-home__kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  .recipes-home__title {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(36px, 5.5vw, 64px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 0 0 20px;
+    color: var(--ink);
+    max-width: 18ch;
+  }
+  .recipes-home__lede {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(17px, 2vw, 21px);
+    line-height: 1.5;
+    color: var(--sub);
+    margin: 0 0 44px;
+    max-width: 640px;
+  }
+  .recipes-home__lede strong {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* ── The empty state ─────────────────────────────────────────────── */
+  .recipes-home__empty {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 34px 34px 36px;
+    margin: 0 0 64px;
+  }
+  .recipes-home__count {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 12px;
+  }
+  .recipes-home__count b {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 46px;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .recipes-home__count span {
+    font-size: 14px;
+    color: var(--sub);
+  }
+  .recipes-home__emptynote {
+    font-size: 15.5px;
+    line-height: 1.6;
+    color: var(--sub);
+    margin: 0 0 24px;
+    max-width: 560px;
+  }
+  .recipes-home__emptyactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+  .recipes-home__emptyactions .btn-accent,
+  .recipes-home__emptyactions .btn-ghost,
+  .recipes-home__contribute .btn-accent,
+  .recipes-home__contribute .btn-ghost {
+    text-decoration: none;
+  }
+
+  /* ── "What lands here" ───────────────────────────────────────────── */
+  .recipes-home__sectiontitle {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--sub);
+    font-weight: 500;
+    margin: 0 0 26px;
+  }
+  .recipes-home__cards {
+    list-style: none;
+    margin: 0 0 64px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  @media (max-width: 900px) {
+    .recipes-home__cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 560px) {
+    .recipes-home__cards {
+      grid-template-columns: 1fr;
+    }
+  }
+  .recipes-home__card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 24px 22px 26px;
+  }
+  .recipes-home__cardnum {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin: 0 0 14px;
+    opacity: 0.85;
+  }
+  .recipes-home__cardtitle {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 21px;
+    line-height: 1.2;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .recipes-home__cardbody {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--sub);
+    margin: 0;
+  }
+
+  /* ── Contribution ────────────────────────────────────────────────── */
+  .recipes-home__contribute {
+    border-top: 1px solid var(--line);
+    padding-top: 48px;
+  }
+  .recipes-home__contributelede {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--sub);
+    margin: 0 0 24px;
+    max-width: 560px;
+  }
+</style>
