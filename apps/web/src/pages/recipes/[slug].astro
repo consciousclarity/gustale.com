@@ -1,0 +1,156 @@
+---
+import RecipePage from "../../components/RecipePage.astro";
+/**
+ * THE RECIPE PAGE — `gustale.recipes/recipes/<slug>`.
+ *
+ * Item 5, route 2 of 2.
+ *
+ * WHY THIS ROUTE IS RECIPES-ONLY
+ * ------------------------------
+ * ADR-007-A1 §5.5: "The Atlas build must NOT serve /recipes/<slug>: the
+ * recipe page is the recipes property's content, and shipping it on both
+ * would duplicate it (the exact failure R2's 301s were meant to end)."
+ *
+ * So the page is built on the recipes domain only, and `post-build.mjs`
+ * removes the `/recipes/` tree from the geo dist. The geo build does not
+ * even produce these pages: `getStaticPaths` returns nothing when the
+ * domain is `geo`, so the route does not exist there at all.
+ *
+ * THE STATIC PATHS
+ * ----------------
+ * The recipes come from the item-4 API's feed, which reads the
+ * `recipe_published` VIEW — so it lists exactly the recipes that are
+ * live. A recipe that is not published is not in the feed, so it is not
+ * built, so it is a 404 on the site. That is the publish gate, applied
+ * to the page as well as to the API.
+ *
+ * THE BUILD MUST NOT FAIL BECAUSE THE API IS UNAVAILABLE
+ * ------------------------------------------------------
+ * A build that cannot reach the API must not ship a broken dist. So the
+ * fetch is wrapped: on failure the route builds ZERO pages and the
+ * build logs the reason. The recipes listing and the hubs still build
+ * (they read the dish list), and the recipe pages simply are not there.
+ *
+ * The API is reached at BUILD time through `PUBLIC_API_BASE` — the same
+ * absolute-URL rule the dish route uses.
+ */
+import Layout from "../../layouts/Layout.astro";
+import { isGeoDomain } from "../../lib/domain";
+import { getRecipe, listRecipes } from "../../lib/recipes";
+
+export async function getStaticPaths() {
+  // The Atlas build must not serve the recipe pages at all.
+  if (isGeoDomain()) return [];
+
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (!apiBase) {
+    // No API configured at build time. The build must not fail; the
+    // pages are simply absent, and the recipes hub explains why.
+    return [];
+  }
+
+  try {
+    const slugs: string[] = [];
+    const PAGE_SIZE = 100;
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      const res = await fetch(
+        `${apiBase}/api/recipes?limit=${PAGE_SIZE}&offset=${offset}`,
+      );
+      if (!res.ok) throw new Error(`Recipe list fetch returned ${res.status}`);
+      const json = (await res.json()) as {
+        recipes: Array<{ slug: string }>;
+      };
+      slugs.push(...json.recipes.map((r) => r.slug));
+      if (json.recipes.length < PAGE_SIZE) break;
+      // A guard against a server that keeps returning the same page.
+      if (offset >= 50 * PAGE_SIZE) break;
+    }
+    return slugs.map((slug) => ({ params: { slug } }));
+  } catch (err) {
+    // Log but do not crash the build — a partial dist is better than no
+    // dist, and CI surfaces the error in the logs.
+    console.error("[getStaticPaths] recipe list fetch failed:", err);
+    return [];
+  }
+}
+
+const { slug } = Astro.params;
+const recipeSlug = slug as string;
+
+// The recipe itself.
+let recipe = null;
+let confidence = null;
+let notFound = false;
+
+try {
+  const res = await getRecipe(recipeSlug);
+  recipe = res.recipe;
+  confidence = res.confidence;
+} catch (err) {
+  // A 404 means "no published recipe with this slug" — the same answer
+  // as "no recipe with this slug", so the page does not leak the
+  // existence of a draft. Anything else is a build-time failure: the
+  // page renders the same 404, and the reason is logged.
+  if (
+    err &&
+    typeof err === "object" &&
+    "status" in err &&
+    (err as { status?: number }).status === 404
+  ) {
+    notFound = true;
+  } else {
+    console.error("[recipes/:slug] recipe fetch failed:", err);
+    notFound = true;
+  }
+}
+
+if (!recipe && !notFound) notFound = true;
+
+// A missing recipe is a 404, not a 200 with an empty body — the same
+// fix the Atlas dish route made. A SPA fallback would make every bad
+// URL look like the same page to a crawler.
+if (notFound) {
+  Astro.response.status = 404;
+}
+
+const seoTitle = recipe
+  ? `${recipe.title} — Gustale Recipes`
+  : "Recipe not found — Gustale Recipes";
+const seoDescription = recipe
+  ? `A recipe for ${recipe.dish.name}: ${recipe.contentType}, with its ingredients, method and confidence record.`
+  : "A recipe from Gustale Recipes.";
+---
+
+{
+  recipe ? (
+    <Layout title={seoTitle} description={seoDescription} locale="en">
+      <RecipePage
+        slug={recipe.slug}
+        title={recipe.title}
+        contentType={recipe.contentType}
+        servings={recipe.servings}
+        prepMinutes={recipe.prepMinutes}
+        cookMinutes={recipe.cookMinutes}
+        publishedAt={recipe.publishedAt}
+        dish={recipe.dish}
+        sentences={recipe.sentences}
+        ingredients={recipe.ingredients}
+        confidence={confidence}
+      />
+    </Layout>
+  ) : (
+    <Layout title={seoTitle} description={seoDescription} locale="en" noindex>
+      <section class="wrap text-center" style="padding: var(--space-9) 0;">
+        <h1 class="page-header">Recipe not found</h1>
+        <p class="sub">
+          We have no published recipe with the slug{" "}
+          <code style="background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 14px;">
+            {recipeSlug}
+          </code>
+          .
+        </p>
+        <a href="/dishes" class="btn-accent">Browse recipes</a>
+      </section>
+    </Layout>
+  )
+}
