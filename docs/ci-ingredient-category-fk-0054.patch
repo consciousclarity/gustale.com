@@ -1,0 +1,60 @@
+The CI workflow change that applies migration 0054 in the CI database.
+
+The App that pushes the branch has no `workflows` scope and cannot push
+.github/workflows/, so this ships AS A PATCH FILE. The OWNER applies it
+with:
+
+    git apply docs/ci-ingredient-category-fk-0054.patch
+
+WHY IT IS NEEDED
+
+`scripts/validate-ci-migration-chain.py` checks that the workflow, the
+Nightly script and the local reproduction apply the SAME migrations, and
+CI fails if they do not. 0054 is in the two scripts and not yet in the
+workflow, so that step fails -- and it is RIGHT to fail.
+
+The step applies 0054 after 0053 and then asserts the migration's own
+marker, exactly as the neighbouring steps do, so it cannot pass
+silently: the migration FAILS if its own proof does not hold, and the
+marker check FAILS if the migration did not reach its end.
+
+PROVED BEFORE SHIPPING
+
+  * `git apply --check` against a PRISTINE ci.yml: clean
+  * the applied file is valid YAML, and the new step is present
+  * `python3 scripts/validate-ci-migration-chain.py` after applying it
+    locally: the three lists agree
+  * the migration on a fresh test database: INGREDIENT_CATEGORY_FK_OK=1
+  * `python3 scripts/check-migrations-are-transactional.py`: OK
+  * db + api build and typecheck: clean
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index bd99f8d..8f158c1 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1079,6 +1079,25 @@ jobs:
+             -f db/migrations/0053_recipes_published_view.sql 2>&1 | tee /tmp/m0053.log
+           bash scripts/check-ci-markers.sh "the recipes published view" "RECIPES_PUBLISHED_VIEW_OK" /tmp/m0053.log
+ 
++      # ── 0054: the ingredient category vocabulary ─────────────────────
++      #
++      # The vocabulary is the 435-row `ingredient_categories` table that
++      # the GUS-242 seed created long ago. This migration adds the
++      # foreign key that makes `ingredients.category` a value FROM that
++      # table rather than free text -- so the database refuses a
++      # category that does not exist, and ADR-007-A1 §3.3's "the
++      # category is from the existing category vocabulary" becomes a
++      # lookup rather than a judgement.
++      #
++      # It runs AFTER 0053 (and after the 0020 seed that creates the
++      # vocabulary), because the key points at that table. It writes no
++      # content rows, and its proof runs inside its own transaction.
++      - name: Apply the ingredient category vocabulary
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0054_ingredient_category_fk.sql 2>&1 | tee /tmp/m0054.log
++          bash scripts/check-ci-markers.sh "the ingredient category vocabulary" "INGREDIENT_CATEGORY_FK_OK" /tmp/m0054.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.

@@ -232,6 +232,12 @@ MIGRATION_0052=db/migrations/0052_recipes_schema.sql
 # published, not because a column says so, so the published-ness is a
 # DERIVED VIEW. It writes NO content rows.
 MIGRATION_0053=db/migrations/0053_recipes_published_view.sql
+# 0054 is the INGREDIENT CATEGORY vocabulary, enforced: the foreign key
+# from `ingredients.category` to `ingredient_categories.slug`. The
+# vocabulary itself is the 435-row table that the GUS-242 seed created
+# long ago; this migration only makes the database refuse a category
+# that is not in it. It writes NO content rows.
+MIGRATION_0054=db/migrations/0054_ingredient_category_fk.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -759,6 +765,24 @@ echo "--- the recipes published view"
 run_pg -f - < "$MIGRATION_0053" >/tmp/m0053.log 2>&1 || { echo "FAILED: 0053"; grep -E 'ERROR|NOTICE' /tmp/m0053.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'RECIPES_PUBLISHED_VIEW_OK' /tmp/m0053.log | tail -1 || true
+
+# ── 0054: the ingredient category vocabulary, enforced ──────────────
+#
+# It comes AFTER 0020 (the GUS-242 vocabulary seed) and after
+# gus-014-118-dimensions.sql (the 55 project rows), because the
+# foreign key points at the table they create. Both are applied long
+# before this point in the chain.
+#
+# It adds ONE foreign key -- `ingredients.category` ->
+# `ingredient_categories.slug` -- so the database refuses a category
+# that is not in the 435-row vocabulary. It writes NO content rows.
+#
+# Its proof runs inside its own transaction, so a failed proof rolls it
+# back and leaves no trace.
+echo "--- the ingredient category vocabulary"
+run_pg -f - < "$MIGRATION_0054" >/tmp/m0054.log 2>&1 || { echo "FAILED: 0054"; grep -E 'ERROR|NOTICE' /tmp/m0054.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'INGREDIENT_CATEGORY_FK_OK' /tmp/m0054.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

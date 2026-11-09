@@ -496,6 +496,22 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0053_recipes_published_view.sql"
   || { echo "  FAILED: 0053"; grep -E 'ERROR' /tmp/repro_0053.log | head -6; fail=1; }
 grep -E 'RECIPES_PUBLISHED_VIEW_OK' /tmp/repro_0053.log | tail -1 || true
 
+# 0054 — the INGREDIENT CATEGORY vocabulary, enforced.
+#
+# The vocabulary is the 435-row `ingredient_categories` table that the
+# GUS-242 seed created long ago; this migration adds the foreign key
+# that makes `ingredients.category` a value FROM that table rather than
+# free text. The database then refuses a category that does not exist,
+# so ADR-007-A1 §3.3's "the category is from the existing category
+# vocabulary" becomes a lookup rather than a judgement.
+#
+# It writes no content rows, and its proof runs inside its own
+# transaction.
+step "the ingredient category vocabulary"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0054_ingredient_category_fk.sql" > /tmp/repro_0054.log 2>&1 \
+  || { echo "  FAILED: 0054"; grep -E 'ERROR' /tmp/repro_0054.log | head -6; fail=1; }
+grep -E 'INGREDIENT_CATEGORY_FK_OK' /tmp/repro_0054.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
