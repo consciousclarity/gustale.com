@@ -1,19 +1,64 @@
 # Migration receipt — 0052, the recipes schema (item 2)
 
-**Date:** 2026-11-08
-**Status:** SANDBOX ONLY — **not applied to live**
+**Date:** 2026-11-08 (sandbox proof) · **2026-11-09 (applied to live)**
+**Status:** **APPLIED TO LIVE** — 2026-11-09
 **Migration:** `db/migrations/0052_recipes_schema.sql`
 **Item:** item 2 of the recipes task (`docs/RECIPES-TASK-RESUME.md`)
 **ADRs:** ADR-007 (`docs/ADR-007-recipe-schema.md`) and ADR-007-A1
 (`docs/ADR-007-A1-recipes-confidence-autopublish-contributors-language-urls.md`)
 §8
+**Live-apply checklist:** [`docs/LIVE-APPLY-0052.md`](LIVE-APPLY-0052.md)
 
-> **This receipt records a SANDBOX migration.** Every statement below was
-> executed against `gustale-test-postgres` on `127.0.0.1:5434` on
-> GEEKOBOT (WSL2). **Nothing was applied to the live database, and no
-> SSH to the VPS was performed.** The live database was not read either.
-> Applying 0052 to live is a separate, deliberate step that this receipt
-> does not authorise.
+> **This receipt records TWO things.** Sections 1–6 are the **SANDBOX
+> PROOF** — every statement below was executed against
+> `gustale-test-postgres` on `127.0.0.1:5434` on GEEKOBOT (WSL2), with
+> **no live write and no SSH to the VPS**. Section 7 is the **LIVE
+> APPLY**, performed **by the owner** on 2026-11-09. The two are kept
+> apart on purpose: the sandbox proof is this agent's work; the live
+> apply is the owner's, under Rule 1.
+
+---
+
+## 0. The live apply, in brief
+
+**Applied by the owner on 2026-11-09**, directly with `psql` — **not**
+through `scripts/apply-migration-live.sh`.
+
+| | |
+|---|---|
+| **Backup** | `/home/gustale/backups/pre-0052-20261109-090734.dump` — 4.4 MB, **1,526 TOC entries** |
+| **Dry-run** | `DRYRUN_OK=1` |
+| **Method** | direct `psql -v ON_ERROR_STOP=1 -f -` |
+| **Verification** | **every §4 check passed** — see §7.1 |
+| **Who** | the owner, on the VPS |
+
+**Why not the gate script.** `scripts/apply-migration-live.sh` creates
+and drops a **copy** of the live database, and it did that **on the
+production cluster** (`shared-postgres`) — which RULES.md forbids.
+`DROP DATABASE` and `CREATE DATABASE` are **cluster-scoped**, and that
+cluster hosts the live `gustale` database **and five other projects'**
+(bali, dewata, n8n, scribe). A throwaway database created there is a
+hazard for all of them — and on 2026-11-06 a `DROP DATABASE` aimed at
+that cluster destroyed the live database.
+
+The gate is fixed in a **separate PR**: its copy now runs on the
+dedicated test Postgres (`gustale-test-postgres`, 127.0.0.1:5434),
+exactly as the dry-run's copy already does, and its exemption from
+`scripts/check-no-production-db-drops.py` has been **removed** so the
+scanner catches any regression. A new test,
+`scripts/test-apply-migration-live-copy.sh`, runs the gate against a
+stand-in container and asserts the copy lands on the test container and
+the stand-in's cluster never gains a database — the CI step for it
+ships as `docs/ci-apply-migration-live-copy.patch` (the App has no
+`workflows` scope).
+
+**One correction to the checklist, from the apply itself.** The first
+version of `docs/LIVE-APPLY-0052.md` said to copy the dump out with
+`cp /tmp/pre-0052.dump "$DUMP"`. **That does not work**: the host and
+the container do not share `/tmp`, so there is no such file on the host
+and the `cp` fails with *"cannot stat"*. The correct form is
+**`docker cp shared-postgres:/tmp/pre-0052.dump "$DUMP"`**. The
+document is now fixed.
 
 ---
 
@@ -514,16 +559,56 @@ live, so it must not be edited.
 
 ---
 
-## 7. What still needs the owner
+## 7. The live apply (2026-11-09, the owner)
 
-1. **The §8.3 condition-4 reading (§4).** The literal ADR wording makes
-   the auto-publish function unreachable. This migration implements the
-   evidence-based reading and states it plainly. **Confirm it, or say
-   how condition 4 should read.**
-2. **Applying 0052 to live.** Not done, not authorised by this receipt.
-   It needs the usual live procedure: a backup, a pre-apply gate, and
-   the owner-saved approval.
-3. **The `guard_data_migrations.py` hazard (§6).** Reported, not fixed.
+**Performed by the owner**, directly with `psql`, under Rule 1. This
+agent did not write to live and did not SSH to the VPS.
+
+### 7.1 What was done
+
+| step | result |
+|---|---|
+| backup | `/home/gustale/backups/pre-0052-20261109-090734.dump` — 4.4 MB, 1,526 TOC entries |
+| dry-run | `DRYRUN_OK=1` |
+| apply | direct `psql -v ON_ERROR_STOP=1 -f -` |
+| §4.1 the new tables exist and are empty | **passed** — every recipe table 0 |
+| §4.2 the kill switch is OFF | **passed** — `auto_publish_enabled = false`, `auto_publish_mode = 'disabled'` |
+| §4.3 the scope triggers are in place | **passed** — both `recipe_claims_subject_trg` and `recipe_claims_statement_guard_trg` present |
+| §4.4 the `statements.subject_type` check was widened | **passed** — `('dish','place','recipe')` |
+| §4.5 the legacy counts did not move | **passed** |
+| §4.6 the system actor has no credential | **passed** — 0 |
+| §4.7 the token table is closed to the application role | **passed** — `f` |
+| the API | **200** |
+
+**The scope fix is live.** The two triggers that close the
+cross-recipe hole are on the live database, and the authorisation check
+in `statement_set_status()` is live with them.
+
+### 7.2 What `0052` is now
+
+**Frozen.** Its file is the record of what ran. Any fix from here goes
+into a **new migration number** — see [`docs/RULES.md`](../RULES.md)
+Rule 11.
+
+`0053` (the recipes API's published view, item 4) is exactly that: a
+new number, not an edit to `0052`. Its checklist is
+[`docs/LIVE-APPLY-0053.md`](LIVE-APPLY-0053.md).
+
+### 7.3 What is still open
+
+- ~~`0053` is **not** applied.~~ **DONE — `0053` was applied to live on
+  2026-11-09** by the owner, the same day. Its receipt is
+  [`docs/MIGRATION-RECEIPT-0053.md`](MIGRATION-RECEIPT-0053.md).
+- `db/schema.sql` is **not** regenerated. It is a dump of the LIVE
+  schema, so it must be regenerated **after** the live apply of `0053`.
+  It was not faked by hand and not silently skipped. **The exact
+  read-only command is in
+  [`docs/LIVE-APPLY-0053.md`](LIVE-APPLY-0053.md) §8.**
+- The gate script `scripts/apply-migration-live.sh` is fixed in
+  **PR #209** (its copy moves to the test Postgres, and its exemption
+  from the production-drop scanner is removed).
+
+---
 
 ## 8. What this migration does NOT do
 
@@ -534,5 +619,6 @@ live, so it must not be edited.
 - It does not touch the Drizzle schema. The tables exist in SQL only;
   `packages/db/src/schema/` is unchanged, because ADR-007-A1's §8.2
   is a SQL-level spec and the TypeScript model is a separate piece of
-  work.
-- It does not touch the live database, the VPS, or any deployment.
+  work — **item 4**, which is PR #207.
+- It does not touch the VPS, the deployment, or any live system beyond
+  the single apply the owner performed.
