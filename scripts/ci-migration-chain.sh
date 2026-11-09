@@ -227,6 +227,11 @@ MIGRATION_0051=db/migrations/0051_family_classification.sql
 # recipes tables, the system actors, the kill switch, the confidence
 # computation and the auto-publish function. It writes NO content rows.
 MIGRATION_0052=db/migrations/0052_recipes_schema.sql
+# 0053 is the recipes PUBLISHED view (item 4 of the recipes task): the
+# API's read model. A recipe is live because its STATEMENTS are
+# published, not because a column says so, so the published-ness is a
+# DERIVED VIEW. It writes NO content rows.
+MIGRATION_0053=db/migrations/0053_recipes_published_view.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -740,6 +745,20 @@ echo "--- the recipes schema"
 run_pg -f - < "$MIGRATION_0052" >/tmp/m0052.log 2>&1 || { echo "FAILED: 0052"; grep -E 'ERROR|NOTICE' /tmp/m0052.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'RECIPES_SCHEMA_OK' /tmp/m0052.log | tail -1 || true
+
+# ── 0053: the recipes published view (item 4) ──────────────────────
+#
+# It comes AFTER 0052, because it reads the tables 0052 creates -- the
+# recipes, their sentences, their claims, the statements and the
+# confidence. It is a VIEW plus the indexes the API's three queries
+# need; it writes NO content rows.
+#
+# Its proof runs inside its own transaction, so a failed proof rolls it
+# back and leaves no trace.
+echo "--- the recipes published view"
+run_pg -f - < "$MIGRATION_0053" >/tmp/m0053.log 2>&1 || { echo "FAILED: 0053"; grep -E 'ERROR|NOTICE' /tmp/m0053.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'RECIPES_PUBLISHED_VIEW_OK' /tmp/m0053.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

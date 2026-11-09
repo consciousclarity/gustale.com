@@ -1059,6 +1059,26 @@ jobs:
             -f db/migrations/0052_recipes_schema.sql 2>&1 | tee /tmp/m0052.log
           bash scripts/check-ci-markers.sh "the recipes schema" "RECIPES_SCHEMA_OK" /tmp/m0052.log
 
+      # ── 0053: the recipes published view ───────────────────────────
+      #
+      # The API's read model for the recipes: a recipe is live because
+      # its STATEMENTS are published, not because a column says so, so
+      # the published-ness is a derived VIEW.
+      #
+      # It also carries the SCOPE clause -- every statement must be
+      # about THIS recipe -- so a shared Atlas statement can never make
+      # a recipe look published.
+      #
+      # It runs AFTER 0052, because it reads the tables 0052 creates. It
+      # is a view plus the indexes the API's three queries need; it
+      # writes no content rows, and its proof runs inside its own
+      # transaction.
+      - name: Apply the recipes published view
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0053_recipes_published_view.sql 2>&1 | tee /tmp/m0053.log
+          bash scripts/check-ci-markers.sh "the recipes published view" "RECIPES_PUBLISHED_VIEW_OK" /tmp/m0053.log
+
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.
