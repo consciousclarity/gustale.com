@@ -28,6 +28,7 @@ import { registerIngredientRoutes } from "./routes/ingredients.js";
 import { registerLineageRoutes } from "./routes/lineages.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerPlaceRoutes } from "./routes/places.js";
+import { registerRecipeRoutes } from "./routes/recipes.js";
 import { registerSearchRoutes } from "./routes/search.js";
 import { registerTaxonomyRoutes } from "./routes/taxonomy.js";
 import { registerTaxonomyFamilyRoutes } from "./routes/taxonomy-family.js";
@@ -115,6 +116,11 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerTaxonomyRoutes(app);
   registerLineageRoutes(app);
   await app.register(registerIngredientRoutes);
+  // The RECIPES: the feed, the hub and the recipe page (ADR-007-A1
+  // §5). Every one of them reads `recipe_published` — the view, not
+  // the table — so the publish gate is in ONE place and cannot be
+  // forgotten on one route.
+  await app.register(registerRecipeRoutes);
   // The two new route groups are FastifyPluginAsync — await their register
   // so any errors during plugin init (e.g. multipart schema) surface here
   // rather than as a 500 on the first request.

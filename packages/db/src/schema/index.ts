@@ -2122,3 +2122,475 @@ export const publishCredential = pgTable(
     roleIdx: index("publish_credential_role_idx").on(t.credentialRole),
   }),
 );
+
+// =====================================================================
+// THE RECIPES (migration 0052, and 0053 for the published view)
+// =====================================================================
+//
+// The recipes property's data model, per ADR-007 and ADR-007-A1 §8.
+//
+// WHAT IS HERE, AND WHERE IT CAME FROM
+// -------------------------------------
+// The TABLES are migration 0052's (PR #202, fixed by PR #203). This
+// section is the TypeScript half of them — the Drizzle model that
+// CLAUDE.md requires in BOTH places. 0052 wrote the SQL; this file
+// mirrors it, column for column.
+//
+// THE RULES THIS SECTION ENCODES ARE NOT OPTIONAL, and they are the
+// reason the schema is written the way it is:
+//
+//   * The CONFIDENCE is NOT a column on `recipes`. It is a COMPUTED
+//     value with its own evidence, and it lives in `recipe_confidence`
+//     (ADR-007-A1 §8.1). A column would invite it to be set by hand.
+//
+//   * `recipe_sentences` is LANGUAGE-FIRST: the original locale's
+//     sentence has `source_sentence_id IS NULL` and `is_original = true`,
+//     and every other locale points at it. This is the MIRROR IMAGE of
+//     `description_sentences`, whose CHECK makes English the source
+//     language — and that table is UNTOUCHED (ADR-007-A1 §4.3).
+//
+//   * `recipe_claims` is a SEPARATE table from `sentence_claims`, on
+//     purpose: `sentence_claims.sentence_id` is FK-bound to
+//     `description_sentences(id)`, and a recipe sentence is not a
+//     description sentence (ADR-007, Option A).
+//
+//   * `statements` is SHARED between the Atlas and the recipes. The
+//     scope rule that keeps a recipe claim from naming an Atlas
+//     statement is enforced IN THE DATABASE (a trigger on
+//     `recipe_claims`, a trigger on `statements`, and the
+//     system-actor branch of `statement_set_status()`) — see
+//     db/migrations/0052_recipes_schema.sql. Nothing in the TypeScript
+//     layer enforces it, and nothing in the TypeScript layer may be
+//     relied on to enforce it.
+//
+//   * The KILL SWITCH is a row in `recipe_settings`, read by
+//     `recipe_auto_publish()` on EVERY invocation. It is not an
+//     environment variable and not a code path, so flipping it takes
+//     effect on the next call with no deploy.
+//
+// WHAT THE API MAY NOT DO (and this is why these tables are read-
+// mostly from the API's point of view):
+//
+//   * It may not write `statements.status`. The ONLY way a statement's
+//     status changes is `statement_set_status()`, which runs the
+//     evidence gates and the publish-credential check.
+//
+//   * It may not write `recipes.status` to 'published' as a way of
+//     publishing a recipe. The recipe becomes published because its
+//     STATEMENTS are published — the direction of dependency ADR-007
+//     already has, and the reason `statements_status_gate_trg` exists.
+//
+//   * It may not read the kill switch to decide whether to publish.
+//     Only `recipe_auto_publish()` does that, and it checks the switch
+//     FIRST, before the recipe is touched (ADR-007-A1 §7.1).
+
+// ── The recipe ────────────────────────────────────────────────────────
+
+export const recipeContentType = [
+  "recipe",
+  "variation",
+  "technique",
+  "base",
+  "template",
+] as const;
+export type RecipeContentType = (typeof recipeContentType)[number];
+
+export const recipeStatus = ["draft", "published", "archived"] as const;
+export type RecipeStatus = (typeof recipeStatus)[number];
+
+export const recipeReviewState = [
+  "unreviewed",
+  "in_review",
+  "approved",
+  "rejected",
+] as const;
+export type RecipeReviewState = (typeof recipeReviewState)[number];
+
+export const recipes = pgTable(
+  "recipes",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    // An EXPLICIT EDITORIAL field, with no sync trigger — the same
+    // decision as `dishes.content_type` (ADR-007 Decision 6).
+    contentType: text("content_type")
+      .$type<RecipeContentType>()
+      .notNull()
+      .default("recipe"),
+    servings: integer("servings"),
+    prepMinutes: integer("prep_minutes"),
+    cookMinutes: integer("cook_minutes"),
+    difficulty: integer("difficulty"),
+    // The EDITORIAL state. A recipe is 'published' when a human
+    // published it through the review queue — NOT when the auto-publish
+    // function ran. The auto-publish function publishes the recipe's
+    // STATEMENTS; the recipe's own page is served when those
+    // statements are published (see the `recipe_published` view below).
+    status: text("status").$type<RecipeStatus>().notNull().default("draft"),
+    // The pair `status`/`review_state` overlaps — a recipe can be
+    // 'published' and 'rejected' — and ADR-007 keeps the split
+    // because the dish tables already use this shape.
+    reviewState: text("review_state")
+      .$type<RecipeReviewState>()
+      .notNull()
+      .default("unreviewed"),
+    // `text` (not `uuid`), for the same reason as `dishes.created_by`:
+    // better-auth user ids are opaque strings.
+    createdBy: text("created_by"),
+    lastEditedBy: text("last_edited_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+  },
+  (t) => ({
+    // The hub's list is "the dish's recipes", and the view filters on
+    // `dish_id` and the editorial state, so the index carries both.
+    dishStatusIdx: index("recipes_dish_status_idx").on(t.dishId, t.status),
+    // The detail read: one recipe by slug. The UNIQUE constraint on
+    // `slug` is the database's own index; this one is the migration's
+    // (0053), for the view's lookup.
+    slugIdx: index("recipes_slug_idx").on(t.slug),
+  }),
+);
+
+// ── One row per ingredient line ───────────────────────────────────────
+
+export const recipeIngredients = pgTable(
+  "recipe_ingredients",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    // The ingredient is a SHARED Atlas row. There is deliberately no
+    // per-recipe ingredients table (ADR-007, Decision 5).
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id),
+    // Quantity and unit are TEXT, not numeric columns: "2½", "a
+    // handful" and "to taste" are real quantities, and a numeric
+    // column would throw the meaning away (ADR-007, Decision 5).
+    quantity: text("quantity"),
+    unit: text("unit"),
+    isOptional: boolean("is_optional").notNull().default(false),
+    preparationNote: text("preparation_note"),
+    position: integer("position").notNull(),
+  },
+  (t) => ({
+    recipeIdx: index("recipe_ingredients_recipe_idx").on(t.recipeId),
+  }),
+);
+
+// ── The recipe's own sentences, LANGUAGE-FIRST ────────────────────────
+
+export const recipeSentenceField = ["step", "note", "intro"] as const;
+export type RecipeSentenceField = (typeof recipeSentenceField)[number];
+
+export const recipeSentenceAnchorStatus = ["full", "partial", "none"] as const;
+export type RecipeSentenceAnchorStatus =
+  (typeof recipeSentenceAnchorStatus)[number];
+
+export const recipeSentences = pgTable(
+  "recipe_sentences",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    field: text("field").$type<RecipeSentenceField>().notNull().default("step"),
+    locale: text("locale").notNull().default("en"),
+    position: integer("position").notNull(),
+    text: text("text").notNull(),
+    // ON DELETE RESTRICT, not SET NULL: a translation's source must
+    // not be deleted out from under it, and SET NULL would fail the
+    // language-first CHECK with a confusing constraint error instead
+    // of a clear foreign-key one.
+    sourceSentenceId: uuid("source_sentence_id").references(
+      (): any => recipeSentences.id,
+      { onDelete: "restrict" },
+    ),
+    anchorStatus: text("anchor_status")
+      .$type<RecipeSentenceAnchorStatus>()
+      .notNull()
+      .default("none"),
+    // Exactly ONE row per recipe is the original (ADR-007-A1 §4.3).
+    isOriginal: boolean("is_original").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    // The migration's index (0053): the view walks a recipe's sentences
+    // twice -- once for the EXISTS, once for `published_at`.
+    recipeIdx: index("recipe_sentences_recipe_idx").on(t.recipeId),
+    // The locale-ordered read the API does when it serves one recipe's
+    // text in one language.
+    recipeLocaleIdx: index("recipe_sentences_recipe_locale_idx").on(
+      t.recipeId,
+      t.locale,
+      t.position,
+    ),
+  }),
+);
+
+// ── The recipe-scoped claim link ──────────────────────────────────────
+//
+// NOT `sentence_claims`: that table's `sentence_id` is FK-bound to
+// `description_sentences(id)`, and a recipe sentence is not a
+// description sentence (ADR-007, Option A).
+//
+// The scope rule — a claim may only name a statement that is ABOUT
+// this recipe — is enforced in the DATABASE by a trigger on
+// `recipe_claims`, a trigger on `statements`, and the system-actor
+// branch of `statement_set_status()`. This model does not enforce it
+// and must not be relied on to.
+
+export const recipeClaims = pgTable(
+  "recipe_claims",
+  {
+    recipeSentenceId: uuid("recipe_sentence_id")
+      .notNull()
+      .references(() => recipeSentences.id, { onDelete: "cascade" }),
+    statementId: uuid("statement_id")
+      .notNull()
+      .references(() => statements.id, { onDelete: "cascade" }),
+    isPrimary: boolean("is_primary").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    // The table's PRIMARY KEY is the composite (recipe_sentence_id,
+    // statement_id) in the database. The `sentenceClaims` table above
+    // models the same shape the same way — a table-level unique on the
+    // pair, and no `primaryKey()` call — because Drizzle's composite
+    // primary key helper is not used anywhere in this file. The
+    // migration is authoritative for the constraint itself.
+    naturalKey: unique("recipe_claims_natural_key").on(
+      t.recipeSentenceId,
+      t.statementId,
+    ),
+    // The migration's index (0053): the view joins a sentence to its
+    // claims.
+    sentenceIdx: index("recipe_claims_sentence_idx").on(t.recipeSentenceId),
+    statementIdx: index("recipe_claims_statement_idx").on(t.statementId),
+  }),
+);
+
+// ── The recipe's title and description, per locale ─────────────────────
+
+export const recipeTranslations = pgTable(
+  "recipe_translations",
+  {
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    locale: text("locale").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    // The recipe's own language is marked, per ADR-007-A1 §4.3.
+    isOriginal: boolean("is_original").notNull().default(false),
+  },
+  (t) => ({
+    pk: unique("recipe_translations_recipe_locale_uniq").on(
+      t.recipeId,
+      t.locale,
+    ),
+  }),
+);
+
+// ── The system actors ─────────────────────────────────────────────────
+//
+// A row here means: this identity is a SYSTEM ACTOR, not a person.
+// It has NO login in "user", NO email, NO password, NO session and NO
+// publish credential, and it may act ONLY inside the function that
+// owns it (`recipe_auto_publish()`, SECURITY DEFINER).
+//
+// The `kind` CHECK admits only 'system', so this table can never hold
+// a person (ADR-007-A1 §2.4).
+
+export const serviceAccounts = pgTable(
+  "service_accounts",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    // The actor string used as `statements.published_by` / `verified_by`,
+    // e.g. 'system:auto-publish'.
+    actor: text("actor").notNull().unique(),
+    kind: text("kind").notNull().default("system"),
+    purpose: text("purpose").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => ({
+    actorIdx: unique("service_accounts_actor_uniq").on(t.actor),
+  }),
+);
+
+// ── The recipes settings: the kill switch and the daily cap ───────────
+//
+// A SINGLE-ROW table, read by the auto-publish function on EVERY
+// invocation, so flipping the switch takes effect on the next call —
+// no restart, no deploy (ADR-007-A1 §7.1).
+//
+// The switch has THREE positions: 'enabled' / 'disabled' /
+// 'enabled_with_cap'. `auto_publish_mode` is the AUTHORITATIVE switch
+// and `auto_publishEnabled` is its boolean projection; a trigger in
+// the database keeps the two in step so they cannot disagree.
+//
+// The initial value is 'disabled' — the switch ships OFF at launch,
+// and the auto-publish path is dormant on arrival (ADR-007-A1 §7.1,
+// §10 decision 4).
+
+export const autoPublishMode = [
+  "enabled",
+  "disabled",
+  "enabled_with_cap",
+] as const;
+export type AutoPublishMode = (typeof autoPublishMode)[number];
+
+export const recipeSettings = pgTable("recipe_settings", {
+  // `boolean PRIMARY KEY DEFAULT true CHECK (id)` — the single row.
+  id: boolean("id").primaryKey().default(true),
+  autoPublishEnabled: boolean("auto_publish_enabled").notNull().default(false),
+  autoPublishMode: text("auto_publish_mode")
+    .$type<AutoPublishMode>()
+    .notNull()
+    .default("disabled"),
+  // 20 is the owner's number (ADR-007-A1 §7.2, §10 decision 5).
+  autoPublishDailyCap: integer("auto_publish_daily_cap").notNull().default(20),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedBy: text("updated_by"),
+});
+
+// ── The COMPUTED confidence ───────────────────────────────────────────
+//
+// A table and not a column on `recipes`, because the confidence is
+// computed from the rows and a column would invite it to be set by
+// hand (ADR-007-A1 §8.1).
+//
+// `conditionsMet` holds EVERY failing condition, so a MEDIUM recipe
+// says WHICH condition it failed — which is what the owner reviews
+// (§8.3).
+
+export const recipeConfidenceLevel = ["high", "medium", "low"] as const;
+export type RecipeConfidenceLevel = (typeof recipeConfidenceLevel)[number];
+
+export const recipeConfidence = pgTable("recipe_confidence", {
+  recipeId: uuid("recipe_id")
+    .primaryKey()
+    .references(() => recipes.id, { onDelete: "cascade" }),
+  level: text("level").$type<RecipeConfidenceLevel>().notNull().default("low"),
+  conditionsMet: jsonb("conditions_met").notNull().default(sql`'{}'::jsonb`),
+  independentSources: jsonb("independent_sources")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  sourceCount: integer("source_count").notNull().default(0),
+  ingredientCount: integer("ingredient_count").notNull().default(0),
+  sentenceCount: integer("sentence_count").notNull().default(0),
+  computedAt: timestamp("computed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  // A human may LOWER the level; nobody may raise it above the
+  // computed one (§1.6).
+  overrideLevel: text("override_level").$type<RecipeConfidenceLevel>(),
+});
+
+// ── The audit trail ───────────────────────────────────────────────────
+//
+// There is NO path by which a recipe becomes published without a row
+// here (ADR-007-A1 §2.5). The actor is recorded as a
+// `service_account_id` — a fact in the database — rather than an email
+// a reader has to interpret.
+
+export const recipePublishMode = ["auto", "manual"] as const;
+export type RecipePublishMode = (typeof recipePublishMode)[number];
+
+export const recipePublishLog = pgTable(
+  "recipe_publish_log",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    confidence: text("confidence").notNull(),
+    publishMode: text("publish_mode").$type<RecipePublishMode>().notNull(),
+    conditionsMet: jsonb("conditions_met").notNull(),
+    sources: jsonb("sources").notNull(),
+    actor: text("actor").notNull(),
+    serviceAccountId: uuid("service_account_id").references(
+      () => serviceAccounts.id,
+    ),
+    killSwitchOn: boolean("kill_switch_on").notNull(),
+    dailyCountAtPublish: integer("daily_count_at_publish").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    recipeIdx: index("recipe_publish_log_recipe_idx").on(t.recipeId),
+    // The digest (§7.3) reads "everything that went live today", so the
+    // day is the first sort key of the index that serves it.
+    publishedIdx: index("recipe_publish_log_published_idx").on(t.publishedAt),
+  }),
+);
+
+// ── The PUBLISHED view (migration 0053) ───────────────────────────────
+//
+// WHY A VIEW AND NOT A COLUMN
+// --------------------------
+// ADR-007-A1 §8.4 says the auto-publish function "does not update
+// `recipes.status` directly. The recipe becomes published because its
+// STATEMENTS are published". But the `recipe_publishable` view that
+// 0052 created requires `r.status = 'published'` — and nothing sets
+// it. So the recipe's PUBLISHED-ness and the recipe's EDITORIAL state
+// are two different facts, and the first one was never stored.
+//
+// So the published-ness is DERIVED, here, and the API reads this view.
+// `recipes.status` stays what it has always been: the editorial state
+// a human sets through the review queue.
+//
+// The predicate is the same shape as 0052's `recipe_publishable`,
+// with the editorial `status`/`review_state` pair REPLACED by the
+// thing that actually means "this recipe is live": every one of its
+// sentences carries a statement that is verified or published, and
+// every statement is about THIS recipe.
+//
+// The scope clause is the important one. `statements` is SHARED, so a
+// recipe's sentence could name an Atlas statement; the view requires
+// `st.subject_type = 'recipe' AND st.subject_id = r.id`, so an Atlas
+// statement can never make a recipe look published.
+
+export const recipePublished = pgView("recipe_published", {
+  id: uuid("id").notNull(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  dishId: uuid("dish_id").notNull(),
+  contentType: text("content_type").notNull(),
+  servings: integer("servings"),
+  prepMinutes: integer("prep_minutes"),
+  cookMinutes: integer("cook_minutes"),
+  // The EDITORIAL state. 'rejected' and 'archived' are excluded by
+  // the view; the rest is reported.
+  reviewState: text("review_state").notNull(),
+  // The COMPUTED confidence, and NULL when the recipe has never been
+  // through the publish path. NULL means "not computed", not "low".
+  confidence: text("confidence"),
+  // When the recipe went live: the moment its last statement reached
+  // 'published'.
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+}).existing();
