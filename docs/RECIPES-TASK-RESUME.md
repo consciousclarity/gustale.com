@@ -18,14 +18,14 @@ it in the same commit as the push it describes.
 |---|---|---|---|
 | **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **MERGED** — #199 | — |
 | **1** | ADR-007 amendment (docs only) | **MERGED** — #200 | — |
-| **2** | schema migration `0052` | **MERGED** — #202, then **FIXED** — #203 (the shared-`statements` security hole) | `0052` is **not applied to live** — the owner runs it, with `pg_dump` first |
-| **3** | ingredient backfill plan + the S1–S7 source tier list | **IN PROGRESS** — kanban `t_ea058a91` (research lane) | — |
-| **4** | API: hub + recipe endpoints, publish gate, kill switch **+ the Drizzle schema in both places** | **IN PROGRESS** — kanban `t_5c002b54` (DB lane) | — |
-| **5** | gustale.recipes recipe page v1, empty-state noindex | **READY** — kanban `t_3e0078b3` (FE lane), after 6b | 6b first; then the item-4 API |
+| **2** | schema migration `0052` | **MERGED** — #202, then **FIXED** — #203 (the shared-`statements` security hole). **APPLIED TO LIVE** 2026-11-09 by the owner | — the file is now **frozen** (Rule 11) |
+| **3** | ingredient backfill plan + the S1–S7 source tier list | **MERGED** — #206 (docs). **The owner's decisions are recorded** (vocabulary = the 435-row FoodOn table, no `other`; S4 = WorldCat/LoC; pilot = moussaka-greek then nasi goreng) | the owner must still **approve** the tier list and the backfill stages |
+| **4** | API: hub + recipe endpoints, publish gate, kill switch **+ the Drizzle schema in both places** | **MERGED** — #207. `0053` **APPLIED TO LIVE** 2026-11-09 by the owner | — `0053` is now **frozen** (Rule 11) |
+| **5** | gustale.recipes recipe page v1, empty-state noindex | **IN PROGRESS** — kanban `t_4dc80a38` (FE lane) | the item-4 API is live |
 | **6** | Atlas button + "Recipes for this dish" block | not started | — |
 | **7** | revised 6c: redirects + recipes sitemap | not started | the exact 301 path set is known (§5.3 of the amendment) |
 | **8** | content pipeline: drafting, confidence, daily digest | not started | real S1–S5 sources — today **all 1,486 sources are S6**, so nothing can reach HIGH |
-| **6b** | the recipes home (runs in parallel, not part of the 8) | **READY** — kanban `t_3e0078b3` (FE lane) | the item-4 API |
+| **6b** | the recipes home (runs in parallel, not part of the 8) | **MERGED** — #208 | — |
 
 ### The kanban board
 
@@ -196,8 +196,30 @@ formatting — `key || ': ' || value ->> 'detail'` parses as
 
 **The receipt:** `docs/MIGRATION-RECEIPT-0052.md`.
 
-**Not done:** `0052` is **not applied to live**. That is a separate go,
-and it needs `pg_dump` first.
+**APPLIED TO LIVE 2026-11-09, by the owner.** Backup
+`/home/gustale/backups/pre-0052-20261109-090734.dump` (4.4 MB, 1,526
+TOC entries), dry-run `DRYRUN_OK=1`, applied by direct `psql` (the gate
+script creates and drops a copy **on the production cluster**, which
+RULES.md forbids — it is fixed in **PR #209**). Every §4 check
+passed. The checklist is `docs/LIVE-APPLY-0052.md`.
+
+**`0052` is now FROZEN** (Rule 11). Fixes go into a new number —
+`0053` is exactly that, and it is applied too.
+
+---
+
+## Item 4 — the API, the Drizzle schema, and `0053` — MERGED, APPLIED
+
+**PR #207**, merged as `492282c`. `0053` **applied to live 2026-11-09** by
+the owner: backup
+`/home/gustale/backups/pre-0053-20261109-105116.dump` (4.5 MB), `RC=0`,
+`RECIPES_PUBLISHED_VIEW_OK=1`, `recipe_published` = 0 rows, all six
+indexes present, auto-publish still off.
+
+**The receipt:** `docs/MIGRATION-RECEIPT-0053.md`.
+The checklist: `docs/LIVE-APPLY-0053.md`.
+
+**`0053` is now FROZEN** (Rule 11).
 
 ---
 

@@ -288,6 +288,28 @@ and an API.
 kitchen or a serious food publication's test kitchen — the practice as
 it is actually performed, including the parts a textbook omits.
 
+**DECIDED 2026-11-09: the discovery source for S4 is the LIBRARY
+CATALOGUES — WorldCat and Library of Congress records.** The owner's
+words: *"S4: option 1, library catalogues (WorldCat / LoC records) as the
+S4 discovery source."*
+
+That changes what S4 *is for this project*. The practitioner sources
+below (James Beard, Cook's Illustrated, Le Cordon Bleu) are **HTML with
+no API** — finding F-3 — and they are what the library catalogues
+replace as the *discovery* layer. The catalogues are:
+
+- **WorldCat** (OCLC) — catalogue records, holdings, editions, OCLC
+  numbers;
+- **Library of Congress** — catalogue records, and separately the **LC
+  authority file** (`id.loc.gov`), which is an *authority* record rather
+  than a catalogue record and may be the better fit for a food material's
+  authoritative name and classification.
+
+**The access plan — terms, API keys, rate limits, and what needs the
+owner's signup — is a separate research deliverable.** Until it lands,
+the honest statement is: S4's discovery path is **decided but not yet
+reachable**, and every S4 source below is HTML-only.
+
 **Concrete sources:**
 
 | source | what it is | probe |
