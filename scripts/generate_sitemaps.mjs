@@ -30,7 +30,7 @@
  *         <dist>/sitemap-<locale>.xml
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 // The locales that get a sitemap. English is the base, at the root.
@@ -59,6 +59,60 @@ function esc(text) {
     .replace(/'/g, "&apos;");
 }
 
+/** Does this path exist? */
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Is this built page marked `noindex`?
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * ADR-007-A1 §5.4: "The recipes sitemap lists indexable hubs and
+ * published recipes only — never a zero-recipe hub, never an untranslated
+ * stub, never a draft."
+ *
+ * The HUB's indexability is DERIVED from its published recipe count
+ * (§5.2): a hub with zero published recipes is `noindex`, and it becomes
+ * indexable automatically at ≥1. That is not a stored flag — it is
+ * computed by the page and written into its own meta tag, so it cannot
+ * drift from the count.
+ *
+ * So the meta tag IS the truth, and the sitemap reads it. A sitemap
+ * that listed the 1,474 zero-recipe hubs would be handing a crawler
+ * 1,474 URLs that every one of them tells the crawler to ignore — the
+ * exact "a sitemap with a 404 in it" failure this generator exists to
+ * prevent, in the form of "a sitemap with a noindex in it".
+ *
+ * WHY IT READS THE HTML
+ * ---------------------
+ * Same reason as the dish-link test: the sitemap is generated from the
+ * BUILD OUTPUT, so it lists exactly the pages that exist. And the
+ * noindex decision was already made by the page itself, from the same
+ * recipe count the API reports — so reading it here means there is ONE
+ * source of truth and no second implementation of the rule.
+ *
+ * The geo build is NOT affected: an Atlas dish page is indexable, and
+ * this check only fires where the page carries the tag.
+ */
+async function pageIsNoindex(htmlPath) {
+  let html;
+  try {
+    html = await readFile(htmlPath, "utf-8");
+  } catch {
+    // A page that cannot be read is treated as noindex — it is not
+    // listed rather than listed wrongly.
+    return true;
+  }
+  return /<meta\s+name="robots"\s+content="[^"]*noindex/i.test(html);
+}
+
 /**
  * The dish slugs that exist in the build.
  *
@@ -66,7 +120,7 @@ function esc(text) {
  * dist/dishes/<slug>.html; the recipes build keeps the nested form.
  * Both are handled here.
  */
-async function collectDishSlugs(dist) {
+async function collectDishSlugs(dist, { skipNoindex = false } = {}) {
   const slugs = new Set();
   const dishes = join(dist, "dishes");
   let entries;
@@ -82,15 +136,66 @@ async function collectDishSlugs(dist) {
   const RESERVED = new Set(["new", "edit", "create", "search"]);
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      if (!RESERVED.has(entry.name)) slugs.add(entry.name);
+      if (RESERVED.has(entry.name)) continue;
+      if (skipNoindex) {
+        const htmlPath = join(dishes, entry.name, "index.html");
+        if (await pageIsNoindex(htmlPath)) continue;
+      }
+      slugs.add(entry.name);
     } else if (entry.name.endsWith(".html") && entry.name !== "index.html") {
       // Node's Dirent has no `.stem` — that is Python's pathlib API.
       // Strip the extension by hand.
       const slug = entry.name.slice(0, -".html".length);
-      if (!RESERVED.has(slug)) slugs.add(slug);
+      if (RESERVED.has(slug)) continue;
+      if (skipNoindex) {
+        const htmlPath = join(dishes, entry.name);
+        if (await pageIsNoindex(htmlPath)) continue;
+      }
+      slugs.add(slug);
     }
   }
   return [...slugs].sort();
+}
+
+/**
+ * The published RECIPE pages that exist in the build.
+ *
+ * A recipe page is `gustale.recipes/recipes/<slug>` — the recipes
+ * property's own content (ADR-007-A1 §5.1). Only the recipes build
+ * produces them: the geo build's `getStaticPaths` returns nothing for
+ * that route, and `post-build.mjs` strips the tree as a second line of
+ * defence (§5.5).
+ *
+ * A recipe that is not published is a 404 — the API reads the
+ * `recipe_published` view, and the build's static paths come from the
+ * same feed. So the pages that exist in the dist ARE the published
+ * recipes; there is no draft to exclude.
+ *
+ * The noindex check applies for the same reason as the hubs': a page
+ * that tells a crawler to ignore it must not be in the sitemap.
+ */
+async function collectRecipeSlugs(dist) {
+  const dir = join(dist, "recipes");
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const slugs = [];
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const htmlPath = join(dir, entry.name, "index.html");
+      if (!(await exists(htmlPath))) continue;
+      if (await pageIsNoindex(htmlPath)) continue;
+      slugs.push(entry.name);
+    } else if (entry.name.endsWith(".html") && entry.name !== "index.html") {
+      const htmlPath = join(dir, entry.name);
+      if (await pageIsNoindex(htmlPath)) continue;
+      slugs.push(entry.name.slice(0, -".html".length));
+    }
+  }
+  return slugs.sort();
 }
 
 /**
@@ -206,7 +311,20 @@ async function main() {
     .filter(Boolean);
 
   const origin = siteOrigin(domain);
-  const slugs = await collectDishSlugs(dist);
+  // The RECIPES domain skips the noindex pages; the geo domain does not.
+  //
+  // On gustale.recipes, /dishes/<slug> is the recipe HUB, and a hub with
+  // zero published recipes is noindex (ADR-007-A1 §5.2). Listing it in
+  // the sitemap would contradict its own meta tag — so it is skipped.
+  //
+  // On gustale.com, /dishes/<slug> is the ATLAS dish, which is indexable.
+  // The check is on the meta tag, not the domain, so an Atlas dish that
+  // ever becomes noindex is dropped from the sitemap too — the sitemap
+  // and the robots meta can never disagree.
+  const slugs = await collectDishSlugs(dist, { skipNoindex: true });
+  // The published recipe pages. Only the recipes build has them; on the
+  // geo build the route produces nothing and post-build strips the tree.
+  const recipeSlugs = await collectRecipeSlugs(dist);
 
   // The families and the lineages, split by whether they have a dish
   // behind them.
@@ -223,7 +341,10 @@ async function main() {
   const locales = domain === "geo" ? requested : ["en"];
 
   console.log(`[sitemap] domain=${domain} origin=${origin}`);
-  console.log(`[sitemap] ${slugs.length} dishes, ${locales.join(", ")}`);
+  console.log(
+    `[sitemap] ${slugs.length} indexable hubs/dishes, ` +
+      `${recipeSlugs.length} published recipes, ${locales.join(", ")}`,
+  );
   console.log(
     `[sitemap] families: ${families.withDishes.length} with dishes, ` +
       `${families.withoutDishes.length} without (omitted)`,
@@ -263,6 +384,25 @@ async function main() {
         `  <url>\n    <loc>${esc(
           `${origin}${prefix}/dishes/${slug}`,
         )}</loc>\n${links.join("\n")}\n  </url>`,
+      );
+    }
+
+    // The published RECIPE pages.
+    //
+    // ADR-007-A1 §5.4: the recipes sitemap lists "indexable hubs and
+    // published recipes only". A recipe page that exists in the dist is
+    // a published recipe (the build's static paths come from the
+    // `recipe_published` feed), and `collectRecipeSlugs` has already
+    // dropped any that carry a noindex.
+    //
+    // They carry NO hreflang alternates: the recipe content has no
+    // locale yet, so there is nothing to alternate to. §5.4 says the two
+    // properties do not declare each other as alternates, and a recipe
+    // that points at an Atlas dish page as its "translation" would be
+    // claiming two different pages are translations of one another.
+    for (const slug of recipeSlugs) {
+      urls.push(
+        `  <url>\n    <loc>${esc(`${origin}/recipes/${slug}`)}</loc>\n  </url>`,
       );
     }
 

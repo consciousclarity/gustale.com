@@ -638,6 +638,212 @@ if (DOMAIN === "geo") {
   );
 }
 
+// ─── 16. Item 5 — the recipe hub and the recipe page ─────────────────────
+//
+// The two recipes routes, and the separation between the two properties.
+//
+// WHAT IS ASSERTED, AND WHY EACH ONE MATTERS
+// --------------------------------------------
+// 1. The RECIPES build serves the HUB at /dishes/<slug>: the dish's
+//    name, the "No recipe yet" empty state, and an ABSOLUTE link to the
+//    Atlas dish. The link must be absolute — the two properties are
+//    different origins, and a relative /dishes/<slug> would land on the
+//    recipes property's own listing while claiming to be the Atlas.
+//
+// 2. The hub is NOINDEX when it has no published recipe. That is
+//    DERIVED from the recipe count (ADR-007-A1 §5.2), so a hub with a
+//    recipe drops the tag on its own.
+//
+// 3. The RECIPES build does NOT copy the Atlas's history, places or
+//    families onto the hub (ADR-007-A1 §5.1). The hub points at the
+//    Atlas; it does not duplicate it.
+//
+// 4. The GEO build serves the ATLAS dish at /dishes/<slug> — not the
+//    hub — and serves NO /recipes/ tree at all (ADR-007-A1 §5.5).
+//
+// 5. The recipes SITEMAP lists no noindex page (ADR-007-A1 §5.4): a
+//    sitemap that hands a crawler URLs those pages tell it to ignore is
+//    the "sitemap with a 404 in it" failure in another form.
+//
+// These are build-level facts, so they belong HERE rather than in a
+// unit test: they are only observable in the built output.
+const hubSlug = "moussaka-greek";
+const hubPath = `${DIST}dishes/${hubSlug}/index.html`;
+const hubHtml = await read(hubPath);
+const geoDishHtml = await read(`${DIST}dishes/${hubSlug}.html`);
+
+if (DOMAIN === "geo") {
+  // The Atlas dish page — and NOT the recipe hub.
+  check(
+    "the geo build serves the ATLAS dish at /dishes/<slug>",
+    (geoDishHtml ?? "").includes("DishDetail") ||
+      (geoDishHtml ?? "").includes("atlas-kpi"),
+    "the geo /dishes/<slug> does not carry the Atlas dish page",
+  );
+  check(
+    "the geo build does NOT serve the recipe hub",
+    !/recipe-hub__empty/.test(geoDishHtml ?? ""),
+    "the geo /dishes/<slug> renders the recipe hub",
+  );
+  // ADR-007-A1 §5.5: "The Atlas build must NOT serve /recipes/<slug>".
+  check(
+    "the geo build ships NO /recipes/ tree",
+    !(await exists(`${DIST}recipes`)),
+    "the geo dist contains a recipes/ directory",
+  );
+  // And the geo sitemap must not list a single recipe page.
+  const geoSitemap = await read(`${DIST}sitemap-en.xml`);
+  check(
+    "the geo sitemap lists no recipe pages",
+    !/gustale\.com\/recipes\//.test(geoSitemap ?? ""),
+    "the geo sitemap contains a /recipes/ URL",
+  );
+} else {
+  // The RECIPE HUB at /dishes/<slug>.
+  check(
+    "the recipes build serves the HUB at /dishes/<slug>",
+    (hubHtml ?? "").includes("recipe-hub__title"),
+    "the recipes /dishes/<slug> does not carry the recipe hub",
+  );
+  check(
+    "the recipes build does NOT serve the Atlas dish at /dishes/<slug>",
+    !/DishDetail/.test(hubHtml ?? ""),
+    "the recipes /dishes/<slug> renders the Atlas dish page",
+  );
+  // The empty state. "No recipe yet" is the ADR's wording (§5.2), and
+  // it is what every hub renders today, because live has no published
+  // recipe.
+  //
+  // The assertion is CONDITIONAL on the hub's recipe count, for the
+  // same reason the noindex assertion is: a hub with recipes shows the
+  // list, not the empty state. So the empty state is required exactly
+  // when there are no recipes — and forbidden when there are, because a
+  // hub that shows "No recipe yet" next to two recipes is wrong in the
+  // other direction.
+  const hubRecipeCount = countOccurrences(
+    hubHtml ?? "",
+    'class="recipe-hub__card"',
+  );
+  if (hubRecipeCount === 0) {
+    check(
+      'the hub renders the "No recipe yet" empty state',
+      /recipe-hub__emptytitle[^>]*>No recipe yet</.test(hubHtml ?? ""),
+      'the hub does not say "No recipe yet"',
+    );
+  } else {
+    check(
+      "a hub with recipes does NOT show the empty state",
+      !/recipe-hub__emptytitle/.test(hubHtml ?? ""),
+      "the hub shows the empty state next to its recipes",
+    );
+  }
+  // The Atlas link — ABSOLUTE. A relative one would send the reader to
+  // the recipes property's own /dishes listing.
+  check(
+    "the hub links to the Atlas dish with an ABSOLUTE url",
+    (hubHtml ?? "").includes(`href="https://gustale.com/dishes/${hubSlug}"`),
+    "the hub has no absolute gustale.com/dishes/<slug> link",
+  );
+  // And it must NOT link to its own /dishes/<slug> pretending that is
+  // the Atlas.
+  check(
+    "the hub does not use a RELATIVE Atlas link",
+    !/href="\/dishes\/[a-z0-9-]+\/recipes"/.test(hubHtml ?? "") &&
+      !/href="\/dishes\/[a-z0-9-]+"[^>]*>[^<]*Atlas/.test(hubHtml ?? ""),
+    "the hub links to the Atlas relatively",
+  );
+  // ADR-007-A1 §5.1: "No history, places, or families copied from the
+  // Atlas." The hub carries the dish's name, its photo and its one-line
+  // definition — and links out for the rest.
+  check(
+    "the hub does NOT copy the Atlas's history, places or families",
+    !/AtlasPlaces/.test(hubHtml ?? "") &&
+      !/atlas-kpi/.test(hubHtml ?? "") &&
+      !/journey-beat/.test(hubHtml ?? ""),
+    "the hub carries Atlas content",
+  );
+  // ADR-007-A1 §5.4: the two properties do not declare each other as
+  // hreflang alternates for the same URL.
+  check(
+    "the hub declares NO hreflang alternates",
+    !/hreflang=/.test(hubHtml ?? ""),
+    "the hub declares an hreflang alternate",
+  );
+  // The DERIVED NOINDEX (§5.2). A hub with zero published recipes is
+  // noindex; a hub with at least one is not.
+  //
+  // `hubRecipeCount` is the count computed above — the same number the
+  // empty-state assertion is conditioned on, so the two decisions come
+  // from ONE fact and cannot disagree.
+  const hubHasNoindex = /<meta\s+name="robots"\s+content="[^"]*noindex/i.test(
+    hubHtml ?? "",
+  );
+  if (hubRecipeCount === 0) {
+    check(
+      "a hub with no published recipe is noindex",
+      hubHasNoindex,
+      "the hub has no recipes but is not noindex",
+    );
+  } else {
+    check(
+      "a hub with published recipes is INDEXABLE",
+      !hubHasNoindex,
+      "the hub has recipes but is still noindex",
+    );
+  }
+  // The sitemap must not list a noindex page (§5.4).
+  //
+  // The check is BETWEEN the sitemap and the dist: every URL the sitemap
+  // lists must point at a page that does NOT carry a noindex tag. The
+  // sitemap and the robots meta can therefore never disagree about which
+  // pages are indexable.
+  const recipesSitemap = await read(`${DIST}sitemap-en.xml`);
+  {
+    const dishUrlsInSitemap = [
+      ...(recipesSitemap ?? "").matchAll(
+        /<loc>https:\/\/gustale\.recipes\/dishes\/([^<]+)<\/loc>/g,
+      ),
+    ].map((m) => m[1]);
+    let noindexListed = 0;
+    for (const slug of dishUrlsInSitemap) {
+      const pageHtml = await read(`${DIST}dishes/${slug}/index.html`);
+      if (
+        pageHtml &&
+        /<meta\s+name="robots"\s+content="[^"]*noindex/i.test(pageHtml)
+      ) {
+        noindexListed++;
+      }
+    }
+    check(
+      "the recipes sitemap lists NO noindex hub",
+      noindexListed === 0,
+      `${noindexListed} noindex hub(s) are listed in the sitemap`,
+    );
+    // And the recipe pages themselves: a recipe page in the sitemap must
+    // be indexable too.
+    const recipeUrlsInSitemap = [
+      ...(recipesSitemap ?? "").matchAll(
+        /<loc>https:\/\/gustale\.recipes\/recipes\/([^<]+)<\/loc>/g,
+      ),
+    ].map((m) => m[1]);
+    let noindexRecipes = 0;
+    for (const slug of recipeUrlsInSitemap) {
+      const pageHtml = await read(`${DIST}recipes/${slug}/index.html`);
+      if (
+        pageHtml &&
+        /<meta\s+name="robots"\s+content="[^"]*noindex/i.test(pageHtml)
+      ) {
+        noindexRecipes++;
+      }
+    }
+    check(
+      "the recipes sitemap lists NO noindex recipe page",
+      noindexRecipes === 0,
+      `${noindexRecipes} noindex recipe page(s) are listed in the sitemap`,
+    );
+  }
+}
+
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
   check(

@@ -66,7 +66,35 @@ const ALLOW_PARTIAL = process.env.ALLOW_PARTIAL === "1";
 
 // Routes that exist on ONE domain only. Each is a path relative to /.
 const GEO_ONLY = ["map/"];
-const RECIPES_ONLY = []; // All shared pages are now on both domains
+// The RECIPE PAGES are the recipes property's content, and ADR-007-A1
+// §5.5 is explicit that the Atlas build must not serve them:
+//
+//   "The Atlas build must NOT serve /recipes/<slug>: the recipe page is
+//    the recipes property's content, and shipping it on both would
+//    duplicate it (the exact failure R2's 301s were meant to end)."
+//
+// §5.5 also says the strip list "must gain /recipes". So it does.
+//
+// THE BUILD ALSO STOPS PRODUCING THEM
+// -----------------------------------
+// `pages/recipes/[slug].astro` returns an empty `getStaticPaths` on the
+// geo domain, so the geo build produces no /recipes/ tree at all — this
+// strip is the SECOND line of defence, not the first.
+//
+// It is worth having anyway: a route guard is a line of source that a
+// later change can remove, and if it were removed the recipe pages
+// would silently appear on the Atlas — the exact duplication §5.5
+// forbids, and the one a reviewer would not spot in a diff. A strip
+// that removes the directory is checked by validate-build.mjs, so the
+// duplication cannot ship unnoticed.
+//
+// Note the asymmetry: /dishes/<slug> is NOT in this list. The recipe
+// HUBS live at /dishes/<slug> on the recipes domain and the ATLAS
+// dishes live at the same path on the Atlas — they are different pages
+// on different origins, chosen by the build-time branch in
+// pages/dishes/[slug].astro. Both properties serve that path, with
+// different content.
+const RECIPES_ONLY = ["recipes/"];
 
 async function exists(path) {
   try {
