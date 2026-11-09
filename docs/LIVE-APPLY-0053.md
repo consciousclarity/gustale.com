@@ -343,6 +343,82 @@ SELECT count(*) FROM information_schema.views
 
 ---
 
+## 8. Regenerating `db/schema.sql` (the owner's command)
+
+`CLAUDE.md` says the schema lives in **two places**:
+`packages/db/src/schema/index.ts` **and** `db/schema.sql`.
+
+**`db/schema.sql` does not exist in the repository.** It has never been
+committed (`git log --all -- db/schema.sql` is empty) and it is not in
+`main`. The runbook describes it as *a dump of the LIVE schema* — a
+snapshot of the production database, regenerated from live after a live
+apply.
+
+So it is **not** a second source to keep in sync by hand. It is a
+**regenerated artifact**, and after `0053` it is out of date.
+
+### The exact read-only command
+
+`pg_dump --schema-only` is **read-only**: it reads the catalogue and
+writes text. It takes no lock that blocks writes, and it changes
+nothing. Run it on the VPS:
+
+```bash
+# 1. The dump. READ-ONLY: --schema-only reads the catalogue and emits
+#    DDL. No lock that blocks writes, no data, no change.
+docker exec -u postgres shared-postgres \
+  pg_dump -U postgres -d gustale \
+  --schema-only --no-owner --no-privileges \
+  --file=/tmp/schema.sql
+
+# 2. Verify it is what it claims to be.
+docker exec -u postgres shared-postgres ls -la /tmp/schema.sql
+docker exec -u postgres shared-postgres \
+  grep -c 'CREATE VIEW public.recipe_published' /tmp/schema.sql
+docker exec -u postgres shared-postgres \
+  grep -c 'statements_subject_idx_recipe' /tmp/schema.sql
+
+# 3. Bring it out of the container. `docker cp`, NOT `cp` -- the host
+#    and the container do NOT share /tmp, so a plain host `cp` fails
+#    with "cannot stat".
+docker cp shared-postgres:/tmp/schema.sql /tmp/schema.sql
+
+# 4. Check it into the repo.
+cp /tmp/schema.sql db/schema.sql
+git add db/schema.sql
+git commit -m "chore(db): regenerate db/schema.sql from live after 0053"
+```
+
+### What the verification must show
+
+| check | expected |
+|---|---|
+| `CREATE VIEW public.recipe_published` | **1** |
+| `statements_subject_idx_recipe` | **2** (the index definition and its comment) |
+| `COPY ` / `INSERT INTO` lines | **0** — it is schema-only |
+| the `recipes`, `recipe_sentences`, `recipe_claims`, `recipe_confidence`, `recipe_publish_log` tables | present |
+
+### Proved before you run it
+
+The command was exercised against a sandbox database built by the full
+migration chain, at the `0053` head:
+
+- the dump was **7,462 lines**, and it contained the view and the index;
+- it contained **zero** `COPY`/`INSERT` lines — it is schema-only;
+- it **restored into a fresh database with 0 errors**, and the restored
+  database had `recipe_published` and
+  `statements_subject_idx_recipe` present.
+
+**If you would rather not commit it at all**, that is also a defensible
+choice — `db/schema.sql` has never been in the repo, and the schema of
+record is the migration chain in `db/migrations/` plus the Drizzle
+schema in `packages/db/src/schema/`. But then **CLAUDE.md should stop
+saying the schema lives in two places**, because it is a rule that
+points at a file nobody can find. That is a one-line docs fix and it
+can go in the same PR.
+
+---
+
 ## 7. The summary
 
 | step | what | if it fails |
