@@ -1,0 +1,74 @@
+The CI workflow change that exercises the live-migration gate against a
+STAND-IN container and proves its copy lands on the TEST Postgres.
+
+The App that pushes the branch has no `workflows` scope and cannot push
+.github/workflows/, so this ships AS A PATCH FILE. The OWNER applies it
+with:
+
+    git apply docs/ci-apply-migration-live-copy.patch
+
+WHY IT IS NEEDED
+
+The live-migration gate (`scripts/apply-migration-live.sh`) used to
+create and drop its COPY of the live database ON THE PRODUCTION
+CLUSTER -- which RULES.md forbids, because `DROP DATABASE` and
+`CREATE DATABASE` are cluster-scoped and that cluster hosts the live
+database AND five other projects' databases.
+
+That is why the owner's own apply of 0052 on 2026-11-09 was done
+DIRECTLY with psql rather than through the gate.
+
+The gate's copy now runs on the dedicated test Postgres
+(gustale-test-postgres, 127.0.0.1:5434), exactly as the dry-run's
+copy already does, and the gate's exemption from
+`scripts/check-no-production-db-drops.py` has been REMOVED so the
+scanner catches any regression.
+
+This CI step is what keeps that true. It runs the gate against a
+STAND-IN container of its own and asserts:
+
+  * the gate succeeds;
+  * the copy was created and dropped on the TEST container;
+  * the stand-in's CLUSTER never gained a database;
+  * the production-drop scanner still passes with the gate NOT exempt.
+
+PROVED BEFORE SHIPPING
+
+  * `bash scripts/test-apply-migration-live-copy.sh` locally: 7 of 7
+    assertions pass, the gate reports LIVE_MIGRATION_OK=1, and the
+    constraint tests report "ATLAS_SCHEMA_TESTS: 47 passed, 0 failed";
+  * `python3 scripts/check-no-production-db-drops.py`: clean, with the
+    gate NO LONGER allowlisted;
+  * `python3 scripts/test-check-no-production-db-drops.py`: ALL PASS
+    (20 checks), including a regression case that proves the scanner
+    catches the gate's copy if it goes back to production;
+  * `git apply --check` against a PRISTINE ci.yml: clean;
+  * the applied file is valid YAML.
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 3b08f62..6dd47b1 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -166,6 +166,22 @@ jobs:
+           python3 scripts/test-check-no-production-db-drops.py
+           python3 scripts/check-no-production-db-drops.py
+ 
++      # The live-migration gate must RUN, and its copy must land on the
++      # TEST Postgres.
++      #
++      # The gate used to create and drop its copy of the live database
++      # ON THE PRODUCTION CLUSTER, which RULES.md forbids -- and the
++      # owner's own apply of 0052 on 2026-11-09 had to be done DIRECTLY
++      # with psql because the gate could not be used. A gate that can
++      # only be run against production is a gate that never runs.
++      #
++      # This step runs the gate against a STAND-IN container and asserts
++      # that the copy was created and dropped on the test container, and
++      # that the stand-in's cluster never gained a database.
++      - name: The live-migration gate runs its copy on the test Postgres
++        run: |
++          bash scripts/test-apply-migration-live-copy.sh
++
+       # Every migration must be wrapped in a transaction.
+       #
+       # An unwrapped migration runs in AUTOCOMMIT: each statement is

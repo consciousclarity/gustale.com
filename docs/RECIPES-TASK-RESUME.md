@@ -18,10 +18,10 @@ it in the same commit as the push it describes.
 |---|---|---|---|
 | **0** | dry-run on the test Postgres + the BEGIN/COMMIT check | **MERGED** — #199 | — |
 | **1** | ADR-007 amendment (docs only) | **MERGED** — #200 | — |
-| **2** | schema migration `0052` | **MERGED** — #202, then **FIXED** — #203 (the shared-`statements` security hole) | `0052` is **not applied to live** — the owner runs it, with `pg_dump` first |
-| **3** | ingredient backfill plan + the S1–S7 source tier list | **IN PROGRESS** — kanban `t_ea058a91` (research lane) | — |
-| **4** | API: hub + recipe endpoints, publish gate, kill switch **+ the Drizzle schema in both places** | **IN PROGRESS** — kanban `t_5c002b54` (DB lane) | — |
-| **5** | gustale.recipes recipe page v1, empty-state noindex | **READY** — kanban `t_3e0078b3` (FE lane), after 6b | 6b first; then the item-4 API |
+| **2** | schema migration `0052` | **MERGED** — #202, then **FIXED** — #203 (the shared-`statements` security hole). **APPLIED TO LIVE** 2026-11-09 by the owner | — the file is now **frozen** (Rule 11) |
+| **3** | ingredient backfill plan + the S1–S7 source tier list | **MERGED** — #206 (docs only) | the owner must **approve** the tier list — it is a proposal |
+| **4** | API: hub + recipe endpoints, publish gate, kill switch **+ the Drizzle schema in both places** | **OPEN** — #207 (CI green at `a849b02`; the owner applied the 0053 CI patch) | the owner merges; then applies `0053` to live |
+| **5** | gustale.recipes recipe page v1, empty-state noindex | **READY** — kanban `t_3e0078b3` (FE lane), after 6b | 6b is merged; then the item-4 API |
 | **6** | Atlas button + "Recipes for this dish" block | not started | — |
 | **7** | revised 6c: redirects + recipes sitemap | not started | the exact 301 path set is known (§5.3 of the amendment) |
 | **8** | content pipeline: drafting, confidence, daily digest | not started | real S1–S5 sources — today **all 1,486 sources are S6**, so nothing can reach HIGH |
@@ -196,8 +196,15 @@ formatting — `key || ': ' || value ->> 'detail'` parses as
 
 **The receipt:** `docs/MIGRATION-RECEIPT-0052.md`.
 
-**Not done:** `0052` is **not applied to live**. That is a separate go,
-and it needs `pg_dump` first.
+**APPLIED TO LIVE 2026-11-09, by the owner.** Backup
+`/home/gustale/backups/pre-0052-20261109-090734.dump` (4.4 MB, 1,526
+TOC entries), dry-run `DRYRUN_OK=1`, applied by direct `psql` (the gate
+script creates and drops a copy **on the production cluster**, which
+RULES.md forbids — it is fixed in a separate PR). Every §4 check
+passed. The checklist is `docs/LIVE-APPLY-0052.md`.
+
+**`0052` is now FROZEN** (Rule 11). Fixes go into a new number —
+`0053` is exactly that.
 
 ---
 

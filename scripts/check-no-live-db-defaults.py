@@ -75,6 +75,16 @@ ALLOWLIST: dict[str, str] = {
         "Applies a migration to live THROUGH the approval gate. It is the "
         "script the gate exists to protect."
     ),
+    "scripts/test-apply-migration-live-copy.sh": (
+        "Exercises the live-migration gate against a STAND-IN container "
+        "of its own (gustale-gate-standin, port 5435) with a "
+        "migration-built schema in it. It NEVER touches live: the "
+        "production container and the live database name are both "
+        "overridden, and the database it creates lives in the "
+        "stand-in's own cluster. It exists so the gate can be run at "
+        "all -- a gate that can only be run against production is a "
+        "gate that never runs."
+    ),
     "scripts/drop-stray-role.sh": (
         "Drops a stray role from the live cluster, but ONLY after a "
         "seven-check audit that refuses any role with a login, a "
