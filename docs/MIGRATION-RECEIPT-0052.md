@@ -596,12 +596,17 @@ new number, not an edit to `0052`. Its checklist is
 
 ### 7.3 What is still open
 
-- `0053` is **not** applied. The owner applies it after PR #207 merges.
+- ~~`0053` is **not** applied.~~ **DONE — `0053` was applied to live on
+  2026-11-09** by the owner, the same day. Its receipt is
+  [`docs/MIGRATION-RECEIPT-0053.md`](MIGRATION-RECEIPT-0053.md).
 - `db/schema.sql` is **not** regenerated. It is a dump of the LIVE
   schema, so it must be regenerated **after** the live apply of `0053`.
-  It was not faked by hand and not silently skipped.
-- The gate script `scripts/apply-migration-live.sh` is fixed in a
-  separate PR (its copy moves to the test Postgres).
+  It was not faked by hand and not silently skipped. **The exact
+  read-only command is in
+  [`docs/LIVE-APPLY-0053.md`](LIVE-APPLY-0053.md) §8.**
+- The gate script `scripts/apply-migration-live.sh` is fixed in
+  **PR #209** (its copy moves to the test Postgres, and its exemption
+  from the production-drop scanner is removed).
 
 ---
 

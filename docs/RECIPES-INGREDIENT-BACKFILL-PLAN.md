@@ -195,19 +195,48 @@ generator script); the 12-value union is a leftover of the pre-FoodOn
 design. Option A also makes the review rule checkable: "the category is
 from the vocabulary" becomes a lookup instead of a judgement.
 
-**This is a finding to report, not a decision to take.** Under Rule 10
+**This was a finding to report, not a decision to take.** Under Rule 10
 the vocabulary is the owner's. The plan below proceeds on **option A** and
 says so, so that the stages are executable, and the decision can change
 it before any write.
 
-### Gate 0 — the vocabulary decision
+### Gate 0 — the vocabulary decision — **DECIDED 2026-11-09**
 
-- **Input:** this section, plus the 435-row table, plus the 12-value
-  union, plus the measured divergence.
-- **Checked by:** Alejandro.
-- **Passed when:** a written answer naming the vocabulary, and — if
-  option A — the answer to "what happens to `other`?" (it does not exist
-  as a row; either it is created, or the union loses it).
+> **The owner's decision, verbatim:**
+>
+> 1. **Vocabulary: option A**, the 435-row FoodOn table. **No "other"
+>    bucket: an ingredient without a fitting category goes to my review
+>    queue.**
+> 2. **S4: option 1**, library catalogues (WorldCat / LoC records) as the
+>    S4 discovery source.
+> 3. **Pilot dish: moussaka-greek first**, nasi goreng second.
+
+**So the vocabulary is the 435-row `ingredient_categories` table.** The
+12-value TypeScript union is replaced, and `other` **does not exist**:
+
+- there is no `other` row in `ingredient_categories`, and none is created;
+- the 12-value union's `other` member is **removed**, not mapped;
+- an ingredient whose category does not fit the vocabulary **goes to the
+  owner's review queue** — it is not bucketed, and it is not written with
+  a null category as a way of hiding it. The review queue is
+  `editorial_review_queue` (created by `0052`).
+
+**What this changes in the plan below:**
+
+- **Stage 0** is closed. The Drizzle change (item 4's schema work, now
+  its own card) widens `ingredients.category` from the 12-value union to
+  the 435-row vocabulary.
+- **Gate A** (the pantry list) is unchanged in substance — every category
+  it proposes must be a slug from the vocabulary, and one that fits
+  nothing goes to the review queue.
+- **Stage B** (the rows) still needs the owner's approval of Gate A
+  before anything is written.
+
+**The rule that follows from this, and that the reviewers should apply:**
+*an ingredient with no fitting category is a finding, not a gap to be
+filled with a bucket.* The old union made that gap invisible — `other`
+absorbed everything, and the count of ingredients in `other` was never
+looked at. That is the thing this decision fixes.
 
 **No database write happens at Stage 0.** If option A is chosen and the
 TypeScript union must change, that change belongs to **item 4** (the
@@ -558,6 +587,21 @@ flour, butter, olive oil, salt, pepper, bay leaf, nutmeg, cinnamon) is
 close to the ~30 target with the béchamel sauce's own components counted.
 
 **But the owner picks.** The choice of dish is a content decision.
+
+**DECIDED 2026-11-09: `moussaka-greek` first, nasi goreng second.** The
+owner's words: *"Pilot dish: moussaka-greek first, nasi goreng second."*
+
+So the pilot order is:
+
+| order | dish | why it is here |
+|---|---|---|
+| 1 | **`moussaka-greek`** | the only dish with ingredient rows today (4), published, and the Greek-original-language question is exactly what the pilot should surface |
+| 2 | **`nasi-goreng`** | the second pilot, once the first one's process is proven |
+
+**The pantry list (Gate A) is moussaka first.** Nasi goreng's pantry
+list follows it, after moussaka's has been reviewed — the point of a
+pilot is to learn the review questions from the first one, not to guess
+them twice.
 
 ### What the pilot proves, and what it does not
 
