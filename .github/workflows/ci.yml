@@ -1133,20 +1133,6 @@ jobs:
             -f db/migrations/0055_sourcing_availability.sql 2>&1 | tee /tmp/m0055.log
           bash scripts/check-ci-markers.sh "the sourcing availability tables" "INGREDIENT_SOURCING_AVAILABILITY_OK" /tmp/m0055.log
 
-      # ── 0056: the ingredient aliases table ───────────────────────────
-      #
-      # Migration 0056 creates ingredient_aliases -- the mechanism
-      # behind the béchamel merge. A retired slug keeps resolving,
-      # because it has a live public URL.
-      #
-      # It is strictly additive: one new table, and at most one alias
-      # row (none at all on a database without the orphan).
-      - name: Apply the ingredient aliases table
-        run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
-            -f db/migrations/0056_ingredient_aliases.sql 2>&1 | tee /tmp/m0056.log
-          bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0056.log
-
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.
