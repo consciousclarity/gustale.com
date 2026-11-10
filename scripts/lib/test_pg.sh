@@ -169,13 +169,110 @@ test_pg_drop() {
 #: The container is created with `postgres` as the bootstrap user, so
 #: this only has to make sure the ordinary role exists.
 test_pg_match_ci_roles() {
-  test_pg_psql postgres -c "CREATE ROLE ${TEST_PG_USER} LOGIN NOSUPERUSER PASSWORD '${TEST_PG_PASSWORD}';" >/dev/null 2>&1 || true
+  # The role may already exist -- the postgis image creates
+  # POSTGRES_USER as the cluster's superuser, so on a container that
+  # was built with POSTGRES_USER=gustale the role is there already,
+  # and a previous run of this script may have left it behind. A bare
+  # `CREATE ROLE` then FAILS, and because the failure is swallowed the
+  # PASSWORD is never set, so the role cannot authenticate over TCP.
+  #
+  # So the role is created if it is missing and its password is set
+  # either way.
+  test_pg_psql postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${TEST_PG_USER}') THEN EXECUTE format('CREATE ROLE ${TEST_PG_USER} LOGIN NOSUPERUSER PASSWORD %L', '${TEST_PG_PASSWORD}'); END IF; END \$\$;" >/dev/null 2>&1 || true
+  test_pg_psql postgres -c "ALTER ROLE ${TEST_PG_USER} LOGIN NOSUPERUSER PASSWORD '${TEST_PG_PASSWORD}';" >/dev/null 2>&1 || true
+}
+
+#: Wait until the test Postgres is genuinely usable.
+#:
+#: "The container is running" is NOT "the database is ready". Two
+#: things can be true at once:
+#:
+#: 1. THE POSTGIS IMAGE RESTARTS POSTGRES ONCE, about five seconds
+#:    after the first boot. The container log shows it exactly:
+#:
+#:        waiting for server to start....
+#:        LOG:  starting PostgreSQL 16.4 ...          <- a CHILD pid
+#:        LOG:  database system is ready to accept connections
+#:        waiting for server to shut down...
+#:        LOG:  received fast shutdown request
+#:        LOG:  starting PostgreSQL 16.4 ...          <- PID 1, the
+#:        LOG:  database system is ready to accept connections      final boot
+#:
+#:    So the container is UP and the server ACCEPTS CONNECTIONS
+#:    twice, and the first time is followed by a shutdown. A caller
+#:    that connects in that window gets:
+#:
+#:        FATAL:  the database system is shutting down
+#:
+#: 2. POSTGRES ITSELF runs a startup recovery after the postmaster
+#:    first accepts connections, and it KILLS any session that
+#:    connects during that window:
+#:
+#:        FATAL: terminating connection due to administrator command
+#:
+#: The container's `RestartCount` cannot detect either: the CONTAINER
+#: never restarts -- the PROCESS inside it does -- so RestartCount
+#: stays 0. The signal is the LOG: the final boot is the one whose
+#: postmaster has PID 1, because the first boot's postmaster is a
+#: child of the entrypoint.
+#:
+#: This function is called from BOTH the "just started it" path and
+#: the "it was already running" path, because a container that is
+#: mid-restart passes `docker ps` and is exactly as broken as one
+#: that was just created.
+#:
+#: The role setup is also done here, and it is done so that the
+#: PASSWORD is SET even when the role already exists -- a bare
+#: CREATE ROLE fails on an existing role, and the swallowed failure
+#: leaves the role unable to authenticate over TCP.
+test_pg_wait_ready() {
+  local i
+  local stable=0
+  local last_pid
+  for i in $(seq 1 120); do
+    # `|| true` matters: on the first iterations there is NO
+    # "starting PostgreSQL" line yet, so grep exits 1. The chain runs
+    # with `set -euo pipefail`, and a command substitution's non-zero
+    # status would otherwise kill the whole chain SILENTLY -- which is
+    # exactly what it did.
+    last_pid="$(docker logs "$TEST_PG_CONTAINER" 2>&1 \
+      | grep -oE '\[[0-9]+\] LOG:  starting PostgreSQL' | tail -1 \
+      | grep -oE '[0-9]+' | head -1 || true)"
+    if [ "$last_pid" = "1" ]; then
+      # The final boot. Now wait for a real authenticated query, three
+      # times in a row, and for the roles to be usable.
+      if docker exec -e PGPASSWORD="$TEST_PG_PASSWORD" -u postgres \
+           "$TEST_PG_CONTAINER" psql -U "$TEST_PG_ADMIN" -d postgres \
+           -tAc 'SELECT 1' >/dev/null 2>&1; then
+        stable=$((stable + 1))
+        if [ "$stable" -ge 3 ]; then
+          test_pg_match_ci_roles
+          # The role must now EXIST and be able to authenticate, or the
+          # chain's role setup (which connects as `gustale`) fails.
+          if docker exec -e PGPASSWORD="$TEST_PG_PASSWORD" -u postgres \
+               "$TEST_PG_CONTAINER" psql -U "$TEST_PG_USER" -d postgres \
+               -tAc 'SELECT 1' >/dev/null 2>&1; then
+            echo "the test Postgres is up"
+            return 0
+          fi
+        fi
+      else
+        stable=0
+      fi
+    fi
+    sleep 1
+  done
+  echo "ERROR: the test Postgres did not become ready in 120 seconds" >&2
+  return 1
 }
 
 test_pg_up() {
   if docker ps --format '{{.Names}}' | grep -qx "$TEST_PG_CONTAINER"; then
     echo "the test Postgres ($TEST_PG_CONTAINER) is already up"
-    return 0
+    # It may be running but MID-RESTART -- the postgis image restarts
+    # Postgres once. So the readiness wait runs here too.
+    test_pg_wait_ready
+    return $?
   fi
   echo "=== starting the test Postgres ($TEST_PG_CONTAINER) on 127.0.0.1:${TEST_PG_PORT} ==="
   docker rm -f "$TEST_PG_CONTAINER" >/dev/null 2>&1 || true
@@ -196,20 +293,10 @@ test_pg_up() {
     -p "127.0.0.1:${TEST_PG_PORT}:5432" \
     "$TEST_PG_IMAGE" >/dev/null
 
-  # Wait for it to accept connections.
-  local i
-  for i in $(seq 1 30); do
-    if docker exec "$TEST_PG_CONTAINER" pg_isready -U "$TEST_PG_USER" -d postgres >/dev/null 2>&1; then
-      # The CI-shaped scripts expect CI's roles. Match them, so a test
-      # run against this container behaves like a CI run.
-      test_pg_match_ci_roles
-      echo "the test Postgres is up"
-      return 0
-    fi
-    sleep 1
-  done
-  echo "ERROR: the test Postgres did not become ready in 30 seconds" >&2
-  return 1
+  # The readiness wait is shared with the "already running" path: a
+  # container that is mid-restart passes `docker ps` and is exactly as
+  # broken as one that was just created.
+  test_pg_wait_ready
 }
 
 test_pg_down() {

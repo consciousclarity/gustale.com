@@ -31,12 +31,19 @@ THE RULE
     dedicated test container (or the CI's own service, which is not
     the production container at all).
   * The scripts that legitimately make a COPY of the live database --
-    the live-migration gate, the account-deletion gate and the atlas
-    regression detector -- are exempt, and each states WHY in the
-    allowlist below. Their copies are made FROM live, so they must
-    live on the same cluster to be restorable into it; they create and
-    drop only the COPY, never the live database, and each one's target
-    is checked against the live name separately.
+    the account-deletion gate and the atlas regression detector -- are
+    exempt, and each states WHY in the allowlist below. Their copies are
+    made FROM live, so they must live on the same cluster to be
+    restorable into it; they create and drop only the COPY, never the
+    live database, and each one's target is checked against the live
+    name separately.
+  * The live-migration gate is NOT exempt, and was not exempt even
+    before its copy moved. The reason it once gave -- "the copy must be
+    on the same cluster to be faithful" -- was wrong: a `pg_dump |
+    pg_restore` copy is faithful wherever it is restored. It now runs
+    its copy on the dedicated test Postgres, exactly as the dry-run
+    does, so it needs no exemption -- and this scanner is what keeps it
+    that way, by catching it if it ever regresses.
   * The DRY-RUN is NOT exempt. It used to be, with the reason "the
     copy must be on the same cluster to be faithful". That reason was
     wrong: a `pg_dump | pg_restore` copy is faithful wherever it is
@@ -85,18 +92,19 @@ CLUSTER_SCOPED = re.compile(
 #: Scripts exempt from the rule, and why.
 #:
 #: Each of these makes a COPY of the live database and drops the copy.
-#: The copy must be created on the same cluster as the live database,
-#: because a `pg_dump | pg_restore` copy is restored into the cluster
-#: it will later be applied to, and because `CREATE DATABASE ... TEMPLATE`
-#: requires the template to be on the same server.
+#:
+#: THE EXEMPTION FOR THE LIVE-MIGRATION GATE WAS REMOVED ON
+#: 2026-11-09. Its copy used to be created and dropped on the production
+#: cluster, and the reason given for the exemption -- "the copy must be
+#: on the same cluster to be faithful" -- was the SAME wrong argument that
+#: was removed from the dry-run's exemption: a `pg_dump | pg_restore`
+#: copy is faithful wherever it is restored. The gate's copy now runs on
+#: the dedicated test Postgres, exactly as the dry-run's copy does, so it
+#: needs no exemption -- and this scanner is what keeps it that way.
+#:
+#: The remaining exemptions are for scripts that act on the production
+#: CLUSTER for a reason a copy on another cluster cannot serve.
 ALLOWLIST: dict[str, str] = {
-    "scripts/apply-migration-live.sh": (
-        "The live-migration gate. It creates and drops "
-        "gustale_atlas_gate_copy -- a COPY of live, made from the "
-        "backup the gate already took -- and NEVER drops the live "
-        "database. It asserts the live database is NOT marked "
-        "disposable before the constraint tests run on the copy."
-    ),
     "scripts/delete-test-account.sh": (
         "The account-deletion gate. It creates and drops "
         "gustale_delacct_$$ -- a COPY of live -- and applies the "

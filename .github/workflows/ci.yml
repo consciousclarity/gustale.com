@@ -166,6 +166,22 @@ jobs:
           python3 scripts/test-check-no-production-db-drops.py
           python3 scripts/check-no-production-db-drops.py
 
+      # The live-migration gate must RUN, and its copy must land on the
+      # TEST Postgres.
+      #
+      # The gate used to create and drop its copy of the live database
+      # ON THE PRODUCTION CLUSTER, which RULES.md forbids -- and the
+      # owner's own apply of 0052 on 2026-11-09 had to be done DIRECTLY
+      # with psql because the gate could not be used. A gate that can
+      # only be run against production is a gate that never runs.
+      #
+      # This step runs the gate against a STAND-IN container and asserts
+      # that the copy was created and dropped on the test container, and
+      # that the stand-in's cluster never gained a database.
+      - name: The live-migration gate runs its copy on the test Postgres
+        run: |
+          bash scripts/test-apply-migration-live-copy.sh
+
       # Every migration must be wrapped in a transaction.
       #
       # An unwrapped migration runs in AUTOCOMMIT: each statement is

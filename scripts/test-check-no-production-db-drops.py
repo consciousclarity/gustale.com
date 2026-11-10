@@ -256,17 +256,6 @@ def main() -> int:
         for f in findings:
             print(f"          {f}")
 
-    # The allowlist case: a script that legitimately copies live.
-    print()
-    print("=== an allowlisted script is allowed ===")
-    allowlisted = scanner.ALLOWLIST.get("scripts/apply-migration-live.sh")
-    if allowlisted:
-        print(f"  OK    scripts/apply-migration-live.sh is allowlisted")
-        print(f"          reason: {allowlisted[:70]}...")
-    else:
-        print("  FAIL  scripts/apply-migration-live.sh is NOT allowlisted")
-        failures += 1
-
     # The allowlist must have a reason for EVERY entry.
     print()
     print("=== every allowlist entry states its reason ===")
@@ -293,11 +282,55 @@ def main() -> int:
     else:
         print("  OK    scripts/dryrun-migration.sh is not allowlisted")
 
+    # The SAME must be true of the live-migration gate.
+    #
+    # It used to be allowlisted, and the reason it gave -- "the copy must
+    # be on the same cluster to be faithful" -- was the same wrong
+    # argument that was removed from the dry-run's exemption. Its copy
+    # now runs on the dedicated test Postgres, so the exemption is gone
+    # (2026-11-09) and the scanner catches a regression.
+    #
+    # The owner's own apply of 0052 on 2026-11-09 was done with psql
+    # DIRECTLY, precisely because this script could not be used: it
+    # created and dropped its copy on the production cluster, which
+    # RULES.md forbids.
+    print()
+    print("=== the live-migration gate is NOT exempt either ===")
+    if "scripts/apply-migration-live.sh" in scanner.ALLOWLIST:
+        print(
+            "  FAIL  scripts/apply-migration-live.sh is allowlisted -- its "
+            "copy would go back on the production cluster"
+        )
+        failures += 1
+    else:
+        print("  OK    scripts/apply-migration-live.sh is not allowlisted")
+
+    # AND the gate's copy must actually be on the test container. This
+    # is the regression case: if someone puts the copy back on the
+    # production cluster, the scanner must CATCH it -- with no
+    # exemption to hide behind.
+    print()
+    print("=== the live-migration gate's copy is caught on the production cluster ===")
+    gate = scanner.REPO / "scripts" / "apply-migration-live.sh"
+    regressed = gate.read_text().replace(
+        'test_pg_create "$COPY_DB"',
+        'docker exec -u postgres shared-postgres psql -U postgres -d postgres '
+        '-c "DROP DATABASE IF EXISTS ${COPY_DB};" >/dev/null 2>&1',
+    )
+    findings = _scan_text("scripts/apply-migration-live.sh", regressed)
+    if findings:
+        print("  OK    the scanner catches the gate's copy on production:")
+        for f in findings:
+            print(f"          {f}")
+    else:
+        print("  FAIL  the scanner does NOT catch the gate's copy on production")
+        failures += 1
+
     print()
     if failures:
-        print(f"  FAIL  {failures} of {len(CASES) + 3} checks are wrong")
+        print(f"  FAIL  {failures} of {len(CASES) + 5} checks are wrong")
         return 1
-    print(f"  ALL PASS  ({len(CASES) + 3} checks)")
+    print(f"  ALL PASS  ({len(CASES) + 5} checks)")
     return 0
 
 
