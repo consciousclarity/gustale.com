@@ -100,19 +100,19 @@ def q(db, sql):
 # REUSES. The `new` rows are the ten the owner is being asked to
 # approve.
 APPROVED_SET = {
-    # slug: (status, category, needed_by, is_key, cost_weight)
+    # slug: (status, category, needed_by, hint, cost_weight)
     #
     # The last two columns are the OWNER'S Gate A decisions of
     # 2026-11-10, and they are enforced here so a later edit cannot
     # quietly reverse one:
     #
-    #   - `shrimp-paste` is_key=yes. It is what distinguishes nasi
+    #   - `shrimp-paste` hint=yes. It is what distinguishes nasi
     #     goreng from Chinese fried rice.
     #   - `tamarind` and `chilli` and `shallot` and `garlic` are
     #     cost_weight=minor -- a cap on the price score, so a dear
     #     spice cannot make a dish Hard.
     #   - `cooking-oil` and `margarine` are the TWO FORMS of ONE
-    #     required line, and both are is_key=no.
+    #     required line, and both are hint=no.
     #   - `vegetables` is the one generic line: no category, no
     #     source, optional.
     "long-grain-rice": ("new", "rice", "nasi-goreng", "yes", "major"),
@@ -268,7 +268,17 @@ def main():
         if slug not in APPROVED_SET:
             continue
         _, _, _, is_key, cost_weight = APPROVED_SET[slug]
-        got_key = r.get("is_key", "").strip()
+        # The column is named for what it IS: a recipe-line hint.
+        # `is_key` belongs to recipe_ingredients and is never stored on
+        # an ingredient, so the ingredient-shaped list must not carry
+        # that name -- it invites exactly the wrong write.
+        if "is_key" in r:
+            failures.append(
+                f"'{slug}': the column 'is_key' is present -- is_key is a "
+                f"RECIPE-LINE property (recipe_ingredients.is_key), never "
+                f"an ingredient one; the column is named "
+                f"'typically_defines_the_dish_hint'")
+        got_key = r.get("typically_defines_the_dish_hint", "").strip()
         got_weight = r.get("cost_weight", "").strip()
         if got_key != is_key:
             failures.append(
@@ -317,7 +327,7 @@ def main():
         slug = r["slug"].strip()
         if slug not in NO_CATEGORY_NO_SOURCE:
             continue
-        if r.get("is_key", "").strip() == "yes":
+        if r.get("typically_defines_the_dish_hint", "").strip() == "yes":
             failures.append(
                 f"'{slug}': is a generic line, so it cannot be a key "
                 f"ingredient")
