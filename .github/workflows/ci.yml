@@ -1340,6 +1340,9 @@ jobs:
       # ── 0061: the ingredient aliases table ───────────────────────────
       #
       # Migration 0061 creates ingredient_aliases -- the mechanism
+      # ── 0061: the ingredient aliases table ───────────────────────────
+      #
+      # Migration 0056 creates ingredient_aliases -- the mechanism
       # behind the béchamel merge. A retired slug keeps resolving,
       # because it has a live public URL.
       #
@@ -1349,6 +1352,11 @@ jobs:
       # It was 0056 when this branch was opened. Renumbered to 0061 so
       # it sorts after the migrations main has already applied to live
       # (0058, 0059, 0060) -- an applied migration is frozen.
+      - name: Apply the ingredient aliases table
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
+          bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
       - name: Apply the ingredient aliases table
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
