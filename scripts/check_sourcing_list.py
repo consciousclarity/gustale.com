@@ -17,7 +17,8 @@ WHAT IT ENFORCES
   2. Every ingredient's FORMS are non-empty, and its PRICE BANDS are
      drawn from the vocabulary ADR-008 defines.
 
-  3. Every `is_key` is `yes` or `no`.
+  3. Every "typically defines the dish" hint is `yes` or `no`, and the
+     `is_key` column is GONE -- it belongs to recipe_ingredients.
 
   4. The SUBSTITUTION LIMITS are carried VERBATIM from the spec. The
      spec's limits are the owner's own words, and they are where the
@@ -60,7 +61,14 @@ AVAILABILITY = {
 # THE APPROVED LIST. The CSV may not add a row to it and may not drop
 # one from it.
 #
-# Each entry is (name, forms, is_key, price-catalogue item).
+# Each entry is (name, forms, substitutes, import_dependency, hint,
+# price-catalogue item).
+#
+# The HINT is the owner's "typically defines the dish" judgement. It is
+# a RECIPE-LINE property (ADR-008 Decision 5: recipe_ingredients.is_key)
+# -- an approximate substitute never rescues a key ingredient -- so it
+# is a HINT for setting the line, never a column on the ingredient. The
+# ingredients table has exactly one sourcing column, `ubiquitous`.
 #
 # The `forms` are the forms the research must cover -- the rating
 # selects the LOWEST-burden form, so the forms are where the real
@@ -68,124 +76,216 @@ AVAILABILITY = {
 APPROVED = {
     "coconut-milk": (
         "Coconut milk",
-        "fresh;homemade;packaged;canned;coconut-cream",
+        "fresh;homemade;packaged;canned",
+        "coconut-cream",
+        "",
         "yes",
         True,
     ),
     "cassava": (
         "Cassava",
-        "fresh-root;peeled;frozen;cassava-flour;tapioca-starch",
+        "fresh-root;peeled;frozen",
+        "cassava-flour;tapioca-starch",
+        "",
         "yes",
         True,
     ),
     "plantain": (
         "Plantain",
         "ripe;green;frozen-slices",
+        "green-banana",
+        "",
         "yes",
         True,
     ),
     "tamarind": (
         "Tamarind",
         "pod;paste;concentrate;juice",
+        "tamarind-paste;tamarind-concentrate",
+        "",
         "no",
         True,
     ),
     "saffron": (
         "Saffron",
         "threads;powder;extract",
+        "",
+        "",
         "yes",
         True,
     ),
     "preserved-lemon": (
         "Preserved lemon",
-        "whole;salted-lemon;zest-and-salt",
+        "whole",
+        "salted-lemon;zest-and-salt",
+        "",
         "yes",
         True,
     ),
     "curry-leaves": (
         "Curry leaves",
         "fresh;frozen;brined",
+        "",
+        "",
         "yes",
         True,
     ),
     "makrut-lime-leaves": (
         "Makrut lime leaves",
-        "fresh;frozen;zest",
+        "fresh;frozen",
+        "makrut-lime-zest;ordinary-lime-zest",
+        "",
         "yes",
         True,
     ),
     "gochujang": (
         "Gochujang",
-        "fresh;paste;gochugaru-mix",
+        "paste",
+        "gochugaru-mix",
+        "",
         "yes",
         True,
     ),
     "doubanjiang": (
         "Doubanjiang",
-        "paste;regional-varieties",
+        "paste",
+        "generic-chili-bean-paste",
+        "",
         "yes",
         True,
     ),
     "fish-sauce": (
         "Fish sauce",
-        "standard;lighter;premium",
+        "bottled;paste",
+        "lighter-fish-sauce",
+        "",
         "yes",
         False,
     ),
     "fresh-mozzarella-di-bufala": (
         "Fresh mozzarella di bufala",
-        "fresh-buffalo;fresh-cow;low-moisture;provolone",
+        "fresh-buffalo",
+        "fresh-cow-mozzarella;low-moisture-mozzarella;provolone",
+        "",
         "yes",
         True,
     ),
     "parmigiano-reggiano-and-pecorino": (
         "Parmigiano Reggiano and Pecorino",
-        "parmigiano;pecorino;grana-padano",
+        "parmigiano;pecorino",
+        "grana-padano",
+        "",
         "yes",
         True,
     ),
     "ube": (
         "Ube",
         "fresh;frozen;puree;extract",
+        "",
+        "",
         "yes",
         False,
     ),
     "ackee": (
         "Ackee",
         "fresh;frozen;canned",
+        "",
+        "",
         "yes",
         False,
     ),
     "huitlacoche": (
         "Huitlacoche",
-        "fresh;canned;imported",
+        "fresh;canned",
+        "",
+        "imported",
         "yes",
         False,
     ),
     "asian-pear": (
         "Asian pear",
-        "fresh-nashi;bosc;local-nashi",
+        "fresh-nashi;local-nashi",
+        "bosc-pear",
+        "",
         "no",
         True,
     ),
     "pandan": (
         "Pandan",
         "fresh-leaves;juice;extract;flavouring",
+        "",
+        "",
         "yes",
         True,
     ),
     "epazote": (
         "Epazote",
         "fresh;dried",
+        "",
+        "",
         "no",
         True,
     ),
     "fresh-corn-masa": (
         "Fresh corn masa",
-        "fresh-masa;masa-harina;tortillas",
+        "fresh-masa",
+        "masa-harina;corn-tortillas",
+        "",
         "yes",
         True,
     ),
+}
+
+# THE FORM VOCABULARY.
+#
+# A FORM is the SAME INGREDIENT in another state: fresh, frozen, dried,
+# canned/packaged, paste/concentrate, extract, homemade -- and the
+# specific states of a particular ingredient (ripe/green, whole/pod,
+# thread/powder).
+#
+# The owner's fix, stated exactly: "Forms = the same ingredient in
+# another state (fresh, frozen, dried, canned/packaged,
+# paste/concentrate, extract, homemade)."
+#
+# Every form in the list must be in this vocabulary. It is what makes
+# the split ENFORCED rather than asserted: a substitute that is not in
+# here cannot be smuggled into the forms column, because a form that
+# names a different product -- coconut cream, provolone, tortillas --
+# is simply not in the vocabulary.
+FORM_VOCABULARY = {
+    # the generic states
+    "fresh",
+    "frozen",
+    "dried",
+    "canned",
+    "packaged",
+    "paste",
+    "concentrate",
+    "extract",
+    "homemade",
+    "juice",
+    "puree",
+    "brined",
+    "flavouring",
+    "flavoring",
+    # a specific ingredient's states
+    "fresh-root",      # cassava, still a root
+    "peeled",          # cassava, peeled
+    "ripe",            # plantain
+    "green",           # plantain
+    "frozen-slices",   # plantain
+    "pod",             # tamarind
+    "threads",         # saffron
+    "powder",          # saffron
+    "whole",           # preserved lemon, as opposed to its parts
+    "fresh-leaves",    # pandan
+    "fresh-nashi",     # asian pear
+    "local-nashi",     # asian pear
+    "fresh-buffalo",   # mozzarella di bufala
+    "parmigiano",      # the parmigiano-reggiano side
+    "pecorino",        # the pecorino side
+    "fresh-masa",      # fresh corn masa
+    "bottled",         # fish sauce, as sold in a bottle
 }
 
 # The price catalogue names THREE items that have no ingredient row.
@@ -265,7 +365,9 @@ def main():
     # (2) the declared attributes must match the approved ones, the
     # forms must be non-empty, and the price bands must be from the
     # vocabulary.
-    for slug, (name, forms, is_key, _) in sorted(APPROVED.items()):
+    for slug, (name, forms, substitutes, import_dep, hint, _) in sorted(
+        APPROVED.items()
+    ):
         r = seen.get(slug)
         if r is None:
             continue
@@ -283,15 +385,79 @@ def main():
         got_forms = [f for f in r["forms_to_research"].split(";") if f.strip()]
         if not got_forms:
             failures.append(f"'{slug}': no forms to research")
+        for f in got_forms:
+            if f not in FORM_VOCABULARY:
+                failures.append(
+                    f"'{slug}': '{f}' is not in the form vocabulary -- a "
+                    f"form is the same ingredient in another state "
+                    f"(fresh, frozen, dried, canned/packaged, "
+                    f"paste/concentrate, extract, homemade). If it names a "
+                    f"different product, it is a SUBSTITUTE")
 
-        if r["is_key"].strip() != is_key:
+        # THE FORMS/SUBSTITUTES SPLIT.
+        #
+        # A FORM is the same ingredient in another state. A SUBSTITUTE is
+        # a different thing that may serve in its place, with its own
+        # suitability. The owner's fix: the two must not be mixed, and a
+        # substitute listed as a form is a category error -- it would be
+        # rated as if it were the ingredient itself.
+        #
+        # So: no approved substitute may appear in the forms column.
+        got_subs = [
+            x.strip()
+            for x in r["substitutes_to_research"].split(";")
+            if x.strip()
+        ]
+        if r["substitutes_to_research"].strip() != substitutes:
             failures.append(
-                f"'{slug}': is_key is '{r['is_key'].strip()}', the "
-                f"approved value is '{is_key}'")
-        if r["is_key"].strip() not in ("yes", "no"):
+                f"'{slug}': substitutes are "
+                f"'{r['substitutes_to_research'].strip()}', the approved "
+                f"substitutes are '{substitutes}'")
+        for sub in got_subs:
+            if sub in got_forms:
+                failures.append(
+                    f"'{slug}': '{sub}' is a SUBSTITUTE, not a form -- it "
+                    f"must not appear in the forms column")
+        # A substitute must also be researchable: the rating needs to
+        # know whether it is available and how suitable it is.
+        if substitutes and not got_subs:
             failures.append(
-                f"'{slug}': is_key '{r['is_key'].strip()}' is not 'yes' or "
-                f"'no'")
+                f"'{slug}': the approved substitutes '{substitutes}' are "
+                f"missing from the substitutes column")
+
+        # FIX 3: an import dependency is not a form.
+        if r["import_dependency"].strip() != import_dep:
+            failures.append(
+                f"'{slug}': import_dependency is "
+                f"'{r['import_dependency'].strip()}', the approved value "
+                f"is '{import_dep}'")
+        if import_dep and import_dep in got_forms:
+            failures.append(
+                f"'{slug}': '{import_dep}' is an import dependency, not a "
+                f"form -- it must not appear in the forms column")
+
+        # FIX 1: the recipe-line hint. It is NOT an ingredient property.
+        hint_col = "typically_defines_the_dish_hint"
+        if hint_col not in r:
+            failures.append(
+                f"'{slug}': the column '{hint_col}' is missing -- the "
+                f"is_key column was renamed; is_key is a RECIPE-LINE "
+                f"property (recipe_ingredients.is_key), not an ingredient "
+                f"one")
+            continue
+        if "is_key" in r:
+            failures.append(
+                f"'{slug}': the column 'is_key' is still present -- "
+                f"is_key belongs to recipe_ingredients, never to the "
+                f"ingredient")
+        if r[hint_col].strip() != hint:
+            failures.append(
+                f"'{slug}': {hint_col} is '{r[hint_col].strip()}', the "
+                f"approved value is '{hint}'")
+        if r[hint_col].strip() not in ("yes", "no"):
+            failures.append(
+                f"'{slug}': {hint_col} '{r[hint_col].strip()}' is not "
+                f"'yes' or 'no'")
 
         bands = [b.strip() for b in r["price_bands_to_research"].split(";")
                  if b.strip()]
@@ -309,7 +475,7 @@ def main():
         print("  NOTE: the owner's spec was not found, so the "
               "verbatim-limits check did not run")
     else:
-        for slug, (name, _, _, _) in sorted(APPROVED.items()):
+        for slug, (name, _, _, _, _, _) in sorted(APPROVED.items()):
             r = seen.get(slug)
             if r is None:
                 continue
@@ -367,12 +533,12 @@ def main():
     # "16 key, 4 not" while the data said 17/3 -- and nothing caught
     # it, because the checker validated each row but not the summary
     # the reader sees. So the count is derived and compared.
-    n_key = sum(1 for _, (_, _, k, _) in APPROVED.items() if k == "yes")
+    n_key = sum(1 for _, (_, _, _, _, k, _) in APPROVED.items() if k == "yes")
     n_not = len(APPROVED) - n_key
-    print(f"  {n_key} key, {n_not} not")
+    print(f"  {n_key} 'typically defines the dish', {n_not} not")
     if (n_key, n_not) != (17, 3):
         failures.append(
-            f"the key counts are {n_key} key / {n_not} not, the approved "
+            f"the hint counts are {n_key} key / {n_not} not, the approved "
             f"list has 17 key / 3 not")
 
     if failures:
@@ -382,8 +548,9 @@ def main():
         return 1
 
     print("  OK: the list is exactly the owner's 20 ingredients, the "
-          "forms and price bands are well-formed, and the substitution "
-          "limits are the spec's own words")
+          "forms are states of the ingredient and the substitutes are "
+          "separate, the recipe-line hint is well-formed, and the "
+          "substitution limits are the spec's own words")
     return 0
 
 
