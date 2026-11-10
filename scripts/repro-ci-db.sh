@@ -577,6 +577,18 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0060_legacy_associations_publish
   || { echo "  FAILED: 0060"; grep -E 'ERROR' /tmp/repro_0060.log | head -8; fail=1; }
 grep -E '0060: ok' /tmp/repro_0060.log | tail -1 || true
 
+# The INGREDIENT ALIASES table (migration 0061).
+#
+# It was 0056 when this branch was opened, but 0056 sorts BEFORE the
+# migrations that main has already applied to live (0058, 0059, 0060),
+# and a migration that has been applied is frozen. Renumbered to 0061
+# so it sorts after everything that is live. It depends on nothing
+# except `ingredients`, so it can run at the end of the chain.
+step "the ingredient aliases"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0061_ingredient_aliases.sql" > /tmp/repro_0061.log 2>&1 \
+  || { echo "  FAILED: 0061"; grep -E 'ERROR' /tmp/repro_0061.log | head -6; fail=1; }
+grep -E 'INGREDIENT_ALIASES_OK' /tmp/repro_0061.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
