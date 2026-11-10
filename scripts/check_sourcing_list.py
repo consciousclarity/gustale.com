@@ -363,6 +363,18 @@ def main():
             print(f"  NOTE: the price catalogue item '{item}' has no "
                   f"ingredient row in this list -- recorded as a known gap")
 
+    # The key/not-key COUNT, checked. The document's prose once said
+    # "16 key, 4 not" while the data said 17/3 -- and nothing caught
+    # it, because the checker validated each row but not the summary
+    # the reader sees. So the count is derived and compared.
+    n_key = sum(1 for _, (_, _, k, _) in APPROVED.items() if k == "yes")
+    n_not = len(APPROVED) - n_key
+    print(f"  {n_key} key, {n_not} not")
+    if (n_key, n_not) != (17, 3):
+        failures.append(
+            f"the key counts are {n_key} key / {n_not} not, the approved "
+            f"list has 17 key / 3 not")
+
     if failures:
         print(f"  FAILED: {len(failures)} problem(s)")
         for f in failures:
