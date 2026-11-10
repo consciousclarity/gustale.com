@@ -111,11 +111,26 @@ mutation-tested against this exact list.
 vocabulary, and each needs a source — except `vegetables`, which the
 owner accepted as a generic line with neither.
 
-The `is_key` and `cost_weight` columns below are the **owner's Gate A
+The **"typically defines the dish"** and `cost_weight` columns below are the **owner's Gate A
 decisions of 2026-11-10**, and the checker enforces them, so a later
 edit cannot quietly reverse one.
 
-| ingredient | slug | category | is_key | cost_weight | notes |
+**The column is named for what it is, and it is a RECIPE-LINE value.**
+`is_key` lives on `recipe_ingredients` (ADR-008 Decision 5), and the
+`ingredients` table has exactly one sourcing column — `ubiquitous`, the
+staples rule. The same ingredient can be key in one recipe and not in
+another, so a column on the ingredient would force one answer on every
+recipe that uses it.
+
+Every row in this table **is** a recipe line — it names the dish it is
+for (`needed_by`) — so the value belongs to the line. It is never
+written to the ingredient row: the seed inserts into `ingredients`
+only `(canonical_name, slug, category, status)`.
+
+**The checker refuses the column named `is_key`**, so the wrong write
+cannot be made by accident.
+
+| ingredient | slug | category | typically defines the dish | cost_weight | notes |
 |---|---|---|---|---|---|
 | Rice, long-grain | `long-grain-rice` | `rice` | **yes** | major | the base |
 | Cooking oil | `cooking-oil` | `oil` | no | major | **form 1 of 2** of the oil/margarine line |
