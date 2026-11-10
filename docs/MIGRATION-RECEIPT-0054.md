@@ -184,6 +184,25 @@ This is the same status as `0052` and `0053`.
 
 ---
 
+## The Stage B seed that follows this migration
+
+`0054` gave the `ingredients.category` column a vocabulary to point at.
+**Stage B** is the seed that fills it in for the first dish:
+`packages/db/seed-moussaka-ingredients.sql`.
+
+| | |
+|---|---|
+| the list | `docs/PANTRY-LIST-moussaka-greek.csv` — **23 rows**, 19 new, 4 reused, 4 optional |
+| the seed | 19 INSERTs, 4 UPDATEs, 23 `dish_ingredients` rows, one transaction |
+| the marker | `SEED_MOUSSAKA_INGREDIENTS_OK=1` |
+| the runbook | `docs/LIVE-APPLY-SEED-MOUSSAKA.md` — direct `psql`, pre-checks, expected counts, the 4 live pages that change |
+| the verification | `scripts/verify-pantry-seed.sh` — 10 checks, including the rollback proof |
+| the vocabulary gaps found | `docs/VOCABULARY-ADDITIONS.md` — kefalotyri's exact class, a wine class, and the sub-recipes schema item |
+
+**The seed is NOT applied.** `0054` is; the seed waits for the owner's go.
+
+---
+
 ## What this means for the ingredient backfill
 
 Before 0054, `ingredients.category` was free text and the five existing
@@ -218,6 +237,8 @@ red wine, `beef` for beef mince) and flags both.
 | document | what it is |
 |---|---|
 | `docs/RECIPES-INGREDIENT-BACKFILL-PLAN.md` | the backfill plan; Gate 0 settled the vocabulary, Gate A is the pantry list |
-| `docs/PANTRY-LIST-moussaka-greek.md` | the Stage A pantry list (the pilot) |
+| `docs/PANTRY-LIST-moussaka-greek.md`
+- `docs/LIVE-APPLY-SEED-MOUSSAKA.md` — the Stage B seed's live-apply runbook
+- `docs/VOCABULARY-ADDITIONS.md` — the classes the vocabulary is missing | the Stage A pantry list (the pilot) |
 | `db/migrations/0054_ingredient_category_fk.sql` | the migration — **frozen** |
 | `scripts/check-migrations-are-transactional.py` | proves 0054 is transaction-wrapped (it is not grandfathered) |

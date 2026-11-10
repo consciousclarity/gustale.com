@@ -125,7 +125,7 @@ def main():
                  "plain-butter": "butter", "table-salt": "salt",
                  "olive-oil": "olive oil", "black-pepper": "pepper",
                  "bay-leaf": "bay leaf", "beef-mince": "beef",
-                 "red-wine": "wine", "tomato-paste": "tomato paste",
+                 "tomato-paste": "tomato paste",
                  "parsley": "parsley", "carrot": "carrot"}.get(slug, slug)
         if src == "seed-moussaka.dishes.long_description.regional-variants":
             # INFERRED from the seed's own statement that regional
@@ -184,8 +184,27 @@ def main():
         "cinnamon": "bark-spices",
         "parsley": "aromatic-herbs",
         "tomato-paste": "processed-tomato-products",
-        "red-wine": "beverage",
     }
+
+    # ── The list is CLOSED: exactly the approved rows ───────────────
+    # A row the checker has never heard of must be REFUSED, not
+    # ignored. Without this, ADDING a row silently passes -- the
+    # checker only validates the rows it knows. The owner's decisions
+    # on 2026-11-10 REMOVED red wine; if it crept back in, the class
+    # rule would have nothing to say about it, because the row is no
+    # longer in EXPECTED_CLASS.
+    #
+    # Both directions are checked: no unknown row may appear, and no
+    # known row may be silently dropped.
+    KNOWN = set(EXPECTED_CLASS)
+    for slug in [r["slug"] for r in rows if r["slug"] not in KNOWN]:
+        failures.append(
+            f"'{slug}': NOT a row of the approved list -- the list is "
+            f"closed, so an unapproved row must be refused")
+    for slug in sorted(KNOWN - {r["slug"] for r in rows}):
+        failures.append(
+            f"'{slug}': MISSING from the approved list -- a known "
+            f"ingredient cannot be silently dropped")
     for r in rows:
         want = EXPECTED_CLASS.get(r["slug"])
         if want and r["category"] != want:

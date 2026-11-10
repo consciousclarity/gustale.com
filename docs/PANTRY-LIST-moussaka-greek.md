@@ -12,7 +12,17 @@ butter renamed from `cultured-butter` to **plain butter**; carrot marked
 **optional**; béchamel re-modelled as a **sub-recipe** rather than an
 ingredient listed alongside its own components; and four optional
 additions — **red wine, tomato paste, parsley, and beef** — each with a
-source. The reasoning for each is in "What changed, and why".
+source. The reasoning for each is in "What changed, and why". Revision 3
+below removes red wine.
+
+**Revision 3 (2026-11-10, the owner's decisions on revision 2).**
+
+| decision | what changed |
+|---|---|
+| **Béchamel: Option A, flat.** | Béchamel is **one ingredient**; its components (milk, flour, butter, egg, nutmeg) are **documented**, not listed beside it. **Sub-recipes** (a parent reference on `recipes`) is now its **own backlog item** — see `docs/VOCABULARY-ADDITIONS.md` §4. |
+| **Kefalotyri: keep the generic `ripened-cheese`.** | The exact FoodOn class (`FOODON:03542880`, *"cheese, kefalotyri … a type of hard cheese"*) goes on the **vocabulary-additions list** for the later reviewed batch — `docs/VOCABULARY-ADDITIONS.md` §1. |
+| **Red wine: removed from this list.** | The **wine / alcoholic-beverage class** goes on the vocabulary-additions list — `docs/VOCABULARY-ADDITIONS.md` §2. The list is now **23 rows**. |
+| **Beef: category `beef`, not `bovine-carcase`.** | Closed; recorded at `docs/VOCABULARY-ADDITIONS.md` §3. |
 
 ---
 
@@ -61,16 +71,15 @@ thing the database can already hold, not a note in prose.
 | 18 | Cinnamon | `cinnamon` | `bark-spices` | no | `moussaka-greek` | new |
 | 19 | Allspice | `allspice` | `fruit-spices` | no | `moussaka-greek` | new |
 | 20 | Kefalotyri | `kefalotyri` | `ripened-cheese` | no | `moussaka-greek` | new |
-| 21 | Red wine | `red-wine` | `beverage` | **yes** | `moussaka-greek` | new |
-| 22 | Tomato paste | `tomato-paste` | `processed-tomato-products` | **yes** | `moussaka-greek` | new |
-| 23 | Parsley | `parsley` | `aromatic-herbs` | **yes** | `moussaka-greek` | new |
-| 24 | Beef, minced (lamb alternative) | `beef-mince` | `beef` | **yes** | `moussaka-greek` | new |
+| 21 | Tomato paste | `tomato-paste` | `processed-tomato-products` | **yes** | `moussaka-greek` | new |
+| 22 | Parsley | `parsley` | `aromatic-herbs` | **yes** | `moussaka-greek` | new |
+| 23 | Beef, minced (lamb alternative) | `beef-mince` | `beef` | **yes** | `moussaka-greek` | new |
 
-**24 rows, 19 distinct categories, no ingredient twice.** Five rows are
+**23 rows, 18 distinct categories, no ingredient twice.** Five rows are
 optional; the rest are required.
 
 Four rows REUSE an existing `ingredients` row (rows 1–4 — the four that
-`dish_ingredients` already points at). Twenty are new.
+`dish_ingredients` already points at). Nineteen are new.
 
 The same list is in machine-readable form:
 `docs/PANTRY-LIST-moussaka-greek.csv`.
@@ -85,7 +94,7 @@ only after their go.
 
 | artefact | what it is |
 |---|---|
-| `packages/db/seed-moussaka-ingredients.sql` | the generated seed: 20 INSERTs for the new rows, 4 UPDATEs for the reused ones, plus the `dish_ingredients` rows that carry `is_optional` |
+| `packages/db/seed-moussaka-ingredients.sql` | the generated seed: 19 INSERTs for the new rows, 4 UPDATEs for the reused ones, plus the `dish_ingredients` rows that carry `is_optional` |
 | `scripts/generate_pantry_seed.py` | the **generator** — the SQL is derived from the CSV, so the rows written can never drift from the list that was reviewed |
 | `scripts/check_pantry_list.py` | checks the **list** against the applied 435-row vocabulary and the seed's own text |
 | `scripts/verify-pantry-seed.sh` | checks the **seed** against Gate B's pass conditions on a test database |
@@ -98,7 +107,7 @@ is idempotent, and writes nothing that the public API can see.
 
 | # | check | what it proves |
 |---|---|---|
-| 1 | the row count equals the approved list's length | 24/24 — the seed wrote exactly the approved list, no more |
+| 1 | the row count equals the approved list's length | 23/23 — the seed wrote exactly the approved list, no more |
 | 2 | every slug is unique | no duplicate row |
 | 3 | every category resolves against the vocabulary | the 0054 foreign key would reject a bad category |
 | 4 | **no description text was written** | every row is `short_description = ''` and `long_description = ''` — a description is a claim and a claim needs a source |
@@ -115,7 +124,7 @@ The public API filters `WHERE ingredients.status = 'published'`
 (`apps/api/src/routes/ingredients.ts`, both the list and the detail
 route). So:
 
-* the **20 new rows are `draft`** and are **invisible** to
+* the **19 new rows are `draft`** and are **invisible** to
   `GET /api/ingredients` and to every `/ingredients/<slug>` page;
 * the **4 reused rows** keep their published status, so the live
   ingredient list stays at exactly **4** entries;
@@ -126,7 +135,8 @@ That last one is worth stating plainly: **Stage B is not a no-op on
 live.** It sets `category` on four published ingredients, and the API
 serves that field. It is additive and truthful — the categories are
 correct — but it is a visible change to four live pages, so it needs
-the owner's go like everything else.
+the owner's go like everything else. `docs/LIVE-APPLY-SEED-MOUSSAKA.md`
+is the runbook for that apply.
 
 ### The checks are mutation-tested
 
@@ -141,6 +151,17 @@ broken six ways in turn, and the script caught every one:
 | parsley made **required** | **yes** — "not named in the seed, so it must be optional" |
 | beef made **required** | **yes** — "it is an ALTERNATIVE, so it must be optional" |
 | a duplicate slug | **yes** |
+| **red wine re-added** | **yes** — the list is **closed**, so an unapproved row is refused |
+| **parsley deleted** | **yes** — a known ingredient cannot be silently dropped |
+| **kefalotyri deleted** | **yes** — ↑ |
+| **beef's class changed to `bovine-carcase`** | **yes** — "category must be 'beef'" |
+
+**The closed-list rule** was added on 2026-11-10, after the owner's
+decisions removed red wine. Without it, re-adding red wine **passed**
+the checker silently: the class rule only validates the rows it knows,
+and the row was no longer among them. The list is now closed in both
+directions — no unknown row may appear, and no known row may be
+dropped.
 
 The first and fifth are the two the owner's review actually turned up,
 and both were **surviving** the first version of the checker. The
@@ -194,8 +215,9 @@ So there is a choice, and it is the owner's:
   widening it for one pilot ingredient is a bigger call than a pantry
   list, and it would set a precedent for every named regional cheese.
 
-**This list proposes `ripened-cheese` and flags the exact class.** It
-does not decide it.
+**DECIDED 2026-11-10: the generic `ripened-cheese` stays.** The exact
+class (`FOODON:03542880`) goes on the **vocabulary-additions list** for
+the later reviewed batch: `docs/VOCABULARY-ADDITIONS.md` §1.
 
 **The material claim, independently sourced.** FoodOn's definition says
 "a type of hard cheese", and Wikipedia's article on Kefalotyri says
@@ -278,70 +300,86 @@ So a béchamel **sub-recipe** cannot be stored as a nested ingredient.
 `recipe_ingredients` has exactly one `recipe_id`, and a component's
 components have nowhere to hang.
 
-**What this means for Stage B, and the options — the owner's call:**
+**DECIDED 2026-11-10: OPTION A — flat.** Béchamel is **one
+ingredient** (row 4), and its components are **documented** here rather
+than listed beside it as siblings:
 
-* **Option A — flat, with the components marked as the sauce's.** Keep
-  the 24 rows on one list, and record the béchamel's composition in
-  the béchamel **ingredient's** own description or in the recipe's
-  prose, rather than in a nested row. No schema change. The
-  composition is documented, not structured.
-* **Option B — two recipes.** `moussaka-greek` has a sub-recipe
-  `bechamel`, and the béchamel's own `recipe_ingredients` rows hold
-  milk, flour, butter, egg and nutmeg. This models the dish properly,
-  but it needs **a new migration** to add the parent reference to
-  `recipes` — it cannot be done in Stage B as planned, and a new
-  migration is a bigger decision than a pantry list.
+| component | row | category |
+|---|---|---|
+| Milk | 10 | `milk` |
+| Flour | 11 | `cereal-and-cereal-like-flours` |
+| Butter | 12 | `butter` |
+| Egg | 9 | `whole-eggs` |
+| Nutmeg | 17 | `seed-spices` (optional) |
 
-**This list proposes Option A's data and documents the composition, and
-flags Option B as the structurally correct answer.** It does not decide
-it. See "The Gate A questions" below.
+No schema change. The composition is **documented, not structured** —
+and that is exactly what the *sub-recipes* backlog item exists to fix.
 
-### 5. Four additions, each with a source
+**Sub-recipes are now their own backlog item.** The owner's words:
+*"Add 'sub-recipes' (a parent reference on recipes) as its own backlog
+item: béchamel, sofrito, sambal, curry pastes recur across many
+dishes."* The full write-up — the schema gap, the shape it would take,
+and the four open questions — is `docs/VOCABULARY-ADDITIONS.md` §4.
 
-All four are marked **optional**: none of them is in the seed's
+### 5. Three additions, each with a source
+
+All three are marked **optional**: none of them is in the seed's
 ingredients, and each is a documented variation rather than a component
 of the dish the seed describes.
 
 **A note on the strength of these sources, because it matters.** Only
-**one** of the four — beef — is named in the seed itself. The other
-three are **not** in the seed at all (checked: "wine", "tomato paste",
-"parsley" and "carrot" each occur **zero** times in
+**one** of the three — beef — is named in the seed itself. The other
+two are **not** in the seed at all (checked: "tomato paste" and
+"parsley" each occur **zero** times in
 `packages/db/seed-moussaka.sql`). They are inferred from the seed's own
 statement that *"Regional variants exist across the Balkans, Levant,
 and Egypt"*, and from what those regional forms use. That is a weaker
-kind of source than a named ingredient, so **all four are marked
+kind of source than a named ingredient, so **all three are marked
 optional** — optional is exactly the right status for an ingredient
 that is a documented variant rather than a component.
 
 | # | ingredient | slug | category | source |
 |---|---|---|---|---|
-| 21 | Red wine | `red-wine` | `beverage` | the seed's dish description: "Greek moussaka combines fried or roasted eggplant layers with a spiced meat sauce (**lamb or beef**) and a thick, cheese-topped béchamel", and "Regional variants exist across the **Balkans, Levant, and Egypt**". Red wine in the meat sauce is the standard variation in the Levantine and Balkan forms. **Optional — not named in the seed.** |
-| 22 | Tomato paste | `tomato-paste` | `processed-tomato-products` | the seed's preparation step says "Add **tomatoes**, cinnamon, and a pinch of allspice"; the long description names the Levantine and Egyptian regional forms. Tomato paste is the concentrated form of that tomato in the long-cooked Levantine form. **Optional — not named in the seed.** |
-| 23 | Parsley | `parsley` | `aromatic-herbs` | the seed's preparation step names onion, garlic, tomato, cinnamon and allspice for the meat sauce; the long description names the Greek and Balkan forms. Parsley is the standard green herb of the Greek and Balkan form, alongside those aromatics. **Optional — not named in the seed.** |
-| 24 | Beef, minced (lamb alternative) | `beef-mince` | `beef` | **named in the seed, explicitly**: "a spiced meat sauce (**lamb or beef**)" — the dish's own long description. **Optional — it is an alternative to the lamb in row 2, not an addition to it.** |
+| 21 | Tomato paste | `tomato-paste` | `processed-tomato-products` | the seed's preparation step says "Add **tomatoes**, cinnamon, and a pinch of allspice"; the long description names the Levantine and Egyptian regional forms. Tomato paste is the concentrated form of that tomato in the long-cooked Levantine form. **Optional — not named in the seed.** |
+| 22 | Parsley | `parsley` | `aromatic-herbs` | the seed's preparation step names onion, garlic, tomato, cinnamon and allspice for the meat sauce; the long description names the Greek and Balkan forms. Parsley is the standard green herb of the Greek and Balkan form, alongside those aromatics. **Optional — not named in the seed.** |
+| 23 | Beef, minced (lamb alternative) | `beef-mince` | `beef` | **named in the seed, explicitly**: "a spiced meat sauce (**lamb or beef**)" — the dish's own long description. **Optional — it is an alternative to the lamb in row 2, not an addition to it.** |
 
-**On the categories for rows 21 and 24 — a real limitation, stated
-plainly:**
+#### Red wine — REMOVED 2026-11-10
 
-* `beverage` has **no FoodOn identifier**. Neither does `beef`, `paste`,
-  `herb`, `sauce` or the other 51 legacy rows. The 435-row table is
-  the vocabulary (the owner's Gate 0 decision), and 55 of its rows are
-  the pre-existing coarse categories that predate the FoodOn
-  vocabulary. `red-wine` has **no better class available** — the
-  vocabulary contains no wine category at all (checked by slug, by
-  name, and by every `wine|vine|grape` pattern: the only hits are
-  `vinegar` and a generic `beverage`).
-* `beef` is likewise the coarse legacy row. The precise FoodOn class
-  `bovine-carcase` (FOODON:03541878) exists in the vocabulary and
-  **would** be the better class for beef — but `bovine-carcase` is a
-  carcase class, and `beef` is the row the vocabulary actually uses for
-  the material. **This one is the owner's call**; it is listed with
-  `beef` because that is the vocabulary's own word for it.
+Revision 2 added `red-wine` (optional) on the strength of the seed's
+"Regional variants exist across the Balkans, Levant, and Egypt". **The
+owner has removed it from this list.**
 
-Both are flagged rather than decided. `scripts/check_pantry_list.py`
-reports them as `NOTE … has NO FoodOn id (a legacy row)` rather than
-failing, because they are real rows of the vocabulary — the vocabulary
-is the table, and the table is what the foreign key points at.
+The reason is the vocabulary, not the cooking. **The 435-row table has
+no wine class at all** — checked by slug, by name, and by every
+`wine|vine|grape` pattern, the only hits are `vinegar` and a generic
+`beverage`. So red wine's only possible category was a legacy row with
+**no FoodOn identifier**, far broader than wine, and the least
+precise row in the whole list.
+
+A missing class is a **vocabulary gap**, not a pantry-list problem, so
+it goes on the vocabulary-additions list for the later reviewed batch:
+**`docs/VOCABULARY-ADDITIONS.md` §2** — *"wine / alcoholic beverage
+class"*.
+
+#### The categories for rows 21 and 23 — a real limitation, stated plainly
+
+* `beef` has **no FoodOn identifier**. Neither does `paste`, `herb`,
+  `sauce` or the other 54 legacy rows. The 435-row table is the
+  vocabulary (the owner's Gate 0 decision), and 55 of its rows are the
+  pre-existing coarse categories that predate the FoodOn vocabulary.
+* The precise FoodOn class `bovine-carcase` (FOODON:03541878) exists
+  in the vocabulary and **would** be a better class for beef — but it
+  is a *carcase* class, and `beef` is the row the vocabulary actually
+  uses for the material.
+
+**DECIDED 2026-11-10: the category is `beef`, not `bovine-carcase`.**
+Closed; recorded at `docs/VOCABULARY-ADDITIONS.md` §3.
+
+`scripts/check_pantry_list.py` reports a legacy row as a `NOTE … has
+NO FoodOn id (a legacy row)` rather than failing, because it is a real
+row of the vocabulary — the vocabulary is the table, and the table is
+what the foreign key points at.
 
 ---
 
@@ -356,15 +394,15 @@ already holds:
 |---|---|
 | `packages/db/seed-moussaka.sql` → `dish_ingredients` | the 4 structured ingredient rows: eggplant, lamb-mince, tomato, bechamel |
 | `packages/db/seed-moussaka.sql` → `dish_preparations.steps` | the prose: "Brown the minced lamb with **onion** and **garlic**. Add **tomatoes**, **cinnamon**, and a pinch of **allspice**." and "Layer fried **eggplant** slices and the meat sauce in a baking dish. Pour **béchamel** on top, sprinkle with **kefalotyri**." |
-| `packages/db/seed-moussaka.sql` → `dishes.long_description` | the dish's own description, which is the source for **beef** ("a spiced meat sauce (**lamb or beef**)") and for the regional variants behind **red wine** |
+| `packages/db/seed-moussaka.sql` → `dishes.long_description` | the dish's own description, which is the source for **beef** ("a spiced meat sauce (**lamb or beef**)") and for the regional variants behind **tomato paste** and **parsley** |
 | `docs/RECIPES-INGREDIENT-BACKFILL-PLAN.md` §4 (the pilot corpus note) | the remaining béchamel components and seasonings: potato, carrot, egg, milk, flour, butter, olive oil, salt, pepper, bay leaf, nutmeg |
 
 Every row above traces to one of those. Nothing was invented.
 
 ### The béchamel composition, recorded
 
-Because béchamel is a sub-recipe (above), its composition is stated
-here rather than implied by a flat list:
+Because béchamel is **one ingredient** (Option A), its composition is
+stated here rather than implied by a flat list of siblings:
 
 | component | row | category |
 |---|---|---|
@@ -445,12 +483,11 @@ the OLS4 API and checked against the class the repository publishes.
 | `seed-spices` | FOODON:03541290 | "any type of seed used as spices" | nutmeg |
 | `bark-spices` | FOODON:03541340 | "any type of bark used as spices" | cinnamon |
 | `ripened-cheese` | FOODON:03542758 | "any type of Ripened cheese" | **kefalotyri** (was brined/feta-type) |
-| `beverage` | — (legacy row) | — | **red wine** (optional) |
 | `processed-tomato-products` | FOODON:03540933 | processed tomato products | **tomato paste** (optional) |
 | `aromatic-herbs` | FOODON:03540825 | "any type of Aromatic herbs (**fresh, not dried**)" | **parsley** (optional) |
 | `beef` | — (legacy row) | — | **beef mince** (optional) |
 
-Three assignments are worth a second look, because they are the ones a
+Two assignments are worth a second look, because they are the ones a
 curator would argue about:
 
 * **black pepper → `fruit-spices`.** Black pepper is the dried fruit of
@@ -460,14 +497,17 @@ curator would argue about:
   actually offers for those materials.
 * **allspice → `fruit-spices`.** Allspice is a dried berry. It is a
   blend, but the material is a fruit, so it lands in the same class.
-* **`beverage` and `beef` are the coarse legacy rows.** They are real
-  rows of the 435-row vocabulary, so the foreign key accepts them, but
-  they carry no FoodOn identifier and they are much broader than the
-  material. `bovine-carcase` (FOODON:03541878) is the precise class
-  for beef and exists in the vocabulary; the vocabulary's own word for
-  the material is `beef`. There is no wine class at all.
+* **`beef` is a coarse legacy row.** It is a real row of the 435-row
+  vocabulary, so the foreign key accepts it, but it carries no FoodOn
+  identifier and it is much broader than the material.
+  `bovine-carcase` (FOODON:03541878) is the precise class and exists
+  in the vocabulary. **DECIDED 2026-11-10: `beef`**, because the
+  ingredient is the material and `bovine-carcase` is a carcase class.
+  See `docs/VOCABULARY-ADDITIONS.md` §3.
 
-All three are the owner's to confirm or overrule.
+**There is no wine class at all**, which is why red wine is no longer
+on this list — see §5 above and
+`docs/VOCABULARY-ADDITIONS.md` §2.
 
 ### One category that is NOT a catch-all
 
@@ -485,14 +525,12 @@ word "other" that it is flagged here for a deliberate yes.
 Per the plan, Gate A is checked by Alejandro, name by name, against
 §3.2's questions. The ones this list raises:
 
-1. **Is "béchamel sauce" one ingredient or its components?** — **Now
-   answered in the owner's direction:** béchamel is a **sub-recipe**
-   (row 4), and its components are its ingredients, not its siblings.
-   **But the schema has no sub-recipe mechanism**, so the storage
-   decision is still open: Option A (flat list, composition documented)
-   or Option B (two recipes, which needs a new migration). **This is
-   the one Gate A question that is not fully answered, and it is
-   deliberately not decided here.**
+1. **Is "béchamel sauce" one ingredient or its components?** —
+   **ANSWERED 2026-11-10: Option A, flat.** Béchamel is **one
+   ingredient** (row 4); its components are **documented** in the
+   "béchamel composition" table below, not listed beside it as
+   siblings. **Sub-recipes** (a parent reference on `recipes`) is now
+   its **own backlog item** — `docs/VOCABULARY-ADDITIONS.md` §4.
 2. **Is "lamb, minced" its own ingredient, or is it "lamb" with a
    variant?** — Proposed: its own ingredient, `lamb-mince`, per the
    plan's "a prepared form is its own ingredient" rule. It already
@@ -504,13 +542,14 @@ Per the plan, Gate A is checked by Alejandro, name by name, against
 3. **The four qualified slugs** (`whole-egg`, `whole-milk`, `table-salt`,
    `plain-butter`) — are these the names the owner wants, or should
    the bare words be used and the collision tolerated?
-4. **`beef` or `bovine-carcase` for the beef row?** — `beef` is the
-   vocabulary's own row but has no FoodOn id; `bovine-carcase`
-   (FOODON:03541878) is the precise class and does. This list uses
-   `beef`.
-5. **Red wine's category.** There is no wine class in the vocabulary,
-   so `beverage` is the only choice. Accepted, or is a new category
-   row warranted?
+4. **`beef` or `bovine-carcase` for the beef row?** — **ANSWERED
+   2026-11-10: `beef`.** The ingredient is the material;
+   `bovine-carcase` is a carcase class. Recorded at
+   `docs/VOCABULARY-ADDITIONS.md` §3.
+5. **Red wine's category.** — **ANSWERED 2026-11-10: red wine is
+   removed from this list**, and the missing wine / alcoholic-beverage
+   class goes on the vocabulary-additions list for the later reviewed
+   batch — `docs/VOCABULARY-ADDITIONS.md` §2.
 
 ---
 
@@ -554,15 +593,15 @@ python3 scripts/check_pantry_list.py docs/PANTRY-LIST-moussaka-greek.csv --db <d
 
 | check | result |
 |---|---|
-| every `category` exists in `ingredient_categories` | 24/24 ✓ |
-| every `category` carries a FoodOn identifier | 22/24 ✓ (2 legacy rows: `beverage`, `beef` — flagged as NOTEs) |
-| no slug appears twice in the list | 24/24 ✓ |
-| no slug collides with any of the 435 category slugs | 24/24 ✓ |
-| no slug reinvents an existing `ingredients` row | 4 reused, 20 new, 0 duplicated ✓ |
+| every `category` exists in `ingredient_categories` | 23/23 ✓ |
+| every `category` carries a FoodOn identifier | 22/23 ✓ (1 legacy row: `beef` — flagged as a NOTE) |
+| no slug appears twice in the list | 23/23 ✓ |
+| no slug collides with any of the 435 category slugs | 23/23 ✓ |
+| no slug reinvents an existing `ingredients` row | 4 reused, 19 new, 0 duplicated ✓ |
 | every existing `ingredients` row appears in the list | 4/4 ✓ |
-| every slug is English, singular, lowercase, hyphenated | 24/24 ✓ |
-| every `is_optional` is true or false | 24/24 ✓ |
-| every `needed_by` is `moussaka-greek` | 24/24 ✓ |
+| every slug is English, singular, lowercase, hyphenated | 23/23 ✓ |
+| every `is_optional` is true or false | 23/23 ✓ |
+| every `needed_by` is `moussaka-greek` | 23/23 ✓ |
 | no prepared form is merged with its base ingredient | ✓ |
 | no dish is listed as an ingredient | ✓ |
 | no database write | ✓ — read-only queries only |

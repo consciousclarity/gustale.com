@@ -19,7 +19,6 @@ Nutmeg,nutmeg,seed-spices,moussaka-greek,false,backfill-plan-s4
 Cinnamon,cinnamon,bark-spices,moussaka-greek,false,seed-moussaka.dish_preparations
 Allspice,allspice,fruit-spices,moussaka-greek,false,seed-moussaka.dish_preparations
 Kefalotyri,kefalotyri,ripened-cheese,moussaka-greek,false,seed-moussaka.dish_preparations
-"Red wine",red-wine,beverage,moussaka-greek,true,seed-moussaka.dishes.long_description.regional-variants
 Tomato paste,tomato-paste,processed-tomato-products,moussaka-greek,true,seed-moussaka.dishes.long_description.regional-variants
 Parsley,parsley,aromatic-herbs,moussaka-greek,true,seed-moussaka.dishes.long_description.regional-variants
 "Beef, minced (lamb alternative)",beef-mince,beef,moussaka-greek,true,seed-moussaka.dishes.long_description

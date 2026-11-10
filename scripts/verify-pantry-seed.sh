@@ -186,7 +186,16 @@ else
   note "NOTE — no ingredients_category_fk constraint in this database (0054 not applied here)"
 fi
 
-echo "── 8. idempotent re-apply ──────────────────────────────────"
+echo "── 8. the success marker ────────────────────────────────────"
+# The seed must emit SEED_MOUSSAKA_INGREDIENTS_OK=1, so an apply can
+# be verified from the output alone.
+if grep -q "SEED_MOUSSAKA_INGREDIENTS_OK=1" /tmp/pantry_seed_apply.log; then
+  note "PASS — the seed emitted SEED_MOUSSAKA_INGREDIENTS_OK=1"
+else
+  bad "the seed did NOT emit SEED_MOUSSAKA_INGREDIENTS_OK=1"
+fi
+
+echo "── 9. idempotent re-apply ──────────────────────────────────"
 before=$(q "SELECT count(*) FROM ingredients WHERE slug IN ($(printf "'%s'," $slugs | sed 's/,$//'))")
 if docker exec -u postgres -i "$CONTAINER" psql -U postgres -d "$DB" \
       -v ON_ERROR_STOP=1 -q < "$SEED" >/tmp/pantry_seed_reapply.log 2>&1; then
@@ -201,7 +210,7 @@ else
   tail -8 /tmp/pantry_seed_reapply.log
 fi
 
-echo "── 9. a failed seed rolls back completely ───────────────────"
+echo "── 10. a failed seed rolls back completely ──────────────────"
 # The seed runs in ONE transaction, so a failure anywhere leaves no
 # trace. This is proved on a THROWAWAY database that is built from the
 # PRE-SEED state -- a clone of the current database would already

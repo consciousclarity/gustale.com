@@ -8,7 +8,7 @@
 -- SOURCE OF TRUTH: docs/PANTRY-LIST-moussaka-greek.csv
 -- (the Stage A pantry list the owner approved at Gate A)
 --
--- 24 rows in the approved list: 20 new, 4 reused.
+-- 23 rows in the approved list: 19 new, 4 reused.
 --
 -- EVERY row is status='draft' with an EMPTY description. A
 -- description is a claim, and a claim needs a source
@@ -140,11 +140,6 @@ ON CONFLICT (slug) DO NOTHING;
 -- kefalotyri  (ripened-cheese)
 INSERT INTO public.ingredients (canonical_name, slug, category, status)
 VALUES ('Kefalotyri', 'kefalotyri', 'ripened-cheese', 'draft')
-ON CONFLICT (slug) DO NOTHING;
-
--- red-wine  (beverage)
-INSERT INTO public.ingredients (canonical_name, slug, category, status)
-VALUES ('Red wine', 'red-wine', 'beverage', 'draft')
 ON CONFLICT (slug) DO NOTHING;
 
 -- tomato-paste  (processed-tomato-products)
@@ -367,40 +362,42 @@ SELECT d.id, i.id, 19, false
  WHERE d.slug = 'moussaka-greek'
 ON CONFLICT (dish_id, ingredient_id, variant_id) DO NOTHING;
 
--- red-wine  (position 20, is_optional = true)
+-- tomato-paste  (position 20, is_optional = true)
 INSERT INTO public.dish_ingredients
        (dish_id, ingredient_id, position, is_optional)
 SELECT d.id, i.id, 20, true
-  FROM public.dishes d
-  JOIN public.ingredients i ON i.slug = 'red-wine'
- WHERE d.slug = 'moussaka-greek'
-ON CONFLICT (dish_id, ingredient_id, variant_id) DO NOTHING;
-
--- tomato-paste  (position 21, is_optional = true)
-INSERT INTO public.dish_ingredients
-       (dish_id, ingredient_id, position, is_optional)
-SELECT d.id, i.id, 21, true
   FROM public.dishes d
   JOIN public.ingredients i ON i.slug = 'tomato-paste'
  WHERE d.slug = 'moussaka-greek'
 ON CONFLICT (dish_id, ingredient_id, variant_id) DO NOTHING;
 
--- parsley  (position 22, is_optional = true)
+-- parsley  (position 21, is_optional = true)
 INSERT INTO public.dish_ingredients
        (dish_id, ingredient_id, position, is_optional)
-SELECT d.id, i.id, 22, true
+SELECT d.id, i.id, 21, true
   FROM public.dishes d
   JOIN public.ingredients i ON i.slug = 'parsley'
  WHERE d.slug = 'moussaka-greek'
 ON CONFLICT (dish_id, ingredient_id, variant_id) DO NOTHING;
 
--- beef-mince  (position 23, is_optional = true)
+-- beef-mince  (position 22, is_optional = true)
 INSERT INTO public.dish_ingredients
        (dish_id, ingredient_id, position, is_optional)
-SELECT d.id, i.id, 23, true
+SELECT d.id, i.id, 22, true
   FROM public.dishes d
   JOIN public.ingredients i ON i.slug = 'beef-mince'
  WHERE d.slug = 'moussaka-greek'
 ON CONFLICT (dish_id, ingredient_id, variant_id) DO NOTHING;
+
+-- ── The proof ───────────────────────────────────────────────
+--
+-- The seed's own success marker, so an apply can be verified
+-- from the output alone. It is emitted INSIDE the transaction,
+-- so it is only seen if the whole seed applied.
+DO $seed_proof$
+BEGIN
+  RAISE NOTICE 'SEED_MOUSSAKA_INGREDIENTS_OK=1';
+END
+$seed_proof$;
 
 COMMIT;

@@ -155,6 +155,17 @@ def main():
         w("")
         pos += 1
 
+    w("-- ── The proof ───────────────────────────────────────────────")
+    w("--")
+    w("-- The seed's own success marker, so an apply can be verified")
+    w("-- from the output alone. It is emitted INSIDE the transaction,")
+    w("-- so it is only seen if the whole seed applied.")
+    w("DO $seed_proof$")
+    w("BEGIN")
+    w("  RAISE NOTICE 'SEED_MOUSSAKA_INGREDIENTS_OK=1';")
+    w("END")
+    w("$seed_proof$;")
+    w("")
     w("COMMIT;")
     w("")
 
