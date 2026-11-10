@@ -247,6 +247,11 @@ MIGRATION_0054=db/migrations/0054_ingredient_category_fk.sql
 # (the recipes schema), because recipe_ingredient_substitutes
 # references recipe_ingredients.
 MIGRATION_0055=db/migrations/0055_sourcing_availability.sql
+
+# 0056 is the INGREDIENT ALIASES table (migration 0056). It is the
+# mechanism behind the béchamel merge: a retired slug that must keep
+# resolving because it has a live public URL.
+MIGRATION_0056=db/migrations/0056_ingredient_aliases.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -800,8 +805,12 @@ grep -E 'INGREDIENT_CATEGORY_FK_OK' /tmp/m0054.log | tail -1 || true
 # proof rolls it back and leaves no trace.
 echo "--- the sourcing availability tables"
 run_pg -f - < "$MIGRATION_0055" >/tmp/m0055.log 2>&1 || { echo "FAILED: 0055"; grep -E 'ERROR|NOTICE' /tmp/m0055.log | tail -12; fail=1; }
+
+# ── 0056: the ingredient aliases table ──────────────────────────────
+run_pg -f - < "$MIGRATION_0056" >/tmp/m0056.log 2>&1 || { echo "FAILED: 0056"; grep -E 'ERROR|NOTICE' /tmp/m0056.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/m0055.log | tail -1 || true
+grep -E 'INGREDIENT_ALIASES_OK' /tmp/m0056.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

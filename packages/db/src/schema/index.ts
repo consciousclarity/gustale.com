@@ -849,6 +849,35 @@ export const ingredients = pgTable("ingredients", {
   lastEditedBy: text("last_edited_by"),
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// ingredient_aliases -- migration 0056
+//
+// A RETIRED ingredient slug that must keep resolving, mapped to the
+// canonical ingredient. It is the mechanism behind the béchamel merge:
+// `bechamel-sauce` and `bechamel` are the same ingredient under two
+// slugs, and `bechamel-sauce` has a live public URL, so the old slug
+// is retired rather than deleted.
+//
+// GUS-104 ("intelligent ingredient normalization") needs this table,
+// and every future duplicate needs it -- so it is general, not a
+// one-off for béchamel.
+// ───────────────────────────────────────────────────────────────────────────
+export const ingredientAliases = pgTable("ingredient_aliases", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+  // The SUPERSEDED slug. It is not a row in `ingredients` -- it is a
+  // pointer to the canonical row.
+  aliasSlug: text("alias_slug").notNull().unique(),
+  // The canonical ingredient the alias resolves to.
+  ingredientId: uuid("ingredient_id")
+    .notNull()
+    .references(() => ingredients.id, { onDelete: "cascade" }),
+  // Why the alias exists, for example: the béchamel duplicate.
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const ingredientVariants = pgTable("ingredient_variants", {
   id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
   ingredientId: uuid("ingredient_id")

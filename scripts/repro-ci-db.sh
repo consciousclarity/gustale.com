@@ -525,6 +525,11 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0055_sourcing_availability.sql" 
   || { echo "  FAILED: 0055"; grep -E 'ERROR' /tmp/repro_0055.log | head -6; fail=1; }
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/repro_0055.log | tail -1 || true
 
+# 0056 — the INGREDIENT ALIASES table (migration 0056).
+run_pg -f - < "$(dirname "$0")/../db/migrations/0056_ingredient_aliases.sql" > /tmp/repro_0056.log 2>&1 \
+  || { echo "  FAILED: 0056"; grep -E 'ERROR' /tmp/repro_0056.log | head -6; fail=1; }
+grep -E 'INGREDIENT_ALIASES_OK' /tmp/repro_0056.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
