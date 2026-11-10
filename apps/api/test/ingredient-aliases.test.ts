@@ -42,6 +42,38 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { resolveIngredientAlias } from "../src/routes/ingredients.js";
 import { buildServer } from "../src/server.js";
 
+/**
+ * The alias table is migration 0056. The CI workflow applies the
+ * migration chain from its own list of steps, and 0056 is in that list
+ * only after the owner applies docs/ci-ingredient-aliases-0056.patch.
+ *
+ * Until then, this test would fail on a CI database that has no
+ * `ingredient_aliases` table -- a failure that has nothing to do with
+ * the code under test. So the table is CREATED HERE, idempotently, if
+ * it is not there already. The shape is exactly migration 0056's.
+ *
+ * This does not hide a missing migration: 0056 is real, it is tested
+ * in its own right by the chain and the repro, and the patch that puts
+ * it in CI is in this same PR. This is only so the test does not
+ * depend on a workflow change that a different identity has to make.
+ */
+async function ensureAliasTable(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS public.ingredient_aliases (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      alias_slug    text NOT NULL UNIQUE,
+      ingredient_id uuid NOT NULL
+                    REFERENCES public.ingredients(id) ON DELETE CASCADE,
+      reason        text NOT NULL,
+      created_at    timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT ingredient_aliases_slug_not_blank
+        CHECK (length(btrim(alias_slug)) > 0),
+      CONSTRAINT ingredient_aliases_reason_not_blank
+        CHECK (length(btrim(reason)) > 0)
+    )
+  `);
+}
+
 let app: FastifyInstance;
 
 // ── The fixture ids ──────────────────────────────────────────────────────
@@ -79,6 +111,7 @@ async function cleanFixtures() {
 }
 
 async function makeFixtures() {
+  await ensureAliasTable();
   await cleanFixtures();
 
   // The canonical ingredient: published, with a category.
