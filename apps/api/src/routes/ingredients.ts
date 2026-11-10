@@ -45,6 +45,28 @@ const slugParamSchema = z.object({
 export async function resolveIngredientAlias(
   slug: string,
 ): Promise<{ canonicalSlug: string; canonicalId: string }[]> {
+  // The alias table is migration 0056. A database that has not applied
+  // it yet has no such table, and the lookup would raise "relation
+  // does not exist" -- turning every ingredient page into a 500. So
+  // the table's presence is checked first, and its ABSENCE means
+  // "there are no aliases", which is exactly the truth.
+  //
+  // This is not a workaround for a missing migration: 0056 is applied
+  // by the CI chain and the live apply. It is so that a deployment
+  // whose database is one migration behind degrades to the pre-alias
+  // behaviour -- serving the ingredient by its own slug -- instead of
+  // failing every request.
+  const present = (await db.execute(sql`
+    SELECT count(*)::int AS n
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'ingredient_aliases'
+  `)) as unknown as { n: number }[];
+
+  if ((present[0]?.n ?? 0) === 0) {
+    return [];
+  }
+
   return db
     .select({
       canonicalSlug: ingredients.slug,
