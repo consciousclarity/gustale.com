@@ -151,6 +151,18 @@ So a researcher must not write "Kikkoman, therefore imported" or "a
 Korean brand, therefore imported". **Check the registration, and
 record the MD or ML number and the manufacturer in the row.**
 
+**The tool.** `scripts/bpom-registry.sh` queries the registry in one
+call and prints the MD/ML number, the manufacturer and the importer:
+
+```
+bash scripts/bpom-registry.sh gochujang 80
+```
+
+It gets a CSRF token and a session cookie first, because the endpoint
+is a POST behind Laravel's CSRF middleware. Without this the answer
+costs eleven hand-built queries — and the wrong answer, because a
+retailer page cannot say where a product was made.
+
 ### The availability score needs ORDINARY RETAIL evidence
 
 **A marketplace listing proves `channel = online` and nothing else.**
