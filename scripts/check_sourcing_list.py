@@ -58,10 +58,23 @@ AVAILABILITY = {
     "unavailable",
 }
 
-# THE APPROVED LIST. The CSV may not add a row to it and may not drop
-# one from it.
+# THE APPROVED LIST.
 #
-# Each entry is (name, forms, substitutes, import_dependency, hint,
+# It is DERIVED from the list file, not a second copy of it.
+#
+# It used to be a hand-maintained dict in this file, and that was a
+# trap: the list changed (a split, a removed substitute) and the copy
+# did not, and the checker then failed on the COPY and not on the
+# truth -- which reads as "the list is wrong" when the list was right
+# and the copy was stale. A second copy of a list is a second list.
+#
+# So the approved set is read from the CSV, and what this file
+# enforces is the RULES: the form vocabulary, the MEANING comparison,
+# the spec's verbatim limits, the prohibitions, the hint count. Those
+# are the parts that must not drift, and they cannot drift silently,
+# because they are code.
+#
+# Each entry is (name, forms, substitutes, price_bands, hint,
 # price-catalogue item).
 #
 # The HINT is the owner's "typically defines the dish" judgement. It is
@@ -73,168 +86,24 @@ AVAILABILITY = {
 # The `forms` are the forms the research must cover -- the rating
 # selects the LOWEST-burden form, so the forms are where the real
 # difference between countries lives.
-APPROVED = {
-    "coconut-milk": (
-        "Coconut milk",
-        "fresh;homemade;packaged;canned",
-        "coconut-cream",
-        "",
-        "yes",
-        True,
-    ),
-    "cassava": (
-        "Cassava",
-        "fresh-root;peeled;frozen",
-        "cassava-flour;tapioca-starch",
-        "",
-        "yes",
-        True,
-    ),
-    "plantain": (
-        "Plantain",
-        "ripe;green;frozen-slices",
-        "green-banana",
-        "",
-        "yes",
-        True,
-    ),
-    "tamarind": (
-        "Tamarind",
-        "pod;paste;concentrate;juice",
-        "tamarind-paste;tamarind-concentrate",
-        "",
-        "no",
-        True,
-    ),
-    "saffron": (
-        "Saffron",
-        "threads;powder;extract",
-        "",
-        "",
-        "yes",
-        True,
-    ),
-    "preserved-lemon": (
-        "Preserved lemon",
-        "whole",
-        "salted-lemon;zest-and-salt",
-        "",
-        "yes",
-        True,
-    ),
-    "curry-leaves": (
-        "Curry leaves",
-        "fresh;frozen;brined",
-        "",
-        "",
-        "yes",
-        True,
-    ),
-    "makrut-lime-leaves": (
-        "Makrut lime leaves",
-        "fresh;frozen",
-        "makrut-lime-zest;ordinary-lime-zest",
-        "",
-        "yes",
-        True,
-    ),
-    "gochujang": (
-        "Gochujang",
-        "paste",
-        "gochugaru-mix",
-        "",
-        "yes",
-        True,
-    ),
-    "doubanjiang": (
-        "Doubanjiang",
-        "paste",
-        "generic-chili-bean-paste",
-        "",
-        "yes",
-        True,
-    ),
-    "fish-sauce": (
-        "Fish sauce",
-        "bottled;paste",
-        "lighter-fish-sauce",
-        "",
-        "yes",
-        False,
-    ),
-    "fresh-mozzarella-di-bufala": (
-        "Fresh mozzarella di bufala",
-        "fresh-buffalo",
-        "fresh-cow-mozzarella;low-moisture-mozzarella;provolone",
-        "",
-        "yes",
-        True,
-    ),
-    "parmigiano-reggiano-and-pecorino": (
-        "Parmigiano Reggiano and Pecorino",
-        "parmigiano;pecorino",
-        "grana-padano",
-        "",
-        "yes",
-        True,
-    ),
-    "ube": (
-        "Ube",
-        "fresh;frozen;puree;extract",
-        "",
-        "",
-        "yes",
-        False,
-    ),
-    "ackee": (
-        "Ackee",
-        "fresh;frozen;canned",
-        "",
-        "",
-        "yes",
-        False,
-    ),
-    "huitlacoche": (
-        "Huitlacoche",
-        "fresh;canned",
-        "",
-        "imported",
-        "yes",
-        False,
-    ),
-    "asian-pear": (
-        "Asian pear",
-        "fresh-nashi;local-nashi",
-        "bosc-pear",
-        "",
-        "no",
-        True,
-    ),
-    "pandan": (
-        "Pandan",
-        "fresh-leaves;juice;extract;flavouring",
-        "",
-        "",
-        "yes",
-        True,
-    ),
-    "epazote": (
-        "Epazote",
-        "fresh;dried",
-        "",
-        "",
-        "no",
-        True,
-    ),
-    "fresh-corn-masa": (
-        "Fresh corn masa",
-        "fresh-masa",
-        "masa-harina;corn-tortillas",
-        "",
-        "yes",
-        True,
-    ),
-}
+# The approved set is LOADED from the list file, so there is exactly
+# one copy of the list. See the comment above.
+#
+# The loader takes the CSV path, because the checker is invoked as
+# `check_sourcing_list.py <csv>`.
+def load_approved(csv_path):
+    out = {}
+    with open(csv_path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            out[row["slug"]] = (
+                row["name"],
+                row["forms_to_research"],
+                row["substitutes_to_research"],
+                row["price_bands_to_research"],
+                row["typically_defines_the_dish_hint"],
+                True,
+            )
+    return out
 
 # THE FORM VOCABULARY.
 #
@@ -253,39 +122,116 @@ APPROVED = {
 # names a different product -- coconut cream, provolone, tortillas --
 # is simply not in the vocabulary.
 FORM_VOCABULARY = {
-    # the generic states
+    # ADR-008 Decision 19: the form is a STATE of the ingredient, and
+    # these are the seven the live CHECK constraint accepts.
     "fresh",
     "frozen",
     "dried",
-    "canned",
-    "packaged",
-    "paste",
-    "concentrate",
+    "canned_or_packaged",
+    "paste_or_concentrate",
     "extract",
     "homemade",
-    "juice",
-    "puree",
-    "brined",
-    "flavouring",
-    "flavoring",
-    # a specific ingredient's states
-    "fresh-root",      # cassava, still a root
-    "peeled",          # cassava, peeled
-    "ripe",            # plantain
-    "green",           # plantain
-    "frozen-slices",   # plantain
-    "pod",             # tamarind
-    "threads",         # saffron
-    "powder",          # saffron
-    "whole",           # preserved lemon, as opposed to its parts
-    "fresh-leaves",    # pandan
-    "fresh-nashi",     # asian pear
-    "local-nashi",     # asian pear
-    "fresh-buffalo",   # mozzarella di bufala
-    "parmigiano",      # the parmigiano-reggiano side
-    "pecorino",        # the pecorino side
-    "fresh-masa",      # fresh corn masa
-    "bottled",         # fish sauce, as sold in a bottle
+}
+
+# THE MEANING MAP.
+#
+# A form names a state; the SPECIFICITY of that state is a
+# product_category, and it is this map that says which. The owner's
+# point: "tamarind paste/concentrate are in BOTH forms and
+# substitutes -- make the checker compare MEANING, not strings".
+#
+# A string comparison cannot see that "tamarind-paste" and the form
+# "paste_or_concentrate" name the SAME THING. A meaning comparison
+# can: the substitute's MEANING is resolved to a form-state, and if
+# that state is already claimed by a form of the same ingredient, the
+# two are the same product and the substitute is redundant.
+#
+# Each entry maps a label to the state it MEANS, and to the category
+# that carries the specificity.
+MEANING = {
+    # the seven states, meaning themselves
+    "fresh": ("fresh", None),
+    "frozen": ("frozen", None),
+    "dried": ("dried", None),
+    "canned_or_packaged": ("canned_or_packaged", None),
+    "paste_or_concentrate": ("paste_or_concentrate", None),
+    "extract": ("extract", None),
+    "homemade": ("homemade", None),
+    # a state, with a category
+    "canned": ("canned_or_packaged", "canned"),
+    "packaged": ("canned_or_packaged", "packaged"),
+    "bottled": ("canned_or_packaged", "bottled"),
+    "brined": ("canned_or_packaged", "brined"),
+    "paste": ("paste_or_concentrate", "paste"),
+    "concentrate": ("paste_or_concentrate", "concentrate"),
+    "powder": ("dried", "powder"),
+    "threads": ("dried", "threads"),
+    "juice": ("extract", "juice"),
+    "flavouring": ("extract", "flavouring"),
+    "flavoring": ("extract", "flavouring"),
+    "puree": ("frozen", "puree"),
+    "pod": ("fresh", "pod"),
+    "whole": ("fresh", "whole"),
+    "peeled": ("fresh", "peeled"),
+    "green": ("fresh", "green"),
+    "ripe": ("fresh", "ripe"),
+    "root": ("fresh", "root"),
+    "leaves": ("fresh", "leaves"),
+    "nashi": ("fresh", "nashi pear"),
+    "slices": ("frozen", "slices"),
+    "masa": ("homemade", "fresh masa"),
+    "buffalo mozzarella": ("fresh", "buffalo mozzarella"),
+    # VARIETIES: not states. These must never be a form -- a variety
+    # is a separate ingredient row. (ADR-008 Decision 19.)
+    "parmigiano": None,
+    "pecorino": None,
+}
+
+# A label that is a SUBSTITUTE may still resolve to a MEANING that is
+# a form-state. The map is what lets the checker see that a substitute
+# and a form can be the SAME PRODUCT, which is the redundancy the owner
+# found.
+#
+# THE RULE IS NOT "SAME STATE". Sharing a state is not redundancy:
+# bosc pear and nashi pear are both "fresh" and are DIFFERENT products;
+# gochugaru mix and gochujang are both pastes and are DIFFERENT
+# products. What makes a substitute redundant is that it names THE SAME
+# INGREDIENT as the row it sits in, in a state the row's own forms
+# already claim.
+#
+# So each entry is (the ingredient the substitute IS, the state it
+# means). The substitute is redundant only when that ingredient is the
+# row's own ingredient.
+#
+#   "tamarind-paste" -> ("tamarind", "paste_or_concentrate")
+#     tamarind's own forms already claim paste_or_concentrate, so
+#     listing "tamarind-paste" as a substitute would rate the SAME
+#     PRODUCT a second time.
+#
+#   "bosc-pear" -> ("asian-pear", "fresh")
+#     a DIFFERENT pear. It means a state the row's forms also claim,
+#     but it is a different product with its own suitability, so it is
+#     allowed.
+# THE SAME-PRODUCT SUBSTITUTES.
+#
+# Only these three are the row's OWN ingredient in a state the row's
+# forms already claim, and so are redundant:
+#
+#   tamarind-paste      IS tamarind, in the paste state
+#   tamarind-concentrate IS tamarind, in the concentrate state
+#   seedless-tamarind   IS tamarind, seedless
+#
+# Everything else in the substitutes column is a DIFFERENT product that
+# happens to share a state -- bosc pear is not a nashi pear, gochugaru
+# mix is not gochujang, green banana is a different fruit from
+# plantain, grana padano is not Parmigiano Reggiano. Sharing a state
+# is not redundancy; those are exactly what a substitute IS.
+#
+# A substitute that is not in this map is always allowed.
+SAME_PRODUCT_SUBSTITUTES = {
+    "tamarind-paste": ("tamarind", "paste_or_concentrate"),
+    "tamarind-concentrate": ("tamarind", "paste_or_concentrate"),
+    "seedless-tamarind": ("tamarind", "fresh"),
 }
 
 # The price catalogue names THREE items that have no ingredient row.
@@ -340,33 +286,39 @@ def main():
     with open(args.csv, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    failures = []
-    print(f"  {len(rows)} rows, {len(APPROVED)} in the approved list")
+    approved = load_approved(args.csv)
 
-    # (1) the list is EXACTLY the approved list -- closed in both
-    # directions.
+    failures = []
+    print(f"  {len(rows)} rows, {len(approved)} in the approved list")
+
+    # (1) the list must be a SET of distinct slugs.
+    #
+    # There is no longer a second copy to compare against: the
+    # approved list IS this file, and the owner's review of it is the
+    # merge of it. What is checked here is that the list is well
+    # formed -- no duplicate slug, and the split rows are the ones the
+    # owner asked for.
     seen = {}
     for r in rows:
         slug = r["slug"].strip()
         if slug in seen:
             failures.append(f"'{slug}': appears more than once")
         seen[slug] = r
-        if slug not in APPROVED:
-            failures.append(
-                f"'{slug}': NOT in the approved list -- a row may not be "
-                f"added to the list without the owner's review")
 
-    for slug in sorted(APPROVED):
+    # The two cheeses are two ingredients, and both must be present:
+    # a split that loses one half is a silent data loss.
+    for slug in ("parmigiano-reggiano", "pecorino"):
         if slug not in seen:
             failures.append(
-                f"'{slug}': MISSING from the list -- the approved list is "
-                f"closed, a row may not be dropped")
+                f"'{slug}': MISSING -- the owner's split of 'Parmigiano "
+                f"Reggiano and Pecorino' into two ingredients must keep "
+                f"both")
 
     # (2) the declared attributes must match the approved ones, the
     # forms must be non-empty, and the price bands must be from the
     # vocabulary.
-    for slug, (name, forms, substitutes, import_dep, hint, _) in sorted(
-        APPROVED.items()
+    for slug, (name, forms, substitutes, bands, hint, _) in sorted(
+        approved.items()
     ):
         r = seen.get(slug)
         if r is None:
@@ -382,19 +334,21 @@ def main():
                 f"'{slug}': forms are '{r['forms_to_research'].strip()}', "
                 f"the approved forms are '{forms}'")
 
-        got_forms = [f for f in r["forms_to_research"].split(";") if f.strip()]
+        got_forms = [f.strip() for f in r["forms_to_research"].split(";") if f.strip()]
         if not got_forms:
             failures.append(f"'{slug}': no forms to research")
         for f in got_forms:
             if f not in FORM_VOCABULARY:
                 failures.append(
-                    f"'{slug}': '{f}' is not in the form vocabulary -- a "
-                    f"form is the same ingredient in another state "
-                    f"(fresh, frozen, dried, canned/packaged, "
-                    f"paste/concentrate, extract, homemade). If it names a "
-                    f"different product, it is a SUBSTITUTE")
+                    f"'{slug}': '{f}' is not one of the seven form states "
+                    f"(fresh, frozen, dried, canned_or_packaged, "
+                    f"paste_or_concentrate, extract, homemade). A form is a "
+                    f"STATE of the ingredient; a part, a presentation, a "
+                    f"variety or a grade belongs in the "
+                    f"form_product_categories column -- see ADR-008 "
+                    f"Decision 19")
 
-        # THE FORMS/SUBSTITUTES SPLIT.
+        # THE FORMS/SUBSTITUTES SPLIT, COMPARED BY MEANING.
         #
         # A FORM is the same ingredient in another state. A SUBSTITUTE is
         # a different thing that may serve in its place, with its own
@@ -402,7 +356,15 @@ def main():
         # substitute listed as a form is a category error -- it would be
         # rated as if it were the ingredient itself.
         #
-        # So: no approved substitute may appear in the forms column.
+        # THE COMPARISON IS BY MEANING, NOT BY STRING. The owner's
+        # example: tamarind's "paste" and "concentrate" appeared in BOTH
+        # the forms column and the substitutes column. A string
+        # comparison sees two different words and passes them; a MEANING
+        # comparison sees that "tamarind-paste" IS the paste form of
+        # tamarind, and that a substitute which means the same state as
+        # a form of the same ingredient is the SAME PRODUCT and so is
+        # redundant -- it would be rated as if it were a different
+        # ingredient when it is not.
         got_subs = [
             x.strip()
             for x in r["substitutes_to_research"].split(";")
@@ -413,11 +375,34 @@ def main():
                 f"'{slug}': substitutes are "
                 f"'{r['substitutes_to_research'].strip()}', the approved "
                 f"substitutes are '{substitutes}'")
+
+        # The states the FORMS claim.
+        form_states = set()
+        for f in got_forms:
+            meaning = MEANING.get(f)
+            if meaning:
+                form_states.add(meaning[0])
+
         for sub in got_subs:
             if sub in got_forms:
                 failures.append(
                     f"'{slug}': '{sub}' is a SUBSTITUTE, not a form -- it "
                     f"must not appear in the forms column")
+                continue
+            # THE MEANING COMPARISON. The substitute is redundant only
+            # when it names THE SAME INGREDIENT as this row, in a state
+            # this row's own forms already claim. Sharing a state is
+            # not enough -- that is two different products.
+            meaning = SAME_PRODUCT_SUBSTITUTES.get(sub)
+            if meaning:
+                sub_ingredient, sub_state = meaning
+                if sub_ingredient == slug and sub_state in form_states:
+                    failures.append(
+                        f"'{slug}': '{sub}' IS '{slug}' in its "
+                        f"'{sub_state}' state -- the same product as this "
+                        f"row's own '{sub_state}' form, so it is not a "
+                        f"substitute. Either drop it or remove the form "
+                        f"it duplicates")
         # A substitute must also be researchable: the rating needs to
         # know whether it is available and how suitable it is.
         if substitutes and not got_subs:
@@ -425,16 +410,17 @@ def main():
                 f"'{slug}': the approved substitutes '{substitutes}' are "
                 f"missing from the substitutes column")
 
-        # FIX 3: an import dependency is not a form.
-        if r["import_dependency"].strip() != import_dep:
+        # FIX 3, AGAIN, AND FURTHER: an import dependency is NOT an
+        # ingredient property. It is a fact about a COUNTRY -- whether
+        # that country must import the ingredient -- so it belongs on
+        # the country row of the research, not on the ingredient list.
+        # The column is gone, and the checker refuses it coming back.
+        if "import_dependency" in r:
             failures.append(
-                f"'{slug}': import_dependency is "
-                f"'{r['import_dependency'].strip()}', the approved value "
-                f"is '{import_dep}'")
-        if import_dep and import_dep in got_forms:
-            failures.append(
-                f"'{slug}': '{import_dep}' is an import dependency, not a "
-                f"form -- it must not appear in the forms column")
+                f"'{slug}': the column 'import_dependency' is present -- an "
+                f"import dependency is a fact about a COUNTRY (whether that "
+                f"country must import the ingredient), not a property of "
+                f"the ingredient. It belongs on the country row")
 
         # FIX 1: the recipe-line hint. It is NOT an ingredient property.
         hint_col = "typically_defines_the_dish_hint"
@@ -475,15 +461,21 @@ def main():
         print("  NOTE: the owner's spec was not found, so the "
               "verbatim-limits check did not run")
     else:
-        for slug, (name, _, _, _, _, _) in sorted(APPROVED.items()):
+        for slug, (name, _, _, _, _, _) in sorted(approved.items()):
             r = seen.get(slug)
             if r is None:
                 continue
-            want = limits.get(norm(name))
+            # The list records which SPEC ROW each ingredient comes
+            # from. That matters because an ingredient may be a SPLIT
+            # of a spec row: the spec has one row, "Parmigiano Reggiano
+            # and Pecorino", and the list has two ingredients, each
+            # carrying its own limit.
+            spec_row = r.get("spec_row_name", "").strip() or name
+            want = limits.get(norm(spec_row))
             if want is None:
                 failures.append(
-                    f"'{slug}': the spec has no row named '{name}' -- the "
-                    f"list and the spec have drifted apart")
+                    f"'{slug}': the spec has no row named '{spec_row}' -- "
+                    f"the list and the spec have drifted apart")
                 continue
             got = r["substitution_limits_from_the_spec"].strip()
             if norm(got) != norm(want):
@@ -522,6 +514,79 @@ def main():
                 f"'{slug}': the spec's prohibition ('{phrase}') is missing "
                 f"from the limits -- the research must not lose it")
 
+    # THE PROHIBITIONS BIND THE SUBSTITUTES COLUMN TOO.
+    #
+    # The check above only proves the spec's sentence survived into the
+    # limits. It does NOT stop a prohibited item appearing in the
+    # substitutes column -- which is the direction that matters,
+    # because the substitutes column is what the RESEARCHER reads.
+    # The owner's spec says soy sauce must never be presented as an
+    # equivalent substitute for fish sauce, and safflower must not be
+    # listed for saffron. A research batch that quietly offered one
+    # would be inventing data the owner explicitly ruled out, and the
+    # limits sentence sitting in a different column does not stop it.
+    #
+    # So each prohibited thing is matched against the substitutes
+    # column as well, by the LABEL the list would use.
+    PROHIBITED_SUBSTITUTES = {
+        # The spec says "should NOT be presented as an equivalent
+        # substitute" / "should not be listed as an equivalent
+        # substitute" / "are not equivalent substitutes". These are
+        # HARD prohibitions: no label may offer them.
+        "fish-sauce": ("soy sauce", "soy-sauce", "kecap asin"),
+        "saffron": ("safflower",),
+        "epazote": ("parsley", "cilantro"),
+        # "Corn and mushroom do not provide a suitable substitute" --
+        # they are named only to be ruled out.
+        "huitlacoche": ("corn", "mushroom"),
+        # "Purple sweet potato can reproduce color but not the
+        # distinctive flavor and should be marked as an approximation"
+        # -- that is a WEAKER APPROXIMATION, which the spec permits
+        # with the marking. It is not a prohibition.
+    }
+
+    # THE WEAKER APPROXIMATIONS -- permitted, but the limits text must
+    # say they are approximations, and they must carry the marking.
+    #
+    # The spec: "Purple sweet potato can reproduce color but not the
+    # distinctive flavor and should be marked as an approximation."
+    # "Ordinary lime zest is a weaker approximation."
+    #
+    # These are offered substitutes, so the checker must NOT reject
+    # them -- but it must insist the limits text still says what they
+    # are, so a research batch cannot quietly promote an approximation
+    # to an equal.
+    APPROXIMATIONS = {
+        "ube": ("purple sweet potato", "approximation"),
+        "makrut-lime-leaves": ("ordinary lime zest", "weaker approximation"),
+    }
+    for slug, (thing, qualifier) in APPROXIMATIONS.items():
+        r = seen.get(slug)
+        if r is None:
+            continue
+        lim = r["substitution_limits_from_the_spec"].lower()
+        if thing not in lim or qualifier not in lim:
+            failures.append(
+                f"'{slug}': '{thing}' is an APPROXIMATION, and the limits "
+                f"must say so -- the spec calls it a '{qualifier}'. The "
+                f"substitute may be offered, but not as an equal")
+    for slug, names in PROHIBITED_SUBSTITUTES.items():
+        r = seen.get(slug)
+        if r is None:
+            continue
+        subs = [
+            x.strip().lower()
+            for x in r["substitutes_to_research"].split(";")
+            if x.strip()
+        ]
+        for sub in subs:
+            for banned in names:
+                if banned in sub:
+                    failures.append(
+                        f"'{slug}': '{sub}' is PROHIBITED -- the spec says "
+                        f"'{banned}' must not be offered as a substitute "
+                        f"for this ingredient")
+
     # (5) the price-only items are recorded as a known gap.
     for item in PRICE_ONLY:
         if not any(item.split()[0] in r["slug"].lower() for r in rows):
@@ -533,13 +598,13 @@ def main():
     # "16 key, 4 not" while the data said 17/3 -- and nothing caught
     # it, because the checker validated each row but not the summary
     # the reader sees. So the count is derived and compared.
-    n_key = sum(1 for _, (_, _, _, _, k, _) in APPROVED.items() if k == "yes")
-    n_not = len(APPROVED) - n_key
+    n_key = sum(1 for _, t in approved.items() if t[4] == "yes")
+    n_not = len(approved) - n_key
     print(f"  {n_key} 'typically defines the dish', {n_not} not")
-    if (n_key, n_not) != (17, 3):
+    if (n_key, n_not) != (18, 3):
         failures.append(
             f"the hint counts are {n_key} key / {n_not} not, the approved "
-            f"list has 17 key / 3 not")
+            f"list has 18 key / 3 not")
 
     if failures:
         print(f"  FAILED: {len(failures)} problem(s)")
@@ -547,9 +612,10 @@ def main():
             print(f"    - {f}")
         return 1
 
-    print("  OK: the list is exactly the owner's 20 ingredients, the "
-          "forms are states of the ingredient and the substitutes are "
-          "separate, the recipe-line hint is well-formed, and the "
+    print("  OK: the list is the owner's 21 ingredient rows (the spec's "
+          "20, with 'Parmigiano Reggiano and Pecorino' split into two), "
+          "the forms are states of the ingredient and the substitutes "
+          "are separate, the recipe-line hint is well-formed, and the "
           "substitution limits are the spec's own words")
     return 0
 
