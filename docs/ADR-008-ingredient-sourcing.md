@@ -511,6 +511,73 @@ example table — the table is a **list of what to research**, not data.
 
 ---
 
+### Decision 19 — The form vocabulary is SEVEN STATES, and the
+specificity lives in `product_category`
+
+**The problem this settles.** The owner's 20-ingredient list was
+researched with 40 distinct form labels: `pod`, `juice`, `powder`,
+`threads`, `brined`, `green`, `ripe`, `peeled`, `parmigiano`,
+`pecorino`, `fresh-root`, `frozen-slices`, `flavouring`, and so on.
+Only 8 of the 40 are in the seven-value enum that
+`ingredient_availability.form` accepts as a CHECK constraint
+(`fresh`, `frozen`, `dried`, `canned_or_packaged`,
+`paste_or_concentrate`, `extract`, `homemade`). Every row written with
+the list's own vocabulary would have been rejected by the constraint.
+
+**The decision.** The form column carries **a state of the
+ingredient** and nothing else. Everything that is not a state — the
+part, the ripeness, the presentation, the variety, the grade — goes in
+**`product_category`**, which is what that column already exists for:
+"imported Gruyère block ≠ domestic Emmental ≠ grated cheese", and
+price comparisons are only meaningful against a like-for-like product.
+
+So:
+
+| the list's label | `form` | `product_category` |
+|---|---|---|
+| `pod`, `whole`, `peeled`, `root`, `leaves`, `nashi` | `fresh` | `pod`, `whole`, `peeled`, `root`, `leaves`, `nashi pear` |
+| `green`, `ripe` | `fresh` | `green`, `ripe` |
+| `slices` | `frozen` | `slices` |
+| `puree` | `frozen` | `puree` |
+| `canned`, `packaged`, `bottled`, `brined` | `canned_or_packaged` | the same word |
+| `paste`, `concentrate` | `paste_or_concentrate` | `paste`, `concentrate` |
+| `powder` | `dried` | `powder` |
+| `threads` | `dried` | `threads` |
+| `juice`, `flavouring` | `extract` | `juice`, `flavouring` |
+| `fresh-masa` | `homemade` | `fresh masa` |
+
+**Two values are NOT forms and the list was wrong to name them.**
+
+`parmigiano` and `pecorino` are **varieties**, not states. A hard
+cheese is not "dried" — Parmigiano Reggiano is sold in wedges or
+grated, aged but not dried, and "dried" would assert something false
+about the product. The two are also **separate ingredients**, because
+the spec treats them separately: the owner's list had them as one
+ingredient with two forms, and they are now two ingredients with
+their own rows. Their state is `canned_or_packaged` — that is how
+they are sold, in a sealed pack — and `product_category` carries
+`Parmigiano Reggiano` and `Pecorino`.
+
+**Why the enum is not extended.** An eighth state would have to
+describe "a hard aged cheese", which is a *category*, not a state, and
+the category is already a column. Extending the enum for it would put
+a product class into a column whose whole meaning is "the same
+ingredient in another state", and would make the engine's form
+matching (`accepted_forms`) unsound: a recipe that accepts `dried`
+would silently accept every hard cheese.
+
+**What this changes in the code.** Nothing in the engine: the
+`IngredientForm` type already has exactly these seven values, and
+`product_category` is already a column on `ingredient_availability`.
+The change is in the **list**, and it is why the list's vocabulary
+must be mapped before any row is written.
+
+**The rule this gives the research.** If a label cannot be a state of
+the ingredient, it is not a form. It is either a **variety** (a
+separate ingredient row), a **part or presentation** (a
+`product_category`), or a **substitute** (a different product, with its
+own suitability).
+
 ## The owner decisions, recorded
 
 **The owner answered brief §9 on 2026-11-10. They are recorded here so

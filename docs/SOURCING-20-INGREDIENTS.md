@@ -52,98 +52,138 @@ applies: Europe is 44 countries, each with its own row.
 
 ## The list
 
-| # | ingredient | slug | forms to research | substitutes to research |
-|---|---|---|---|---|
-| 1 | Coconut milk | `coconut-milk` | fresh · homemade · packaged · canned | coconut-cream |
-| 2 | Cassava | `cassava` | fresh-root · peeled · frozen | cassava-flour · tapioca-starch |
-| 3 | Plantain | `plantain` | ripe · green · frozen-slices | green-banana |
-| 4 | Tamarind | `tamarind` | pod · paste · concentrate · juice | tamarind-paste · tamarind-concentrate |
-| 5 | Saffron | `saffron` | threads · powder · extract | — |
-| 6 | Preserved lemon | `preserved-lemon` | whole | salted-lemon · zest-and-salt |
-| 7 | Curry leaves | `curry-leaves` | fresh · frozen · brined | — |
-| 8 | Makrut lime leaves | `makrut-lime-leaves` | fresh · frozen | makrut-lime-zest · ordinary-lime-zest |
-| 9 | Gochujang | `gochujang` | paste | gochugaru-mix |
-| 10 | Doubanjiang | `doubanjiang` | paste | generic-chili-bean-paste |
-| 11 | Fish sauce | `fish-sauce` | bottled · paste | lighter-fish-sauce |
-| 12 | Fresh mozzarella di bufala | `fresh-mozzarella-di-bufala` | fresh-buffalo | fresh-cow-mozzarella · low-moisture-mozzarella · provolone |
-| 13 | Parmigiano Reggiano and Pecorino | `parmigiano-reggiano-and-pecorino` | parmigiano · pecorino | grana-padano |
-| 14 | Ube | `ube` | fresh · frozen · puree · extract | — |
-| 15 | Ackee | `ackee` | fresh · frozen · canned | — |
-| 16 | Huitlacoche | `huitlacoche` | fresh · canned | — |
-| 17 | Asian pear | `asian-pear` | fresh-nashi · local-nashi | bosc-pear |
-| 18 | Pandan | `pandan` | fresh-leaves · juice · extract · flavouring | — |
-| 19 | Epazote | `epazote` | fresh · dried | — |
-| 20 | Fresh corn masa | `fresh-corn-masa` | fresh-masa | masa-harina · corn-tortillas |
+The machine-readable list is `docs/SOURCING-20-INGREDIENTS.csv`, and it
+is the **single copy** — the checker loads it rather than keeping a
+second one, because a second copy of a list is a second list.
 
----
+**Twenty-one rows, not twenty.** The owner's split of "Parmigiano
+Reggiano and Pecorino" into two ingredients is one row more, because
+the spec's one row covered two cheeses and the two are rated
+separately. **18** typically define the dish, **3** do not
+(`tamarind`, `asian-pear`, `epazote`).
+
+`forms` is a **state** of the ingredient, and it is one of the seven the
+live `ingredient_availability.form` CHECK constraint accepts. Everything
+that is not a state — the part, the ripeness, the presentation, the
+variety — is in **`product_category`**, which is what that column is
+for. See ADR-008 Decision 19.
+
+| # | ingredient | slug | forms (a state) | product_category (the specificity) | substitutes | hint |
+|---|---|---|---|---|---|---|
+| 1 | Coconut milk | `coconut-milk` | fresh, homemade, canned_or_packaged | packaged=packaged, canned=canned | coconut-cream | **yes** |
+| 2 | Cassava | `cassava` | fresh, frozen | fresh-root=root, peeled=peeled | cassava-flour, tapioca-starch | **yes** |
+| 3 | Plantain | `plantain` | fresh, frozen | ripe=ripe, green=green, frozen-slices=slices | green-banana | **yes** |
+| 4 | Tamarind | `tamarind` | fresh, paste_or_concentrate, extract | pod=pod, paste=paste, concentrate=concentrate, juice=juice | tamarind-block | **no** |
+| 5 | Saffron | `saffron` | dried, extract | threads=threads, powder=powder | — | **yes** |
+| 6 | Preserved lemon | `preserved-lemon` | fresh | whole=whole | salted-lemon, zest-and-salt | **yes** |
+| 7 | Curry leaves | `curry-leaves` | fresh, frozen, canned_or_packaged | brined=brined | — | **yes** |
+| 8 | Makrut lime leaves | `makrut-lime-leaves` | fresh, frozen | — | makrut-lime-zest, ordinary-lime-zest | **yes** |
+| 9 | Gochujang | `gochujang` | paste_or_concentrate | paste=paste | gochugaru-mix | **yes** |
+| 10 | Doubanjiang | `doubanjiang` | paste_or_concentrate | paste=paste | generic-chili-bean-paste | **yes** |
+| 11 | Fish sauce | `fish-sauce` | canned_or_packaged, paste_or_concentrate | bottled=bottled, paste=paste | — | **yes** |
+| 12 | Fresh mozzarella di bufala | `fresh-mozzarella-di-bufala` | fresh | fresh-buffalo=buffalo mozzarella | fresh-cow-mozzarella, low-moisture-mozzarella, provolone | **yes** |
+| 13 | Parmigiano Reggiano | `parmigiano-reggiano` | canned_or_packaged | parmigiano=Parmigiano Reggiano | grana-padano | **yes** |
+| 14 | Pecorino | `pecorino` | canned_or_packaged | pecorino=Pecorino | — | **yes** |
+| 15 | Ube | `ube` | fresh, frozen, extract | puree=puree | — | **yes** |
+| 16 | Ackee | `ackee` | fresh, frozen, canned_or_packaged | canned=canned | — | **yes** |
+| 17 | Huitlacoche | `huitlacoche` | fresh, canned_or_packaged | canned=canned | — | **yes** |
+| 18 | Asian pear | `asian-pear` | fresh | fresh-nashi=nashi pear | bosc-pear | **no** |
+| 19 | Pandan | `pandan` | fresh, extract | fresh-leaves=leaves, juice=juice, flavouring=flavouring | — | **yes** |
+| 20 | Epazote | `epazote` | fresh, dried | — | — | **no** |
+| 21 | Fresh corn masa | `fresh-corn-masa` | homemade | fresh-masa=fresh masa | masa-harina, corn-tortillas | **yes** |
 
 ## Forms and substitutes are NOT the same thing
 
-**This is the distinction the whole dataset turns on**, and it is the
-owner's, made explicit:
+**A FORM is a state of the same ingredient.** It is one of exactly
+seven: `fresh`, `frozen`, `dried`, `canned_or_packaged`,
+`paste_or_concentrate`, `extract`, `homemade`. Nothing else may appear
+in the forms column.
 
-> A **FORM** is the same ingredient in another state — fresh, frozen,
-> dried, canned/packaged, paste/concentrate, extract, homemade.
->
-> A **SUBSTITUTE** is a different product that may serve in its place,
-> and it has **its own suitability**, which must be researched.
+**A SUBSTITUTE is a different product** that may serve in its place,
+with its own availability, its own price band and its own suitability.
 
-The difference is not cosmetic. The rating picks the **lowest-burden
-form** of the ingredient, and it evaluates a **substitute** on its own
-merits — so a substitute listed as a form would be rated as if it were
-the ingredient itself. "Coconut cream is not always a direct
-replacement" (the spec's words); "provolone is suitable only when
-melted rather than served fresh" (the spec's words). Those are
-*suitability* judgements about a different product, and they cannot be
-expressed by calling it a form.
+### The comparison is by MEANING, not by strings
 
-The **forms** are the states the rating may choose between. The
-**substitutes** are the candidates the research must rate *as
-substitutes*, with the spec's limit carried along.
+The owner's correction: tamarind's `paste` and `concentrate` appeared
+in **both** the forms column and the substitutes column, and a string
+comparison cannot see that `tamarind-paste` and the form
+`paste_or_concentrate` name the **same thing**.
 
-**The checker enforces the split.** Every form must be in the form
-vocabulary, and no approved substitute may appear in the forms column.
-A form that names a different product — coconut cream, provolone,
-tortillas — is simply not in the vocabulary, so it cannot be smuggled
-back in.
+So the checker compares **meaning**. A substitute is redundant when it
+is the row's own ingredient in a state the row's forms already claim:
 
-### The three the owner's fix named, and what they are now
+| the substitute | is it the same product? |
+|---|---|
+| `tamarind-paste` | **yes** — it is tamarind, in the paste state. Removed. |
+| `tamarind-concentrate` | **yes** — tamarind, in the concentrate state. Removed. |
+| `seedless-tamarind` | **yes** — tamarind, seedless. Removed. |
+| `tamarind-block` | no — a pressed block of pulp is a different product. Kept. |
+| `bosc-pear` | no — a different pear. Kept. |
+| `gochugaru-mix` | no — a different paste. Kept. |
+| `green-banana` | no — a different fruit. Kept. |
+| `grana-padano` | no — a different cheese. Kept. |
 
-| was a "form" | now | why |
+**Sharing a state is not redundancy.** Two different products in the
+same state is exactly what a substitute *is*.
+
+### A label that is not a state is not a form
+
+| the label | what it really is | where it goes |
 |---|---|---|
-| `coconut-cream` | a **substitute** | richer, "not always a direct replacement" |
-| `cassava-flour`, `tapioca-starch` | **substitutes** | "should not be treated as interchangeable with fresh cassava" |
-| `fresh-cow`, `low-moisture`, `provolone` | **substitutes** | provolone "only when melted rather than served fresh" |
-| `grana-padano` | a **substitute** | "another aged hard cheese" |
-| `bosc` | a **substitute** | "sweetness and texture will differ" |
-| `gochugaru-mix` | a **substitute** | "the flavor and sweetness will differ" |
-| `salted-lemon`, `zest-and-salt` | **substitutes** | "does not reproduce preserved-lemon texture" |
-| `makrut-lime-zest`, `ordinary-lime-zest` | **substitutes** | ordinary lime zest is "a weaker approximation" |
-| `tortillas`, `masa-harina` | **substitutes** | depend "on whether the recipe requires tortillas, masa, or a specific texture" |
+| `pod`, `whole`, `peeled`, `root`, `leaves`, `nashi` | a part of the ingredient | `product_category` |
+| `green`, `ripe` | a ripeness | `product_category` |
+| `slices`, `puree` | a preparation | `product_category` |
+| `canned`, `packaged`, `bottled`, `brined` | a state, spelled specifically | `canned_or_packaged` + `product_category` |
+| `powder`, `threads` | a state, spelled specifically | `dried` + `product_category` |
+| `juice`, `flavouring` | a state, spelled specifically | `extract` + `product_category` |
+| `parmigiano`, `pecorino` | a **VARIETY** | a separate ingredient row |
 
-### Two the owner's fix caught that I had wrong
+**`parmigiano` and `pecorino` were varieties, not states**, and the
+list had them as one ingredient with two forms. They are now two
+ingredients, each with its own row, and their state is
+`canned_or_packaged` — how they are sold — with the variety in
+`product_category`.
 
-**Gochujang has no "fresh" form.** It is a fermented paste — there is no
-fresh gochujang. The spec's own wording says "where fresh gochujang is
-a common ingredient", and that is the spec's loose phrase, not a
-state of the product. The form is `paste`; the substitute is
-`gochugaru-mix`.
+### The grades are not substitutes
 
-**Huitlacoche's "imported" is an import dependency, not a form.** It is
-now its own column. Being import-dependent is a *fact about a country*,
-not a state of the ingredient — it is what the price band records when
-a country must import it.
+Fish sauce's `standard`, `lighter` and `premium` are the **same
+product in different strengths**. They are recorded in
+`product_category`, which is what carries a price difference. The
+spec's sentence — *"A lighter fish sauce may be interchangeable in some
+dishes. Soy sauce should not be presented as an equivalent substitute
+because it changes the flavor profile."* — means two different things
+and the checker keeps them apart:
 
-### And one the CHECKER caught, which the owner's fix did not name
+- a **lighter fish sauce** is a permitted substitute, graded
+  `approximate`, because the spec says it is interchangeable *in some
+  dishes* — a conditional — and a lighter sauce is less salty, so the
+  seasoning must be adjusted;
+- **soy sauce is a prohibition**. No label may offer it, and the
+  checker now reads the substitutes column for it, not only the limits
+  text.
 
-**Fish sauce's "standard / lighter / premium" are grades, not
-states.** They are not forms of fish sauce in the sense of the
-vocabulary, and "lighter" is named by the spec as a possible
-*interchange* — so it is a substitute. The forms are now `bottled` and
-`paste`; the grade difference is what the **price band** records, which
-is where a grade belongs.
+### Import dependency belongs on the COUNTRY row
 
----
+An import dependency is a fact about **a country** — whether that
+country must import the ingredient — and it is not a property of the
+ingredient. The ingredient-level `import_dependency` column is gone.
+Huitlacoche's "imported" is now a country-row fact: *is huitlacoche
+imported in this country?*
+
+### The prohibition and the approximation are not the same
+
+The spec calls some things a prohibition and some an approximation,
+and they are not interchangeable:
+
+- **prohibited** — the spec says it must *not* be offered: soy sauce for
+  fish sauce, safflower for saffron, parsley and cilantro for epazote;
+- **an approximation** — the spec permits it *and says it is weaker*:
+  purple sweet potato for ube ("should be marked as an
+  approximation"), ordinary lime zest for makrut lime ("a weaker
+  approximation").
+
+The checker rejects the first in the substitutes column and demands the
+second still be marked as one in the limits text.
 
 ## "Typically defines the dish" is a RECIPE-LINE hint, not an ingredient property
 
@@ -290,69 +330,50 @@ older than **12 months** counts as unknown for the price score.
 
 ## The checks
 
-`scripts/check_sourcing_list.py` — the same shape as the other list
-checkers, and **mutation-tested**. It enforces:
+`scripts/check_sourcing_list.py` — run it on the CSV:
 
-- the list is **exactly** these 20 rows — closed in **both**
-  directions, so a row cannot be added *or* dropped;
-- every ingredient's **name**, **forms**, **substitutes**,
-  **import dependency**, **price bands** and **"typically defines the
-  dish" hint** match the approved values exactly;
-- **every form is in the form vocabulary**, and **no approved
-  substitute appears in the forms column** — the split is enforced,
-  not asserted;
-- the **`is_key` column is gone**, and the hint column is present —
-  because `is_key` belongs to `recipe_ingredients`, never to the
-  ingredient;
-- the **substitution limits** are carried **verbatim** from the
-  owner's spec — the research must not lose them, and it must not
-  paraphrase them either;
-- the **seven prohibitions** are present in the seven ingredients that
-  have them (safflower, soy sauce, corn-and-mushroom,
-  parsley-and-cilantro, ordinary lime zest, purple sweet potato, and
-  ackee's having no substitute at all);
-- the three **price-catalogue ingredients with no ingredient row**
-  (vanilla, truffle and high-value mushrooms, nori/miso/mirin) are
-  recorded as a known gap, not silently dropped.
+```
+python3 scripts/check_sourcing_list.py docs/SOURCING-20-INGREDIENTS.csv
+```
+
+What it enforces, all of it in code so it cannot drift silently:
+
+1. **The forms are one of the seven states.** A part, a presentation, a
+   variety or a grade is rejected.
+2. **The MEANING comparison** — a substitute that is the row's own
+   ingredient in a state its forms already claim is the same product and
+   is rejected.
+3. **No substitute appears in the forms column.**
+4. **The `import_dependency` column must not come back.** It is a
+   country fact, not an ingredient fact.
+5. **The split keeps both halves.** `parmigiano-reggiano` and
+   `pecorino` must both be present.
+6. **The spec's limits are VERBATIM.** A paraphrase is a drift, and the
+   checker says what the spec says so the two can be compared.
+7. **The prohibitions bind the substitutes column**, not only the
+   limits text — because the substitutes column is what the researcher
+   reads.
+8. **The approximations stay marked** as approximations.
+9. **The hint count**, derived from the data: 18 key / 3 not.
 
 ### The mutations
 
-Every one of these **fails** the check:
+`scripts/test_check_sourcing_list.py` breaks the list ten ways and
+asserts the checker says so. A checker that only ever sees a correct
+list proves nothing.
 
-| mutation | result |
-|---|---|
-| a row is **deleted** | ❌ fails ✅ |
-| a row is **added** | ❌ fails ✅ |
-| the limits are **paraphrased** | ❌ fails ✅ |
-| a **prohibition** is dropped | ❌ fails ✅ |
-| the **hint** is flipped | ❌ fails ✅ |
-| the **`is_key` column is restored** | ❌ fails ✅ |
-| a **substitute is put back in the forms** | ❌ fails ✅ |
-| an **approved substitute is dropped** | ❌ fails ✅ |
-| the **import dependency is put back in the forms** | ❌ fails ✅ |
-| gochujang gets a **"fresh" form** back | ❌ fails ✅ |
-| an **invented form** (not a state of the ingredient) | ❌ fails ✅ |
-| an **invented price band** | ❌ fails ✅ |
-| the **forms** are emptied | ❌ fails ✅ |
-| the **name** is changed | ❌ fails ✅ |
+```
+python3 scripts/test_check_sourcing_list.py
+```
 
-**The form vocabulary earned its place immediately too.** The owner's
-fourth fix asked for the checker to be re-run after the change; the
-re-run **failed**, on fish sauce. Its "standard / lighter / premium"
-are **grades**, not states of the ingredient — and "lighter" is named
-by the spec as a possible *interchange*, so it is a substitute. The
-checker caught a category error the owner's fix had not named, which is
-the point of running it.
+The ten: tamarind's paste as a substitute as well as a form · seedless
+tamarind duplicating the fresh form · a part listed as a form · a
+variety listed as a form · the import-dependency column returning · the
+cheese split losing a half · the spec's limits paraphrased · soy sauce
+offered as a fish-sauce substitute · `local-nashi` returning as a form ·
+the hint count drifting.
 
-**The verbatim-limits check earned its place immediately.** The first
-version of this list paraphrased the spec — "chilli" for the spec's
-"chili", "flavour" for "flavor", and emphatic capitals where the spec
-had plain words — and the checker rejected all of it. The spec's
-wording is the owner's, and a research batch must inherit it exactly:
-the prohibition on soy sauce is only sharp if it is the owner's own
-sentence.
-
----
+**10/10 caught.**
 
 ## The related documents
 

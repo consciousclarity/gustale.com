@@ -114,15 +114,76 @@ The price bands: `typical` · `elevated` · `high` · `prohibitive` ·
 
 ## 5. Import dependency
 
-`import_dependency` is a fact about a **country**, not a state of the
-ingredient: it says the country must import it. It is what drives the
-price band up, and it is recorded on the row that carries the band.
+**An import dependency is a fact about a COUNTRY, not about the
+ingredient.** It answers: *must this country import this ingredient?*
+It is recorded on the country row, and it is different for every
+country — the same ingredient can be locally made in one country and
+imported in the next.
 
-The one ingredient with a declared import dependency in the list is
-**huitlacoche** (`imported`), because the spec says it is "mainly
-sold canned or imported" outside Mexico.
+The ingredient-level `import_dependency` column is gone. Huitlacoche
+is the worked example: "imported" was never a property of huitlacoche,
+it was a property of a market that has to bring it in from Mexico.
 
----
+**How to decide it, for Indonesia.** The regulator's own registry is
+the authority, not a marketplace listing and not a brand's marketing.
+BPOM (`cekbpom.pom.go.id`) registers every food product, and the
+registration number says which it is:
+
+| the registration | what it means | the import answer |
+|---|---|---|
+| `MD` with **no importer recorded** | registered to an **Indonesian maker** | **locally made** |
+| `ML` with an **importer ID** | the maker is registered abroad (`ML` = Makers List) | **imported** |
+
+The registry also names the manufacturer, so a locally-made product's
+provenance is a fact, not an inference:
+
+- Kikkoman's *Saus Pedas Ala Korea (Gochujang)* — `MD`, **PT. KIKKOMAN
+  AKUFOOD INDONESIA**. Kikkoman's *Saus Rasa Ikan* (fish sauce) — `MD`,
+  the same maker. **Kikkoman's Indonesian gochujang and fish sauce are
+  locally made**, even though Kikkoman's *soy sauce* is `ML`/imported.
+  The brand is Japanese; the products are not.
+- Mamasuka — `MD`, **PT. DAESANG FOOD INDONESIA**.
+- Red1 — `MD`, **PT. SPARINDO FOOD**.
+- Sempio, O'Food, Chung Jung One, Jinmi, Haechandle — `ML` with an
+  importer. **Imported.**
+
+So a researcher must not write "Kikkoman, therefore imported" or "a
+Korean brand, therefore imported". **Check the registration, and
+record the MD or ML number and the manufacturer in the row.**
+
+### The availability score needs ORDINARY RETAIL evidence
+
+**A marketplace listing proves `channel = online` and nothing else.**
+It proves the product is sold on a marketplace; it does not prove the
+product is ordinary in that country. Tokopedia carries a thousand
+specialist sellers' listings of a thing that is in no supermarket in
+the country, and one of them is usually the brand's own store.
+
+So the availability score is graded by the **channel**, and an
+availability of 0 — `common` or `occasional` — requires evidence of
+**ordinary retail**:
+
+| the channel | what it supports |
+|---|---|
+| a mainstream supermarket's own catalogue, or its store on a marketplace | `common` / `occasional` |
+| a neighbourhood grocer (`pasar swalayan`), a wet market | `common` / `occasional` |
+| an ethnic or specialist shop, a brand's own online store, a marketplace seller | `specialty_only` / `limited` |
+
+**The seller is the evidence.** A listing whose seller is a
+supermarket or a neighbourhood grocer is ordinary-retail evidence; the
+same product from a specialist shop is not.
+
+**A bot block is not a negative.** A search that returns "produk nggak
+ditemukan", or a page that renders client-side and shows nothing, proves
+nothing about the market. It proves the fetch failed. The same query
+through a different route can return sixty live products. Record "no
+reliable source found" and say what you searched; never record
+`unavailable` from a block.
+
+**A negative finding must be reproducible.** If a mainstream chain's
+search returns no product, that is a real, citable fact about that
+chain — but it is a fact about the chain's ONLINE catalogue, not about
+the country's shops, and it cannot carry `unavailable` on its own.
 
 ## 6. The three lines the research must check first
 
