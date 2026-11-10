@@ -211,13 +211,17 @@ total=23   published=4   draft=19   dish_ingredients=23   with_category=23
 and **live** ends at:
 
 ```
-total=24   published=5   draft=19   dish_ingredients=23   with_category=24
+total=24   published=5   draft=19   dish_ingredients=23   with_category=23
 ```
 
 The difference is exactly the orphan: `bechamel-sauce` is **not** in
 the pantry list, the seed does **not** touch it, and it keeps its
 `published` status and its null category. **That is correct** — it is
 a separate decision, and the pantry list does not resolve it.
+
+**Note `with_category` is 23 in BOTH.** In the dry-run, all 23 rows
+carry a category (4 reused + 19 new). On live, 23 of the 24 rows carry
+one — the 4 reused + the 19 new, and the orphan carries none.
 
 **The two numbers to compare are `draft` and `dish_ingredients`: both
 must be identical between the dry-run and live** — 19 and 23. The
@@ -269,7 +273,7 @@ total=24
 published=5
 draft=19
 dish_ingredients=23
-with_category=24
+with_category=23
 ```
 
 | count | before | after | what changed |
@@ -278,7 +282,20 @@ with_category=24
 | `ingredients` published | 5 | **5** | **unchanged** — this is the number the public API serves |
 | `ingredients` draft | 0 | **19** | the new rows |
 | `dish_ingredients` | 4 | **23** | +19 rows for `moussaka-greek` |
-| with a `category` | 0 | **24** | the 4 reused rows gained one; the 19 new rows have one each |
+| with a `category` | 0 | **23** | the 4 reused rows gained one; the 19 new rows have one each |
+
+**`with_category` is 23, not 24.** The 24th ingredient is
+`bechamel-sauce` — the published orphan the seed does **not** touch —
+and its category is still `NULL`. Only 23 of the 24 ingredients carry a
+category, because the orphan is not one of the seed's 23 rows.
+
+> **CORRECTION (2026-11-10, after the live apply).** This runbook
+> originally said `with_category=24`, on the reasoning that all 24
+> ingredients would carry one. **That was wrong.** The live apply
+> measured **`with_category=23`**, and the owner's apply confirmed the
+> same. The reason is the orphan: `bechamel-sauce` has no category and
+> the seed correctly leaves it alone. The numbers below are the
+> **measured** live values, not predictions.
 
 ### 5.1 The four reused rows, after
 
@@ -300,6 +317,18 @@ tomato      | published | other-fruiting-vegetables
 **`published` must still be `published`.** The seed only sets
 `category`; demoting published content would be publication (Gate C),
 which is a separate gate with a separate decision.
+
+**And the fifth ingredient must be untouched.** `bechamel-sauce` is
+the published orphan the seed does not touch:
+
+```bash
+docker exec -u postgres shared-postgres psql -U postgres -d gustale -tAc "
+SELECT slug||' | '||status||' | '||coalesce(category,'(null)') FROM ingredients WHERE slug='bechamel-sauce';"
+```
+
+**Expected: `bechamel-sauce | published | (null)`.** It is on the
+cleanup list — merge it into `bechamel` or retire it — but that is a
+separate decision and this seed makes no move on it.
 
 ### 5.2 The new rows, after
 
@@ -476,7 +505,7 @@ that was applied.
 | 2. the backup | `pg_dump` + `docker cp` | a non-empty file, ~4.5 MB |
 | 3. the dry-run | the seed on the TEST Postgres | `SEED_MOUSSAKA_INGREDIENTS_OK=1` |
 | 4. the apply | direct `psql` | `SEED_MOUSSAKA_INGREDIENTS_OK=1`, no ERROR |
-| 5. the counts after | the `SELECT 'total='…` | 24 / 5 / 19 / 23 / 24 |
+| 5. the counts after | the `SELECT 'total='…` | 24 / 5 / 19 / 23 / **23** |
 | 6.2 the external check | `curl` | 5 ingredients; new slugs 404; eggplant has a category |
 | 8. the receipt | write it | the facts above |
 
