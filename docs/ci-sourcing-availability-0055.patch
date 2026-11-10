@@ -1,0 +1,45 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index a486cc7..237043a 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1114,6 +1114,25 @@ jobs:
+             -f db/migrations/0054_ingredient_category_fk.sql 2>&1 | tee /tmp/m0054.log
+           bash scripts/check-ci-markers.sh "the ingredient category vocabulary" "INGREDIENT_CATEGORY_FK_OK" /tmp/m0054.log
+ 
++      # ── 0055: the sourcing availability tables and columns ──────────
++      #
++      # ADR-008's data model (GUS-1102). Three tables --
++      # ingredient_availability, ingredient_substitutes,
++      # recipe_ingredient_substitutes -- and four columns:
++      # recipe_ingredients.is_key / accepted_forms / cost_weight, and
++      # ingredients.ubiquitous.
++      #
++      # It runs AFTER 0052 (the recipes schema), because
++      # recipe_ingredient_substitutes references recipe_ingredients.
++      # It is strictly additive: every new column has a DEFAULT, every
++      # new table starts empty. It writes no content rows, and its
++      # proof runs inside its own transaction.
++      - name: Apply the sourcing availability tables
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0055_sourcing_availability.sql 2>&1 | tee /tmp/m0055.log
++          bash scripts/check-ci-markers.sh "the sourcing availability tables" "INGREDIENT_SOURCING_AVAILABILITY_OK" /tmp/m0055.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
+@@ -1139,6 +1158,14 @@ jobs:
+         working-directory: apps/api
+         run: pnpm test -- --reporter=verbose
+ 
++      # The sourcing rating engine (packages/sourcing). It is a PURE
++      # function over plain data -- no database, no I/O -- so it runs
++      # here with no services at all. The 16 fixtures are ADR-008
++      # Decision 17's, and they test the RULES, not the world.
++      - name: Run the sourcing rating engine tests
++        working-directory: packages/sourcing
++        run: pnpm test -- --reporter=verbose
++
+   # ─── Job 2b: Accessibility gate (axe-core) ─────────────────────────
+   #
+   # WHY THIS JOB EXISTS

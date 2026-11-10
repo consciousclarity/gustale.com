@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   doublePrecision,
   index,
   integer,
@@ -167,6 +168,46 @@ export const geoEntities = pgTable(
 // =====================================================================
 // TAXONOMY
 // =====================================================================
+
+// ── The per-language names of a geo entity ───────────────────────────
+//
+// This table EXISTS in the database -- it was created by
+// db/migrations/gus-242-seed-country-names.sql -- but it was never
+// added to the Drizzle schema, so the API's typed queries could not
+// reach it. ADR-008 measured the gap and closes it here.
+//
+// Why it is needed: `geo_entities.local_name` is DEPRECATED and NULL by
+// design, because a single column cannot hold a multilingual country
+// (CH has 4 official languages, IN 20+, RU 26). The country picker in
+// the sourcing rating needs the name in the PAGE's language, and 57 of
+// the 259 countries have no non-English row yet -- so the reader falls
+// back to `geo_entities.name`, which is English.
+//
+// The English name is NOT stored here: it already lives on
+// `geo_entities.name`, and `geo_entity_names` is UNIQUE on
+// (entity_id, language), so an 'en' row would collide with a later
+// non-English insert for the same country.
+export const geoEntityNames = pgTable(
+  "geo_entity_names",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => geoEntities.id, { onDelete: "cascade" }),
+    // A BCP-47 language code.
+    language: text("language").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    entityLanguageKey: unique("geo_entity_names_entity_id_language_key").on(
+      t.entityId,
+      t.language,
+    ),
+  }),
+);
 
 export const categorySource = ["foodon", "wikidata", "custom"] as const;
 export type CategorySource = (typeof categorySource)[number];
@@ -790,6 +831,10 @@ export const ingredients = pgTable("ingredients", {
   domesticationDateLatest: integer("domestication_date_latest"),
   originGeoId: uuid("origin_geo_id").references(() => geoEntities.id),
   imageId: uuid("image_id"),
+  // Is this a staple? Without this, salt and water make EVERY recipe
+  // Unknown (ADR-008 Decision 8). A staple counts as burden 0
+  // everywhere UNLESS a country row says otherwise.
+  ubiquitous: boolean("ubiquitous").notNull().default(false),
   status: text("status").notNull().default("draft"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -2796,9 +2841,255 @@ export const recipeIngredients = pgTable(
     isOptional: boolean("is_optional").notNull().default(false),
     preparationNote: text("preparation_note"),
     position: integer("position").notNull(),
+    // ── ADR-008: the sourcing rating ──────────────────────────────────
+    //
+    // Is this ingredient what DEFINES the dish? An APPROXIMATE
+    // substitute never rescues a key ingredient -- that is what this
+    // flag means, and why it is a column and not a heuristic
+    // (ADR-008 Decision 5). Default false: an existing row is not a key
+    // ingredient until an editor says so.
+    isKey: boolean("is_key").notNull().default(false),
+    // Which forms of it this recipe accepts. NULL = any form. These are
+    // FORMS (fresh, frozen, dried...), not VARIETIES -- `ingredient_
+    // variants` already models varieties and is used by
+    // `dish_ingredients.variant_id`, so the two axes stay separate
+    // (ADR-008 §2 and §4).
+    acceptedForms: text("accepted_forms").$type<SourcingForm[]>(),
+    // minor or major. For a 'minor' line the price score is capped at
+    // 1 -- without this, "a pinch of saffron" would price a whole
+    // recipe out of reach (ADR-008 Decision 6).
+    costWeight: text("cost_weight")
+      .$type<SourcingCostWeight>()
+      .notNull()
+      .default("major"),
   },
   (t) => ({
     recipeIdx: index("recipe_ingredients_recipe_idx").on(t.recipeId),
+  }),
+);
+
+// ── ADR-008: country-aware ingredient sourcing ─────────────────────────
+//
+// The "Sourcing" rating: how hard the ingredients are to get in the
+// reader's country. It measures AVAILABILITY AND ACQUISITION COST only
+// -- never cooking time, technique or step count. `recipes.difficulty`
+// measures technique and is a separate value.
+//
+// The rating itself is NOT stored. It is COMPUTED on read by the pure
+// function `rateSourcing`, so it cannot go stale. These tables hold the
+// DATA it computes from.
+//
+// Migration: db/migrations/0055_sourcing_availability.sql
+
+/** The forms of an ingredient a recipe can accept. */
+export const sourcingForm = [
+  "fresh",
+  "frozen",
+  "dried",
+  "canned_or_packaged",
+  "paste_or_concentrate",
+  "extract",
+  "homemade",
+] as const;
+export type SourcingForm = (typeof sourcingForm)[number];
+
+/** How available a form is, in the reader's country. */
+export const sourcingAvailability = [
+  "common",
+  "occasional",
+  "seasonal",
+  "specialty_only",
+  "limited",
+  "unavailable",
+] as const;
+export type SourcingAvailability = (typeof sourcingAvailability)[number];
+
+/** How hard it is to acquire. */
+export const sourcingEffort = ["low", "moderate", "high"] as const;
+export type SourcingEffort = (typeof sourcingEffort)[number];
+
+/** Where it is sold. */
+export const sourcingChannel = [
+  "supermarket",
+  "market",
+  "specialty",
+  "online",
+] as const;
+export type SourcingChannel = (typeof sourcingChannel)[number];
+
+/** How dependent the supply is on an import chain. */
+export const sourcingImportDependency = [
+  "local",
+  "regional",
+  "imported",
+  "international_supply_chain",
+] as const;
+export type SourcingImportDependency =
+  (typeof sourcingImportDependency)[number];
+
+/**
+ * The price band, compared with the LOCAL market -- never by currency
+ * conversion.
+ */
+export const sourcingPriceBand = [
+  "typical",
+  "elevated",
+  "high",
+  "prohibitive",
+  "unknown",
+] as const;
+export type SourcingPriceBand = (typeof sourcingPriceBand)[number];
+
+/**
+ * How well a substitute does the job. RECIPE-SPECIFIC: a cheese fine
+ * in baked pasta may be wrong for fondue, so the global default can be
+ * overridden per recipe line.
+ */
+export const sourcingSuitability = [
+  "suitable",
+  "approximate",
+  "not_suitable",
+] as const;
+export type SourcingSuitability = (typeof sourcingSuitability)[number];
+
+/**
+ * The cost weight of a recipe line. For a 'minor' line the price score
+ * is capped at 1.
+ */
+export const sourcingCostWeight = ["minor", "major"] as const;
+export type SourcingCostWeight = (typeof sourcingCostWeight)[number];
+
+export const ingredientAvailability = pgTable(
+  "ingredient_availability",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    // The SHARED Atlas ingredient row (ADR-007 Decision 5). Availability
+    // attaches to the ingredient, not to the recipe.
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    form: text("form").$type<SourcingForm>().notNull(),
+    // Which product. "imported Gruyere AOP block" and "domestic
+    // Emmental" are DIFFERENT products with DIFFERENT prices, so they
+    // are separate rows.
+    productCategory: text("product_category").notNull(),
+    // The country. A region row is allowed ONLY with
+    // `fallbackReliable = true` -- "Europe" is never one profile.
+    geoEntityId: uuid("geo_entity_id")
+      .notNull()
+      .references(() => geoEntities.id, { onDelete: "cascade" }),
+    availability: text("availability").$type<SourcingAvailability>().notNull(),
+    sourcingEffort: text("sourcing_effort").$type<SourcingEffort>(),
+    channel: text("channel").$type<SourcingChannel>(),
+    season: text("season"),
+    importDependency:
+      text("import_dependency").$type<SourcingImportDependency>(),
+    priceAmount: numeric("price_amount"),
+    priceCurrency: text("price_currency"),
+    priceUnit: text("price_unit"),
+    priceBand: text("price_band").$type<SourcingPriceBand>(),
+    priceBenchmark: text("price_benchmark"),
+    notes: text("notes"),
+    // NOT NULL: an availability row without a source is a claim about
+    // the world with nothing behind it. The owner's ingredient table is
+    // a LIST OF WHAT TO RESEARCH, not data.
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id),
+    // Drives the 12-month price staleness rule (ADR-008 Decision 10).
+    lastReviewed: date("last_reviewed").notNull(),
+    // Only meaningful on a REGION row: may this row stand in for its
+    // countries? Enforced by a trigger -- a country row may never be its
+    // own fallback.
+    fallbackReliable: boolean("fallback_reliable").notNull().default(false),
+    status: text("status").notNull().default("draft"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    naturalKey: unique("ingredient_availability_key_idx").on(
+      t.ingredientId,
+      t.form,
+      t.productCategory,
+      t.geoEntityId,
+    ),
+    ingredientIdx: index("ingredient_availability_ingredient_idx").on(
+      t.ingredientId,
+    ),
+    geoIdx: index("ingredient_availability_geo_idx").on(t.geoEntityId),
+  }),
+);
+
+export const ingredientSubstitutes = pgTable(
+  "ingredient_substitutes",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    substituteIngredientId: uuid("substitute_ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    substituteForm: text("substitute_form").$type<SourcingForm>(),
+    suitability: text("suitability").$type<SourcingSuitability>().notNull(),
+    // For an APPROXIMATE substitute: what changes. TEXT, because
+    // "changes the flavour" is not an enum.
+    changeNote: text("change_note"),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id),
+    status: text("status").notNull().default("draft"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    ingredientIdx: index("ingredient_substitutes_ingredient_idx").on(
+      t.ingredientId,
+    ),
+  }),
+);
+
+export const recipeIngredientSubstitutes = pgTable(
+  "recipe_ingredient_substitutes",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    // The line this overrides. SAME columns as the global default, so
+    // the merge is trivial: the recipe row wins if it exists.
+    recipeIngredientId: uuid("recipe_ingredient_id")
+      .notNull()
+      .references(() => recipeIngredients.id, { onDelete: "cascade" }),
+    substituteIngredientId: uuid("substitute_ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "cascade" }),
+    substituteForm: text("substitute_form").$type<SourcingForm>(),
+    suitability: text("suitability").$type<SourcingSuitability>().notNull(),
+    changeNote: text("change_note"),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => sources.id),
+    status: text("status").notNull().default("draft"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    lineIdx: index("recipe_ingredient_substitutes_line_idx").on(
+      t.recipeIngredientId,
+    ),
   }),
 );
 

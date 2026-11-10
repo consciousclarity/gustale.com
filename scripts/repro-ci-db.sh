@@ -512,6 +512,19 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0054_ingredient_category_fk.sql"
   || { echo "  FAILED: 0054"; grep -E 'ERROR' /tmp/repro_0054.log | head -6; fail=1; }
 grep -E 'INGREDIENT_CATEGORY_FK_OK' /tmp/repro_0054.log | tail -1 || true
 
+# 0055 — the SOURCING AVAILABILITY tables and columns (ADR-008).
+#
+# Three tables (ingredient_availability, ingredient_substitutes,
+# recipe_ingredient_substitutes) and four columns
+# (recipe_ingredients.is_key / accepted_forms / cost_weight, and
+# ingredients.ubiquitous). Strictly additive: every new column has a
+# DEFAULT and every new table starts empty. It writes no content rows,
+# and its proof runs inside its own transaction.
+step "the sourcing availability tables"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0055_sourcing_availability.sql" > /tmp/repro_0055.log 2>&1 \
+  || { echo "  FAILED: 0055"; grep -E 'ERROR' /tmp/repro_0055.log | head -6; fail=1; }
+grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/repro_0055.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
