@@ -1,21 +1,24 @@
-name,slug,category,needed_by
-Eggplant,eggplant,solanacea,moussaka-greek
-"Lamb, minced",lamb-mince,mammals-meat,moussaka-greek
-Tomato,tomato,other-fruiting-vegetables,moussaka-greek
-Béchamel sauce,bechamel,savoury-sauces,moussaka-greek
-Onion,onion,onions-and-similar,moussaka-greek
-Garlic,garlic,garlic-and-similar,moussaka-greek
-Potato,potato,potatoes-and-similar,moussaka-greek
-Carrot,carrot,carrots-and-similar,moussaka-greek
-Egg,whole-egg,whole-eggs,moussaka-greek
-Milk,whole-milk,milk,moussaka-greek
-Flour,wheat-flour,cereal-and-cereal-like-flours,moussaka-greek
-Butter,cultured-butter,butter,moussaka-greek
-Olive oil,olive-oil,vegetable-fats-and-oils-edible,moussaka-greek
-Salt,table-salt,seasonings,moussaka-greek
-Black pepper,black-pepper,fruit-spices,moussaka-greek
-Bay leaf,bay-leaf,dried-herbs,moussaka-greek
-Nutmeg,nutmeg,seed-spices,moussaka-greek
-Cinnamon,cinnamon,bark-spices,moussaka-greek
-Allspice,allspice,fruit-spices,moussaka-greek
-Kefalotyri,kefalotyri,brined-cheese-feta-type-and-similar,moussaka-greek
+name,slug,category,needed_by,is_optional,source
+Eggplant,eggplant,solanacea,moussaka-greek,false,seed-moussaka.dish_ingredients
+"Lamb, minced",lamb-mince,mammals-meat,moussaka-greek,false,seed-moussaka.dish_ingredients
+Tomato,tomato,other-fruiting-vegetables,moussaka-greek,false,seed-moussaka.dish_ingredients
+"Béchamel sauce, as a sub-recipe",bechamel,savoury-sauces,moussaka-greek,false,seed-moussaka.dish_ingredients
+Onion,onion,onions-and-similar,moussaka-greek,false,seed-moussaka.dish_preparations
+Garlic,garlic,garlic-and-similar,moussaka-greek,false,seed-moussaka.dish_preparations
+Potato,potato,potatoes-and-similar,moussaka-greek,false,backfill-plan-s4
+Carrot,carrot,carrots-and-similar,moussaka-greek,true,backfill-plan-s4
+Egg,whole-egg,whole-eggs,moussaka-greek,false,backfill-plan-s4
+Milk,whole-milk,milk,moussaka-greek,false,backfill-plan-s4
+Flour,wheat-flour,cereal-and-cereal-like-flours,moussaka-greek,false,backfill-plan-s4
+Butter,plain-butter,butter,moussaka-greek,false,backfill-plan-s4
+Olive oil,olive-oil,vegetable-fats-and-oils-edible,moussaka-greek,false,backfill-plan-s4
+Salt,table-salt,seasonings,moussaka-greek,false,backfill-plan-s4
+Black pepper,black-pepper,fruit-spices,moussaka-greek,false,backfill-plan-s4
+Bay leaf,bay-leaf,dried-herbs,moussaka-greek,false,backfill-plan-s4
+Nutmeg,nutmeg,seed-spices,moussaka-greek,false,backfill-plan-s4
+Cinnamon,cinnamon,bark-spices,moussaka-greek,false,seed-moussaka.dish_preparations
+Allspice,allspice,fruit-spices,moussaka-greek,false,seed-moussaka.dish_preparations
+Kefalotyri,kefalotyri,ripened-cheese,moussaka-greek,false,seed-moussaka.dish_preparations
+Tomato paste,tomato-paste,processed-tomato-products,moussaka-greek,true,seed-moussaka.dishes.long_description.regional-variants
+Parsley,parsley,aromatic-herbs,moussaka-greek,true,seed-moussaka.dishes.long_description.regional-variants
+"Beef, minced (lamb alternative)",beef-mince,beef,moussaka-greek,true,seed-moussaka.dishes.long_description
