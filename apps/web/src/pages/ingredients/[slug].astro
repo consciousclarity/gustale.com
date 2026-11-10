@@ -2,6 +2,7 @@
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import Layout from "../../layouts/Layout.astro";
 import { getIngredient, type IngredientDetailResponse } from "../../lib/api";
+import { siteName } from "../../lib/domain";
 
 // Build-time: enumerate every published ingredient so Astro can pre-render
 // each /ingredients/:slug page as static HTML. We rely on CI having run
@@ -49,7 +50,7 @@ try {
 }
 ---
 
-<Layout title={`${data?.ingredient.canonicalName ?? slug} — gustale.recipes`}>
+<Layout title={`${data?.ingredient.canonicalName ?? slug} — ${siteName()}`}>
   <Breadcrumbs
     crumbs={[
       { href: '/', label: 'Home' },

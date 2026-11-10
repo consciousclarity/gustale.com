@@ -11,7 +11,116 @@
 export type GustaleDomain = "geo" | "recipes";
 
 export const ATLAS_ORIGIN = "https://gustale.com";
-export const RECIPES_ORIGIN = "https://gustale.recipes";
+
+/**
+ * The origin of the RECIPES property.
+ *
+ * It is a build-time INPUT, not a constant, because the recipes
+ * property is moving from `gustale.recipes` to `recipes.gustale.com`.
+ *
+ * WHY IT IS AN INPUT AND NOT A CONSTANT
+ *
+ * The origin is BAKED INTO THE IMAGE: the canonical link, the
+ * per-locale sitemaps, robots.txt and the footer are all built from
+ * it. Serving an image built for `gustale.recipes` on
+ * `recipes.gustale.com` would serve pages whose canonical points at
+ * the OLD host -- and a search engine follows the canonical. The new
+ * host would canonicalise itself away to the old one, which is the
+ * opposite of what a launch wants.
+ *
+ * So the origin has to be selectable at BUILD time, the same way
+ * `PUBLIC_DOMAIN` selects which site is built.
+ *
+ * `PUBLIC_SITE_ORIGIN` is that input. It was already honoured in
+ * `locales.ts` and `Layout.astro` -- but it was never wired to the
+ * Docker build, and this constant ignored it entirely. The default is
+ * unchanged, so a build with the variable unset produces exactly the
+ * bytes it produced before.
+ *
+ * It is read through `import.meta.env`, which is Vite's build-time
+ * env. This module is imported by plain Node scripts too
+ * (`browse-helpers.mjs`, `search-nav-helpers.mjs` have their own
+ * copies), so the helper below is the single place that decides.
+ */
+
+/**
+ * The origin the recipes property is served from.
+ *
+ * THE ACCESS MUST BE STATIC.
+ *
+ * Vite replaces the exact expression `import.meta.env.PUBLIC_SITE_ORIGIN`
+ * with the literal value at build time. A dynamic access --
+ * `import.meta.env[key]` -- is NOT replaced, so the browser bundle kept
+ * the hard-coded fallback and shipped the OLD origin to the client even
+ * when the build was configured for the new host. The built bundle was
+ * the proof: it carried the new value right next to a literal
+ * `gustale.recipes` fallback.
+ *
+ * So both the configured origin AND the default are read statically.
+ *
+ * The DEFAULT origin of the recipes property.
+ *
+ * It is a named constant so the fallback can be dropped from a build
+ * that configures an origin: the bundler folds `configuredSiteOrigin()
+ * ?? DEFAULT_RECIPES_ORIGIN` into the configured value when the origin
+ * IS set, and the default literal then never reaches the bundle. It
+ * matters for a build that changes host: a leftover `gustale.recipes`
+ * literal in the client bundle is a string that says "the old host" to
+ * anyone who greps the artefact, and a dark launch should not carry
+ * the old host in its bytes.
+ */
+const DEFAULT_RECIPES_ORIGIN =
+  import.meta.env?.PUBLIC_RECIPES_DEFAULT_ORIGIN ?? "https://gustale.recipes";
+
+/**
+ * The origin of the recipes property for THIS build.
+ *
+ * The SAME value is used in both builds, and that is deliberate:
+ *
+ *   - in the GEO build it is a CROSS-property link -- "Browse recipes",
+ *     the property switcher -- so it must point at wherever the recipes
+ *     site actually is;
+ *   - in the RECIPES build it is the SELF origin -- the recipes
+ *     property's own href in the switcher, which must be the host the
+ *     reader is actually on.
+ *
+ * In both cases the answer is the same: the configured recipes origin.
+ * Defaults to the current live origin, so an unset
+ * `PUBLIC_SITE_ORIGIN` changes nothing.
+ */
+export const RECIPES_ORIGIN =
+  import.meta.env?.PUBLIC_RECIPES_ORIGIN ??
+  import.meta.env?.PUBLIC_SITE_ORIGIN ??
+  DEFAULT_RECIPES_ORIGIN;
+
+/**
+ * The HOST of the RECIPES property, regardless of which build this is.
+ *
+ * `siteName()` is the host of the site THIS build serves -- so in the
+ * geo build it is "gustale.com". The property switcher needs the
+ * OTHER property's host: the geo build's switcher says "Recipes ·
+ * gustale.recipes", and after the migration it must say "Recipes ·
+ * recipes.gustale.com".
+ *
+ * So the switcher hint uses THIS, not `siteName()`.
+ */
+export function recipesHost(): string {
+  return hostOf(RECIPES_ORIGIN);
+}
+
+/**
+ * The bare host of an origin -- "recipes.gustale.com" from
+ * "https://recipes.gustale.com".
+ *
+ * The trailing slash is stripped, and a path (if an origin ever had
+ * one) is dropped: a site is named by its host.
+ */
+function hostOf(origin: string): string {
+  return origin
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/\/$/, "");
+}
 
 /** Paths that exist only on gustale.recipes (removed from geo post-build). */
 export const RECIPES_ONLY_PATH_PREFIXES = [
@@ -66,7 +175,16 @@ export function recipesUrl(path: string): string {
  * human-readable name was wrong.
  */
 export function siteName(): string {
-  return isGeoDomain() ? "gustale.com" : "gustale.recipes";
+  if (isGeoDomain()) return "gustale.com";
+  // The recipes build names its own host, and that host is the
+  // CONFIGURED one -- so a build for recipes.gustale.com says
+  // "recipes.gustale.com" in its <title>, its footer and its
+  // property switcher, not "gustale.recipes".
+  //
+  // The host is derived from the origin, so the two can never
+  // disagree: the name is always the name of the host the pages are
+  // served from.
+  return hostOf(RECIPES_ORIGIN);
 }
 
 /**

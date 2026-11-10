@@ -140,6 +140,39 @@ fi
 # --network host is required so the build container can reach
 # 127.0.0.1:4000 on the host (default bridge network would route 127.0.0.1
 # to the container's own loopback, not the host's).
+# The ORIGIN each variant is served from. It is the fourth argument,
+# and it is a BUILD INPUT because the origin is baked into the image:
+# the canonical link, the per-locale sitemaps, robots.txt and the
+# footer are all built from it.
+#
+# The recipes property is moving from gustale.recipes to
+# recipes.gustale.com. Until the cutover, the recipes image must still
+# name gustale.recipes as its canonical origin -- otherwise the live
+# site's canonical would start pointing at a host that does not serve
+# it yet, and search engines would follow it.
+#
+# So the ORIGIN is a parameter, not a consequence of the variant. The
+# defaults below are the CURRENT live origins, so an unmodified run
+# changes nothing.
+RECIPES_ORIGIN="${RECIPES_ORIGIN:-https://gustale.recipes}"
+ATLAS_ORIGIN="${ATLAS_ORIGIN:-https://gustale.com}"
+
+# The origin the build is SERVED FROM, and the origin the build
+# CROSS-LINKS to. They are not the same:
+#
+#   SITE_ORIGIN   -- the host THIS build is served from. The canonical,
+#                   the sitemaps, robots.txt. For the geo build that is
+#                   gustale.com; for the recipes build it is the
+#                   recipes host.
+#   RECIPES_ORIGIN -- the host of the RECIPES property, for the
+#                   cross-links: the property switcher, "Browse
+#                   recipes". The geo build is served from gustale.com
+#                   and still links to the recipes site.
+#
+# One variable for both made the geo build's "Browse recipes" point at
+# gustale.com -- the branding leak the switcher checks exist to catch.
+SITE_ORIGIN="${SITE_ORIGIN:-}"
+
 build_one() {
   local domain="$1"
   local img_name="$2"
@@ -148,10 +181,27 @@ build_one() {
   # ($TAG-recipes / $TAG-geo), or the deploy looks for an image that was
   # never built.
   local suffix="${3:?build_one needs a tag suffix}"
+  # The origin for THIS variant. The geo site is always gustale.com;
+  # the recipes site's origin moves, so it is the caller's to set.
+  local site_origin="$4"
+  if [ -z "$site_origin" ]; then
+    if [ "$domain" = "geo" ]; then
+      site_origin="$ATLAS_ORIGIN"
+    else
+      site_origin="$RECIPES_ORIGIN"
+    fi
+  fi
+  # The origin the build CROSS-LINKS to. It is the recipes origin
+  # whatever this build is: the geo build links to the recipes site,
+  # and the recipes build links to itself.
+  local recipes_origin="$5"
+  if [ -z "$recipes_origin" ]; then
+    recipes_origin="$RECIPES_ORIGIN"
+  fi
   local tag="${TAG}-${suffix}"
   local img="${REGISTRY}/${img_name}:${tag}"
   echo ""
-  echo "--- building $img (PUBLIC_DOMAIN=$domain, BUILD_DATA_SOURCE=live) ---"
+  echo "--- building $img (PUBLIC_DOMAIN=$domain, PUBLIC_SITE_ORIGIN=$site_origin, PUBLIC_RECIPES_ORIGIN=$recipes_origin, BUILD_DATA_SOURCE=live) ---"
   # Honour a caller-controlled no-cache toggle. The default is to use
   # buildx cache (fast), but a manual --force / GUSTALE_BUILD_NO_CACHE=1
   # forces a clean rebuild so fresh API data is reflected on the next
@@ -166,6 +216,8 @@ build_one() {
     "${cache_args[@]}" \
     --network host \
     --build-arg PUBLIC_DOMAIN="$domain" \
+    --build-arg PUBLIC_SITE_ORIGIN="$site_origin" \
+    --build-arg PUBLIC_RECIPES_ORIGIN="$recipes_origin" \
     --build-arg BUILD_DATA_SOURCE=live \
     --build-arg PUBLIC_API_BASE=http://127.0.0.1:4000 \
     -f apps/web/Dockerfile \
@@ -180,8 +232,8 @@ build_one() {
 # Each build gets a DISTINCT tag. The suffix is per-variant, so the two
 # images can never share a tag — and a cached layer from one can never be
 # served for the other.
-build_one recipes gustale-web-recipes recipes
-build_one geo     gustale-web-geo geo
+build_one recipes gustale-web-recipes recipes "$RECIPES_ORIGIN" "$RECIPES_ORIGIN"
+build_one geo     gustale-web-geo geo "$ATLAS_ORIGIN" "$RECIPES_ORIGIN"
 
 # Emit the deploy variables. Two channels: stdout (line-prefixed with TAG=
 # / IMAGE_=, for the deploy script to capture) and a file (for operators
