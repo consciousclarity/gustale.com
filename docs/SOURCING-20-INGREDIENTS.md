@@ -61,11 +61,16 @@ applies: Europe is 44 countries, each with its own row.
 | 19 | Epazote | `epazote` | fresh · dried | no |
 | 20 | Fresh corn masa | `fresh-corn-masa` | fresh-masa · masa-harina · tortillas | **yes** |
 
-**16 key, 4 not.** The `is_key` column follows ADR-008 Decision 5: an
+**17 key, 3 not.** The `is_key` column follows ADR-008 Decision 5: an
 approximate substitute never rescues a **key** ingredient. The spec
 gives the reason for each — ackee "is a traditional ingredient… there
 is no generally suitable substitute for ackee in dishes where its
 flavour and texture define the dish", and so on.
+
+The three **not**-key ingredients are **tamarind**, **Asian pear** and
+**epazote** — each of which the spec describes with an ordinary
+substitute that serves in most recipes (tamarind paste for pods, Bosc
+for nashi, dried epazote for fresh).
 
 ---
 
