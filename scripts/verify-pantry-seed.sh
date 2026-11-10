@@ -17,6 +17,28 @@ CSV="${2:-$REPO/docs/PANTRY-LIST-moussaka-greek.csv}"
 SEED="${3:-$REPO/packages/db/seed-moussaka-ingredients.sql}"
 CONTAINER="${TEST_PG_CONTAINER:-gustale-test-postgres}"
 
+# The database names are resolved through the repo's guard, which
+# refuses the LIVE name unconditionally. This script DROPs databases
+# (the throwaway pre-seed and rollback copies), so it must never be
+# able to name the live one -- the check that enforces that is
+# scripts/check-no-live-db-defaults.py.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+resolved="$("$PYTHON_BIN" "$REPO/scripts/lib/db_guard.py" verify-pantry-seed.sh "$DB" 2>&1)" || {
+  echo "  REFUSED: $resolved" >&2
+  exit 2
+}
+DB="$resolved"
+
+# The two throwaway databases this script creates and drops.
+PRE_DB="$(printf '%s' "${DB}_preseed")"
+ROLLBACK_DB="$(printf '%s' "${DB}_rollback")"
+for _d in "$PRE_DB" "$ROLLBACK_DB"; do
+  resolved="$("$PYTHON_BIN" "$REPO/scripts/lib/db_guard.py" verify-pantry-seed.sh "$_d" 2>&1)" || {
+    echo "  REFUSED: $resolved" >&2
+    exit 2
+  }
+done
+
 q() {
   docker exec -u postgres "$CONTAINER" \
     psql -U postgres -d "$DB" -tAc "$1" 2>/dev/null | tr -d ' '
@@ -184,8 +206,7 @@ echo "── 9. a failed seed rolls back completely ─────────�
 # trace. This is proved on a THROWAWAY database that is built from the
 # PRE-SEED state -- a clone of the current database would already
 # contain the seed's rows, and the proof would measure nothing.
-PRE_DB="${DB}_preseed"
-ROLLBACK_DB="${DB}_rollback"
+# (PRE_DB and ROLLBACK_DB were resolved through the guard above.)
 docker exec -u postgres "$CONTAINER" psql -U postgres -d postgres \
   -c "DROP DATABASE IF EXISTS ${PRE_DB}" >/dev/null 2>&1
 docker exec -u postgres "$CONTAINER" psql -U postgres -d postgres \
