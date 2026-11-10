@@ -19,6 +19,15 @@ sold by the hundred, at Rp 1.000–Rp 25.000 — and specialty-store items
 in Germany, but **cheap** ones. The German difficulty is **availability,
 not price**: a 20 g bag of dried curry leaves costs €1,99.
 
+**Gochujang is the exception in Germany, and it is the sharpest
+finding in Indonesia.** In Germany it is *widely stocked* — 22
+products across a dozen brands, from €2,49 for 250 g — so its
+availability is `specialty_only` but its price is `typical`. In
+Indonesia it is sold **only as a branded import** (every product
+Kikkoman, Rp 26.825–33.750 for 300 g), which makes it the one
+ingredient of the three that is *harder* in Indonesia than the spec
+assumed.
+
 ---
 
 ## 2. The rows
@@ -71,20 +80,28 @@ says no herb is equivalent, so no substitute may be offered.
 
 | country | row type | item | availability | price band | product category | package size | suitability | change note | source | last_reviewed |
 |---|---|---|---|---|---|---|---|---|---|---|
-| DE | country | gochujang | `specialty_only` | `elevated` | fermented chilli paste | — | — | — | [arang.de](https://www.arang.de/products/gochugaru) | 2026-11-10 |
-| DE | form | paste_or_concentrate | `specialty_only` | `elevated` | fermented chilli paste | — | — | — | [arang.de](https://www.arang.de/products/gochugaru) | 2026-11-10 |
-| DE | substitute | gochugaru mix | `specialty_only` | `typical` | chilli flakes | — | `approximate` | "the flavor and sweetness will differ" | [arang.de](https://www.arang.de/products/gochugaru) | 2026-11-10 |
+| DE | country | gochujang | `specialty_only` | `typical` | fermented chilli paste | — | — | — | [Asia Shop search](https://www.asiatischer-lebensmittelladen.de/?s=gochujang) | 2026-11-10 |
+| DE | form | paste_or_concentrate | `specialty_only` | `typical` | fermented chilli paste | 250 g – 1 kg | — | — | [SEMPIO 250 g](https://www.asiatischer-lebensmittelladen.de/produkt/pickels-pasten/chili-paste/sempio-gochujang-pepper-paste-250g/) | 2026-11-10 |
+| DE | substitute | gochugaru mix | `specialty_only` | `typical` | chilli flakes | 150 g | `approximate` | "the flavor and sweetness will differ" | [arang.de](https://www.arang.de/products/gochugaru) | 2026-11-10 |
 | ID | country | gochujang | `occasional` | `elevated` | fermented chilli paste | — | — | — | [Tokopedia](https://www.tokopedia.com/search?q=gochujang) | 2026-11-10 |
 | ID | form | paste_or_concentrate | `occasional` | `elevated` | fermented chilli paste | 300 g | — | — | [Tokopedia](https://www.tokopedia.com/ferryfish/kikkoman-gochujang-sauce-300-gram-saus-pedas-ala-korea) | 2026-11-10 |
-| ID | substitute | gochugaru mix | `common` | `typical` | chilli flakes | — | `approximate` | "the flavor and sweetness will differ" | — | 2026-11-10 |
+| ID | substitute | gochugaru mix | `common` | `typical` | chilli flakes | 100 g – 1 kg | `approximate` | "the flavor and sweetness will differ" | [Mola Gochugaru](https://www.tokopedia.com/molaofficial/mola-gochugaru-cabai-bubuk-korea-100-asli-kasar) | 2026-11-10 |
 
-**The prices.** Germany: gochugaru €8,95 (€59,67/kg). Indonesia:
-Kikkoman Gochujang 300 g, Rp 26.825 at one seller and Rp 33.750 at
-another.
+**The prices.** Germany: gochugaru €8,95 (€59,67/kg), "Abgefüllt in
+Deutschland". Indonesia: Kikkoman Gochujang 300 g, Rp 26.825 at one
+seller and Rp 33.750 at another.
 
 **There is no "fresh" gochujang row**, and there is none because there
 is no fresh gochujang — it is a fermented paste. The list's
 `forms_to_research` says `paste`, and that is what was researched.
+
+**The German range is rich, and the prices are ordinary.** The German
+market carries at least 22 gochujang products across a dozen brands,
+which is the evidence for `specialty_only` rather than `limited`:
+SEMPIO Gochujang Pepper Paste 250 g €2,49 (€9,96/kg), SEMPIO 500 g
+€4,29 (€8,58/kg), DELIEF Gochujang 500 g, O'FOOD Gochujang Pepper
+Paste 500 g, O'FOOD Gochujang Sauce 300 ml, O'FOOD Gochujang Tteokbokki
+120 g, BIBIGO Gochujang 290 g, SRIRACHA Gochujang Chilli Sauce 455 ml.
 
 **The finding that is worth the owner's attention.** In Indonesia,
 gochujang is sold **only as a branded import** — every product found
@@ -96,12 +113,16 @@ it is stocked, but as an import, and the price reflects that. This is
 the owner's own hypothesis about where to start, contradicted by the
 evidence, and it is recorded as measured.
 
-**Gochugaru in Indonesia is `common`.** It is an everyday item there.
-That is what makes it a usable substitute — but the spec's limit
-applies unchanged: *"Gochugaru combined with fermented soybean or
-chili paste can approximate some recipes, but the flavor and sweetness
-will differ."* So the suitability is **`approximate`**, not `suitable`,
-and the change note is carried verbatim.
+**Gochugaru in Indonesia is `common`, and it is cheap.** The market
+carries it under its own name and in several forms: Mola Gochugaru
+Rp 23.888, Millimala chilli flakes/gochugaru Rp 23.000, Momoto
+halus/kasar 250 g and 1 kg from Rp 32.990, Mugunghwa flakes 1 kg
+Rp 219.000, Cap Sahabat 100 g Rp 14.500. That is what makes it a
+usable substitute — but the spec's limit applies unchanged:
+*"Gochugaru combined with fermented soybean or chili paste can
+approximate some recipes, but the flavor and sweetness will differ."*
+So the suitability is **`approximate`**, not `suitable`, and the change
+note is carried verbatim.
 
 **The Indonesian gochugaru row has no source** and is marked
 `—`. It is **not** written to the database in this batch: see §3.
@@ -113,11 +134,11 @@ and the change note is carried verbatim.
 | DE | country | fish sauce | `specialty_only` | `typical` | fermented fish sauce | — | — | — | [Asia4Friends](https://asia4friends.de/fischsauce-38n-thanh-ha-500ml) | 2026-11-10 |
 | DE | form | canned_or_packaged | `specialty_only` | `typical` | fermented fish sauce | 500–725 ml | — | — | [Asia Shop](https://www.asiatischer-lebensmittelladen.de/produkt/sossen/fischsossen/tiparos-fischsauce-720ml/) | 2026-11-10 |
 | DE | form | paste_or_concentrate | **no reliable source found** | `unknown` | — | — | — | — | see §3 | 2026-11-10 |
-| DE | substitute | lighter fish sauce | `specialty_only` | `typical` | fermented fish sauce | — | `suitable` | "may be interchangeable in some dishes" | [Asia4Friends](https://asia4friends.de/fischsauce-ca-com-b-700ml) | 2026-11-10 |
+| DE | substitute | lighter fish sauce | `specialty_only` | `typical` | fermented fish sauce | 500–700 ml | `approximate` | "may be interchangeable in some dishes" — it is less salty, so the seasoning must be adjusted | [Asia4Friends](https://asia4friends.de/fischsauce-38n-thanh-ha-500ml) | 2026-11-10 |
 | ID | country | fish sauce | `common` | `typical` | fermented fish sauce | — | — | — | [Tokopedia](https://www.tokopedia.com/search?q=kecap+ikan) | 2026-11-10 |
 | ID | form | canned_or_packaged | `common` | `typical` | fermented fish sauce | 250 ml | — | — | [Tokopedia](https://www.tokopedia.com/ferryfish/kikkoman-fish-sauce-saus-rasa-ikan-kecap) | 2026-11-10 |
 | ID | form | paste_or_concentrate | **no reliable source found** | `unknown` | — | — | — | — | see §3 | 2026-11-10 |
-| ID | substitute | lighter fish sauce | `common` | `typical` | fermented fish sauce | — | `suitable` | "may be interchangeable in some dishes" | — | 2026-11-10 |
+| ID | substitute | lighter fish sauce | `common` | `typical` | fermented fish sauce | 60–600 ml | `approximate` | "may be interchangeable in some dishes" — it is less salty, so the seasoning must be adjusted | [Cap Bunga Matahari 135 ml](https://www.tokopedia.com/candrafoodofficial/kecap-ikan-135-ml-cap-bunga-matahari-100-halal-1735243756194531067) | 2026-11-10 |
 
 **The German prices.** Tiparos 720 ml €3,79 (€5,26/l). Cá Cóm
 salted 700 ml €3,19 (€4,56/l). Tra Chang 725 ml €4,19 (€5,78/l).
@@ -132,18 +153,32 @@ therefore `typical` at the low end and `high` at the top, and the
 **row records the price, not the band alone**, so the reader can see
 the spread.
 
-**The Indonesian prices.** Kikkoman fish sauce Rp 18.800. A 10-bottle
-sushi/sashimi soy-and-fish-sauce set Rp 30.000 (that is a *sushi*
-sauce set — not fish sauce, and it is not counted as a fish-sauce
-row).
+**The Indonesian prices.** The Indonesian market carries a wide
+range of brands, not one:
 
-**The "kecap ikan ringan" finding.** The Indonesian search for
-"kecap ikan ringan" — *light* fish sauce — returned **121 items**. The
-substitute exists in Indonesia in volume, which is what makes it
-`suitable` there. The 121-item result page was captured but its
-product rows did not render server-side; the count is the evidence, not
-a priced row, so the Indonesian lighter-fish-sauce row carries **no
-source** and is marked `—` in this batch.
+- **Cap Bunga Matahari** (Kecap Ikan Premium, Halal): 60 ml Rp 13.000 ·
+  135 ml Rp 14.000 · 275 ml Rp 25.000 · 600 ml Rp 44.000
+- **FINNA**: Cap King Lobster 200 ml Rp 20.340–24.950 · 700 ml Rp
+  45.000–53.500 · Cap Oyster 700 ml Rp 45.500
+- **Kikkoman**: 150 ml Rp 18.800
+
+A 10-bottle sushi/sashimi soy-and-fish-sauce set at Rp 30.000 is a
+*sushi* sauce set — not fish sauce — and is not counted as a fish-sauce
+row.
+
+**The Indonesian lighter-grade substitute.** The Indonesian search for
+"kecap ikan ringan" — *light* fish sauce — returned **121 items**, and
+the market's own lighter/premium grade is **Kecap Ikan Premium** (Cap
+Bunga Matahari), sold in 60 ml / 135 ml / 275 ml / 600 ml at Rp
+13.000–44.000. The substitute is therefore common in Indonesia, and
+priced.
+
+**Its suitability is `approximate`, not `suitable` — and that is the
+spec's own wording.** The spec says *"A lighter fish sauce may be
+interchangeable **in some dishes**"* — conditional, not
+unconditional. A lighter sauce is less salty, so the seasoning must be
+adjusted; that is a change to the dish, which is what `approximate`
+means, and it is disclosed in the change note.
 
 **Soy sauce is not offered as a substitute anywhere.** The spec
 prohibits it, and no row in this document names it.
@@ -164,14 +199,12 @@ written to the database in this batch.**
 | ID · curry leaves · frozen | Tokopedia `daun kunyit beku` | The search returned "produk nggak ditemukan" — and the same query for `daun kunyit segar` on the same session returned 60 products, so this is a **sourcing gap, not a market fact**. Re-check with a different session before writing. |
 | ID · curry leaves · brined | Tokopedia | Same: no products found, and the tool's own block makes a negative unreliable here. |
 | ID · fish sauce · paste_or_concentrate | Tokopedia | The Indonesian market sells fish sauce bottled; no paste found. |
-| ID · gochujang · substitute, gochugaru mix | Tokopedia | The *availability* judgement (`common`) is confident, but no **priced product** with a URL was captured, so the row carries no source. |
-| ID · fish sauce · substitute, lighter fish sauce | Tokopedia `kecap ikan ringan` | The search page showed **121 items** — the substitute exists in volume — but the product rows did not render. No priced row, so no source. |
 | DE · curry leaves · the mainstream-supermarket check | edeka.de (search and category pages) | Edeka's search is **client-side**: the fetched page returned its 557-item "Warenkunde" alphabet, not a curry-leaf-filtered result. It therefore cannot show whether Edeka stocks curry leaves. **The German `specialty_only` judgement rests on the five specialty retailers that do stock them, not on a negative.** |
 | DE · curry leaves · substitute | — | There is none: the list names no substitute for curry leaves, and the spec says no herb is equivalent. The row is a placeholder, not a gap. |
 | ID · curry leaves · substitute | — | As above. |
 
 The last two are placeholders for rows the list does not ask for, kept
-so the shape of the table is uniform. The seven before them are real
+so the shape of the table is uniform. The five before them are real
 gaps.
 
 ### 3.1 A note on the tooling, because it changes what a negative means
@@ -223,8 +256,8 @@ For each row above with a source, one `ingredient_availability` row:
 And for each substitute row, one `ingredient_substitutes` row with its
 `suitability` and its `change_note`.
 
-**Fifteen rows carry a source. Nine rows do not, and are held back.**
-No row is written without one.
+**Seventeen rows carry a source. Seven rows do not, and are held
+back.** No row is written without one.
 
 ---
 
@@ -249,8 +282,8 @@ is.
   has a country row with a source.
 - **Rows in total: 24** — 6 country rows, 12 form rows, 6 substitute
   rows.
-- **Rows with a source: 15.**
-- **Rows with no reliable source: 9**, all listed in §3, all held back
+- **Rows with a source: 17.**
+- **Rows with no reliable source: 7**, all listed in §3, all held back
   from the load.
 - **Forms researched per ingredient:** curry leaves 3, gochujang 1 (there
   is only one), fish sauce 2.
@@ -265,7 +298,32 @@ is.
 
 ---
 
-## 8. The sources
+## 8. How this document was checked
+
+**Two independent researchers** worked this batch, in parallel, and
+neither wrote the document. Their findings were compared against the
+sources, and **every row was re-fetched before it was accepted**:
+
+- The German gochujang range (SEMPIO, DELIEF, O'FOOD, BIBIGO,
+  SRIRACHA) and the Indonesian fish sauce range (Cap Bunga Matahari,
+  FINNA, Kikkoman) were reported by a researcher whose working files
+  were not in `/tmp`. Each was **fetched again here** and the product
+  page read directly: SEMPIO 250 g €2,49, SEMPIO 500 g €4,29, Cap
+  Bunga Matahari 135 ml Rp 14.000, FINNA 200 ml Rp 22.900. Both
+  researchers' figures are confirmed.
+- Two rows that one researcher reported were **not** adopted: a
+  DELIEF gochujang price of €1,49 turned out to belong to a
+  *related* product on the page, and a 1 kg SEMPIO URL 404'd. The
+  prices recorded here are the ones read off the product's own
+  summary block.
+- The **suitability** of the lighter fish sauce was corrected. The
+  spec says *"may be interchangeable **in some dishes**"* — a
+  conditional, which is `approximate` (it is less salty, so the
+  seasoning must be adjusted), not `suitable`.
+- **Both** researchers independently flagged that Edeka's search is
+  client-side and cannot support a negative. That correction stands.
+
+## 9. The sources
 
 **Germany**
 
@@ -278,6 +336,10 @@ is.
 - https://asia4friends.de/fischsauce-38n-thanh-ha-500ml — 38°N 500 ml, €8,49
 - https://asia4friends.de/fischsauce-40n-red-boat-500ml — 40°N 500 ml, €13,99
 - https://asia4friends.de/fischsauce-ca-com-b-700ml — Ca Com B 700 ml, €2,99
+- https://www.asiatischer-lebensmittelladen.de/?s=gochujang — 22 gochujang products
+- https://www.asiatischer-lebensmittelladen.de/produkt/pickels-pasten/chili-paste/sempio-gochujang-pepper-paste-250g/ — SEMPIO 250 g, €2,49
+- https://www.asiatischer-lebensmittelladen.de/produkt/pickels-pasten/chili-paste/sempio-gochujang-pepper-paste-500g/ — SEMPIO 500 g, €4,29
+- https://www.asiatischer-lebensmittelladen.de/produkt/sossen/chilli-sossen/delief-gochujang-500g/ — DELIEF 500 g
 - https://www.arang.de/products/gochugaru — gochugaru, €8,95
 - https://www.edeka.de/suche?q=Currybl%C3%A4tter — Edeka's search. **Fetched, but not citable as a negative**: the page returned its 557-item "Warenkunde" alphabet (an A-list) because the search is client-side, so it does not show what Edeka stocks. Recorded in §3.
 
@@ -288,6 +350,12 @@ is.
 - https://www.tokopedia.com/waroenklinda/paket-bumbu-dapur-lengkap-1pack-daun-salam-daun-jeruk-sereh-kunyit-lengkuas-kencur-bahan-segar-untuk-masak-1729882539802789031 — Rp 12.000
 - https://www.tokopedia.com/herballan-400/daun-kunyit-asli-segar-1-kg-1734503306111583467 — 1 kg, Rp 4.000.000
 - https://www.tokopedia.com/search?q=kecap+ikan — fish sauce
+- https://www.tokopedia.com/search?q=kecap+ikan+matahari — Cap Bunga Matahari
+- https://www.tokopedia.com/candrafoodofficial/kecap-ikan-135-ml-cap-bunga-matahari-100-halal-1735243756194531067 — 135 ml, Rp 14.000
+- https://www.tokopedia.com/search?q=kecap+ikan+finna — FINNA
+- https://www.tokopedia.com/sayurbox/finna-cap-king-lobster-kecap-ikan-200-ml-sayurbox — 200 ml, Rp 22.900
+- https://www.tokopedia.com/search?q=gochugaru — gochugaru
+- https://www.tokopedia.com/molaofficial/mola-gochugaru-cabai-bubuk-korea-100-asli-kasar — Rp 23.888
 - https://www.tokopedia.com/ferryfish/kikkoman-fish-sauce-saus-rasa-ikan-kecap — Rp 18.800
 - https://www.tokopedia.com/search?q=gochujang — gochujang
 - https://www.tokopedia.com/ferryfish/kikkoman-gochujang-sauce-300-gram-saus-pedas-ala-korea — 300 g, Rp 26.825
