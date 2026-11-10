@@ -1,0 +1,72 @@
+# The expected live counts — the gate's unchanged-count assertion.
+#
+# `scripts/apply-migration-live.sh` asserts that these counts are
+# IDENTICAL before and after the migration, because a migration that is
+# additive must not change a legacy row count. A mismatch aborts and
+# rolls the apply back.
+#
+# THIS FILE IS THE EXPECTATION. It was a literal inside the script,
+# which meant the gate could only be run against production -- and a
+# gate that can only be run against production is a gate that never
+# runs. The counts are now data, so the gate can be exercised against a
+# stand-in in the sandbox.
+#
+# Override it with GUSTALE_LIVE_EXPECTED_COUNTS=<path>.
+#
+# FORMAT: `table=count`, one per line. `#` starts a comment. A table
+# name must be a bare identifier and a count must be a non-negative
+# integer; anything else is REFUSED by the gate rather than passed
+# through to SQL.
+#
+# WHY EACH COUNT IS WHAT IT IS
+# -----------------------------
+# relation_types is DELIBERATELY ABSENT: ADR-004 §5 extends the
+# vocabulary from 7 rows to 13 (the five historical predicates,
+# often_compared_with, and the three renames keep their ids). The DIFF
+# check in the gate is where that one documented change is allowed, and
+# only that one.
+#
+# statements        1354
+# claim_citations  1354
+# dish_relations   86   -- not the 182 it was before GUS-224: that
+#                          migration DELETED 96 inverse-duplicate rows
+#                          (91 of a symmetric relation, 5 of a
+#                          directional pair asserted both ways) and
+#                          moved them to dish_relations_archive for
+#                          provenance. The P0 baseline recorded 96,
+#                          which was the ARCHIVE's count.
+# dish_families    306
+# dishes           1475 -- not the 1476 the P0 baseline recorded: the
+#                          delete-test-account gate removed the test
+#                          account `alex-test-7c` AND ITS ONE ARCHIVED
+#                          TEST DISH on 2026-11-02. The owner authorised
+#                          it explicitly ("option (b). Delete it with
+#                          its archived test dish and history through
+#                          the gate."). The dish was id
+#                          1c653f33-6c96-4297-83ea-a9686ef5f5a1. Same
+#                          shape as dish_relations above.
+# sources          1486
+# geo_entities     3892
+# dish_traditions  433
+# users            1
+# media            1339
+# dish_names       2848 -- not the 2849 the P0 baseline recorded: the
+#                          deleted test dish had exactly one name, and
+#                          it went with the dish.
+# vocabulary_labels 35871
+#
+# RECORDED: 2026-11-09, from the live database via the gate's own
+# snapshot query.
+
+statements=1354
+claim_citations=1354
+dish_relations=86
+dish_families=306
+dishes=1475
+sources=1486
+geo_entities=3892
+dish_traditions=433
+users=1
+media=1339
+dish_names=2848
+vocabulary_labels=35871

@@ -58,10 +58,17 @@ timestamp in the filename.** This is the same path the 0049 and the
 STAMP=$(date '+%Y%m%d-%H%M%S')
 DUMP="/home/gustale/backups/pre-0052-${STAMP}.dump"
 
+# The dump is written INSIDE the production container, because that is
+# where pg_dump lives -- the host has no pg_dump binary.
 docker exec -u postgres shared-postgres \
   pg_dump -U postgres -d gustale --format=custom --file=/tmp/pre-0052.dump
 
-cp /tmp/pre-0052.dump "$DUMP"
+# `docker cp` moves it OUT. The host and the container do NOT share
+# /tmp, so a plain `cp /tmp/pre-0052.dump "$DUMP"` on the HOST FAILS --
+# there is no such file on the host. `docker cp` is the only thing that
+# works.
+docker cp shared-postgres:/tmp/pre-0052.dump "$DUMP"
+
 ls -la "$DUMP"
 
 # Verify the archive is readable and complete BEFORE applying anything.
@@ -73,17 +80,24 @@ docker exec -u postgres shared-postgres \
 A dump that was never verified is not a backup. The 0049 incident was
 survived *because* a good dump existed.
 
-> **Why the dump lives on the host, not in the container:** the host and
-> the container do not share `/tmp`. The dump is written inside the
-> container (that is where `pg_dump` lives) and then copied out with
-> `cp` from the container's own `/tmp` — which `docker cp` does, or a
-> plain `docker exec ... cp` to a mounted path. **Confirm the file
-> exists at `$DUMP` with a non-trivial size** (`ls -la` above) before
-> continuing. A `cp` that silently copied nothing is the failure mode
-> this step exists to catch.
+> **Why `docker cp` and not `cp`.** The host and the container do not
+> share `/tmp`. `pg_dump` runs inside the container, so the archive
+> lands in the **container's** `/tmp`. A plain `cp /tmp/pre-0052.dump
+> "$DUMP"` executed **on the host** looks for a file the host does not
+> have and fails with *"cannot stat"* — and if it is run **inside** the
+> container, it writes to the container's `/tmp` instead of the backup
+> directory, so the backup never lands where it should. `docker cp` is
+> the only form that moves the file from inside the container to the
+> host's backup directory.
+>
+> **This was confirmed by the owner on 2026-11-09.** The `cp` form in
+> the first version of this document was wrong, and the owner applied
+> 0052 with the `docker cp` form instead. The dump is at
+> `/home/gustale/backups/pre-0052-20261109-090734.dump`, 4.4 MB, with
+> **1,526 TOC entries**.
 
-**Also check the free space** — the dump is ~42MB and you want room for
-the dry-run copy too:
+**Also check the free space** — the dump is ~4–45MB (it depends on how
+much has been vacuumed) and you want room for the dry-run copy too:
 
 ```bash
 df -h /home/gustale/backups /tmp
@@ -132,6 +146,41 @@ database it ran against.
 
 ## 3. The live apply
 
+### 3a. The direct method — the one used on 2026-11-09
+
+**This is the method the owner actually used for 0052**, and the one
+this document now recommends. It is short, and every step is visible.
+
+```bash
+# 1. The apply. ON_ERROR_STOP=1 means the first error aborts it, and
+#    0052 is transactional, so a failure rolls the whole migration back.
+docker exec -u postgres -i shared-postgres psql -U postgres -d gustale \
+  -v ON_ERROR_STOP=1 -f - < db/migrations/0052_recipes_schema.sql 2>&1 | tee /tmp/m0052.log
+
+# 2. The migration's OWN proof must have passed. It runs inside the
+#    migration's transaction, so if it failed, the migration rolled back
+#    and there is nothing on live.
+grep -E "RECIPES_SCHEMA_OK|CONFIRMED" /tmp/m0052.log | tail -5
+
+# 3. The independent verification -- section 4 below.
+```
+
+**Why the direct method rather than the gate script:** the gate
+(`scripts/apply-migration-live.sh`) creates and drops a COPY of the live
+database, and it used to do that **on the production cluster** — which
+RULES.md forbids, because `DROP DATABASE` and `CREATE DATABASE` are
+cluster-scoped and `shared-postgres` hosts five other projects'
+databases. That is why the gate could not be used for 0052.
+
+**The gate is being fixed in a separate PR** — its copy now runs on the
+dedicated test Postgres (`gustale-test-postgres`, 127.0.0.1:5434),
+exactly as the dry-run's copy already does, and its exemption from
+`scripts/check-no-production-db-drops.py` has been **removed** so the
+scanner catches any regression. Until that PR is merged, use the direct
+method above.
+
+### 3b. The gate script — once the fix is merged
+
 `scripts/apply-migration-live.sh` is the gate: snapshot → fixture check
 → count assertions → apply → independent verification.
 
@@ -141,13 +190,16 @@ bash scripts/apply-migration-live.sh db/migrations/0052_recipes_schema.sql
 
 **What it does, in order:**
 
-1. **snapshot** — the counts of every legacy table, before the write;
+1. **snapshot** — a read-only `pg_dump` of live, copied out with
+   `docker cp` and restored onto the **test** container;
 2. **fixture check** — stops if any `atlas_fixture` row is on live;
 3. **assertions** — a `DO` block that raises if any legacy count is not
    what it must be;
 4. **apply** — `psql -v ON_ERROR_STOP=1 -f -` on the migration;
 5. **independent verification** — the counts read back, a `diff` against
-   the snapshot, the fixture check again, and the new objects read back.
+   the snapshot, the fixture check again, and the new objects read back;
+6. **the constraint tests on the COPY** — on the test container, which
+   is dropped there.
 
 **The script exits non-zero on any failure**, and it is transactional,
 so a failed apply leaves **no partial state**.
@@ -345,7 +397,7 @@ STAMP=$(date '+%Y%m%d-%H%M%S')
 DUMP="/home/gustale/backups/pre-0052-rollback-${STAMP}.dump"
 docker exec -u postgres shared-postgres \
   pg_dump -U postgres -d gustale --format=custom --file=/tmp/pre-0052-rollback.dump
-cp /tmp/pre-0052-rollback.dump "$DUMP"
+docker cp shared-postgres:/tmp/pre-0052-rollback.dump "$DUMP"
 ls -la "$DUMP"
 docker exec -u postgres shared-postgres \
   pg_restore --list /tmp/pre-0052-rollback.dump | wc -l
@@ -747,17 +799,28 @@ UNION ALL SELECT 'sources', count(*) FROM sources;"
 | step | what | if it fails |
 |---|---|---|
 | 0 | confirm the fix is in `main`; confirm `0052` is not applied | **stop** — do not apply |
-| 1 | `pg_dump` to `/home/gustale/backups/pre-0052-<stamp>.dump`, verified with `pg_restore --list` | **stop** — no verified dump, no apply |
+| 1 | `pg_dump` + `docker cp` to `/home/gustale/backups/pre-0052-<stamp>.dump`, verified with `pg_restore --list` | **stop** — no verified dump, no apply |
 | 2 | `dryrun-migration.sh` on the test Postgres: applies twice, reports counts | **stop** — do not apply to live |
-| 3 | `apply-migration-live.sh` | transactional; auto-rollback; check §6.1 |
+| 3 | the apply — §3a (direct psql) or §3b (the gate, once fixed) | transactional; auto-rollback; check §6.1 |
 | 4 | the `0052`-specific verification queries | report; do not "fix" live by hand |
 | 5 | the receipt, committed and pushed | — |
 | 6 | the rollback, if needed | prefer `pg_restore` from the dump |
 
-**Nothing in this document has been run.** It was written from the
-scripts and the migration's own contents; every count and every expected
-value comes from the migration's proof block, the receipt, or the
-assertions in `apply-migration-live.sh`. **The sandbox proof of `0052`
-is in `docs/MIGRATION-RECEIPT-0052.md`** — the chain passed, 29 proof
-cases confirmed, the idempotent re-apply was clean, and a deliberate
-failure rolled the whole migration back with zero trace.
+**STATUS: `0052` IS APPLIED.** The owner applied it on 2026-11-09 by
+the **direct psql method** (§3a) — the gate script could not be used,
+because it creates and drops a copy of live **on the production
+cluster**, which RULES.md forbids. That script is fixed in a separate
+PR: its copy now runs on the dedicated test Postgres.
+
+The backup is `/home/gustale/backups/pre-0052-20261109-090734.dump`
+(4.4 MB, 1,526 TOC entries). The dry-run reported `DRYRUN_OK=1`. Every
+§4 check passed: both scope triggers present, the kill switch off, the
+system actor with no credential, the token table closed to the
+application role, and the API returning 200.
+
+**The receipt is `docs/MIGRATION-RECEIPT-0052.md`.**
+
+> **`0052` is now FROZEN.** Its file is the record of what ran. Any fix
+> from here goes into a **new migration number** — see
+> [`docs/RULES.md`](../RULES.md) Rule 11. `0053` is exactly that: a new
+> number, not an edit to `0052`.
