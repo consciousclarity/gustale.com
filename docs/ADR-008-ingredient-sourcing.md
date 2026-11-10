@@ -571,16 +571,40 @@ Recorded 2026-11-10, while preparing GUS-1106. It is a finding, not a
 change of decision, but the reader of this ADR needs it: **the
 sourcing rating has almost nothing to attach to yet.**
 
-| what | measured on the test database, after migration 0055 |
+| what | measured on the test database, after migration 0055 **and** both moussaka seeds |
 |---|---|
 | `ingredient_categories` (the 435-row vocabulary) | **435** |
-| `ingredients` (the rows availability attaches to) | **4** |
-| `recipe_ingredients` (the recipe lines) | **0** |
-| `dish_ingredients` (the legacy dish lines) | moussaka only — 4 rows |
+| `ingredients` (the rows availability attaches to) | **23** — 4 published, 19 draft |
+| `recipes` (the new recipe model) | **0** |
+| `recipe_ingredients` (the recipe lines the rating reads) | **0** |
+| `dish_ingredients` (the legacy dish lines) | **23** — the moussaka's lines |
 
-And the four are: `eggplant`, `lamb-mince`, `tomato`, `bechamel` —
-created by the moussaka seed, plus the 19 draft rows the Stage B seed
-added and the orphan `bechamel-sauce` (live total **24**).
+The 23 ingredients are exactly the moussaka pantry list:
+`allspice, bay-leaf, bechamel, beef-mince, black-pepper, carrot,
+cinnamon, eggplant, garlic, kefalotyri, lamb-mince, nutmeg, olive-oil,
+onion, parsley, plain-butter, potato, table-salt, tomato, tomato-paste,
+wheat-flour, whole-egg, whole-milk` — plus, on live only, the orphan
+`bechamel-sauce` (live total **24**).
+
+**So the vocabulary is a moussaka-sized vocabulary, not an empty one.**
+The gap is narrower than it first looked, and it is the *right* size for
+the pilot:
+
+* The 23 rows are the **right shape** — one canonical row per
+  ingredient, each with a category from the 435-row vocabulary, each
+  cited. They are a Stage B seed away from being the vocabulary.
+* They are **all `draft` except the 4 the moussaka seed published**, so
+  they are not yet public ingredients.
+* They are **one dish's worth**. Nasi goreng's lines (rice, oil or
+  margarine, sweet soy sauce, shallot, garlic, ground shrimp paste,
+  tamarind, chilli, egg, chicken, prawns, vegetables) exist only as
+  prose in a cited long description, and every one of them needs an
+  ingredient row that does not exist yet.
+* The **recipe lines** the rating reads are in the legacy
+  `dish_ingredients` table, not in `recipe_ingredients`, and there is
+  no `recipes` row at all. The rating cannot rate a recipe until the
+  moussaka and nasi goreng lines are carried into the new model, with
+  `is_key`, `accepted_forms` and `cost_weight` set.
 
 **Why this matters.** The 435 categories are a *vocabulary of kinds*
 ("cheese", "root vegetable", "leafy green"). The rating attaches to
@@ -599,10 +623,12 @@ measure the *ingredients* table, because on `main` at the time the
 question had not been asked.
 
 **Consequence for the plan.** GUS-1106 (the pilot dataset) and
-GUS-1107 (the full catalogue) both depend on an ingredient vocabulary
-that does not exist yet. That dependency is now explicit and tracked
-on the kanban, rather than discovered halfway through a research
-batch.
+GUS-1107 (the full catalogue) both depend on the ingredient vocabulary
+growing past one dish, and on the recipe lines existing in the new
+model. That dependency is now explicit and tracked on the kanban as
+**GUS-1108** (the vocabulary and the recipe lines) and **GUS-1109**
+(the owner's original 20-ingredient table), rather than discovered
+halfway through a research batch.
 
 **The recipe-line gap is separate and smaller.** `recipe_ingredients`
 has **0** rows: the rows that exist inside migration 0052 are proof

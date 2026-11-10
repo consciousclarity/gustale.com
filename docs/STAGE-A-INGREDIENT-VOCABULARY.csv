@@ -1,0 +1,13 @@
+name,slug,category,source,status,needed_by
+"Rice, long-grain",long-grain-rice,rice,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+"Cooking oil",cooking-oil,oil,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+"Margarine",margarine,oil,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+"Sweet soy sauce (kecap manis)",sweet-soy-sauce,savoury-sauces,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+Shallot,shallot,onions-and-similar,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+"Ground shrimp paste (terasi)",shrimp-paste,paste,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+Tamarind pulp,tamarind,fruit,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+Chilli,chilli,fruit-spices,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+Chicken,chicken,chicken,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+Prawn,prawn,shrimps-and-prawns,"wikipedia-nasi-goreng-long-description",new,nasi-goreng
+Garlic,garlic,garlic-and-similar,"seed-moussaka.dish_preparations",exists,moussaka-greek
+"Egg, whole",whole-egg,whole-eggs,"backfill-plan-s4",exists,moussaka-greek
