@@ -1,0 +1,21 @@
+name,slug,category,needed_by
+Eggplant,eggplant,solanacea,moussaka-greek
+"Lamb, minced",lamb-mince,mammals-meat,moussaka-greek
+Tomato,tomato,other-fruiting-vegetables,moussaka-greek
+Béchamel sauce,bechamel,savoury-sauces,moussaka-greek
+Onion,onion,onions-and-similar,moussaka-greek
+Garlic,garlic,garlic-and-similar,moussaka-greek
+Potato,potato,potatoes-and-similar,moussaka-greek
+Carrot,carrot,carrots-and-similar,moussaka-greek
+Egg,whole-egg,whole-eggs,moussaka-greek
+Milk,whole-milk,milk,moussaka-greek
+Flour,wheat-flour,cereal-and-cereal-like-flours,moussaka-greek
+Butter,cultured-butter,butter,moussaka-greek
+Olive oil,olive-oil,vegetable-fats-and-oils-edible,moussaka-greek
+Salt,table-salt,seasonings,moussaka-greek
+Black pepper,black-pepper,fruit-spices,moussaka-greek
+Bay leaf,bay-leaf,dried-herbs,moussaka-greek
+Nutmeg,nutmeg,seed-spices,moussaka-greek
+Cinnamon,cinnamon,bark-spices,moussaka-greek
+Allspice,allspice,fruit-spices,moussaka-greek
+Kefalotyri,kefalotyri,brined-cheese-feta-type-and-similar,moussaka-greek
