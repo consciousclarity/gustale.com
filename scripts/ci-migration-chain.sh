@@ -238,6 +238,15 @@ MIGRATION_0053=db/migrations/0053_recipes_published_view.sql
 # long ago; this migration only makes the database refuse a category
 # that is not in it. It writes NO content rows.
 MIGRATION_0054=db/migrations/0054_ingredient_category_fk.sql
+# 0055 is the SOURCING AVAILABILITY tables and columns (ADR-008,
+# GUS-1102): ingredient_availability, ingredient_substitutes,
+# recipe_ingredient_substitutes, plus recipe_ingredients.is_key /
+# accepted_forms / cost_weight and ingredients.ubiquitous. It is
+# strictly ADDITIVE -- every new column has a DEFAULT, every new table
+# starts empty -- and it writes NO content rows. It comes after 0052
+# (the recipes schema), because recipe_ingredient_substitutes
+# references recipe_ingredients.
+MIGRATION_0055=db/migrations/0055_sourcing_availability.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -783,6 +792,16 @@ echo "--- the ingredient category vocabulary"
 run_pg -f - < "$MIGRATION_0054" >/tmp/m0054.log 2>&1 || { echo "FAILED: 0054"; grep -E 'ERROR|NOTICE' /tmp/m0054.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'INGREDIENT_CATEGORY_FK_OK' /tmp/m0054.log | tail -1 || true
+
+# ── 0055: the sourcing availability tables and columns ──────────────
+#
+# ADR-008's data model. Three tables, four columns, all additive.
+# The proof runs inside the migration's own transaction, so a failed
+# proof rolls it back and leaves no trace.
+echo "--- the sourcing availability tables"
+run_pg -f - < "$MIGRATION_0055" >/tmp/m0055.log 2>&1 || { echo "FAILED: 0055"; grep -E 'ERROR|NOTICE' /tmp/m0055.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/m0055.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #
