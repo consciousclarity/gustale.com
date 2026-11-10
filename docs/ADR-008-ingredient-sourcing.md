@@ -565,6 +565,57 @@ they are not asked again.**
 
 ---
 
+## The data the rating attaches to — a measured gap
+
+Recorded 2026-11-10, while preparing GUS-1106. It is a finding, not a
+change of decision, but the reader of this ADR needs it: **the
+sourcing rating has almost nothing to attach to yet.**
+
+| what | measured on the test database, after migration 0055 |
+|---|---|
+| `ingredient_categories` (the 435-row vocabulary) | **435** |
+| `ingredients` (the rows availability attaches to) | **4** |
+| `recipe_ingredients` (the recipe lines) | **0** |
+| `dish_ingredients` (the legacy dish lines) | moussaka only — 4 rows |
+
+And the four are: `eggplant`, `lamb-mince`, `tomato`, `bechamel` —
+created by the moussaka seed, plus the 19 draft rows the Stage B seed
+added and the orphan `bechamel-sauce` (live total **24**).
+
+**Why this matters.** The 435 categories are a *vocabulary of kinds*
+("cheese", "root vegetable", "leafy green"). The rating attaches to
+*ingredients* — the specific things a recipe names, so that "the same
+dried chilli is hard to find in two different recipes" (Decision 5).
+There is currently no ingredient vocabulary to research availability
+against. GUS-1107's ~30 ingredients × 259 countries cannot be loaded
+until the ingredient rows exist.
+
+**Why it is not this ADR's problem.** Creating the ingredient
+vocabulary is a separate piece of work with its own editorial rules
+(one canonical row per ingredient, shared across recipes, per
+ADR-007 Decision 5), and it is not in the brief's scope. The brief's
+§2 table measured the *availability* tables as absent — it did not
+measure the *ingredients* table, because on `main` at the time the
+question had not been asked.
+
+**Consequence for the plan.** GUS-1106 (the pilot dataset) and
+GUS-1107 (the full catalogue) both depend on an ingredient vocabulary
+that does not exist yet. That dependency is now explicit and tracked
+on the kanban, rather than discovered halfway through a research
+batch.
+
+**The recipe-line gap is separate and smaller.** `recipe_ingredients`
+has **0** rows: the rows that exist inside migration 0052 are proof
+fixtures, and the live moussaka recipe's lines live in the legacy
+`dish_ingredients` table. ADR-008's rating reads `recipe_ingredients`,
+because that is where `is_optional`, `is_key`, `accepted_forms` and
+`cost_weight` live. So the moussaka lines have to be carried into the
+new table before the pilot can rate a recipe at all — and the nasi
+goreng lines, which exist only as prose in a long description, have to
+be made into lines.
+
+---
+
 ## What this ADR does **not** decide
 
 * **The exact rating for any real ingredient in any real country.**
