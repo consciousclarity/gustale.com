@@ -16,6 +16,8 @@
  * Each place is a link, because a place has its own page.
  */
 
+import { slugify } from "../../lib/slug";
+
 interface PlaceLink {
   name: string;
   count: number;
@@ -52,15 +54,6 @@ export function buildPlaceList(
   return Array.from(counts.entries())
     .map(([name, { count, slug }]) => ({ name, count, slug }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 export function PlacesList({ places, locatedCount }: PlacesListProps) {

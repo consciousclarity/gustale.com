@@ -8,7 +8,6 @@ import {
   browseFiltersKey,
   browseHasActiveFilters,
   browseStatusMessage,
-  buildBrowseQuery,
   clearBrowseFilters,
   filterChipsFor,
   hasMorePages,
@@ -19,13 +18,29 @@ import {
   planHistoryRestore,
   recoveryLinks,
   removeBrowseChip,
+  serializeBrowseState,
   sliceDishesToPage,
 } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
+import type { PathPageSlugs } from "../lib/filterPages";
+import { slugify } from "../lib/slug";
 import type { DishListResponse, DishSummary } from "../types/dish";
+
+/** Filters a static path page has already applied in its server HTML. */
+export type FixedFilters = Partial<
+  Pick<BrowseQueryState, "country" | "category" | "technique">
+>;
 
 export interface DishExplorerProps {
   initial: DishListResponse;
+  /**
+   * Set on `/dishes/<kind>/<slug>/` pages: the filter the server HTML
+   * already applied. It is not written to the URL query and its chip
+   * removes it by returning to /dishes.
+   */
+  fixed?: FixedFilters;
+  /** Which filtered lists have a static path page (for the redirect). */
+  pathPages?: PathPageSlugs | null;
 }
 
 type PendingOp =
@@ -33,14 +48,55 @@ type PendingOp =
   | { kind: "extend"; state: BrowseQueryState; toPage: number }
   | { kind: "loadMore"; state: BrowseQueryState; nextPage: number };
 
-function stateFromLocation(): BrowseQueryState {
-  if (typeof window === "undefined") return clearBrowseFilters();
-  const parsed = parseBrowseState(new URLSearchParams(window.location.search));
-  if (parsed.q && /:\S/.test(parsed.q)) {
-    const tokens = parseStructuredTokens(parsed.q);
-    return mergeBrowseState({ ...parsed, q: tokens.q ?? "" }, tokens);
+function stateFromLocation(fixed: FixedFilters = {}): BrowseQueryState {
+  if (typeof window === "undefined") {
+    return mergeBrowseState(clearBrowseFilters(), fixed);
   }
-  return parsed;
+  const parsed = parseBrowseState(new URLSearchParams(window.location.search));
+  const base =
+    parsed.q && /:\S/.test(parsed.q)
+      ? (() => {
+          const tokens = parseStructuredTokens(parsed.q);
+          return mergeBrowseState({ ...parsed, q: tokens.q ?? "" }, tokens);
+        })()
+      : parsed;
+  return mergeBrowseState(base, fixed);
+}
+
+/** The URL query for a state, without the filters the path already carries. */
+function queryFor(state: BrowseQueryState, fixed: FixedFilters): string {
+  const sp = serializeBrowseState(state);
+  for (const k of Object.keys(fixed)) sp.delete(k);
+  const qs = sp.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/** `/dishes?country=X` -> `/dishes/region/x/` when that page exists. */
+function pathFormFor(
+  state: BrowseQueryState,
+  pages: PathPageSlugs | null | undefined,
+): string | null {
+  if (!pages) return null;
+  const filters = (["country", "category", "technique"] as const).filter(
+    (k) => state[k],
+  );
+  if (filters.length !== 1) return null;
+  const onlyThat =
+    !state.q &&
+    !state.family &&
+    !state.cuisine &&
+    !state.type &&
+    !state.ingredient &&
+    !state.sort &&
+    state.page === 1;
+  if (!onlyThat) return null;
+  const k = filters[0] as "country" | "category" | "technique";
+  const v = state[k] as string;
+  if (k === "country") {
+    const s = slugify(v);
+    return pages.region.includes(s) ? `/dishes/region/${s}/` : null;
+  }
+  return pages[k].includes(v) ? `/dishes/${k}/${v}/` : null;
 }
 
 function toListParams(state: BrowseQueryState, offset: number) {
@@ -49,6 +105,7 @@ function toListParams(state: BrowseQueryState, offset: number) {
     search: state.q || undefined,
     country: state.country ?? undefined,
     cuisine: state.cuisine ?? undefined,
+    category: state.category ?? undefined,
     type: state.type ?? undefined,
     ingredient: state.ingredient ?? undefined,
     technique: state.technique ?? undefined,
@@ -58,14 +115,18 @@ function toListParams(state: BrowseQueryState, offset: number) {
   };
 }
 
-export function DishExplorer({ initial }: DishExplorerProps) {
+export function DishExplorer({
+  initial,
+  fixed = {},
+  pathPages = null,
+}: DishExplorerProps) {
   const domain = currentDomain();
   const reactId = useId().replace(/:/g, "");
   const searchId = `dish-browse-search-${reactId}`;
   const statusId = `dish-browse-status-${reactId}`;
 
   const [state, setState] = useState<BrowseQueryState>(() =>
-    stateFromLocation(),
+    stateFromLocation(fixed),
   );
   const [dishes, setDishes] = useState<DishSummary[]>(initial.dishes);
   const [loading, setLoading] = useState(false);
@@ -89,6 +150,12 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   const dishesRef = useRef<DishSummary[]>(initial.dishes);
   const loadedPageRef = useRef(1);
   const filtersKeyRef = useRef(browseFiltersKey(state));
+  // What the server HTML already shows: no filter on /dishes, the fixed
+  // filter on a path page. A first-load state that differs from this must
+  // be fetched -- the static HTML is not the answer to it.
+  const baseKeyRef = useRef(
+    browseFiltersKey(mergeBrowseState(clearBrowseFilters(), fixed)),
+  );
   const pendingOpRef = useRef<PendingOp | null>(null);
   /** When true, the next state.page change came from Load more — skip restore. */
   const loadMoreBumpRef = useRef(false);
@@ -118,7 +185,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
 
   // Sync URL when state changes (shareable + Back/Forward).
   useEffect(() => {
-    const qs = buildBrowseQuery(state);
+    const qs = queryFor(state, fixed);
     const next = `${window.location.pathname}${qs}`;
     const cur = `${window.location.pathname}${window.location.search}`;
     if (next !== cur) {
@@ -128,7 +195,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
 
   useEffect(() => {
     const onPop = () => {
-      const next = stateFromLocation();
+      const next = stateFromLocation(fixed);
       setInputValue(next.q);
       loadMoreBumpRef.current = false;
       setState(next);
@@ -164,6 +231,25 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     if (skipFilterFetch.current) {
       skipFilterFetch.current = false;
       filtersKeyRef.current = key;
+      // A single filter that has a static page: go there. (A no-JS visitor
+      // never gets here -- the links already point at the path form.)
+      const path = Object.keys(fixed).length
+        ? null
+        : pathFormFor(state, pathPages);
+      if (path) {
+        window.location.replace(path);
+        return;
+      }
+      // The URL carried a filter the server HTML does not reflect (a
+      // direct load of /dishes?country=X). The static list is NOT the
+      // answer, so fetch it. Skipping this made every filter inert on a
+      // direct load.
+      if (key !== baseKeyRef.current) {
+        loadedPageRef.current = 1;
+        // (A shared ?page=N on a FILTERED direct load restarts at page 1.)
+        void replaceResults({ ...state });
+        return;
+      }
       // Shared ?page=N on first paint: reconstruct pages 1…N.
       if (state.page > 1) {
         void extendToPage(state, state.page);
@@ -182,6 +268,7 @@ export function DishExplorer({ initial }: DishExplorerProps) {
     state.family,
     state.country,
     state.cuisine,
+    state.category,
     state.type,
     state.ingredient,
     state.technique,
@@ -327,6 +414,12 @@ export function DishExplorer({ initial }: DishExplorerProps) {
   }
 
   function clearAll() {
+    if (Object.keys(fixed).length) {
+      // A path page's own filter is part of the page: clearing returns to
+      // the full list.
+      window.location.assign("/dishes");
+      return;
+    }
     setInputValue("");
     const cleared = clearBrowseFilters();
     filtersKeyRef.current = browseFiltersKey(cleared);
@@ -395,22 +488,48 @@ export function DishExplorer({ initial }: DishExplorerProps) {
         )}
       </div>
 
+      {chips.length > 0 && Object.keys(fixed).length === 0 && (
+        <h2 className="browse-active-heading" aria-live="polite">
+          {typeof total === "number"
+            ? `${total.toLocaleString("en-US")} ${total === 1 ? "dish" : "dishes"}`
+            : "Dishes"}
+          {state.country ? ` from ${state.country}` : ""}
+          {chips
+            .filter((c) => c.stateKey !== "country" && c.stateKey !== "q")
+            .map((c) => ` · ${c.label}`)
+            .join("")}
+        </h2>
+      )}
+
       {chips.length > 0 && (
         <ul className="browse-chips" aria-label="Active filters">
           {chips.map((chip) => (
             <li key={chip.key}>
-              <button
-                type="button"
-                className="browse-chip"
-                onClick={() => {
-                  const next = removeBrowseChip(state, chip.stateKey);
-                  if (chip.stateKey === "q") setInputValue("");
-                  setState(next);
-                }}
-              >
-                {chip.label}
-                <span aria-hidden="true"> ×</span>
-              </button>
+              {chip.stateKey in fixed ? (
+                // The path page's own filter: removing it is a navigation
+                // to the full list, and it is a plain link (works with no JS).
+                <a
+                  className="browse-chip"
+                  href="/dishes"
+                  aria-label={`Remove filter ${chip.label}`}
+                >
+                  {chip.label}
+                  <span aria-hidden="true"> ×</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="browse-chip"
+                  onClick={() => {
+                    const next = removeBrowseChip(state, chip.stateKey);
+                    if (chip.stateKey === "q") setInputValue("");
+                    setState(next);
+                  }}
+                >
+                  {chip.label}
+                  <span aria-hidden="true"> ×</span>
+                </button>
+              )}
             </li>
           ))}
         </ul>

@@ -166,8 +166,12 @@ async function run() {
       (await allDishes("&region=Indonesia")).map((d) => d.slug),
     );
     const rendang = await text("/dishes/rendang");
+    // The link is a PATH form now -- /dishes/region/indonesia/ -- because
+    // the site is static and the filtered list must work without
+    // JavaScript. The old query form (?region=Indonesia) is still
+    // accepted, for a link that has not moved yet.
     const regionHref = (rendang.match(
-      /href="([^"]*(?:region=Indonesia|\/indonesia)[^"]*)"/i,
+      /href="([^"]*(?:region=Indonesia|[\/]indonesia[\/"]|[\/]indonesia[\?#]))[^"]*"/i,
     ) || [])[1];
     if (!regionHref) {
       record(
@@ -204,10 +208,20 @@ async function run() {
     // on 2026-11-11: /dishes?category=stew, ?technique=curry,
     // ?country=Indonesia and ?category=zzz all served the IDENTICAL
     // page, and both checks reported PASS. A check that passes while
-    // the feature is broken is worse than no check.
+    // Same for a category and technique link from a dish page.
+    //
+    // The links are now PATH forms -- /dishes/category/stew/ and
+    // /dishes/technique/curry/ -- because the site is static and a
+    // query string cannot vary the server HTML. The old query form
+    // (?category=stew) is still accepted as a fallback, for a link that
+    // has not moved to the path form yet.
     for (const [label, re, apiParam] of [
-      ["category", /href="([^"]*category=stew[^"]*)"/, "category=stew"],
-      ["technique", /href="([^"]*technique=[^"]*)"/, "technique=curry"],
+      ["category", /href="([^"]*(?:category[/=]stew)[^"]*)"/, "category=stew"],
+      [
+        "technique",
+        /href="([^"]*(?:technique[/=][^"/]+)[^"]*)"/,
+        "technique=curry",
+      ],
     ]) {
       const m = rendang.match(re);
       if (!m) {

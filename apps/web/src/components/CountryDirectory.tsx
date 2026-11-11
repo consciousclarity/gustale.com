@@ -10,12 +10,18 @@ import {
   recoveryLinks,
 } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
+import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 
 export interface CountryDirectoryProps {
+  /** Filtered lists that have a static path page. */
+  pathPages?: PathPageSlugs | null;
   dishes: LikeableDish[];
 }
 
-export function CountryDirectory({ dishes }: CountryDirectoryProps) {
+export function CountryDirectory({
+  dishes,
+  pathPages = null,
+}: CountryDirectoryProps) {
   const domain = currentDomain();
   const all = useMemo(() => buildCountryDirectory(dishes), [dishes]);
   const [q, setQ] = useState(() => {
@@ -161,7 +167,7 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
           >
             <a
               className="browse-dir-card"
-              href={`/dishes?region=${encodeURIComponent(c.name)}`}
+              href={filterHref(pathPages, "region", c.name)}
             >
               <div className="browse-dir-card__top">
                 {/* PR 2 — ONE LINK PER CARD.

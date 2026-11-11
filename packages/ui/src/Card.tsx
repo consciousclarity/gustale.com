@@ -1,4 +1,4 @@
-import type * as React from "react";
+import * as React from "react";
 
 /**
  * A dish's cover image, as the API returns it for the list.
@@ -111,10 +111,21 @@ function DishCardThumb({
   cover?: DishCover | null;
   title: string;
 }) {
+  // A cover whose file fails to load must never show the browser's
+  // broken-image icon: fall back to the same neutral placeholder a dish
+  // with no cover gets. The error can fire BEFORE hydration (the image is
+  // in the server HTML), so the effect also checks an already-failed image.
+  const [failed, setFailed] = React.useState(false);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
+  React.useEffect(() => {
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth === 0) setFailed(true);
+  }, []);
+
   const srcSet = cover ? buildSrcSet(cover.variantsUrls) : undefined;
   const alt = cover?.altText?.trim() || `${title} — cover`;
 
-  if (!cover) {
+  if (!cover || failed) {
     return (
       <div
         className="dish-card-thumb dish-card-thumb--placeholder"
@@ -134,6 +145,7 @@ function DishCardThumb({
     <div className="dish-card-thumb">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={imgRef}
         src={cover.publicUrl}
         srcSet={srcSet}
         // The card is a third of a grid column on a desktop and full
@@ -144,6 +156,7 @@ function DishCardThumb({
         className="dish-card-thumb__img"
         loading="lazy"
         decoding="async"
+        onError={() => setFailed(true)}
         // Explicit dimensions reserve the space so the list does not
         // jump as the images arrive. The stored dimensions are the
         // source image's, so the ratio is right; the CSS clamps the
