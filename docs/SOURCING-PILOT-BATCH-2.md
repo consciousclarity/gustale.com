@@ -278,26 +278,32 @@ will not get it from flour.
 
 | | rows |
 |---|---|
-| the rows in this document | **39** |
+| the rows in this document | **41** |
 | — country rows | 12 |
-| — form rows | 20 |
-| — substitute rows | 7 |
+| — form rows | 21 |
+| — substitute rows | 8 |
 | the ingredient × country pairs | **12** |
 | the pairs with a country row that has a source | **12** |
 | the pairs with at least one product-level price | **9** (DE 3, ID 3, CH 3) |
 | the pairs **not** reached | **3** — US tamarind, US cassava, and the US substitute rows |
 | the cited URLs | **20** |
 
-**By ingredient:** tamarind **10** rows (4 country + 6 form) ·
+**By ingredient:** tamarind **11** rows (4 country + 7 form) ·
 coconut milk **13** rows (4 country + 9 form) · cassava **9** rows
-(4 country + 5 form) — plus the **7** substitute rows, of which 5 are
+(4 country + 5 form) — plus the **8** substitute rows, of which 5 are
 Indonesian, 1 German and 1 Swiss.
 
-**By country:** DE **12** · ID **15** · CH **8** · US **4**.
+**By country:** DE **10** · ID **15** · CH **7** · US **5** · 4 rows whose
+source names no known retailer (the German and Swiss "not stocked"
+lines and the US ones).
 
 **The row counts are measured from the tables**, not asserted — the
 first draft of this document claimed 21 rows and the real number was
-39.
+39, and a later review found the tables had grown rows that the count
+never picked up. The counts are now checked by
+`python3 scripts/count-sourcing-rows.py docs/SOURCING-PILOT-BATCH-2.md`,
+which counts the tables by the shape of each row's first cell and
+fails when the claimed total disagrees.
 
 ---
 
