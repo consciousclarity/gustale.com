@@ -1,10 +1,10 @@
 {
   "base": "https://gustale.com",
-  "at": "2026-11-11T09:48:31.314Z",
+  "at": "2026-11-11T23:12:47.261Z",
   "only": null,
   "summary": {
-    "FAIL": 26,
-    "PASS": 5,
+    "FAIL": 27,
+    "PASS": 6,
     "WARN": 1
   },
   "results": [
@@ -12,28 +12,34 @@
       "wp": "WP-01",
       "id": "region-filter-works",
       "status": "FAIL",
-      "detail": "/dishes?region=Indonesia lists 24 dishes, 1 Indonesian (4%). Expected ≥95% and ≥10 shown.",
+      "detail": "/dishes?region=Indonesia lists 24 dishes, 1 in the region=Indonesia set (4%). Expected ≥95% and ≥5 shown.",
       "metric": {
         "share": 0.041666666666666664
       }
     },
     {
       "wp": "WP-01",
-      "id": "category-filter-works",
+      "id": "category-link-present",
       "status": "FAIL",
-      "detail": "/dishes?category=stew lists 24 dishes, only 5 in the category=stew set (21%). Expected ≥95%.",
-      "metric": {
-        "share": 0.20833333333333334
-      }
+      "detail": "No /dishes/category/<slug>/ link on /dishes/rendang"
     },
     {
       "wp": "WP-01",
-      "id": "technique-filter-works",
+      "id": "technique-link-present",
       "status": "FAIL",
-      "detail": "/dishes?technique=curry lists 24 dishes, only 1 in the technique=curry set (4%). Expected ≥95%.",
-      "metric": {
-        "share": 0.041666666666666664
-      }
+      "detail": "No /dishes/technique/<slug>/ link on /dishes/rendang"
+    },
+    {
+      "wp": "WP-01",
+      "id": "no-query-form-links:/regions",
+      "status": "PASS",
+      "detail": "/regions: 36 query-form links, none for a filter that has a page"
+    },
+    {
+      "wp": "WP-01",
+      "id": "no-query-form-links:/es/dishes/rendang",
+      "status": "FAIL",
+      "detail": "/es/dishes/rendang has 4 query-form filter links although a path page exists, e.g. /dishes?category=indonesian-cuisine"
     },
     {
       "wp": "WP-01",
@@ -148,13 +154,13 @@
       "wp": "WP-10",
       "id": "duplicate-names",
       "status": "FAIL",
-      "detail": "10 duplicated names: moussaka (moussaka-greek, moussaka); goulash (goulash-hungarian, goulash); ceviche (ceviche-peruvian, ceviche); hamburger (hamburger-american, hamburger); paella (paella-valenciana, paella); ramen (ramen-japanese, ramen); shakshuka (shakshuka, shakshouka); menemen (menemen, menemen-food); menudo (menudo-mexican-soup, menudo-filipino-stew); pancake (sinasir, pancake)"
+      "detail": "10 duplicated names: moussaka (moussaka-greek, moussaka); goulash (goulash-hungarian, goulash); ceviche (ceviche-peruvian, ceviche); hamburger (hamburger-american, hamburger); paella (paella-valenciana, paella); ramen (ramen-japanese, ramen); shakshuka (shakshuka, shakshouka); menemen (menemen, menemen-food); menudo (menudo-filipino-stew, menudo-mexican-soup); pancake (pancake, sinasir)"
     },
     {
       "wp": "WP-10",
       "id": "view-counts-plausible",
       "status": "FAIL",
-      "detail": "Lowest view count across all 1474 dishes is 1825 — looks seeded"
+      "detail": "Lowest view count across all 1474 dishes is 1889 — looks seeded"
     },
     {
       "wp": "WP-10",
@@ -196,7 +202,7 @@
       "wp": "WP-01",
       "id": "home-http-errors",
       "status": "FAIL",
-      "detail": "404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/pizza-margherita/cover-800w.webp · 404 /dishes/feijoada/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp · 404 /dishes/cacio-e-pepe/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp"
+      "detail": "404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/chicken-tikka-masala/cover-800w.webp · 404 /dishes/cacio-e-pepe/cover-800w.webp · 404 /dishes/pizza-margherita/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp"
     },
     {
       "wp": "WP-01",
