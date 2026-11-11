@@ -620,7 +620,11 @@ if (JSON_OUT) {
   const fs = await import("node:fs");
   fs.writeFileSync(
     JSON_OUT,
-    JSON.stringify(
+    // The trailing newline matters: biome's JSON formatter wants one, and
+    // the CI lint gate runs `biome check .` over the repo. Without it,
+    // every smoke run that writes a report leaves the tree unformatted
+    // and the lint job fails on the report it just produced.
+    `${JSON.stringify(
       {
         base: BASE,
         at: new Date().toISOString(),
@@ -630,7 +634,7 @@ if (JSON_OUT) {
       },
       null,
       2,
-    ),
+    )}\n`,
   );
 }
 process.exit(sum.FAIL ? 1 : 0);

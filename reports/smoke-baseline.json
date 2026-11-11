@@ -1,6 +1,6 @@
 {
   "base": "https://gustale.com",
-  "at": "2026-11-11T08:18:36.040Z",
+  "at": "2026-11-11T08:23:41.778Z",
   "only": null,
   "summary": {
     "FAIL": 24,
@@ -190,7 +190,7 @@
       "wp": "WP-01",
       "id": "home-http-errors",
       "status": "FAIL",
-      "detail": "404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp · 404 /dishes/chicken-tikka-masala/cover-800w.webp · 404 /dishes/falafel/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp · 404 /dishes/wiener-schnitzel/cover-800w.webp"
+      "detail": "404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/chicken-tikka-masala/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp · 404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/pizza-margherita/cover-800w.webp · 404 /dishes/wiener-schnitzel/cover-800w.webp"
     },
     {
       "wp": "WP-01",
@@ -214,7 +214,7 @@
       "wp": "WP-05",
       "id": "mobile-description-above-fold",
       "status": "FAIL",
-      "detail": "Rendang description starts at 872px on a 812px phone screen"
+      "detail": "Rendang description starts at 870px on a 812px phone screen"
     }
   ]
 }
