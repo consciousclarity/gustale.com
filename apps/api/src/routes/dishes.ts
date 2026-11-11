@@ -1220,7 +1220,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       cover: row.cover_storage_key
         ? {
             publicUrl: `/media/${row.cover_storage_key}`,
-            variantsUrls: (row.cover_variants as Record<string, string>) ?? {},
+            variantsUrls: mapVariantsToUrls(row.cover_variants),
             width: row.cover_width,
             height: row.cover_height,
             altText: row.cover_alt_text,
