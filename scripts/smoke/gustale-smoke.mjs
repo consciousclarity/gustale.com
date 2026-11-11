@@ -192,9 +192,22 @@ async function run() {
       );
     }
     // Same for a category and technique link from a dish page.
-    for (const [label, re] of [
-      ["category", /href="([^"]*category=stew[^"]*)"/],
-      ["technique", /href="([^"]*technique=[^"]*)"/],
+    //
+    // The assertion must be "every dish listed is IN the filtered set",
+    // the way region-filter-works does it -- NOT "the first few differ
+    // from the unfiltered list".
+    //
+    // The old check compared the page's first three dishes against the
+    // global top three BY VIEW COUNT. The static page's list is not
+    // sorted by view count, so the two always differed and the check
+    // always passed -- even for a page that filtered nothing. Measured
+    // on 2026-11-11: /dishes?category=stew, ?technique=curry,
+    // ?country=Indonesia and ?category=zzz all served the IDENTICAL
+    // page, and both checks reported PASS. A check that passes while
+    // the feature is broken is worse than no check.
+    for (const [label, re, apiParam] of [
+      ["category", /href="([^"]*category=stew[^"]*)"/, "category=stew"],
+      ["technique", /href="([^"]*technique=[^"]*)"/, "technique=curry"],
     ]) {
       const m = rendang.match(re);
       if (!m) {
@@ -206,22 +219,25 @@ async function run() {
         );
         continue;
       }
-      const h = await text(m[1].replace(/&amp;/g, "&"));
-      const first = dishSlugsIn(h).slice(0, 3);
-      const globalTop = dishes
-        .slice()
-        .sort((a, b) => b.viewCount - a.viewCount)
-        .slice(0, 3)
-        .map((d) => d.slug);
-      const unfiltered =
-        first.length && first.every((s, i) => s === globalTop[i]);
+      const href = m[1].replace(/&amp;/g, "&");
+      const h = await text(href);
+      const listed = dishSlugsIn(h).filter((s) => s !== "rendang");
+      // The API's own answer for this filter. This is the ground truth:
+      // the page must list dishes from THIS set.
+      const allowed = new Set(
+        (await allDishes(`&${apiParam}`)).map((d) => d.slug),
+      );
+      const hits = listed.filter((s) => allowed.has(s)).length;
+      const share = listed.length ? hits / listed.length : 0;
+      const ok = share >= 0.95 && listed.length >= 1;
       record(
         "WP-01",
         `${label}-filter-works`,
-        unfiltered ? "FAIL" : "PASS",
-        unfiltered
-          ? `${m[1]} shows the same first dishes as the unfiltered list (${first.join(", ")})`
-          : `${m[1]} differs from the unfiltered list`,
+        ok ? "PASS" : "FAIL",
+        ok
+          ? `${href} lists ${listed.length} dishes, ${hits} in the filtered set (${Math.round(share * 100)}%).`
+          : `${href} lists ${listed.length} dishes, only ${hits} in the ${apiParam} set (${Math.round(share * 100)}%). Expected ≥95%.`,
+        { share },
       );
     }
     // Dish list heading must not say "Recipes".
