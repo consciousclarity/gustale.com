@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # prove-0057.sh -- the proof-mutant test for migration 0057.
 #
-# It builds a copy of live on the DEDICATED TEST postgres, applies
+# It restores an explicitly supplied plain-SQL snapshot on the
+# DEDICATED TEST postgres, applies
 # 0057, then applies MUTANTS of it and asserts that each mutant is
 # REFUSED by its own proofs.
 #
@@ -9,22 +10,25 @@
 # one thing the migration claims, and the mutation must be caught.
 set -uo pipefail
 
-REPO=/tmp/dryrun0057
+SNAPSHOT="${1:?usage: prove-0057-assertions.sh <plain-sql-snapshot>}"
+if [ ! -r "$SNAPSHOT" ]; then
+  echo "FAILED: the snapshot is not readable: $SNAPSHOT" >&2
+  exit 1
+fi
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$REPO/scripts/lib/test_pg.sh"
 
 DB=gustale_0057_mutants
 MIG=$REPO/db/migrations/0057_ingredients_sourcing_vocabulary.sql
+export MIG
 
 echo "=== 0. the test Postgres ==="
 test_pg_up || { echo "FAILED: the test postgres is not up"; exit 1; }
 
-echo "=== 1. the copy of live ==="
-CONTAINER_SNAPSHOT=/tmp/m57_snapshot.dump
-docker exec shared-postgres pg_dump -U postgres -d gustale > /tmp/m57_host.dump
-docker cp shared-postgres:$CONTAINER_SNAPSHOT /tmp/m57_out.dump >/dev/null 2>&1 || cp /tmp/m57_host.dump /tmp/m57_out.dump
-
+echo "=== 1. restoring the supplied snapshot on the test Postgres ==="
 test_pg_create "$DB" >/dev/null
-cat /tmp/m57_out.dump | test_pg_run "$DB" >/dev/null 2>&1
+test_pg_run "$DB" < "$SNAPSHOT" >/dev/null 2>&1 || { echo "FAILED: snapshot restore"; exit 1; }
 echo "   the copy is made"
 
 echo "=== 2. the baseline: 0057 applies and proves ==="
@@ -52,7 +56,7 @@ fails=0
 rebuild_copy() {
   test_pg_drop "$DB" >/dev/null 2>&1
   test_pg_create "$DB" >/dev/null
-  cat /tmp/m57_out.dump | test_pg_run "$DB" >/dev/null 2>&1
+  test_pg_run "$DB" < "$SNAPSHOT" >/dev/null 2>&1 || { echo "FAILED: snapshot restore"; exit 1; }
 }
 
 # --- MUTANT 1: one row is published instead of draft.
@@ -62,7 +66,8 @@ sed "s/'draft',\n/'published',\n/" "$MIG" > /tmp/m57_mut1.sql
 # The simplest reliable mutation: change the status of the FIRST row.
 python3 - <<'PY'
 import re
-s = open('/tmp/dryrun0057/db/migrations/0057_ingredients_sourcing_vocabulary.sql').read()
+import os
+s = open(os.environ['MIG']).read()
 i = s.index("VALUES\n")
 head, tail = s[:i], s[i:]
 tail = tail.replace("'draft',", "'published',", 1)
@@ -79,7 +84,8 @@ fi
 echo "=== mutant 2: a category that is not in the taxonomy ==="
 rebuild_copy
 python3 - <<'PY'
-s = open('/tmp/dryrun0057/db/migrations/0057_ingredients_sourcing_vocabulary.sql').read()
+import os
+s = open(os.environ['MIG']).read()
 s = s.replace("'coconut',", "'no-such-category',", 1)
 open('/tmp/m57_mut2.sql','w').write(s)
 PY
@@ -94,7 +100,8 @@ fi
 echo "=== mutant 3: one row missing ==="
 rebuild_copy
 python3 - <<'PY'
-s = open('/tmp/dryrun0057/db/migrations/0057_ingredients_sourcing_vocabulary.sql').read()
+import os
+s = open(os.environ['MIG']).read()
 i = s.index("  ('epazote'")
 j = s.index("),", s.index("'00000000-0000-0000-0000-000000000001'::uuid)", i)) + 2
 # remove the whole epazote row
@@ -134,7 +141,6 @@ test_pg_run "$DB" -tAc "DELETE FROM ingredients WHERE slug='coconut-milk' AND ca
 
 echo "=== cleaning up ==="
 test_pg_drop "$DB" >/dev/null 2>&1
-rm -f /tmp/m57_out.dump /tmp/m57_host.dump
 
 if [ $fails -eq 0 ]; then
   echo "ALL_MUTANTS_CAUGHT=1"
