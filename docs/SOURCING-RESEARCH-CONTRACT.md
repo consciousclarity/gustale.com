@@ -197,6 +197,38 @@ search returns no product, that is a real, citable fact about that
 chain — but it is a fact about the chain's ONLINE catalogue, not about
 the country's shops, and it cannot carry `unavailable` on its own.
 
+### The market must be a MARKET
+
+The live `geo_entities` table holds **302** rows with
+`entity_type = 'country'`, but only **250** of them are sourceable
+markets: the **249** ISO 3166-1 countries plus **Kosovo** (`XK`).
+
+The other **52** names are not markets: 9 archived former states,
+**41** non-place rows (continents, historical states, non-sovereign
+entities, and three things that are not places at all), and **2**
+duplicates of ISO countries (`China` and `Palestine`). They are **54
+live rows**, because China and Palestine each have two.
+
+**All 41 non-place rows are used by a dish**, so they are load-bearing
+as dish *origins*. They are simply not places you can source a product
+in. **A row pointing at one of them is worse than a missing row** — it
+looks complete.
+
+**The check is `scripts/check-sourcing-market.py`, and it is not
+optional:**
+
+```bash
+python3 scripts/check-sourcing-market.py "Germany"      # OK
+python3 scripts/check-sourcing-market.py "Netherlands"  # rejected
+python3 scripts/check-sourcing-market.py "Asia"         # rejected
+python3 scripts/check-sourcing-market.py --row '{"country_code":"DE"}'
+```
+
+Run it over every market you write a row for, before the row is
+published.
+
+---
+
 ## 6. The three lines the research must check first
 
 The brief's §5.4 flags these; the list and the owner's review agree:
