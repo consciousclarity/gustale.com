@@ -1,0 +1,220 @@
+{
+  "base": "https://gustale.com",
+  "at": "2026-11-11T08:23:41.778Z",
+  "only": null,
+  "summary": {
+    "FAIL": 24,
+    "PASS": 7,
+    "WARN": 1
+  },
+  "results": [
+    {
+      "wp": "WP-01",
+      "id": "region-filter-works",
+      "status": "FAIL",
+      "detail": "/dishes?region=Indonesia lists 24 dishes, 1 Indonesian (4%). Expected ≥95% and ≥10 shown.",
+      "metric": {
+        "share": 0.041666666666666664
+      }
+    },
+    {
+      "wp": "WP-01",
+      "id": "category-filter-works",
+      "status": "PASS",
+      "detail": "/dishes?category=stew differs from the unfiltered list"
+    },
+    {
+      "wp": "WP-01",
+      "id": "technique-filter-works",
+      "status": "PASS",
+      "detail": "/dishes?technique=curry differs from the unfiltered list"
+    },
+    {
+      "wp": "WP-01",
+      "id": "dish-list-heading",
+      "status": "FAIL",
+      "detail": "/dishes H1 = \"Recipes\""
+    },
+    {
+      "wp": "WP-01",
+      "id": "featured-cover-files",
+      "status": "FAIL",
+      "detail": "Missing: moussaka-greek:404 (/dishes/moussaka-greek/cover-800w.webp), bibimbap:404 (/dishes/bibimbap/cover-800w.webp), nasi-goreng:404 (/dishes/nasi-goreng/cover-800w.webp), chicken-tikka-masala:404 (/dishes/chicken-tikka-masala/cover-800w.webp), biryani-hyderabadi:404 (/dishes/biryani-hyderabadi/cover-800w.webp), falafel:404 (/dishes/falafel/cover-800w.webp), pizza-margherita:404 (/dishes/pizza-margherita/cover-800w.webp), cacio-e-pepe:404 (/dishes/cacio-e-pepe/cover-800w.webp), goulash-hungarian:404 (/dishes/goulash-hungarian/cover-800w.webp), wiener-schnitzel:404 (/dishes/wiener-schnitzel/cover-800w.webp), feijoada:404 (/dishes/feijoada/cover-800w.webp), boeuf-bourguignon:404 (/dishes/boeuf-bourguignon/cover-800w.webp)"
+    },
+    {
+      "wp": "WP-02",
+      "id": "places-country-count",
+      "status": "FAIL",
+      "detail": "Places page says 36 countries; API has 178 distinct origins",
+      "metric": {
+        "shown": 36,
+        "api": 178
+      }
+    },
+    {
+      "wp": "WP-02",
+      "id": "places-indonesia-count",
+      "status": "FAIL",
+      "detail": "Places shows Indonesia 14; API 193"
+    },
+    {
+      "wp": "WP-02",
+      "id": "family-counts-agree",
+      "status": "FAIL",
+      "detail": "Home stat 123 · families page 22 · families in use by dishes 22",
+      "metric": {
+        "stat": 123,
+        "page": 22,
+        "inUse": 22
+      }
+    },
+    {
+      "wp": "WP-02",
+      "id": "places-stat",
+      "status": "FAIL",
+      "detail": "atlas/counts places = 0 (origins in data: 178)"
+    },
+    {
+      "wp": "WP-02",
+      "id": "sitemap-dish-count",
+      "status": "PASS",
+      "detail": "sitemap-en dish URLs 1474; API 1474"
+    },
+    {
+      "wp": "WP-02",
+      "id": "sitemap-lineage-count",
+      "status": "FAIL",
+      "detail": "sitemap-en lineage URLs 12; API 14"
+    },
+    {
+      "wp": "WP-03",
+      "id": "stubs-hidden /dishes/rendang",
+      "status": "FAIL",
+      "detail": "empty Preparation; \"Contributors 0\"; \"Variants 0\"; view count shown (pending Alex decision)"
+    },
+    {
+      "wp": "WP-03",
+      "id": "stubs-hidden /dishes/feijoada",
+      "status": "FAIL",
+      "detail": "empty Preparation; \"Contributors 0\"; \"Variants 0\"; view count shown (pending Alex decision)"
+    },
+    {
+      "wp": "WP-03",
+      "id": "stubs-hidden /dishes/hummus",
+      "status": "FAIL",
+      "detail": "empty Preparation; \"Contributors 0\"; \"Variants 0\"; view count shown (pending Alex decision)"
+    },
+    {
+      "wp": "WP-03",
+      "id": "no-dead-add-dish-link",
+      "status": "FAIL",
+      "detail": "Home links to gustale.recipes/dishes/new while recipe submission is unavailable"
+    },
+    {
+      "wp": "WP-03",
+      "id": "no-half-translations",
+      "status": "FAIL",
+      "detail": "/es page still has English UI: Preparation, Sources, You may also explore, Sign in (hide or finish the language)"
+    },
+    {
+      "wp": "WP-04",
+      "id": "correction-link",
+      "status": "FAIL",
+      "detail": "Unevidenced dish page needs a \"Suggest a source or correction\" link"
+    },
+    {
+      "wp": "WP-04",
+      "id": "search-typo-regression",
+      "status": "PASS",
+      "detail": "\"nasi gorang\" → nasi-goreng"
+    },
+    {
+      "wp": "WP-06",
+      "id": "taxonomy-coverage",
+      "status": "FAIL",
+      "detail": "family 8.2% · method 8.2% of 1474 dishes (target ≥95%)",
+      "metric": {
+        "family": 8.2,
+        "method": 8.2
+      }
+    },
+    {
+      "wp": "WP-10",
+      "id": "duplicate-names",
+      "status": "FAIL",
+      "detail": "10 duplicated names: moussaka (moussaka-greek, moussaka); goulash (goulash-hungarian, goulash); ceviche (ceviche-peruvian, ceviche); hamburger (hamburger-american, hamburger); paella (paella-valenciana, paella); ramen (ramen-japanese, ramen); shakshuka (shakshuka, shakshouka); menemen (menemen, menemen-food); menudo (menudo-mexican-soup, menudo-filipino-stew); pancake (sinasir, pancake)"
+    },
+    {
+      "wp": "WP-10",
+      "id": "view-counts-plausible",
+      "status": "FAIL",
+      "detail": "Lowest view count across all 1474 dishes is 1812 — looks seeded"
+    },
+    {
+      "wp": "WP-10",
+      "id": "covers",
+      "status": "WARN",
+      "detail": "136 dishes without a cover image"
+    },
+    {
+      "wp": "WP-09",
+      "id": "lineage-plural",
+      "status": "FAIL",
+      "detail": "\"1 dishes\" pluralisation"
+    },
+    {
+      "wp": "WP-09",
+      "id": "lineage-empty",
+      "status": "FAIL",
+      "detail": "Lineages with 0 dishes are listed"
+    },
+    {
+      "wp": "WP-09",
+      "id": "dish-links-lineage",
+      "status": "FAIL",
+      "detail": "No link to a specific lineage on: gyoza, jiaozi, ramen-japanese"
+    },
+    {
+      "wp": "WP-09",
+      "id": "confidence-defined",
+      "status": "FAIL",
+      "detail": "A page defining Documented / Likely related / Possible influence"
+    },
+    {
+      "wp": "WP-01",
+      "id": "home-images-render",
+      "status": "FAIL",
+      "detail": "12 broken: dishes/moussaka-greek/cover-800w.webp, dishes/bibimbap/cover-800w.webp, dishes/nasi-goreng/cover-800w.webp, dishes/chicken-tikka-masala/cover-800w.webp, dishes/biryani-hyderabadi/cover-800w.webp"
+    },
+    {
+      "wp": "WP-01",
+      "id": "home-http-errors",
+      "status": "FAIL",
+      "detail": "404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/chicken-tikka-masala/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp · 404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/pizza-margherita/cover-800w.webp · 404 /dishes/wiener-schnitzel/cover-800w.webp"
+    },
+    {
+      "wp": "WP-01",
+      "id": "home-places-section",
+      "status": "PASS",
+      "detail": "Places section on home"
+    },
+    {
+      "wp": "WP-01",
+      "id": "no-stuck-loaders /dishes/rendang",
+      "status": "PASS",
+      "detail": "All sections resolved"
+    },
+    {
+      "wp": "WP-01",
+      "id": "no-stuck-loaders /family/dumpling/",
+      "status": "PASS",
+      "detail": "All sections resolved"
+    },
+    {
+      "wp": "WP-05",
+      "id": "mobile-description-above-fold",
+      "status": "FAIL",
+      "detail": "Rendang description starts at 870px on a 812px phone screen"
+    }
+  ]
+}

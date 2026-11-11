@@ -140,3 +140,6 @@ data/pool_a_descriptions.json
 # would sweep them in. The workers branch from origin/main and push
 # from inside their own worktree, so nothing here needs to be tracked.
 .worktrees/
+
+# Smoke test browser libraries (downloaded, not committed)
+scripts/smoke/.browser-libs/
