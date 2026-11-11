@@ -59,12 +59,25 @@ export async function getStaticPaths() {
   }
 
   try {
-    let cats = await fromCategories();
+    // THE CANONICAL VOCABULARY FIRST.
+    //
+    // The dish list's `familySlug` is the canonical food family (see
+    // WP-02b), so paging the published dishes yields every family that
+    // HAS a page -- which is exactly the set the search can link to.
+    //
+    // This used to read `/api/categories` first, so the page covered
+    // the legacy vocabulary (152 category slugs) while the search
+    // returned the canonical one (123). Only 19 slugs are in both, so
+    // 104 search results were dead links.
+    //
+    // `/api/categories` is now the FALLBACK, for a database that has the
+    // categories but no canonical family relations yet.
+    let cats = await fromDishFamilies();
     if (cats.length === 0) {
       console.warn(
-        "[family/getStaticPaths] /api/categories empty — falling back to dish familySlug",
+        "[family/getStaticPaths] no canonical dish families — falling back to /api/categories",
       );
-      cats = await fromDishFamilies();
+      cats = await fromCategories();
     }
     if (cats.length === 0) {
       console.warn(
@@ -98,10 +111,17 @@ let initial: DishListResponse = {
 let serverError: string | null = null;
 
 try {
+  // The CANONICAL family filter, not the legacy `category:`.
+  //
+  // The taxonomy panel below this grid reads the canonical membership
+  // (WP-02b), so a grid filtered on the legacy category showed a
+  // different dish set from the panel describing it -- for the 19
+  // slugs that exist in both vocabularies. `family:` is the canonical
+  // dimension and the filter the site itself uses.
   initial = await listDishes({
     status: "published",
     limit: 100,
-    category: slug,
+    family: slug,
   });
 } catch (err: unknown) {
   if (err instanceof ApiError) {

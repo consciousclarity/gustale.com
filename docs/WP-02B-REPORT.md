@@ -78,3 +78,63 @@ Local logs: `/tmp/wp02b-{install,typecheck-final,lint-final,test-final,unit-fina
 Implementation commit: `abca24978b6fbd1979de8d12ccb2f0cd59baa373` (`fix(api): use canonical food families across public reads`). This report is committed separately afterward so it can identify the exact implementation SHA without a circular self-reference.
 
 The task-named repository helper `scripts/hermes/push_sha_as_app.py` is absent. The installed helper at `/home/alex/.hermes/github-app/push_sha_as_app.py` is used instead, with the explicit verified delivery SHA and expected remote SHA `ce832f879fe749242fc36d5dda373cf7fec36f0e` obtained with `git ls-remote origin refs/heads/feature/wp-02b-family-vocabulary`. That remote commit is an ancestor of this delivery. No force-push, deployment, or PR is used.
+
+---
+
+## Addendum, 2026-11-11 — the cross-review, and what it changed
+
+A separate agent reviewed this change read-only and found four problems.
+Three were fixed in the commit above; the fourth was a test-fixture
+issue that the fix also resolved.
+
+**1. 104 dead links.** The search returned `/family/<slug>` for the
+canonical vocabulary, but the family page built its paths from
+`/api/categories`. Only the 19 slugs in both had a page. Fixed: the
+page now builds its paths from the canonical dimension.
+
+**2. The grid and the taxonomy panel disagreed.** The panel read
+canonical membership; the grid filtered on the legacy `category:`.
+Fixed: the grid filters on `family:`.
+
+**3. A regression the reviewer's test run caught.** The search test
+passes on `main` and failed here. The cause is not cosmetic — the
+legacy dish-type vocabulary is not a subset of the canonical one:
+
+| legacy category | published dishes | canonical relations |
+|---|---:|---:|
+| main-course | 97 | 0 |
+| street-snack | 11 | 0 |
+| turkish-cuisine | 7 | 0 |
+| filipino-cuisine | 5 | 0 |
+| stir-fry | 5 | 0 |
+
+Five legacy families cover 35 published dishes with no canonical
+relation, so searching the canonical vocabulary alone dropped them —
+and `/family/main-course`, a page with 97 dishes, became unreachable
+from search. Fixed: the search is now the **union** of both
+vocabularies, de-duplicated by slug (130 distinct slugs).
+
+**4. No tie-break.** `ORDER BY df.is_primary DESC LIMIT 1` could pick
+arbitrarily between two families of equal `is_primary`. Fixed with
+`f.slug, f.id`, in the route and in the test's expected query.
+
+### The CI failure was a fixture problem, not a code problem
+
+CI's `dish_dish_families` table is **empty**, because
+`gus-014-118-dimensions.sql` assigns the families by `INSERT ... SELECT`
+over 93 dish slugs, and in `.github/workflows/ci.yml` that migration
+(line 547) runs **before** `packages/db/seed-atlas-references.sql`
+(line 742) — the step that creates those dishes. So the insert matches
+nothing.
+
+CI's database holds 7 dishes and no family relations, so the new
+assertion (`at least one published dish has an active family`) could
+never pass there. The assertion was a fixture precondition rather than
+the property under test, so it was replaced by the real property: the
+API and the SQL agree for every published dish, **including the null
+case** — which is the strong half, because it proves the API does not
+fall back to the legacy vocabulary.
+
+The API suite now passes with the relations **present** and **absent**
+(203 passed, 3 skipped, 0 failed), so it holds in the live-like and the
+CI-like state alike.

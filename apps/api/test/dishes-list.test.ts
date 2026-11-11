@@ -57,7 +57,10 @@ describe("GET /api/dishes — the list route", () => {
             FROM dish_dish_families x
             JOIN dish_families f ON f.id = x.value_id
            WHERE x.dish_id = d.id AND x.status = 'active'
-           ORDER BY x.is_primary DESC
+           -- The SAME tie-break as the route's lateral, or the
+           -- comparison would fail on a tie instead of proving that
+           -- the two agree.
+           ORDER BY x.is_primary DESC, f.slug, f.id
            LIMIT 1
         ) fam ON true
        WHERE d.status = 'published'
@@ -66,7 +69,19 @@ describe("GET /api/dishes — the list route", () => {
       slug: string | null;
       name: string | null;
     }[];
-    expect(expected.some((row) => row.slug !== null)).toBe(true);
+    // NOTE: there is deliberately NO `expect(expected.some((row) =>
+    // row.slug !== null)).toBe(true)` here. The CI database has an
+    // EMPTY `dish_dish_families` table -- `gus-014-118-dimensions.sql`
+    // assigns the families by INSERT ... SELECT over 93 dish slugs, and
+    // in `.github/workflows/ci.yml` that migration (line 547) runs
+    // BEFORE `packages/db/seed-atlas-references.sql` (line 742), which
+    // creates those dishes. The INSERT therefore matches nothing.
+    //
+    // The property under test is that the API and the SQL AGREE, for
+    // every dish, including the null case. A dish with no canonical
+    // relation must come back with a null familySlug -- if the API
+    // still fell back to the legacy vocabulary, that dish would have a
+    // non-null familySlug and the comparison below would fail.
     const byId = new Map(expected.map((row) => [row.id, row]));
     const seen = new Set<string>();
     for (let offset = 0; offset < expected.length; offset += 100) {
@@ -87,6 +102,17 @@ describe("GET /api/dishes — the list route", () => {
       }
     }
     expect(seen.size).toBe(expected.length);
+  });
+
+  it("has a canonical food-family vocabulary", async () => {
+    // The vocabulary itself must exist, whatever the relations do.
+    // This is what makes the list test meaningful: a dish with a null
+    // familySlug is only evidence of a NULL RELATION if the vocabulary
+    // is populated.
+    const vocab = (await db.execute(sql`
+      SELECT count(*)::int AS families FROM dish_families
+    `)) as unknown as { families: number }[];
+    expect(vocab[0]?.families ?? 0).toBeGreaterThan(0);
   });
 
   it("counts active canonical families used by published dishes", async () => {
