@@ -1,44 +1,10 @@
 /**
- * Integration test for GET /api/dishes (the LIST route).
- *
- * WHY THIS FILE EXISTS
- *
- * Until 2026-10-31, NO test ever called `GET /api/dishes`. Every
- * `/api/dishes` reference in the test suite was a `POST` (create) or a
- * `/api/dishes/:slug` call (read one). The list route itself was never
- * exercised.
- *
- * That is why a whole database column could go missing from the committed
- * migration chain without CI noticing. `GET /api/dishes` reads
- * `categories.kind`:
- *
- *     apps/api/src/routes/dishes.ts:275   AND c.kind = 'dish-type'
- *
- * and `categories.kind` existed in the LIVE database but in no committed
- * migration. A database built from the committed chain — which is what CI
- * builds — therefore had no such column, and the route returned HTTP 500.
- * The live site worked because the live database had the column; every
- * fresh environment was broken.
- *
- * These tests close that hole. They are the regression test for migration
- * 0035 (`db/migrations/0035_categories_kind.sql`), which restores the
- * column to the committed chain.
- *
- * WHAT IS COVERED
- *
- *   - GET /api/dishes returns 200 (the route does not 500)
- *   - the response has the list shape the web client expects
- *   - the dish-type category is resolved into familySlug/familyName
- *   - the `family=` filter works (it reads c.kind = 'family')
- *   - the `q=` search still works
- *   - the route returns only published dishes
- *   - an unknown path parameter is still a 404, not a 500
- *
- * Boot notes: the app is built in-process (no network) and uses the
- * DATABASE_URL from process.env — the same setup as the other integration
- * tests. The seed must have been applied for the content assertions.
+ * Integration contracts for the dish list, using the seeded database.
+ * Family display and filtering must use active dish_families relations.
  */
 
+import { db } from "@gustale/db";
+import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
@@ -80,20 +46,85 @@ describe("GET /api/dishes — the list route", () => {
     expect(first).toHaveProperty("status");
   });
 
-  it("resolves the dish-type category into familySlug and familyName", async () => {
-    // This is the join that reads c.kind = 'dish-type'. The assertion is
-    // that the query RAN (the route returned 200 and the dish carries the
-    // family fields the /families page groups by) — not that a particular
-    // slug is present, because the seed's category set differs between
-    // the CI seed and a full local seed.
-    const body = (
-      await app.inject({ method: "GET", url: "/api/dishes?limit=20" })
-    ).json();
-
-    for (const dish of body.dishes) {
-      expect(dish).toHaveProperty("familySlug");
-      expect(dish).toHaveProperty("familyName");
+  it("resolves familySlug and familyName from active dish_families, not legacy categories", async () => {
+    // Compare every published dish, including null relations. Membership in
+    // the vocabulary alone would miss overlapping legacy/canonical slugs.
+    const expected = (await db.execute(sql`
+      SELECT d.id, fam.slug, fam.name
+        FROM dishes d
+        LEFT JOIN LATERAL (
+          SELECT f.slug, f.name
+            FROM dish_dish_families x
+            JOIN dish_families f ON f.id = x.value_id
+           WHERE x.dish_id = d.id AND x.status = 'active'
+           -- The SAME tie-break as the route's lateral, or the
+           -- comparison would fail on a tie instead of proving that
+           -- the two agree.
+           ORDER BY x.is_primary DESC, f.slug, f.id
+           LIMIT 1
+        ) fam ON true
+       WHERE d.status = 'published'
+    `)) as unknown as {
+      id: string;
+      slug: string | null;
+      name: string | null;
+    }[];
+    // NOTE: there is deliberately NO `expect(expected.some((row) =>
+    // row.slug !== null)).toBe(true)` here. The CI database has an
+    // EMPTY `dish_dish_families` table -- `gus-014-118-dimensions.sql`
+    // assigns the families by INSERT ... SELECT over 93 dish slugs, and
+    // in `.github/workflows/ci.yml` that migration (line 547) runs
+    // BEFORE `packages/db/seed-atlas-references.sql` (line 742), which
+    // creates those dishes. The INSERT therefore matches nothing.
+    //
+    // The property under test is that the API and the SQL AGREE, for
+    // every dish, including the null case. A dish with no canonical
+    // relation must come back with a null familySlug -- if the API
+    // still fell back to the legacy vocabulary, that dish would have a
+    // non-null familySlug and the comparison below would fail.
+    const byId = new Map(expected.map((row) => [row.id, row]));
+    const seen = new Set<string>();
+    for (let offset = 0; offset < expected.length; offset += 100) {
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/dishes?status=published&limit=100&offset=${offset}`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.total).toBe(expected.length);
+      for (const dish of body.dishes) {
+        const family = byId.get(dish.id);
+        expect(family).toBeDefined();
+        expect(dish.familySlug, dish.slug).toBe(family?.slug);
+        expect(dish.familyName, dish.slug).toBe(family?.name);
+        expect(seen.has(dish.id)).toBe(false);
+        seen.add(dish.id);
+      }
     }
+    expect(seen.size).toBe(expected.length);
+  });
+
+  it("has a canonical food-family vocabulary", async () => {
+    // The vocabulary itself must exist, whatever the relations do.
+    // This is what makes the list test meaningful: a dish with a null
+    // familySlug is only evidence of a NULL RELATION if the vocabulary
+    // is populated.
+    const vocab = (await db.execute(sql`
+      SELECT count(*)::int AS families FROM dish_families
+    `)) as unknown as { families: number }[];
+    expect(vocab[0]?.families ?? 0).toBeGreaterThan(0);
+  });
+
+  it("counts active canonical families used by published dishes", async () => {
+    const expected = (await db.execute(sql`
+      SELECT count(DISTINCT x.value_id)::int AS families
+        FROM dish_dish_families x
+        JOIN dishes d ON d.id = x.dish_id
+       WHERE x.status = 'active' AND d.status = 'published'
+    `)) as unknown as { families: number }[];
+    const res = await app.inject({ method: "GET", url: "/api/atlas/counts" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().counts.families).toBe(expected[0]?.families);
   });
 
   it("filters by family (reads the dish_families dimension)", async () => {

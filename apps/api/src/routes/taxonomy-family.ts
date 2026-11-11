@@ -59,7 +59,7 @@ const DIMENSION_LABELS: Record<string, string> = {
 
 const DIMENSION_EXPLANATIONS: Record<string, string> = {
   family:
-    "A family groups dishes by the form they take — a dumpling is a shape and a way of holding a filling.",
+    "A food family classifies dishes by form, course, content type, or cuisine within the family hierarchy.",
   technique:
     "A technique is how a dish is prepared — steamed, fried, braised. It says nothing about where the dish came from.",
   course:
@@ -165,9 +165,9 @@ export function registerTaxonomyFamilyRoutes(app: FastifyInstance): void {
 
     // How many published dishes are in it, and which dishes.
     //
-    // The dishes come from the dimension tables AND from the legacy
-    // categories, because the two taxonomies hold different dishes:
-    // "dumpling" is filed in the legacy one, and "moussaka" is in both.
+    // Family membership uses only active canonical relations, matching
+    // the dish list, its filter, and atlas counts. Legacy prose may still
+    // supply a definition above, but never membership.
     //
     // The dimension is chosen FIRST and the query is built for it,
     // rather than a five-branch OR with the dimension as a parameter.
@@ -182,11 +182,8 @@ export function registerTaxonomyFamilyRoutes(app: FastifyInstance): void {
              WHERE d.status = 'published'
                AND (
                  EXISTS (SELECT 1 FROM dish_dish_families x
-                          WHERE x.dish_id = d.id AND x.value_id = (
+                          WHERE x.dish_id = d.id AND x.status = 'active' AND x.value_id = (
                             SELECT id FROM dish_families WHERE slug = ${found.slug}))
-                 OR EXISTS (SELECT 1 FROM dish_categories dc
-                              JOIN categories c ON c.id = dc.category_id
-                             WHERE dc.dish_id = d.id AND c.slug = ${found.slug})
                )
              ORDER BY d.canonical_name
              LIMIT 200`

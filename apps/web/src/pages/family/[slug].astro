@@ -59,20 +59,51 @@ export async function getStaticPaths() {
   }
 
   try {
-    let cats = await fromCategories();
-    if (cats.length === 0) {
+    // BOTH SOURCES, UNIONED.
+    //
+    // The canonical dimension (the dish list's `familySlug`) is what the
+    // dish list DISPLAYS and what the search now returns, so every
+    // canonical family must have a page -- otherwise the search links
+    // to a 404. The legacy `/api/categories` covers families the
+    // canonical dimension does NOT: `main-course` (97 published
+    // dishes), `turkish-cuisine`, `street-snack` and the rest of the
+    // dish-type categories have no canonical relation at all.
+    //
+    // So the two are unioned and de-duplicated by slug; a family in both
+    // is ONE page.
+    //
+    // `/api/categories` is also what carries the CI pagination fixture
+    // family (`late-page-family`), which the mock inserts at the dish
+    // list's first page boundary. It is deliberately absent from the
+    // first page of the list, so the categories source is what finds
+    // it -- and the build's own validation asserts that the page
+    // exists.
+    const [canonical, legacy] = await Promise.all([
+      fromDishFamilies(),
+      fromCategories(),
+    ]);
+
+    if (canonical.length === 0 && legacy.length === 0) {
       console.warn(
-        "[family/getStaticPaths] /api/categories empty — falling back to dish familySlug",
-      );
-      cats = await fromDishFamilies();
-    }
-    if (cats.length === 0) {
-      console.warn(
-        "[family/getStaticPaths] no categories resolved — emitting zero family pages",
+        "[family/getStaticPaths] no families resolved — emitting zero family pages",
       );
       return [];
     }
-    return cats.map((c) => ({
+    if (canonical.length === 0) {
+      console.warn(
+        "[family/getStaticPaths] no canonical dish families — using /api/categories only",
+      );
+    }
+
+    const bySlug = new Map<string, Cat>();
+    for (const c of [...canonical, ...legacy]) {
+      if (!c.slug || !c.name) continue;
+      // The canonical source wins a slug collision: it is the
+      // vocabulary the site displays.
+      if (!bySlug.has(c.slug)) bySlug.set(c.slug, c);
+    }
+
+    return [...bySlug.values()].map((c) => ({
       params: { slug: c.slug },
       props: { name: c.name, description: c.description },
     }));
@@ -98,10 +129,17 @@ let initial: DishListResponse = {
 let serverError: string | null = null;
 
 try {
+  // The CANONICAL family filter, not the legacy `category:`.
+  //
+  // The taxonomy panel below this grid reads the canonical membership
+  // (WP-02b), so a grid filtered on the legacy category showed a
+  // different dish set from the panel describing it -- for the 19
+  // slugs that exist in both vocabularies. `family:` is the canonical
+  // dimension and the filter the site itself uses.
   initial = await listDishes({
     status: "published",
     limit: 100,
-    category: slug,
+    family: slug,
   });
 } catch (err: unknown) {
   if (err instanceof ApiError) {
