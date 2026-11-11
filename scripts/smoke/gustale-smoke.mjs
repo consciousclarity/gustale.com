@@ -262,7 +262,7 @@ async function run() {
   // ---------- WP-02: indexes match the catalogue ----------
   if (want("WP-02")) {
     const places = stripTags(await text("/regions"));
-    const m = places.match(/(\d[\d,]*)\s+countr/i);
+    const m = places.match(/(\d[\d,]*)\s+(?:countr|origins)/i);
     const shown = m ? Number(m[1].replace(/,/g, "")) : null;
     record(
       "WP-02",
@@ -286,6 +286,23 @@ async function run() {
     const famShown = new Set(
       famCards.map((s) => s.match(/family\/([a-z0-9-]+)/)[1]),
     ).size;
+    // Coverage counts real slugs in use, not the directory's existing
+    // "other" bucket for dishes without a family. Keep the vocabulary
+    // agreement check below unchanged.
+    const listedFamilySlugs = new Set(
+      famCards.map((s) => s.match(/family\/([a-z0-9-]+)/)[1]),
+    );
+    const familiesCovered = [...familiesInUse].filter((slug) =>
+      listedFamilySlugs.has(slug),
+    ).length;
+    record(
+      "WP-02",
+      "directory-list-not-short",
+      shown === origins.size && familiesCovered === familiesInUse.size
+        ? "PASS"
+        : "FAIL",
+      `SHORT LIST if incomplete: Places ${shown ?? "?"}/${origins.size}; families ${familiesCovered}/${familiesInUse.size}`,
+    );
     const ok = counts.families === famShown && famShown === familiesInUse.size;
     record(
       "WP-02",
@@ -294,11 +311,15 @@ async function run() {
       `Home stat ${counts.families} · families page ${famShown} · families in use by dishes ${familiesInUse.size}`,
       { stat: counts.families, page: famShown, inUse: familiesInUse.size },
     );
+    const associatedPlaces = await json("/api/places");
     record(
       "WP-02",
       "places-stat",
-      counts.places > 0 ? "PASS" : "FAIL",
-      `atlas/counts places = ${counts.places} (origins in data: ${origins.size})`,
+      counts.places === associatedPlaces.count &&
+        associatedPlaces.count === associatedPlaces.places.length
+        ? "PASS"
+        : "FAIL",
+      `Published place associations: atlas/counts ${counts.places}; published-associated places ${associatedPlaces.count}`,
     );
     const sm = await text("/sitemap-en.xml");
     const smDishes = (sm.match(/<loc>[^<]*\/dishes\/[^<]+<\/loc>/g) || [])

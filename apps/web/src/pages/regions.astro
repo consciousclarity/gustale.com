@@ -4,66 +4,31 @@ import BrowseHeader from "../components/BrowseHeader.astro";
 import { CountryDirectory } from "../components/CountryDirectory.tsx";
 import ErrorBoundary from "../components/ErrorBoundary.tsx";
 import Layout from "../layouts/Layout.astro";
-import { listDishes } from "../lib/api";
-import { buildCountryDirectory, recoveryLinks } from "../lib/browse";
-import { currentDomain } from "../lib/domain";
-import type { DishListResponse } from "../types/dish";
+import { buildCountryDirectory, listAllDishes } from "../lib/browse";
 
-// Route stays /regions; the public language is "Places" — the
-// directory holds places, and the nav beside it says "Places" too.
-// The old label was "Countries", and 42 of the entities it listed were
-// regions and cultural areas rather than countries (ADR-004 F8).
-let initial: DishListResponse = {
-  dishes: [],
-  limit: 100,
-  offset: 0,
-  total: null,
-  hasMore: null,
-};
-let buildFailed = false;
-
-try {
-  initial = await listDishes({ status: "published", limit: 100 });
-} catch {
-  buildFailed = true;
-}
-
-const domain = currentDomain();
-const countries = buildCountryDirectory(initial.dishes);
-const recovery = recoveryLinks(domain);
+// Let catalogue failures propagate: a short directory must fail the build.
+const dishes = await listAllDishes({ status: "published" });
+const countries = buildCountryDirectory(dishes);
 ---
 
 <Layout
-  title="Places — Gustale"
-  description="Browse Gustale dishes by country of origin — a compact country directory for the atlas."
+  title="Dish origins — Gustale"
+  description="Browse Gustale dishes by origin — a complete origin directory for the atlas."
 >
-  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Places' }]} />
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Dish origins' }]} />
 
   <BrowseHeader
     eyebrow="Browse the atlas"
-    title="Places"
-    subtitle="A compact directory of origins. Search by country or dish name, then follow the dishes into the atlas."
-    countLabel={`${countries.length} countries`}
+    title="Dish origins"
+    subtitle="A compact directory of origins. Search by origin or dish name, then follow the dishes into the atlas."
+    countLabel={`${countries.length} origins`}
     showToolbar={false}
     showFilters={false}
   />
 
-  {buildFailed && (
-    <div class="wrap">
-      <div class="browse-banner browse-banner--error" role="status">
-        <p>Browse data was unavailable at build time. Retry from the live page when the API recovers.</p>
-        <ul class="browse-recovery">
-          {recovery.primary.map((l) => (
-            <li><a href={l.href}>{l.label}</a></li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  )}
-
   <section class="wrap browse-page">
     <ErrorBoundary name="Country directory">
-      <CountryDirectory dishes={initial.dishes} client:load />
+      <CountryDirectory dishes={dishes} client:load />
     </ErrorBoundary>
   </section>
 </Layout>

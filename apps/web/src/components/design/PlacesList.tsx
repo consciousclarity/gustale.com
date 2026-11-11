@@ -69,7 +69,7 @@ export function PlacesList({ places, locatedCount }: PlacesListProps) {
     return (
       <section className="places" aria-labelledby="places-heading">
         <h2 id="places-heading" className="places-heading">
-          Places
+          Mapped places
         </h2>
         <div className="places-empty">
           <p>No dish in the catalogue has a location yet.</p>
@@ -85,7 +85,7 @@ export function PlacesList({ places, locatedCount }: PlacesListProps) {
     <section className="places" aria-labelledby="places-heading">
       <div className="places-head">
         <h2 id="places-heading" className="places-heading">
-          Places
+          Mapped places
         </h2>
         {locatedCount !== null && locatedCount > 0 ? (
           <p className="places-note">
