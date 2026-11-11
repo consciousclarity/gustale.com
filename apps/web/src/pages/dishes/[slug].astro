@@ -10,6 +10,7 @@ import { EditDishButton } from "../../components/EditDishButton";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../lib/api";
+import { getFilterPageIndex, pathPageSlugs } from "../../lib/filterPages";
 import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
 import type { DishDetailResponse } from "../../types/dish";
 
@@ -73,6 +74,15 @@ export async function getStaticPaths() {
 }
 
 const { slug } = Astro.params;
+
+// Which filtered lists have a static path page -- the dish page's
+// category / method / region links go straight to those (works without JS).
+let pathPages = null;
+try {
+  pathPages = pathPageSlugs(await getFilterPageIndex());
+} catch {
+  // Links fall back to the query form, which the client-side filter handles.
+}
 
 let data: DishDetailResponse | null = null;
 let notFound = false;
@@ -174,6 +184,7 @@ const servedEnglish =
         preparations={data.preparations}
         sources={data.sources}
         media={data.media}
+        pathPages={pathPages}
         unevidenced={data.unevidenced}
         journeyBeats={journeyBeats}
         journeyLineages={journeyLineages}

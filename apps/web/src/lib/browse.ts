@@ -27,6 +27,12 @@ export interface BrowseQueryState {
   family: string | null;
   country: string | null;
   cuisine: string | null;
+  /**
+   * A category SLUG (exact match), from `?category=` -- the dish pages'
+   * "Same category" links. NOT an alias of `cuisine`: `cuisine` is a
+   * name matched with ILIKE, so `indonesian-cuisine` would match nothing.
+   */
+  category: string | null;
   type: string | null;
   ingredient: string | null;
   technique: string | null;
@@ -40,6 +46,7 @@ export const DEFAULT_BROWSE_STATE: BrowseQueryState = {
   family: null,
   country: null,
   cuisine: null,
+  category: null,
   type: null,
   ingredient: null,
   technique: null,
@@ -54,12 +61,16 @@ export const BROWSE_URL_KEYS = [
   "family",
   "country",
   "cuisine",
+  "category",
   "type",
   "ingredient",
   "technique",
   "sort",
   "page",
 ] as const;
+
+/** Aliases accepted on the URL; they are serialised back to `country`. */
+export const COUNTRY_URL_ALIASES = ["country", "region", "origin"] as const;
 
 export function parseBrowseState(
   source: URLSearchParams | Record<string, string | string[] | undefined>,
@@ -81,8 +92,11 @@ export function parseBrowseState(
   return {
     q: (get("q") ?? "").trim(),
     family: emptyToNull(get("family")),
-    country: emptyToNull(get("country")),
+    // `region` and `origin` are aliases of `country` (the API treats
+    // them identically). Serialised back to `country`.
+    country: emptyToNull(get("country") ?? get("region") ?? get("origin")),
     cuisine: emptyToNull(get("cuisine")),
+    category: emptyToNull(get("category")),
     type: emptyToNull(get("type")),
     ingredient: emptyToNull(get("ingredient")),
     technique: emptyToNull(get("technique")),
@@ -103,6 +117,7 @@ export function serializeBrowseState(state: BrowseQueryState): URLSearchParams {
   if (state.family) sp.set("family", state.family);
   if (state.country) sp.set("country", state.country);
   if (state.cuisine) sp.set("cuisine", state.cuisine);
+  if (state.category) sp.set("category", state.category);
   if (state.type) sp.set("type", state.type);
   if (state.ingredient) sp.set("ingredient", state.ingredient);
   if (state.technique) sp.set("technique", state.technique);
@@ -135,8 +150,10 @@ export function parseStructuredTokens(
     free = free.replace(tok, "");
     if (key === "origin" || key === "country" || key === "region") {
       result.country = val;
-    } else if (key === "cuisine" || key === "category") {
+    } else if (key === "cuisine") {
       result.cuisine = val;
+    } else if (key === "category") {
+      result.category = val;
     } else if (key === "type" || key === "dish-type") {
       result.type = val;
     } else if (key === "ingredient") {
@@ -240,6 +257,7 @@ export function applyBrowseFilter<T extends LikeableDish>(
     !state.family &&
     !state.country &&
     !state.cuisine &&
+    !state.category &&
     !state.type &&
     !state.ingredient &&
     !state.technique
@@ -329,6 +347,7 @@ export function browseFiltersKey(state: BrowseQueryState): string {
     state.family ?? "",
     state.country ?? "",
     state.cuisine ?? "",
+    state.category ?? "",
     state.type ?? "",
     state.ingredient ?? "",
     state.technique ?? "",
@@ -362,6 +381,7 @@ const FRIENDLY_LABELS: Record<keyof BrowseQueryState, string> = {
   family: "Family",
   country: "Country",
   cuisine: "Cuisine",
+  category: "Category",
   type: "Type",
   ingredient: "Ingredient",
   technique: "Technique",

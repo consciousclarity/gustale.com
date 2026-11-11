@@ -1,0 +1,112 @@
+---
+/**
+ * Static filtered dish lists:
+ *   /dishes/region/<slug>/     origins with >= 5 dishes
+ *   /dishes/category/<slug>/   categories with >= 5 dishes
+ *   /dishes/technique/<slug>/  techniques with >= 5 dishes
+ *
+ * The server HTML carries the filtered list, so it works with JavaScript
+ * disabled. Which pages exist is decided in lib/filterPages.ts, the same
+ * place the link builders ask, so a link never points at a missing page.
+ * Smaller lists stay reachable at /dishes?<kind>=X (client-side filter).
+ */
+import Breadcrumbs from "../../../components/Breadcrumbs.astro";
+import BrowseHeader from "../../../components/BrowseHeader.astro";
+import { DishExplorer } from "../../../components/DishExplorer.tsx";
+import ErrorBoundary from "../../../components/ErrorBoundary.tsx";
+import Layout from "../../../layouts/Layout.astro";
+import { listAllDishes, listDishes } from "../../../lib/api";
+import { propertyName } from "../../../lib/domain";
+import {
+  type FilterKind,
+  type FilterPageEntry,
+  getFilterPageIndex,
+} from "../../../lib/filterPages";
+import type { DishListResponse } from "../../../types/dish";
+
+export async function getStaticPaths() {
+  const index = await getFilterPageIndex();
+  const kinds: FilterKind[] = ["region", "category", "technique"];
+  return kinds.flatMap((kind) =>
+    Object.values(index[kind]).map((entry) => ({
+      params: { kind, slug: entry.slug },
+      props: { entry },
+    })),
+  );
+}
+
+const { entry } = Astro.props as { entry: FilterPageEntry };
+
+const PAGE_SIZE = 24;
+let initial: DishListResponse;
+if (entry.kind === "region") {
+  // Exact origin match: the API's origin filter is a substring match
+  // ("Guinea" would also return "Papua New Guinea").
+  const all = await listAllDishes({
+    status: "published",
+    country: entry.value,
+  });
+  // The WHOLE exact list is rendered: complete without JavaScript, and
+  // the client never refetches (see DishExplorer `complete`).
+  const exact = all.dishes.filter((d) => d.originName === entry.value);
+  initial = {
+    dishes: exact,
+    limit: exact.length,
+    offset: 0,
+    total: exact.length,
+    hasMore: false,
+  };
+} else {
+  initial = await listDishes({
+    status: "published",
+    limit: PAGE_SIZE,
+    ...(entry.kind === "category"
+      ? { category: entry.value }
+      : { technique: entry.value }),
+  });
+}
+
+const fixed =
+  entry.kind === "region"
+    ? { country: entry.value }
+    : entry.kind === "category"
+      ? { category: entry.value }
+      : { technique: entry.value };
+
+const total = initial.total ?? initial.dishes.length;
+const noun = total === 1 ? "dish" : "dishes";
+const title =
+  entry.kind === "region"
+    ? `Dishes from ${entry.name}`
+    : entry.kind === "category"
+      ? `${entry.name} dishes`
+      : `${entry.name} — dishes by cooking method`;
+---
+
+<Layout
+  title={`${title} — Gustale`}
+  description={`${total} ${noun}: ${title.toLowerCase()} in the Gustale encyclopedia.`}
+>
+  <Breadcrumbs
+    crumbs={[
+      { href: '/', label: 'Home' },
+      { href: '/dishes', label: 'Dishes' },
+      { label: entry.name },
+    ]}
+  />
+
+  <BrowseHeader
+    eyebrow={propertyName()}
+    title={title}
+    subtitle={`${total.toLocaleString("en-US")} ${noun}. Remove the filter to see every dish.`}
+    countLabel={`${total.toLocaleString("en-US")} ${noun}`}
+    showToolbar={false}
+    showFilters={false}
+  />
+
+  <section class="wrap browse-page">
+    <ErrorBoundary name="Dish list">
+      <DishExplorer initial={initial} fixed={fixed} complete={entry.kind === "region"} client:load />
+    </ErrorBoundary>
+  </section>
+</Layout>

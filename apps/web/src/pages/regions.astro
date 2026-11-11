@@ -2,13 +2,33 @@
 import Breadcrumbs from "../components/Breadcrumbs.astro";
 import BrowseHeader from "../components/BrowseHeader.astro";
 import { CountryDirectory } from "../components/CountryDirectory.tsx";
-import ErrorBoundary from "../components/ErrorBoundary.tsx";
+import ErrorBoundary from "../components/ErrorBoundary.astro";
 import Layout from "../layouts/Layout.astro";
 import { buildCountryDirectory, listAllDishes } from "../lib/browse";
+import { getFilterPageIndex, pathPageSlugs } from "../lib/filterPages";
 
 // Let catalogue failures propagate: a short directory must fail the build.
+//
+// `listAllDishes` pages the whole catalogue and asserts that the
+// collected count AND the distinct-slug count equal the API's total. If
+// the list comes back short, it THROWS -- so the build fails and no
+// page is written. That is the WP-02 count gate, and it is why this
+// page does not use `listDishes({ limit: 100 })`: a directory built
+// from the first 100 dishes would show 36 origins where the catalogue
+// has 178.
 const dishes = await listAllDishes({ status: "published" });
 const countries = buildCountryDirectory(dishes);
+
+// The path-form pages, so an origin with a page links to it and the
+// filtered list works with JavaScript disabled. `filterHref` falls back
+// to the query form for an origin below the page threshold, which is
+// the client-side filter.
+let pathPages = null;
+try {
+  pathPages = pathPageSlugs(await getFilterPageIndex());
+} catch {
+  // Links fall back to the query form (client-side filter).
+}
 ---
 
 <Layout
@@ -28,7 +48,7 @@ const countries = buildCountryDirectory(dishes);
 
   <section class="wrap browse-page">
     <ErrorBoundary name="Country directory">
-      <CountryDirectory dishes={dishes} client:load />
+      <CountryDirectory dishes={dishes} pathPages={pathPages} client:load />
     </ErrorBoundary>
   </section>
 </Layout>
