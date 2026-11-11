@@ -304,12 +304,16 @@ export function registerDishRoutes(app: FastifyInstance): void {
       FROM dishes d
       LEFT JOIN geo_entities g ON g.id = d.origin_geo_id
       LEFT JOIN LATERAL (
-        SELECT c.slug, c.name
-        FROM dish_categories dc
-        JOIN categories c ON c.id = dc.category_id
-        WHERE dc.dish_id = d.id
-          AND c.kind = 'dish-type'
-        ORDER BY dc.is_primary DESC
+        SELECT f.slug, f.name
+        FROM dish_dish_families df
+        JOIN dish_families f ON f.id = df.value_id
+        WHERE df.dish_id = d.id
+          AND df.status = 'active'
+        -- A stable tie-break. Without it, a dish with two active
+        -- families of equal is_primary would get an ARBITRARY one, and
+        -- the list, the search and the detail page could disagree
+        -- between runs. The name then the id is stable and total.
+        ORDER BY df.is_primary DESC, f.slug, f.id
         LIMIT 1
       ) fam ON true
       LEFT JOIN LATERAL (
@@ -1220,7 +1224,7 @@ export function registerDishRoutes(app: FastifyInstance): void {
       cover: row.cover_storage_key
         ? {
             publicUrl: `/media/${row.cover_storage_key}`,
-            variantsUrls: (row.cover_variants as Record<string, string>) ?? {},
+            variantsUrls: mapVariantsToUrls(row.cover_variants),
             width: row.cover_width,
             height: row.cover_height,
             altText: row.cover_alt_text,

@@ -325,44 +325,108 @@ async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
 }
 
 /**
- * Families — the `/family/<slug>` pages.
+ * Food families: the canonical dimension AND the legacy dish-type
+ * categories, unioned.
  *
- * A family page exists for a LEGACY CATEGORY, not for a dimension row.
- * So this searches the categories that have a page and a dish behind it.
+ * WHY BOTH
+ * --------
+ * The canonical `dish_families` (123 in use) is what the dish list now
+ * DISPLAYS and what the taxonomy endpoint counts (WP-02b). It is not,
+ * however, a SUPERSET of the legacy vocabulary -- and the gap is not
+ * cosmetic. Measured on live, read-only:
  *
- * A family with no dishes has a page, but the page is empty — so it is
- * not a useful hit, and it is excluded. Live has 43 such families.
+ *   legacy category   published dishes   canonical relations
+ *   main-course                  97                0
+ *   street-snack                 11                0
+ *   turkish-cuisine               7                0
+ *   filipino-cuisine              5                0
+ *   stir-fry                      5                0
  *
- * The category's `kind` is deliberately NOT filtered. `/family/<slug>`
- * serves all four kinds — family, cuisine, dish-type, course-group —
- * and the 17 content-bearing `cuisine` categories have real dishes
- * behind them (`/family/japanese-cuisine` has 10). Filtering by kind
- * would hide exactly the pages a reader searching "japanese" wants.
+ * Five legacy families cover 35 published dishes and have NO canonical
+ * relation at all. Searching the canonical vocabulary ALONE drops
+ * them: "main course" returns nothing in the family group, and
+ * /family/main-course -- a page with 97 dishes on it -- becomes
+ * unreachable from search. The same is true of the cuisine categories,
+ * which were never food families to begin with but do have pages.
+ *
+ * So the group is the union of both, de-duplicated by slug. A slug that
+ * is in both vocabularies is ONE hit, not two.
+ *
+ * This is a superset of what the search did before WP-02b -- the old
+ * code searched ALL categories, because the category `kind` was
+ * deliberately not filtered. Nothing that was findable becomes
+ * unfindable.
+ *
+ * Every hit has a page: the family route builds its paths from the
+ * canonical dimension and falls back to /api/categories, so both
+ * vocabularies are covered.
  */
 async function searchFamilies(q: string, limit: number): Promise<SearchGroup> {
   const rows = (await db.execute(sql`
+    WITH candidates AS (
+      -- The canonical food families.
+      SELECT
+        c.slug,
+        c.name,
+        c.description,
+        EXISTS (
+          SELECT 1 FROM dish_dish_families df
+            JOIN dishes d ON d.id = df.dish_id
+           WHERE df.value_id = c.id AND df.status = 'active'
+             AND d.status = 'published'
+        ) AS has_dishes
+      FROM dish_families c
+
+      UNION ALL
+
+      -- The legacy dish-type categories, which still have pages and
+      -- still name things the canonical vocabulary does not.
+      SELECT
+        c.slug,
+        c.name,
+        c.description,
+        EXISTS (
+          SELECT 1 FROM dish_categories dc
+            JOIN dishes d ON d.id = dc.dish_id
+           WHERE dc.category_id = c.id AND d.status = 'published'
+        ) AS has_dishes
+      FROM categories c
+      WHERE c.kind = 'dish-type'
+    ),
+    scored AS (
+      SELECT
+        slug,
+        name,
+        description,
+        has_dishes,
+        GREATEST(
+          CASE WHEN LOWER(name) LIKE LOWER(${q + "%"}) THEN 1.0 ELSE 0 END,
+          similarity(LOWER(name), LOWER(${q})),
+          similarity(LOWER(COALESCE(description, '')), LOWER(${q}))
+        )::float8 AS score
+      FROM candidates
+      WHERE has_dishes
+        AND (
+          LOWER(name) LIKE '%' || LOWER(${q}) || '%'
+          OR similarity(LOWER(name), LOWER(${q})) > ${SIMILARITY_FLOOR}
+          OR similarity(LOWER(COALESCE(description, '')), LOWER(${q})) > ${SIMILARITY_FLOOR}
+        )
+    ),
+    -- One hit per slug: a family in both vocabularies is one page.
+    deduped AS (
+      SELECT DISTINCT ON (slug)
+        slug, name, description, score
+      FROM scored
+      ORDER BY slug, score DESC
+    )
     SELECT
-      c.slug,
-      c.name,
-      c.description,
-      GREATEST(
-        CASE WHEN LOWER(c.name) LIKE LOWER(${q + "%"}) THEN 1.0 ELSE 0 END,
-        similarity(LOWER(c.name), LOWER(${q})),
-        similarity(LOWER(COALESCE(c.description, '')), LOWER(${q}))
-      )::float8 AS score,
+      slug,
+      name,
+      description,
+      score,
       COUNT(*) OVER ()::int AS total
-    FROM categories c
-    WHERE EXISTS (
-        SELECT 1 FROM dish_categories dc
-          JOIN dishes d ON d.id = dc.dish_id
-         WHERE dc.category_id = c.id AND d.status = 'published'
-      )
-      AND (
-        LOWER(c.name) LIKE '%' || LOWER(${q}) || '%'
-        OR similarity(LOWER(c.name), LOWER(${q})) > ${SIMILARITY_FLOOR}
-        OR similarity(LOWER(COALESCE(c.description, '')), LOWER(${q})) > ${SIMILARITY_FLOOR}
-      )
-    ORDER BY score DESC NULLS LAST, c.name
+    FROM deduped
+    ORDER BY score DESC NULLS LAST, name
     LIMIT ${limit * 4}
   `)) as Array<{
     slug: string;

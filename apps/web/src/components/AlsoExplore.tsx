@@ -1,3 +1,4 @@
+import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 import type { DishCategory, DishPreparation } from "../types/dish";
 
 // ---------------------------------------------------------------------------
@@ -14,6 +15,8 @@ export interface AlsoExploreProps {
   categories: DishCategory[];
   preparations: DishPreparation[];
   originName: string | null;
+  /** Which filtered lists have a static path page (works without JS). */
+  pathPages?: PathPageSlugs | null;
 }
 
 interface ExploreLink {
@@ -27,6 +30,7 @@ export function AlsoExplore({
   categories,
   preparations,
   originName,
+  pathPages = null,
 }: AlsoExploreProps) {
   const links: ExploreLink[] = [];
 
@@ -37,7 +41,7 @@ export function AlsoExplore({
   const secondary = categories.find((c) => c !== primary) ?? null;
   for (const c of [primary, secondary].filter(Boolean) as DishCategory[]) {
     links.push({
-      href: `/dishes?category=${encodeURIComponent(c.slug)}`,
+      href: filterHref(pathPages, "category", c.slug),
       label: c.name,
       meta: "Same category",
       tone: "cuisine",
@@ -48,7 +52,7 @@ export function AlsoExplore({
   const method = preparations[0];
   if (method) {
     links.push({
-      href: `/dishes?technique=${encodeURIComponent(method.methodSlug)}`,
+      href: filterHref(pathPages, "technique", method.methodSlug),
       label: method.methodName,
       meta: "Same cooking method",
       tone: "method",
@@ -58,7 +62,7 @@ export function AlsoExplore({
   // Region / origin
   if (originName) {
     links.push({
-      href: `/dishes?region=${encodeURIComponent(originName)}`,
+      href: filterHref(pathPages, "region", originName),
       label: originName,
       meta: "Same region",
       tone: "region",

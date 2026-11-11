@@ -185,7 +185,7 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
           FROM dish_dish_families x
           JOIN dish_families f ON f.id = x.value_id
           LEFT JOIN dish_families pf ON pf.id = f.parent_id
-         WHERE x.dish_id = ${dish.id}
+         WHERE x.dish_id = ${dish.id} AND x.status = 'active'
         UNION ALL
         SELECT 'technique', t.id, t.name, t.slug, NULL
           FROM dish_dish_techniques x
@@ -487,8 +487,11 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
            CROSS JOIN LATERAL public.published_associations_for_dish(d.id) a
           WHERE a.entity_kind = 'community')
           AS communities,
-        -- The FAMILY count: the distinct families in use.
-        (SELECT count(DISTINCT value_id)::int FROM dish_dish_families)
+        -- Active canonical families used by published dishes, as in the list.
+        (SELECT count(DISTINCT x.value_id)::int
+           FROM dish_dish_families x
+           JOIN dishes d ON d.id = x.dish_id
+          WHERE x.status = 'active' AND d.status = 'published')
           AS families,
         -- The CONNECTION count: the distinct UNDIRECTED pairs.
         --

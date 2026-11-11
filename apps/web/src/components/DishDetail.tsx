@@ -1,5 +1,6 @@
 import { selectDishHeroMedia } from "../lib/dishMedia";
 import { authoringHref } from "../lib/domain";
+import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 import type {
   DishCategory,
   DishCitation,
@@ -30,6 +31,8 @@ export interface DishDetailProps {
   preparations: DishPreparation[];
   sources: DishCitation[];
   media: DishMediaAttachment[];
+  /** Filtered lists that have a static path page (no-JS links). */
+  pathPages?: PathPageSlugs | null;
   /**
    * The Pool A publication badge. When true, the page shows a visible
    * notice that the dish's claims are not yet evidenced.
@@ -54,6 +57,7 @@ export function DishDetail({
   preparations,
   sources,
   media,
+  pathPages = null,
   unevidenced = false,
   journeyBeats = [],
   journeyLineages = [],
@@ -73,9 +77,7 @@ export function DishDetail({
           {primaryCategory && (
             <>
               <span className="sep">›</span>
-              <a
-                href={`/dishes?category=${encodeURIComponent(primaryCategory.slug)}`}
-              >
+              <a href={filterHref(pathPages, "category", primaryCategory.slug)}>
                 {primaryCategory.name}
               </a>
             </>
@@ -314,6 +316,7 @@ export function DishDetail({
               categories={categories}
               preparations={preparations}
               originName={origin?.name ?? null}
+              pathPages={pathPages}
             />
           </section>
         )}

@@ -166,62 +166,125 @@ async function run() {
       (await allDishes("&region=Indonesia")).map((d) => d.slug),
     );
     const rendang = await text("/dishes/rendang");
+    // The link is a PATH form now -- /dishes/region/indonesia/ -- because
+    // the site is static and the filtered list must work without
+    // JavaScript. The old query form (?region=Indonesia) is still
+    // accepted, for a link that has not moved yet.
+    // Anchor on the path form: /places/indonesia/ must not match.
     const regionHref = (rendang.match(
-      /href="([^"]*(?:region=Indonesia|\/indonesia)[^"]*)"/i,
+      /href="(\/dishes\/region\/indonesia\/?|[^"]*[?&]region=Indonesia[^"]*)"/i,
     ) || [])[1];
+    // The same assertion for all three kinds: every dish the page lists
+    // must be in the API's filtered set, and at least MIN_LISTED are shown.
+    const MIN_LISTED = 5;
+    const checkFilterPage = async (label, href, apiParam, page) => {
+      const listed = dishSlugsIn(await text(href)).filter(
+        (s) => s !== "rendang",
+      );
+      const allowed = new Set(
+        (await allDishes(`&${apiParam}`)).map((d) => d.slug),
+      );
+      const hits = listed.filter((s) => allowed.has(s)).length;
+      const share = listed.length ? hits / listed.length : 0;
+      const ok = share >= 0.95 && listed.length >= MIN_LISTED;
+      record(
+        "WP-01",
+        `${label}-filter-works`,
+        ok ? "PASS" : "FAIL",
+        `${href} lists ${listed.length} dishes, ${hits} in the ${apiParam} set (${Math.round(share * 100)}%). Expected ≥95% and ≥${MIN_LISTED} shown.`,
+        { share },
+      );
+    };
     if (!regionHref) {
       record(
         "WP-01",
         "region-link-present",
         "FAIL",
-        'No "Same region: Indonesia" link found on /dishes/rendang',
+        'No "Same region: Indonesia" path link found on /dishes/rendang',
       );
     } else {
-      const href = regionHref.replace(/&amp;/g, "&");
-      const listed = dishSlugsIn(await text(href)).filter(
-        (s) => s !== "rendang",
-      );
-      const hits = listed.filter((s) => indoSet.has(s)).length;
-      const share = listed.length ? hits / listed.length : 0;
-      record(
-        "WP-01",
-        "region-filter-works",
-        share >= 0.95 && listed.length >= 10 ? "PASS" : "FAIL",
-        `${href} lists ${listed.length} dishes, ${hits} Indonesian (${Math.round(share * 100)}%). Expected ≥95% and ≥10 shown.`,
-        { share },
+      await checkFilterPage(
+        "region",
+        regionHref.replace(/&amp;/g, "&"),
+        "region=Indonesia",
       );
     }
-    // Same for a category and technique link from a dish page.
+    // Category and technique: the link is taken FROM the page, and the
+    // API parameter is taken from the href itself -- never hard-coded.
+    //
+    // The assertion is "every dish listed is IN the filtered set", not
+    // "the first few differ from the unfiltered list": the old check
+    // compared against the global top three by view count, always
+    // differed, and passed even for a page that filtered nothing.
+    // A missing link is a FAIL, not a WARN.
     for (const [label, re] of [
-      ["category", /href="([^"]*category=stew[^"]*)"/],
-      ["technique", /href="([^"]*technique=[^"]*)"/],
+      ["category", /href="(\/dishes\/category\/([^"\/?#]+)\/?)"/],
+      ["technique", /href="(\/dishes\/technique\/([^"\/?#]+)\/?)"/],
     ]) {
       const m = rendang.match(re);
       if (!m) {
         record(
           "WP-01",
           `${label}-link-present`,
-          "WARN",
-          `No ${label} link on /dishes/rendang (may have moved to path routes)`,
+          "FAIL",
+          `No /dishes/${label}/<slug>/ link on /dishes/rendang`,
         );
         continue;
       }
-      const h = await text(m[1].replace(/&amp;/g, "&"));
-      const first = dishSlugsIn(h).slice(0, 3);
-      const globalTop = dishes
-        .slice()
-        .sort((a, b) => b.viewCount - a.viewCount)
-        .slice(0, 3)
-        .map((d) => d.slug);
-      const unfiltered =
-        first.length && first.every((s, i) => s === globalTop[i]);
+      await checkFilterPage(
+        label,
+        m[1],
+        `${label}=${decodeURIComponent(m[2])}`,
+      );
+    }
+    // No filter link may fall back to the query form when a path page
+    // exists: that is the unfiltered-without-JavaScript case. Checked on
+    // /regions and on a translated dish page, not only English rendang.
+    const queryFormLinks = (html) =>
+      [...html.matchAll(/href="(\/dishes\?[^"]*)"/g)]
+        .map((x) => x[1].replace(/&amp;/g, "&"))
+        .filter((h) => /[?&](region|category|technique)=/.test(h));
+    for (const path of ["/regions", "/es/dishes/rendang"]) {
+      const res = await get(path);
+      if (res.status !== 200) {
+        record(
+          "WP-01",
+          `no-query-form-links:${path}`,
+          "FAIL",
+          `${path} returned ${res.status}`,
+        );
+        continue;
+      }
+      const html = await res.text();
+      const bad = queryFormLinks(html);
+      // Origins below the page threshold legitimately use the query form;
+      // list them so a reader can judge, but fail on the filter kinds that
+      // always have pages (category / technique) and on any region link
+      // whose path page exists.
+      const regionBad = [];
+      for (const h of bad) {
+        const kind = (h.match(/[?&](region|category|technique)=/) || [])[1];
+        if (kind !== "region") {
+          regionBad.push(h);
+          continue;
+        }
+        const name = decodeURIComponent(h.split("region=")[1].split("&")[0]);
+        const slug = name
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        if ((await get(`/dishes/region/${slug}/`)).status === 200)
+          regionBad.push(h);
+      }
       record(
         "WP-01",
-        `${label}-filter-works`,
-        unfiltered ? "FAIL" : "PASS",
-        unfiltered
-          ? `${m[1]} shows the same first dishes as the unfiltered list (${first.join(", ")})`
-          : `${m[1]} differs from the unfiltered list`,
+        `no-query-form-links:${path}`,
+        regionBad.length ? "FAIL" : "PASS",
+        regionBad.length
+          ? `${path} has ${regionBad.length} query-form filter links although a path page exists, e.g. ${regionBad[0]}`
+          : `${path}: ${bad.length} query-form links, none for a filter that has a page`,
       );
     }
     // Dish list heading must not say "Recipes".
