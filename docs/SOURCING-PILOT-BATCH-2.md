@@ -360,6 +360,43 @@ rows asserts that.
 
 ---
 
+## 5b. Gap closures from the Batch 3 run (2026-11-11)
+
+**All Indonesian evidence in this section is Tier M**: a Tokopedia page read through
+the reader proxy. Tokopedia publishes no JSON-LD, so `extract-retailer-price.py`
+cannot certify it. It proves the listing and its listed price; it is not Tier 1.
+The first Rp figure on a card is the live price, the second the struck-through list price.
+
+**Gap (a), the ordinary-retail seller for Indonesia — PARTLY CLOSED.** Two
+sellers that are not producers or butchers were found (shop search pages saved in
+`/tmp/b3/jina_s_*`, `jina_pam_*`):
+
+| seller | kind of shop | what it sells | listed price |
+|---|---|---|---|
+| **PAMELLA GROSIR** (Kab. Jember) tokopedia.com/pamella-grosir | general-goods **wholesaler selling to the public** (Indomie, Frisian Flag, biscuits; ~21.8k reviews, ~571k sold per its shop page) | Sun Kara santan 110 ml; Tepung Tapioka Cap Gajah Laut 500 g | Rp 12.813; Rp 17.067 (list 18.963) |
+| **SAYUR IJO JAKARTA** (Jakarta Utara) tokopedia.com/sayurijojakarta | **online greengrocer** (dry goods and frozen etalases; ~29.1k reviews, ~163k sold) | Asam Jawa Tanpa Biji Cap Gunung 150 g; Buah Asem Jawa (pod) 480-500 g; Rose Brand santan 65 ml; Singkong Meledag 600 g frozen | Rp 14.590; Rp 24.488; Rp 7.828; Rp 34.306 |
+
+What this supports: **coconut milk** is sold by both a general wholesaler and a greengrocer
+(supports `common` rather than `specialty_only`); **tamarind** (dried and pod,
+five SKUs) is carried by a greengrocer (supports `occasional`/`common`);
+**cassava** frozen is sold by the greengrocer, fresh root so far only by a butcher
+(supports `occasional`). **I have NOT changed the ID country rows in §1**: both
+sellers are online, neither is a supermarket or hypermarket, and the owner should
+decide whether an online greengrocer counts as ordinary retail. Proposed, pending
+that decision: coconut milk `common`, tamarind `occasional`, cassava `occasional`.
+Klikindomaret and Blibli (403) and Alfagift, Superindo, Ranch, Segari, HappyFresh
+(client-rendered, no results) could not be read: **not evidence of absence.**
+`abetmart` (carton sales) is not used.
+
+**Gap (c), partly closed:**
+- ID `cassava-flour` price: **Tepung Mocaf APF 500 g, Ladang Lima (Jakarta Pusat, official store), Rp 21.142** (list 23.500), Tier M. Suitability stays `approximate`, same spec limit as §3.
+- ID `tapioka` (the `tapioca-starch` substitute): **Cap Gajah Laut 500 g, Rp 17.067** at Pamella Grosir (wholesaler), Tier M. Availability supports `occasional`; suitability not researched, so no suitability is asserted.
+- ID cassava `frozen` retail price: **Singkong Meledag 600 g, Rp 34.306** (Sayur Ijo Jakarta), Tier M. The listing is a ready-to-fry frozen product; the BPOM `MD` frozen cassava registrations in §2.3 remain the local-origin evidence, but I did not match this brand to a registration.
+
+**NOT closed, left as in §5:** gap (b) all US pairs, the Swiss tamarind pod, the Swiss/German cassava-flour and tapioca rows, the German tamarind pod, the German/Swiss fresh and homemade coconut-milk forms, the ID `tamarind-block` substitute, and the Swiss Migros coconut-milk price (Migros publishes no JSON-LD, so CHF 1.40 is not certifiable under the Tier 1 rule; CHF 2.80 is the carousel value and must not be used).
+
+---
+
 ## 6. How this document was checked
 
 - **Every cited URL was fetched.** The prices were read from the
