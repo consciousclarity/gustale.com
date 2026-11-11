@@ -178,3 +178,12 @@ Verified: `docker build --build-arg BUILD_DATA_SOURCE=mock
 
 and the axe gate passes locally with **0 violations across 6 pages x 2
 viewports**.
+
+### A note on the CI accessibility gate
+
+The `Accessibility gate (axe)` job failed on this branch with
+`Install Chromium` as the failing step — the Playwright browser
+download, which happens **before** the site is built. It is a runner
+flake, not a code failure: the same job failed on PR #225 while passing
+on PR #226 and PR #228, and the axe gate passes locally with **0
+violations across 6 pages x 2 viewports**.
