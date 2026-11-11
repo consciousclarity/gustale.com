@@ -221,11 +221,18 @@ verify).
    (2026-11-11): *no staging for now — verify on a clean-clone production
    build locally, then smoke prod after deploy.* So:
    ```bash
-   git clone --branch wp/01-browsing-works https://github.com/consciousclarity/gustale.com.git /tmp/wp01-verify
+   git clone --branch integration/wp-01-wp-02 https://github.com/consciousclarity/gustale.com.git /tmp/wp01-verify
    cd /tmp/wp01-verify && pnpm install --frozen-lockfile && pnpm lint && pnpm -r run typecheck && pnpm -r run test
    ```
    A green working tree is **not** enough — CI caught two failures in the
    working tree that only a clean clone exposed (WP-00 §6b).
+
+   **The branch is `integration/wp-01-wp-02`, not one of the four PR
+   branches.** The four PRs (#225, #226, #227, #228) conflict with each
+   other in two files, and the resolution is in the integration branch
+   (PR #229). Merging the four PRs into `main` one at a time would
+   produce the conflicts again. The integration branch is what gets
+   deployed.
 3. **The build itself succeeds in the production shape** — the Astro build
    with `BUILD_DATA_SOURCE=live`, because that is what the deploy does:
    ```bash
