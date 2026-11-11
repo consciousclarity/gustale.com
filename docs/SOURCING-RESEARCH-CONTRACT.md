@@ -163,6 +163,19 @@ is a POST behind Laravel's CSRF middleware. Without this the answer
 costs eleven hand-built queries — and the wrong answer, because a
 retailer page cannot say where a product was made.
 
+**The registry helper URL-encodes its query, so multi-word terms
+work.** `bash scripts/bpom-registry.sh "asam jawa" 20` is correct.
+(A version of the helper that did not encode it failed on every
+multi-word term, with a message that looked like the registry being
+unreachable rather than a malformed URL — worth knowing if you ever
+see `REFUSED: could not read the CSRF token`.)
+
+**AND THE REGISTRY SEARCH MATCHES COSMETICS AS WELL AS FOOD.**
+"tamarind" returns body scrubs, perfume and hair serum; "santan"
+returns hair serum. **Only the registrations whose number starts `MD`
+or `ML` are food.** Filter to those first, and only then count —
+otherwise the numbers are nonsense.
+
 ### The availability score needs ORDINARY RETAIL evidence
 
 **A marketplace listing proves `channel = online` and nothing else.**
