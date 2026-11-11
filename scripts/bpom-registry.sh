@@ -29,12 +29,21 @@ LENGTH="${2:-25}"
 JAR="$(mktemp)"
 trap 'rm -f "$JAR" /tmp/bpom.cookies' EXIT
 
+# The query MUST be URL-encoded here, exactly as it is in the POST
+# below. Without the encoding a term with a space ("asam jawa") makes
+# the request malformed, and the symptom is a REFUSED message that
+# looks like the registry being unreachable rather than a bad URL.
 TOKEN=$(curl -sL -m 45 -c /tmp/bpom.cookies \
-  "https://cekbpom.pom.go.id/all-produk?query=${QUERY}" \
+  -G "https://cekbpom.pom.go.id/all-produk" \
+  --data-urlencode "query=${QUERY}" \
   | grep -o 'csrf-token" content="[^"]*' | head -1 | cut -d'"' -f3)
 
 if [ -z "$TOKEN" ]; then
   echo "REFUSED: could not read the CSRF token from cekbpom.pom.go.id" >&2
+  echo "  the query was: ${QUERY}" >&2
+  echo "  the registry is behind a CSRF middleware, and the token comes" >&2
+  echo "  from the search page. If the query contains a space or a" >&2
+  echo "  slash it must be URL-encoded, which this script now does." >&2
   exit 2
 fi
 
