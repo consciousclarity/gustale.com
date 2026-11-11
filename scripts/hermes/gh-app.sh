@@ -58,6 +58,12 @@ from gh_app_auth import (  # noqa: E402
 )
 
 # The default repository for the `gh` modes.
+APP_ID = "5596451"
+INSTALL_ID = "178310866"
+KEY_PATH = Path(
+    os.environ.get("GUSTALE_APP_KEY_PATH")
+    or "/home/alex/.hermes/github-app/gustale-bot.pem"
+)
 REPO = "consciousclarity/gustale.com"
 
 
