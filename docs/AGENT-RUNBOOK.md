@@ -68,7 +68,15 @@ GitHub App `gustale-bot` (installation 178310866).
 
 ```bash
 # Push as the App, a VERIFIED sha, never HEAD:
-python3 /tmp/push_sha_as_app.py origin <branch> <sha> <expected-remote-sha>
+python3 scripts/hermes/push_sha_as_app.py origin <branch> <sha> <expected-remote-sha>
+
+# The helper takes FOUR arguments. It refuses to push unless:
+#   - <sha> is a local commit
+#   - <expected-remote-sha> is EXACTLY what the remote branch points at
+#   - the remote sha is an ANCESTOR of <sha> (fast-forward only)
+# There is no force flag. Rule 2 is enforced in code, not by convention.
+# The App key is at /home/alex/.hermes/github-app/gustale-bot.pem on the
+# LOCAL host; override with GUSTALE_APP_KEY_PATH (the VPS path differs).
 
 # Rule 2: NEVER force-push (not even --force-with-lease).
 git fetch origin <branch> && git log --oneline HEAD..origin/<branch>
