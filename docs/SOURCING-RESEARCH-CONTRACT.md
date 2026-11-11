@@ -112,6 +112,43 @@ The price bands: `typical` · `elevated` · `high` · `prohibitive` ·
 
 ---
 
+### Capture retailer prices from raw HTML
+
+Use the direct fetch tool for price evidence. Reader proxies such as
+`r.jina.ai` can strip both JSON-LD and the publisher's product objects,
+so their Markdown cannot reach the extractor's Tier 1 carriers.
+
+```bash
+scripts/fetch-retailer-page.py \
+  'https://www.asiatischer-lebensmittelladen.de/produkt/pickels-pasten/tamarind-pasten/trs-tamarinde-paste-200g/' \
+  --output ./trs-tamarind-capture
+python3 scripts/extract-retailer-price.py \
+  --page ./trs-tamarind-capture/raw.html \
+  --product 'TRS Tamarinde Paste 200 g' --json
+```
+
+Choose a new output directory under an existing parent. The fetcher saves:
+
+- `response.html`: original response bytes, retaining publisher scripts;
+- `raw.html`: HTML with the exact `URL Source:` metadata the extractor needs;
+- `rendered.md`: locally rendered server HTML for reading, with scripts omitted;
+- `manifest.json`: requested/final URLs, UTC access time, byte count and SHA-256.
+
+The local renderer does not execute JavaScript or fetch a separate Jina
+render. Use `raw.html` for extraction. Keep the capture and report the
+extractor's `tier` and `carrier` alongside the price; inspect the page's
+product, package and availability before citing it. After redirects,
+`URL Source` identifies the final HTTPS URL. Failed HTTP requests, DNS,
+empty/incomplete HTML, and recognized challenge/error pages cause a
+non-zero exit without publishing a capture. A blocked fetch is not
+market evidence. This is a conservative fetcher, not a bot-block bypass;
+unrecognized blocks still require researcher review.
+
+Offline verification: `python3 scripts/test-fetch-retailer-page.py`.
+Its carrier fixtures are recorded excerpts, not fresh price observations.
+
+---
+
 ## 5. Import dependency
 
 **An import dependency is a fact about a COUNTRY, not about the

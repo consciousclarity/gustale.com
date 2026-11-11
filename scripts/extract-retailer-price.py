@@ -110,11 +110,51 @@ def typed(obj, kind):
 # price out of it). A carrier only applies to its own site, and only
 # when the object names the product the caller asked for.
 
-def _mollie_price(html: str):
+def _page_product_names(html: str) -> list[str]:
+    """The names the PAGE itself gives for its product: the <title>
+    and the H1/H2 headings, with the site's own suffix stripped.
+
+    This is what binds a carrier that carries no name of its own to
+    the product the caller asked for.
+    """
+    names = []
+    title = re.search(r"<title\b[^>]*>(.*?)</title>", html, re.I | re.S)
+    if title:
+        names.append(title.group(1))
+    for m in re.finditer(r"<h[12]\b[^>]*>(.*?)</h[12]>", html, re.I | re.S):
+        text = re.sub(r"<[^>]+>", " ", m.group(1))
+        names.append(re.sub(r"\s+", " ", text).strip())
+    return [n for n in names if n]
+
+
+def _strip_shop_suffix(name: str) -> str:
+    """The site's own noise around a product name.
+
+    "TRS Tamarinde Paste 200 g online bestellen | Asia Shop" names
+    the product "TRS Tamarinde Paste 200 g". The suffixes are
+    removed so the requested name can be compared against the
+    product part.
+    """
+    for sep in (" online bestellen", " | ", " - ", " – ", " –", " • "):
+        if sep in name:
+            name = name.split(sep)[0]
+    return name.strip()
+
+
+def _mollie_price(html: str, product: str):
     """The Asia Shop's own payment-integration product object.
 
     var mollieApplePayDirectData = {"product":{...,"price":"2.49",
     "isVariation":false,"stock":"outofstock"},"shop":{"currencyCode":"EUR",...}};
+
+    The object carries NO product name. It is bound to this page's
+    product by construction -- it is the payment integration for this
+    page -- but that only means the PRICE belongs to the page's
+    product. To answer for the product the CALLER asked for, the
+    page itself must name that product: the requested name has to
+    appear in the page's own title or heading. Otherwise the carrier
+    would answer for any name at all, which is what it did before
+    this check existed.
     """
     m = re.search(r"mollieApplePayDirectData\s*=\s*(\{.*?\})\s*;", html, re.DOTALL)
     if not m:
@@ -123,10 +163,10 @@ def _mollie_price(html: str):
         data = json.loads(m.group(1), object_pairs_hook=unique_object)
     except (ValueError, TypeError):
         return None
-    product = data.get("product")
-    if not isinstance(product, dict):
+    product_obj = data.get("product")
+    if not isinstance(product_obj, dict):
         return None
-    raw = product.get("price")
+    raw = product_obj.get("price")
     if not isinstance(raw, (str, int, float)) or isinstance(raw, bool):
         return None
     currency = (data.get("shop") or {}).get("currencyCode")
@@ -134,36 +174,84 @@ def _mollie_price(html: str):
         return None
     if not re.fullmatch(r"\d+(?:\.\d{1,2})?", str(raw)):
         return None
-    return {"price": str(raw), "currency": currency, "name": None,
-            "stock": product.get("stock"), "carrier": "mollie"}
+    # The page must name the requested product.
+    want = norm(product)
+    for page_name in _page_product_names(html):
+        for candidate in (_strip_shop_suffix(page_name), page_name):
+            have = norm(candidate)
+            if have == want or want in have or have in want:
+                return {"price": str(raw), "currency": currency,
+                        "name": product, "stock": product_obj.get("stock"),
+                        "carrier": "mollie"}
+    return None
 
 
-def _tokopedia_price(html: str):
+def _walk_records(node):
+    """Every JSON object in the hydration payload, depth first."""
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from _walk_records(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _walk_records(value)
+
+
+def _tokopedia_price(html: str, product: str):
     """Tokopedia's own hydration payload.
 
     The price sits in the SAME object as the product name and the
     option: "productID":"103193106824","price":28000,
     "priceFmt":"Rp28.000","productName":"250gr Asam Jawa / Tamarind".
+
+    The record is read on JSON OBJECT BOUNDARIES, not a character
+    window. A window could take the name from one sibling object and
+    the price from another, and then report a display price and a
+    numeric value that disagree with each other. Here both come from
+    ONE object, or the record is refused.
     """
-    best = None
-    for m in re.finditer(r'"productID"\s*:\s*"(\d+)"\s*,\s*"price"\s*:\s*(\d+)', html):
-        obj_start = html.rfind("{", 0, m.start())
-        window = html[obj_start : obj_start + 3000] if obj_start >= 0 else ""
-        name_m = re.search(r'"productName"\s*:\s*"([^"]{3,200})"', window)
-        price_m = re.search(r'"priceFmt"\s*:\s*"([^"]{1,40})"', window)
-        if not name_m:
+    # The hydration payload is NOT valid JSON -- Next.js escapes it --
+    # so it is read by pattern. But the pattern is a RECORD, not a
+    # window: the fields of one product record, in the order the
+    # publisher writes them, with the distance between them BOUNDED.
+    #
+    # The bound matters. The page contains more than one productID,
+    # and the first one is 26,000 characters away from any price. A
+    # fixed window could span two sibling objects and take the name
+    # from one and the price from the other.
+    pattern = re.compile(
+        r'"productID"\s*:\s*"(\d+)"(?:(?!\{[^{}]*\{[^{}]*\}[^{}]*\}).){0,400}?'
+        r'"price"\s*:\s*(\d+)'
+        r'(?:(?!\{[^{}]*\{[^{}]*\}[^{}]*\}).){0,400}?'
+        r'"productName"\s*:\s*"([^"]{1,200})"',
+        re.S,
+    )
+    for m in pattern.finditer(html):
+        raw = m.group(2)
+        name = m.group(3)
+        # The display price, if the record carries one, must agree
+        # with the numeric price.
+        # The display price may sit BEFORE or AFTER the product name
+        # in the publisher's record: the real Tokopedia page has it 145
+        # characters BEFORE, the recorded fixture has it after. Both
+        # sides are searched, each bounded to the same record.
+        around = html[max(0, m.start() - 400): m.end() + 400]
+        display_m = re.search(r'"priceFmt"\s*:\s*"([^"]{1,40})"', around)
+        display = display_m.group(1) if display_m else None
+        if display:
+            digits = re.sub(r"[^0-9]", "", display)
+            if digits and int(digits) != int(raw):
+                continue
+        want = norm(product)
+        have = norm(name)
+        if want != have and want not in have and have not in want:
             continue
-        candidate = {
-            "price": m.group(2),
-            "currency": "IDR",
-            "name": name_m.group(1),
-            "display": price_m.group(1) if price_m else None,
-            "carrier": "tokopedia-hydration",
-        }
-        # The FIRST product record on the page is the page's product.
-        if best is None:
-            best = candidate
-    return best
+        return {"price": display or str(raw),
+                "currency": "IDR",
+                "value": str(raw),
+                "name": name,
+                "carrier": "tokopedia-hydration"}
+    return None
 
 
 # The carriers, by the host they apply to.
@@ -188,7 +276,7 @@ def carrier_price(html: str, product: str):
     if fn is None:
         return None
     try:
-        found = fn(html)
+        found = fn(html, product)
     except Exception:
         return None
     if not isinstance(found, dict):
@@ -224,7 +312,10 @@ def extract(page, product=None, site=None):
     # not have to be inferred from proximity at all.
     carried = carrier_price(page, product)
     if carried is not None:
-        raw = carried["price"]
+        # The NUMERIC value is what gets validated. The display string
+        # may be "Rp28.000" and is not a number at all; the carrier
+        # guarantees the two agree when it supplies both.
+        raw = carried.get("value", carried["price"])
         try:
             amount = Decimal(str(raw))
             if not amount.is_finite() or amount <= 0:
@@ -234,8 +325,8 @@ def extract(page, product=None, site=None):
         currency = carried.get("currency")
         if not isinstance(currency, str) or currency not in CURRENCIES:
             return refuse("the publisher's product record has no explicit ISO 4217 currency")
-        out.price = carried.get("display") or str(raw)
-        out.value = float(amount)
+        out.price = carried["price"]
+        out.value = float(carried.get("value", raw))
         out.currency = currency
         out.product_title = carried.get("name") or product
         out.matched_target = True

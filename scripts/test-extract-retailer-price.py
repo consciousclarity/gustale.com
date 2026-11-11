@@ -32,6 +32,7 @@ def page(data):
 # FIELD OF THE PRODUCT OBJECT, not a number near a name.
 
 MOLLIE_PAGE = """URL Source: https://www.asiatischer-lebensmittelladen.de/produkt/x
+<title>TRS Tamarinde Paste 200 g online bestellen | Asia Shop</title>
 <script>
 var mollieApplePayDirectData = {"product":{"needShipping":true,"id":9721,"price":"2.49","isVariation":false,"stock":"outofstock"},"shop":{"countryCode":"DE","currencyCode":"EUR","totalLabel":"Asiatischer Lebensmittelladen"},"ajaxUrl":"https://example.com/wp-admin/admin-ajax.php"};
 </script>
@@ -39,7 +40,7 @@ var mollieApplePayDirectData = {"product":{"needShipping":true,"id":9721,"price"
 
 TOKOPEDIA_PAGE = """URL Source: https://www.tokopedia.com/capsahabat/x
 <script>
-{"query": {"components": {"0": {"data": {"0": {"children": {"0": {"productID":"103193106824","price":28000,"priceFmt":"Rp28.000","slashPriceFmt":"","discPercentage":"","optionID":{"type":"json","json":[2]},"optionName":{"type":"json","json":["250gr"]},"productName":"250gr Asam Jawa / Tamarind - 250gr"}}}}}}}
+{"query": {"components": {"0": {"data": {"0": {"children": {"0": {"productID":"103193106824","alias":"250gr-asam-jawa-tamarind","shopName":"Cap Sahabat Rempah","price":28000,"slashPriceFmt":"","discPercentage":"","optionID":{"type":"json","json":[2]},"optionName":{"type":"json","json":["250gr"]},"productName":"250gr Asam Jawa / Tamarind - 250gr","priceFmt":"Rp28.000"}}}}}}}
 </script>
 """
 
@@ -115,6 +116,18 @@ def main():
     related['offers'].update(url=URL + '-related', price='2.80')
     assert m.extract(page({'@graph': [related, BASE]}), NAME).price == '1.40'
     print('  baseline passes: exact URL/name offer; unrelated Product ignored')
+    test_tier1_baseline()
+    print('  baseline passes: the publisher\'s own product record (tier 1)')
+    # The standalone Tier 1 checks are CALLED, not merely defined. They
+    # were dead code before, and dead code is how the two carrier
+    # defects below survived.
+    for check in (mut_tier1_wrong_product_is_refused,
+                  mut_tier1_a_second_record_does_not_win,
+                  mut_tier1_a_zero_price_is_refused,
+                  mut_tier1_a_missing_currency_is_refused,
+                  mut_tier1_the_carrier_is_host_scoped):
+        check()
+    print('  the standalone Tier 1 checks all pass')
     cases = []
     def mutant(label, change):
         data = copy.deepcopy(BASE)
@@ -161,6 +174,41 @@ def main():
         ('tier 1: a malformed publisher record',
          MOLLIE_PAGE.replace('"price":"2.49"', '"price":"two-fifty"'),
          'TRS Tamarinde Paste 200 g'),
+        # DEFECT 1 (found by Codex): the mollie carrier carries no
+        # product name, so it answered for ANY requested name. The
+        # page must now name the product.
+        ('tier 1: a name the page does not carry',
+         MOLLIE_PAGE.replace(
+             '<title>TRS Tamarinde Paste 200 g online bestellen | Asia Shop</title>',
+             '<title>Asia Shop</title>'),
+         'Completely Unrelated Product'),
+        # DEFECT 2 (found by Codex): the tokopedia carrier used a
+        # character window, so the name and the price could come from
+        # two different objects, and the display price and the numeric
+        # value could disagree.
+        # The name in one object and the price in another. The record
+        # must not be assembled across two objects. The pattern
+        # requires the fields IN ORDER (productID, then price, then
+        # productName) and refuses to cross a nested object boundary,
+        # so neither a sibling mix nor a nested mix can be assembled.
+        ('tier 1: the name and the price from two objects',
+         TOKOPEDIA_PAGE.replace(
+             '"productID":"103193106824","alias":"250gr-asam-jawa-tamarind","shopName":"Cap Sahabat Rempah","price":28000',
+             '"productID":"1","alias":"x","shopName":"y","price":999,"filler":"'
+             + ('z' * 1500) + '"')
+         .replace('"productName":"250gr Asam Jawa / Tamarind - 250gr"',
+                  '"productName":"250gr Asam Jawa / Tamarind - 250gr","priceFmt":"Rp999.000"'),
+         '250gr Asam Jawa / Tamarind'),
+        ('tier 1: the name and the price in two sibling objects',
+         TOKOPEDIA_PAGE.replace(
+             '"productID":"103193106824","alias":"250gr-asam-jawa-tamarind","shopName":"Cap Sahabat Rempah","price":28000',
+             '"productID":"1","alias":"x"')
+         .replace('"productName":"250gr Asam Jawa / Tamarind - 250gr"',
+                  '"otherName":"250gr Asam Jawa / Tamarind - 250gr"'),
+         '250gr Asam Jawa / Tamarind'),
+        ('tier 1: a display price that disagrees with the value',
+         TOKOPEDIA_PAGE.replace('"priceFmt":"Rp28.000"', '"priceFmt":"Rp99.000"'),
+         '250gr Asam Jawa / Tamarind'),
         ('duplicate price keys', page(BASE).replace('"price": "1.40"', '"price": "2.80", "price": "1.40"'), NAME),
         ('duplicate matching products', page([BASE, BASE]), NAME),
         ('missing target argument', page(BASE), None),
