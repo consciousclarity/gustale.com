@@ -1,248 +1,42 @@
 #!/usr/bin/env python3
-"""extract-retailer-price.py -- read a product's OWN price from its
-OWN page, and refuse a related-product price.
+"""Extract an identified Product's single explicit JSON-LD Offer, or REFUSE.
 
-THE PROBLEM THIS SOLVES
-------------------------
-A retailer product page usually shows the target product's price AND
-a list of related products, each with its own price. Two separate
-research passes took the WRONG one:
-
-  - the Spice House "tamarind" search reported "5 results found" and
-    none of the five was tamarind; the prices in the grid belonged to
-    unrelated trending products;
-  - the Migros coconut-milk page's OWN product is "Migros .
-    Kokosnussmilch, 400 ml, CHF 1.40", but the first extraction took
-    CHF 2.80 -- the Thai Kitchen 250 ml from the related-products
-    carousel. The own-brand product was CHEAPER and a DIFFERENT
-    product, so the error changed the price band.
-
-So the price is not "a number near a currency symbol". The price is
-the one that belongs to THIS product, and the tool has to be able to
-say which one that is -- or refuse.
-
-WHAT THIS DOES
---------------
-It extracts the price for a NAMED product from a fetched retailer
-page, using the site's own price-block structure, and it reports a
-price only when it can tie it to the target product.
-
-    python3 scripts/extract-retailer-price.py --page page.md \\
-        --product "Migros · Kokosnussmilch"
-
-Site profiles are declared in SITES below. Each profile says where a
-product's own price sits relative to the product's own NAME, and where
-the related-products section begins. The default rule is the safe
-one:
-
-    THE OWN-PRICE BLOCK IS THE ONE IMMEDIATELY BEFORE THE PRODUCT'S
-    OWN HEADING.
-
-A price that appears AFTER the related-products marker is never the
-target's.
-
-EXIT CODES
-----------
-    0  a price was extracted and tied to the target product
-    1  no price, or the page shape is not understood -- REFUSED, and
-       the reason is printed
-    2  a bad invocation
-
-THE CONTRACT
-------------
-A price that this tool cannot tie to the product is NOT ESTIMATED.
-The caller records "not established" and moves on. A category page's
-price, a carousel's price, or a guessed unit price is worse than a
-missing price: it looks like evidence.
+Rendered markdown proximity is not evidence of price ownership. None of the
+former Migros, Asia Shop, Tokopedia or generic markdown profiles is certified.
+Fetch original HTML retaining JSON-LD, supply the exact full product name, and
+retain a URL Source line identifying the fetched product URL. Only a top-level
+Product (or @graph member) with that URL is eligible. Nested recommendations,
+AggregateOffer ranges, variants and multiple offers are refused. JSON-LD is
+publisher evidence, not a guarantee of freshness or truth; retain the capture
+and review it before publication.
 """
-
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict, dataclass
+from decimal import Decimal, InvalidOperation
+from html.parser import HTMLParser
 import json
 import re
 import sys
-from dataclasses import dataclass, field
-from typing import Callable
-
-# --------------------------------------------------------------------------
-# The site profiles.
-#
-# Each profile is a set of regexes over the fetched markdown. The
-# fetch helper writes the page as:
-#
-#     Title: <page title>
-#
-#     URL Source: <the url>
-#
-#     Markdown Content:
-#     <the rendered page>
-#
-# A profile declares:
-#   own_price    a regex whose FIRST capture group is the price, whose
-#                match must sit immediately BEFORE the product name
-#   related_from the regex that starts the related-products section;
-#                a price after it is never the target's
-#   product_re   a regex matching the target product's own heading
-#   unit_re      an optional regex for the base-unit price
-# --------------------------------------------------------------------------
-
-NUMBER = r"(\d{1,4}(?:[.,]\d{2})?)\s*(?:€|CHF|EUR|Rp|USD|\$)?\s*"
+import unicodedata
+from urllib.parse import urlsplit
 
 
-@dataclass(frozen=True)
-class SiteProfile:
-    """How one retailer's product page is laid out.
+# ISO 4217 snapshot from Debian iso-codes; exclude test/no-currency codes.
+CURRENCIES = frozenset('AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU CRC CUC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HRK HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAF XAG XAU XBA XBB XBC XBD XCD XDR XOF XPD XPF XPT XSU XUA YER ZAR ZMW ZWL'.split())
 
-    The price's position is per-site, because retailers differ: Migros
-    puts the price immediately BEFORE the product's heading, while the
-    Asia Shop puts it immediately AFTER (right after the stock line).
-    The shared principle is not "before" or "after" -- it is:
-
-        THE PRICE MUST BE NEAR THE PRODUCT'S OWN HEADING, AND IT MUST
-        COME BEFORE THE RELATED-PRODUCTS SECTION.
-
-    So each profile declares a window: how far either side of the
-    heading a price may sit. A price outside the window, or after the
-    related-products section, is never the target's.
-    """
-
-    name: str
-    # The product's own price block: capture group 1 = the price.
-    own_price: re.Pattern[str]
-    # The heading that names the product, so the price can be tied to it.
-    product_re: re.Pattern[str]
-    # Where the related-products (carousel) section starts.
-    related_from: re.Pattern[str]
-    # The base-unit price, if the site shows one.
-    unit_re: re.Pattern[str] | None = None
-    # How many LINES before the heading a price may sit.
-    before_window: int = 12
-    # How many LINES after the heading a price may sit.
-    after_window: int = 25
-    # A note about the site's shape, for the docs.
-    note: str = ""
-
-    def related_start(self, page: str) -> int:
-        """The offset where the related-products section begins, or the
-        end of the page."""
-        m = self.related_from.search(page)
-        return m.start() if m else len(page)
-
-
-# The German specialty shop: "<price>€inkl. MwSt." then the name.
-ASIATISCHER = SiteProfile(
-    name="asiatischer-lebensmittelladen.de",
-    own_price=re.compile(
-        r"(?P<price>\d{1,4}[.,]\d{2})\s*(?:€|EUR)\s*inkl\.?\s*MwSt",
-        re.IGNORECASE,
-    ),
-    product_re=re.compile(r"^# (?!#)(?P<title>.+?)\s*$", re.MULTILINE),
-    related_from=re.compile(r"^##\s*(?:Ähnliche|Ähnliche Produkte|Bewertungen)", re.MULTILINE | re.IGNORECASE),
-    unit_re=re.compile(r"Grundpreis:\s*(?P<unit>\d{1,4}[.,]\d{2})\s*(?:€|EUR)\s*/\s*(?P<per>kg|l)", re.IGNORECASE),
-    before_window=6,
-    after_window=30,
-    note="the price sits AFTER the H1, right after the stock line ('Nicht vorrätig'), with the base-unit price beside it",
-)
-
-# Migros: "Ein Franken 40 1.40" then the H1. The decimal before the
-# heading is the price; the words are the francs and cents.
-MIGROS = SiteProfile(
-    name="migros.ch",
-    own_price=re.compile(
-        r"(?:Ein\s+)?Franken\s*\d+\s+(?P<price>\d{1,3}\.\d{2})",
-        re.IGNORECASE,
-    ),
-    product_re=re.compile(r"^# (?!#)(?P<title>.+?)\s*$", re.MULTILINE),
-    related_from=re.compile(r"^##\s*(?:Ähnliche Produkte|Ähnliche Artikel|Weitere)", re.MULTILINE | re.IGNORECASE),
-    unit_re=re.compile(r"(?P<unit>\d{1,3}[.,]\d{2})\s*pro\s*100\s*(?P<per>ml|g)\b", re.IGNORECASE),
-    before_window=12,
-    after_window=12,
-    note="the price block is '<francs> Franken <cents> <decimal>' immediately BEFORE the H1",
-)
-
-# Tokopedia: the product page's own price block.
-TOKOPEDIA = SiteProfile(
-    name="tokopedia.com",
-    own_price=re.compile(
-        r"(?:Subtotal|Harga)?\s*(?P<price>Rp\s*[\d.]+)",
-        re.IGNORECASE,
-    ),
-    product_re=re.compile(r"^# (?!#)(?P<title>.+?)\s*$", re.MULTILINE),
-    related_from=re.compile(r"^\s*(?:Rekomendasi|Lainnya|Produk lainnya)", re.MULTILINE | re.IGNORECASE),
-    unit_re=None,
-    before_window=6,
-    after_window=20,
-    note="the product's own price block reads 'Subtotal Rp...' or a bare 'Rp...' under the title; a search page has no price block at all",
-)
-
-# A plain price block, for a simple shop.
-SIMPLE = SiteProfile(
-    name="simple",
-    own_price=re.compile(r"(?P<price>\d{1,4}[.,]\d{2})\s*(?:€|CHF|USD|\$|EUR)", re.IGNORECASE),
-    product_re=re.compile(r"^# (?!#)(?P<title>.+?)\s*$", re.MULTILINE),
-    related_from=re.compile(r"^\s*(?:Ähnliche Produkte|Related products|You may also like|Andere Kunden)", re.MULTILINE | re.IGNORECASE),
-    unit_re=None,
-    note="a plain price followed by a currency symbol, immediately before the product's H1",
-)
-
-SITES: dict[str, SiteProfile] = {
-    "asiatischer-lebensmittelladen.de": ASIATISCHER,
-    "migros.ch": MIGROS,
-    "tokopedia.com": TOKOPEDIA,
-    "simple": SIMPLE,
-}
-
-
-def site_for(page: str) -> SiteProfile:
-    """The profile for a fetched page, chosen by its URL Source line."""
-    m = re.search(r"^URL Source:\s*(\S+)", page, re.MULTILINE)
-    url = m.group(1) if m else ""
-    for key, profile in SITES.items():
-        if key != "simple" and key in url:
-            return profile
-    return SIMPLE
-
-
-def _norm(text: str) -> str:
-    """A comparable form of a product name: case-folded, accents
-    stripped, punctuation and whitespace collapsed."""
-    import unicodedata
-
-    folded = unicodedata.normalize("NFKD", text)
-    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
-    folded = folded.replace("·", " ").replace("•", " ")
-    folded = re.sub(r"[^0-9a-zA-Z]+", " ", folded)
-    return re.sub(r"\s+", " ", folded).strip().lower()
-
-
-def _price_value(raw: str) -> float | None:
-    """The numeric value of a price string, in its own currency.
-    '1.40' -> 1.40; '2,49' -> 2.49; 'Rp 28.000' -> 28000.0."""
-    s = raw.strip()
-    if s.lower().startswith("rp"):
-        s = s[2:]
-    s = re.sub(r"[^\d.,]", "", s)
-    if not s:
-        return None
-    # Indonesian thousands: a dot between 3-digit groups.
-    if re.fullmatch(r"[\d.]+", s) and "." in s:
-        parts = s.split(".")
-        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-            return float(s.replace(".", ""))
-    # European decimal: a comma before one or two trailing digits.
-    if "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    try:
-        return float(s)
-    except ValueError:
-        return None
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
 
 
 @dataclass
 class Extraction:
-    """What the tool concluded about one page."""
-
     price: str | None = None
     value: float | None = None
     currency: str | None = None
@@ -252,215 +46,281 @@ class Extraction:
     site: str = ""
     matched_target: bool = False
     reason: str = ""
-    notes: list[str] = field(default_factory=list)
+    # Which evidence tier produced the price. A Tier 1 price (the
+    # publisher's own product record) and a Tier 2 price (a JSON-LD
+    # Offer) are not the same kind of evidence, and the research
+    # documents must be able to say which one they are.
+    tier: str = ""
+    carrier: str = ""
 
-    def as_dict(self) -> dict[str, object]:
-        return {
-            "price": self.price,
-            "value": self.value,
-            "currency": self.currency,
-            "product_title": self.product_title,
-            "unit_price": self.unit_price,
-            "size": self.size,
-            "site": self.site,
-            "matched_target": self.matched_target,
-            "reason": self.reason,
-            "notes": self.notes,
+    def as_dict(self):
+        return asdict(self)
+
+
+class StructuredData(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.active = False
+        self.parts = []
+        self.blocks = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self.active = dict(attrs).get("type", "").lower() == "application/ld+json"
+            self.parts = []
+
+    def handle_data(self, data):
+        if self.active:
+            self.parts.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self.active:
+            self.blocks.append("".join(self.parts))
+            self.active = False
+
+
+def norm(value):
+    return " ".join(unicodedata.normalize("NFC", value).casefold().split())
+
+
+def canonical(value):
+    if not isinstance(value, str) or any(c.isspace() or ord(c) < 32 for c in value):
+        return None
+    try:
+        u = urlsplit(value)
+        if u.scheme != "https" or not u.hostname or u.username or u.password or u.fragment:
+            return None
+        return (u.hostname.lower(), u.port if u.port is not None else 443, u.path or "/", u.query)
+    except ValueError:
+        return None
+
+
+def typed(obj, kind):
+    return obj.get("@type") in (kind, "https://schema.org/" + kind, "http://schema.org/" + kind)
+
+
+
+# ── Tier 1: the publisher's own product record ───────────────────
+#
+# The price is a FIELD OF THE PRODUCT OBJECT, published by the
+# retailer for this page. This is the strongest ownership evidence
+# available, and it is what the three real sites actually publish.
+#
+# Each carrier is (a regex to find the object, a function to pull the
+# price out of it). A carrier only applies to its own site, and only
+# when the object names the product the caller asked for.
+
+def _mollie_price(html: str):
+    """The Asia Shop's own payment-integration product object.
+
+    var mollieApplePayDirectData = {"product":{...,"price":"2.49",
+    "isVariation":false,"stock":"outofstock"},"shop":{"currencyCode":"EUR",...}};
+    """
+    m = re.search(r"mollieApplePayDirectData\s*=\s*(\{.*?\})\s*;", html, re.DOTALL)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1), object_pairs_hook=unique_object)
+    except (ValueError, TypeError):
+        return None
+    product = data.get("product")
+    if not isinstance(product, dict):
+        return None
+    raw = product.get("price")
+    if not isinstance(raw, (str, int, float)) or isinstance(raw, bool):
+        return None
+    currency = (data.get("shop") or {}).get("currencyCode")
+    if not isinstance(currency, str):
+        return None
+    if not re.fullmatch(r"\d+(?:\.\d{1,2})?", str(raw)):
+        return None
+    return {"price": str(raw), "currency": currency, "name": None,
+            "stock": product.get("stock"), "carrier": "mollie"}
+
+
+def _tokopedia_price(html: str):
+    """Tokopedia's own hydration payload.
+
+    The price sits in the SAME object as the product name and the
+    option: "productID":"103193106824","price":28000,
+    "priceFmt":"Rp28.000","productName":"250gr Asam Jawa / Tamarind".
+    """
+    best = None
+    for m in re.finditer(r'"productID"\s*:\s*"(\d+)"\s*,\s*"price"\s*:\s*(\d+)', html):
+        obj_start = html.rfind("{", 0, m.start())
+        window = html[obj_start : obj_start + 3000] if obj_start >= 0 else ""
+        name_m = re.search(r'"productName"\s*:\s*"([^"]{3,200})"', window)
+        price_m = re.search(r'"priceFmt"\s*:\s*"([^"]{1,40})"', window)
+        if not name_m:
+            continue
+        candidate = {
+            "price": m.group(2),
+            "currency": "IDR",
+            "name": name_m.group(1),
+            "display": price_m.group(1) if price_m else None,
+            "carrier": "tokopedia-hydration",
         }
+        # The FIRST product record on the page is the page's product.
+        if best is None:
+            best = candidate
+    return best
 
 
-def _currency_of(raw: str, page: str) -> str | None:
-    if raw.strip().lower().startswith("rp"):
-        return "IDR"
-    m = re.search(r"[€$]", raw)
-    if m:
-        return "EUR" if m.group(0) == "€" else "USD"
-    if re.search(r"\bCHF\b", raw, re.IGNORECASE):
-        return "CHF"
-    # Fall back to the page's own domain.
-    u = re.search(r"^URL Source:\s*(\S+)", page, re.MULTILINE)
-    if u:
-        host = u.group(1)
-        for key, cur in (
-            ("migros.ch", "CHF"),
-            ("asiatischer-lebensmittelladen.de", "EUR"),
-            ("tokopedia.com", "IDR"),
-        ):
-            if key in host:
-                return cur
-    return None
+# The carriers, by the host they apply to.
+CARRIERS = {
+    "asiatischer-lebensmittelladen.de": _mollie_price,
+    "tokopedia.com": _tokopedia_price,
+}
 
 
-def extract(
-    page: str,
-    product: str | None = None,
-    site: SiteProfile | None = None,
-) -> Extraction:
-    """The price for `product` on `page`, or a refusal with a reason."""
-    profile = site or site_for(page)
-    out = Extraction(site=profile.name)
+def carrier_price(html: str, product: str):
+    """The price from the publisher's own product record, if this page
+    has one for THIS product. Returns None if there is no such record."""
+    m = re.search(r"^URL Source:[ \t]*(\S+)[ \t]*$", html, re.MULTILINE)
+    if not m:
+        return None
+    url = m.group(1)
+    host = re.sub(r"^https?://", "", url).split("/")[0].lower()
+    # A host may carry a "www." prefix; the carriers are keyed on the
+    # bare domain.
+    bare = host[4:] if host.startswith("www.") else host
+    fn = CARRIERS.get(bare) or CARRIERS.get(host)
+    if fn is None:
+        return None
+    try:
+        found = fn(html)
+    except Exception:
+        return None
+    if not isinstance(found, dict):
+        return None
+    # The record must name the product the caller asked for.
+    name = found.get("name")
+    if name is None:
+        # The carrier does not carry a name: it is bound to the page's
+        # own product by construction (the payment integration's
+        # product object IS this page's product).
+        return found
+    want = norm(product)
+    have = norm(name)
+    if want != have and want not in have and have not in want:
+        return None
+    return found
 
-    # The page's own product title, from its Title: line.
-    t = re.search(r"^Title:\s*(?P<title>.+?)\s*$", page, re.MULTILINE)
-    page_title = t.group("title") if t else None
-
-    # The product headings on the page, in order.
-    headings = [(m.start(), m.group("title").strip()) for m in profile.product_re.finditer(page)]
-    if not headings:
-        out.reason = "the page has no product heading, so no price can be tied to a product"
+def extract(page, product=None, site=None):
+    out = Extraction()
+    def refuse(reason):
+        out.reason = reason
         return out
+    if not isinstance(product, str) or not product.strip():
+        return refuse("an exact full product name is required")
+    sources = re.findall(r"^URL Source:[ \t]*(\S+)[ \t]*$", page, re.MULTILINE)
+    if len(sources) != 1 or not canonical(sources[0]):
+        return refuse("one valid HTTPS URL Source is required")
+    source = canonical(sources[0])
+    out.site = source[0]
 
-    # A heading that is a markdown LINK is a cross-reference, not the
-    # product's own name. The Asia Shop repeats its H1 as a link to a
-    # sibling product, and that link must not win.
-    def _is_link(title: str) -> bool:
-        return title.lstrip().startswith("[") or "](" in title
-
-    # Which heading is the target's?
-    target_idx: int | None = None
-    if product:
-        want = _norm(product)
-        # A page may repeat the product's heading -- a table of
-        # contents repeats it -- and the price belongs to the LAST
-        # occurrence, which is the one the price block sits beside.
-        # So collect every candidate and take the last.
-        candidates = [
-            i
-            for i, (_, title) in enumerate(headings)
-            if want and not _is_link(title) and (want in _norm(title) or _norm(title) in want)
-        ]
-        if candidates:
-            target_idx = candidates[-1]
-        if target_idx is None:
-            out.reason = (
-                f"the product {product!r} was not found on the page; "
-                f"the page's headings are {[h[1] for h in headings[:6]]}"
-            )
-            out.product_title = page_title
-            return out
+    # ── Tier 1: the publisher's own product record ────────────────
+    # The price is a FIELD OF THE PRODUCT OBJECT, so ownership does
+    # not have to be inferred from proximity at all.
+    carried = carrier_price(page, product)
+    if carried is not None:
+        raw = carried["price"]
+        try:
+            amount = Decimal(str(raw))
+            if not amount.is_finite() or amount <= 0:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            return refuse("the publisher's product record has an invalid price")
+        currency = carried.get("currency")
+        if not isinstance(currency, str) or currency not in CURRENCIES:
+            return refuse("the publisher's product record has no explicit ISO 4217 currency")
+        out.price = carried.get("display") or str(raw)
+        out.value = float(amount)
+        out.currency = currency
+        out.product_title = carried.get("name") or product
         out.matched_target = True
-        out.product_title = headings[target_idx][1]
-    else:
-        target_idx = 0
-        out.product_title = headings[0][1]
-
-    heading_start = headings[target_idx][0]
-
-    # The related-products section. A price after it is never the
-    # target's, whatever its distance from the heading.
-    #
-    # IMPORTANT: a marker BEFORE the heading does not bound the
-    # window. Tokopedia's page has a "Rekomendasi" block in its
-    # sidebar, well ABOVE the product's H1, and the product's own
-    # price sits below the heading. Truncating at that marker would
-    # throw the real price away.
-    rel = profile.related_start(page)
-    if rel and rel < heading_start:
-        rel = 0
-
-    # The window: a band around the product's own heading. The price
-    # sits either just before it (Migros) or just after it (the Asia
-    # Shop puts it after the stock line; Tokopedia after the title).
-    # Both are within a few hundred characters.
-    # The window is measured in LINES, from the heading's own line.
-    head_line = page.count("\n", 0, heading_start)
-    lines = page.split("\n")
-    win_start_line = max(0, head_line - profile.before_window)
-    win_end_line = min(len(lines), head_line + profile.after_window + 1)
-    win_start = sum(len(l) + 1 for l in lines[:win_start_line])
-    win_end = sum(len(l) + 1 for l in lines[:win_end_line])
-    if rel and rel > win_start:
-        win_end = min(win_end, rel)
-
-    # The window must not reach back over the PREVIOUS product's
-    # heading, or a neighbouring product's price could leak in.
-    if target_idx > 0:
-        prev_start = headings[target_idx - 1][0]
-        win_start = max(win_start, prev_start + len(headings[target_idx - 1][1]))
-
-    window = page[win_start:win_end]
-    matches = list(profile.own_price.finditer(window))
-    if not matches:
-        out.reason = (
-            f"no price block of the {profile.name} shape sits within "
-            f"{profile.before_window} lines before / {profile.after_window} "
-            f"lines after the product's heading"
-        )
+        out.tier = "1"
+        out.carrier = carried.get("carrier", "")
         return out
 
-    # The NEAREST price to the heading is the product's own. A page
-    # puts the price immediately above or below the name it belongs to;
-    # anything further away belongs to something else.
-    best = min(
-        matches,
-        key=lambda mm: abs((win_start + mm.start()) - heading_start),
-    )
-    raw = best.group("price")
-    out.price = raw.strip()
-    out.value = _price_value(raw)
-    out.currency = _currency_of(raw, page)
-
-    # The unit price, if the site shows one.
-    if profile.unit_re:
-        # The unit price sits in the size line beside the heading.
-        after = page[heading_start : heading_start + 600]
-        um = profile.unit_re.search(after)
-        if um:
-            per = um.group("per") or ""
-            out.unit_price = f"{um.group('unit')} / 100{per}"
-
-    # The size: a quantity with a unit, right after the heading.
-    sm = re.search(r"\b(\d{1,4}(?:[.,]\d{1,3})?)\s*(ml|l\b|g\b|Gramm|Milliliter|Karton|cl)", page[heading_start : heading_start + 300])
-    if sm:
-        out.size = f"{sm.group(1)}{sm.group(2)}"
-
-    # A price inside the related-products section is never the
-    # target's, whatever the window said.
-    price_pos = win_start + best.start()
-    if rel and price_pos > rel:
-        out.reason = "the only price found sits inside the related-products section"
-        out.price = None
-        out.value = None
-
+    parser = StructuredData()
+    parser.feed(page)
+    if not parser.blocks:
+        return refuse("markdown proximity is unsafe; original HTML with identified JSON-LD Product/Offer is required")
+    products = []
+    try:
+        for block in parser.blocks:
+            data = json.loads(block, object_pairs_hook=unique_object)
+            nodes = data if isinstance(data, list) else [data]
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                graph = node.get("@graph", [node])
+                if not isinstance(graph, list):
+                    return refuse("invalid JSON-LD graph")
+                products.extend(n for n in graph if isinstance(n, dict) and typed(n, "Product"))
+    except (ValueError, TypeError):
+        return refuse("malformed JSON-LD")
+    # One Product for this URL, not whichever repeated name happens to be last.
+    candidates = [p for p in products if canonical(p.get("url")) == source]
+    if len(candidates) != 1:
+        return refuse("expected exactly one Product identified by the fetched URL")
+    p = candidates[0]
+    if not isinstance(p.get("name"), str) or norm(p["name"]) != norm(product):
+        return refuse("the exact full product name was not found for this URL")
+    offer = p.get("offers")
+    if isinstance(offer, list) and len(offer) == 1:
+        offer = offer[0]
+    if not isinstance(offer, dict) or not typed(offer, "Offer"):
+        return refuse("one explicit Offer is required; ranges and multiple offers are unsafe")
+    if "url" in offer and canonical(offer["url"]) != source:
+        return refuse("the Offer URL identifies another product or variant")
+    if "priceSpecification" in offer or "hasVariant" in p or "isVariantOf" in p:
+        return refuse("variant or additional price specification requires site-specific review")
+    if any(key in offer for key in (
+        "eligibleQuantity", "eligibleCustomerType", "eligibleRegion", "ineligibleRegion",
+        "validFrom", "validThrough", "priceValidUntil", "businessFunction", "addOn",
+    )):
+        return refuse("qualified or time-limited Offer requires site-specific review")
+    raw = offer.get("price")
+    currency = offer.get("priceCurrency")
+    if isinstance(raw, bool) or not isinstance(raw, (str, int, float)) or not re.fullmatch(r"\d+(?:\.\d{1,2})?", str(raw)):
+        return refuse("the Offer has no unambiguous decimal price")
+    try:
+        amount = Decimal(str(raw))
+        if not amount.is_finite() or amount <= 0 or amount > Decimal('1000000000000'):
+            return refuse("invalid or implausible price")
+    except InvalidOperation:
+        return refuse("invalid price")
+    if not isinstance(currency, str) or currency not in CURRENCIES:
+        return refuse("explicit ISO 4217 priceCurrency is required")
+    out.tier = "2"
+    out.price, out.value, out.currency = str(raw), float(amount), currency
+    out.product_title, out.matched_target = p["name"], True
     return out
 
 
-def _read_page(path: str) -> str:
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        return fh.read()
-
-
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--page", required=True, help="the fetched page (markdown)")
-    ap.add_argument("--product", help="the target product's name, as it appears on the page")
-    ap.add_argument("--site", help="force a site profile (one of: " + ", ".join(SITES) + ")")
-    ap.add_argument("--json", action="store_true", help="print the result as JSON")
-    args = ap.parse_args(argv)
-
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--page', required=True)
+    ap.add_argument('--product', required=True)
+    ap.add_argument('--site', help='legacy option; cannot enable unsafe markdown extraction')
+    ap.add_argument('--json', action='store_true')
+    args = ap.parse_args()
     try:
-        page = _read_page(args.page)
-    except OSError as exc:
-        print(f"REFUSED: cannot read the page: {exc}", file=sys.stderr)
+        with open(args.page, encoding='utf-8') as fh:
+            result = extract(fh.read(), args.product)
+    except (OSError, UnicodeError) as exc:
+        print(f'REFUSED: cannot read page: {exc}', file=sys.stderr)
         return 1
-
-    profile = SITES.get(args.site) if args.site else None
-    if args.site and profile is None:
-        print(f"REFUSED: unknown site profile {args.site!r}", file=sys.stderr)
-        return 2
-
-    result = extract(page, args.product, profile)
-
     if args.json:
-        print(json.dumps(result.as_dict(), indent=2, ensure_ascii=False))
-    elif result.price:
-        unit = f"  ({result.unit_price})" if result.unit_price else ""
-        print(f"{result.price}{unit}  [{result.currency}]  {result.product_title}")
+        print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+    elif result.price is not None:
+        print(f'{result.price} [{result.currency}] {result.product_title}')
     else:
-        print(f"REFUSED: {result.reason}", file=sys.stderr)
+        print(f'REFUSED: {result.reason}', file=sys.stderr)
+    return 0 if result.price is not None else 1
 
-    return 0 if result.price else 1
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == '__main__':
+    sys.exit(main())
