@@ -361,11 +361,12 @@ genuinely cheap and I would not argue hard against it.
 
 ## 6. What was set up
 
-**In the repo, branch `wp/00-baseline`:**
+**In the repo, branch `wp/00-baseline-v2`** (PR #222; the first PR, #221, was
+closed — see §8):
 
 - `docs/improvement-pack/` — all 17 files of the pack, extracted as received.
-- `scripts/smoke/gustale-smoke.mjs` — the pack's smoke test, with the three
-  fixes above.
+- `scripts/smoke/gustale-smoke.mjs` — the pack's smoke test, with the fixes
+  in §2 and in §6b.
 - `scripts/smoke/fetch-browser-libs.sh`, `scripts/smoke/run-smoke.sh` — the
   no-root browser-library setup and the entry point.
 - `reports/smoke-baseline.json` — the recorded baseline.
@@ -384,6 +385,26 @@ genuinely cheap and I would not argue hard against it.
 
 **Nothing else was touched.** No application code, no schema, no migration, no
 live database, no deploy, no merge. No production configuration changed.
+
+### 6b. What CI caught that a local run did not
+
+Two things, both found only by running the CI steps in a **clean checkout**:
+
+1. **Ten lint errors in the smoke script** — six in the pack's original code,
+   four in my additions. Fixed by hand (not a blanket auto-fix, so the
+   behaviour is unchanged), then biome's formatter on the four new files.
+2. **The JSON report had no trailing newline.** The smoke script wrote it
+   with `JSON.stringify`; biome's JSON formatter wants a final newline; the
+   CI lint gate runs `biome check .` over the whole repo. So **every smoke
+   run that wrote a report left the tree unformatted and failed the lint
+   job on the report it had just produced.** The local working tree hid
+   this, because the file there had been formatted by hand.
+
+**The lesson that matters for the rest of the pack:** a green local run is
+not a green CI run when the artefact is *written by the tool that CI checks*.
+From WP-01 on, the smoke test must be verified in a clean checkout, not only
+in the working tree. `scripts/smoke/run-smoke.sh` now writes a
+biome-clean report every time.
 
 ---
 
@@ -410,3 +431,40 @@ live database, no deploy, no merge. No production configuration changed.
 WP-02 are both small, both have live-verified root causes, and together they
 fix the two things a first-time visitor notices first: broken images and an
 empty-looking Places page.
+
+---
+
+## 8. A correction I made to my own work, and why
+
+The first branch I pushed (`wp/00-baseline`, PR #221) was created from
+`feature/sourcing-dataset`, because that is where I was working when the pack
+arrived. **CI's live-approval gate rejected it, and it was right to.**
+
+The diff against `main` carried the entire sourcing-dataset history,
+including `db/migrations/0056_ingredient_aliases.sql` and
+`db/migrations/0057_ingredients_sourcing_vocabulary.sql`. And the two are in
+different states:
+
+- **`0057` is ALREADY APPLIED TO LIVE** — 2026-11-11 09:31:55 WITA, per
+  `docs/MIGRATION-RECEIPT-0057.md`.
+- **`0056` is NOT applied** — the same receipt says so explicitly.
+
+So the PR proposed to merge one migration that live already has and one it
+does not, inside a package that is supposed to touch no schema at all. Under
+Rule 11 ("an applied migration is frozen") that is a mess, and the gate
+exists precisely to stop it.
+
+**The fix:** WP-00's work is self-contained (docs, `scripts/smoke/`,
+`reports/`, `.gitignore`), so it was cherry-picked onto a fresh branch off
+`main` — `wp/00-baseline-v2`, PR #222. The diff is now 23 files, no
+application code, no schema, no migration. The live-approval gate passes.
+
+**I did not force-push.** Rule 2 forbids it absolutely, so the original
+branch stays as it was and PR #221 was closed with an explanation pointing at
+#222. The consequence is one stale branch, `wp/00-baseline`, which should be
+deleted once you are happy with #222.
+
+**For the rest of the pack:** every work package should branch from `main`
+(or from the package it genuinely depends on), and the smoke test should
+confirm the diff contains no `db/migrations/**` before it asks for a merge.
+
