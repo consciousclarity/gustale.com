@@ -1,70 +1,10 @@
 #!/usr/bin/env python3
-"""check-sourcing-market.py -- the rule that an availability row
-must point at a real MARKET.
+"""Validate sourcing markets against a closed ISO 3166-1 + Kosovo allowlist.
 
-WHY THIS EXISTS
----------------
-The live `geo_entities` table holds 302 rows with
-`entity_type = 'country'`, but only **249** of them are ISO 3166-1
-countries. The other 53 are not sourcing geographies:
-
-  - **41 rows are not places at all.** 16 continents and world
-    regions (Asia, the Balkans, Latin America, North Africa), 15
-    historical states (the Roman Empire, Qing dynasty, Goryeo, the
-    Soviet Union), 8 present-day regions and non-sovereign entities
-    (Korea, Kurdistan, Taiwan Island, the Republic of Artsakh), and
-    3 that are not places in any sense (Indung Kampampangan, a
-    Filipino language; Saint Paul, the apostle; the Sultanate of
-    Maguindanao).
-  - **2 rows duplicate an ISO country by name** -- `China` (which
-    also exists as `CN`) and `Palestine` (which also exists as `PS`).
-  - **1 row duplicates an ISO country semantically** -- `Netherlands`
-    (12 dishes) beside `NL` "Kingdom of the Netherlands" (0 dishes).
-  - **9 ARCHIVED rows with a non-ISO code** -- former states and
-    dependencies (Ascension, East Germany, Yugoslavia, ...). They are
-    archived, they are used by no dish, and there is no market there
-    to source in.
-
-**All 41 non-place rows are used by a dish**, so they are load-bearing
-as DISH ORIGINS. They are simply not markets you can source a
-product in. An availability row pointing at one of them has no
-market behind it, and it is worse than a missing row: it looks
-complete.
-
-So the rule is a CHECK, not a convention. This script is that check.
-
-THE TWO LISTS
--------------
-`SOURCEABLE_MARKETS` -- the 250 markets the research covers: the 249
-ISO 3166-1 countries plus Kosovo (`XK`), which has a non-ISO code
-but is a real country and is active.
-
-`NOT_A_MARKET` -- the 52 rows that are not sourceable markets. The
-list lives in `scripts/sourcing-not-a-market.txt`, GENERATED FROM THE
-LIVE `geo_entities` TABLE, so it has one spelling per name and cannot
-drift from the database it describes.
-
-`NOT_A_MARKET` -- the 52 rows that are not sourceable markets: the 41
-non-place rows, the 2 name-duplicates, the 1 semantic duplicate, and
-the 9 archived former states. Kosovo is deliberately NOT in this list: it has a
-non-ISO code but it IS a country, and it is active.
-
-USAGE
------
-    check-sourcing-market.py --list
-        print the 250 sourceable markets and the 44 that are not
-
-    check-sourcing-market.py <name-or-iso-code> [...]
-        check each one. Exit 0 if every one is a sourceable market,
-        1 if any is not.
-
-    check-sourcing-market.py --row <json>
-        check one availability row's market. The row must have a
-        `country_code` or `geo_entity`; the row's country is what
-        the availability is ABOUT.
-
-The names are matched case-insensitively and accent-insensitively,
-because "Indung Kampampangan" is written both ways in the sources.
+The rejection file preserves ambiguous duplicate names and known dish origins.
+It is not an allowlist. New/unknown rows must fail until reviewed. ISO code
+identity is required to distinguish China/Palestine/Netherlands duplicates.
+Every supplied market field must be nonempty and identify the same country.
 """
 from __future__ import annotations
 
@@ -74,24 +14,8 @@ import os
 import sys
 import unicodedata
 
-# THE LIST IS A FILE, NOT A LITERAL.
-#
-# It was a literal, and it was WRONG: a hand-typed diacritic and the
-# live row's spelling differed by one code point, and nothing caught
-# it until the mutation harness did. The file was then generated FROM
-# the live `geo_entities` table -- the exact bytes of the exact rows --
-# so the list has one spelling per name and cannot drift from the
-# database it describes.
-#
-# It holds 52 rows:
-#   - 41 rows that are not places at all (continents, historical
-#     states, non-sovereign entities, and three things that are not
-#     places), plus the 2 that duplicate an ISO country by name
-#     (China, Palestine) and the 1 that duplicates it semantically
-#     (Netherlands beside NL);
-#   - the 9 ARCHIVED rows with a non-ISO code -- former states and
-#     dependencies (Ascension, East Germany, Yugoslavia, ...), which
-#     are not sourceable markets either.
+# Database-derived denylist preserves exact origin/duplicate spellings. It can
+# become stale; the independent ISO allowlist below closes that gap.
 _LIST_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "sourcing-not-a-market.txt"
 )
@@ -107,6 +31,39 @@ def _load_not_a_market() -> set[str]:
 
 
 NOT_A_MARKET: set[str] = _load_not_a_market()
+
+# The live table's NAME for each ISO market.
+#
+# The geo_entities table spells some countries differently from the
+# ISO 3166-1 list: "Turkey" for TR, "Russia" for RU, "Ivory Coast" for
+# CI, "Aland" for AX. A closed allowlist keyed on the ISO NAMES alone
+# would REJECT those real markets -- the opposite error, and the worse
+# one, because it refuses a market you can source in. So the live
+# spellings are accepted too, mapped to their code.
+#
+# Like the deny-list, this file is GENERATED FROM THE LIVE TABLE, so
+# it cannot drift from the database it describes.
+_ALIAS_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "sourcing-market-name-aliases.txt",
+)
+
+
+def _load_name_aliases() -> dict[str, str]:
+    """The live table's name for each ISO market: name -> ISO code."""
+    aliases: dict[str, str] = {}
+    with open(_ALIAS_FILE, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name, _, code = line.partition("|")
+            if name.strip() and code.strip():
+                aliases[name.strip()] = code.strip()
+    return aliases
+
+
+NAME_ALIASES: dict[str, str] = _load_name_aliases()
 
 # Kosovo: a non-ISO code, but a real country, and active. It IS a
 # sourceable market.
@@ -125,28 +82,293 @@ def norm(value: str) -> str:
 _NOT_A_MARKET_NORM = {norm(n) for n in NOT_A_MARKET}
 
 
+# ISO snapshot: Debian iso-codes /usr/share/iso-codes/json/iso_3166-1.json, 249 entries.
+MARKETS = {'AD': ['Andorra', 'Principality of Andorra'],
+ 'AE': ['United Arab Emirates'],
+ 'AF': ['Afghanistan', 'Islamic Republic of Afghanistan'],
+ 'AG': ['Antigua and Barbuda'],
+ 'AI': ['Anguilla'],
+ 'AL': ['Albania', 'Republic of Albania'],
+ 'AM': ['Armenia', 'Republic of Armenia'],
+ 'AO': ['Angola', 'Republic of Angola'],
+ 'AQ': ['Antarctica'],
+ 'AR': ['Argentina', 'Argentine Republic'],
+ 'AS': ['American Samoa'],
+ 'AT': ['Austria', 'Republic of Austria'],
+ 'AU': ['Australia'],
+ 'AW': ['Aruba'],
+ 'AX': ['Åland Islands'],
+ 'AZ': ['Azerbaijan', 'Republic of Azerbaijan'],
+ 'BA': ['Bosnia and Herzegovina', 'Republic of Bosnia and Herzegovina'],
+ 'BB': ['Barbados'],
+ 'BD': ['Bangladesh', "People's Republic of Bangladesh"],
+ 'BE': ['Belgium', 'Kingdom of Belgium'],
+ 'BF': ['Burkina Faso'],
+ 'BG': ['Bulgaria', 'Republic of Bulgaria'],
+ 'BH': ['Bahrain', 'Kingdom of Bahrain'],
+ 'BI': ['Burundi', 'Republic of Burundi'],
+ 'BJ': ['Benin', 'Republic of Benin'],
+ 'BL': ['Saint Barthélemy'],
+ 'BM': ['Bermuda'],
+ 'BN': ['Brunei Darussalam'],
+ 'BO': ['Bolivia, Plurinational State of', 'Plurinational State of Bolivia', 'Bolivia'],
+ 'BQ': ['Bonaire, Sint Eustatius and Saba'],
+ 'BR': ['Brazil', 'Federative Republic of Brazil'],
+ 'BS': ['Bahamas', 'Commonwealth of the Bahamas'],
+ 'BT': ['Bhutan', 'Kingdom of Bhutan'],
+ 'BV': ['Bouvet Island'],
+ 'BW': ['Botswana', 'Republic of Botswana'],
+ 'BY': ['Belarus', 'Republic of Belarus'],
+ 'BZ': ['Belize'],
+ 'CA': ['Canada'],
+ 'CC': ['Cocos (Keeling) Islands'],
+ 'CD': ['Congo, The Democratic Republic of the'],
+ 'CF': ['Central African Republic'],
+ 'CG': ['Congo', 'Republic of the Congo'],
+ 'CH': ['Switzerland', 'Swiss Confederation'],
+ 'CI': ["Côte d'Ivoire", "Republic of Côte d'Ivoire"],
+ 'CK': ['Cook Islands'],
+ 'CL': ['Chile', 'Republic of Chile'],
+ 'CM': ['Cameroon', 'Republic of Cameroon'],
+ 'CN': ['China', "People's Republic of China"],
+ 'CO': ['Colombia', 'Republic of Colombia'],
+ 'CR': ['Costa Rica', 'Republic of Costa Rica'],
+ 'CU': ['Cuba', 'Republic of Cuba'],
+ 'CV': ['Cabo Verde', 'Republic of Cabo Verde'],
+ 'CW': ['Curaçao'],
+ 'CX': ['Christmas Island'],
+ 'CY': ['Cyprus', 'Republic of Cyprus'],
+ 'CZ': ['Czechia', 'Czech Republic'],
+ 'DE': ['Germany', 'Federal Republic of Germany'],
+ 'DJ': ['Djibouti', 'Republic of Djibouti'],
+ 'DK': ['Denmark', 'Kingdom of Denmark'],
+ 'DM': ['Dominica', 'Commonwealth of Dominica'],
+ 'DO': ['Dominican Republic'],
+ 'DZ': ['Algeria', "People's Democratic Republic of Algeria"],
+ 'EC': ['Ecuador', 'Republic of Ecuador'],
+ 'EE': ['Estonia', 'Republic of Estonia'],
+ 'EG': ['Egypt', 'Arab Republic of Egypt'],
+ 'EH': ['Western Sahara'],
+ 'ER': ['Eritrea', 'the State of Eritrea'],
+ 'ES': ['Spain', 'Kingdom of Spain'],
+ 'ET': ['Ethiopia', 'Federal Democratic Republic of Ethiopia'],
+ 'FI': ['Finland', 'Republic of Finland'],
+ 'FJ': ['Fiji', 'Republic of Fiji'],
+ 'FK': ['Falkland Islands (Malvinas)'],
+ 'FM': ['Micronesia, Federated States of', 'Federated States of Micronesia'],
+ 'FO': ['Faroe Islands'],
+ 'FR': ['France', 'French Republic'],
+ 'GA': ['Gabon', 'Gabonese Republic'],
+ 'GB': ['United Kingdom', 'United Kingdom of Great Britain and Northern Ireland'],
+ 'GD': ['Grenada'],
+ 'GE': ['Georgia'],
+ 'GF': ['French Guiana'],
+ 'GG': ['Guernsey'],
+ 'GH': ['Ghana', 'Republic of Ghana'],
+ 'GI': ['Gibraltar'],
+ 'GL': ['Greenland'],
+ 'GM': ['Gambia', 'Republic of the Gambia'],
+ 'GN': ['Guinea', 'Republic of Guinea'],
+ 'GP': ['Guadeloupe'],
+ 'GQ': ['Equatorial Guinea', 'Republic of Equatorial Guinea'],
+ 'GR': ['Greece', 'Hellenic Republic'],
+ 'GS': ['South Georgia and the South Sandwich Islands'],
+ 'GT': ['Guatemala', 'Republic of Guatemala'],
+ 'GU': ['Guam'],
+ 'GW': ['Guinea-Bissau', 'Republic of Guinea-Bissau'],
+ 'GY': ['Guyana', 'Republic of Guyana'],
+ 'HK': ['Hong Kong', 'Hong Kong Special Administrative Region of China'],
+ 'HM': ['Heard Island and McDonald Islands'],
+ 'HN': ['Honduras', 'Republic of Honduras'],
+ 'HR': ['Croatia', 'Republic of Croatia'],
+ 'HT': ['Haiti', 'Republic of Haiti'],
+ 'HU': ['Hungary'],
+ 'ID': ['Indonesia', 'Republic of Indonesia'],
+ 'IE': ['Ireland'],
+ 'IL': ['Israel', 'State of Israel'],
+ 'IM': ['Isle of Man'],
+ 'IN': ['India', 'Republic of India'],
+ 'IO': ['British Indian Ocean Territory'],
+ 'IQ': ['Iraq', 'Republic of Iraq'],
+ 'IR': ['Iran, Islamic Republic of', 'Islamic Republic of Iran', 'Iran'],
+ 'IS': ['Iceland', 'Republic of Iceland'],
+ 'IT': ['Italy', 'Italian Republic'],
+ 'JE': ['Jersey'],
+ 'JM': ['Jamaica'],
+ 'JO': ['Jordan', 'Hashemite Kingdom of Jordan'],
+ 'JP': ['Japan'],
+ 'KE': ['Kenya', 'Republic of Kenya'],
+ 'KG': ['Kyrgyzstan', 'Kyrgyz Republic'],
+ 'KH': ['Cambodia', 'Kingdom of Cambodia'],
+ 'KI': ['Kiribati', 'Republic of Kiribati'],
+ 'KM': ['Comoros', 'Union of the Comoros'],
+ 'KN': ['Saint Kitts and Nevis'],
+ 'KP': ["Korea, Democratic People's Republic of",
+        "Democratic People's Republic of Korea",
+        'North Korea'],
+ 'KR': ['Korea, Republic of', 'South Korea'],
+ 'KW': ['Kuwait', 'State of Kuwait'],
+ 'KY': ['Cayman Islands'],
+ 'KZ': ['Kazakhstan', 'Republic of Kazakhstan'],
+ 'LA': ["Lao People's Democratic Republic", 'Laos'],
+ 'LB': ['Lebanon', 'Lebanese Republic'],
+ 'LC': ['Saint Lucia'],
+ 'LI': ['Liechtenstein', 'Principality of Liechtenstein'],
+ 'LK': ['Sri Lanka', 'Democratic Socialist Republic of Sri Lanka'],
+ 'LR': ['Liberia', 'Republic of Liberia'],
+ 'LS': ['Lesotho', 'Kingdom of Lesotho'],
+ 'LT': ['Lithuania', 'Republic of Lithuania'],
+ 'LU': ['Luxembourg', 'Grand Duchy of Luxembourg'],
+ 'LV': ['Latvia', 'Republic of Latvia'],
+ 'LY': ['Libya'],
+ 'MA': ['Morocco', 'Kingdom of Morocco'],
+ 'MC': ['Monaco', 'Principality of Monaco'],
+ 'MD': ['Moldova, Republic of', 'Republic of Moldova', 'Moldova'],
+ 'ME': ['Montenegro'],
+ 'MF': ['Saint Martin (French part)'],
+ 'MG': ['Madagascar', 'Republic of Madagascar'],
+ 'MH': ['Marshall Islands', 'Republic of the Marshall Islands'],
+ 'MK': ['North Macedonia', 'Republic of North Macedonia'],
+ 'ML': ['Mali', 'Republic of Mali'],
+ 'MM': ['Myanmar', 'Republic of Myanmar'],
+ 'MN': ['Mongolia'],
+ 'MO': ['Macao', 'Macao Special Administrative Region of China'],
+ 'MP': ['Northern Mariana Islands', 'Commonwealth of the Northern Mariana Islands'],
+ 'MQ': ['Martinique'],
+ 'MR': ['Mauritania', 'Islamic Republic of Mauritania'],
+ 'MS': ['Montserrat'],
+ 'MT': ['Malta', 'Republic of Malta'],
+ 'MU': ['Mauritius', 'Republic of Mauritius'],
+ 'MV': ['Maldives', 'Republic of Maldives'],
+ 'MW': ['Malawi', 'Republic of Malawi'],
+ 'MX': ['Mexico', 'United Mexican States'],
+ 'MY': ['Malaysia'],
+ 'MZ': ['Mozambique', 'Republic of Mozambique'],
+ 'NA': ['Namibia', 'Republic of Namibia'],
+ 'NC': ['New Caledonia'],
+ 'NE': ['Niger', 'Republic of the Niger'],
+ 'NF': ['Norfolk Island'],
+ 'NG': ['Nigeria', 'Federal Republic of Nigeria'],
+ 'NI': ['Nicaragua', 'Republic of Nicaragua'],
+ 'NL': ['Netherlands', 'Kingdom of the Netherlands'],
+ 'NO': ['Norway', 'Kingdom of Norway'],
+ 'NP': ['Nepal', 'Federal Democratic Republic of Nepal'],
+ 'NR': ['Nauru', 'Republic of Nauru'],
+ 'NU': ['Niue'],
+ 'NZ': ['New Zealand'],
+ 'OM': ['Oman', 'Sultanate of Oman'],
+ 'PA': ['Panama', 'Republic of Panama'],
+ 'PE': ['Peru', 'Republic of Peru'],
+ 'PF': ['French Polynesia'],
+ 'PG': ['Papua New Guinea', 'Independent State of Papua New Guinea'],
+ 'PH': ['Philippines', 'Republic of the Philippines'],
+ 'PK': ['Pakistan', 'Islamic Republic of Pakistan'],
+ 'PL': ['Poland', 'Republic of Poland'],
+ 'PM': ['Saint Pierre and Miquelon'],
+ 'PN': ['Pitcairn'],
+ 'PR': ['Puerto Rico'],
+ 'PS': ['Palestine, State of', 'the State of Palestine'],
+ 'PT': ['Portugal', 'Portuguese Republic'],
+ 'PW': ['Palau', 'Republic of Palau'],
+ 'PY': ['Paraguay', 'Republic of Paraguay'],
+ 'QA': ['Qatar', 'State of Qatar'],
+ 'RE': ['Réunion'],
+ 'RO': ['Romania'],
+ 'RS': ['Serbia', 'Republic of Serbia'],
+ 'RU': ['Russian Federation'],
+ 'RW': ['Rwanda', 'Rwandese Republic'],
+ 'SA': ['Saudi Arabia', 'Kingdom of Saudi Arabia'],
+ 'SB': ['Solomon Islands'],
+ 'SC': ['Seychelles', 'Republic of Seychelles'],
+ 'SD': ['Sudan', 'Republic of the Sudan'],
+ 'SE': ['Sweden', 'Kingdom of Sweden'],
+ 'SG': ['Singapore', 'Republic of Singapore'],
+ 'SH': ['Saint Helena, Ascension and Tristan da Cunha'],
+ 'SI': ['Slovenia', 'Republic of Slovenia'],
+ 'SJ': ['Svalbard and Jan Mayen'],
+ 'SK': ['Slovakia', 'Slovak Republic'],
+ 'SL': ['Sierra Leone', 'Republic of Sierra Leone'],
+ 'SM': ['San Marino', 'Republic of San Marino'],
+ 'SN': ['Senegal', 'Republic of Senegal'],
+ 'SO': ['Somalia', 'Federal Republic of Somalia'],
+ 'SR': ['Suriname', 'Republic of Suriname'],
+ 'SS': ['South Sudan', 'Republic of South Sudan'],
+ 'ST': ['Sao Tome and Principe', 'Democratic Republic of Sao Tome and Principe'],
+ 'SV': ['El Salvador', 'Republic of El Salvador'],
+ 'SX': ['Sint Maarten (Dutch part)'],
+ 'SY': ['Syrian Arab Republic', 'Syria'],
+ 'SZ': ['Eswatini', 'Kingdom of Eswatini'],
+ 'TC': ['Turks and Caicos Islands'],
+ 'TD': ['Chad', 'Republic of Chad'],
+ 'TF': ['French Southern Territories'],
+ 'TG': ['Togo', 'Togolese Republic'],
+ 'TH': ['Thailand', 'Kingdom of Thailand'],
+ 'TJ': ['Tajikistan', 'Republic of Tajikistan'],
+ 'TK': ['Tokelau'],
+ 'TL': ['Timor-Leste', 'Democratic Republic of Timor-Leste'],
+ 'TM': ['Turkmenistan'],
+ 'TN': ['Tunisia', 'Republic of Tunisia'],
+ 'TO': ['Tonga', 'Kingdom of Tonga'],
+ 'TR': ['Türkiye', 'Republic of Türkiye'],
+ 'TT': ['Trinidad and Tobago', 'Republic of Trinidad and Tobago'],
+ 'TV': ['Tuvalu'],
+ 'TW': ['Taiwan, Province of China', 'Taiwan'],
+ 'TZ': ['Tanzania, United Republic of', 'United Republic of Tanzania', 'Tanzania'],
+ 'UA': ['Ukraine'],
+ 'UG': ['Uganda', 'Republic of Uganda'],
+ 'UM': ['United States Minor Outlying Islands'],
+ 'US': ['United States', 'United States of America'],
+ 'UY': ['Uruguay', 'Eastern Republic of Uruguay'],
+ 'UZ': ['Uzbekistan', 'Republic of Uzbekistan'],
+ 'VA': ['Holy See (Vatican City State)'],
+ 'VC': ['Saint Vincent and the Grenadines'],
+ 'VE': ['Venezuela, Bolivarian Republic of', 'Bolivarian Republic of Venezuela', 'Venezuela'],
+ 'VG': ['Virgin Islands, British', 'British Virgin Islands'],
+ 'VI': ['Virgin Islands, U.S.', 'Virgin Islands of the United States'],
+ 'VN': ['Viet Nam', 'Socialist Republic of Viet Nam', 'Vietnam'],
+ 'VU': ['Vanuatu', 'Republic of Vanuatu'],
+ 'WF': ['Wallis and Futuna'],
+ 'WS': ['Samoa', 'Independent State of Samoa'],
+ 'XK': ['Kosovo'],
+ 'YE': ['Yemen', 'Republic of Yemen'],
+ 'YT': ['Mayotte'],
+ 'ZA': ['South Africa', 'Republic of South Africa'],
+ 'ZM': ['Zambia', 'Republic of Zambia'],
+ 'ZW': ['Zimbabwe', 'Republic of Zimbabwe']}
+_MARKET_KEYS = {norm(name): code for code, names in MARKETS.items() for name in [code, *names]}
+
 def is_sourceable(value: str, known_codes: set[str] | None = None) -> tuple[bool, str]:
     """Is this name or ISO code a sourceable MARKET?
 
     Returns (ok, reason).
     """
+    if not isinstance(value, str) or not norm(value):
+        return False, "the market must be a nonempty string"
     key = norm(value)
-    if not key:
-        return False, "the market is empty"
     if key in _NOT_A_MARKET_NORM:
-        return False, (
-            f"'{value}' is not a sourcing market: it is a region, a "
-            f"historical state, a non-sovereign entity, or a duplicate "
-            f"of an ISO country. It is used by dishes as an ORIGIN, but "
-            f"there is no market there to source a product in."
-        )
-    if known_codes is not None:
-        if key in known_codes:
-            return True, ""
-        if len(key) == 2 and key.upper() in known_codes:
-            return True, ""
+        return False, f"{value!r} is not a sourcing market (or is an ambiguous duplicate name); use an ISO code for a real market"
+    code = _MARKET_KEYS.get(key)
+    if code is None:
+        # The live table's own spelling for an ISO market.
+        for live_name, live_code in NAME_ALIASES.items():
+            if norm(live_name) == key:
+                code = live_code
+                break
+    if code is None:
+        return False, f"{value!r} is not in the ISO + Kosovo market allowlist"
+    if known_codes is not None and code not in {str(c).upper().strip() for c in known_codes} | EXTRA_SOURCEABLE:
+        return False, f"{value!r} is absent from the supplied ISO codes"
     return True, ""
 
+
+
+def unique_row(pairs):
+    row = {}
+    for key, value in pairs:
+        if key in row:
+            raise ValueError(f"duplicate JSON field: {key}")
+        row[key] = value
+    return row
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -155,8 +377,7 @@ def main() -> int:
     ap.add_argument("--row", help="one availability row as JSON")
     ap.add_argument(
         "--iso-codes",
-        help="a file of the live ISO codes, one per line. Without it, "
-        "only the not-a-market list can be checked.",
+        help="optional code subset, one per line; cannot expand the built-in ISO + Kosovo allowlist",
     )
     args = ap.parse_args()
 
@@ -179,25 +400,28 @@ def main() -> int:
             }
 
     values = list(args.values)
-    if args.row:
+    if args.row is not None:
         try:
-            row = json.loads(args.row)
-        except json.JSONDecodeError as exc:
+            row = json.loads(args.row, object_pairs_hook=unique_row)
+        except ValueError as exc:
             print(f"FAILED: the row is not valid JSON: {exc}")
             return 1
         if not isinstance(row, dict):
             print("FAILED: the row is not an object")
             return 1
-        for field in ("country_code", "geo_entity", "country", "market"):
-            if row.get(field):
-                values.append(str(row[field]))
-                break
-        else:
-            print(
-                "FAILED: the row names no market. It must carry one of: "
-                "country_code, geo_entity, country, market."
-            )
+        present = [row[field] for field in ("country_code", "geo_entity", "country", "market") if field in row]
+        if not present:
+            print("FAILED: the row names no market")
             return 1
+        for value in present:
+            ok, reason = is_sourceable(value, known_codes)
+            if not ok:
+                print(f"FAILED: {reason}")
+                return 1
+        if len({_MARKET_KEYS[norm(v)] for v in present}) != 1:
+            print("FAILED: conflicting market identities")
+            return 1
+        values.extend(present)
 
     if not values:
         print("FAILED: nothing to check. Pass names, or --row, or --list.")

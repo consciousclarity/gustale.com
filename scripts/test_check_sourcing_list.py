@@ -50,17 +50,17 @@ def write_rows(rows, fields):
     return buf.getvalue()
 
 
-def run_checker(csv_text):
+def run_checker(csv_text, *extra):
     with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False,
                                      encoding="utf-8") as fh:
         fh.write(csv_text)
         path = fh.name
     try:
         proc = subprocess.run(
-            [sys.executable, CHECKER, path],
+            [sys.executable, CHECKER, path, *extra],
             capture_output=True, text=True, timeout=120,
         )
-        return proc.stdout + proc.stderr
+        return proc.returncode, proc.stdout + proc.stderr
     finally:
         os.unlink(path)
 
@@ -146,7 +146,50 @@ def case_the_hint_count_drifts(rows):
     return rows, "hint counts"
 
 
+def case_removed_row(rows):
+    rows[:] = [r for r in rows if r['slug'] != 'tamarind']
+    return rows, 'MISSING'
+
+
+def case_renamed_row(rows):
+    rows[0]['slug'] = 'invented-ingredient'
+    return rows, 'unexpected ingredient'
+
+
+def case_spec_identity(rows):
+    rows[0]['spec_row_name'] = rows[1]['spec_row_name']
+    rows[0]['substitution_limits_from_the_spec'] = rows[1]['substitution_limits_from_the_spec']
+    return rows, 'wrong spec row identity'
+
+
+def case_invented_substitute(rows):
+    rows[0]['substitutes_to_research'] = 'invented-substitute'
+    return rows, 'approved substitutes'
+
+
+def case_changed_name(rows):
+    rows[0]['name'] = 'Different ingredient'
+    return rows, 'approved name'
+
+
+def case_changed_bands(rows):
+    rows[0]['price_bands_to_research'] = 'typical'
+    return rows, 'price bands differ'
+
+
+def case_limits_case_drift(rows):
+    rows[0]['substitution_limits_from_the_spec'] = rows[0]['substitution_limits_from_the_spec'].upper()
+    return rows, "not the spec's words"
+
+
 CASES = [
+    ("verbatim limits change case", case_limits_case_drift),
+    ("an invented substitute enters approved scope", case_invented_substitute),
+    ("an ingredient name changes", case_changed_name),
+    ("valid price bands silently lose scope", case_changed_bands),
+    ("a row borrows another spec identity", case_spec_identity),
+    ("a non-cheese ingredient is deleted", case_removed_row),
+    ("an ingredient is renamed", case_renamed_row),
     ("tamarind paste is a substitute as well as a form",
      case_tamarind_paste_as_substitute),
     ("seedless tamarind duplicates the fresh form",
@@ -175,8 +218,8 @@ def main():
     fields = list(base_rows[0].keys())
 
     # The baseline must PASS, or the mutation results prove nothing.
-    out = run_checker(write_rows(base_rows, fields))
-    if "OK:" not in out:
+    status, out = run_checker(write_rows(base_rows, fields))
+    if status != 0 or "OK:" not in out:
         print("  FAILED: the BASELINE does not pass -- the mutations "
               "would prove nothing")
         print(out)
@@ -194,8 +237,8 @@ def main():
             for k in r:
                 if k not in f2:
                     f2.append(k)
-        out = run_checker(write_rows(rows, f2))
-        if must.lower() in out.lower():
+        status, out = run_checker(write_rows(rows, f2))
+        if status != 0 and must.lower() in out.lower():
             print(f"  caught: {name}")
         else:
             failures += 1
@@ -205,7 +248,21 @@ def main():
                 if "FAILED" in line or "- '" in line:
                     print(f"      {line.strip()[:150]}")
 
-    print(f"  {len(CASES) - failures}/{len(CASES)} mutations caught")
+    extra_cases = [
+        ("missing owner spec", write_rows(base_rows, fields), ['--spec', '/tmp/nonexistent-codex-review-spec'], 'spec was not found'),
+        ("missing columns", 'slug\ntamarind\n', [], 'columns'),
+        ("duplicate header", 'slug,slug\na,a\n', [], 'columns'),
+        ("short CSV row", write_rows(base_rows, fields) + 'tamarind\n', [], 'row width'),
+    ]
+    for name, text, extra, message in extra_cases:
+        status, out = run_checker(text, *extra)
+        if status != 0 and message in out:
+            print(f"  caught: {name}")
+        else:
+            failures += 1
+            print(f"  MISSED: {name}: {out}")
+    total = len(CASES) + len(extra_cases)
+    print(f"  {total - failures}/{total} mutations caught")
     return 1 if failures else 0
 
 

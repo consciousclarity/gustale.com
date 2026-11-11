@@ -58,52 +58,99 @@ AVAILABILITY = {
     "unavailable",
 }
 
-# THE APPROVED LIST.
-#
-# It is DERIVED from the list file, not a second copy of it.
-#
-# It used to be a hand-maintained dict in this file, and that was a
-# trap: the list changed (a split, a removed substitute) and the copy
-# did not, and the checker then failed on the COPY and not on the
-# truth -- which reads as "the list is wrong" when the list was right
-# and the copy was stale. A second copy of a list is a second list.
-#
-# So the approved set is read from the CSV, and what this file
-# enforces is the RULES: the form vocabulary, the MEANING comparison,
-# the spec's verbatim limits, the prohibitions, the hint count. Those
-# are the parts that must not drift, and they cannot drift silently,
-# because they are code.
-#
-# Each entry is (name, forms, substitutes, price_bands, hint,
-# price-catalogue item).
-#
-# The HINT is the owner's "typically defines the dish" judgement. It is
-# a RECIPE-LINE property (ADR-008 Decision 5: recipe_ingredients.is_key)
-# -- an approximate substitute never rescues a key ingredient -- so it
-# is a HINT for setting the line, never a column on the ingredient. The
-# ingredients table has exactly one sourcing column, `ubiquitous`.
-#
-# The `forms` are the forms the research must cover -- the rating
-# selects the LOWEST-burden form, so the forms are where the real
-# difference between countries lives.
-# The approved set is LOADED from the list file, so there is exactly
-# one copy of the list. See the comment above.
-#
-# The loader takes the CSV path, because the checker is invoked as
-# `check_sourcing_list.py <csv>`.
-def load_approved(csv_path):
-    out = {}
-    with open(csv_path, newline="", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
-            out[row["slug"]] = (
-                row["name"],
-                row["forms_to_research"],
-                row["substitutes_to_research"],
-                row["price_bands_to_research"],
-                row["typically_defines_the_dish_hint"],
-                True,
-            )
-    return out
+# Reviewed policy snapshot, deliberately independent of the submitted CSV.
+# Changes to approved research scope require an explicit policy update here.
+APPROVED = {'ackee': ('Ackee',
+           'fresh;frozen;canned_or_packaged',
+           '',
+           'elevated;high;prohibitive',
+           'yes',
+           True),
+ 'asian-pear': ('Asian pear', 'fresh', 'bosc-pear', 'typical;elevated;high', 'no', True),
+ 'cassava': ('Cassava',
+             'fresh;frozen',
+             'cassava-flour;tapioca-starch',
+             'typical;elevated;high',
+             'yes',
+             True),
+ 'coconut-milk': ('Coconut milk',
+                  'fresh;homemade;canned_or_packaged',
+                  'coconut-cream',
+                  'typical;elevated;high',
+                  'yes',
+                  True),
+ 'curry-leaves': ('Curry leaves',
+                  'fresh;frozen;canned_or_packaged',
+                  '',
+                  'typical;elevated;high',
+                  'yes',
+                  True),
+ 'doubanjiang': ('Doubanjiang',
+                 'paste_or_concentrate',
+                 'generic-chili-bean-paste',
+                 'elevated;high;prohibitive',
+                 'yes',
+                 True),
+ 'epazote': ('Epazote', 'fresh;dried', '', 'typical;elevated;high', 'no', True),
+ 'fish-sauce': ('Fish sauce',
+                'canned_or_packaged;paste_or_concentrate',
+                '',
+                'typical;elevated;high',
+                'yes',
+                True),
+ 'fresh-corn-masa': ('Fresh corn masa',
+                     'homemade',
+                     'masa-harina;corn-tortillas',
+                     'typical;elevated;high',
+                     'yes',
+                     True),
+ 'fresh-mozzarella-di-bufala': ('Fresh mozzarella di bufala',
+                                'fresh',
+                                'fresh-cow-mozzarella;low-moisture-mozzarella;provolone',
+                                'elevated;high;prohibitive',
+                                'yes',
+                                True),
+ 'gochujang': ('Gochujang',
+               'paste_or_concentrate',
+               'gochugaru-mix',
+               'typical;elevated;high',
+               'yes',
+               True),
+ 'huitlacoche': ('Huitlacoche',
+                 'fresh;canned_or_packaged',
+                 '',
+                 'typical;elevated;high',
+                 'yes',
+                 True),
+ 'makrut-lime-leaves': ('Makrut lime leaves',
+                        'fresh;frozen',
+                        'makrut-lime-zest;ordinary-lime-zest',
+                        'elevated;high;prohibitive',
+                        'yes',
+                        True),
+ 'pandan': ('Pandan', 'fresh;extract', '', 'typical;elevated;high', 'yes', True),
+ 'parmigiano-reggiano': ('Parmigiano Reggiano',
+                         'canned_or_packaged',
+                         'grana-padano',
+                         'elevated;high;prohibitive',
+                         'yes',
+                         True),
+ 'pecorino': ('Pecorino', 'canned_or_packaged', '', 'elevated;high;prohibitive', 'yes', True),
+ 'plantain': ('Plantain', 'fresh;frozen', 'green-banana', 'typical;elevated;high', 'yes', True),
+ 'preserved-lemon': ('Preserved lemon',
+                     'fresh',
+                     'salted-lemon;zest-and-salt',
+                     'elevated;high;prohibitive',
+                     'yes',
+                     True),
+ 'saffron': ('Saffron', 'dried;extract', '', 'elevated;high;prohibitive', 'yes', True),
+ 'tamarind': ('Tamarind',
+              'fresh;paste_or_concentrate;extract',
+              'tamarind-block',
+              'typical;elevated;high',
+              'no',
+              True),
+ 'ube': ('Ube', 'fresh;frozen;extract', '', 'elevated;high;prohibitive', 'yes', True)}
 
 # THE FORM VOCABULARY.
 #
@@ -284,20 +331,36 @@ def main():
     args = ap.parse_args()
 
     with open(args.csv, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        required = {'price_bands_to_research', 'spec_easy_contexts', 'spec_harder_contexts', 'forms_to_research', 'substitution_limits_from_the_spec', 'typically_defines_the_dish_hint', 'slug', 'spec_row_name', 'form_product_categories', 'substitutes_to_research', 'name'}
+        headers = reader.fieldnames or []
+        if len(headers) != len(set(headers)) or not required.issubset(headers):
+            print("FAILED: missing or duplicate CSV columns")
+            return 1
+        rows = list(reader)
+    if any(None in r or any(v is None for v in r.values()) for r in rows):
+        print("FAILED: malformed CSV row width")
+        return 1
 
-    approved = load_approved(args.csv)
+    # Closed membership is independent of the submitted CSV.
+    approved = APPROVED
 
     failures = []
     print(f"  {len(rows)} rows, {len(approved)} in the approved list")
 
+    spec_identity = {'coconut-milk': 'Coconut milk', 'cassava': 'Cassava', 'plantain': 'Plantain', 'tamarind': 'Tamarind', 'saffron': 'Saffron', 'preserved-lemon': 'Preserved lemon', 'curry-leaves': 'Curry leaves', 'makrut-lime-leaves': 'Makrut lime leaves', 'gochujang': 'Gochujang', 'doubanjiang': 'Doubanjiang', 'fish-sauce': 'Fish sauce', 'fresh-mozzarella-di-bufala': 'Fresh mozzarella di bufala', 'parmigiano-reggiano': 'Parmigiano Reggiano and Pecorino', 'pecorino': 'Parmigiano Reggiano and Pecorino', 'ube': 'Ube', 'ackee': 'Ackee', 'huitlacoche': 'Huitlacoche', 'asian-pear': 'Asian pear', 'pandan': 'Pandan', 'epazote': 'Epazote', 'fresh-corn-masa': 'Fresh corn masa'}
+    expected_slugs = set(APPROVED)
+    actual_slugs = {r["slug"] for r in rows}
+    for row in rows:
+        if row['slug'] in spec_identity and row['spec_row_name'] != spec_identity[row['slug']]:
+            failures.append(f"'{row['slug']}': wrong spec row identity")
+    for missing in sorted(expected_slugs - actual_slugs):
+        failures.append(f"'{missing}': MISSING ingredient")
+    for extra in sorted(actual_slugs - expected_slugs):
+        failures.append(f"'{extra}': unexpected ingredient")
+
     # (1) the list must be a SET of distinct slugs.
     #
-    # There is no longer a second copy to compare against: the
-    # approved list IS this file, and the owner's review of it is the
-    # merge of it. What is checked here is that the list is well
-    # formed -- no duplicate slug, and the split rows are the ones the
-    # owner asked for.
     seen = {}
     for r in rows:
         slug = r["slug"].strip()
@@ -447,6 +510,8 @@ def main():
 
         bands = [b.strip() for b in r["price_bands_to_research"].split(";")
                  if b.strip()]
+        if r['price_bands_to_research'].strip() != approved[slug][3]:
+            failures.append(f"'{slug}': price bands differ from approved scope")
         if not bands:
             failures.append(f"'{slug}': no price bands to research")
         for b in bands:
@@ -458,8 +523,7 @@ def main():
     # (3) the substitution limits are carried VERBATIM from the spec.
     limits = spec_limits(args.spec)
     if limits is None:
-        print("  NOTE: the owner's spec was not found, so the "
-              "verbatim-limits check did not run")
+        failures.append("the owner's spec was not found; cannot verify substitution limits")
     else:
         for slug, (name, _, _, _, _, _) in sorted(approved.items()):
             r = seen.get(slug)
@@ -478,7 +542,7 @@ def main():
                     f"the list and the spec have drifted apart")
                 continue
             got = r["substitution_limits_from_the_spec"].strip()
-            if norm(got) != norm(want):
+            if got != want:
                 failures.append(
                     f"'{slug}': the substitution limits are not the spec's "
                     f"words. The spec says: {want!r}. The list says: "
@@ -598,8 +662,8 @@ def main():
     # "16 key, 4 not" while the data said 17/3 -- and nothing caught
     # it, because the checker validated each row but not the summary
     # the reader sees. So the count is derived and compared.
-    n_key = sum(1 for _, t in approved.items() if t[4] == "yes")
-    n_not = len(approved) - n_key
+    n_key = sum(1 for r in rows if r["typically_defines_the_dish_hint"].strip() == "yes")
+    n_not = len(rows) - n_key
     print(f"  {n_key} 'typically defines the dish', {n_not} not")
     if (n_key, n_not) != (18, 3):
         failures.append(

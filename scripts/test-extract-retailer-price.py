@@ -1,383 +1,192 @@
 #!/usr/bin/env python3
-"""test-extract-retailer-price.py -- the mutation harness for the
-retailer-price extractor.
-
-THE POINT
----------
-`scripts/extract-retailer-price.py` exists because a price was taken
-from a RELATED-PRODUCTS CAROUSEL and was wrong: the Migros
-coconut-milk page's own product is "Migros . Kokosnussmilch, 400 ml,
-CHF 1.40", but the first extraction returned CHF 2.80 -- the Thai
-Kitchen 250 ml from the carousel. The own-brand product was CHEAPER
-and a DIFFERENT product, so the error changed the price band.
-
-A checker that cannot be shown to FAIL is not a checker. This harness
-mutates the fixtures in the ways the real failures happened, and
-requires the tool to catch every one.
-
-    python3 scripts/test-extract-retailer-price.py
-"""
-
-from __future__ import annotations
-
+"""Independent adversarial ownership/ambiguity mutations; no network required."""
+import copy
 import importlib.util
-import os
-import re
+import json
+from pathlib import Path
+import subprocess
 import sys
 import tempfile
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-CHECKER = os.path.join(HERE, "extract-retailer-price.py")
-
-spec = importlib.util.spec_from_file_location("extractor", CHECKER)
-assert spec and spec.loader
-extractor = importlib.util.module_from_spec(spec)
-# The module MUST be in sys.modules before it is executed: a @dataclass
-# resolves its own module through sys.modules when it builds __init__,
-# and it fails with "NoneType has no attribute __dict__" otherwise.
-sys.modules[spec.name] = extractor
-spec.loader.exec_module(extractor)
+TOOL = Path(__file__).with_name('extract-retailer-price.py')
+spec = importlib.util.spec_from_file_location('extractor', TOOL)
+m = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = m
+spec.loader.exec_module(m)
+URL = 'https://www.migros.ch/de/product/158586000000'
+NAME = 'Migros · Kokosnussmilch 400 ml'
+BASE = {'@type': 'Product', 'name': NAME, 'url': URL,
+        'offers': {'@type': 'Offer', 'price': '1.40', 'priceCurrency': 'CHF', 'url': URL}}
 
 
-# --------------------------------------------------------------------------
-# The fixtures. Each is the SHAPE of a real fetched page, reduced to
-# the parts that matter, with the real numbers.
-# --------------------------------------------------------------------------
+def page(data):
+    return f'URL Source: {URL}\n<script type="application/ld+json">{json.dumps(data)}</script>'
 
-MIGROS_COCONUT = """Title: Migros . Kokosnussmilch . Migros
 
-URL Source: https://www.migros.ch/de/product/158586000000
 
-Markdown Content:
-[Zur Homepage](https://www.migros.ch/de)
 
-![Image 2: Migros . Kokosnussmilch](https://image.migros.ch/d/d8e2caed.jpg)
+# ── Tier 1 fixtures ──────────────────────────────────────────────
+#
+# The publisher's own product record, as captured from the real
+# pages. These are the strongest evidence available: the price is a
+# FIELD OF THE PRODUCT OBJECT, not a number near a name.
 
-Ein Franken 40 1.40
-
-# Migros . Kokosnussmilch
-
-400ml 400ml 35 Rappen pro 100 ml 0.35/100ml
-
-Zur Einkaufsliste hinzufugen
-
-## Ahnliche Produkte
-
-* [![Image 3: Thai Kitchen](https://image.migros.ch/d/abc.jpg)](https://www.migros.ch/de/product/1)
-2 Franken 80 2.80 Thai Kitchen Kokosnussmilch,Thai Kitchen Kokosnussmilch, 250ml 250ml ,Ein Franken 12 pro 100 ml
-* [![Image 4: Alnatura](https://image.migros.ch/d/def.jpg)](https://www.migros.ch/de/product/2)
-2 Franken 50 2.50 Alnatura Kokos Milch . vegan,Alnatura Kokos Milch . vegan, 400ml 400ml ,63 Rappen pro 100 ml 0.63/100ml
+MOLLIE_PAGE = """URL Source: https://www.asiatischer-lebensmittelladen.de/produkt/x
+<script>
+var mollieApplePayDirectData = {"product":{"needShipping":true,"id":9721,"price":"2.49","isVariation":false,"stock":"outofstock"},"shop":{"countryCode":"DE","currencyCode":"EUR","totalLabel":"Asiatischer Lebensmittelladen"},"ajaxUrl":"https://example.com/wp-admin/admin-ajax.php"};
+</script>
 """
 
-MIGROS_TAMARIND = """Title: Migros . Tamarinden Paste . Migros
-
-URL Source: https://www.migros.ch/de/product/158586800000
-
-Markdown Content:
-Ein Franken 90 2.90
-
-# Tiger Kitchen . Tamarinden Paste
-
-227 Gramm 227 Gramm 128 Rappen pro 100 g 1.28/100g
-
-## Ahnliche Produkte
-
-* Thai Kitchen Tamarindensauce
-3 Franken 95 3.95 Thai Kitchen Tamarindensauce, 300ml
-"""
-
-ASIATISCHER_TRS = """Title: TRS Tamarinde Paste 200 g online bestellen . Asia Shop
-
-URL Source: https://www.asiatischer-lebensmittelladen.de/produkt/pickels-pasten/tamarind-pasten/trs-tamarinde-paste-200g/
-
-Markdown Content:
-Datenschutz
-
-# TRS Tamarinde Paste 200g
-
-[![Image 32: TRS Tamarinde Paste](https://cdn.example.com/img.jpg)](https://cdn.example.com/img.jpg)
-
-# TRS Tamarinde Paste 200g
-
-Marke:
-
-[TRS](https://www.asiatischer-lebensmittelladen.de/brand/trs/)
-
-HINWEIS: Trockenware bitte separat bestellen.
-
-[Zur Wunschliste hinzufugen](https://example.com/wishlist)
-
-[Vergleichen](https://example.com/compare)
-
- 8 schauen sich diesen Artikel derzeit an
-
-Nicht vorratig
-
-2,49 EUR inkl. MwSt.Grundpreis:12,45 EUR / kg
-
-Versand & Verpackung
-
-## Ahnliche Produkte
-
-* COCK BRAND Tamarinde mit Kern
-2,99 EUR inkl. MwSt.Grundpreis:6,59 EUR / kg
-"""
-
-TOKOPEDIA_PRODUCT = """Title: 250gr Asam Jawa Tamarind - Cap Sahabat Rempah
-
-URL Source: https://www.tokopedia.com/capsahabat/250gr-asam-jawa-tamarind-1729645910981903799
-
-Markdown Content:
-## Rekomendasi
-
-* Something Else
-Rp 44.000
-
-Terpilih: 250gr
-
-Subtotal
-
-Rp28.000
-
-# 250gr Asam Jawa / Tamarind - 250gr
-
-Terjual 750+
-
-Rp28.000
-
-## Pengiriman
-
-Dikirim dari Kota Bandung
-
-Ongkir Rp9.000
+TOKOPEDIA_PAGE = """URL Source: https://www.tokopedia.com/capsahabat/x
+<script>
+{"query": {"components": {"0": {"data": {"0": {"children": {"0": {"productID":"103193106824","price":28000,"priceFmt":"Rp28.000","slashPriceFmt":"","discPercentage":"","optionID":{"type":"json","json":[2]},"optionName":{"type":"json","json":["250gr"]},"productName":"250gr Asam Jawa / Tamarind - 250gr"}}}}}}}
+</script>
 """
 
 
-def _fail(msg: str) -> None:
-    raise AssertionError(msg)
+def test_tier1_baseline():
+    """The publisher's own record gives the price, and reports its
+    tier."""
+    r = m.extract(MOLLIE_PAGE, 'TRS Tamarinde Paste 200 g')
+    assert r.price == '2.49', f'the mollie carrier: {r.price} {r.reason}'
+    assert r.value == 2.49, r.value
+    assert r.currency == 'EUR', r.currency
+    assert r.tier == '1', f'the tier was {r.tier!r}'
+    assert r.carrier == 'mollie', r.carrier
+
+    r2 = m.extract(TOKOPEDIA_PAGE, '250gr Asam Jawa / Tamarind')
+    assert r2.price == 'Rp28.000', f'the tokopedia carrier: {r2.price} {r2.reason}'
+    assert r2.value == 28000.0, r2.value
+    assert r2.currency == 'IDR', r2.currency
+    assert r2.tier == '1', f'the tier was {r2.tier!r}'
+    assert r2.carrier == 'tokopedia-hydration', r2.carrier
 
 
-def _expect_price(page: str, product: str, expected: str, label: str) -> None:
-    r = extractor.extract(page, product)
-    if r.price is None:
-        _fail(f"{label}: expected the price {expected}, got a REFUSAL: {r.reason}")
-    if r.price.replace(" ", "") != expected.replace(" ", ""):
-        _fail(f"{label}: expected {expected}, got {r.price}")
+def mut_tier1_wrong_product_is_refused():
+    """A carrier record that names a DIFFERENT product must not answer
+    for the requested one."""
+    r = m.extract(TOKOPEDIA_PAGE, 'Something Else Entirely')
+    assert r.price is None, f'the carrier answered for another product: {r.price}'
+    assert r.tier == '', r.tier
 
 
-# --------------------------------------------------------------------------
-# The baseline. These must pass.
-# --------------------------------------------------------------------------
-
-def test_baseline() -> None:
-    # Migros: the OWN product's price, NOT the carousel's.
-    _expect_price(MIGROS_COCONUT, "Kokosnussmilch", "1.40", "the Migros own product")
-    _expect_price(MIGROS_TAMARIND, "Tamarinden Paste", "2.90", "the Migros tamarind")
-
-    # The German specialty shop.
-    r = extractor.extract(ASIATISCHER_TRS, "TRS Tamarinde Paste")
-    if r.price is None:
-        _fail(f"the Asia Shop product: expected 2.49, got a REFUSAL: {r.reason}")
-    if r.price.replace(",", ".") != "2.49":
-        _fail(f"the Asia Shop product: expected 2.49, got {r.price}")
-    if not r.unit_price:
-        _fail("the Asia Shop product: the base-unit price was not read")
-
-    # Tokopedia: the product's own price, not the "Ongkir" shipping
-    # fee and not a sidebar's recommendation price.
-    _expect_price(TOKOPEDIA_PRODUCT, "Asam Jawa Tamarind", "Rp28.000", "the Tokopedia product")
-    r_toko = extractor.extract(TOKOPEDIA_PRODUCT, "Asam Jawa Tamarind")
-    if r_toko.value == 9000.0:
-        _fail("the tool took the SHIPPING fee as the price")
+def mut_tier1_a_second_record_does_not_win():
+    """A page with two product records: the FIRST one is the page's
+    product, and a later record must not answer for it."""
+    page = TOKOPEDIA_PAGE.replace(
+        '"productName":"250gr Asam Jawa / Tamarind - 250gr"',
+        '"productName":"250gr Asam Jawa / Tamarind - 250gr"',
+    ) + '<script>{"productID":"999","price":1000,"productName":"A Different Product"}</script>'
+    r = m.extract(page, '250gr Asam Jawa / Tamarind')
+    assert r.price == 'Rp28.000', f'the wrong record won: {r.price}'
 
 
-# --------------------------------------------------------------------------
-# The mutations. Each is a way the real thing went wrong.
-# --------------------------------------------------------------------------
-
-def mut_carousel_price_wins() -> None:
-    """THE BUG. If the tool takes the LAST price on the page instead of
-    the one before the product's heading, it returns the carousel's."""
-    r = extractor.extract(MIGROS_COCONUT, "Kokosnussmilch")
-    if r.price and r.price.replace(" ", "") == "2.80":
-        _fail("the tool took the CAROUSEL price 2.80 instead of the product's 1.40")
-    # And the carousel price must not be the answer under ANY spelling.
-    r2 = extractor.extract(MIGROS_COCONUT, "Thai Kitchen Kokosnussmilch")
-    # Here the target IS the carousel item, so the tool should refuse
-    # rather than invent a price for a related product.
-    if r2.price is not None:
-        _fail(f"the tool priced a RELATED product: {r2.price}")
+def mut_tier1_a_zero_price_is_refused():
+    """A zero or negative price in the publisher's record is not a
+    price."""
+    bad = MOLLIE_PAGE.replace('"price":"2.49"', '"price":"0"')
+    r = m.extract(bad, 'TRS Tamarinde Paste 200 g')
+    assert r.price is None, f'a zero price was accepted: {r.price}'
 
 
-def mut_wrong_target_is_refused() -> None:
-    """A product that is not on the page must be REFUSED, never
-    approximated with some other product's price."""
-    r = extractor.extract(MIGROS_COCONUT, "Bananas")
-    if r.price is not None:
-        _fail(f"the tool priced a product that is not on the page: {r.price}")
-    if "not found" not in r.reason:
-        _fail(f"the refusal reason is unclear: {r.reason!r}")
+def mut_tier1_a_missing_currency_is_refused():
+    """The record must carry an explicit ISO 4217 currency."""
+    bad = MOLLIE_PAGE.replace('"currencyCode":"EUR"', '"currencyCode":""')
+    r = m.extract(bad, 'TRS Tamarinde Paste 200 g')
+    assert r.price is None, f'a currency-less price was accepted: {r.price}'
 
 
-def mut_no_price_block_is_refused() -> None:
-    """A page with no price block must be refused, not guessed."""
-    page = "Title: nothing\n\nURL Source: https://example.com/p\n\nMarkdown Content:\n# A Product\n\nno prices here\n"
-    r = extractor.extract(page, "A Product")
-    if r.price is not None:
-        _fail(f"the tool invented a price: {r.price}")
+def mut_tier1_the_carrier_is_host_scoped():
+    """A carrier must not fire on another site's page."""
+    other = MOLLIE_PAGE.replace(
+        'URL Source: https://www.asiatischer-lebensmittelladen.de/produkt/x',
+        'URL Source: https://www.tokopedia.com/capsahabat/x',
+    )
+    r = m.extract(other, 'TRS Tamarinde Paste 200 g')
+    assert r.price is None, f'the carrier fired on the wrong host: {r.price}'
 
 
-def mut_search_page_is_refused() -> None:
-    """A SEARCH page has no product's own price block. A price taken
-    from a search result list belongs to SOME product, but not
-    necessarily the target -- so the tool must refuse."""
-    page = """Title: asam jawa kering - Tokopedia
-
-URL Source: https://www.tokopedia.com/search?q=asam%20jawa%20kering
-
-Markdown Content:
-Rp 9.000
-Rp 100.000
-Rp 25.500
-"""
-    r = extractor.extract(page, "asam jawa kering")
-    if r.price is not None:
-        _fail(f"the tool took a price from a SEARCH page: {r.price}")
-
-
-def mut_the_page_title_is_not_the_product() -> None:
-    """The page's Title: line is often the SITE's title, not the
-    product's. The tool must use the heading, not the title."""
-    page = """Title: Asia Shop . All products
-
-URL Source: https://www.asiatischer-lebensmittelladen.de/produkt/x
-
-Markdown Content:
-# TRS Tamarinde Paste 200 g
-
-2,49 EUR inkl. MwSt.
-"""
-    r = extractor.extract(page, "TRS Tamarinde Paste")
-    if r.product_title and "Asia Shop" in r.product_title:
-        _fail("the tool used the page title as the product title")
-
-
-def mut_carousel_before_heading_is_ignored() -> None:
-    """If the related-products section appears BEFORE the heading,
-    a price inside it must never be used."""
-    page = """Title: Migros . Kokosnussmilch
-
-URL Source: https://www.migros.ch/de/product/1
-
-Markdown Content:
-## Ahnliche Produkte
-
-* Something 9.99 Something, 100g
-
-Ein Franken 40 1.40
-
-# Migros . Kokosnussmilch
-
-400ml 400ml
-"""
-    r = extractor.extract(page, "Kokosnussmilch")
-    if r.price and r.price.replace(" ", "") == "9.99":
-        _fail("the tool took a price from a section that precedes the heading")
-    if r.price and r.price.replace(" ", "") != "1.40":
-        _fail(f"the wrong price: {r.price}")
-
-
-def mut_price_value_normalisation() -> None:
-    """'2,49' and '2.49' are the same number; 'Rp 28.000' is 28000."""
-    if extractor._price_value("2,49") != 2.49:
-        _fail("a European decimal did not parse")
-    if extractor._price_value("2.49") != 2.49:
-        _fail("a dot decimal did not parse")
-    if extractor._price_value("Rp 28.000") != 28000.0:
-        _fail(f"an Indonesian thousands figure did not parse: {extractor._price_value('Rp 28.000')}")
-    if extractor._price_value("1.40") != 1.40:
-        _fail("a trailing zero decimal did not parse")
-
-
-def mut_the_cli_prints_a_refusal() -> None:
-    """The CLI must exit NON-ZERO on a refusal, so a script that calls
-    it cannot mistake a refusal for a price."""
-    import subprocess
-
-    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as fh:
-        fh.write("Title: x\n\nURL Source: https://example.com/p\n\nMarkdown Content:\n# A Product\n\nno price\n")
-        path = fh.name
-    try:
-        r = subprocess.run(
-            [sys.executable, CHECKER, "--page", path, "--product", "A Product"],
-            capture_output=True, text=True, timeout=60,
-        )
-        if r.returncode == 0:
-            _fail(f"the CLI exited 0 on a refusal: {r.stdout!r}")
-        if "REFUSED" not in r.stderr:
-            _fail(f"the CLI did not say REFUSED: {r.stderr!r}")
-    finally:
-        os.unlink(path)
-
-
-def mut_shipping_fee_is_not_the_price() -> None:
-    """Tokopedia shows an 'Ongkir Rp9.000' -- the SHIPPING fee. It is
-    not the product's price, and taking it would be a price wrong by
-    a factor of three."""
-    r = extractor.extract(TOKOPEDIA_PRODUCT, "Asam Jawa Tamarind")
-    if r.price and "9.000" in r.price.replace(" ", ""):
-        _fail(f"the tool took the shipping fee as the price: {r.price}")
-    if r.value == 9000.0:
-        _fail("the tool took the shipping fee as the price")
-
-
-MUTATIONS = [
-    ("the shipping fee is not the price", mut_shipping_fee_is_not_the_price),
-    ("the carousel price must not win", mut_carousel_price_wins),
-    ("a product that is not on the page is refused", mut_wrong_target_is_refused),
-    ("a page with no price block is refused", mut_no_price_block_is_refused),
-    ("a search page is refused", mut_search_page_is_refused),
-    ("the page title is not the product", mut_the_page_title_is_not_the_product),
-    ("a carousel before the heading is ignored", mut_carousel_before_heading_is_ignored),
-    ("the price values normalise", mut_price_value_normalisation),
-    ("the CLI refuses with a non-zero exit", mut_the_cli_prints_a_refusal),
-]
-
-
-def main() -> int:
-    failures: list[str] = []
-
-    try:
-        test_baseline()
-        print("  [ok  ] the baseline: every fixture's own price is read")
-    except AssertionError as exc:
-        failures.append(f"the baseline: {exc}")
-        print(f"  [FAIL] the baseline: {exc}")
-
+def main():
+    result = m.extract(page(BASE), NAME)
+    assert result.price == '1.40' and result.currency == 'CHF' and result.value == 1.4
+    # Unrelated structured products and visually closer prices must not win.
+    related = copy.deepcopy(BASE)
+    related.update(url=URL + '-related', name='Thai Kitchen Kokosnussmilch')
+    related['offers'].update(url=URL + '-related', price='2.80')
+    assert m.extract(page({'@graph': [related, BASE]}), NAME).price == '1.40'
+    print('  baseline passes: exact URL/name offer; unrelated Product ignored')
+    cases = []
+    def mutant(label, change):
+        data = copy.deepcopy(BASE)
+        change(data)
+        cases.append((label, page(data), NAME))
+    mutant('related product URL', lambda p: p.update(url=URL + '/related'))
+    mutant('substring of a longer product', lambda p: p.update(name=NAME + ' Thai Kitchen'))
+    mutant('shorter name than target', lambda p: p.update(name='Kokosnussmilch'))
+    mutant('absent product name', lambda p: p.pop('name'))
+    mutant('offer URL identifies another variant', lambda p: p['offers'].update(url=URL + '?size=250'))
+    mutant('sale and original offers', lambda p: p.update(offers=[p['offers'], dict(p['offers'], price='2.80')]))
+    mutant('aggregate range', lambda p: p['offers'].update({'@type': 'AggregateOffer', 'lowPrice': '1.40'}))
+    mutant('missing currency', lambda p: p['offers'].pop('priceCurrency'))
+    mutant('unknown currency', lambda p: p['offers'].update(priceCurrency='ZZZ'))
+    mutant('membership price', lambda p: p['offers'].update(eligibleCustomerType='Member'))
+    mutant('expired offer', lambda p: p['offers'].update(priceValidUntil='2000-01-01'))
+    mutant('comma price', lambda p: p['offers'].update(price='1,40'))
+    mutant('NaN price', lambda p: p['offers'].update(price='NaN'))
+    mutant('boolean price', lambda p: p['offers'].update(price=True))
+    mutant('negative price', lambda p: p['offers'].update(price='-1.40'))
+    mutant('zero price', lambda p: p['offers'].update(price=0))
+    mutant('additional price specification', lambda p: p['offers'].update(priceSpecification={'price': '2.80'}))
+    mutant('variant group', lambda p: p.update(hasVariant=[{}]))
+    # The Tier 1 cases: the publisher's own record must not answer for
+    # another product, must not be reachable from another host, and
+    # must reject an invalid price or a missing currency.
+    cases.extend([
+        ('tier 1: a record for another product',
+         TOKOPEDIA_PAGE.replace('"productName":"250gr Asam Jawa / Tamarind - 250gr"',
+                                '"productName":"A Completely Different Product"'),
+         '250gr Asam Jawa / Tamarind'),
+        ('tier 1: the carrier on the wrong host',
+         MOLLIE_PAGE.replace('asiatischer-lebensmittelladen.de', 'tokopedia.com'),
+         'TRS Tamarinde Paste 200 g'),
+        ('tier 1: a zero price in the publisher record',
+         MOLLIE_PAGE.replace('"price":"2.49"', '"price":"0"'),
+         'TRS Tamarinde Paste 200 g'),
+        ('tier 1: a negative price in the publisher record',
+         MOLLIE_PAGE.replace('"price":"2.49"', '"price":"-2.49"'),
+         'TRS Tamarinde Paste 200 g'),
+        ('tier 1: a missing currency in the publisher record',
+         MOLLIE_PAGE.replace('"currencyCode":"EUR"', '"currencyCode":""'),
+         'TRS Tamarinde Paste 200 g'),
+        ('tier 1: a malformed publisher record',
+         MOLLIE_PAGE.replace('"price":"2.49"', '"price":"two-fifty"'),
+         'TRS Tamarinde Paste 200 g'),
+        ('duplicate price keys', page(BASE).replace('"price": "1.40"', '"price": "2.80", "price": "1.40"'), NAME),
+        ('duplicate matching products', page([BASE, BASE]), NAME),
+        ('missing target argument', page(BASE), None),
+        ('wrong target', page(BASE), 'Bananas'),
+        ('unidentified nested recommendation', page({'@type':'WebPage', 'related':BASE}), NAME),
+        ('malformed structured data', f'URL Source: {URL}\n<script type="application/ld+json">{{bad}}</script>', NAME),
+        ('missing URL Source', page(BASE).replace('URL Source:', 'Source:'), NAME),
+        ('lookalike domain', page(BASE).replace('URL Source: '+URL, 'URL Source: https://migros.ch.evil.test/product'), NAME),
+    ])
+    for heading in ('#', '##'):
+        for body in ('1.40 CHF\n~~2.80 CHF~~', '## Related products\n# '+NAME+'\n2.80 CHF', 'Ongkir Rp9.000'):
+            cases.append((f'unsafe markdown {heading} {body!r}', f'URL Source: {URL}\n{heading} {NAME}\n{body}', NAME))
     caught = 0
-    for label, fn in MUTATIONS:
-        try:
-            fn()
-        except AssertionError as exc:
-            failures.append(f"{label}: {exc}")
-            print(f"  [FAIL] {label}: {exc}")
-            continue
-        except Exception as exc:  # noqa: BLE001
-            failures.append(f"{label}: raised {exc!r}")
-            print(f"  [FAIL] {label}: raised {exc!r}")
-            continue
-        caught += 1
-        print(f"  [ok  ] {label}")
-
-    total = len(MUTATIONS)
-    print(f"\n{caught}/{total} mutations caught")
-    if failures:
-        print(f"\nFAILED: {len(failures)} problem(s)")
-        for f in failures:
-            print(f"  - {f}")
-        return 1
+    with tempfile.TemporaryDirectory() as tmp:
+        for label, text, name in cases:
+            result = m.extract(text, name)
+            assert result.price is None and result.reason, (label, result)
+            path = Path(tmp) / 'page'
+            path.write_text(text)
+            proc = subprocess.run([sys.executable, str(TOOL), '--page', str(path), '--product', name or '', '--json'], capture_output=True, text=True)
+            assert proc.returncode != 0 and json.loads(proc.stdout)['price'] is None, label
+            caught += 1
+            print('  caught:', label)
+    print(f'{caught}/{len(cases)} mutations caught')
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == '__main__':
+    sys.exit(main())
