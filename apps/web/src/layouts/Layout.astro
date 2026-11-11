@@ -14,7 +14,7 @@ import "../styles/recipes-theme.css";
 import { LocaleSuggestion } from "../components/LocaleSuggestion";
 import LocaleSwitcher from "../components/LocaleSwitcher.astro";
 import Nav from "../components/Nav.astro";
-import { isGeoDomain } from "../lib/domain";
+import { isGeoDomain, RECIPES_ORIGIN } from "../lib/domain";
 import { type CoreLocale, isRtl } from "../lib/locales";
 
 export interface Props {
@@ -204,14 +204,14 @@ const canonicalUrl =
           <div class="fcap">
             <a href="https://gustale.com/" class="foot-domain" data-active={isGeo ? 'true' : undefined} aria-current={isGeo ? 'page' : undefined}>Atlas</a>
             <span class="foot-sep">·</span>
-            <a href="https://gustale.recipes/" class="foot-domain" data-active={!isGeo ? 'true' : undefined} aria-current={!isGeo ? 'page' : undefined}>Recipes</a>
+            <a href={`${RECIPES_ORIGIN}/`} class="foot-domain" data-active={!isGeo ? 'true' : undefined} aria-current={!isGeo ? 'page' : undefined}>Recipes</a>
             <span class="foot-sep">·</span>
             Open knowledge, slow cooking — {new Date().getFullYear()}
           </div>
         </div>
         <div class="fl">
           <a href="https://gustale.com/">Atlas</a>
-          <a href="https://gustale.recipes/">Recipes</a>
+          <a href={`${RECIPES_ORIGIN}/`}>Recipes</a>
           <a href="/families">Food families</a>
           <a href="/lineages">Lineages</a>
           <a href="/about">About</a>

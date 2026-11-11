@@ -36,6 +36,39 @@ import {
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
+
+/**
+ * The ORIGIN this build is served from.
+ *
+ * The validator checks the canonical, the sitemap and the property
+ * switcher against it. When the origin is configurable, the checks
+ * must follow it -- otherwise they assert the OLD host and fail a
+ * build that is correct.
+ *
+ * It is the SAME rule the build uses (see the Dockerfile's
+ * PUBLIC_SITE_ORIGIN), and the default is the current live origin, so
+ * an unset variable validates exactly as before.
+ */
+const SITE_ORIGIN = (
+  process.env.PUBLIC_SITE_ORIGIN ||
+  (DOMAIN === "geo" ? "https://gustale.com" : "https://gustale.recipes")
+).replace(/\/$/, "");
+
+/**
+ * The origin of the RECIPES property -- a CROSS-property link target.
+ *
+ * It is NOT the same as SITE_ORIGIN. In the geo build, SITE_ORIGIN is
+ * gustale.com (the Atlas's own host) and the cross-links must still
+ * point at the recipes site. Using SITE_ORIGIN for both made the geo
+ * build assert that "Browse recipes" pointed at gustale.com -- which
+ * is exactly the branding-leak class of bug the switcher checks exist
+ * to catch, so the check was right and my first version was wrong.
+ */
+const RECIPES_ORIGIN = (
+  process.env.PUBLIC_RECIPES_ORIGIN ||
+  process.env.PUBLIC_SITE_ORIGIN ||
+  "https://gustale.recipes"
+).replace(/\/$/, "");
 const API_BASE = process.env.PUBLIC_API_BASE ?? "";
 // When the build uses real API data (not the in-container mock), the
 // pagination fixture family doesn't exist, so the fixture-specific
@@ -125,8 +158,8 @@ check(
 );
 check(
   "nav links to absolute Recipes origin",
-  countOccurrences(regionsHtml, 'href="https://gustale.recipes/"') >= 1,
-  "missing https://gustale.recipes/ switcher link",
+  countOccurrences(regionsHtml, `href="${RECIPES_ORIGIN}/"`) >= 1,
+  `missing ${RECIPES_ORIGIN}/ switcher link`,
 );
 
 if (DOMAIN === "geo") {
@@ -161,8 +194,8 @@ if (DOMAIN === "geo") {
   );
   check(
     "geo nav Add a dish points at Recipes host",
-    /href="https:\/\/gustale\.recipes\/dishes\/new"/.test(regionsHtml ?? ""),
-    "missing absolute Add a dish CTA",
+    regionsHtml?.includes(`href="${RECIPES_ORIGIN}/dishes/new"`) ?? false,
+    `missing absolute Add a dish CTA on ${RECIPES_ORIGIN}`,
   );
 } else {
   check(
@@ -600,11 +633,9 @@ if (DOMAIN === "geo") {
     'expected "Gustale Recipes" on the recipes home',
   );
   check(
-    "the recipes home self-canonicals on gustale.recipes",
-    (homeHtml ?? "").includes(
-      '<link rel="canonical" href="https://gustale.recipes/"',
-    ),
-    "the recipes home canonical is not its own URL on gustale.recipes",
+    `the recipes home self-canonicals on ${SITE_ORIGIN}`,
+    (homeHtml ?? "").includes(`<link rel="canonical" href="${SITE_ORIGIN}/"`),
+    `the recipes home canonical is not its own URL on ${SITE_ORIGIN}`,
   );
   // R3, again, on the recipes HOME (not just the nav): the recipes
   // property must not offer the Atlas's "Add a dish", and must not
@@ -673,14 +704,14 @@ if (DOMAIN === "geo") {
 check(
   "both absolute property-switch destinations present",
   countOccurrences(navHtml, 'href="https://gustale.com/"') >= 1 &&
-    countOccurrences(navHtml, 'href="https://gustale.recipes/"') >= 1,
+    countOccurrences(navHtml, `href="${RECIPES_ORIGIN}/"`) >= 1,
 );
 
 // Helper parity: Atlas see-all + fallbacks never emit local /dishes or /ingredients.
 const atlasSeeAll = seeAllDishesHref("test query", "geo");
 check(
   "Atlas see-all URL is absolute Recipes dishes",
-  atlasSeeAll === "https://gustale.recipes/dishes?q=test%20query",
+  atlasSeeAll === `${RECIPES_ORIGIN}/dishes?q=test%20query`,
 );
 const atlasHelp = searchHelpLinks("geo");
 const atlasErr = searchErrorBrowseLinks("geo");
@@ -693,7 +724,7 @@ check(
 check(
   "Atlas error fallback includes Food families + Browse recipes",
   atlasErr.some((l) => l.href === "/families") &&
-    atlasErr.some((l) => l.href === "https://gustale.recipes/dishes"),
+    atlasErr.some((l) => l.href === `${RECIPES_ORIGIN}/dishes`),
 );
 
 check(
@@ -728,8 +759,7 @@ check(
 // an EXISTING robots.txt and caught the missing-file case with an empty
 // catch block, so the site shipped with no robots.txt at all and
 // nothing said so.
-const origin =
-  DOMAIN === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+const origin = SITE_ORIGIN;
 const robotsPath = join(DIST, "robots.txt");
 const sitemapIndexPath = join(DIST, "sitemap.xml");
 

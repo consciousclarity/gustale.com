@@ -10,6 +10,7 @@ import {
   currentDomain,
   isGeoDomain,
   RECIPES_ORIGIN,
+  recipesHost,
 } from "../lib/domain";
 import { isPrimaryNavActive } from "../lib/searchNav";
 import { AuthMenu } from "./AuthMenu";
@@ -145,7 +146,7 @@ const showAddDish = isGeo;
           title={recipesProperty.description}
         >
           <span class="property-switch__name">Recipes</span>
-          <span class="property-switch__hint">gustale.recipes</span>
+          <span class="property-switch__hint">{recipesHost()}</span>
         </a>
       </div>
 

@@ -4,7 +4,16 @@
  */
 
 export const ATLAS_ORIGIN = "https://gustale.com";
-export const RECIPES_ORIGIN = "https://gustale.recipes";
+/**
+ * The origin of the RECIPES property -- a build-time input, so the
+ * Atlas build's cross-links point at wherever the recipes site is.
+ * The default is the current live origin.
+ */
+export const RECIPES_ORIGIN = (
+  process.env.PUBLIC_RECIPES_ORIGIN ||
+  process.env.PUBLIC_SITE_ORIGIN ||
+  "https://gustale.recipes"
+).replace(/\/$/, "");
 
 export const RECIPES_ONLY_PATH_PREFIXES = [
   "/dishes/new",

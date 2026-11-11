@@ -54,6 +54,44 @@ ARG PUBLIC_API_BASE=https://api.gustale.recipes
 ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
+# PUBLIC_SITE_ORIGIN is the ORIGIN this build is served from.
+#
+# It is separate from PUBLIC_DOMAIN on purpose. PUBLIC_DOMAIN picks
+# WHICH SITE is built (the Atlas or the Recipes); PUBLIC_SITE_ORIGIN
+# picks the HOST it is served from. The recipes property is moving from
+# gustale.recipes to recipes.gustale.com, and the origin is BAKED INTO
+# THE IMAGE -- the canonical link, the per-locale sitemaps, robots.txt
+# and the footer are all built from it.
+#
+# So an image built for gustale.recipes and served on
+# recipes.gustale.com would serve a canonical pointing at the OLD
+# host. A search engine follows the canonical, so the new host would
+# canonicalise itself away. That is the opposite of a launch.
+#
+# The default is the current live origin, so a build with this unset
+# is byte-identical to the previous behaviour.
+ARG PUBLIC_SITE_ORIGIN=https://gustale.recipes
+ENV PUBLIC_SITE_ORIGIN=${PUBLIC_SITE_ORIGIN}
+
+# The DEFAULT origin -- the value used when PUBLIC_SITE_ORIGIN is unset.
+# It is a separate variable so that a build which configures an origin
+# can drop the old-host literal from the client bundle: with both
+# values being build-time literals, the bundler folds the expression
+# down to the single string the build chose.
+ARG PUBLIC_RECIPES_DEFAULT_ORIGIN=https://gustale.recipes
+ENV PUBLIC_RECIPES_DEFAULT_ORIGIN=${PUBLIC_RECIPES_DEFAULT_ORIGIN}
+
+# The origin of the RECIPES property, for CROSS-links (the property
+# switcher, "Browse recipes"). It is separate from PUBLIC_SITE_ORIGIN
+# because the geo build is served from gustale.com but still links to
+# the recipes site -- one variable for both made the geo build's
+# "Browse recipes" point at gustale.com.
+#
+# Its default is the current live recipes origin, so an unmodified
+# build changes nothing.
+ARG PUBLIC_RECIPES_ORIGIN=https://gustale.recipes
+ENV PUBLIC_RECIPES_ORIGIN=${PUBLIC_RECIPES_ORIGIN}
+
 # BUILD_DATA_SOURCE controls where the build gets its data.
 #   mock  (default) — start an in-container mock on :8742 from the
 #                     committed seed. Used by GHA, which cannot reach

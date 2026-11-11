@@ -40,8 +40,33 @@ const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
 // dish list are in every locale.
 const SHARED_PAGES = ["", "dishes/"];
 
+/**
+ * The origin the sitemaps and robots.txt are written for.
+ *
+ * `PUBLIC_SITE_ORIGIN` is the build-time input. It matters MOST here
+ * of anywhere: the sitemap is what a search engine crawls, and the
+ * robots.txt names the sitemap. If the origin is wrong, the whole
+ * site is indexed under the wrong host -- or not indexed at all.
+ *
+ * The default is unchanged, so an unset `PUBLIC_SITE_ORIGIN` produces
+ * byte-identical output to the previous behaviour.
+ *
+ * It is read from `process.env` here (not `import.meta.env`) because
+ * this is a plain Node script run by `post-build.mjs`, not bundled by
+ * Vite. The Dockerfile sets it as an ENV, so it reaches this process.
+ */
 function siteOrigin(domain) {
+  const explicit = process.env.PUBLIC_SITE_ORIGIN;
+  if (explicit && explicit.length > 0) return explicit.replace(/\/$/, "");
   return domain === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+}
+
+/** The bare host of an origin -- "recipes.gustale.com" from an origin. */
+function hostOf(origin) {
+  return origin
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/\/$/, "");
 }
 
 function localePrefix(locale) {
@@ -355,7 +380,7 @@ async function main() {
         ];
 
   const robots = [
-    `# Gustale — ${domain === "geo" ? "Atlas (gustale.com)" : "Recipes (gustale.recipes)"}`,
+    `# Gustale — ${domain === "geo" ? "Atlas (gustale.com)" : `Recipes (${hostOf(siteOrigin(domain))})`}`,
     "#",
     "# The archive is public and meant to be read and indexed. The",
     "# authoring surfaces are not: they are behind an account, and a",

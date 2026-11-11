@@ -4,7 +4,18 @@
  */
 
 export const ATLAS_ORIGIN = "https://gustale.com";
-export const RECIPES_ORIGIN = "https://gustale.recipes";
+/**
+ * The origin of the RECIPES property.
+ *
+ * It is a build-time input so that the Atlas build's cross-links point
+ * at wherever the recipes site actually is. The default is the
+ * current live origin, so an unset variable changes nothing.
+ */
+export const RECIPES_ORIGIN = (
+  process.env.PUBLIC_RECIPES_ORIGIN ||
+  process.env.PUBLIC_SITE_ORIGIN ||
+  "https://gustale.recipes"
+).replace(/\/$/, "");
 export const BROWSE_PAGE_SIZE = 24;
 
 export const DEFAULT_BROWSE_STATE = {
