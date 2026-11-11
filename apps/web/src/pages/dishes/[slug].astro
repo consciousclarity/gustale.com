@@ -7,16 +7,54 @@ import type {
 } from "../../components/DishJourney";
 import { DishMap } from "../../components/DishMap";
 import { EditDishButton } from "../../components/EditDishButton";
+import RecipeHub from "../../components/RecipeHub.astro";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../lib/api";
+import { isGeoDomain } from "../../lib/domain";
 import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
+import { getHubDishSummaries, getHubRecipes } from "../../lib/recipeHubData";
 import type { DishDetailResponse } from "../../types/dish";
 
 // MapLibre control + popup CSS — required by <DishMap> and journey path map.
 // Not loaded globally (see global.css); this per-route import is paired
 // with the matching one in pages/map.astro for <WorldMap>. P2-7.
 import "maplibre-gl/dist/maplibre-gl.css";
+
+// ONE ROUTE, TWO PROPERTIES — item 5.
+//
+// `/dishes/<slug>` is a DIFFERENT PAGE on each property:
+//
+//   gustale.com/dishes/<slug>      the ATLAS dish — history, origins,
+//                                  places, families, connections.
+//                                  UNCHANGED. This branch is exactly the
+//                                  page that shipped before item 5.
+//
+//   gustale.recipes/dishes/<slug>  the RECIPE HUB — the recipes FOR
+//                                  that dish. Item 5.
+//
+// ADR-007-A1 §5.3 decided this: "There is NO 301 for /dishes/* on
+// gustale.recipes. The recipes property keeps its own /dishes/<slug>
+// hubs." So the two coexist, each on its own property, and the branch is
+// a BUILD-TIME one — `PUBLIC_DOMAIN` is baked into the build, so the
+// recipes build never emits the Atlas page and the geo build never emits
+// the hub.
+//
+// WHY A BRANCH AND NOT TWO FILES
+// -------------------------------
+// Astro maps one route to one file. `/dishes/<slug>` cannot be two
+// files, so the two pages share this one and the build-time branch
+// picks. The alternative — moving the Atlas page to a new path — would
+// change a URL that currently ranks, which is not this card's business.
+//
+// THE BRANCH IS EARLY AND EXPLICIT
+// --------------------------------
+// The Atlas branch below keeps every one of its own behaviours
+// (hreflang, the journey, the map, the related dishes, the edit button).
+// The hub branch returns before any of that runs, so the hub page never
+// pays for the Atlas's data fetches — and the Atlas page never pays for
+// the recipe fetches.
+const isGeo = isGeoDomain();
 
 // Generate static paths for every published dish at build time.
 // This gives us SSG (HTML pre-rendered, not just SSR-on-request) so crawlers
@@ -74,58 +112,148 @@ export async function getStaticPaths() {
 
 const { slug } = Astro.params;
 
+// ── The hub's data (recipes build only) ─────────────────────────────────
+//
+// The recipes build needs the dish's HEADER (name, one-line definition,
+// cover photo) and its RECIPES. Both come from two paged fetches that
+// are memoised across the whole build — see lib/recipeHubData.ts for why
+// that matters at 1,474 dishes.
+//
+// The dish list is the SAME list `getStaticPaths` already fetched, so it
+// is fetched once more here and shared by every hub page.
+let hubDish: {
+  slug: string;
+  name: string;
+  shortDescription: string | null;
+  cover: {
+    publicUrl: string | null;
+    variantsUrls: Record<string, string>;
+    width: number | null;
+    height: number | null;
+    altText: string | null;
+  } | null;
+} | null = null;
+let hubRecipes: import("../../lib/recipes").RecipeSummary[] = [];
+let hubTotal = 0;
+
+if (!isGeo) {
+  const apiBase = import.meta.env.PUBLIC_API_BASE;
+  if (apiBase) {
+    // The two fetches are INDEPENDENT and are awaited separately, NOT
+    // with `Promise.all`.
+    //
+    // `Promise.all` rejects as soon as ONE of its promises rejects, and
+    // that takes the other result down with it — so a failure in the
+    // recipe feed used to erase the dish header that had already been
+    // fetched successfully, and every hub rendered "Dish not found"
+    // for a dish that is published and present.
+    //
+    // Both helpers resolve rather than reject (see lib/recipeHubData.ts),
+    // so the awaits below cannot throw; the try/catch is the belt to
+    // that braces.
+    try {
+      const dishes = await getHubDishSummaries(apiBase);
+      const summary = dishes.get(slug as string);
+      if (summary) {
+        hubDish = {
+          slug: summary.slug,
+          name: summary.canonicalName,
+          shortDescription: summary.shortDescription,
+          cover: summary.cover,
+        };
+      }
+
+      const byDish = await getHubRecipes(apiBase);
+      const list = byDish.get(slug as string) ?? [];
+      hubRecipes = list;
+      // The TOTAL is the count of published recipes for this dish — the
+      // same number the API's hub endpoint reports, derived from the same
+      // `recipe_published` rows. It is what the empty state and the
+      // `noindex` both depend on.
+      hubTotal = list.length;
+    } catch (err) {
+      // A failed fetch must not fail the build. The hub renders its
+      // empty state with the dish's name only, and the reason is logged.
+      console.error("[dishes/:slug] hub data fetch failed:", err);
+    }
+  }
+}
+
+// ── The Atlas dish's data (geo build only) ─────────────────────────────
+//
+// The recipes build does NOT need the Atlas's dish detail, the journey,
+// the map or the related dishes — and fetching them for 1,474 hubs would
+// double the build time for content the hub must not show anyway
+// (ADR-007-A1 §5.1: "No history, places, or families copied from the
+// Atlas").
 let data: DishDetailResponse | null = null;
 let notFound = false;
 let fetchError: string | null = null;
 let journeyBeats: JourneyBeat[] = [];
 let journeyLineages: JourneyLineageLink[] = [];
 
-try {
-  data = await getDishDetail(slug as string);
-} catch (err) {
-  // ApiError with status 404 → render our own not-found state.
-  // Anything else → show a soft error so the build still succeeds.
-  if (
-    err &&
-    typeof err === "object" &&
-    "status" in err &&
-    (err as any).status === 404
-  ) {
-    notFound = true;
-  } else {
-    fetchError = err instanceof Error ? err.message : String(err);
-    notFound = true; // Treat fetch failures as not-found for the user.
-  }
-}
-
-if (data) {
+if (isGeo) {
   try {
-    const journey = await getDishJourney(slug as string);
-    journeyBeats = journey.beats ?? [];
-    journeyLineages = journey.lineages ?? [];
-  } catch {
-    // Journey is optional — never fail the dish page if the sub-resource errs.
-    journeyBeats = [];
-    journeyLineages = [];
+    data = await getDishDetail(slug as string);
+  } catch (err) {
+    // ApiError with status 404 → render our own not-found state.
+    // Anything else → show a soft error so the build still succeeds.
+    if (
+      err &&
+      typeof err === "object" &&
+      "status" in err &&
+      (err as any).status === 404
+    ) {
+      notFound = true;
+    } else {
+      fetchError = err instanceof Error ? err.message : String(err);
+      notFound = true; // Treat fetch failures as not-found for the user.
+    }
   }
-}
 
-if (!data && !notFound) notFound = true;
+  if (data) {
+    try {
+      const journey = await getDishJourney(slug as string);
+      journeyBeats = journey.beats ?? [];
+      journeyLineages = journey.lineages ?? [];
+    } catch {
+      // Journey is optional — never fail the dish page if the sub-resource errs.
+      journeyBeats = [];
+      journeyLineages = [];
+    }
+  }
+
+  if (!data && !notFound) notFound = true;
+}
 
 // 404 status when slug isn't a real dish. This is the SEO-critical fix:
 // previously the SPA fallback returned 200 OK with the home page HTML for
 // /dishes/<slug>, which made every bad URL look like the same page to Google.
-if (notFound) {
+if (isGeo && notFound) {
   Astro.response.status = 404;
 }
 
-const seoTitle = data?.dish
-  ? `${data.dish.name} — Gustale`
-  : "Dish not found — Gustale";
-const seoDescription =
-  data?.dish?.description ??
-  data?.dish?.shortDescription ??
-  "A digital culinary archive.";
+// A hub for a dish that is not published is a hub for a page that is not
+// on the site — the same 404 the API gives for it.
+const hubNotFound = !isGeo && hubDish === null;
+if (hubNotFound) {
+  Astro.response.status = 404;
+}
+
+const seoTitle = isGeo
+  ? data?.dish
+    ? `${data.dish.name} — Gustale`
+    : "Dish not found — Gustale"
+  : hubDish
+    ? `${hubDish.name} — recipes — Gustale`
+    : "Dish not found — Gustale";
+
+const seoDescription = isGeo
+  ? (data?.dish?.description ??
+    data?.dish?.shortDescription ??
+    "A digital culinary archive.")
+  : (hubDish?.shortDescription ??
+    `Recipes for ${hubDish?.name ?? "this dish"} on Gustale Recipes.`);
 
 // ── ADR-003: the hreflang alternates ──────────────────────────────────
 //
@@ -135,15 +263,39 @@ const seoDescription =
 //
 // The English page is at the ROOT, so the English alternate is the
 // un-prefixed URL.
+//
+// THE HUB HAS NO ALTERNATES
+// -------------------------
+// The hub is a RECIPES page, and it has no translated version yet: the
+// recipe feed has no locale, and the dish's name comes from the dish
+// list, which is English.
+//
+// ADR-007-A1 §5.4 is explicit about the two properties: "The two
+// properties do not declare each other as hreflang alternates for the
+// same URL: gustale.com/dishes/<slug> and gustale.recipes/dishes/<slug>
+// are different pages with different content, not translations of each
+// other." And a hub that pointed its `en` alternate at the ATLAS's dish
+// page would be claiming two different pages are translations of one
+// another — exactly what §5.4 forbids.
+//
+// So the hub self-canonicals and declares no alternates. When the
+// recipe content is translated, the alternates come with it.
 const siteOrigin =
   import.meta.env.PUBLIC_SITE_ORIGIN ??
   (import.meta.env.PUBLIC_DOMAIN === "geo"
     ? "https://gustale.com"
     : "https://gustale.recipes");
-const alternates = hreflangAlternates(slug as string, SITE_LOCALES, siteOrigin);
-const localeUrls = Object.fromEntries(
-  SITE_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
-);
+const alternates = isGeo
+  ? hreflangAlternates(slug as string, SITE_LOCALES, siteOrigin)
+  : [];
+const localeUrls = isGeo
+  ? Object.fromEntries(
+      SITE_LOCALES.map((l) => [
+        l,
+        `${siteOrigin}${dishUrl(l, slug as string)}`,
+      ]),
+    )
+  : {};
 
 // The English page IS the English one, so it never shows the
 // fallback notice. The notice belongs to the locale pages.
@@ -151,36 +303,38 @@ const servedEnglish =
   data !== null && data.requestedLocale !== data.locale && data.locale === "en";
 ---
 
-<Layout
-  title={seoTitle}
-  description={seoDescription}
-  locale="en"
-  alternates={alternates}
-  localeUrls={localeUrls}
-  canonicalUrl={localeUrls["en"]}
->
-  {data ? (
-    <>
-      {/* Media-first: full-bleed cover + editorial body lead the page.
+{
+  isGeo ? (
+    <Layout
+      title={seoTitle}
+      description={seoDescription}
+      locale="en"
+      alternates={alternates}
+      localeUrls={localeUrls}
+      canonicalUrl={localeUrls["en"]}
+    >
+      {data ? (
+        <>
+          {/* Media-first: full-bleed cover + editorial body lead the page.
           Journey mounts inside DishDetail after the hero / before preparation.
           Origin map sits below so the first viewport is image + title, not a widget. */}
-      <DishDetail
-        dish={data.dish}
-        origin={data.origin}
-        variants={data.variants}
-        ingredients={data.ingredients}
-        categories={data.categories}
-        tags={data.tags}
-        preparations={data.preparations}
-        sources={data.sources}
-        media={data.media}
-        unevidenced={data.unevidenced}
-        journeyBeats={journeyBeats}
-        journeyLineages={journeyLineages}
-        client:load
-      />
+          <DishDetail
+            dish={data.dish}
+            origin={data.origin}
+            variants={data.variants}
+            ingredients={data.ingredients}
+            categories={data.categories}
+            tags={data.tags}
+            preparations={data.preparations}
+            sources={data.sources}
+            media={data.media}
+            unevidenced={data.unevidenced}
+            journeyBeats={journeyBeats}
+            journeyLineages={journeyLineages}
+            client:load
+          />
 
-      {/* PLACES & TRADITIONS — the typed associations (P4).
+          {/* PLACES & TRADITIONS — the typed associations (P4).
 
           This REPLACES the "Origin" band, which asserted a SETTLED
           origin for a dish whose own journey says the origin is
@@ -192,82 +346,139 @@ const servedEnglish =
 
           It is an island, so the page stays static and the associations
           load when the section approaches the viewport. */}
-      <div class="wrap">
-        <AtlasPlaces
-          slug={data.dish.slug}
-          dishName={data.dish.name}
-          client:visible
-        />
-      </div>
+          <div class="wrap">
+            <AtlasPlaces
+              slug={data.dish.slug}
+              dishName={data.dish.name}
+              client:visible
+            />
+          </div>
 
-      {/* The map stays — but it is the MAP OF THE ASSOCIATED PLACE, not a
+          {/* The map stays — but it is the MAP OF THE ASSOCIATED PLACE, not a
           claim that the dish was invented there. It comes after the
           associations so the reader meets the claims before the
           picture. */}
-      {data.origin && (
-        <section
-          aria-labelledby="origin-heading"
-          class="wrap dish-origin-band"
-        >
-          <h2 id="origin-heading">
-            Where {data.dish.name} is associated
-          </h2>
-          <p class="sub">
-            <strong style="color: var(--ink);">{data.origin.name}</strong>
-            {data.origin.localName && data.origin.localName !== data.origin.name && (
-              <span class="ml-1 italic" style="color: var(--sub);">({data.origin.localName})</span>
-            )}
-            {data.origin.isoCode && (
-              <span class="ml-1" style="color: var(--sub);">· {data.origin.isoCode}</span>
-            )}
-            {data.origin.entityType && data.origin.entityType !== 'country' && (
-              <span class="ml-1" style="color: var(--sub);">· {data.origin.entityType}</span>
-            )}
-          </p>
-          <noscript>
-            <p class="alert alert-warning">
-              Enable JavaScript to see the interactive map of where this dish
-              is associated.
-            </p>
-          </noscript>
-          <DishMap
-            origin={data.origin}
-            dishName={data.dish.name}
-            client:only="react"
-          />
-        </section>
-      )}
+          {data.origin && (
+            <section
+              aria-labelledby="origin-heading"
+              class="wrap dish-origin-band"
+            >
+              <h2 id="origin-heading">
+                Where {data.dish.name} is associated
+              </h2>
+              <p class="sub">
+                <strong style="color: var(--ink);">{data.origin.name}</strong>
+                {data.origin.localName &&
+                  data.origin.localName !== data.origin.name && (
+                    <span class="ml-1 italic" style="color: var(--sub);">
+                      ({data.origin.localName})
+                    </span>
+                  )}
+                {data.origin.isoCode && (
+                  <span class="ml-1" style="color: var(--sub);">
+                    · {data.origin.isoCode}
+                  </span>
+                )}
+                {data.origin.entityType &&
+                  data.origin.entityType !== "country" && (
+                    <span class="ml-1" style="color: var(--sub);">
+                      · {data.origin.entityType}
+                    </span>
+                  )}
+              </p>
+              <noscript>
+                <p class="alert alert-warning">
+                  Enable JavaScript to see the interactive map of where this
+                  dish is associated.
+                </p>
+              </noscript>
+              <DishMap
+                origin={data.origin}
+                dishName={data.dish.name}
+                client:only="react"
+              />
+            </section>
+          )}
 
-      {/* Related dishes — the food-genealogy network. Mounted as its own
+          {/* Related dishes — the food-genealogy network. Mounted as its own
           island so the SSR-rendered dish body stays fast and the relations
           load asynchronously without blocking the page. `client:visible`
           defers the fetch until the user scrolls near it. */}
-      <div class="wrap" style="padding-bottom: var(--space-8);">
-        <RelatedDishes slug={data.dish.slug} client:visible />
-      </div>
+          <div class="wrap" style="padding-bottom: var(--space-8);">
+            <RelatedDishes slug={data.dish.slug} client:visible />
+          </div>
 
-      {/* Edit button — separate island so it's auth-gated but the rest of
+          {/* Edit button — separate island so it's auth-gated but the rest of
           the dish page remains a static, fast, fully-cached page. */}
-      <div class="wrap" style="padding-bottom: var(--space-8);">
-        <EditDishButton slug={data.dish.slug} client:load />
-      </div>
-    </>
+          <div class="wrap" style="padding-bottom: var(--space-8);">
+            <EditDishButton slug={data.dish.slug} client:load />
+          </div>
+        </>
+      ) : (
+        <section class="wrap text-center" style="padding: var(--space-9) 0;">
+          <h1 class="page-header">Dish not found</h1>
+          <p class="sub">
+            We don't have a dish with the slug{" "}
+            <code style="background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 14px;">
+              {slug}
+            </code>
+            {fetchError && (
+              <span class="block mt-2" style="font-size: 12px; color: var(--sub);">
+                {fetchError}
+              </span>
+            )}
+          </p>
+          <a href="/dishes" class="btn-accent">
+            Browse all dishes
+          </a>
+        </section>
+      )}
+    </Layout>
   ) : (
-    <section class="wrap text-center" style="padding: var(--space-9) 0;">
-      <h1 class="page-header">Dish not found</h1>
-      <p class="sub">
-        We don't have a dish with the slug{' '}
-        <code style="background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 14px;">
-          {slug}
-        </code>
-        {fetchError && <span class="block mt-2" style="font-size: 12px; color: var(--sub);">{fetchError}</span>}
-      </p>
-      <a
-        href="/dishes"
-        class="btn-accent"
-      >
-        Browse all dishes
-      </a>
-    </section>
-  )}
-</Layout>
+    <Layout
+      title={seoTitle}
+      description={seoDescription}
+      locale="en"
+      canonicalUrl={`${siteOrigin}/dishes/${slug}`}
+      // THE DERIVED NOINDEX — ADR-007-A1 §5.2.
+      //
+      // "It becomes indexable automatically at ≥1 published recipe. The
+      // noindex is therefore a derived property, not a stored flag: the
+      // hub template emits noindex when the count is zero and omits the
+      // meta tag (indexable) when it is ≥1."
+      //
+      // So this is `total === 0` — the count of PUBLISHED recipes for
+      // this dish, read from the same `recipe_published` rows the API's
+      // own `empty` flag is derived from. There is no stored flag to
+      // drift.
+      noindex={hubTotal === 0}
+    >
+      {hubDish ? (
+        <RecipeHub
+          dish={{
+            slug: hubDish.slug,
+            name: hubDish.name,
+            shortDescription: hubDish.shortDescription,
+          }}
+          recipes={hubRecipes}
+          total={hubTotal}
+          empty={hubTotal === 0}
+          cover={hubDish.cover}
+        />
+      ) : (
+        <section class="wrap text-center" style="padding: var(--space-9) 0;">
+          <h1 class="page-header">Dish not found</h1>
+          <p class="sub">
+            We don't have a dish with the slug{" "}
+            <code style="background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 14px;">
+              {slug}
+            </code>
+          </p>
+          <a href="/dishes" class="btn-accent">
+            Browse all recipes
+          </a>
+        </section>
+      )}
+    </Layout>
+  )
+}

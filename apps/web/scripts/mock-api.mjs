@@ -88,6 +88,67 @@ function mockContentType(d) {
 
 const MAP = DATA.map ?? [];
 const DETAILS = DATA.details ?? {};
+
+// The RECIPE FIXTURE — item 5.
+//
+// The recipes live in their own file so the mock can serve them WITHOUT
+// changing the dish capture: mock-api-data.json is a verbatim capture of
+// the live API's dish endpoints, and the recipe endpoints did not exist
+// when it was taken.
+//
+// The fixture is EMPTY by default — the mock returns an empty recipe
+// list unless the request asks for the fixture explicitly — because live
+// has zero published recipes. See the recipe routes for the switch.
+const RECIPES_PATH = join(__dirname, "mock-api-recipes.json");
+const RECIPES = (() => {
+  try {
+    if (!existsSync(RECIPES_PATH)) return [];
+    const parsed = JSON.parse(readFileSync(RECIPES_PATH, "utf-8"));
+    return Array.isArray(parsed.recipes) ? parsed.recipes : [];
+  } catch {
+    return [];
+  }
+})();
+
+/**
+ * The LIST shape of a recipe — the API's `shapeRecipe()` output.
+ *
+ * The detail response adds `sentences` and `ingredients`; the list
+ * response does not carry them. Stripping them here is what makes the
+ * mock's list and detail responses match the real API's, so the
+ * front-end cannot be fooled into reading a field the list never has.
+ *
+ * THE CONFIDENCE IS THE LIST'S LEVEL, NOT THE OBJECT
+ * -------------------------------------------------
+ * The real API's `shapeRecipe()` reads `p.confidence` — the LEVEL
+ * COLUMN of the `recipe_published` view — so a list row's confidence is
+ * the string "high" / "medium" / "low" (or null).
+ *
+ * The DETAIL response carries the whole confidence OBJECT, with its
+ * conditions, its counts and its override.
+ *
+ * The first version of this helper passed the fixture's confidence
+ * object through to BOTH. The populated build then failed with
+ * "Objects are not valid as a React child" — the hub's card renders
+ * `{r.confidence}` as text, and it was handed an object. So the two
+ * shapes are now kept apart here, exactly as the API keeps them apart.
+ */
+function stripRecipeDetail(recipe) {
+  return {
+    id: recipe.id,
+    slug: recipe.slug,
+    title: recipe.title,
+    dish: recipe.dish,
+    contentType: recipe.contentType,
+    servings: recipe.servings ?? null,
+    prepMinutes: recipe.prepMinutes ?? null,
+    cookMinutes: recipe.cookMinutes ?? null,
+    // The LEVEL, not the object. `null` means "not computed" — NOT "low".
+    confidence: recipe.confidenceLevel ?? null,
+    publishedAt: recipe.publishedAt ?? null,
+  };
+}
+
 // The ATLAS data — the three concepts per dish (ADR-004), captured
 // alongside the dish details. The atlas route is a DIFFERENT path from
 // the dish detail, so it needs its own capture and its own store.
@@ -239,11 +300,33 @@ const CATEGORIES = (() => {
 })();
 
 let PORT = 8742;
+// `--with-recipes` serves the RECIPE FIXTURE to every request.
+//
+// WHY IT EXISTS
+// --------------
+// The recipe fixture is normally opt-in per request, through the
+// `X-Gustale-Fixture: recipes` header — which is what the CI build and
+// the live API's shape checks use.
+//
+// But the Astro BUILD cannot send a custom header on its own `fetch`
+// calls, so a build could never produce the POPULATED pages. Without
+// this flag the recipe pages can only ever be built empty, and the
+// populated path — the recipe list, the filter island, the recipe page
+// with its ingredients and its confidence — would never be built or
+// screenshotted at all.
+//
+// So this flag makes the mock serve the fixture unconditionally, for a
+// build that WANTS the populated pages. It is opt-in and explicit: the
+// default mock still serves the empty shape, which is what live
+// returns.
+let WITH_RECIPES = false;
 for (let i = 2; i < process.argv.length; i++) {
   if (process.argv[i] === "--port" && i + 1 < process.argv.length) {
     PORT = parseInt(process.argv[i + 1], 10);
   } else if (process.argv[i].startsWith("--port=")) {
     PORT = parseInt(process.argv[i].split("=")[1], 10);
+  } else if (process.argv[i] === "--with-recipes") {
+    WITH_RECIPES = true;
   }
 }
 if (Number.isNaN(PORT) || PORT < 1 || PORT > 65535) PORT = 8742;
@@ -650,6 +733,175 @@ const server = http.createServer((req, res) => {
       }),
     );
     return;
+  }
+
+  // ─── Recipes (GET /api/recipes, /api/recipes/:slug, /api/dishes/:slug/recipes) ──
+  //
+  // Mirrors apps/api/src/routes/recipes.ts (item 4). The shapes are the
+  // API's `shapeRecipe()` output and its detail response, field for field.
+  //
+  // THE EMPTY STATE IS THE DEFAULT
+  // -------------------------------
+  // Live has ZERO published recipes — the `recipe_published` view has no
+  // rows — so the real API returns an empty list for every recipe query.
+  // The mock returns the SAME empty shape by default, so a plain build
+  // reproduces live exactly: every hub renders "No recipe yet".
+  //
+  // THE POPULATED FIXTURE IS OPT-IN
+  // ------------------------------
+  // The `X-Gustale-Fixture: recipes` header turns on the fixture rows in
+  // mock-api-recipes.json. The header is used the same way the
+  // pagination fixture is used: a build that wants the populated path
+  // asks for it explicitly, and a build that does not gets the truth.
+  //
+  // This matters because a mock that ALWAYS served recipes would be a
+  // lie about the site's current state, and a mock that NEVER served
+  // them could never prove the populated path renders.
+  {
+    const useRecipeFixture =
+      WITH_RECIPES ||
+      (req.headers["x-gustale-fixture"] ?? "").includes("recipes");
+    const allRecipes = useRecipeFixture ? RECIPES : [];
+
+    // GET /api/recipes/settings — the kill switch, read-only.
+    if (url.pathname === "/api/recipes/settings" && req.method === "GET") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          autoPublish: {
+            mode: "disabled",
+            enabled: false,
+            dailyCap: 20,
+          },
+        }),
+      );
+      return;
+    }
+
+    // GET /api/recipes — the FEED.
+    if (url.pathname === "/api/recipes" && req.method === "GET") {
+      res.setHeader("Content-Type", "application/json");
+      const dishFilter = (url.searchParams.get("dish") ?? "").trim();
+      const confidenceFilter = (
+        url.searchParams.get("confidence") ?? ""
+      ).trim();
+      const contentTypeFilter = (
+        url.searchParams.get("content_type") ?? ""
+      ).trim();
+      let recipes = allRecipes;
+      if (dishFilter) {
+        recipes = recipes.filter((r) => r.dish.slug === dishFilter);
+      }
+      if (confidenceFilter) {
+        recipes = recipes.filter((r) => r.confidence === confidenceFilter);
+      }
+      if (contentTypeFilter) {
+        recipes = recipes.filter((r) => r.contentType === contentTypeFilter);
+      }
+      const rawLimit = parseInt(url.searchParams.get("limit") ?? "24", 10);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(100, Math.max(1, rawLimit))
+        : 24;
+      const rawOffset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+      const offset = Number.isFinite(rawOffset)
+        ? Math.max(0, Math.min(10000, rawOffset))
+        : 0;
+      const page = recipes.slice(offset, offset + limit);
+      const total = recipes.length;
+      res.end(
+        JSON.stringify({
+          recipes: page.map((r) => stripRecipeDetail(r)),
+          limit,
+          offset,
+          total,
+          hasMore: offset + page.length < total,
+        }),
+      );
+      return;
+    }
+
+    // GET /api/dishes/:slug/recipes — the HUB.
+    const hubMatch = url.pathname.match(/^\/api\/dishes\/([^/]+)\/recipes$/);
+    if (hubMatch && req.method === "GET") {
+      const dishSlug = hubMatch[1];
+      // The dish must be PUBLISHED — a hub for a dish that is not on the
+      // site is not a page on the site. Same rule as the real API.
+      const dish = LIST.find((d) => d.slug === dishSlug);
+      if (!dish) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Not found",
+            message: `No published dish with slug "${dishSlug}"`,
+          }),
+        );
+        return;
+      }
+      const contentTypeFilter = (
+        url.searchParams.get("content_type") ?? ""
+      ).trim();
+      let recipes = allRecipes.filter((r) => r.dish.slug === dishSlug);
+      if (contentTypeFilter) {
+        recipes = recipes.filter((r) => r.contentType === contentTypeFilter);
+      }
+      const rawLimit = parseInt(url.searchParams.get("limit") ?? "24", 10);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(100, Math.max(1, rawLimit))
+        : 24;
+      const rawOffset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+      const offset = Number.isFinite(rawOffset)
+        ? Math.max(0, Math.min(10000, rawOffset))
+        : 0;
+      const page = recipes.slice(offset, offset + limit);
+      const total = recipes.length;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          dish: {
+            slug: dish.slug,
+            name: dish.canonicalName,
+            shortDescription: dish.shortDescription ?? null,
+          },
+          recipes: page.map((r) => stripRecipeDetail(r)),
+          limit,
+          offset,
+          total,
+          hasMore: offset + page.length < total,
+          // Derived from the TOTAL, exactly as the real API does.
+          empty: total === 0,
+        }),
+      );
+      return;
+    }
+
+    // GET /api/recipes/:slug — ONE recipe.
+    const recipeMatch = url.pathname.match(/^\/api\/recipes\/([^/]+)$/);
+    if (recipeMatch && req.method === "GET") {
+      const recipe = allRecipes.find((r) => r.slug === recipeMatch[1]);
+      if (!recipe) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Not found",
+            message: `No published recipe with slug "${recipeMatch[1]}"`,
+          }),
+        );
+        return;
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          recipe: {
+            ...stripRecipeDetail(recipe),
+            sentences: recipe.sentences ?? [],
+            ingredients: recipe.ingredients ?? [],
+          },
+          // `null` when it has never been computed — NOT "low".
+          confidence: recipe.confidence ?? null,
+        }),
+      );
+      return;
+    }
   }
 
   // ─── Lineages (GET /api/lineages, /api/lineages/:slug) ──────────────

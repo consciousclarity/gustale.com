@@ -1,0 +1,255 @@
+---
+import { atlasUrl, propertyName } from "../lib/domain";
+import type { RecipeSummary } from "../lib/recipes";
+/**
+ * The RECIPE HUB — item 5, the recipes FOR a dish.
+ *
+ * WHAT THIS IS
+ * ------------
+ * `gustale.recipes/dishes/<slug>` — the page that answers "how do you
+ * actually make this dish?" for one dish, and lists the recipes for it.
+ *
+ * ADR-007-A1 §5.1 defines it exactly:
+ *
+ *   "the recipe hub for that dish — name, photo, one-line definition,
+ *    'History, origins & connections on the Atlas ↗️', then the list of
+ *    its recipes with filters (time, region, diet). No history, places,
+ *    or families copied from the Atlas."
+ *
+ * THE ONE RULE THIS PAGE CANNOT BREAK
+ * ------------------------------------
+ * It must NOT copy the Atlas's history, places or families. The two
+ * properties are different sites with different content, and a page that
+ * reproduced the Atlas's story would be a duplicate of it — the exact
+ * failure the 301s in §5.3 exist to end. So the hub carries the dish's
+ * NAME, its PHOTO and its ONE-LINE DEFINITION, and then links out to the
+ * Atlas for everything else.
+ *
+ * WHY THE ATLAS LINK IS ABSOLUTE
+ * ------------------------------
+ * `atlasUrl()` returns `https://gustale.com/...` — a different ORIGIN.
+ * A relative `/dishes/<slug>` would land on the recipes property's own
+ * /dishes listing, not on the Atlas, and the reader would be told they
+ * were somewhere they were not. The card says this explicitly, and
+ * `RecipesHome.astro` (PR 6b) sets the pattern.
+ *
+ * THE EMPTY STATE IS THE DELIVERABLE RIGHT NOW
+ * ---------------------------------------------
+ * `recipe_published` has zero rows on live, so EVERY hub renders the
+ * empty state. It must be honest and useful, not a broken-looking page:
+ *
+ *   * the heading is "No recipe yet";
+ *   * it links to the Atlas dish, so a reader is never stranded;
+ *   * the page is `noindex`, because a hub with no recipes has nothing
+ *     to index (ADR-007-A1 §5.2).
+ *
+ * And the `noindex` is DERIVED, not stored: the API's `empty` flag comes
+ * from the recipe COUNT, so the meta tag and the visible empty state
+ * cannot disagree. A hub with one recipe drops the tag automatically.
+ *
+ * THE FILTERS
+ * -----------
+ * ADR-007-A1 §5.1 names three: time, region, diet. The item-4 API
+ * supports `content_type` on the hub endpoint — NOT time/region/diet, and
+ * it does not expose the fields those filters would need (the recipe rows
+ * carry no region and no diet tags).
+ *
+ * So this page renders the filters the API can actually HONOUR, and says
+ * plainly which ones are not here yet rather than offering a control that
+ * silently does nothing. A filter that does not filter is worse than no
+ * filter: it teaches the reader that the page lies.
+ *
+ * This is a REPORT, not a decision: the recipe region/diet/time facets
+ * are a DB-lane schema question (ADR-007-A1 §8), and the FE lane does
+ * not own the schema. It is recorded in the PR body.
+ *
+ * THE STYLES
+ * ----------
+ * `styles/recipe-hub.css` — NOT a scoped <style> block, because the
+ * filter toolbar and the list are a React island and Astro's scoping
+ * attribute never reaches the elements a React island renders.
+ */
+import RecipeHubFilters from "./RecipeHubFilters";
+// The page styles live in a global stylesheet, not a scoped <style> block:
+// the hub's filter island renders elements Astro's scoping attribute never
+// reaches. See styles/recipe-hub.css.
+import "../styles/recipe-hub.css";
+
+export interface RecipeHubProps {
+  /** The dish's own header, from the hub endpoint. */
+  dish: {
+    slug: string;
+    name: string;
+    shortDescription: string | null;
+  };
+  /** The published recipes. Empty today. */
+  recipes: RecipeSummary[];
+  /**
+   * The TOTAL, not the page's length.
+   *
+   * It is the count the empty state and the `noindex` both depend on: a
+   * dish with 30 recipes is not empty, even on a page that returned none.
+   */
+  total: number;
+  /** The derived empty flag — `total === 0`. */
+  empty: boolean;
+  /** The dish's cover image, when it has one. */
+  cover: {
+    publicUrl: string | null;
+    variantsUrls: Record<string, string>;
+    width: number | null;
+    height: number | null;
+    altText: string | null;
+  } | null;
+}
+
+// The props, destructured.
+//
+// THIS LINE IS LOAD-BEARING. The interface above declares the shape, but
+// Astro does not bind an interface — only a destructuring of `Astro.props`
+// puts `dish`, `recipes`, `total`, `empty` and `cover` in scope. Without
+// it the frontmatter throws `ReferenceError: dish is not defined` and
+// every hub fails to render.
+const { dish, recipes, total, empty, cover } = Astro.props;
+
+// The Atlas dish — the history, the origins, the connections. Absolute,
+// because it is another origin (see the header note).
+const atlasDishHref = atlasUrl(`/dishes/${dish.slug}`);
+// The recipes listing on THIS property — the other way round from the
+// Atlas link, and a same-origin relative path.
+const recipesHref = "/dishes";
+
+const imgSrc = cover?.publicUrl ?? null;
+const srcSet = (() => {
+  if (!cover?.variantsUrls) return undefined;
+  const entries = Object.entries(cover.variantsUrls)
+    .filter(([, url]) => typeof url === "string" && url.length > 0)
+    .map(([width, url]) => `${url} ${width}w`);
+  return entries.length > 0 ? entries.join(", ") : undefined;
+})();
+
+// The filters the API can HONOUR. `content_type` is the only one the hub
+// endpoint accepts, so it is the only one offered.
+const contentTypes = [
+  { value: "", label: "All" },
+  { value: "recipe", label: "Recipe" },
+  { value: "variation", label: "Variation" },
+  { value: "technique", label: "Technique" },
+  { value: "base", label: "Base" },
+  { value: "template", label: "Template" },
+];
+
+// The filters ADR-007-A1 §5.1 names but the API cannot yet serve.
+//
+// They are listed as coming, NOT as controls. Each one says what is
+// missing, so a reader who was told "filter by region" and found nothing
+// is not left waiting for a control that will never appear.
+const comingFilters = [
+  { name: "Time", why: "cook time is not a field the recipe feed exposes yet" },
+  { name: "Region", why: "a recipe does not carry its own region yet" },
+  { name: "Diet", why: "dietary tags are not on the recipe schema yet" },
+];
+---
+
+<section class="recipe-hub" aria-labelledby="recipe-hub-title">
+  <div class="wrap">
+
+    <p class="recipe-hub__kicker">{propertyName()}</p>
+
+    <div class="recipe-hub__head">
+      <div class="recipe-hub__headtext">
+        <h1 id="recipe-hub-title" class="recipe-hub__title">
+          {dish.name}
+        </h1>
+        {dish.shortDescription && (
+          <p class="recipe-hub__definition">{dish.shortDescription}</p>
+        )}
+      </div>
+
+      {imgSrc && (
+        <figure class="recipe-hub__cover">
+          <img
+            src={imgSrc}
+            srcset={srcSet}
+            sizes="(min-width: 900px) 320px, 100vw"
+            alt={cover?.altText ?? `${dish.name} — cover`}
+            width={cover?.width ?? undefined}
+            height={cover?.height ?? undefined}
+            loading="eager"
+            decoding="async"
+          />
+        </figure>
+      )}
+    </div>
+
+    {/*
+      THE ATLAS LINK — the one link out of this property.
+
+      It is where the history, the origins and the connections live, and
+      it is ABSOLUTE because the Atlas is a different origin. The page
+      does NOT copy that content; it points at it.
+    */}
+    <p class="recipe-hub__atlaslink">
+      <a href={atlasDishHref}>
+        History, origins &amp; connections on the Atlas ↗️
+      </a>
+    </p>
+
+    {/*
+      THE EMPTY STATE — what every hub renders today, because
+      `recipe_published` has zero rows on live.
+
+      It says three true things: there is no recipe yet; the dish itself
+      is documented on the Atlas; and the reader is not stranded — there
+      is somewhere to go next.
+    */}
+    {empty ? (
+      <div class="recipe-hub__empty" role="status">
+        <h2 class="recipe-hub__emptytitle">No recipe yet</h2>
+        <p class="recipe-hub__emptybody">
+          Nobody has written a recipe for {dish.name} yet. The dish itself
+          is documented on the Atlas — its history, its origins and the
+          places it is associated with — and a recipe for it is what is
+          missing.
+        </p>
+        <div class="recipe-hub__emptyactions">
+          <a href={atlasDishHref} class="btn-accent">
+            {dish.name} on the Atlas ↗️
+          </a>
+          <a href={recipesHref} class="btn-ghost">
+            Browse all recipes →
+          </a>
+        </div>
+      </div>
+    ) : (
+      <RecipeHubFilters
+        slug={dish.slug}
+        initialRecipes={recipes}
+        initialTotal={total}
+        contentTypes={contentTypes}
+        client:load
+      />
+    )}
+
+    {/*
+      THE FILTERS THAT ARE NOT HERE YET — named, with the reason.
+
+      ADR-007-A1 §5.1 asks for time, region and diet. The item-4 API
+      exposes none of them, and the recipe rows carry none of the fields
+      they would need. So they are stated as pending, not shipped as
+      controls that do nothing.
+    */}
+    <div class="recipe-hub__coming">
+      <h2 class="recipe-hub__comingtitle">Filters still to come</h2>
+      <ul class="recipe-hub__cominglist">
+        {comingFilters.map((f) => (
+          <li class="recipe-hub__comingitem">
+            <b>{f.name}</b>
+            <span> — {f.why}.</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+  </div>
+</section>

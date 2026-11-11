@@ -1,5 +1,10 @@
 # build output
 dist/
+# the item-5 screenshot harness builds a SECOND recipes dist, so the
+# empty build and the populated (recipe-fixture) build can be served at
+# the same time. They are build output, never committed.
+dist-item5-empty/
+dist-item5-populated/
 # generated types
 .astro/
 

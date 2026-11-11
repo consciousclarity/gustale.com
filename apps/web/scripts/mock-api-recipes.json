@@ -1,0 +1,323 @@
+{
+  "_comment": [
+    "THE RECIPE FIXTURE for the mock API — item 5.",
+    "",
+    "WHY THIS FILE EXISTS",
+    "-------------------",
+    "Live has ZERO published recipes: the `recipe_published` view has no",
+    "rows, so every hub and every recipe page on the real site renders its",
+    "EMPTY state. That empty state is the deliverable today, and the",
+    "mock must reproduce it faithfully — an empty list, not a 404.",
+    "",
+    "But a build that can only ever produce the empty state cannot prove",
+    "the POPULATED path: that the recipe list renders, that the filter",
+    "island works, that the recipe page shows its ingredients, its",
+    "sentences and its confidence. Those are the parts that break when",
+    "the shape drifts.",
+    "",
+    "So the mock serves the recipe routes from THIS file, and it serves",
+    "THEM EMPTY by default — matching live — with the recipes below",
+    "reachable ONLY when the build asks for them explicitly.",
+    "",
+    "THE SWITCH",
+    "----------",
+    "The `X-Gustale-Fixture: recipes` request header turns the populated",
+    "fixture on. Without it the mock returns the EMPTY shape (total 0),",
+    "which is exactly what live returns.",
+    "",
+    "So a plain build is the empty state, and a build with the header is",
+    "the populated state. Both are exercised, and neither is a lie: the",
+    "empty shape is what the API really returns today.",
+    "",
+    "THE SHAPES",
+    "---------",
+    "Every field here mirrors apps/api/src/routes/recipes.ts exactly —",
+    "the `shapeRecipe()` output for a list row, and the detail response",
+    "for one recipe. When the API's shape changes, this file changes",
+    "with it."
+  ],
+  "recipes": [
+    {
+      "id": "00000000-0000-0000-0000-00000000r001",
+      "slug": "moussaka-greek-classic",
+      "title": "Classic Greek moussaka",
+      "dish": {
+        "slug": "moussaka-greek",
+        "name": "Moussaka"
+      },
+      "contentType": "recipe",
+      "servings": 6,
+      "prepMinutes": 40,
+      "cookMinutes": 60,
+      "confidence": {
+        "level": "medium",
+        "conditionsMet": {
+          "independent_sources": {
+            "met": false,
+            "detail": "Only encyclopedic sources support this recipe; no primary or specialist source has been added yet."
+          },
+          "source_tier_1_to_5": {
+            "met": false,
+            "detail": "No source in the S1-S5 tier supports the method."
+          }
+        },
+        "independentSources": [],
+        "sourceCount": 3,
+        "ingredientCount": 5,
+        "sentenceCount": 8,
+        "computedAt": "2026-11-09T10:00:00.000Z",
+        "overrideLevel": null
+      },
+      "confidenceLevel": "medium",
+      "publishedAt": "2026-11-09T10:00:00.000Z",
+      "sentences": [
+        {
+          "id": "00000000-0000-0000-0000-00000000s001",
+          "field": "intro",
+          "locale": "en",
+          "position": 1,
+          "text": "Moussaka is layered rather than mixed: the aubergine, the minced meat and the béchamel are kept apart until the dish is assembled.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s002",
+          "field": "step",
+          "locale": "en",
+          "position": 1,
+          "text": "Slice the aubergines about a centimetre thick, salt them generously and leave them to drain for half an hour.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s003",
+          "field": "step",
+          "locale": "en",
+          "position": 2,
+          "text": "Fry the slices in batches until they are golden, then drain them on paper.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s004",
+          "field": "step",
+          "locale": "en",
+          "position": 3,
+          "text": "Brown the minced meat with onion and a little tomato, season it and let the liquid cook away.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s005",
+          "field": "step",
+          "locale": "en",
+          "position": 4,
+          "text": "Make the béchamel by whisking butter and flour into milk, and cook it until it thickens enough to coat a spoon.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s006",
+          "field": "step",
+          "locale": "en",
+          "position": 5,
+          "text": "Assemble in layers — aubergine, meat, aubergine, meat — and finish with the béchamel.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s007",
+          "field": "step",
+          "locale": "en",
+          "position": 6,
+          "text": "Bake at 180°C until the top is browned and the middle is hot through, about an hour.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s008",
+          "field": "note",
+          "locale": "en",
+          "position": 1,
+          "text": "Let it stand for a quarter of hour before cutting: the béchamel sets as it cools, and the layers hold together.",
+          "isOriginal": true
+        }
+      ],
+      "ingredients": [
+        {
+          "id": "00000000-0000-0000-0000-00000000i001",
+          "ingredient": {
+            "slug": "aubergine",
+            "name": "Aubergine"
+          },
+          "quantity": "1.2",
+          "unit": "kg",
+          "isOptional": false,
+          "preparationNote": "sliced 1 cm thick, salted and drained",
+          "position": 1
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000i002",
+          "ingredient": {
+            "slug": "minced-beef",
+            "name": "Minced beef"
+          },
+          "quantity": "600",
+          "unit": "g",
+          "isOptional": false,
+          "preparationNote": null,
+          "position": 2
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000i003",
+          "ingredient": {
+            "slug": "milk",
+            "name": "Milk"
+          },
+          "quantity": "1",
+          "unit": "l",
+          "isOptional": false,
+          "preparationNote": "for the béchamel",
+          "position": 3
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000i004",
+          "ingredient": {
+            "slug": "onion",
+            "name": "Onion"
+          },
+          "quantity": "1",
+          "unit": null,
+          "isOptional": false,
+          "preparationNote": "finely chopped",
+          "position": 5
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000i005",
+          "ingredient": {
+            "slug": "tomato",
+            "name": "Tomato"
+          },
+          "quantity": "200",
+          "unit": "g",
+          "isOptional": false,
+          "preparationNote": "tinned, chopped",
+          "position": 6
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000r002",
+      "slug": "moussaka-greek-vegetarian",
+      "title": "Vegetarian moussaka",
+      "dish": {
+        "slug": "moussaka-greek",
+        "name": "Moussaka"
+      },
+      "contentType": "variation",
+      "servings": 4,
+      "prepMinutes": 30,
+      "cookMinutes": 55,
+      "confidence": {
+        "level": "low",
+        "conditionsMet": {
+          "independent_sources": {
+            "met": false,
+            "detail": "A single source describes this variation."
+          },
+          "source_tier_1_to_5": {
+            "met": false,
+            "detail": "No source in the S1-S5 tier supports the method."
+          },
+          "minimum_sentences": {
+            "met": false,
+            "detail": "Only three sentences; the method needs at least five."
+          }
+        },
+        "independentSources": [],
+        "sourceCount": 1,
+        "ingredientCount": 3,
+        "sentenceCount": 3,
+        "computedAt": "2026-11-09T09:00:00.000Z",
+        "overrideLevel": null
+      },
+      "confidenceLevel": "low",
+      "publishedAt": "2026-11-09T09:00:00.000Z",
+      "sentences": [
+        {
+          "id": "00000000-0000-0000-0000-00000000s011",
+          "field": "intro",
+          "locale": "en",
+          "position": 1,
+          "text": "The meat layer is replaced with a filling of lentils and chopped greens, which keeps the dish vegetarian without changing its structure.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s012",
+          "field": "step",
+          "locale": "en",
+          "position": 1,
+          "text": "Fry the onion and a sliced leek in olive oil until soft, then add the lentils and stock and simmer until the liquid has gone.",
+          "isOriginal": true
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000s013",
+          "field": "note",
+          "locale": "en",
+          "position": 1,
+          "text": "This is a variation, not the canonical moussaka: it is a separate recipe, and it is tracked as one.",
+          "isOriginal": true
+        }
+      ],
+      "ingredients": [
+        {
+          "id": "00000000-0000-0000-0000-00000000i011",
+          "ingredient": {
+            "slug": "aubergine",
+            "name": "Aubergine"
+          },
+          "quantity": "1",
+          "unit": "kg",
+          "isOptional": false,
+          "preparationNote": "sliced and fried",
+          "position": 1
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000i012",
+          "ingredient": {
+            "slug": "lentils",
+            "name": "Lentils"
+          },
+          "quantity": "250",
+          "unit": "g",
+          "isOptional": false,
+          "preparationNote": "green, rinsed",
+          "position": 2
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000i013",
+          "ingredient": {
+            "slug": "leek",
+            "name": "Leek"
+          },
+          "quantity": "1",
+          "unit": null,
+          "isOptional": false,
+          "preparationNote": "sliced",
+          "position": 3
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000r003",
+      "slug": "biryani-hyderabadi-dum",
+      "title": "Hyderabadi dum biryani",
+      "dish": {
+        "slug": "biryani-hyderabadi",
+        "name": "Biryani"
+      },
+      "contentType": "recipe",
+      "servings": 6,
+      "prepMinutes": 45,
+      "cookMinutes": 90,
+      "confidence": null,
+      "confidenceLevel": null,
+      "publishedAt": null,
+      "sentences": [],
+      "ingredients": []
+    }
+  ]
+}

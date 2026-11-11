@@ -1,0 +1,456 @@
+---
+/**
+ * THE RECIPE PAGE v1 — item 5, ONE recipe.
+ *
+ * `gustale.recipes/recipes/<slug>` — one recipe, in full.
+ *
+ * WHAT IT SHOWS
+ * -------------
+ * ADR-007-A1 §5.1: "one recipe. Each variation is its own full recipe
+ * (`nasi-goreng-kampung`, `nasi-goreng-jawa`), as ADR-007 requires."
+ *
+ * So the page carries the recipe's OWN material: its title, its times and
+ * yields, its ingredients with quantities, its sentences grouped into
+ * intro / steps / notes, and its CONFIDENCE.
+ *
+ * THE CONFIDENCE IS THE POINT OF THIS PAGE
+ * -----------------------------------------
+ * A recipe is a set of claims about how to do something. An unsourced
+ * recipe looks authoritative, so the page shows how well-evidenced it is
+ * — and, when it did not reach the highest level, WHICH condition
+ * failed. `conditionsMet` carries every failing condition, so the page
+ * can be specific instead of vague ("not yet high confidence" is much
+ * less useful than "no S1-S5 source supports the claims").
+ *
+ * A null confidence is NOT "low". It means the recipe has never been
+ * through the publish path, so nothing was computed. The page says
+ * exactly that, and does not invent a level.
+ *
+ * THE ATLAS IS ONE LINK AWAY
+ * --------------------------
+ * The recipe inherits its dish's identity — it does not duplicate it.
+ * The history, the origins and the places stay on the Atlas, and the page
+ * links there with an ABSOLUTE url (the two properties are different
+ * origins).
+ */
+import { atlasUrl } from "../lib/domain";
+// The page styles live in a global stylesheet, not a scoped <style> block:
+// the hub's filter island renders elements Astro's scoping attribute never
+// reaches. See styles/recipe-hub.css.
+import "../styles/recipe-hub.css";
+import type {
+  RecipeConfidence,
+  RecipeIngredient,
+  RecipeSentence,
+} from "../lib/recipes";
+export interface RecipePageProps {
+  slug: string;
+  title: string;
+  contentType: string;
+  servings: number | null;
+  prepMinutes: number | null;
+  cookMinutes: number | null;
+  publishedAt: string | null;
+  /** The dish it belongs to. */
+  dish: {
+    slug: string;
+    name: string;
+  };
+  sentences: RecipeSentence[];
+  ingredients: RecipeIngredient[];
+  confidence: RecipeConfidence | null;
+}
+
+// The props, destructured.
+//
+// THIS LINE IS LOAD-BEARING. The interface above declares the shape, but
+// Astro does not bind an interface — only a destructuring of `Astro.props`
+// puts `title`, `dish`, `sentences`, `ingredients`, `confidence` and the
+// rest in scope. Without it every one of them is `undefined` and the
+// page renders as an empty shell.
+const {
+  slug,
+  title,
+  contentType,
+  servings,
+  prepMinutes,
+  cookMinutes,
+  publishedAt,
+  dish,
+  sentences,
+  ingredients,
+  confidence,
+} = Astro.props;
+
+// The hub for the dish — same origin, so a relative path.
+const hubHref = `/dishes/${dish.slug}`;
+// The Atlas dish — another origin, so an absolute url.
+const atlasDishHref = atlasUrl(`/dishes/${dish.slug}`);
+
+// ── The sentences, grouped by field ──────────────────────────────────────
+//
+// The API returns the sentences in position order, each carrying its
+// field. The page groups them so a reader sees the introduction, then
+// the steps, then the notes.
+//
+// ADR-007-A1 §4.3: the ORIGINAL-language sentence is the one with
+// `is_original = true`, and a translation points at its source. So for
+// each field the page prefers a sentence in the reader's language (en)
+// and falls back to the original — and it SAYS when it is showing a
+// non-English original, because a recipe written in another language
+// that is presented as if it were English would misrepresent it.
+const READER_LOCALE = "en";
+
+type SentenceField = "intro" | "step" | "note";
+
+const FIELD_ORDER: SentenceField[] = ["intro", "step", "note"];
+
+const FIELD_LABELS: Record<SentenceField, string> = {
+  intro: "About this recipe",
+  step: "Method",
+  note: "Notes",
+};
+
+interface RenderedSentence {
+  text: string;
+  locale: string;
+  isOriginal: boolean;
+}
+
+function pickSentences(sentences: RecipeSentence[]): {
+  groups: { field: SentenceField; items: RenderedSentence[] }[];
+  otherLocales: string[];
+} {
+  const byField = new Map<SentenceField, RecipeSentence[]>();
+  for (const s of sentences) {
+    const field = (s.field ?? "note") as SentenceField;
+    const list = byField.get(field) ?? [];
+    list.push(s);
+    byField.set(field, list);
+  }
+
+  const groups: { field: SentenceField; items: RenderedSentence[] }[] = [];
+  const otherLocales = new Set<string>();
+
+  /**
+   * Pick the sentences to show for ONE field.
+   *
+   * THE LOCALE PREFERENCE IS PER POSITION, NOT PER FIELD
+   * ---------------------------------------------------
+   * A field holds SEVERAL sentences: a method holds one sentence per
+   * step, and a recipe with six steps has six of them.
+   *
+   * The first version of this function chose ONE sentence for the whole
+   * field — the reader's language, else the original, else the first —
+   * and rendered only that one. So a six-step recipe rendered with a
+   * single step, and the remaining five steps were silently dropped.
+   *
+   * That is the worst kind of bug in a recipe: the page looks right,
+   * the ingredient list is right, and the method is WRONG in a way a
+   * reader cannot detect. A recipe page that shows one step of six is
+   * not a page with a small omission — it is a page that tells someone
+   * how to cook a dish and leaves out most of it.
+   *
+   * So the preference is applied per POSITION: for each position, take
+   * the sentence in the reader's language if there is one, else the
+   * original, else whatever is there. Every position contributes, so
+   * every step is shown.
+   *
+   * The sentences arrive in position order, and the position is the
+   * API's own `position` column — so the grouping is stable and the
+   * order is the recipe's own, not an artefact of the array.
+   */
+  const chooseFor = (list: RecipeSentence[]): RenderedSentence[] => {
+    // Group by position, so each position picks ONE sentence.
+    const byPosition = new Map<number, RecipeSentence[]>();
+    for (const s of list) {
+      const at = byPosition.get(s.position) ?? [];
+      at.push(s);
+      byPosition.set(s.position, at);
+    }
+    const positions = [...byPosition.keys()].sort((a, b) => a - b);
+    const chosen: RenderedSentence[] = [];
+    for (const position of positions) {
+      const candidates = byPosition.get(position)!;
+      const pick =
+        candidates.find((s) => s.locale === READER_LOCALE) ??
+        candidates.find((s) => s.isOriginal) ??
+        candidates[0];
+      if (!pick) continue;
+      if (pick.locale !== READER_LOCALE) otherLocales.add(pick.locale);
+      chosen.push({
+        text: pick.text,
+        locale: pick.locale,
+        isOriginal: pick.isOriginal,
+      });
+    }
+    return chosen;
+  };
+
+  for (const field of FIELD_ORDER) {
+    const list = byField.get(field);
+    if (!list || list.length === 0) continue;
+    const items = chooseFor(list);
+    if (items.length === 0) continue;
+    groups.push({ field, items });
+  }
+
+  // A field that is not one of the three known ones still gets rendered —
+  // dropping it would silently lose content.
+  for (const [field, list] of byField) {
+    if (FIELD_ORDER.includes(field)) continue;
+    const items = chooseFor(list);
+    if (items.length === 0) continue;
+    groups.push({ field: field as SentenceField, items });
+  }
+
+  return { groups, otherLocales: [...otherLocales] };
+}
+
+const { groups, otherLocales } = pickSentences(sentences);
+
+// ── The failing conditions ───────────────────────────────────────────────
+//
+// `conditionsMet` is keyed by condition id, and each value carries
+// `{ met, detail }`. The page shows the FAILING ones, because that is
+// what tells a reader (or a contributor) what is missing.
+const failingConditions = (() => {
+  if (!confidence) return [] as { id: string; detail: string }[];
+  const out: { id: string; detail: string }[] = [];
+  for (const [id, value] of Object.entries(confidence.conditionsMet ?? {})) {
+    if (!value || typeof value !== "object") continue;
+    const entry = value as { met?: unknown; detail?: unknown };
+    if (entry.met === true) continue;
+    out.push({
+      id,
+      detail: typeof entry.detail === "string" ? entry.detail : "",
+    });
+  }
+  return out;
+})();
+
+/** The confidence label. Never invented — null stays null. */
+const confidenceLabel = confidence ? confidence.level : null;
+
+const totalMinutes =
+  (prepMinutes ?? 0) + (cookMinutes ?? 0) > 0
+    ? (prepMinutes ?? 0) + (cookMinutes ?? 0)
+    : null;
+---
+
+<article class="recipe-page" aria-labelledby="recipe-title">
+  <div class="wrap">
+
+    <nav class="recipe-page__crumbs" aria-label="Breadcrumb">
+      <a href={hubHref}>{dish.name} — recipes</a>
+      <span aria-hidden="true">·</span>
+      <a href={atlasDishHref}>On the Atlas ↗️</a>
+    </nav>
+
+    <header class="recipe-page__head">
+      <h1 id="recipe-title" class="recipe-page__title">{title}</h1>
+      <p class="recipe-page__sub">
+        {contentType !== "recipe" && (
+          <span class="recipe-page__kind">{contentType}</span>
+        )}
+        <span>A recipe for {dish.name}.</span>
+      </p>
+    </header>
+
+    {/*
+      THE FACTS — what a cook looks at first.
+
+      Each one is rendered only when the recipe actually carries it, so
+      the row never shows a placeholder for a fact that is not known.
+    */}
+    {(servings != null || totalMinutes != null) && (
+      <dl class="recipe-page__facts">
+        {servings != null && (
+          <div class="recipe-page__fact">
+            <dt>Serves</dt>
+            <dd>{servings}</dd>
+          </div>
+        )}
+        {prepMinutes != null && (
+          <div class="recipe-page__fact">
+            <dt>Prep</dt>
+            <dd>{prepMinutes} min</dd>
+          </div>
+        )}
+        {cookMinutes != null && (
+          <div class="recipe-page__fact">
+            <dt>Cook</dt>
+            <dd>{cookMinutes} min</dd>
+          </div>
+        )}
+        {totalMinutes != null && (
+          <div class="recipe-page__fact">
+            <dt>Total</dt>
+            <dd>{totalMinutes} min</dd>
+          </div>
+        )}
+      </dl>
+    )}
+
+    {/*
+      THE CONFIDENCE — how well-evidenced this recipe is.
+
+      It is not decoration. A recipe is a set of claims, and this is the
+      page's answer to "how much should I trust this?" — including WHICH
+      condition failed when it did not reach the top level.
+    */}
+    <section
+      class="recipe-page__confidence"
+      aria-labelledby="recipe-confidence-title"
+    >
+      <h2 id="recipe-confidence-title" class="recipe-page__sectiontitle">
+        Confidence
+      </h2>
+
+      {confidence ? (
+        <>
+          <p class="recipe-page__confidencelevel">
+            <span
+              class={`recipe-page__badge recipe-page__badge--${confidenceLabel}`}
+            >
+              {confidenceLabel}
+            </span>
+            {confidence.overrideLevel && (
+              <span class="recipe-page__override">
+                Set by a reviewer, not computed.
+              </span>
+            )}
+          </p>
+
+          <dl class="recipe-page__counts">
+            <div class="recipe-page__count">
+              <dt>Sources</dt>
+              <dd>{confidence.sourceCount}</dd>
+            </div>
+            <div class="recipe-page__count">
+              <dt>Ingredients</dt>
+              <dd>{confidence.ingredientCount}</dd>
+            </div>
+            <div class="recipe-page__count">
+              <dt>Sentences</dt>
+              <dd>{confidence.sentenceCount}</dd>
+            </div>
+          </dl>
+
+          {failingConditions.length > 0 && (
+            <div class="recipe-page__conditions">
+              <h3 class="recipe-page__conditionstitle">
+                What is still missing
+              </h3>
+              <ul class="recipe-page__conditionslist">
+                {failingConditions.map((c) => (
+                  <li class="recipe-page__condition">
+                    <span class="recipe-page__conditionid">Condition {c.id}</span>
+                    <span class="recipe-page__conditiondetail">
+                      {c.detail || "not met"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      ) : (
+        <p class="recipe-page__confidencenull">
+          This recipe has not been through the publishing check yet, so no
+          confidence level has been computed for it. That is not the same
+          as a low level — it means nothing has been measured.
+        </p>
+      )}
+    </section>
+
+    {/* ── The ingredients ─────────────────────────────────────────── */}
+    {ingredients.length > 0 && (
+      <section class="recipe-page__section" aria-labelledby="recipe-ingredients">
+        <h2 id="recipe-ingredients" class="recipe-page__sectiontitle">
+          Ingredients
+        </h2>
+        <ul class="recipe-page__ingredients">
+          {ingredients.map((ing) => (
+            <li class="recipe-page__ingredient">
+              <span class="recipe-page__amount">
+                {ing.quantity ?? ""}
+                {ing.unit ? ` ${ing.unit}` : ""}
+              </span>
+              <a
+                href={`/ingredients/${ing.ingredient.slug}`}
+                class="recipe-page__ingredientname"
+              >
+                {ing.ingredient.name}
+              </a>
+              {ing.preparationNote && (
+                <span class="recipe-page__prepnote">
+                  {ing.preparationNote}
+                </span>
+              )}
+              {ing.isOptional && (
+                <span class="recipe-page__optional">optional</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {/* ── The recipe itself ──────────────────────────────────────── */}
+    {groups.map((group) => (
+      <section
+        class="recipe-page__section"
+        aria-labelledby={`recipe-${group.field}`}
+      >
+        <h2 id={`recipe-${group.field}`} class="recipe-page__sectiontitle">
+          {FIELD_LABELS[group.field] ?? group.field}
+        </h2>
+        {group.field === "step" ? (
+          <ol class="recipe-page__steps">
+            {group.items.map((item) => (
+              <li class="recipe-page__step">{item.text}</li>
+            ))}
+          </ol>
+        ) : (
+          <div class="recipe-page__prose">
+            {group.items.map((item) => (
+              <p class="recipe-page__paragraph">{item.text}</p>
+            ))}
+          </div>
+        )}
+      </section>
+    ))}
+
+    {groups.length === 0 && (
+      <p class="recipe-page__empty">
+        This recipe has no text yet — only its ingredients and its
+        confidence record.
+      </p>
+    )}
+
+    {/*
+      THE LANGUAGE NOTE — when the recipe's text is not in the reader's
+      language.
+
+      ADR-007-A1 §4.3 is original-language-first: the recipe is written
+      in the language it was written in, and the translation is a
+      translation. Presenting a non-English original as if it were
+      English would misrepresent it, so the page says so.
+    */}
+    {otherLocales.length > 0 && (
+      <p class="recipe-page__language">
+        This recipe is written in{" "}
+        {otherLocales.map((l) => <code>{l}</code>).flatMap((c, i) =>
+          i === 0 ? [c] : [", ", c],
+        )}
+        . It is shown in its original language, as the recipe was written.
+      </p>
+    )}
+
+    <p class="recipe-page__backlink">
+      <a href={hubHref}>← All recipes for {dish.name}</a>
+    </p>
+
+  </div>
+</article>
