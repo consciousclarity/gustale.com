@@ -57,7 +57,10 @@ from cryptography.hazmat.primitives import serialization
 
 APP_ID = "5596451"
 INSTALL_ID = "178310866"
-KEY_PATH = Path("/home/gustale/.hermes/github-app/gustale-bot.pem")
+KEY_PATH = Path(
+    os.environ.get("GUSTALE_APP_KEY_PATH")
+    or "/home/alex/.hermes/github-app/gustale-bot.pem"
+)
 REPO = "consciousclarity/gustale.com"
 
 

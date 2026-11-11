@@ -97,9 +97,67 @@ EFSA "wine and grape-based beverages" group. The class must be narrow
 enough that "red wine" is a member of it by definition, not by
 convention.
 
+> **Verified, not recalled.** Every FoodOn identifier in this
+> document was checked against the FoodOn ontology itself, not from
+> memory:
+>
+> ```bash
+> curl -sL -o foodon.owl \
+>   https://raw.githubusercontent.com/FoodOntology/foodon/master/foodon.owl
+> ```
+>
+> then the class's `rdfs:label`, `obo:IAO_0000115` definition and
+> `rdfs:subClassOf` were read out of the file. Two identifiers that
+> had been written from memory were **wrong** and were corrected:
+> `FOODON:03540104` and `FOODON:03546797` do not exist in FoodOn.
+
 ---
 
-## 3. The `beef` class — a decision, not a gap
+## 3. `tamarind` — the pulp, not the pod
+
+| | |
+|---|---|
+| **FoodOn** | `FOODON:03541403` |
+| **FoodOn label** | "14030 - tamarind (efsa foodex2)" |
+| **FoodOn's own definition** | "Spices from the fruits of the plant classified under the species *Tamarindus indica* L., commonly known as Tamarind. The part consumed/analysed is not specified." |
+| **Why it exists** | the ingredient in the moussaka list and in the nasi goreng line is **tamarind pulp** — the pod is a different material and is used whole in some recipes (the spec says tamarind "is not suitable when the whole pod is required for presentation"). |
+| **Why it is not in the vocabulary** | the 435-row table was built from the EFSA FOodex2 pesticide groups, and tamarind is **not** among them. FoodOn has two EFSA groups for it — `FOODON:03541403` "tamarind" and `FOODON:03541402` "tamarind and similar" — and neither is in the table. The nearest rows in the 435 are `fruit` (too generic — it is one specific fruit) and `dried-fruit` (wrong — the pulp is not a dried fruit). |
+| **The class in use meanwhile** | `fruit` — a real class, but **generic**. |
+| **Status** | **accepted for now** (owner, Gate A, 2026-11-10). This row is on the list for the later batch. |
+
+**The material claim, independently sourced.** FoodOn classifies
+tamarind as a fruit; the ingredient is the pulp, which is the seed of
+the fruit. Both the moussaka's use (seasoning a stew) and the nasi
+goreng's use (seasoning) are the **pulp**, not the pod, and the
+spec's substitution limit — "not suitable when the whole pod is
+required for presentation" — is exactly the distinction this class
+would capture.
+
+---
+
+## 4. `shrimp paste` — a fermented ground crustacean product
+
+| | |
+|---|---|
+| **FoodOn** | `FOODON:03315935` — the general class; `FOODON:03542517` — the EFSA group |
+| **FoodOn label** | "crustacean paste" · "25170 - akiami paste shrimp (efsa foodex2)" |
+| **FoodOn's own definition** | `FOODON:03315935` has no definition text — it is a parent class under `FOODON:00001792`. `FOODON:03542517`: "Crustaceans classified under the species *Acetes japonicus*, commonly known as Akiami paste shrimp. The part consumed/analysed is not specified." |
+| **Why it exists** | terasi / shrimp paste is a **prepared product**, not a crustacean. It is a key ingredient in the nasi goreng line — the owner's decision of 2026-11-10 — and it is **not** interchangeable with dried shrimp or with prawns. |
+| **Why it is not in the vocabulary** | the 435-row table was built from the EFSA FOodex2 pesticide groups, and shrimp paste is **not** among them. The nearest rows are `paste` (too generic — it covers every paste, including tomato and bean, and it is a **legacy row with no FoodOn ID**) and `shrimps-and-prawns` (wrong — that is the **carcase**, not the prepared paste). |
+| **The two candidates, and the choice between them** | `FOODON:03315935` "crustacean paste" is the **general** class — correct for terasi as such, but it carries no definition text. `FOODON:03542517` "akami paste shrimp" is the EFSA pesticide group — it matches the 435's own shape, and it has a definition, but it names **one species** (*Acetes japonicus*). Terasi is made from a mix of small shrimp, so the EFSA group is **narrower than the ingredient**. **The batch should add the general class `FOODON:03315935`**; the EFSA group is recorded here because it is what the 435's own construction would have produced, and because the species distinction is worth knowing. |
+| **The class in use meanwhile** | `paste` — a real class, but **generic**. |
+| **Status** | **accepted for now** (owner, Gate A, 2026-11-10). This row is on the list for the later batch. |
+
+**The material claim, independently sourced.** FoodOn's class is
+specific to a **shrimp** paste. The moussaka's own pantry list records
+the distinction this class would enforce: shrimp paste is "**not**
+dried shrimp" — a different material with a different source, a
+different supply chain, and a different availability profile in every
+country the rating covers.
+
+---
+
+## 5. The `beef` class — a decision, not a gap
 
 | | |
 |---|---|
@@ -114,7 +172,7 @@ is the material, not the carcase.
 
 ---
 
-## 4. Sub-recipes — a SCHEMA gap, not a vocabulary gap
+## 6. Sub-recipes — a SCHEMA gap, not a vocabulary gap
 
 This is **not** a vocabulary entry, but it was found alongside them and
 it belongs on the same list.

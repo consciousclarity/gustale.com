@@ -1,0 +1,54 @@
+# The 0057 step for .github/workflows/ci.yml
+#
+# WHY THIS IS A PATCH AND NOT A COMMIT: the GitHub App has NO
+# workflow scope, and GitHub refuses the push outright:
+#   "refusing to allow a GitHub App to create or update workflow
+#    .github/workflows/ci.yml without `workflows` permission"
+# This is the standing rule -- the owner applies workflow changes.
+#
+# Apply it with:
+#   git apply docs/ci-0057-migration.patch
+#
+# Or paste the step by hand, after the 0056 step in the "Apply the
+# database migrations" job:
+#
+#       # 0057: the ingredient sourcing vocabulary
+#       - name: Apply the ingredient sourcing vocabulary
+#         run: |
+#           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+#             -f db/migrations/0057_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0057.log
+#           bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0057: all 6 proofs passed" /tmp/m0057.log
+#
+# WHY IT MATTERS: the migration list lives in three files -- the CI
+# workflow, the Nightly chain script and the local reproduction -- and
+# all three must apply the SAME migrations. A migration applied in one
+# and not the others is a schema that exists in one environment and
+# not the others, and the route that reads it returns 500 where it is
+# missing. scripts/validate-ci-migration-chain.py checks that the three
+# lists agree, and it is what caught this omission.
+#
+# Verified: the patch applies cleanly, and with it applied the
+# validator reports 56 migrations with all three lists agreeing.
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 0145f93..4d374b0 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1147,6 +1147,17 @@ jobs:
+             -f db/migrations/0056_ingredient_aliases.sql 2>&1 | tee /tmp/m0056.log
+           bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0056.log
+ 
++      # ── 0057: the ingredient sourcing vocabulary ───────────────────────
++      #
++      # Migration 0057 adds the 21 reviewed ingredient rows (GUS-1108) --
++      # the vocabulary the sourcing availability rows attach to. It is
++      # additive and publishes nothing.
++      - name: Apply the ingredient sourcing vocabulary
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0057_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0057.log
++          bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0057: all 6 proofs passed" /tmp/m0057.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.

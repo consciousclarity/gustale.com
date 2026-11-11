@@ -105,51 +105,84 @@ Every category is a member of the 435-row vocabulary — that is checked
 mechanically by `scripts/check_pantry_list.py`, which is
 mutation-tested against this exact list.
 
-### 1.2 The 14 new rows (nasi goreng)
+### 1.2 The 13 rows (nasi goreng)
 
 **These do not exist yet.** Each needs a category from the 435-row
-vocabulary, and each needs a source.
+vocabulary, and each needs a source — except `vegetables`, which the
+owner accepted as a generic line with neither.
 
-| ingredient | slug | category | notes |
-|---|---|---|---|
-| Rice, long-grain | `long-grain-rice` | `rice` | the base |
-| Cooking oil | `cooking-oil` | `oil` | the seed says "oil or margarine" |
-| Margarine | `margarine` | `oil` | the seed says "oil or margarine" — **one of the two, not both** |
-| Sweet soy sauce | `sweet-soy-sauce` | `savoury-sauces` | kecap manis; **not** the plain `soy-sauce` |
-| Shallot | `shallot` | `onions-and-similar` | **not** `onion` — a distinct ingredient row |
-| Garlic | `garlic` | `garlic-and-similar` | **already exists** — reused, not duplicated |
-| Ground shrimp paste | `shrimp-paste` | `paste` | terasi; **not** dried shrimp. See §1.3 |
-| Tamarind | `tamarind` | `fruit` | **the pulp**, not the pod. See §1.3 |
-| Chilli | `chilli` | `fruit-spices` | **the fresh/dried whole or sliced chilli**, not chilli powder |
-| Egg, whole | `whole-egg` | `whole-eggs` | **already exists** — reused |
-| Chicken | `chicken` | `chicken` | |
-| Prawn | `prawn` | `shrimps-and-prawns` | |
-| Vegetables | `vegetables` | **none** | **a problem — see below** |
+The **"typically defines the dish"** and `cost_weight` columns below are the **owner's Gate A
+decisions of 2026-11-10**, and the checker enforces them, so a later
+edit cannot quietly reverse one.
 
-**Two rows are refused outright, and one is flagged:**
+**The column is named for what it is, and it is a RECIPE-LINE value.**
+`is_key` lives on `recipe_ingredients` (ADR-008 Decision 5), and the
+`ingredients` table has exactly one sourcing column — `ubiquitous`, the
+staples rule. The same ingredient can be key in one recipe and not in
+another, so a column on the ingredient would force one answer on every
+recipe that uses it.
 
-* **"Vegetables" is not an ingredient.** The long description says
-  "vegetables" generically; there is no single thing to source. The
-  honest reading is that nasi goreng takes *whatever is in the fridge*,
-  and those are **optional** lines — they vary by household and by
-  region. It is proposed as **one optional line named `vegetables`**
-  rather than as a sourced ingredient, because a row with no source and
-  no category would break the vocabulary's own rules. **The owner's
-  decision.**
-* **"Oil or margarine" is one line, not two.** The source says "oil or
-  margarine" — that is an either/or in the recipe, so it is **one
-  optional line with two possible forms** (ADR-008 has a `form`
-  vocabulary for exactly this). `cooking-oil` and `margarine` as
-  separate ingredient rows would be two ingredients where the recipe
-  names one.
+Every row in this table **is** a recipe line — it names the dish it is
+for (`needed_by`) — so the value belongs to the line. It is never
+written to the ingredient row: the seed inserts into `ingredients`
+only `(canonical_name, slug, category, status)`.
+
+**The checker refuses the column named `is_key`**, so the wrong write
+cannot be made by accident.
+
+| ingredient | slug | category | typically defines the dish | cost_weight | notes |
+|---|---|---|---|---|---|
+| Rice, long-grain | `long-grain-rice` | `rice` | **yes** | major | the base |
+| Cooking oil | `cooking-oil` | `oil` | no | major | **form 1 of 2** of the oil/margarine line |
+| Margarine | `margarine` | `oil` | no | major | **form 2 of 2** of the oil/margarine line |
+| Sweet soy sauce | `sweet-soy-sauce` | `savoury-sauces` | **yes** | major | kecap manis; **not** the plain `soy-sauce` |
+| Shallot | `shallot` | `onions-and-similar` | no | **minor** | **not** `onion` — a distinct ingredient row |
+| Garlic | `garlic` | `garlic-and-similar` | no | **minor** | **already exists** — reused, not duplicated |
+| Ground shrimp paste | `shrimp-paste` | `paste` | **yes** | major | terasi; **not** dried shrimp. See §1.3 |
+| Tamarind | `tamarind` | `fruit` | no | **minor** | **the pulp**, not the pod. See §1.3 |
+| Chilli | `chilli` | `fruit-spices` | no | **minor** | **the fresh/dried whole or sliced chilli**, not chilli powder |
+| Egg, whole | `whole-egg` | `whole-eggs` | no | major | **already exists** — reused |
+| Chicken | `chicken` | `chicken` | no | major | |
+| Prawn | `prawn` | `shrimps-and-prawns` | no | major | |
+| Vegetables | `vegetables` | **none** | no | minor | **one generic line** — see below |
+
+**The owner's decisions, and what they settled:**
+
+* **The oil/margarine line is REQUIRED — one line, two forms.**
+  The source says "oil or margarine", so it is one *line* with two
+  possible *forms* (ADR-008 has a `form` vocabulary for exactly
+  this). `cooking-oil` and `margarine` are two rows because the
+  rating must be able to say "this dish is easy because the oil is
+  ordinary, or hard because only margarine is stocked" — but they are
+  **one required line**, not two required ingredients, and not an
+  optional one.
+
+  **This resolves a contradiction in the previous revision of this
+  document.** §1.2 called the line *optional* while §2.2 called it
+  *required*. The owner's answer is **REQUIRED**, and the checker now
+  enforces it: both forms must be present, each must name its form,
+  and neither may be a key ingredient.
+
+* **"Vegetables" is one optional line, accepted.** The long
+  description says "vegetables" generically; there is no single thing
+  to source. The honest reading is that nasi goreng takes *whatever is
+  in the fridge*, and those vary by household and by region. So it is
+  **one optional line named `vegetables`**, with **no category and no
+  source** — and it is explicitly **not** a key ingredient, because it
+  is not a single ingredient at all. The checker names it in
+  `NO_CATEGORY_NO_SOURCE`, so the exemption is a rule rather than an
+  accident.
+
 * **"Shallot" is not `onion`.** The moussaka uses `onion`; nasi goreng
   uses `shallot`. They are separate rows with separate categories.
 
-**That leaves 10 genuinely new rows**, not 14:
+* **`shrimp-paste` is a key ingredient.** It is what distinguishes
+  nasi goreng from Chinese fried rice; without it the dish is
+  something else.
 
-`long-grain-rice`, `sweet-soy-sauce`, `shallot`, `shrimp-paste`,
-`tamarind`, `chilli`, `chicken`, `prawn`, plus the two forms of the
-oil/margarine line and the optional `vegetables` line.
+**Ten new rows plus two reused plus the generic line** — 13 rows in
+the list, of which 11 are new ingredient rows, 2 are reused, and 1
+(`vegetables`) is the generic line.
 
 ### 1.3 The categories — checked against the 435
 
@@ -218,8 +251,40 @@ column and not a heuristic.
 | `lamb-mince` | **yes** | it is the dish (with `beef-mince` as its alternative) |
 | `tomato` | **yes** | it is the dish |
 | `bechamel` | **yes** | it is the dish — the topping is half the identity |
-| `kefalotyri` | **yes** | the named cheese of the dish |
+| `kefalotyri` | **no** | the owner's decision, 2026-11-10 — see below |
 | `cinnamon`, `allspice` | no | the meat sauce's spice, not the identity |
+
+**The owner's decision on kefalotyri, 2026-11-10: `is_key = no`.**
+
+Kefalotyri was proposed as a key ingredient because it is the named
+cheese of the dish. The owner decided it is **not** key, and the
+reason is the substitution record: a key ingredient may only be
+rescued by a **suitable** substitute, and the moussaka has one.
+
+**The substitutes are recorded, with their suitability still to be
+researched:**
+
+| substitute | for | suitability | status |
+|---|---|---|---|
+| `parmesan` | `kefalotyri` | **to be researched** | **pending** |
+| `pecorino` | `kefalotyri` | **to be researched** | **pending** |
+
+Both are aged hard cheeses, grated over the dish in the same way, so
+the **material** claim is already established — the owner's own spec
+lists "Parmigiano Reggiano and Pecorino" as an ingredient in its own
+right, and its substitution limits note that "Grana Padano, another
+aged hard cheese, [may serve]". What is **not** yet established is
+the *suitability* rating for a moussaka, which is a research question
+(GUS-1107), not a guess.
+
+**Until the suitability is researched, neither substitute is written
+to the database.** A substitute row with an unresearched suitability
+would be exactly the kind of unsupported claim the project refuses —
+and the rating would then offer a substitute the research may not
+support. The `is_key = no` decision is what makes the dish's rating
+**Moderate rather than Hard** in a country without kefalotyri, once
+the suitability is established; until then the honest answer for that
+country is what the data says.
 | `onion`, `garlic` | no | aromatics |
 | `potato` | no | the alternative base to eggplant in some regions |
 | `whole-egg`, `whole-milk`, `wheat-flour`, `plain-butter` | no | béchamel's components — documented, not key |
@@ -256,27 +321,39 @@ recording a guess.**
 The lines are **created** — they exist only as prose today. The
 source is the cited long description (Wikipedia, accessed 2026-10-16).
 
-| line | required? | is_key | source |
-|---|---|---|---|
-| `long-grain-rice` | yes | **yes** | the base preparation |
-| `shrimp-paste` | yes | **yes** | it is what distinguishes nasi goreng from Chinese fried rice |
-| `sweet-soy-sauce` | yes | **yes** | same |
-| `tamarind` | yes | no | seasoning |
-| `chilli` | yes | no | seasoning |
-| `shallot` | yes | no | aromatic |
-| `garlic` | yes | no | aromatic |
-| `oil/margarine` | yes | no | the "oil or margarine" line, two forms |
-| `whole-egg` | optional | no | "commonly served with" |
-| `chicken` | optional | no | "commonly served with" |
-| `prawn` | optional | no | "commonly served with" |
-| `vegetables` | optional | no | "commonly served with" |
+| line | required? | is_key | cost_weight | source |
+|---|---|---|---|---|
+| `long-grain-rice` | yes | **yes** | major | the base preparation |
+| `shrimp-paste` | yes | **yes** | major | it is what distinguishes nasi goreng from Chinese fried rice |
+| `sweet-soy-sauce` | yes | **yes** | major | same |
+| `tamarind` | yes | no | **minor** | seasoning |
+| `chilli` | yes | no | **minor** | seasoning |
+| `shallot` | yes | no | **minor** | aromatic |
+| `garlic` | yes | no | **minor** | aromatic |
+| `oil/margarine` | **yes** | no | major | the "oil or margarine" line — **one required line, two forms** |
+| `whole-egg` | optional | no | major | "commonly served with" |
+| `chicken` | optional | no | major | "commonly served with" |
+| `prawn` | optional | no | major | "commonly served with" |
+| `vegetables` | optional | no | minor | "commonly served with" — the generic line |
 
-`cost_weight`: `minor` for `tamarind`, `chilli`, `shallot`, `garlic`;
-`major` for the rest.
+**The oil/margarine line is REQUIRED.** The previous revision of this
+document contradicted itself: §1.2 called it optional and §2.2 called
+it required. The owner's answer is **required**, and the checker
+enforces that both forms are present and each names its form.
 
 `accepted_forms`: `NULL` throughout — nasi goreng is the dish that
 *adapts* to what is available, which is exactly why the sourcing
 rating is interesting for it.
+
+**The recipe's own status: `draft`.** The owner's decision is that
+**both recipes stay DRAFT until each has 2 independent sources** —
+Wikipedia alone is not enough. So the `recipes` rows are written with
+`status = 'draft'`, and neither pilot dish is published by this work.
+A `draft` recipe is not public, so the pilot's rating is verified in
+the API's authenticated/draft path and in the database, not on a live
+public page. That is a deliberate consequence of the decision, not an
+oversight: a recipe whose sourcing rating rests on a single source
+does not belong on a public page yet.
 
 ---
 
@@ -308,7 +385,7 @@ rows are written.
 ## The check
 
 `scripts/check_ingredient_vocabulary.py` — the same shape as
-`scripts/check_pantry_list.py`, and **mutation-tested**. Seven
+`scripts/check_pantry_list.py`, and **mutation-tested**. Thirteen
 mutations, all caught:
 
 | mutation | caught by |
@@ -320,14 +397,24 @@ mutations, all caught:
 | a row with **no source** | the source rule |
 | a row marked `new` that **already exists** | the exists/new label must match the database |
 | a row marked `exists` that **does not exist** | the exists/new label must match the database |
+| **the owner's `is_key` reversed** (`shrimp-paste` → no) | rule (8) — the Gate A decisions are *enforced*, not just written |
+| **the owner's `cost_weight` reversed** (`tamarind` → major) | rule (8) |
+| **the oil/margarine line losing a form** | rule (9) — both forms must be present |
+| **a form emptied** (`cooking-oil` with no form named) | rule (9) |
+| **the generic line given a category** | rule (2) + the closed-list rule |
+| **the generic line made a key ingredient** | rule (10) |
 
 The first two are the ones that matter most, and they are the ones the
 moussaka checker had to be strengthened for. **A category that is real
 but wrong is the dangerous failure** — the list would still validate,
 and the rating would still compute, on the wrong basis.
 
+The last six are the **owner's Gate A decisions**. They are enforced
+by the checker rather than merely written in the document, so a later
+edit cannot quietly reverse a decision the owner already made.
+
 ```
-  12 rows, 435 categories in the vocabulary
+  13 rows, 435 categories in the vocabulary
   OK: every category is a member of the vocabulary, every row cites a
       source, and the exists/new labels match the database
 ```
@@ -341,25 +428,65 @@ and the rating would still compute, on the wrong basis.
 - [x] every new row cites a source
 - [x] no duplicate slug; `garlic`, `whole-egg` and the other shared
       rows are **reused**, not duplicated
-- [x] the two refused rows are recorded as refusals, with the reason
+- [x] the refusals are recorded, with the reason
 - [ ] the four existing `published` rows are **not demoted** — a
       Stage B check
 - [x] `bechamel-sauce` is **not** in this document — it is the
       owner's cleanup decision
-- [ ] the `recipes` `status` / `review_state` choice is the owner's
+- [x] the `recipes` rows are **`draft`** — the owner's decision,
+      2026-11-10: both recipes stay draft until each has 2
+      independent sources
+- [x] the owner's `is_key` and `cost_weight` values are **enforced by
+      the checker**, not just written in the document
+- [x] the oil/margarine line is **required** — rule (9), and the
+      §1.2 / §2.2 contradiction is resolved
 
 ---
 
-## The owner's decisions this document needs
+## The owner's decisions — Gate A, 2026-11-10
 
-1. **The 10 new rows** — as listed, or edited.
-2. **`vegetables`** — one optional line with no category and no
-   source, or dropped from the recipe entirely?
-3. **oil/margarine** — one line with two forms (as proposed), or two
-   ingredient rows?
-4. **The `recipes` status** — `draft` (not public; the pilot's live
-   check would need a published recipe) or `published`?
-5. **The `is_key` and `cost_weight` values** above, or edited.
+**APPROVED**, with the following changes. Each is now enforced by
+`scripts/check_ingredient_vocabulary.py`, so none of them can be
+reversed by a later edit.
+
+| # | the decision | where it is enforced |
+|---|---|---|
+| 1 | **oil/margarine: REQUIRED**, one line with two forms — **not** optional. This resolves the contradiction between §1.2 and §2.2. | rule (9): both forms present, each naming its form |
+| 2 | **kefalotyri: `is_key = no`.** Parmesan and pecorino are recorded as its substitutes, **suitability to be researched** — so neither is written to the database yet. | the moussaka's table in §2.1 |
+| 3 | **shrimp-paste: `is_key = yes`.** | rule (8) |
+| 4 | **tamarind → `fruit` and shrimp-paste → `paste` accepted for now**, and **both added to `docs/VOCABULARY-ADDITIONS.md`** for a later reviewed batch. | `docs/VOCABULARY-ADDITIONS.md` §3 and §4 |
+| 5 | **`vegetables`: one optional line, accepted.** No category, no source, not a key ingredient. | rules (2), (4), (10) and `NO_CATEGORY_NO_SOURCE` |
+| 6 | **Both recipes stay `DRAFT`** until each has **2 independent sources**. Wikipedia alone is not enough. | §2.1 and §2.2 |
+
+### Two things the decisions changed that are worth stating plainly
+
+**The kefalotyri substitutes are recorded but NOT written.** The
+material claim — that parmesan and pecorino are aged hard cheeses
+grated over the dish in the same way — is established. The
+*suitability* is a research question (GUS-1107). A substitute row
+with an unresearched suitability would be exactly the unsupported
+claim this project refuses, and the rating would offer a substitute
+the research may not support.
+
+**The recipes being draft is a consequence, not an oversight.** A
+`draft` recipe is not public, so the pilot's rating is verified in
+the database and through the API's draft path, **not** on a live
+public page. A recipe whose sourcing rating rests on a single source
+does not belong on a public page yet — which is precisely why the
+owner required two independent sources first.
+
+### The FoodOn identifiers were verified, not recalled
+
+Both classes added to the vocabulary-additions list were checked
+against the FoodOn ontology itself (the `rdfs:label`, the
+`obo:IAO_0000115` definition and the `rdfs:subClassOf` were read out
+of the `.owl` file). **Two identifiers that had been written from
+memory were wrong** — `FOODON:03540104` and `FOODON:03546797` do not
+exist in FoodOn — and were corrected to `FOODON:03541403` (tamarind)
+and `FOODON:03315935` (crustacean paste), with the EFSA group
+`FOODON:03542517` (akami paste shrimp) recorded as the narrower
+alternative. The provenance note is in
+`docs/VOCABULARY-ADDITIONS.md`.
 
 ---
 
