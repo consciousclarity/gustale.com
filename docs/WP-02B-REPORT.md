@@ -138,3 +138,43 @@ fall back to the legacy vocabulary.
 The API suite now passes with the relations **present** and **absent**
 (203 passed, 3 skipped, 0 failed), so it holds in the live-like and the
 CI-like state alike.
+
+### Addendum — the family page takes BOTH vocabularies
+
+The web build failed its own validation after the fix above:
+
+```
+[validate-build] domain=geo -- 60 passed, 1 failed
+x /family/late-page-family/ exists (pagination fixture)
+```
+
+The mock API's `late-page-family` is a fixture inserted at the dish
+list's first page boundary (offset 100), so it proves that a family
+which only appears after the first page is still discovered by paging.
+The mock's `/api/categories` **explicitly adds it**, with that as the
+stated reason.
+
+Replacing `/api/categories` with the canonical dish-list source
+removed the fixture family from the path list, so its page was never
+generated.
+
+So the path source is now the **union** of both, de-duplicated by
+slug, with the canonical source winning a collision:
+
+* the canonical dimension (the dish list's `familySlug`) — what the
+  dish list displays and what the search returns, so every canonical
+  family has a page and the 104 dead links are gone;
+* `/api/categories` — the families the canonical dimension does not
+  cover (`main-course` has 97 published dishes and no canonical
+  relation), and the CI fixture family.
+
+Verified: `docker build --build-arg BUILD_DATA_SOURCE=mock
+--build-arg PUBLIC_DOMAIN=geo` reports
+
+```
+[validate-build] domain=geo -- 61 passed, 0 failed
+[validate-build] all taxonomy + domain checks passed.
+```
+
+and the axe gate passes locally with **0 violations across 6 pages x 2
+viewports**.
