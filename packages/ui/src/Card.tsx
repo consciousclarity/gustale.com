@@ -115,12 +115,16 @@ function DishCardThumb({
   // broken-image icon: fall back to the same neutral placeholder a dish
   // with no cover gets. The error can fire BEFORE hydration (the image is
   // in the server HTML), so the effect also checks an already-failed image.
-  const [failed, setFailed] = React.useState(false);
+  // Remember WHICH url failed, so a card re-used for another cover starts
+  // clean instead of inheriting the previous one's failure.
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
   const imgRef = React.useRef<HTMLImageElement | null>(null);
+  const coverUrl = cover?.publicUrl ?? null;
+  const failed = coverUrl !== null && failedUrl === coverUrl;
   React.useEffect(() => {
     const img = imgRef.current;
-    if (img?.complete && img.naturalWidth === 0) setFailed(true);
-  }, []);
+    if (img?.complete && img.naturalWidth === 0) setFailedUrl(coverUrl);
+  }, [coverUrl]);
 
   const srcSet = cover ? buildSrcSet(cover.variantsUrls) : undefined;
   const alt = cover?.altText?.trim() || `${title} — cover`;
@@ -132,7 +136,13 @@ function DishCardThumb({
         // The placeholder carries the dish's name as text, so it is
         // meaningful content, not decoration.
         role="img"
-        aria-label={`${title} — no photograph yet`}
+        // "No photograph yet" is only true when there is no cover. A cover
+        // that failed to load is a different fact.
+        aria-label={
+          cover
+            ? `${title} — photograph unavailable`
+            : `${title} — no photograph yet`
+        }
       >
         <span className="dish-card-thumb__initials" aria-hidden="true">
           {title.slice(0, 1).toUpperCase()}
@@ -156,7 +166,7 @@ function DishCardThumb({
         className="dish-card-thumb__img"
         loading="lazy"
         decoding="async"
-        onError={() => setFailed(true)}
+        onError={() => setFailedUrl(coverUrl)}
         // Explicit dimensions reserve the space so the list does not
         // jump as the images arrive. The stored dimensions are the
         // source image's, so the ratio is right; the CSS clamps the

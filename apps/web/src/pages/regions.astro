@@ -7,6 +7,7 @@ import Layout from "../layouts/Layout.astro";
 import { listDishes } from "../lib/api";
 import { buildCountryDirectory, recoveryLinks } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
+import { getFilterPageIndex, pathPageSlugs } from "../lib/filterPages";
 import type { DishListResponse } from "../types/dish";
 
 // Route stays /regions; the public language is "Places" — the
@@ -21,6 +22,12 @@ let initial: DishListResponse = {
   hasMore: null,
 };
 let buildFailed = false;
+let pathPages = null;
+try {
+  pathPages = pathPageSlugs(await getFilterPageIndex());
+} catch {
+  // Links fall back to the query form (client-side filter).
+}
 
 try {
   initial = await listDishes({ status: "published", limit: 100 });
@@ -63,7 +70,7 @@ const recovery = recoveryLinks(domain);
 
   <section class="wrap browse-page">
     <ErrorBoundary name="Country directory">
-      <CountryDirectory dishes={initial.dishes} client:load />
+      <CountryDirectory dishes={initial.dishes} pathPages={pathPages} client:load />
     </ErrorBoundary>
   </section>
 </Layout>

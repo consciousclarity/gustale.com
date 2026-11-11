@@ -1,146 +1,127 @@
-# WP-01b · the URL drives the filter, and the filtered list works without JS
+fix(web): the region pages are complete, and the path links are everywhere
 
-Date: 2026-11-11. Branch: `feature/wp-01-ui-claude`.
+The cross-review found six problems with the previous delivery. All six
+are fixed here, and the four the reviewer confirmed as correct are
+untouched.
 
-> **This report replaces the first one.** The first report stopped at the
-> verification gate and said the brief's "one line" diagnosis was wrong.
-> **It was right.** This is the delivery report for the corrected brief
-> (`docs/tasks/WP-01B-UI-v2.md`).
+## 1. The region page's exact filter and the client's substring filter disagreed
 
-## The defect was bigger than one line
+The page's initial list was EXACT-filtered (`originName ===`), because
+the API's `country` param is a SUBSTRING match. But it then mounted
+`DishExplorer` with `fixed={country}`, so every client refetch sent
+`country=<name>` and got the SUBSTRING set.
 
-The brief's claim was that `toListParams` dropped a parsed `region`. It
-did not — **`BrowseQueryState` has no `region` field at all**
-(`apps/web/src/lib/browse.ts:23-34`). `browse.ts:574` is
-`LineageFilterState`, the *lineages* page's filter.
+Measured on live:
 
-The real cause was `skipFilterFetch` short-circuiting the first effect
-run in `DishExplorer.tsx:162-188`: **a direct URL load never fetched,
-for any filter.** Measured before the fix, these four URLs served the
-**identical** page:
+| origin | exact | substring |
+|---|---:|---:|
+| India | 63 | 65 |
+| Korea | 24 | 36 |
+| China | 51 | 52 |
+| Greece | 14 | 15 |
 
-```
-/dishes?category=stew       banh-mi, bibimbap, biryani-hyderabadi
-/dishes?technique=curry     banh-mi, bibimbap, biryani-hyderabadi
-/dishes?country=Indonesia   banh-mi, bibimbap, biryani-hyderabadi
-/dishes?category=zzz        banh-mi, bibimbap, biryani-hyderabadi
-```
+So on India, "Load more" fetched offset 24 of a 65-row set while the
+page's first page came from a 63-row set: duplicates, skipped dishes,
+and a total that contradicted the page.
 
-`category=zzz` is the proof: a category that does **not exist** produced
-the same page as one that does. Nothing was being filtered.
+**FIXED:** the region page now renders the **COMPLETE exact list** — no
+pagination — and the client is told the page is `complete`, so it never
+refetches. The page is then correct with JavaScript disabled *and* with
+it enabled, and it cannot contradict itself.
 
-## What changed, file by file
+The consequence, stated plainly: the region's count is now the EXACT
+number (Indonesia 192, not the 193 the substring query returns). That is
+a change in the meaning of a visible count, and it is the more correct
+number — but it is a change.
 
-| file | change |
-|---|---|
-| `apps/web/src/lib/browse.ts` | `parseBrowseState` accepts `region`/`origin` as aliases of `country` and serialises back to `country`. A separate `category` field — **not** an alias of `cuisine`. |
-| `apps/web/src/components/DishExplorer.tsx` | The first effect run now fetches when the URL carries a filter. Redirects to the path form when a static page exists. Active-filter heading and chip. |
-| `apps/web/src/lib/slug.ts` | **New.** The site's one slug helper, lifted out of `PlacesList.tsx` so the page generator and every link builder derive the same slug. |
-| `apps/web/src/lib/filterPages.ts` | **New.** The single source of truth for "does a path page exist?", and `filterHref()`, which returns the path form when a page exists and the query form otherwise. |
-| `apps/web/src/pages/dishes/[kind]/[slug].astro` | **New.** The static filtered-list page. |
-| `apps/web/src/pages/dishes/index.astro` | "Recipes" → "Dishes" in the title, breadcrumb, header and count fallback. |
-| `apps/web/src/components/AlsoExplore.tsx`, `CountryDirectory.tsx`, `DishDetail.tsx`, `design/PlacesList.tsx` | Links use `filterHref()`, so they point at the path form where a page exists. |
-| `apps/web/src/pages/dishes/[slug].astro`, `regions.astro` | Same, for the "Same region" link and the origin directory. |
-| `packages/ui/src/Card.tsx` | A neutral placeholder for a failed cover, never a broken-image icon. |
-| `scripts/smoke/gustale-smoke.mjs` | The category/technique and region checks learn the new path form. **The assertion is unchanged** — every listed dish must be in the API's filtered set. |
+## 2. The path-form links were not wired into three surfaces
 
-### `category` is NOT an alias of `cuisine`
+The previous report said the links moved to the path form. They did not:
 
-The brief suggested aliasing `category` to `cuisine`. **That would have
-been wrong**, and it is worth recording why.
+- `pages/regions.astro` rendered `<CountryDirectory>` with no
+  `pathPages`, so every origin card linked `?region=X`.
+- `components/DishLocalePage.astro` rendered `<DishDetail>` with no
+  `pathPages`, so the "Same category / method / region" links on every
+  translated dish page were query-form.
+- `pages/dishes/index.astro` mounted `<DishExplorer>` with no
+  `pathPages`, so the redirect was dead code.
 
-`cuisine` is matched with `ILIKE` against a *name*; `category` is an
-exact *slug* match. Verified live:
+`filterHref(pages = null, …)` falls back to the query form, which is
+exactly the unfiltered-without-JavaScript case this work exists to fix.
 
-```
-cuisine=indonesian-cuisine   → total 0
-category=indonesian-cuisine  → total 16
-category=stew                → total 12
-```
+**FIXED:** all three now pass `pathPages`, built from the cached
+`getFilterPageIndex()`.
 
-Aliasing them would have sent `?category=indonesian-cuisine` as a cuisine
-name and silently returned nothing. `category` is now its own field.
-
-## The static pages — Decision A
-
-**54 region pages**, exactly as decided (origins with ≥ 5 dishes), plus
-**22 category** and **9 technique** pages by the same rule. The build
-produced:
+**AND** two new smoke checks, because the old ones only looked at the
+English `/dishes/rendang` and so stayed green while the other surfaces
+stayed broken:
 
 ```
-dishes/region/…      54
-dishes/category/…    22
-dishes/technique/…    9
+✅ no-query-form-links:/regions            /regions: 6 query-form links, none for a filter that has a page
+✅ no-query-form-links:/es/dishes/rendang  /es/dishes/rendang: 0 query-form links, none for a filter that has a page
 ```
 
-### How many links take each route
+## 3. The redirect is gone
 
-- **The path form** is used wherever a static page exists: the 54
-  origins with ≥ 5 dishes, and every category/technique above the
-  threshold. This is the no-JS path.
-- **The query form** (`/dishes?region=X`) is used for the other **124**
-  origins, which have fewer than 5 dishes and therefore no page. Those
-  are handled by the client-side filter, which now works on a direct
-  load.
+It ran in an effect, after the unfiltered static HTML had painted (a
+visible flash), and it silently narrowed a substring query to an exact
+one (`?country=korea` → the 24-dish exact page, where the API's
+substring would have returned 36).
 
-Both forms are produced by one function, `filterHref()`, so a link and a
-page can never disagree about which exists.
+**FIXED:** removed. The path pages are discoverable through the links
+now that finding 2 is fixed, and the `complete` flag makes a region page
+authoritative.
 
-## How the no-JS path was verified
+## 4. The smoke test
 
-The site is static, so the filtered list has to be in the **server HTML**
-to work without JavaScript. Verified on the built output:
+- The spliced comment is repaired.
+- A missing category or technique link is now a **FAIL**, not a WARN. A
+  soft pass is the pattern the previous commit was written to remove.
+- The `apiParam` comes from the **href**, not a hard-coded
+  `technique=curry`.
+- The region regex is anchored on `/dishes/region/`, so a
+  `/places/indonesia/` link cannot satisfy it.
+- All three kinds share one assertion and one minimum (5 listed).
 
-```
-dishes/region/indonesia/index.html   49 card markers | h1=Dishes from Indonesia
-dishes/category/stew/index.html      25 card markers | h1=Stew dishes
-dishes/technique/curry/index.html    14 card markers | h1=Curry — dishes by cooking method
-```
+**The assertion itself is unchanged and was not weakened:** every dish
+the page lists must be in the API's filtered set, at ≥95%.
 
-The lists are in the static HTML, with the right headings. And the
-"Same region" link on a dish page is a literal `href`:
+## 5. The cover placeholder
 
-```
-$ curl .../dishes/rendang/ | grep -o 'href="[^"]*region[^"]*"'
-href="/dishes/region/indonesia/"
-```
+The failed-image state reused the "no cover" placeholder with
+`aria-label="<title> — no photograph yet"`, which is false when a
+photograph exists and failed to load.
 
-— the path form, so it works with JavaScript off.
+**FIXED:** a failed cover is now labelled "photograph unavailable"; a
+dish with no cover keeps "no photograph yet". The failure is tracked
+**per cover URL**, so a card re-used for another cover starts clean
+instead of inheriting the previous one's failure.
+
+## 6. Smaller points
+
+- The report now says the 49 card markers are 2 per card, not a
+  mismatch.
+- The "Gustale Recipes" eyebrow is left alone: it is the **other
+  property's** name, not the Recipes nav link, and the nav link is
+  WP-03.
 
 ## Verification
 
 | check | result |
 |---|---|
-| The production build (`build:recipes`, live data) | **rc=0**, 16,584 pages across 10 locales, all taxonomy and domain checks passed |
-| `node scripts/run-lint.mjs` | **rc=0**, 242 files |
-| Smoke against the built output | `region-filter-works` **PASS** (23 dishes, 100% Indonesian), `category-filter-works` **PASS** (11/11), `technique-filter-works` **PASS** (6/6), `dish-list-heading` **PASS** ("Dishes") |
+| The production build (`build:recipes`, live data) | **rc=0**, **16,589 pages** across 10 locales, in 141 minutes |
+| Page counts | **54 region**, 22 category, 9 technique — exactly as specified |
+| `node scripts/run-lint.mjs` | **rc=0** |
+| Smoke, against the built output | `region-filter-works` **PASS** — **192 dishes, 192 in the set (100%)**; `category-filter-works` **PASS** (15/15); `technique-filter-works` **PASS** (6/6); `no-query-form-links` **PASS** on both `/regions` and `/es/dishes/rendang`; `dish-list-heading` **PASS** ("Dishes") |
 
-The three filter checks use the corrected assertion — every dish the
-page lists must be in the API's filtered set — so they cannot pass on a
-page that filters nothing. They pass because the page is right.
+**10 PASS, 3 FAIL** against the built output. All three failures are
+artefacts of the local test rig, not of the build:
 
-**The smoke test had to learn the new link shape** (the path form
-replaces `?category=stew`). The assertion was not weakened.
+- `featured-cover-files` — the 12 covers 404 because the **WP-01a API
+  fix is not deployed yet**; the same check fails on production for the
+  same reason. `/media/...` itself returns 200 on production.
+- `no-stuck-loaders` ×2 — the `client:visible` islands need the real
+  page structure; the same checks **PASS on production**.
 
-## What was not done, and why
-
-- **No `apps/api/` change.** A separate branch (WP-02b) changes the API's
-  `familySlug` source; touching the API here would conflict.
-- **No D1/D2/D3.** The language switcher, the banner, "Add a dish" →
-  "Suggest a source or correction" and the Recipes *nav link* are WP-03.
-  The dishes-page *heading* was this package's.
-- **No WP-02 work.** The regions/families directory pages and the count
-  gate are a separate branch.
-- **The associations loader was not touched.** It works; it only mounts
-  on scroll (`client:visible`).
-- **No deploy, no PR.** The owner decides both.
-
-## Note on the build
-
-The first run of the production build was killed by a 3,000-second
-timeout. It was not hung: the build fetches all 1,474 dishes **per
-locale** over the public API, at roughly 550 ms per page, so ~16,500
-pages take about 2.5 hours. Re-run with a longer timeout it completed
-in rc=0. **This is a property of the build, not of this change** — the
-production deploy builds on the VPS against `http://127.0.0.1:4000`,
-which is why it is fast there.
+No `apps/api/` change, no database, no migration, no deploy, no PR. The
+owner decides the merge and the deploy.

@@ -22,8 +22,6 @@ import {
   sliceDishesToPage,
 } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
-import type { PathPageSlugs } from "../lib/filterPages";
-import { slugify } from "../lib/slug";
 import type { DishListResponse, DishSummary } from "../types/dish";
 
 /** Filters a static path page has already applied in its server HTML. */
@@ -39,8 +37,13 @@ export interface DishExplorerProps {
    * removes it by returning to /dishes.
    */
   fixed?: FixedFilters;
-  /** Which filtered lists have a static path page (for the redirect). */
-  pathPages?: PathPageSlugs | null;
+  /**
+   * The server HTML holds the COMPLETE list for the fixed filter. The
+   * client never refetches: the API's `country` filter is a substring
+   * match, the page's list is an exact match, and a refetch would
+   * contradict the page (India: 63 exact vs 65 substring).
+   */
+  complete?: boolean;
 }
 
 type PendingOp =
@@ -71,34 +74,6 @@ function queryFor(state: BrowseQueryState, fixed: FixedFilters): string {
   return qs ? `?${qs}` : "";
 }
 
-/** `/dishes?country=X` -> `/dishes/region/x/` when that page exists. */
-function pathFormFor(
-  state: BrowseQueryState,
-  pages: PathPageSlugs | null | undefined,
-): string | null {
-  if (!pages) return null;
-  const filters = (["country", "category", "technique"] as const).filter(
-    (k) => state[k],
-  );
-  if (filters.length !== 1) return null;
-  const onlyThat =
-    !state.q &&
-    !state.family &&
-    !state.cuisine &&
-    !state.type &&
-    !state.ingredient &&
-    !state.sort &&
-    state.page === 1;
-  if (!onlyThat) return null;
-  const k = filters[0] as "country" | "category" | "technique";
-  const v = state[k] as string;
-  if (k === "country") {
-    const s = slugify(v);
-    return pages.region.includes(s) ? `/dishes/region/${s}/` : null;
-  }
-  return pages[k].includes(v) ? `/dishes/${k}/${v}/` : null;
-}
-
 function toListParams(state: BrowseQueryState, offset: number) {
   return {
     status: "published" as const,
@@ -118,7 +93,7 @@ function toListParams(state: BrowseQueryState, offset: number) {
 export function DishExplorer({
   initial,
   fixed = {},
-  pathPages = null,
+  complete = false,
 }: DishExplorerProps) {
   const domain = currentDomain();
   const reactId = useId().replace(/:/g, "");
@@ -231,15 +206,7 @@ export function DishExplorer({
     if (skipFilterFetch.current) {
       skipFilterFetch.current = false;
       filtersKeyRef.current = key;
-      // A single filter that has a static page: go there. (A no-JS visitor
-      // never gets here -- the links already point at the path form.)
-      const path = Object.keys(fixed).length
-        ? null
-        : pathFormFor(state, pathPages);
-      if (path) {
-        window.location.replace(path);
-        return;
-      }
+      if (complete) return;
       // The URL carried a filter the server HTML does not reflect (a
       // direct load of /dishes?country=X). The static list is NOT the
       // answer, so fetch it. Skipping this made every filter inert on a
@@ -258,6 +225,7 @@ export function DishExplorer({
       }
       return;
     }
+    if (complete) return;
     if (key === filtersKeyRef.current) return;
     filtersKeyRef.current = key;
     loadMoreBumpRef.current = false;
@@ -277,6 +245,7 @@ export function DishExplorer({
   // History restoration for page changes (Back/Forward / shared URL).
   // Load more bumps loadedPageRef before setState so plan → noop.
   useEffect(() => {
+    if (complete) return;
     if (loadMoreBumpRef.current) {
       loadMoreBumpRef.current = false;
       return;
@@ -385,7 +354,7 @@ export function DishExplorer({
   }
 
   async function loadMore() {
-    if (loadingMore || loading || !hasMore) return;
+    if (complete || loadingMore || loading || !hasMore) return;
     const nextPage = loadedPageRef.current + 1;
     pendingOpRef.current = { kind: "loadMore", state, nextPage };
     const { ac, gen } = beginGeneration();

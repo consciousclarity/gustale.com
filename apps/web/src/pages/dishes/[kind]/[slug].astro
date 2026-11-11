@@ -21,7 +21,6 @@ import {
   type FilterKind,
   type FilterPageEntry,
   getFilterPageIndex,
-  pathPageSlugs,
 } from "../../../lib/filterPages";
 import type { DishListResponse } from "../../../types/dish";
 
@@ -31,15 +30,12 @@ export async function getStaticPaths() {
   return kinds.flatMap((kind) =>
     Object.values(index[kind]).map((entry) => ({
       params: { kind, slug: entry.slug },
-      props: { entry, pages: pathPageSlugs(index) },
+      props: { entry },
     })),
   );
 }
 
-const { entry, pages } = Astro.props as {
-  entry: FilterPageEntry;
-  pages: ReturnType<typeof pathPageSlugs>;
-};
+const { entry } = Astro.props as { entry: FilterPageEntry };
 
 const PAGE_SIZE = 24;
 let initial: DishListResponse;
@@ -50,13 +46,15 @@ if (entry.kind === "region") {
     status: "published",
     country: entry.value,
   });
+  // The WHOLE exact list is rendered: complete without JavaScript, and
+  // the client never refetches (see DishExplorer `complete`).
   const exact = all.dishes.filter((d) => d.originName === entry.value);
   initial = {
-    dishes: exact.slice(0, PAGE_SIZE),
-    limit: PAGE_SIZE,
+    dishes: exact,
+    limit: exact.length,
     offset: 0,
     total: exact.length,
-    hasMore: exact.length > PAGE_SIZE,
+    hasMore: false,
   };
 } else {
   initial = await listDishes({
@@ -108,7 +106,7 @@ const title =
 
   <section class="wrap browse-page">
     <ErrorBoundary name="Dish list">
-      <DishExplorer initial={initial} fixed={fixed} pathPages={pages} client:load />
+      <DishExplorer initial={initial} fixed={fixed} complete={entry.kind === "region"} client:load />
     </ErrorBoundary>
   </section>
 </Layout>
