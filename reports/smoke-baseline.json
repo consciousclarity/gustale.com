@@ -1,10 +1,10 @@
 {
   "base": "https://gustale.com",
-  "at": "2026-11-11T08:23:41.778Z",
+  "at": "2026-11-11T09:48:31.314Z",
   "only": null,
   "summary": {
-    "FAIL": 24,
-    "PASS": 7,
+    "FAIL": 26,
+    "PASS": 5,
     "WARN": 1
   },
   "results": [
@@ -20,14 +20,20 @@
     {
       "wp": "WP-01",
       "id": "category-filter-works",
-      "status": "PASS",
-      "detail": "/dishes?category=stew differs from the unfiltered list"
+      "status": "FAIL",
+      "detail": "/dishes?category=stew lists 24 dishes, only 5 in the category=stew set (21%). Expected ≥95%.",
+      "metric": {
+        "share": 0.20833333333333334
+      }
     },
     {
       "wp": "WP-01",
       "id": "technique-filter-works",
-      "status": "PASS",
-      "detail": "/dishes?technique=curry differs from the unfiltered list"
+      "status": "FAIL",
+      "detail": "/dishes?technique=curry lists 24 dishes, only 1 in the technique=curry set (4%). Expected ≥95%.",
+      "metric": {
+        "share": 0.041666666666666664
+      }
     },
     {
       "wp": "WP-01",
@@ -148,7 +154,7 @@
       "wp": "WP-10",
       "id": "view-counts-plausible",
       "status": "FAIL",
-      "detail": "Lowest view count across all 1474 dishes is 1812 — looks seeded"
+      "detail": "Lowest view count across all 1474 dishes is 1825 — looks seeded"
     },
     {
       "wp": "WP-10",
@@ -190,7 +196,7 @@
       "wp": "WP-01",
       "id": "home-http-errors",
       "status": "FAIL",
-      "detail": "404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/chicken-tikka-masala/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp · 404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/pizza-margherita/cover-800w.webp · 404 /dishes/wiener-schnitzel/cover-800w.webp"
+      "detail": "404 /dishes/moussaka-greek/cover-800w.webp · 404 /dishes/bibimbap/cover-800w.webp · 404 /dishes/nasi-goreng/cover-800w.webp · 404 /dishes/pizza-margherita/cover-800w.webp · 404 /dishes/feijoada/cover-800w.webp · 404 /dishes/goulash-hungarian/cover-800w.webp · 404 /dishes/cacio-e-pepe/cover-800w.webp · 404 /dishes/biryani-hyderabadi/cover-800w.webp"
     },
     {
       "wp": "WP-01",
@@ -214,7 +220,7 @@
       "wp": "WP-05",
       "id": "mobile-description-above-fold",
       "status": "FAIL",
-      "detail": "Rendang description starts at 870px on a 812px phone screen"
+      "detail": "Rendang description starts at 872px on a 812px phone screen"
     }
   ]
 }

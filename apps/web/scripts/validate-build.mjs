@@ -130,23 +130,23 @@ check(
 );
 
 if (DOMAIN === "geo") {
-  // The Atlas nav uses "Places" (href=/regions), not "Regions" and not
+  // The Atlas nav uses "Dish origins" (href=/regions), not "Regions" and not
   // the old "Countries" — the directory holds places, and 42 of the
   // entities it lists are regions and cultural areas rather than
   // countries (ADR-004 F8).
   //
-  // Astro may emit whitespace inside the anchor: "> Places <".
-  const placesLabelCount = countOccurrences(regionsHtml, "Places");
+  // Astro may emit whitespace inside the anchor: "> Dish origins <".
+  const placesLabelCount = countOccurrences(regionsHtml, "Dish origins");
   check(
-    "main navigation contains Places → /regions",
+    "main navigation contains Dish origins → /regions",
     countOccurrences(regionsHtml, 'href="/regions"') >= 1,
     'no href="/regions" in nav',
   );
   check(
-    "mobile navigation includes Places",
-    /nav-mobile-link[\s\S]{0,120}Places/.test(regionsHtml ?? "") &&
+    "mobile navigation includes Dish origins",
+    /nav-mobile-link[\s\S]{0,120}Dish origins/.test(regionsHtml ?? "") &&
       placesLabelCount >= 1,
-    `expected Places in mobile nav, found ${placesLabelCount} total`,
+    `expected Dish origins in mobile nav, found ${placesLabelCount} total`,
   );
   check(
     "nav identifies Atlas property in text",
@@ -183,7 +183,7 @@ if (DOMAIN === "geo") {
   // recipes nav carries the five shared entries and NOT the old
   // domain-specific ones. That is the change being asserted.
   check(
-    "recipes nav includes Places → /regions",
+    "recipes nav includes Dish origins → /regions",
     countOccurrences(regionsHtml, 'href="/regions"') >= 1,
     "missing /regions in recipes nav",
   );
@@ -199,11 +199,11 @@ if (DOMAIN === "geo") {
   );
 }
 
-// ─── 3. /regions presented as Places (U0-C directory, not chip wall) ───
+// ─── 3. /regions presented as Dish origins (U0-C directory, not chip wall) ───
 check(
-  "/regions H1 presents Places",
-  /<h1[^>]*>[\s\S]*?Places[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
-  "expected Places in page H1",
+  "/regions H1 presents Dish origins",
+  /<h1[^>]*>[\s\S]*?Dish origins[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
+  "expected Dish origins in page H1",
 );
 check(
   "/regions has no dead /regions/:slug links",
@@ -641,10 +641,10 @@ if (DOMAIN === "geo") {
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
   check(
-    "static aria-current on Places for /regions",
+    "static aria-current on Dish origins for /regions",
     /href="\/regions"[^>]*aria-current="page"/.test(regionsHtml ?? "") ||
       /aria-current="page"[^>]*href="\/regions"/.test(regionsHtml ?? ""),
-    "Places link missing aria-current=page on /regions",
+    "Dish origins link missing aria-current=page on /regions",
   );
   const dumplingHtml = await read(dumplingFamilyPath);
   check(
@@ -705,7 +705,7 @@ check(
   isPrimaryNavActive("/dishes", "/dishes/vindaloo/", "recipes") === true,
 );
 check(
-  "primary-nav match: /regions → Places (recipes build)",
+  "primary-nav match: /regions → Dish origins (recipes build)",
   isPrimaryNavActive("/regions", "/regions/", "recipes") === true,
 );
 check(

@@ -1,5 +1,5 @@
 /**
- * Pure helpers for U0-C browse/list-page usability.
+ * Shared helpers for U0-C browse/list-page usability.
  *
  * Shared by /dishes, /families, /regions, /lineages. Pure functions so
  * tests run in plain Node without a DOM or React.
@@ -8,6 +8,8 @@
  * in one place.
  */
 
+import type { DishSummary } from "../types/dish";
+import { type ListDishesParams, listDishes } from "./api";
 import { ATLAS_ORIGIN, type GustaleDomain, RECIPES_ORIGIN } from "./domain";
 
 // ─── Shared link type ───────────────────────────────────────────────────
@@ -502,6 +504,51 @@ export interface CountryEntry {
   letter: string;
 }
 
+/** Fetch the complete filtered catalogue; never build a partial directory. */
+export async function listAllDishes(
+  params: Omit<ListDishesParams, "limit" | "offset"> = {},
+): Promise<DishSummary[]> {
+  const all: DishSummary[] = [];
+  const slugs = new Set<string>();
+  let expected: number | null = null;
+  for (;;) {
+    const page = await listDishes({
+      ...params,
+      limit: 100,
+      offset: all.length,
+    });
+    if (
+      page.total === null ||
+      !Number.isSafeInteger(page.total) ||
+      page.total < 0
+    ) {
+      throw new Error("[directories] API did not report a valid dish total.");
+    }
+    expected ??= page.total;
+    if (page.total !== expected) {
+      throw new Error(
+        "[directories] API dish total changed during pagination.",
+      );
+    }
+    all.push(...page.dishes);
+    for (const dish of page.dishes) slugs.add(dish.slug);
+    if (!page.hasMore || page.dishes.length === 0) break;
+    if (all.length > 100_000) {
+      throw new Error(
+        "[directories] Dish pagination exceeded the runaway guard.",
+      );
+    }
+  }
+  if (all.length !== expected || slugs.size !== expected) {
+    throw new Error(
+      `[directories] the dish list is SHORT or inconsistent: collected ${all.length} ` +
+        `(${slugs.size} distinct), the API says ${expected}. ` +
+        "The directory would be built from an incomplete catalogue.",
+    );
+  }
+  return all;
+}
+
 export function buildCountryDirectory(
   dishes: readonly LikeableDish[],
 ): CountryEntry[] {
@@ -517,8 +564,7 @@ export function buildCountryDirectory(
       count: list.length,
       dishNames: list
         .map((d) => d.canonicalName)
-        .filter((x): x is string => Boolean(x))
-        .slice(0, 8),
+        .filter((x): x is string => Boolean(x)),
       letter: name.charAt(0).toUpperCase(),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

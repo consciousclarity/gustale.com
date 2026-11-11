@@ -61,8 +61,8 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
     failed: false,
     count: visible.length,
     query: q || activeLetter || "",
-    noun: "country",
-    nounPlural: "countries",
+    noun: "origin",
+    nounPlural: "origins",
   });
 
   return (
@@ -74,13 +74,13 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
         <div className="browse-toolbar-row">
           <div className="browse-search">
             <label className="browse-search-sr" htmlFor="country-browse-search">
-              Search countries
+              Search origins
             </label>
             <input
               id="country-browse-search"
               type="search"
               className="browse-search-field"
-              placeholder="Search countries or dishes…"
+              placeholder="Search origins or dishes…"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value);
@@ -132,7 +132,7 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
 
       {visible.length === 0 && (
         <div className="browse-banner" role="status">
-          <p>No countries match{q ? ` “${q}”` : ""}.</p>
+          <p>No origins match{q ? ` “${q}”` : ""}.</p>
           <button
             type="button"
             className="btn-outline"
@@ -189,6 +189,7 @@ export function CountryDirectory({ dishes }: CountryDirectoryProps) {
               {c.dishNames.length > 0 && (
                 <p className="browse-dir-card__meta">
                   {c.dishNames.slice(0, 5).join(" · ")}
+                  {c.count > 5 && ` · + ${c.count - 5} more`}
                 </p>
               )}
               <span className="browse-dir-card__go">
