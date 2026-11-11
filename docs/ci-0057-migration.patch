@@ -1,8 +1,10 @@
 # The 0057 step for .github/workflows/ci.yml
 #
-# WHY THIS IS A PATCH AND NOT A COMMIT: the GitHub App has no workflow
-# scope, so it cannot push a change to .github/workflows/. This is the
-# standing rule -- the owner applies workflow changes.
+# WHY THIS IS A PATCH AND NOT A COMMIT: the GitHub App has NO
+# workflow scope, and GitHub refuses the push outright:
+#   "refusing to allow a GitHub App to create or update workflow
+#    .github/workflows/ci.yml without `workflows` permission"
+# This is the standing rule -- the owner applies workflow changes.
 #
 # Apply it with:
 #   git apply docs/ci-0057-migration.patch
@@ -17,20 +19,19 @@
 #             -f db/migrations/0057_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0057.log
 #           bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0057: all 6 proofs passed" /tmp/m0057.log
 #
-# WHY THE MARKER MATTERS: the CI database is built by the workflow and
-# by the Nightly chain script and by the local reproduction, and all
-# three must apply the same migrations -- a migration applied in one
-# and not the others is a schema that exists in one and not the
-# others, and the route that reads it returns 500 in the environment
-# that is missing it. The marker proves the step ran and the proofs
-# passed.
+# WHY IT MATTERS: the migration list lives in three files -- the CI
+# workflow, the Nightly chain script and the local reproduction -- and
+# all three must apply the SAME migrations. A migration applied in one
+# and not the others is a schema that exists in one environment and
+# not the others, and the route that reads it returns 500 where it is
+# missing. scripts/validate-ci-migration-chain.py checks that the three
+# lists agree, and it is what caught this omission.
 #
-# The validator scripts/validate-ci-migration-chain.py checks that all
-# three lists agree, and it is what caught this: 0057 was in the chain
-# script and in neither of the other two.
+# Verified: the patch applies cleanly, and with it applied the
+# validator reports 56 migrations with all three lists agreeing.
 
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index 0145f93..b580779 100644
+index 0145f93..4d374b0 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
 @@ -1147,6 +1147,17 @@ jobs:
@@ -41,7 +42,7 @@ index 0145f93..b580779 100644
 +      #
 +      # Migration 0057 adds the 21 reviewed ingredient rows (GUS-1108) --
 +      # the vocabulary the sourcing availability rows attach to. It is
-+      # additive and writes no published row.
++      # additive and publishes nothing.
 +      - name: Apply the ingredient sourcing vocabulary
 +        run: |
 +          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
