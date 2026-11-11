@@ -96,7 +96,7 @@ export function registerAtlasCountRoutes(app: FastifyInstance): void {
         (SELECT count(DISTINCT x.value_id)::int
            FROM dish_dish_families x
            JOIN dishes d ON d.id = x.dish_id
-          WHERE d.status = 'published')
+          WHERE d.status = 'published' AND x.status = 'active')
           AS families,
 
         -- THE TECHNIQUES. The preparation methods in use.

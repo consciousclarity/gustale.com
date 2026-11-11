@@ -325,19 +325,8 @@ async function searchLineages(q: string, limit: number): Promise<SearchGroup> {
 }
 
 /**
- * Families — the `/family/<slug>` pages.
- *
- * A family page exists for a LEGACY CATEGORY, not for a dimension row.
- * So this searches the categories that have a page and a dish behind it.
- *
- * A family with no dishes has a page, but the page is empty — so it is
- * not a useful hit, and it is excluded. Live has 43 such families.
- *
- * The category's `kind` is deliberately NOT filtered. `/family/<slug>`
- * serves all four kinds — family, cuisine, dish-type, course-group —
- * and the 17 content-bearing `cuisine` categories have real dishes
- * behind them (`/family/japanese-cuisine` has 10). Filtering by kind
- * would hide exactly the pages a reader searching "japanese" wants.
+ * Food families use the canonical dimension and active published membership,
+ * matching the dish list, taxonomy endpoint, and atlas counts.
  */
 async function searchFamilies(q: string, limit: number): Promise<SearchGroup> {
   const rows = (await db.execute(sql`
@@ -351,11 +340,11 @@ async function searchFamilies(q: string, limit: number): Promise<SearchGroup> {
         similarity(LOWER(COALESCE(c.description, '')), LOWER(${q}))
       )::float8 AS score,
       COUNT(*) OVER ()::int AS total
-    FROM categories c
+    FROM dish_families c
     WHERE EXISTS (
-        SELECT 1 FROM dish_categories dc
-          JOIN dishes d ON d.id = dc.dish_id
-         WHERE dc.category_id = c.id AND d.status = 'published'
+        SELECT 1 FROM dish_dish_families df
+          JOIN dishes d ON d.id = df.dish_id
+         WHERE df.value_id = c.id AND df.status = 'active' AND d.status = 'published'
       )
       AND (
         LOWER(c.name) LIKE '%' || LOWER(${q}) || '%'
