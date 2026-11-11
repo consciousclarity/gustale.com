@@ -106,7 +106,7 @@ direction. The corrected figures are above.
 | a per-country channel note | the researcher stops rediscovering which retailers work there |
 | **the owner's own sourcing judgement** | a country or an ingredient the owner can answer from knowledge removes that row from the research entirely |
 | accepting a wider price band | a row that needs a price from a second retailer costs a second search; `unknown` does not |
-| **not researching the 42 non-place rows** | already excluded by `docs/SOURCING-COUNTRY-TIER.md` |
+| **not researching the 44 rows that are not markets** | **enforced** by `scripts/check-sourcing-market.py`, which rejects 44 of the 302 live rows |
 
 **The biggest lever is the last one before it.** The owner knows things
 the research cannot find — that gochujang is made in Indonesia by
