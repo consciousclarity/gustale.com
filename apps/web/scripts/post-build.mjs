@@ -260,7 +260,18 @@ if (dishDirs.length < effectiveFloor) {
 let removed = 0;
 
 // Always-on: drop pages only relevant to the OTHER domain.
-const drop = DOMAIN === "recipes" ? GEO_ONLY : RECIPES_ONLY;
+// Which paths to drop.
+//
+// The geo domain keeps /map and drops the recipes-only routes; the
+// recipes domain does the opposite.
+//
+// The STAGING domain is the recipes site -- it is the same code, on
+// another host -- so it drops the GEO_ONLY paths exactly as the
+// recipes domain does. Without this, a staging build kept /map and
+// the validate-build check ("recipes removes /map") failed on a
+// build that was actually correct.
+const isGeoLike = DOMAIN === "geo";
+const drop = isGeoLike ? RECIPES_ONLY : GEO_ONLY;
 for (const target of drop) {
   const full = join(DIST, target);
   if (await rmIfExists(full)) {
