@@ -318,9 +318,17 @@ docker build \
   . 2>&1 | tail -6
 
 docker rm -f "$STAGING_WEB_CONTAINER" >/dev/null 2>&1
+# The port mapping: 127.0.0.1:<host port> -> <the container's port>.
+#
+# The container's port is 4001, NOT 80. The nginx in the web image
+# listens on 4001 (the production container does the same), and the
+# image EXPOSEs 80 as a documentation-only hint that is not where
+# nginx actually binds. Mapping to 80 produces a container that is
+# "healthy" and serves nothing: the healthcheck inside the container
+# passes, and the port on the host forwards into a closed port.
 docker run -d --name "$STAGING_WEB_CONTAINER" \
   --restart unless-stopped \
-  -p "127.0.0.1:${STAGING_WEB_PORT}:80" \
+  -p "127.0.0.1:${STAGING_WEB_PORT}:4001" \
   "$STAGING_WEB_IMAGE" >/dev/null 2>&1 ||
   refuse "could not start the staging web container"
 
@@ -382,10 +390,22 @@ echo "--- 5. the verification ---"
 FAILED=0
 
 # The web serves.
+#
+# The failure message has to be DIAGNOSTIC, because "does not serve"
+# has two very different causes:
+#
+#   - the port mapping is wrong (the container is healthy but the
+#     host port forwards into a closed port)
+#   - the container is not serving at all
+#
+# So when it fails, the diagnosis is printed with it.
 if curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_WEB_PORT}/" >/dev/null 2>&1; then
   echo "  the staging web serves OK"
 else
-  echo "  ::error::the staging web does not serve"
+  echo "  ::error::the staging web does not serve on 127.0.0.1:${STAGING_WEB_PORT}"
+  echo "  ::error::the container: $(docker inspect --format='{{.State.Status}}/{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$STAGING_WEB_CONTAINER" 2>/dev/null)"
+  echo "  ::error::the ports:    $(docker port "$STAGING_WEB_CONTAINER" 2>/dev/null | tr '\n' ' ')"
+  echo "  ::error::the container listens on: $(docker exec "$STAGING_WEB_CONTAINER" sh -c "netstat -tln 2>/dev/null | awk '{print \$4}' | grep -v '^0.0.0.0:0' | head -2 | tr '\n' ' '" 2>/dev/null)"
   FAILED=1
 fi
 
