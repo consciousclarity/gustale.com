@@ -1958,9 +1958,15 @@ export const dishJourneyBeats = pgTable(
     // the inspection status (primary read directly, or reported).
     scopeNote: text("scope_note"),
     // Coarse framing for broad regional evidence: [w, s, e, n].
-    bounds: jsonb("bounds").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+    bounds: jsonb("bounds")
+      .$type<number[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     // Named regions this chapter refers to.
-    regions: jsonb("regions").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    regions: jsonb("regions")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

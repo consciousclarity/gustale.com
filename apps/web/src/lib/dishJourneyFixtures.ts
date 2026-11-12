@@ -163,7 +163,8 @@ const BIBIMBAP: JourneyFixture = {
       label:
         "Vegetables are heated in a pot and then stirred with rice and seasonings — the mixed-over-heat preparation recorded in a 1921 Joseon yori jebeop.",
       authors: "Academy of Korean Studies",
-      locator: "The Birth of K-Food: History of 20th Century Korean Food, section 2",
+      locator:
+        "The Birth of K-Food: History of 20th Century Korean Food, section 2",
       source: {
         id: fid("src"),
         title: "The Birth of K-Food: History of 20th Century Korean Food",
@@ -464,7 +465,8 @@ const HOTPOT: JourneyFixture = {
       label:
         "The 1948 account reports a transmission from Chongqing to Chengdu. The connection is a schematic representation of that claim.",
       authors: "Lin Wenyu (林文郁)",
-      locator: "Chongqing Morning Post, 22 April 2023, p. 006 (reproducing Li Jieren, 1947–48)",
+      locator:
+        "Chongqing Morning Post, 22 April 2023, p. 006 (reproducing Li Jieren, 1947–48)",
       source: {
         id: fid("src"),
         title: "Chongqing food culture historical essay",

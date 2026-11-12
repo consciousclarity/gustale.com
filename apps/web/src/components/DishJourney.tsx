@@ -103,10 +103,10 @@ export function DishJourney({
         </div>
         <div className="dj__state dj__state--gap">
           <p>
-            The history of {dishName} is still being researched. A dated
-            chapter appears here only when a traceable historical record
-            supports it, so this page stays empty rather than showing a
-            history we cannot stand behind.
+            The history of {dishName} is still being researched. A dated chapter
+            appears here only when a traceable historical record supports it, so
+            this page stays empty rather than showing a history we cannot stand
+            behind.
           </p>
           <p className="dj__state-note">
             This is a research gap, not a claim that the dish is new.
@@ -128,7 +128,9 @@ export function DishJourney({
   // The existing presentation: one combined path map, timeline beats.
   // Unchanged, so no dish outside the pilot is affected.
   if (!presentation) {
-    return <LegacyJourney dishName={dishName} beats={sorted} lineages={lineages} />;
+    return (
+      <LegacyJourney dishName={dishName} beats={sorted} lineages={lineages} />
+    );
   }
 
   return (
@@ -137,15 +139,18 @@ export function DishJourney({
         <p className="dj__eyebrow">How this dish moved</p>
         <h2 id="journey-heading">Journey</h2>
         <p className="dj__lede">
-          Key records in the story of {dishName} — places, dates as precisely
-          as the source allows, and what each record does and does not
-          establish.
+          Key records in the story of {dishName} — places, dates as precisely as
+          the source allows, and what each record does and does not establish.
         </p>
       </div>
 
       <div
         className="dj__chapters"
-        style={{ "--djc-columns": String(Math.min(sorted.length, 3)) } as React.CSSProperties}
+        style={
+          {
+            "--djc-columns": String(Math.min(sorted.length, 3)),
+          } as React.CSSProperties
+        }
       >
         {sorted.map((beat, index) => (
           <Chapter
@@ -239,7 +244,9 @@ function Chapter({
             ) : (
               (beat.source.citationText ?? beat.source.title)
             )}
-            {beat.locator && <span className="djc__locator"> · {beat.locator}</span>}
+            {beat.locator && (
+              <span className="djc__locator"> · {beat.locator}</span>
+            )}
             {beat.authors && (
               <span className="djc__authors"> · {beat.authors}</span>
             )}
@@ -307,9 +314,7 @@ function LineageNote({ lineage }: { lineage: DishJourneyLineage }) {
 
       {members.length > 0 && (
         <div className="djl__members">
-          <h4 className="djl__members-title">
-            {lineageMembersLabel(lineage)}
-          </h4>
+          <h4 className="djl__members-title">{lineageMembersLabel(lineage)}</h4>
           <ul className="djl__member-list">
             {members.map((dish) => (
               <li key={dish.slug}>

@@ -452,7 +452,9 @@
   border-radius: var(--radius);
   text-decoration: none;
   color: var(--ink);
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 .dio__link:hover {
   background: rgba(33, 28, 22, 0.06);
