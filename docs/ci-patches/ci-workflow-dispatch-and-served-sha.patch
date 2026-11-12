@@ -1,0 +1,176 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 237043a..451a740 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -15,6 +15,38 @@ on:
+     paths-ignore:
+       - '.hermes/**'
+       - '**/*.md'
++  # A MANUAL RUN.
++  #
++  # Why this exists: on 2026-11-11 the squash merge of PR #229 landed on
++  # main as b307b54, but GitHub did NOT fire the push event -- the async
++  # merge left the PR unlinked (merged=False), so `on: push: branches:
++  # [main]` never ran, CI never built the images, and production sat on
++  # the OLD build while `git rev-parse origin/main` said b307b54.
++  #
++  # An empty commit does not fix it: `paths-ignore` skips a push whose
++  # changes are only markdown, and an empty commit changes no files at
++  # all, so the pull_request trigger skipped it too.
++  #
++  # workflow_dispatch is the escape hatch: a human can run the pipeline
++  # against a chosen ref and watch what it does, without a commit and
++  # without waiting for a merge event.
++  #
++  # NOTE: `deploy` defaults to true, but the deploy job still requires
++  # the live-approval gate (see the job's `if:`), so a manual run does
++  # NOT deploy without a human approval. Set `deploy: false` to run the
++  # whole pipeline -- build, test, axe gate -- without deploying.
++  workflow_dispatch:
++    inputs:
++      ref:
++        description: 'The ref to build and deploy (a branch or a tag)'
++        required: false
++        default: 'main'
++        type: string
++      deploy:
++        description: 'Deploy to the VPS after the build and tests pass'
++        required: false
++        default: true
++        type: boolean
+   # The live-approval gate is NOT here: it runs on pull_request_target
+   # from its own workflow, .github/workflows/live-approval.yml.
+ 
+@@ -297,6 +329,18 @@ jobs:
+       - name: Test the post-build sitemap gate
+         run: node apps/web/scripts/test-post-build-sitemap-gate.mjs
+ 
++      - name: Test the sitemap's dish-slug collection
++        # WP-01b added the static filtered pages at /dishes/<kind>/<slug>/,
++        # so dist/dishes/ now contains category/, region/ and technique/ as
++        # the PARENT directories of those pages. The sitemap generator
++        # counted them as dish slugs and listed three URLs that 404:
++        # /dishes/category, /dishes/region, /dishes/technique.
++        #
++        # This test proves the parents are excluded -- and that the rule
++        # is STRUCTURAL, so a real dish whose slug happens to be "region"
++        # is not silently dropped (a name blacklist would drop it).
++        run: node apps/web/scripts/test-sitemap-dish-slugs.mjs
++
+       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
+         # The backlog lives on the private/state branch, NOT on main —
+         # .hermes/ was untracked from main on 2026-10-29 because it
+@@ -1289,6 +1333,14 @@ jobs:
+         with:
+           context: .
+           file: apps/api/Dockerfile
++          # The build identity, baked into the image. /health reports it,
++          # so the post-deploy check can assert that the SHA SERVING
++          # traffic is the SHA it expected -- not just that a container
++          # was started with the right tag.
++          build-args: |
++            BUILD_SHA=${{ github.sha }}
++            BUILD_TIME=${{ github.event.repository.updated_at }}
++            GIT_REF=${{ github.ref }}
+           tags: ghcr.io/${{ github.repository }}/gustale-api:latest,ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
+           push: true
+           # GHA layer cache. The Dockerfile splits COPY so the install
+@@ -1379,7 +1431,25 @@ jobs:
+       # minutes; this job limit leaves room for it plus the verify.
+       timeout-minutes: 75
+       needs: [build, build-web]  # api + both web variants must be built and pushed first
+-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
++      # A push to main deploys. A MANUAL run deploys too, when the
++      # operator asked for it (workflow_dispatch's `deploy` input) and
++      # the ref is the branch that is supposed to be live.
++      #
++      # The manual path exists because of 2026-11-11: the squash merge
++      # of PR #229 landed on main as b307b54 but GitHub never fired the
++      # push event, so nothing deployed and production silently stayed on
++      # the old build. A human could not start the pipeline at all --
++      # there was no trigger for it. workflow_dispatch is that trigger.
++      #
++      # It is NOT a way to deploy an arbitrary commit to production
++      # without a human in the loop: `refs/heads/main` is required, and
++      # the live-approval gate (live-approval.yml) has to pass on the
++      # commit, exactly as for a push.
++      if: >
++        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
++        (github.event_name == 'workflow_dispatch' &&
++         github.ref == 'refs/heads/main' &&
++         inputs.deploy == true)
+       # The workflow-level concurrency uses cancel-in-progress: true, which
+       # is right for the build/test jobs — a cancelled run costs nothing.
+       #
+@@ -1856,6 +1926,57 @@ jobs:
+                 esac
+               done
+ 
++              # --- Check 2b: the SERVED SHA must equal the expected SHA ---
++              #
++              # Check 2 above compares the container's IMAGE TAG. That
++              # proves what the container was STARTED with. It does not
++              # prove what is SERVING traffic right now: the container
++              # could have been recreated from a retagged image, the
++              # deploy could have been rolled back by hand, or another
++              # process could be bound to the port.
++              #
++              # So the API reports its own build identity on /health (the
++              # BUILD_SHA build arg, baked into the image), and this
++              # compares it with the SHA the deploy intended. If they
++              # disagree, the deploy FAILED and says so loudly.
++              #
++              # The API is read over the PUBLIC hostname, not over
++              # localhost: the point is to check the path a visitor
++              # actually takes, through Caddy and the public DNS.
++              echo ""
++              echo "--- Check 2b: the SERVED build SHA ---"
++              SERVED_SHA=""
++              HEALTH_BODY=$(curl -fsS --max-time 20 "${API_HEALTH_URL:-https://api.gustale.com/health}" 2>&1) || {
++                echo "::error::could not read the API health endpoint (${API_HEALTH_URL:-https://api.gustale.com/health})"
++                HEALTH_BODY=""
++              }
++              if [ -n "$HEALTH_BODY" ]; then
++                # Extract build.sha without jq -- the deploy box has no
++                # jq guarantee, and the payload is a known shape.
++                SERVED_SHA=$(printf '%s' "$HEALTH_BODY" |
++                  sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{7,40\}\).*/\1/p' | head -1)
++                echo "  served sha: ${SERVED_SHA:-<not reported>}"
++                if [ -z "$SERVED_SHA" ]; then
++                  # The image predates the BUILD_SHA build arg. That is
++                  # not a deploy failure on its own -- the image tag
++                  # check above already covered it -- but it IS worth
++                  # saying, because it means the served-SHA check could
++                  # not run.
++                  echo "::warning::the API did not report a build SHA (the image predates the BUILD_SHA build arg)"
++                elif [ "$SERVED_SHA" != "$SHA" ]; then
++                  echo "::error::THE SERVED SHA DOES NOT MATCH THE DEPLOYED SHA"
++                  echo "::error::  expected (the SHA being deployed): $SHA"
++                  echo "::error::  served  (what answered the request): $SERVED_SHA"
++                  echo "::error::the running API is NOT the build this deploy shipped"
++                  FAILED=1
++                else
++                  echo "  served sha == deployed sha  OK"
++                fi
++              else
++                echo "::error::the API health check failed -- the deploy cannot be verified"
++                FAILED=1
++              fi
++
+               # --- Check 3: live page renders the longDescription ---
+               # The phrase is a fixed substring of the bakso long
+               # description as it exists in the live API. If the
+@@ -1893,7 +2014,12 @@ jobs:
+               # lineages + 2 static URLs.
+               echo ""
+               echo "--- Check 4: both domains' sitemaps ---"
+-              if ! bash "$BUILD_DIR/scripts/check-live-sitemaps.sh" 1531; then
++              # No count argument: the script derives the expected count
++              # from the API and the sibling domain. The old call passed a
++              # hardcoded 1531, written for the pre-WP-02b vocabulary (43
++              # families), and it failed every deploy from 2026-11-11
++              # onward — including the WP-01 deploy's own verify step.
++              if ! bash "$BUILD_DIR/scripts/check-live-sitemaps.sh"; then
+                 echo "::error::the sitemap check failed -- one of the two sites is serving a stale build"
+                 FAILED=1
+               fi

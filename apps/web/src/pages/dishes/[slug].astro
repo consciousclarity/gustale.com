@@ -10,8 +10,13 @@ import { EditDishButton } from "../../components/EditDishButton";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../lib/api";
+import { applyDishLimit, buildLocales } from "../../lib/buildScope";
 import { getFilterPageIndex, pathPageSlugs } from "../../lib/filterPages";
-import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
+import {
+  dishUrl,
+  hreflangAlternates,
+  siteOrigin as resolveSiteOrigin,
+} from "../../lib/locales";
 import type { DishDetailResponse } from "../../types/dish";
 
 // MapLibre control + popup CSS — required by <DishMap> and journey path map.
@@ -64,7 +69,16 @@ export async function getStaticPaths() {
       // the build.
       if (offset >= 500 * PAGE_SIZE) break;
     }
-    return allSlugs.map((slug) => ({ params: { slug } }));
+    // A SCOPED build (the staging environment) covers only the first
+    // N dishes. The production build is unaffected: the limit is unset,
+    // so `kept` is every slug.
+    const { kept, limit } = applyDishLimit(allSlugs);
+    if (limit !== null && kept.length < allSlugs.length) {
+      console.log(
+        `[build-scope] this build covers ${kept.length} of ${allSlugs.length} dishes (PUBLIC_BUILD_DISH_LIMIT=${limit})`,
+      );
+    }
+    return kept.map((slug) => ({ params: { slug } }));
   } catch (err) {
     // Log but don't crash the build. CI will surface the error in logs.
     // eslint-disable-next-line no-console
@@ -145,14 +159,22 @@ const seoDescription =
 //
 // The English page is at the ROOT, so the English alternate is the
 // un-prefixed URL.
-const siteOrigin =
-  import.meta.env.PUBLIC_SITE_ORIGIN ??
-  (import.meta.env.PUBLIC_DOMAIN === "geo"
-    ? "https://gustale.com"
-    : "https://gustale.recipes");
-const alternates = hreflangAlternates(slug as string, SITE_LOCALES, siteOrigin);
+// The shared origin resolver, so a staging build gets its own origin
+// (and its own canonical URLs) instead of pointing at the recipes
+// site. This page used to inline its own copy of the logic, which is
+// exactly how the staging origin got missed.
+const siteOrigin = resolveSiteOrigin();
+// Only the locales THIS build covers. A scoped build must not
+// advertise alternates for pages it never built -- a hreflang tag
+// pointing at a 404 is worse than no hreflang tag.
+const BUILD_LOCALES = buildLocales();
+const alternates = hreflangAlternates(
+  slug as string,
+  BUILD_LOCALES,
+  siteOrigin,
+);
 const localeUrls = Object.fromEntries(
-  SITE_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
+  BUILD_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
 );
 
 // The English page IS the English one, so it never shows the
