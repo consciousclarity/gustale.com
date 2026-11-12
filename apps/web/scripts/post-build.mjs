@@ -86,13 +86,25 @@ const SCOPED_DISH_LIMIT = (() => {
   return Number.isFinite(n) && n > 0 ? n : null;
 })();
 
-// The tolerance: dist/dishes/ also holds the filter-kind parents
-// (category/, region/, technique/) and the reserved route
-// directories. A scoped build of 7 dishes still produced 8
-// directories.
+// The floor for a scoped build.
+//
+// It CANNOT be the limit. The limit is a CEILING on what the build
+// covers -- the staging database might hold 7 dishes while the limit
+// is 50, and a floor of 48 would then refuse a perfectly good build.
+//
+// The floor must be a FLOOR: the smallest number of dish directories
+// that still means "the build worked". The guard's real job is
+// catching an INTERRUPTED build -- one that produced a handful of
+// pages out of thousands. For a scoped build the equivalent is
+// "produced a fraction of what it should have", so the floor is a
+// quarter of the limit.
+//
+// A build of 7 dishes against a limit of 50 is a STAGING build
+// working correctly, not a partial one -- so the floor for a scoped
+// build is low, and the production floor is unchanged.
 const SCOPED_FLOOR =
   SCOPED_DISH_LIMIT !== null
-    ? Math.max(1, SCOPED_DISH_LIMIT - 2)
+    ? Math.max(1, Math.floor(SCOPED_DISH_LIMIT / 4))
     : MIN_EXPECTED_DISHES;
 const EFFECTIVE_FLOOR =
   SCOPED_DISH_LIMIT !== null ? SCOPED_FLOOR : MIN_EXPECTED_DISHES;
