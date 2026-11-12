@@ -28,6 +28,31 @@ Two things ship:
 
 ---
 
+## One thing the owner must apply
+
+The migration list is written down in **five** places:
+
+1. `.github/workflows/ci.yml` ← **the App cannot push this** (no `workflows` scope)
+2. `scripts/ci-migration-chain.sh`
+3. `scripts/probe_migration_order.sh`
+4. `scripts/repro-ci-db.sh`
+5. `scripts/repro-ci-test-job.sh`
+
+This branch updates **2–5**. The change for **1** ships as a patch file, because
+the `gustale-bot` App is refused by GitHub for touching a workflow file:
+
+```bash
+cd <repo>
+git apply docs/ci-238-migration-chain.patch
+git commit -m "ci: add the GUS-238 migration to the CI chain"
+```
+
+Until that patch is applied, **CI's test database will not have the new
+columns**, so the journey endpoint returns 500 and the Tests job fails. The
+four script copies are already on the branch, so the local
+`bash scripts/ci-migration-chain.sh` chain works and reports
+`FULL_CI_CHAIN_OK=1`.
+
 ## Local review
 
 ```bash
