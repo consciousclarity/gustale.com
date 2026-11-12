@@ -1,14 +1,11 @@
 import type { Map as MlMap } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
+import type { DishJourneyBeat, DishJourneyLineage } from "../lib/api";
 import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
 } from "../lib/basemap";
-import type {
-  DishJourneyBeat,
-  DishJourneyLineage,
-} from "../lib/api";
 import type { JourneyConfidence } from "../lib/journey";
 import { loadMapLibre } from "../lib/maplibreLoader";
 
@@ -32,7 +29,11 @@ export interface LegacyJourneyProps {
  * null — which is one of the three defects the redesign brief named,
  * and it is a strict improvement for every dish, pilot or not.
  */
-export function LegacyJourney({ dishName, beats, lineages }: LegacyJourneyProps) {
+export function LegacyJourney({
+  dishName,
+  beats,
+  lineages,
+}: LegacyJourneyProps) {
   if (!beats.length) {
     return (
       <section className="dj" aria-labelledby="journey-heading">
@@ -42,9 +43,8 @@ export function LegacyJourney({ dishName, beats, lineages }: LegacyJourneyProps)
         </div>
         <div className="dj__state dj__state--gap">
           <p>
-            The history of {dishName} is still being researched. A dated
-            chapter appears here only when a traceable historical record
-            supports it.
+            The history of {dishName} is still being researched. A dated chapter
+            appears here only when a traceable historical record supports it.
           </p>
           <p className="dj__state-note">
             This is a research gap, not a claim that the dish is new.

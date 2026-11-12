@@ -29,7 +29,7 @@ import type {
   DishJourneyPlaceRole,
 } from "../lib/api";
 
-export type { DishJourneyBeat, DishJourneyMovement, DishJourneyLineage };
+export type { DishJourneyBeat, DishJourneyLineage, DishJourneyMovement };
 
 /**
  * The beat type under the name the existing P1-1 components already
@@ -125,7 +125,9 @@ function centurySuffix(century: number): string {
 export function hasJourneyDate(
   beat: Pick<DishJourneyBeat, "dateLabel" | "yearApprox">,
 ): boolean {
-  return Boolean(beat.dateLabel && beat.dateLabel.trim()) || beat.yearApprox != null;
+  return (
+    Boolean(beat.dateLabel && beat.dateLabel.trim()) || beat.yearApprox != null
+  );
 }
 
 // ─── Evidence ────────────────────────────────────────────────────────────
@@ -194,10 +196,7 @@ export const PLACE_ROLE_PHRASES: Record<DishJourneyPlaceRole, string> = {
  * other role is a grouping or a parallel relationship, and the UI must
  * label it as such rather than inventing an ancestor.
  */
-export const DIRECTIONAL_LINEAGE_ROLES = [
-  "ancestor",
-  "descendant",
-] as const;
+export const DIRECTIONAL_LINEAGE_ROLES = ["ancestor", "descendant"] as const;
 
 export type DirectionalLineageRole = (typeof DIRECTIONAL_LINEAGE_ROLES)[number];
 
@@ -366,7 +365,10 @@ export function beatHasGeography(
  * boundary.
  */
 export function mapCaptionForBeat(
-  beat: Pick<DishJourneyBeat, "placeName" | "placeRole" | "lat" | "lng" | "bounds">,
+  beat: Pick<
+    DishJourneyBeat,
+    "placeName" | "placeRole" | "lat" | "lng" | "bounds"
+  >,
 ): string {
   const hasBounds =
     (beat.bounds?.length ?? 0) === 4 &&

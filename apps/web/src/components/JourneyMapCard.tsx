@@ -10,13 +10,13 @@
 import type { Map as MlMap } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
+import type { DishJourneyBeat, DishJourneyMovement } from "../lib/api";
 import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
 } from "../lib/basemap";
 import { frameForBeat, mapCaptionForBeat } from "../lib/journey";
 import { loadMapLibre } from "../lib/maplibreLoader";
-import type { DishJourneyBeat, DishJourneyMovement } from "../lib/api";
 
 export interface JourneyMapCardProps {
   beat: DishJourneyBeat;
@@ -60,8 +60,7 @@ export function JourneyMapCard({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  const hasPoint =
-    typeof beat.lat === "number" && typeof beat.lng === "number";
+  const hasPoint = typeof beat.lat === "number" && typeof beat.lng === "number";
   const hasBounds = (beat.bounds?.length ?? 0) === 4;
   const frame = frameForBeat(beat);
 
@@ -167,7 +166,8 @@ export function JourneyMapCard({
           // be mistaken for this one.
           for (const b of coordinateBeats) {
             if (b.id === beat.id) continue;
-            if (typeof b.lat !== "number" || typeof b.lng !== "number") continue;
+            if (typeof b.lat !== "number" || typeof b.lng !== "number")
+              continue;
             const el = document.createElement("div");
             el.className = "jmc__context-dot";
             el.setAttribute("aria-hidden", "true");
@@ -196,12 +196,9 @@ export function JourneyMapCard({
               { padding: 40, duration: 0, maxZoom: 6 },
               // The third argument is the animation frame. The maplibre
               // types in this version require it.
-              undefined as unknown as Parameters<
-                typeof instance.fitBounds
-              >[2],
+              undefined as unknown as Parameters<typeof instance.fitBounds>[2],
             );
           }
-
         });
 
         instance.on("error", () => {
@@ -232,9 +229,8 @@ export function JourneyMapCard({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const note = container.parentElement?.querySelector<HTMLElement>(
-      "[data-map-loading]",
-    );
+    const note =
+      container.parentElement?.querySelector<HTMLElement>("[data-map-loading]");
     if (!note) return;
 
     const hide = () => {
@@ -266,7 +262,9 @@ export function JourneyMapCard({
       <div className="jmc__frame">
         <div
           ref={containerRef}
-          className={mapError ? "jmc__canvas jmc__canvas--hidden" : "jmc__canvas"}
+          className={
+            mapError ? "jmc__canvas jmc__canvas--hidden" : "jmc__canvas"
+          }
         />
         {/*
           The loading note is DECORATIVE. The map's readiness is observed
@@ -314,7 +312,8 @@ function collectMovementLines(
     const otherId = isFrom ? m.toBeatId : m.fromBeatId;
     const other = coordinateBeats.find((b) => b.id === otherId);
     if (!other) continue;
-    if (typeof other.lat !== "number" || typeof other.lng !== "number") continue;
+    if (typeof other.lat !== "number" || typeof other.lng !== "number")
+      continue;
     if (typeof beat.lat !== "number" || typeof beat.lng !== "number") continue;
 
     const self: [number, number] = [beat.lng, beat.lat];
@@ -344,10 +343,7 @@ function collectMovementLines(
  * cover the boundaries, roads and labels underneath.
  */
 function applyReferencePalette(instance: MlMap): void {
-  const setPaint = (
-    layerId: string,
-    props: Record<string, unknown>,
-  ): void => {
+  const setPaint = (layerId: string, props: Record<string, unknown>): void => {
     if (instance.getLayer(layerId)) {
       // The maplibre types in this version require the third
       // (previous-value) argument.

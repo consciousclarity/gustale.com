@@ -1,4 +1,6 @@
+import type { DishJourneyLineage, DishJourneyMovement } from "../lib/api";
 import { selectDishHeroMedia } from "../lib/dishMedia";
+import { buildSectionLinks } from "../lib/dishSections";
 import { authoringHref } from "../lib/domain";
 import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 import type {
@@ -16,13 +18,8 @@ import { AlsoExplore } from "./AlsoExplore";
 import { DishCoverHero } from "./DishCoverHero";
 import { DishGallery } from "./DishGallery";
 import { DishIngredientOverview } from "./DishIngredientOverview";
-import {
-  DishJourney,
-  type JourneyBeat,
-} from "./DishJourney";
+import { DishJourney, type JourneyBeat } from "./DishJourney";
 import { DishSectionNav } from "./DishSectionNav";
-import { buildSectionLinks } from "../lib/dishSections";
-import type { DishJourneyLineage, DishJourneyMovement } from "../lib/api";
 
 export interface DishDetailProps {
   dish: DishDetailCore;

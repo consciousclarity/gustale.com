@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  JOURNEY_FIXTURES,
-  getJourneyFixture,
-} from "./dishJourneyFixtures.ts";
+import { getJourneyFixture, JOURNEY_FIXTURES } from "./dishJourneyFixtures.ts";
 import { buildSectionLinks, DISH_SECTION_IDS } from "./dishSections.ts";
 
 describe("pilot fixtures — review material, never live content", () => {
@@ -53,7 +50,10 @@ describe("pilot fixtures — review material, never live content", () => {
       for (const b of f.beats) {
         assert.ok(b.source, `${slug}: ${b.placeName} has no source`);
         assert.ok(b.scopeNote, `${slug}: ${b.placeName} has no scope note`);
-        assert.ok(b.evidenceKind, `${slug}: ${b.placeName} has no evidence kind`);
+        assert.ok(
+          b.evidenceKind,
+          `${slug}: ${b.placeName} has no evidence kind`,
+        );
       }
     }
   });

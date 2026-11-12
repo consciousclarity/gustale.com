@@ -1,23 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  CONFIDENCE_LABELS,
-  EVIDENCE_KIND_LABELS,
-  PLACE_ROLE_LABELS,
-  drawableMovements,
-  formatJourneyDate,
-  hasJourneyDate,
-  isDirectionalLineageRole,
-  lineageMembersLabel,
-  lineageRoleLabel,
-  mapCaptionForBeat,
-  frameForBeat,
-} from "./journey.ts";
 import type {
   DishJourneyBeat,
   DishJourneyLineage,
   DishJourneyMovement,
 } from "./api.ts";
+import {
+  CONFIDENCE_LABELS,
+  drawableMovements,
+  EVIDENCE_KIND_LABELS,
+  formatJourneyDate,
+  frameForBeat,
+  hasJourneyDate,
+  isDirectionalLineageRole,
+  lineageMembersLabel,
+  lineageRoleLabel,
+  mapCaptionForBeat,
+  PLACE_ROLE_LABELS,
+} from "./journey.ts";
 
 const beat = (b: Partial<DishJourneyBeat>): DishJourneyBeat => ({
   id: "b1",
@@ -44,7 +44,10 @@ const beat = (b: Partial<DishJourneyBeat>): DishJourneyBeat => ({
 
 describe("formatJourneyDate — the date keeps the precision the source supports", () => {
   it("prefers the editor's own label over the integer anchor", () => {
-    const b = beat({ dateLabel: "1810 · historical name record", yearApprox: 1810 });
+    const b = beat({
+      dateLabel: "1810 · historical name record",
+      yearApprox: 1810,
+    });
     assert.equal(formatJourneyDate(b), "1810 · historical name record");
   });
 
@@ -193,9 +196,7 @@ describe("lineage roles — a grouping is never an ancestor", () => {
     assert.ok(
       lineageMembersLabel(lineage("cousin")).startsWith("Related dishes"),
     );
-    assert.ok(
-      lineageMembersLabel(lineage("ancestor")).startsWith("Dishes in"),
-    );
+    assert.ok(lineageMembersLabel(lineage("ancestor")).startsWith("Dishes in"));
   });
 });
 
@@ -266,9 +267,7 @@ describe("map framing — no invented pin, no guessed region", () => {
   });
 
   it("frames a broad regional chapter on its bounds", () => {
-    const frame = frameForBeat(
-      beat({ bounds: [124, 33, 131, 43.5] }),
-    );
+    const frame = frameForBeat(beat({ bounds: [124, 33, 131, 43.5] }));
     assert.deepEqual(frame.center, [127.5, 38.25]);
     // A broad region must be zoomed OUT, not framed like a city.
     assert.ok(frame.zoom < 4);
