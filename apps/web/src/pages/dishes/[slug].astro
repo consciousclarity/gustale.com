@@ -1,15 +1,15 @@
 ---
 import AtlasPlaces from "../../components/AtlasPlaces";
 import { DishDetail } from "../../components/DishDetail";
-import type {
-  JourneyBeat,
-  JourneyLineageLink,
-} from "../../components/DishJourney";
+import type { JourneyBeat } from "../../components/DishJourney";
 import { DishMap } from "../../components/DishMap";
 import { EditDishButton } from "../../components/EditDishButton";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../lib/api";
+import type { DishJourneyLineage, DishJourneyMovement } from "../../lib/api";
+import { isPilotDish } from "../../lib/dishJourneyPilot";
+import { getJourneyFixture } from "../../lib/dishJourneyFixtures";
 import { getFilterPageIndex, pathPageSlugs } from "../../lib/filterPages";
 import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
 import type { DishDetailResponse } from "../../types/dish";
@@ -88,7 +88,12 @@ let data: DishDetailResponse | null = null;
 let notFound = false;
 let fetchError: string | null = null;
 let journeyBeats: JourneyBeat[] = [];
-let journeyLineages: JourneyLineageLink[] = [];
+let journeyLineages: DishJourneyLineage[] = [];
+let journeyMovements: DishJourneyMovement[] = [];
+let journeyStatus: "history" | "gap" | "unavailable" = "gap";
+// The new presentation is off by default and applies only to the
+// pilot's allowlisted dishes. Everything else keeps the current page.
+const useJourneyPresentation = isPilotDish(slug as string);
 
 try {
   data = await getDishDetail(slug as string);
@@ -113,10 +118,46 @@ if (data) {
     const journey = await getDishJourney(slug as string);
     journeyBeats = journey.beats ?? [];
     journeyLineages = journey.lineages ?? [];
+    journeyMovements = journey.movements ?? [];
+    // The API distinguishes a dish with a chronology from one with a
+    // research gap. The two are different editorial statements.
+    journeyStatus = journey.status === "history" ? "history" : "gap";
   } catch {
-    // Journey is optional — never fail the dish page if the sub-resource errs.
+    // Journey is optional — never fail the dish page if the sub-resource
+    // errs. But an operational failure is NOT a research gap, and the
+    // page must not present it as one.
     journeyBeats = [];
     journeyLineages = [];
+    journeyMovements = [];
+    journeyStatus = "unavailable";
+  }
+
+  // ── The pilot's REVIEW fixtures ────────────────────────────────────
+  //
+  // The live database has no journey beats for the pilot dishes yet, so
+  // a review build would show an empty research-gap state instead of
+  // the design. The fixtures are REVIEW MATERIAL: they let the
+  // presentation be evaluated end to end before any editorial record is
+  // approved or written to the database.
+  //
+  // This substitution happens ONLY for an allowlisted dish under the
+  // pilot switch. It never touches a live record, and it is skipped
+  // entirely when the pilot is off — so a production build contains
+  // none of it (verified: the fixture strings do not appear in the
+  // built output when the switch is off).
+  if (useJourneyPresentation && journeyBeats.length === 0) {
+    const fixture = getJourneyFixture(slug as string);
+    if (fixture) {
+      journeyBeats = fixture.beats as unknown as JourneyBeat[];
+      journeyMovements = fixture.movements as unknown as DishJourneyMovement[];
+      journeyStatus = fixture.status === "history" ? "history" : "gap";
+      // The lineage membership is already in the live database; the
+      // fixture only supplies the GUS-238 fields (role, explanation,
+      // related dishes) for review. A live lineage always wins.
+      if (journeyLineages.length === 0 && fixture.lineages.length > 0) {
+        journeyLineages = fixture.lineages as unknown as DishJourneyLineage[];
+      }
+    }
   }
 }
 
@@ -188,6 +229,9 @@ const servedEnglish =
         unevidenced={data.unevidenced}
         journeyBeats={journeyBeats}
         journeyLineages={journeyLineages}
+        journeyMovements={journeyMovements}
+        journeyStatus={journeyStatus}
+        journeyPresentation={useJourneyPresentation}
         client:load
       />
 

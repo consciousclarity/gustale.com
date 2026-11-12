@@ -316,6 +316,39 @@ export interface DishJourneyBeatSource {
   reliability: string | null;
 }
 
+/**
+ * How precisely the source dates the event. Kept apart from the
+ * confidence enum: confidence answers "how sure are we", this answers
+ * "how exactly does the source place this in time".
+ */
+export type DishJourneyDatePrecision =
+  | "exact"
+  | "circa"
+  | "range"
+  | "century"
+  | "decade"
+  | "bce"
+  | "ce"
+  | "unknown";
+
+/** The kind of record a chapter rests on. */
+export type DishJourneyEvidenceKind =
+  | "primary_record"
+  | "scholarly_interpretation"
+  | "reported_account"
+  | "reference_work"
+  | "archival_record"
+  | "comparison";
+
+/** The place's role in a chapter. Never a birthplace claim on its own. */
+export type DishJourneyPlaceRole =
+  | "attestation"
+  | "preparation_context"
+  | "adaptation"
+  | "reception"
+  | "circulation"
+  | "regional_identity";
+
 export interface DishJourneyBeat {
   id: string;
   sequence: number;
@@ -326,12 +359,94 @@ export interface DishJourneyBeat {
   label: string;
   confidence: "documented" | "likely" | "possible" | "parallel";
   source: DishJourneyBeatSource | null;
+  // ── Editorial fields (GUS-238). Absent on rows written before it. ──
+  title: string | null;
+  dateLabel: string | null;
+  datePrecision: DishJourneyDatePrecision | null;
+  evidenceKind: DishJourneyEvidenceKind | null;
+  locator: string | null;
+  authors: string | null;
+  placeRole: DishJourneyPlaceRole | null;
+  scopeNote: string | null;
+  bounds: number[];
+  regions: string[];
+}
+
+/**
+ * One claimed transmission between two chapters.
+ *
+ * A movement exists ONLY because a historical record supports it. There
+ * is never a movement inferred from chapter order, map proximity, a
+ * shared name, a shared ingredient or a lineage link.
+ */
+export interface DishJourneyMovement {
+  id: string;
+  fromBeatId: string;
+  toBeatId: string;
+  label: string;
+  confidence: "documented" | "likely" | "possible" | "parallel";
+  source: DishJourneyBeatSource | null;
+}
+
+/**
+ * A lineage the dish belongs to, with the editorial relationship.
+ *
+ * `role` is the recorded claim (ancestor, descendant, regional_variant,
+ * …). A membership role that is not directional means "a related dish in
+ * this lineage" — never an ancestor or descendant arrow.
+ */
+export interface DishJourneyLineage {
+  slug: string;
+  name: string;
+  shortDescription: string | null;
+  longDescription: string | null;
+  conceptSummary: string | null;
+  originSummary: string | null;
+  confidenceLevel:
+    | "documented"
+    | "likely"
+    | "probable"
+    | "possible"
+    | "uncertain"
+    | "parallel_evolution";
+  uncertaintyNote: string | null;
+  culturalPracticeNote: string | null;
+  role:
+    | "ancestor"
+    | "descendant"
+    | "cousin"
+    | "regional_variant"
+    | "adaptation"
+    | "fusion"
+    | "diaspora_adaptation"
+    | "trade_route_spread"
+    | "colonial_spread"
+    | "technique_relative"
+    | "ingredient_relative"
+    | "possible_influence"
+    | "parallel_evolution"
+    | "uncertain";
+  roleExplanation: string | null;
+  changedElements: string[];
+  sortOrder: number;
+  /** Published dishes in this lineage, for the related-dish list. */
+  relatedDishes: Array<{ slug: string; name: string; isCurrent: boolean }>;
 }
 
 export interface DishJourneyResponse {
   slug: string;
+  /**
+   * `history` — chapters exist.
+   * `gap`     — the dish has no verified chronology. NOT the same as
+   *             `unavailable`, and not the same as an empty page.
+   * `unavailable` — the journey could not be fetched. An operational
+   *             failure, which must be distinguishable from a research
+   *             gap.
+   */
+  status: "history" | "gap" | "unavailable";
   beats: DishJourneyBeat[];
-  lineages: Array<{ slug: string; name: string }>;
+  movements: DishJourneyMovement[];
+  lineages: DishJourneyLineage[];
 }
 
 export function getDishJourney(slug: string): Promise<DishJourneyResponse> {
