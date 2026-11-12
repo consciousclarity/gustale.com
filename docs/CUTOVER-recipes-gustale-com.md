@@ -557,7 +557,7 @@ suffix of, the caller's effective domain.
 `api.gustale.com` and `recipes.gustale.com` are **siblings** under
 `gustale.com`. A passkey scoped to one is not usable on the other.
 
-### 5.3 The fix, and why it is backward compatible
+### 5.3 The fix — and what it costs
 
 **Set the RP ID to `gustale.com`.**
 
@@ -567,12 +567,37 @@ rpID: "gustale.com"
 
 - `gustale.com` **is** the eTLD+1 of both `api.gustale.com` and
   `recipes.gustale.com` → one RP ID covers both.
-- **Existing passkeys keep working.** A credential whose RP ID is a
-  registrable-domain suffix is usable on any host under that suffix,
-  and `api.gustale.com` is under `gustale.com`. Nothing has to be
-  re-registered.
-- It is also a *relaxation*, not a tightening: it does not enable a
-  passkey on a host that was not already in the `gustale.com` tree.
+- **It is a RELAXATION of the *origin* rule, and it is NOT a
+  preservation of existing credentials.** Those are different things
+  and they were previously conflated here.
+
+**Changing the RP ID does not keep existing passkeys valid.** A
+credential is bound to the RP ID it was registered under: the RP ID
+is hashed into the COSE authenticator data, and the browser checks
+that hash against the RP ID presented at assertion. A credential
+registered under `api.gustale.com` will not assert against a server
+presenting `gustale.com`.
+
+What the suffix rule *does* govern is which **origins** may use an
+RP ID at registration time:
+
+```
+origin api.gustale.com       rpID api.gustale.com   VALID
+origin api.gustale.com       rpID gustale.com       VALID
+origin recipes.gustale.com   rpID gustale.com       VALID
+origin recipes.gustale.com   rpID api.gustale.com   INVALID  <--
+origin gustale.recipes       rpID gustale.com       INVALID  <-- the OLD canonical
+```
+
+So `gustale.com` is what makes the two intended origins work at
+all. It does not rescue credentials registered under the old RP ID.
+
+**The live audit says this costs nothing today** — there are zero
+registered passkeys (§5.4) — but the distinction matters for the
+decision, because the moment a passkey is registered under
+`api.gustale.com`, moving to `gustale.com` makes it unusable, and
+that is the re-enrolment burden Option A accepts. Option B (below)
+is the alternative that does not accept it.
 
 ### 5.4 The `api.gustale.recipes` trap
 
@@ -591,8 +616,14 @@ So the auth origin matters:
 > **Recommendation:** keep `BETTER_AUTH_URL=https://api.gustale.com` and
 > set `rpID: "gustale.com"` explicitly. That is the only combination
 > that works on **both** `api.gustale.com` and `recipes.gustale.com`,
-> and it requires no change to the auth origin, no change to the
-> cookie domain, and no re-registration.
+> and it requires no change to the auth origin and no change to the
+> cookie domain.
+>
+> It **does** require re-enrolment for any passkey registered under
+> the old RP ID — there are none today (§5.4), so the cost today is
+> zero, but it is not zero in principle and must not be described as
+> if it were. Option B avoids that cost by keeping the old RP ID
+> working through WebAuthn Related Origin Requests.
 >
 > **Do NOT switch `BETTER_AUTH_URL` to `api.gustale.recipes`** at the
 > same time — that would move the auth origin to the domain being
@@ -613,15 +644,37 @@ trustedOrigins: [
 ],
 ```
 
-**`https://recipes.gustale.com` must be added** or cross-origin auth
-calls from the new host will be rejected.
+**`https://recipes.gustale.com` must be added.** This is not
+belt-and-braces — it was measured, on the live API, on 2026-11-12:
 
-> Note that `https://gustale.recipes` is **not** currently in the
-> list, and the recipes site works — because the site and the API are
-> same-origin from the browser's point of view (`/api/*` is proxied by
-> Caddy). So this is belt-and-braces, but add it anyway: it costs
-> nothing and it protects the case where someone calls
-> `api.gustale.com` directly from the new host.
+```
+POST https://api.gustale.com/api/auth/sign-in/email
+  Origin: https://recipes.gustale.com
+  -> 403 {"message":"Invalid origin","code":"INVALID_ORIGIN"}
+
+  Origin: https://gustale.recipes
+  -> 401 {"message":"Invalid email or password"}    <- the origin WAS accepted
+```
+
+The difference between the two is the origin check: `403` means the
+origin was refused before the credentials were even looked at; `401`
+means the origin was accepted and the credentials were wrong. The
+live `trustedOrigins` are exactly the four in the list above, and
+`recipes.gustale.com` is not one of them.
+
+> Why the recipes site works today without it: from the browser's
+> point of view the site and the API are same-origin, because Caddy
+> proxies `/api/*` and the browser calls a relative `/api`. So the
+> browser never sends an `Origin` of `recipes.gustale.com` to
+> `api.gustale.com` — it sends `recipes.gustale.com` to
+> `recipes.gustale.com`, which Caddy forwards without the origin
+> check applying.
+>
+> That is why the site works and a direct cross-origin call does not.
+> It matters for Option A because a passkey assertion from
+> `recipes.gustale.com` to `api.gustale.com` IS a cross-origin
+> credential-bearing request, and it will be refused with `403`
+> unless the origin is added.
 
 ### 5.6 `CORS_ORIGIN`
 
@@ -651,7 +704,32 @@ domain change is needed** — and none should be made, because a
 `.gustale.com` cookie domain would make the recipe sessions readable
 by the geo site.
 
-### 5.8 The order of the auth changes
+### 5.8 The two options, and the order of the auth changes
+
+**The two ways to satisfy both origins, and what each costs:**
+
+| | Option A — re-enrol | Option B — Related Origin Requests |
+|---|---|---|
+| `rpID` | `gustale.com` | stays `api.gustale.com` |
+| `BETTER_AUTH_URL` | stays `https://api.gustale.com` | stays `https://api.gustale.com` |
+| existing passkeys | **stop working** — must re-enrol | keep working |
+| `api.gustale.com` origin | works | works |
+| `recipes.gustale.com` origin | works | works, via the relation |
+| extra work | `trustedOrigins` += `recipes.gustale.com` | publish `/.well-known/webauthn` and keep it current |
+| cost today | **zero** — there are 0 registered passkeys (§5.4) | zero |
+
+**Option A is the owner's stated preference**, and the reason it is
+not merely a preference is §5.3's table: with RP ID `api.gustale.com`,
+the `recipes.gustale.com` origin is **invalid** under the WebAuthn
+suffix rule. `gustale.com` is what makes both origins legal.
+
+**Option A also needs `recipes.gustale.com` in `trustedOrigins`** — not
+as belt-and-braces, but because a passkey assertion from the new host
+to `api.gustale.com` is a cross-origin credential-bearing request,
+and it is refused with `403 Invalid origin` without it (§5.5, with the
+measured evidence).
+
+#### The order of the auth changes
 
 Do these **before** the 301, so there is never a window where the new
 host is live and auth is broken:
