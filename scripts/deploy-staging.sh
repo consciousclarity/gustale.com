@@ -409,12 +409,28 @@ else
   FAILED=1
 fi
 
-# The API is reachable THROUGH the web (the same-origin /api path the
-# browser uses).
-if curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_WEB_PORT}/api/dishes?limit=1" >/dev/null 2>&1; then
-  echo "  the staging /api proxy works"
+# The API is reachable DIRECTLY.
+#
+# The /api path is NOT proxied by the web container -- Caddy does
+# that, in front of it. The production web container answers 404 for
+# /api/* too, and that is correct: the browser reaches the API
+# same-origin through Caddy, not through nginx.
+#
+# So the check here is the API itself, on its own port. The
+# same-origin /api path is verified by Caddy once the staging vhost
+# is in place, and the vhost's own config carries the proxy.
+if curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_API_PORT}/api/dishes?limit=1" >/dev/null 2>&1; then
+  echo "  the staging API serves the dish list"
 else
-  echo "  ::error::the staging /api proxy does not work"
+  echo "  ::error::the staging API does not serve the dish list"
+  FAILED=1
+fi
+
+# And the web's own pages serve.
+if curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_WEB_PORT}/dishes/" >/dev/null 2>&1; then
+  echo "  the staging /dishes/ page serves"
+else
+  echo "  ::error::the staging /dishes/ page does not serve"
   FAILED=1
 fi
 
