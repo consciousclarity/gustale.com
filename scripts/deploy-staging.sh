@@ -324,6 +324,34 @@ docker run -d --name "$STAGING_WEB_CONTAINER" \
   "$STAGING_WEB_IMAGE" >/dev/null 2>&1 ||
   refuse "could not start the staging web container"
 
+# Wait for nginx to be LISTENING, not merely started.
+#
+# `docker run -d` returns as soon as the container is created. nginx
+# then takes a moment to bind the port, and a verification that runs
+# immediately gets a connection refused and reports the deploy as
+# FAILED -- while the container goes on to serve perfectly.
+#
+# The container's own healthcheck is the authority here: the image
+# declares one, so the wait is on the container's reported health
+# rather than on a sleep.
+for i in $(seq 1 30); do
+  STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+    "$STAGING_WEB_CONTAINER" 2>/dev/null)
+  if [ "$STATUS" = "healthy" ]; then
+    echo "  the staging web is healthy"
+    break
+  fi
+  if [ "$STATUS" = "unhealthy" ] || [ "$STATUS" = "exited" ]; then
+    docker logs "$STAGING_WEB_CONTAINER" 2>&1 | tail -10
+    refuse "the staging web container is $STATUS"
+  fi
+  sleep 2
+  if [ "$i" = "30" ]; then
+    docker logs "$STAGING_WEB_CONTAINER" 2>&1 | tail -10
+    refuse "the staging web did not become healthy in 60s (status: $STATUS)"
+  fi
+done
+
 # ─── 4. The state file ──────────────────────────────────────────────
 # What is running, and which commit built it. The same shape as the
 # production state file, so "what is live?" has one answer.
