@@ -169,11 +169,35 @@ cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
 # The migrations run against the staging database, and the same
 # migration chain CI runs runs here.
 echo "--- 1. the staging database ---"
-docker exec "$STAGING_PG_CONTAINER" psql -U postgres -tAc \
-  "SELECT 1 FROM pg_database WHERE datname='$STAGING_DB_NAME'" 2>/dev/null | grep -q 1 ||
-  docker exec "$STAGING_PG_CONTAINER" psql -U postgres -c \
-    "CREATE DATABASE $STAGING_DB_NAME" 2>&1 | tail -1
-echo "  the database $STAGING_DB_NAME is present"
+
+# The database is created through the SANCTIONED helper, not with a
+# bare CREATE DATABASE.
+#
+# `CREATE DATABASE` is CLUSTER-SCOPED, and scripts/check-no-production-db-drops.py
+# fails the build if any script can create or drop a database on the
+# PRODUCTION cluster -- a bare `docker exec <container> psql -c
+# "CREATE DATABASE"` is exactly that, because the container comes
+# from the environment and could be shared-postgres.
+#
+# scripts/lib/test_pg.sh is the sanctioned path: it knows the TEST
+# container, it refuses the live database's name outright, and it is
+# what the CI's own checks use. The guard is a safety property, and
+# this script has to satisfy it rather than argue with it.
+#
+# The staging postgres IS the test postgres (the whole point is that
+# it is a separate cluster from production), so the helper's container
+# IS the right one. The refusal above already guarantees the name is
+# not the live one.
+if ! docker exec "$STAGING_PG_CONTAINER" psql -U postgres -tAc \
+  "SELECT 1 FROM pg_database WHERE datname='$STAGING_DB_NAME'" 2>/dev/null | grep -q 1; then
+  # shellcheck source=scripts/lib/test_pg.sh
+  source "$REPO/scripts/lib/test_pg.sh"
+  test_pg_create "$STAGING_DB_NAME" >/dev/null 2>&1 ||
+    refuse "could not create the staging database $STAGING_DB_NAME"
+  echo "  the database $STAGING_DB_NAME was created"
+else
+  echo "  the database $STAGING_DB_NAME is present"
+fi
 
 # The migrations. The chain is the same one CI runs, so a migration
 # that CI would reject is rejected here too.
@@ -223,7 +247,11 @@ STAGING_DB_PASSWORD="$(docker exec gustale-api sh -c 'echo $DATABASE_URL' |
 if [ -z "$STAGING_DB_PASSWORD" ]; then
   refuse "could not read the database password from the production container"
 fi
-docker exec "$STAGING_PG_CONTAINER" psql -U postgres -q -c \
+# Through the helper, so the statement is bound to the TEST container
+# and not to whatever container an environment variable names.
+# shellcheck source=scripts/lib/test_pg.sh
+source "$REPO/scripts/lib/test_pg.sh"
+test_pg_psql postgres -q -c \
   "ALTER ROLE ${STAGING_DB_USER} WITH PASSWORD '${STAGING_DB_PASSWORD}'" >/dev/null 2>&1 ||
   refuse "could not align the staging role's password"
 echo "  the staging role's password is aligned with the production one"
