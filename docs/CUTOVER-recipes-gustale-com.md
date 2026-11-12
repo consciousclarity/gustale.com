@@ -557,24 +557,122 @@ suffix of, the caller's effective domain.
 `api.gustale.com` and `recipes.gustale.com` are **siblings** under
 `gustale.com`. A passkey scoped to one is not usable on the other.
 
-### 5.3 The fix, and why it is backward compatible
+### 5.3 Changing the RP ID does NOT keep existing passkeys valid
 
-**Set the RP ID to `gustale.com`.**
+> **CORRECTION (2026-11-12, owner).** An earlier version of this
+> document claimed that changing `rpID` to `gustale.com` would keep
+> existing passkeys valid, on the grounds that *"a credential whose RP
+> ID is a registrable-domain suffix is usable on any host under that
+> suffix"*. **That was wrong, and the reasoning confused two different
+> rules.**
+>
+> The suffix rule governs **which RP IDs may be used at registration
+> and assertion time**. It is not a rule about migrating credentials.
+>
+> The RP ID is **hashed into the credential**: the COSE authenticator
+> data carries `rpIdHash = SHA-256(rpId)`, and the credential's public
+> key was generated for that RP ID. Changing the server's `rpID`
+> changes the `rpIdHash` the server computes and checks against the
+> stored credential. A credential registered under `api.gustale.com`
+> produces a **different** `rpIdHash` under `gustale.com`, so the
+> assertion fails. The credential is not "still valid but
+> unportable" — it becomes **unaddressable**: the server can no longer
+> find it by that hash, and the user must re-enrol.
+>
+> **So: changing `rpID` is a one-way operation for every existing
+> credential.**
+
+### 5.4 The live audit — how many passkeys exist
+
+Checked against the live database and the live API on 2026-11-12.
+
+```
+passkey table rows:  0
+```
+
+**No passkey has ever been registered on this deployment.** The live
+API confirms the plugin is installed and working — it issues real
+challenges — but nobody has completed a registration:
+
+```
+GET https://api.gustale.com/api/auth/passkey/generate-authenticate-options
+-> 200 {"rpId":"api.gustale.com","challenge":"...","timeout":...}
+```
+
+The live users are:
+
+| email | role | passkeys |
+|---|---|---:|
+| `alpsee@gmail.com` | contributor | 0 |
+| `cosmicmensch@icloud.com` | admin | 0 |
+| `hermes-bot@gustale.com` | moderator | 0 |
+
+**This changes the decision entirely.** There is nothing to migrate,
+nothing to break, and no re-enrolment burden on anyone. But the
+*mechanism* question still has to be answered deliberately, because the
+next person to register a passkey after the cutover will be bound to
+whichever RP ID is live at that moment.
+
+### 5.5 The two options
+
+> **Nothing has been changed.** `rpID` is still `api.gustale.com`, as
+> the live API confirms. The owner chooses.
+
+#### Option A — re-enrol (change `rpID` to `gustale.com`)
 
 ```
 rpID: "gustale.com"
 ```
 
-- `gustale.com` **is** the eTLD+1 of both `api.gustale.com` and
-  `recipes.gustale.com` → one RP ID covers both.
-- **Existing passkeys keep working.** A credential whose RP ID is a
-  registrable-domain suffix is usable on any host under that suffix,
-  and `api.gustale.com` is under `gustale.com`. Nothing has to be
-  re-registered.
-- It is also a *relaxation*, not a tightening: it does not enable a
-  passkey on a host that was not already in the `gustale.com` tree.
+- One RP ID covers `api.gustale.com` **and** `recipes.gustale.com`
+  (both have eTLD+1 `gustale.com`).
+- **Every existing passkey must be re-registered.** With the current
+  count of **zero**, that costs nothing today.
+- The forward-looking benefit: a user who enrols after the cutover
+  gets a passkey that works on *both* hosts, so a future move of
+  either host does not strand them.
+- The risk: if anyone enrols between now and the change, they are
+  stranded. The audit says nobody has.
 
-### 5.4 The `api.gustale.recipes` trap
+#### Option B — keep the old RP ID working (WebAuthn Related Origin Requests)
+
+Publish a `/.well-known/webauthn` file on the origins that should
+remain usable, so a browser presented with RP ID `gustale.com` can
+discover that `api.gustale.com` is a related origin.
+
+- The credential stays bound to `api.gustale.com`; **nothing is
+  re-enrolled**.
+- The RP ID can stay `api.gustale.com`, which is *already* the eTLD+1
+  of `api.gustale.com` — so the API host's own RP ID never needed to
+  change at all.
+- The **browser** must support Related Origin Requests (Chrome does;
+  Safari and Firefox support varies). A browser that does not support
+  it simply falls back to the RP ID it has, which means the passkey
+  would not work on `recipes.gustale.com` in that browser.
+- It adds a file to maintain on every relevant origin.
+
+> **The Related Origin Requests file is served from the ORIGIN, not
+> from the API.** If the RP ID stays `api.gustale.com` and a user
+> visits `recipes.gustale.com`, the browser asks
+> `recipes.gustale.com/.well-known/webauthn` — so the file has to be
+> served by the **web** host, from the static build, not by the API.
+
+#### The recommendation
+
+**Option A (re-enrol) — because the audit shows zero passkeys.**
+
+The cost of Option A is currently **nothing**, and it leaves the
+deployment in the state where a passkey works on every host in the
+`gustale.com` tree. Option B preserves a credential population that
+does not exist, buys browser-support caveats, and adds a
+`/.well-known/webauthn` file to maintain on the web host.
+
+But this is the owner's call — §5.5's whole point is that the
+mechanism has to be chosen deliberately, not by default. **Do not
+change `rpID` until the owner picks.**
+
+
+### 5.6 The `api.gustale.recipes` trap
 
 `api.gustale.recipes` has eTLD+1 **`gustale.recipes`** — a *different*
 registrable domain. A passkey with RP ID `gustale.com` will **not**
@@ -588,17 +686,17 @@ So the auth origin matters:
 | → `https://api.gustale.com` + explicit `rpID: gustale.com` | `gustale.com` | ✅ | ✅ | ❌ |
 | → `https://api.gustale.recipes` + `rpID: gustale.com` | `gustale.com` | ❌ | ✅ | ✅ |
 
-> **Recommendation:** keep `BETTER_AUTH_URL=https://api.gustale.com` and
-> set `rpID: "gustale.com"` explicitly. That is the only combination
-> that works on **both** `api.gustale.com` and `recipes.gustale.com`,
-> and it requires no change to the auth origin, no change to the
-> cookie domain, and no re-registration.
+> **Recommendation:** keep `BETTER_AUTH_URL=https://api.gustale.com`. It
+> requires no change to the auth origin and no change to the cookie
+> domain. The `rpID` itself is the owner's decision (§5.5) — and with
+> **zero passkeys registered** (see §5.4) there is no credential to
+> strand, so Option A (re-enrol) costs nothing today.
 >
 > **Do NOT switch `BETTER_AUTH_URL` to `api.gustale.recipes`** at the
 > same time — that would move the auth origin to the domain being
 > retired, and it would break `api.gustale.com` logins.
 
-### 5.5 `trustedOrigins`
+### 5.7 `trustedOrigins`
 
 The API's `trustedOrigins` list is:
 
@@ -623,7 +721,7 @@ calls from the new host will be rejected.
 > nothing and it protects the case where someone calls
 > `api.gustale.com` directly from the new host.
 
-### 5.6 `CORS_ORIGIN`
+### 5.8 `CORS_ORIGIN`
 
 Live value: `https://gustale.com,https://www.gustale.com`.
 
@@ -639,7 +737,7 @@ CORS_ORIGIN=https://gustale.com,https://www.gustale.com,https://recipes.gustale.
 > it is missing today, and it is a latent bug for anything that calls
 > the API cross-origin from the old host.
 
-### 5.7 Cookies
+### 5.9 Cookies
 
 The auth cookie is **host-only** — `advanced.defaultCookieAttributes`
 sets `sameSite: lax`, `httpOnly: true`, and no `domain` attribute. So
@@ -651,12 +749,14 @@ domain change is needed** — and none should be made, because a
 `.gustale.com` cookie domain would make the recipe sessions readable
 by the geo site.
 
-### 5.8 The order of the auth changes
+### 5.10 The order of the auth changes
 
 Do these **before** the 301, so there is never a window where the new
 host is live and auth is broken:
 
-1. `rpID: "gustale.com"` in `apps/api/src/auth.ts`
+1. `rpID: "gustale.com"` in `apps/api/src/auth.ts` — **only after the
+   owner chooses Option A** (§5.5). If they choose Option B, this step
+   is replaced by publishing `/.well-known/webauthn` from the web host.
 2. `trustedOrigins` += `https://recipes.gustale.com`
 3. `CORS_ORIGIN` += `https://recipes.gustale.com`
 4. deploy the API
@@ -885,7 +985,8 @@ git tag -a pre-recipes-cutover <pre-cutover-main-sha> -m "..."
 #   ...plus the prose/label strings (Nav, Layout footer, siteName, titles)
 
 # ── the auth change (ONE commit, BEFORE the 301) ──────────────────
-#   apps/api/src/auth.ts                      rpID: "gustale.com"
+#   apps/api/src/auth.ts                      rpID  -- ONLY IF the owner
+#                                               picked Option A (see 5.5)
 #   apps/api/src/auth.ts                      trustedOrigins += recipes.gustale.com
 #   deploy env                                CORS_ORIGIN += recipes.gustale.com
 #   NOTE: keep BETTER_AUTH_URL = https://api.gustale.com
@@ -928,7 +1029,7 @@ curl -s https://recipes.gustale.com/es/dishes/bakso/ | grep -o 'hreflang="[^"]*"
 | `apps/web/scripts/browse-helpers.mjs` | `RECIPES_ORIGIN` |
 | `apps/web/scripts/validate-build.mjs` | the origin + 3 assertions |
 | `scripts/generate_sitemaps.mjs` | `siteOrigin()` + the `RESERVED` set + the robots.txt title |
-| `apps/api/src/auth.ts` | `rpID`, `trustedOrigins` |
+| `apps/api/src/auth.ts` | `rpID` (owner decides, §5.5), `trustedOrigins` |
 | `scripts/check-live-sitemaps.sh` | the domain list + the count |
 | `/etc/caddy/sites/gustale.recipes.caddy` | the 301 (**on the VPS**) |
 | `/etc/caddy/sites/recipes.gustale.com.caddy` | remove the noindex (**on the VPS**) |
