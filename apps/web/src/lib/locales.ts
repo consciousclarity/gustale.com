@@ -191,5 +191,11 @@ export function siteOrigin(): string {
   const explicit = import.meta.env.PUBLIC_SITE_ORIGIN;
   if (explicit) return explicit;
   const domain = import.meta.env.PUBLIC_DOMAIN ?? "recipes";
-  return domain === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+  if (domain === "geo") return "https://gustale.com";
+  // The staging origin (WP-00b). A staging build is the recipes site
+  // on its own host, with its own canonical URLs -- pointing them at
+  // gustale.recipes would tell a crawler that the staging copy is the
+  // real one.
+  if (domain === "staging") return "https://staging.gustale.com";
+  return "https://gustale.recipes";
 }

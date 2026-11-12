@@ -1,0 +1,73 @@
+# staging.gustale.com — the STAGING environment (WP-00b, card GUS-1122)
+#
+# Added 2026-11-12.
+#
+# WHAT THIS SERVES
+# ----------------
+# The staging stack: a BRANCH build, its own API, its own database.
+# Deployed by scripts/deploy-staging.sh. It is NOT production: the
+# production containers and the production database are untouched by
+# anything in that script, and the script refuses to run if a
+# configuration value would collide with production.
+#
+# WHY NOINDEX
+# -----------
+# Staging must not be indexed. It is a copy of the site, it is built
+# from a branch, and some of it may be broken by definition -- it is
+# where you SEE the breakage. An indexed staging copy would compete
+# with production in the search results.
+#
+# It is also not LINKED from production, and not in any sitemap, so
+# Google has no path to it. The noindex header is the belt to that
+# braces.
+#
+# THE PORT
+# --------
+# 4003 is the staging WEB container. The staging API is on 4004 and
+# is reached through the SAME-ORIGIN /api/* proxy below, exactly as in
+# production -- the browser calls a relative /api path, so the
+# staging host needs its own /api/* route or every client-side fetch
+# would 404.
+#
+# THE /media/* PROXY
+# ------------------
+# Staging serves the same cover images as production. The images live
+# in the shared MinIO bucket, and the Caddy block points at the same
+# upstream -- but note that the staging build only emits the 50 dishes
+# in its scope, so it only requests the images for those.
+staging.gustale.com {
+	# The staging API, on its own port. It is a separate container
+	# from the production API, with its own database.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4004
+	}
+
+	# The images, from the shared public MinIO bucket. The same
+	# bucket production uses, read-only over the public path.
+	handle /media/* {
+		rewrite * /gustale-public{uri}
+		reverse_proxy 127.0.0.1:9000 {
+			header_up Host 127.0.0.1:9000
+		}
+	}
+
+	# Everything else is the staging web build.
+	handle {
+		reverse_proxy 127.0.0.1:4003
+	}
+
+	# The headers. Applied to EVERY response -- the pages, the media,
+	# the API responses, the sitemap. The `deferred` behaviour is
+	# Caddy's: for a proxied response the headers are written when the
+	# upstream responds, which is what makes them apply to proxied
+	# content at all.
+	header {
+		X-Robots-Tag "noindex, nofollow"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+		X-Frame-Options "SAMEORIGIN"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}

@@ -79,8 +79,26 @@ ENV BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE}
 # This is a public, browser-side token by design (like a Mapbox public
 # token) — it is not a server secret, and the value never reaches the
 # API container.
-ARG PUBLIC_CARTO_API_KEY=
+ARG PUBLIC_CARTO_API_KEY=""
 ENV PUBLIC_CARTO_API_KEY=${PUBLIC_CARTO_API_KEY}
+
+# The BUILD SCOPE. Both are optional and both default to the FULL
+# production build, so the production images are unaffected.
+#
+#   PUBLIC_BUILD_LOCALES=en     -- one locale instead of ten
+#   PUBLIC_BUILD_DISH_LIMIT=50  -- the first 50 dishes instead of 1,474
+#
+# A full production build of the recipes site is 16,589 pages and took
+# 141 minutes on 2026-11-12. That is correct for production and
+# useless for a staging environment, where the point is to SEE a
+# change quickly. A scoped build covers the same code paths with a
+# fraction of the pages, so a staging deploy finishes in minutes.
+#
+# See apps/web/src/lib/buildScope.ts for the rules.
+ARG PUBLIC_BUILD_LOCALES=""
+ARG PUBLIC_BUILD_DISH_LIMIT=""
+ENV PUBLIC_BUILD_LOCALES=${PUBLIC_BUILD_LOCALES} \
+    PUBLIC_BUILD_DISH_LIMIT=${PUBLIC_BUILD_DISH_LIMIT}
 
 # Now copy the rest of the source. This layer's cache key is the full
 # monorepo tree, so it (and everything below) invalidates on every commit.

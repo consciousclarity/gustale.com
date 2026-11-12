@@ -1,13 +1,9 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../lib/api";
+import { buildLocales } from "../lib/buildScope";
 import { getFilterPageIndex, pathPageSlugs } from "../lib/filterPages";
-import {
-  type CoreLocale,
-  dishUrl,
-  hreflangAlternates,
-  SITE_LOCALES,
-} from "../lib/locales";
+import { type CoreLocale, dishUrl, hreflangAlternates } from "../lib/locales";
 import type { DishDetailResponse } from "../types/dish";
 import { DishDetail } from "./DishDetail";
 import { EditDishButton } from "./EditDishButton";
@@ -62,7 +58,8 @@ try {
 // The hreflang set is the locales the site ships pages for, not the
 // locales the dish happens to have a name in. A dish with a Tagalog
 // name but no Tagalog page would advertise a URL that 404s.
-const alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
+const BUILD_LOCALES = buildLocales();
+const alternates = hreflangAlternates(slug, BUILD_LOCALES, origin);
 
 // ── The English-fallback notice ────────────────────────────────────────
 //
@@ -83,7 +80,7 @@ const seoDescription =
 
 // The language switcher: the same dish in every locale the site ships.
 const localeUrls = Object.fromEntries(
-  SITE_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
+  BUILD_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
 );
 ---
 

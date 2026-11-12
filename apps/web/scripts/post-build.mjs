@@ -59,6 +59,50 @@ const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 // a partial build (stale cache, flaky incremental, etc.). Bump this
 // if seed-data.ts grows.
 const MIN_EXPECTED_DISHES = 20;
+
+// A SCOPED build has its own floor.
+//
+// The floor of 20 exists to catch a PARTIAL build: a build that
+// produced only a few dish pages because it was interrupted, or
+// because the API only answered once, must never be pruned and
+// shipped. That is a real and valuable guard.
+//
+// But a SCOPED build -- the staging environment -- is partial ON
+// PURPOSE. It covers PUBLIC_BUILD_DISH_LIMIT dishes, and if that
+// limit is below the floor, the floor would refuse a perfectly good
+// build.
+//
+// So when a scope is set, the floor becomes the scope's own limit
+// (minus a small tolerance for the non-dish directories that live
+// under dist/dishes/ alongside the dishes). Without this, the
+// staging build fails at the post-build step with a message about a
+// "partial or stale build" when nothing is wrong.
+//
+// The production build is unaffected: no scope, so the floor stays 20.
+const SCOPED_DISH_LIMIT = (() => {
+  const raw = process.env.PUBLIC_BUILD_DISH_LIMIT;
+  if (!raw || !raw.trim()) return null;
+  const n = Number.parseInt(raw.trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+})();
+
+// The tolerance: dist/dishes/ also holds the filter-kind parents
+// (category/, region/, technique/) and the reserved route
+// directories. A scoped build of 7 dishes still produced 8
+// directories.
+const SCOPED_FLOOR =
+  SCOPED_DISH_LIMIT !== null
+    ? Math.max(1, SCOPED_DISH_LIMIT - 2)
+    : MIN_EXPECTED_DISHES;
+const EFFECTIVE_FLOOR =
+  SCOPED_DISH_LIMIT !== null ? SCOPED_FLOOR : MIN_EXPECTED_DISHES;
+
+if (SCOPED_DISH_LIMIT !== null) {
+  console.log(
+    `[post-build] a scoped build (PUBLIC_BUILD_DISH_LIMIT=${SCOPED_DISH_LIMIT}): ` +
+      `the completeness floor is ${EFFECTIVE_FLOOR} dish directories, not ${MIN_EXPECTED_DISHES}`,
+  );
+}
 // `astro build`, only moussaka-greek ships in the dist. Setting
 // ALLOW_PARTIAL=1 lets you run the post-build anyway for manual
 // experimentation. CI MUST NOT set this.
@@ -116,17 +160,17 @@ async function pruneEmptyParents(dir, stop) {
 // If the build is partial, the floor catches it BEFORE we delete the
 // few surviving pages and end up with a near-empty dist.
 const dishDirs = await listDirs(join(DIST, "dishes"));
-if (dishDirs.length < MIN_EXPECTED_DISHES) {
+if (dishDirs.length < EFFECTIVE_FLOOR) {
   if (ALLOW_PARTIAL) {
     console.warn(
       `[post-build] WARNING: dist/dishes/ has only ${dishDirs.length} ` +
-        `directories (expected ≥${MIN_EXPECTED_DISHES}). ALLOW_PARTIAL=1 ` +
+        `directories (expected ≥${EFFECTIVE_FLOOR}). ALLOW_PARTIAL=1 ` +
         `is set, so proceeding with pruning anyway. Do not deploy this dist.`,
     );
   } else {
     console.error(
       `[post-build] REFUSING to prune — dist/dishes/ has ${dishDirs.length} ` +
-        `directories (expected ≥${MIN_EXPECTED_DISHES}). This looks like a ` +
+        `directories (expected ≥${EFFECTIVE_FLOOR}). This looks like a ` +
         `partial or stale build. Re-run a clean astro build (e.g. ` +
         `"rm -rf dist .astro && astro build") before post-processing, ` +
         `or set ALLOW_PARTIAL=1 if you really mean to ship a partial dist.`,
