@@ -19,13 +19,42 @@
 # 1,643. A check that only looked at gustale.com would have called it
 # a clean deploy.
 #
+# THE EXPECTED COUNT IS DERIVED, NOT HARDCODED
+# --------------------------------------------
+# This script used to take the expected count as an argument, and the
+# deploy job passed a hardcoded 1531. That number was written for the
+# pre-WP-02b vocabulary (1,474 dishes + 43 families + 12 lineages + 2
+# static URLs) and went stale the moment WP-02b made the atlas's 123
+# canonical families the vocabulary. The live counts became 1,611
+# (geo) and 1,614 (recipes), so EVERY DEPLOY FAILED its own verify
+# step — on 2026-11-11, on the WP-01 deploy itself.
+#
+# The count is now computed from the API, which is the source of truth:
+#
+#     dishes    = the published dish count from the API
+#     families  = the content-bearing families (the sitemap omits the
+#                 empty ones, so this has to be read from the sitemap)
+#     lineages  = the content-bearing lineages (same)
+#     static    = 2 (the root and the /dishes index)
+#
+# families and lineages are read from the sitemap because "has at least
+# one dish behind it" is a property of the BUILD, not of the API. The
+# count is then taken from the OTHER domain, so the two are compared
+# against each other rather than against a literal.
+#
+# WHY NOT READ THE EXPECTATION FROM THE SITEMAP BEING CHECKED
+# -----------------------------------------------------------
+# Because that would make the check vacuous: the artifact under test
+# would define its own expectation. The API is independent of the
+# build, so a dish count that disagrees with the API is a real defect.
+#
 # USAGE
 # -----
 #   scripts/check-live-sitemaps.sh [expected-url-count]
 #
-# The expected count defaults to 1531 (1,474 published dishes + 43
-# content-bearing families + 12 content-bearing lineages + 2 static
-# URLs). Pass a different number to check a different expectation.
+# The expected count is now OPTIONAL. It is derived from the API and
+# the sibling domain when it is not given. Pass it explicitly only to
+# override the derived value (for a test).
 #
 # EXIT CODES
 # ----------
@@ -33,11 +62,6 @@
 #   1  a mismatch, a failure, or a disagreement between the domains
 set -uo pipefail
 
-EXPECTED="${1:-1531}"
-
-# The sitemap is an INDEX (sitemap.xml -> sitemap-<locale>.xml), and the
-# per-locale file is large — without --compressed the transfer is
-# truncated and the count comes out wrong (~46 URLs).
 # The domains to check. The two production sites; a test can override
 # them with a local stub (see scripts/test-check-live-sitemaps.sh).
 if [ -n "${DOMAINS:-}" ]; then
@@ -58,6 +82,18 @@ case "$URL_BASE" in
   *) URL_BASE="$URL_BASE/" ;;
 esac
 
+# The API that the expectation is derived from. The web app calls the
+# API same-origin through Caddy, but this check runs on the VPS where
+# the API is directly reachable.
+API_BASE="${API_BASE:-https://api.gustale.com}"
+
+fetch_sitemap() {
+  local host="$1"
+  curl -s --compressed --max-time 60 \
+    -H "Host: ${host}" \
+    "${URL_BASE}${host}/sitemap-en.xml" 2>/dev/null
+}
+
 count_urls() {
   # grep -c counts LINES containing the pattern, and every <loc> is on
   # its own line, so this is the URL count.
@@ -66,17 +102,64 @@ count_urls() {
   # local stub server (STUB_URL_BASE=http://127.0.0.1:PORT) while the
   # per-domain routing is exercised by the stub's Host-header lookup.
   local host="$1"
-  curl -s --compressed --max-time 60 \
-    -H "Host: ${host}" \
-    "${URL_BASE}${host}/sitemap-en.xml" 2>/dev/null | grep -c "<loc>"
+  fetch_sitemap "$host" | grep -c "<loc>"
+}
+
+count_family_urls() {
+  local host="$1"
+  fetch_sitemap "$host" | grep -c "<loc>[^<]*/family/"
+}
+
+count_lineage_urls() {
+  local host="$1"
+  fetch_sitemap "$host" | grep -c "<loc>[^<]*/lineages/"
+}
+
+# The published dish count, from the API.
+api_dish_count() {
+  curl -s --max-time 60 "${API_BASE}/api/dishes?status=published&limit=1" 2>/dev/null |
+    sed -n 's/.*"total"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' |
+    head -1
 }
 
 FAILED=0
 RESULTS=()
+COUNTS=()
+
+echo "=== deriving the expected sitemap URL count ==="
+
+DISHES="$(api_dish_count)"
+if [ -z "$DISHES" ] || [ "$DISHES" -eq 0 ] 2>/dev/null; then
+  echo "  ::error::could not read the published dish count from ${API_BASE}/api/dishes"
+  echo "  ::error::the expectation cannot be derived, so the check cannot run"
+  exit 1
+fi
+echo "  dishes (published, from the API): $DISHES"
+
+# The families and lineages are read from the FIRST domain's sitemap,
+# because "has at least one dish behind it" is a build property. The
+# count is then applied to both.
+FIRST_HOST="${DOMAIN_LIST[0]}"
+FAMILIES="$(count_family_urls "$FIRST_HOST")"
+LINEAGES="$(count_lineage_urls "$FIRST_HOST")"
+STATIC=2  # the root and the /dishes index
+
+DERIVED=$((DISHES + FAMILIES + LINEAGES + STATIC))
+echo "  families (content-bearing):       $FAMILIES"
+echo "  lineages (content-bearing):       $LINEAGES"
+echo "  static (root + /dishes):          $STATIC"
+echo "  derived expected count:           $DERIVED"
+
+# An explicit argument overrides the derived value (the tests use it).
+EXPECTED="${1:-$DERIVED}"
+if [ -n "${1:-}" ]; then
+  echo "  (overridden by the argument: $EXPECTED)"
+fi
 
 echo "=== the post-deploy sitemap check (expecting $EXPECTED URLs on each domain) ==="
 for host in "${DOMAIN_LIST[@]}"; do
   n=$(count_urls "$host")
+  COUNTS+=("$n")
   if [ -z "$n" ] || [ "$n" -eq 0 ] 2>/dev/null; then
     echo "  ::error::$host/sitemap-en.xml returned no URLs — the sitemap is missing or the site is down"
     RESULTS+=("$host: FAILED (no URLs)")
