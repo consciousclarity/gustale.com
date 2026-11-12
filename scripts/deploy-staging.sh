@@ -228,7 +228,39 @@ docker exec "$STAGING_PG_CONTAINER" psql -U postgres -q -c \
   refuse "could not align the staging role's password"
 echo "  the staging role's password is aligned with the production one"
 
+# The API IMAGE. By default it is the image for the SHA being
+# deployed -- but that image only exists if CI has built it, and a
+# BRANCH that has never been through CI has no image.
+#
+# So the image is RESOLVED, not assumed:
+#
+#   1. the image for the SHA, if it is present locally or in the
+#      registry
+#   2. otherwise the newest gustale-api image already on the box
+#
+# The second case is the honest one for a first staging deploy of a
+# branch: the STAGING API is the same API code as production, and the
+# thing being tested on staging is the WEB change. When the branch has
+# been through CI, the first case applies and the API is exactly the
+# branch's.
+#
+# The image actually used is recorded in the state file, so "what is
+# staging running?" has an answer.
 docker rm -f "$STAGING_API_CONTAINER" >/dev/null 2>&1
+STAGING_API_IMAGE="${STAGING_IMAGE_REPO}/gustale-api:${SHA}"
+if ! docker image inspect "$STAGING_API_IMAGE" >/dev/null 2>&1; then
+  FALLBACK_IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' |
+    grep "^${STAGING_IMAGE_REPO}/gustale-api:" |
+    grep -v ":latest$" |
+    head -1)
+  if [ -z "$FALLBACK_IMAGE" ]; then
+    refuse "there is no gustale-api image on this box for $SHA, and no older one to fall back to"
+  fi
+  echo "  the image for $SHORT_SHA has not been built yet; using $FALLBACK_IMAGE"
+  echo "  (the web change is what staging is for; the API is production's)"
+  STAGING_API_IMAGE="$FALLBACK_IMAGE"
+fi
+
 docker run -d --name "$STAGING_API_CONTAINER" \
   --network host --restart unless-stopped \
   --env-file "$STAGING_ENV_FILE" \
@@ -241,7 +273,7 @@ docker run -d --name "$STAGING_API_CONTAINER" \
   -e "CORS_ORIGIN=https://${STAGING_HOST}" \
   -e "BETTER_AUTH_TRUSTED_ORIGINS=https://${STAGING_HOST}" \
   -e "BUILD_SHA=$SHA" \
-  "$STAGING_IMAGE_REPO/gustale-api:$SHA" >/dev/null 2>&1 ||
+  "$STAGING_API_IMAGE" >/dev/null 2>&1 ||
   refuse "could not start the staging API container"
 
 # Wait for it to be healthy.
@@ -303,6 +335,7 @@ cat > "$STATE_DIR/state.json" <<JSON
   "sha": "$SHA",
   "shortSha": "$SHORT_SHA",
   "webImage": "$STAGING_WEB_IMAGE",
+  "apiImage": "$STAGING_API_IMAGE",
   "apiContainer": "$STAGING_API_CONTAINER",
   "webContainer": "$STAGING_WEB_CONTAINER",
   "webPort": $STAGING_WEB_PORT,
