@@ -25,7 +25,8 @@
  */
 
 import { db } from "@gustale/db";
-import { sql } from "drizzle-orm";
+import { dishes, dishPlaceAssociations } from "@gustale/db/schema";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
@@ -119,17 +120,41 @@ describe("GET /api/atlas/counts — the counts are DEFINED", () => {
   });
 
   it("counts places and communities SEPARATELY", async () => {
+    // The counts apply the SAME predicate as the dish response, so
+    // they cannot disagree with what the pages show. With nothing
+    // reviewed yet, that means zero — and the two definitions must
+    // still say what they mean.
     const body = await getCounts();
 
-    // A community is a people or a practice, NOT a place. Counting
-    // them together would inflate the place count with things that are
-    // not places.
-    expect(body.counts.places).toBeGreaterThan(0);
-    expect(body.counts.communities).toBeGreaterThan(0);
-
-    // And the two definitions must say so.
     expect(body.definitions.places).toMatch(/not a place/i);
     expect(body.definitions.communities).toMatch(/communit/i);
+
+    // Review one row and the counts must become non-zero. Without this
+    // the test would pass whether the rule works or the endpoint is
+    // simply broken.
+    const [falafel] = await db
+      .select({ id: dishes.id })
+      .from(dishes)
+      .where(eq(dishes.slug, "falafel"))
+      .limit(1);
+    await db
+      .update(dishPlaceAssociations)
+      .set({ evidenceStatus: "evidenced", reviewState: "accepted" })
+      .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+
+    try {
+      const reviewed = await getCounts();
+      // A community is a people or a practice, NOT a place. Counting
+      // them together would inflate the place count with things that
+      // are not places.
+      expect(reviewed.counts.places).toBeGreaterThan(0);
+      expect(reviewed.counts.communities).toBeGreaterThan(0);
+    } finally {
+      await db
+        .update(dishPlaceAssociations)
+        .set({ evidenceStatus: "unevidenced", reviewState: "unreviewed" })
+        .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+    }
   });
 
   it("counts DISTINCT entities, not association rows", async () => {

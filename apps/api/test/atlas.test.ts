@@ -42,6 +42,9 @@
  * database, which is exactly that.
  */
 
+import { db } from "@gustale/db";
+import { dishes, dishPlaceAssociations } from "@gustale/db/schema";
+import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
@@ -255,49 +258,176 @@ describe("GET /api/dishes/:slug/atlas — the shape", () => {
 });
 
 describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
-  it("returns falafel's TWO associations — a community and a place", async () => {
+  it("HIDES falafel's unreviewed associations — the owner's rule of 2026-11-13", async () => {
     const body = await getAtlas("falafel");
 
-    expect(body.placesAndTraditions).toHaveLength(2);
+    // An association is publicly visible only when it is EVIDENCED and
+    // REVIEWED. Falafel's associations are `unevidenced` + `unreviewed`,
+    // so the public list is empty.
+    expect(body.placesAndTraditions).toHaveLength(0);
 
-    const community = body.placesAndTraditions.find(
-      (a) => a.entityKind === "community",
-    );
-    expect(community).toBeDefined();
-    expect(community?.name).toBe("Israeli cuisine");
-    expect(community?.relationship).toBe("established_tradition");
-    // A community is NOT a place: it has no ISO code and no place type.
-    expect(community?.isoCode).toBeNull();
-    expect(community?.placeEntityType).toBeNull();
-
-    const place = body.placesAndTraditions.find(
-      (a) => a.entityKind === "place",
-    );
-    expect(place).toBeDefined();
-    expect(place?.name).toBe("Israel");
-    expect(place?.isoCode).toBe("IL");
-    expect(place?.placeEntityType).toBe("country");
+    // AND THE DATA MUST STILL BE THERE. A test that only checked an
+    // empty list would pass even if the rows had been deleted. The
+    // rows are hidden, not removed: they are the discovery values the
+    // review work package will work on.
+    const stored = await db
+      .select()
+      .from(dishPlaceAssociations)
+      .where(
+        eq(
+          dishPlaceAssociations.dishId,
+          db
+            .select({ id: dishes.id })
+            .from(dishes)
+            .where(eq(dishes.slug, "falafel"))
+            .limit(1),
+        ),
+      );
+    expect(stored.length).toBeGreaterThan(0);
+    for (const row of stored) {
+      expect(row.publicationState).toBe("published");
+      expect(row.evidenceStatus).not.toBe("evidenced");
+      expect(row.reviewState).not.toBe("accepted");
+    }
   });
 
-  it("distinguishes ONE association from MANY", async () => {
+  it("shows a REVIEWED association — the rule is the gate, not a blanket", async () => {
+    // The rule must be able to let a row THROUGH. A test that only
+    // checked hiding would pass if the predicate returned nothing ever.
+    const [falafel] = await db
+      .select({ id: dishes.id })
+      .from(dishes)
+      .where(eq(dishes.slug, "falafel"))
+      .limit(1);
+    await db
+      .update(dishPlaceAssociations)
+      .set({ evidenceStatus: "evidenced", reviewState: "accepted" })
+      .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+
+    try {
+      const body = await getAtlas("falafel");
+      expect(body.placesAndTraditions.length).toBeGreaterThan(0);
+      const community = body.placesAndTraditions.find(
+        (a) => a.entityKind === "community",
+      );
+      expect(community).toBeDefined();
+      expect(community?.name).toBe("Israeli cuisine");
+      expect(community?.relationship).toBe("established_tradition");
+      // A community is NOT a place: it has no ISO code and no place type.
+      expect(community?.isoCode).toBeNull();
+      expect(community?.placeEntityType).toBeNull();
+    } finally {
+      await db
+        .update(dishPlaceAssociations)
+        .set({ evidenceStatus: "unevidenced", reviewState: "unreviewed" })
+        .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+    }
+  });
+
+  it("keeps a REVIEWED place association visible, with its place fields", async () => {
+    const [falafel] = await db
+      .select({ id: dishes.id })
+      .from(dishes)
+      .where(eq(dishes.slug, "falafel"))
+      .limit(1);
+    await db
+      .update(dishPlaceAssociations)
+      .set({ evidenceStatus: "evidenced", reviewState: "accepted" })
+      .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+
+    try {
+      const body = await getAtlas("falafel");
+      const place = body.placesAndTraditions.find(
+        (a) => a.entityKind === "place",
+      );
+      expect(place).toBeDefined();
+      expect(place?.name).toBe("Israel");
+      expect(place?.isoCode).toBe("IL");
+      expect(place?.placeEntityType).toBe("country");
+    } finally {
+      await db
+        .update(dishPlaceAssociations)
+        .set({ evidenceStatus: "unevidenced", reviewState: "unreviewed" })
+        .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+    }
+  });
+
+  it("HIDES ONE association and MANY alike, until they are reviewed", async () => {
     // chicken-tikka-masala has exactly ONE — a place, and no tradition,
     // because the legacy data has none and the migration does not
-    // invent one. rendang has THREE.
+    // invent one. rendang has THREE. Neither is reviewed, so neither
+    // is public.
     const one = await getAtlas("chicken-tikka-masala");
-    expect(one.placesAndTraditions).toHaveLength(1);
-    expect(one.placesAndTraditions[0]?.entityKind).toBe("place");
-    expect(one.placesAndTraditions[0]?.relationship).toBe("legacy_unreviewed");
+    expect(one.placesAndTraditions).toHaveLength(0);
 
     const many = await getAtlas("rendang");
-    expect(many.placesAndTraditions).toHaveLength(3);
+    expect(many.placesAndTraditions).toHaveLength(0);
 
-    // Two of rendang's are communities and one is a place.
-    expect(
-      many.placesAndTraditions.filter((a) => a.entityKind === "community"),
-    ).toHaveLength(2);
-    expect(
-      many.placesAndTraditions.filter((a) => a.entityKind === "place"),
-    ).toHaveLength(1);
+    // AND the rows are still there — one for chicken-tikka-masala, three
+    // for rendang. The rule hides; it does not delete.
+    for (const [slug, expected] of [
+      ["chicken-tikka-masala", 1],
+      ["rendang", 3],
+    ] as const) {
+      const [dish] = await db
+        .select({ id: dishes.id })
+        .from(dishes)
+        .where(eq(dishes.slug, slug))
+        .limit(1);
+      const stored = await db
+        .select()
+        .from(dishPlaceAssociations)
+        .where(eq(dishPlaceAssociations.dishId, dish!.id));
+      expect(stored.length).toBe(expected);
+    }
+  });
+
+  it("distinguishes ONE association from MANY once they are reviewed", async () => {
+    // The same distinction, once the rows pass the gate. Without this,
+    // a predicate that returned nothing ever would pass the test above.
+    for (const slug of ["chicken-tikka-masala", "rendang"]) {
+      const [dish] = await db
+        .select({ id: dishes.id })
+        .from(dishes)
+        .where(eq(dishes.slug, slug))
+        .limit(1);
+      await db
+        .update(dishPlaceAssociations)
+        .set({ evidenceStatus: "evidenced", reviewState: "accepted" })
+        .where(eq(dishPlaceAssociations.dishId, dish!.id));
+    }
+
+    try {
+      const one = await getAtlas("chicken-tikka-masala");
+      expect(one.placesAndTraditions).toHaveLength(1);
+      expect(one.placesAndTraditions[0]?.entityKind).toBe("place");
+      expect(one.placesAndTraditions[0]?.relationship).toBe(
+        "legacy_unreviewed",
+      );
+
+      const many = await getAtlas("rendang");
+      expect(many.placesAndTraditions).toHaveLength(3);
+
+      // Two of rendang's are communities and one is a place.
+      expect(
+        many.placesAndTraditions.filter((a) => a.entityKind === "community"),
+      ).toHaveLength(2);
+      expect(
+        many.placesAndTraditions.filter((a) => a.entityKind === "place"),
+      ).toHaveLength(1);
+    } finally {
+      for (const slug of ["chicken-tikka-masala", "rendang"]) {
+        const [dish] = await db
+          .select({ id: dishes.id })
+          .from(dishes)
+          .where(eq(dishes.slug, slug))
+          .limit(1);
+        await db
+          .update(dishPlaceAssociations)
+          .set({ evidenceStatus: "unevidenced", reviewState: "unreviewed" })
+          .where(eq(dishPlaceAssociations.dishId, dish!.id));
+      }
+    }
   });
 
   it("carries the evidence axes SEPARATELY, and never a confidence score", async () => {
@@ -319,15 +449,28 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
   });
 
   it("preserves the legacy value and its provenance", async () => {
-    const body = await getAtlas("falafel");
-    const place = body.placesAndTraditions.find(
-      (a) => a.entityKind === "place",
-    );
+    // The value is preserved in the STORED row. It is not in the public
+    // response, because the association is unreviewed and the rule hides
+    // it — and checking the stored row is a stronger statement of "the
+    // original value is preserved, so nothing is lost".
+    const [falafel] = await db
+      .select({ id: dishes.id })
+      .from(dishes)
+      .where(eq(dishes.slug, "falafel"))
+      .limit(1);
+    const stored = await db
+      .select()
+      .from(dishPlaceAssociations)
+      .where(eq(dishPlaceAssociations.dishId, falafel!.id));
 
-    // The original value is preserved, so nothing is lost, and it is
-    // marked as legacy so it is not read as a finding.
+    const place = stored.find((r) => r.entityKind === "place");
+    expect(place).toBeDefined();
     expect(place?.legacyValue).toBe("Israel");
     expect(place?.provenance).toBeTruthy();
+
+    // And it is NOT public yet.
+    const body = await getAtlas("falafel");
+    expect(body.placesAndTraditions).toHaveLength(0);
   });
 });
 
@@ -408,11 +551,37 @@ describe("GET /api/dishes/:slug/atlas — the counts", () => {
   it("counts places and communities SEPARATELY", async () => {
     const body = await getAtlas("falafel");
 
-    // A community is a people or a practice, not a place. Counting
-    // them together would inflate the place count with things that are
-    // not places.
-    expect(body.counts.places).toBeGreaterThan(0);
-    expect(body.counts.communities).toBeGreaterThan(0);
+    // The counts apply the SAME predicate as the dish response, so they
+    // cannot disagree with what the pages show. With nothing reviewed
+    // yet, that means zero.
+    expect(body.counts.places).toBe(0);
+    expect(body.counts.communities).toBe(0);
+
+    // Review one row and the counts must become non-zero — so a
+    // predicate that returned nothing forever would FAIL this test.
+    const [falafel] = await db
+      .select({ id: dishes.id })
+      .from(dishes)
+      .where(eq(dishes.slug, "falafel"))
+      .limit(1);
+    await db
+      .update(dishPlaceAssociations)
+      .set({ evidenceStatus: "evidenced", reviewState: "accepted" })
+      .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+
+    try {
+      const reviewed = await getAtlas("falafel");
+      // A community is a people or a practice, not a place. Counting
+      // them together would inflate the place count with things that
+      // are not places.
+      expect(reviewed.counts.places).toBeGreaterThan(0);
+      expect(reviewed.counts.communities).toBeGreaterThan(0);
+    } finally {
+      await db
+        .update(dishPlaceAssociations)
+        .set({ evidenceStatus: "unevidenced", reviewState: "unreviewed" })
+        .where(eq(dishPlaceAssociations.dishId, falafel!.id));
+    }
 
     // And each is a count of DISTINCT entities, so a dish with two
     // associations to the same place is counted once.
