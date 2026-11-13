@@ -37,6 +37,19 @@ export const DISH_SECTION_IDS = {
   variants: "variants-heading",
   preparation: "preparation-heading",
   sources: "sources-heading",
+  /**
+   * The "Places & traditions" section — the countries, regions and
+   * culinary communities a dish is associated with.
+   *
+   * It is rendered on every dish page, so the nav always reaches it.
+   *
+   * The label is the section's own heading rather than "Countries",
+   * because a place association can be a country, a region, a
+   * cross-border area OR A COMMUNITY — a people or a practice. "Israeli
+   * cuisine" is not a country and "Minangkabau" is a people, so
+   * "Countries" would misname most of the section's own rows.
+   */
+  places: "atlas-places-heading",
 } as const;
 
 /**
@@ -66,6 +79,10 @@ export function buildSectionLinks(
   if (available.hasSources) {
     links.push({ id: DISH_SECTION_IDS.sources, label: "Sources" });
   }
+  // The places & traditions section is on every dish page, so the link
+  // is always present. It comes last because it is the section a
+  // reader reaches for when they want the geography, not the history.
+  links.push({ id: DISH_SECTION_IDS.places, label: "Places & traditions" });
 
   return links;
 }

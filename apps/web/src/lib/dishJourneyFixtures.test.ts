@@ -105,8 +105,27 @@ describe("section nav — every link reaches real content", () => {
     });
     assert.deepEqual(
       links.map((l) => l.id),
-      [DISH_SECTION_IDS.journey, DISH_SECTION_IDS.sources],
+      [
+        DISH_SECTION_IDS.journey,
+        DISH_SECTION_IDS.sources,
+        // The places & traditions section is on every dish page, so it
+        // is always in the nav.
+        DISH_SECTION_IDS.places,
+      ],
     );
+  });
+
+  it("always reaches the places & traditions section", () => {
+    const links = buildSectionLinks({
+      hasJourney: true,
+      hasIngredients: false,
+      hasVariants: false,
+      hasPreparation: false,
+      hasSources: false,
+    });
+    const places = links.find((l) => l.id === DISH_SECTION_IDS.places);
+    assert.ok(places, "the nav has no link to the places & traditions section");
+    assert.equal(places.label, "Places & traditions");
   });
 
   it("never links to an anchor that does not exist", () => {
@@ -131,7 +150,8 @@ describe("section nav — every link reaches real content", () => {
       hasPreparation: false,
       hasSources: false,
     });
-    assert.equal(links.length, 1);
+    assert.equal(links.length, 2);
     assert.equal(links[0]?.id, DISH_SECTION_IDS.journey);
+    assert.equal(links[1]?.id, DISH_SECTION_IDS.places);
   });
 });
