@@ -111,6 +111,15 @@ export const OSM_RASTER_TILES =
 export const OSM_TILE_USER_AGENT = "Gustale Atlas/1.0 (https://gustale.com)";
 
 /**
+ * The Referer the OSM tile policy asks web pages to send.
+ *
+ * The policy asks for "a valid HTTP Referer header" from web pages.
+ * MapLibre's `transformRequest` can set one per request, so the OSM
+ * tile requests carry it.
+ */
+export const OSM_TILE_REFERER = "https://gustale.com/";
+
+/**
  * True when a request is for the OSM raster tile service.
  */
 export function isOsmRasterTile(url: string): boolean {
@@ -131,24 +140,89 @@ export function isOsmRasterTile(url: string): boolean {
  * does not breach the provider's tile policy; it is the same kind of
  * request the browser makes anyway.
  */
-export async function probeVectorTiles(): Promise<"ok" | "failed" | "unknown"> {
+/**
+ * The ONE shared probe.
+ *
+ * Module-level, so the first caller starts it and every other caller
+ * awaits the same promise. A six-chapter page makes ONE probe request,
+ * not six, and every map on the page gets the same answer — so a page
+ * can never show a mix of vector and raster maps.
+ */
+export type TileProbeResult =
+  /** The vector tile service answered. */
+  | "ok"
+  /** The STYLE loaded but the vector TILES did not: the provider's
+   *  tile service is broken, but the network is fine. */
+  | "vector_down"
+  /** Neither the style nor a tile loaded: the network is blocked. */
+  | "network_down";
+
+let vectorTileProbe: Promise<TileProbeResult> | null = null;
+
+export function probeVectorTiles(): Promise<TileProbeResult> {
+  if (vectorTileProbe) return vectorTileProbe;
+
   const probeUrl =
     "https://tiles.basemaps.cartocdn.com/v/20261026-01/vectortiles/carto.streets/v2/0/0/0.mvt";
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(probeUrl, {
-      method: "GET",
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    clearTimeout(timer);
-    if (res.ok) return "ok";
-    // A 404 means the service is up but the tile path has moved — which
-    // is also a failure for our purposes.
-    return "failed";
-  } catch {
-    // A timeout or a network error: the service is not answering.
-    return "failed";
-  }
+
+  vectorTileProbe = (async () => {
+    // TWO requests, and the order matters.
+    //
+    // The STYLE is fetched first. The style is a small JSON document
+    // that answers "is the network working at all". If the style loads
+    // and a VECTOR TILE does not, the provider's tile service is
+    // broken while the network is fine — which is exactly the failure
+    // observed on 12 November 2026, and it is the case where falling
+    // back to another provider is both safe and useful.
+    //
+    // If the STYLE also fails, the network is blocked or down, and no
+    // tile service should be asked for anything. The map shows its
+    // fallback panel and makes no tile requests.
+    try {
+      const styleController = new AbortController();
+      const styleTimer = setTimeout(() => styleController.abort(), 4000);
+      const styleRes = await fetch(CARTO_VECTOR_STYLE_URL, {
+        method: "GET",
+        signal: styleController.signal,
+        cache: "no-store",
+      });
+      clearTimeout(styleTimer);
+      if (!styleRes.ok) return "network_down";
+    } catch {
+      // The style did not load either: the network is not usable.
+      return "network_down";
+    }
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(probeUrl, {
+        method: "GET",
+        signal: controller.signal,
+        // "no-store" is right for a reachability probe: the answer must
+        // reflect the service NOW, not a cached answer from earlier.
+      });
+      clearTimeout(timer);
+      if (res.ok) return "ok";
+      // A 404 means the service is up but the tile path has moved —
+      // which is also a failure for our purposes.
+      return "vector_down";
+    } catch {
+      // The style loaded but the tile did not: the provider's tile
+      // service is not answering, and the network is fine.
+      return "vector_down";
+    }
+  })();
+
+  return vectorTileProbe;
+}
+
+/**
+ * Forget the cached probe.
+ *
+ * Only for tests. It exists so a test can exercise the "ok" and the
+ * "failed" path without the module cache leaking between cases.
+ */
+export function resetVectorTileProbe(): void {
+  vectorTileProbe = null;
 }

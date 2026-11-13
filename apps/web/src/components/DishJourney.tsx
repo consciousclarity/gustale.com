@@ -17,6 +17,12 @@ import {
   lineageRoleShort,
   PLACE_ROLE_LABELS,
 } from "../lib/journey";
+import {
+  EVIDENCE_LEVEL_LABELS,
+  EVIDENCE_LEVEL_NOTES,
+  evidenceForBeat,
+  type JourneyEvidenceBySequence,
+} from "../lib/journeyEvidence";
 import { LegacyJourney } from "./LegacyJourney";
 
 export type {

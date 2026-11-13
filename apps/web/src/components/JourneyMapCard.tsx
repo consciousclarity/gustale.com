@@ -16,6 +16,7 @@ import {
   CARTO_VECTOR_STYLE_URL,
   isOsmRasterTile,
   OSM_RASTER_TILES,
+  OSM_TILE_REFERER,
   OSM_TILE_USER_AGENT,
   probeVectorTiles,
 } from "../lib/basemap";
@@ -106,7 +107,21 @@ export function JourneyMapCard({
         // bar — a plausible-looking but blank map. The probe makes the
         // decision consistent across every map on the page, so the
         // reader never sees a mix of drawn and blank maps.
-        const vectorTilesUsable = (await probeVectorTiles()) === "ok";
+        const probe = await probeVectorTiles();
+
+        if (probe === "network_down") {
+          // The network cannot reach any tile service. Do not create a
+          // map that would ask one for tiles; show the fallback panel
+          // with the place name and the reason instead.
+          if (!cancelled) {
+            setMapError(
+              "This map could not be loaded — the map service could not be reached.",
+            );
+          }
+          return;
+        }
+
+        const vectorTilesUsable = probe === "ok";
 
         const instance = new maplibregl.Map({
           container,
@@ -271,6 +286,25 @@ export function JourneyMapCard({
             setMapError("This map could not be loaded.");
           }
         });
+
+        // A map that has LOADED but painted NOTHING is the silent
+        // failure: the style, the fonts and the sprite all arrive, the
+        // attribution and the scale bar render, and the canvas stays
+        // empty because no tile did.
+        //
+        // MapLibre fires `idle` when it has finished rendering what it
+        // has. If that happens and no tile source has produced
+        // anything, the map is showing nothing and must say so rather
+        // than sit blank.
+        instance.on("idle", () => {
+          if (cancelled) return;
+          // `idle` fires when the map has nothing left to do. If it is
+          // then loaded and has painted NOTHING, the map is empty and
+          // must say so rather than sit blank.
+          if (instance.loaded() && !hasPaintedTiles(instance)) {
+            setMapError("This map could not be loaded.");
+          }
+        });
       })
       .catch(() => {
         if (cancelled) return;
@@ -425,6 +459,35 @@ function rasterOnlyStyle() {
       },
     ],
   };
+}
+
+/**
+ * True when the map has actually painted something.
+ *
+ * `queryRenderedFeatures()` is a DOCUMENTED MapLibre method: with no
+ * arguments it returns the features currently rendered in the
+ * viewport. A map with real geography returns features; an empty
+ * canvas returns none.
+ *
+ * An earlier version of this reached into MapLibre's private
+ * `style.sourceCaches` to count tiles. That is not a supported API and
+ * it reported "no tiles" on a map that had fetched 28 of them, so
+ * every map wrongly showed its fallback. This is the supported way.
+ */
+function hasPaintedTiles(instance: MlMap): boolean {
+  try {
+    const features = (
+      instance as unknown as {
+        queryRenderedFeatures?: () => unknown[];
+      }
+    ).queryRenderedFeatures?.();
+    return Array.isArray(features) && features.length > 0;
+  } catch {
+    // If the map cannot be queried, do not claim it is empty: showing
+    // the fallback over a map that is actually fine is worse than the
+    // reverse.
+    return true;
+  }
 }
 
 /**
