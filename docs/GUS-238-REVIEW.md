@@ -1,271 +1,489 @@
-# GUS-238 — dish journey: assessment, corrections and review package
+# GUS-238 — dish journey: the review report
 
 **Branch:** `feature/gus-dish-journey-osm-cards`
-**Base:** `origin/main` @ `af4a0f8`
-**Status:** draft PR #234, **pilot disabled**, not merged, not deployed, no live data written.
+**PR:** #234 — **draft**, **pilot disabled**, not merged, not deployed, no live data written
+**Status at the time of writing:** the branch head is the PR head; CI's `Lint + typecheck` job fails on one step, and the `Live approval gate` fails by design. Both are explained in §9.
 
 ---
 
-## 1. Assessment: what the pack got right, and what it got wrong
+## 1. What is done
 
-The pack's **editorial contract** is sound and I kept it: a chapter needs a traceable record, dates keep their precision, an attestation is not an invention, a research gap stays a gap, and a movement needs its own source.
-
-Its **technical assumptions** needed correcting. Everything below was re-verified against the current repository and the live sites on 12 November 2026.
-
-| The pack said | Verified reality | What I did |
+| # | Item | State |
 | --- | --- | --- |
-| `recipes.gustale.com` is the Recipes domain | It resolves and serves Recipes content, but its **canonical is `gustale.recipes`**, and `infra/prod/Caddyfile` routes only `gustale.recipes`. `recipes.gustale.com` is a DNS alias on the same IP, not a Caddy host. | Implemented against the real canonical `gustale.recipes`. **No DNS or hosting change.** |
-| `references/gustale-osm-lineage-reference.png` is the map style source | **It does not exist** in either archive. The two files in `reference/` are *hero* screenshots with no map, no marker, no attribution and no lineage block. | Derived the style from the 21 reference JPGs' palette plus the site's own basemap. **Recorded as an unresolved evidence gap.** |
-| "lineage may need a new endpoint or relationship type" | `dish_lineages` already has a **typed 14-value role**, `explanation`, `changed_elements`, `confidence_level` and `sort_order`; `lineages` has descriptions, concept/origin summaries and uncertainty notes. | **No new lineage type, no new lineage table.** The section is a presentation over existing canonical data. |
-| "the migration list is written down twice" | It is in **five** places, and `scripts/validate-ci-migration-chain.py` compares **three** of them and fails the build if they disagree. | Updated all five; the `ci.yml` copy ships as a patch file (see §6). |
-| The Journey component renders nothing when empty, and draws a line through all points | Confirmed. `if (!beats.length) return null;` and an unconditional `LineString`. | The empty case now states a **research gap** and distinguishes it from a **fetch failure**. Lines are drawn only for source-supported movements. |
-| The reference maps are simplified SVG outlines | They are — and they carry **no attribution and no scale bar**, while the brief demands both. | Used the real OSM-derived basemap with attribution and scale. A deliberate **improvement over the reference**, not a copy of it. |
+| 3 | Verification labels — a chapter-by-chapter evidence record | **done** |
+| 4 | Research-gap wording; non-success and malformed → unavailable | **done** |
+| 5 | Map fallback — no repeated requests, no blank map, policy-compliant | **done** |
+| 2 | Ingredient coverage for the five presentations; the real missing state | **done** |
+| 1 | Countries & styles on the existing model | **done** — it already existed; the gap was the nav |
+| 6 | Schema explanation | **done** — §7 |
+| 7 | The CI patch, reconfirmed; the owner action | **done** — §9 |
+| 8 | This report | **done** |
 
 ---
 
-## 2. Historical verification: what was actually read
+## 2. Item 3 — the verification labels are now per chapter
 
-The pack's inspection labels were carried forward; the records were then read. **Eight chapters are verified; three are not, and say so.**
+The blanket "eight chapters verified" is gone. Each chapter carries its own record, with a strict level:
 
-### Primary record — read directly
-
-**Turabi Efendi, *Turkish Cookery Book* (London, 1864)** — Internet Archive `b21527830`, University of Leeds Library copy.
-
-- Edition metadata confirms **London, 1864**.
-- The book's own index reads: *"Muzakka — Minced mutton, done with egg-plants … 106"*.
-- The full recipe was read: minced mutton or lamb, two or three chopped onions, butter, parsley, three or four egg-plants in salt water, the meat and egg-plants **laid "in layers into a pan"**, **a pint of broth**, covered and simmered until the liquor is nearly absorbed. Printed page **36**.
-- Checked and **absent** from the recipe: béchamel, white sauce, flour, milk.
-
-### Secondary sources — read in full
-
-| Source | What the text actually says |
+| Level | Meaning |
 | --- | --- |
-| **AKS Encyclopedia of Korean Culture**, "비빔밥" (Korean, JS-rendered — read in a browser) | Author **황혜성 (Hwang Hye-seong)**, 1995, revised 7 Feb 2023. Bibimbap first appears in the **1800년대 말 (late 19th century)** 『시의전서(是議全書)』, *Siuijeonseo*. Quotes the mixing method, the fried **튀각 (t'wigak)**, the fried egg, sesame salt and oil, the fried gochujang set aside, and **참기름** added to taste. Cites 『한국요리문화사』 (Lee Seong-u, Kyomunsa, 1985). |
-| **Mun, Lee & Cha (2023)**, *Journal of Ethnic Foods* 10, 39 | *"The name of bibimbap in Hangeul first appeared in 1810 as **'Bubuyum'** in Mongyupyeon (夢喡篇; an encyclopedia created by **Jang Hon**…),"* with the later variant spellings. Also points to 『**Siuijonseo**』, called *"a cookbook compiled … in the **late Joseon Dynasty**"* — **and gives it NO year**. And to "Hondonban" in 『Kijaijabki』 (~1590). |
-| **AKS "The Birth of K-Food" (2025)** | 1921 『**Joseon yori jebeop**』: radish sprouts and bean sprouts into a pot, **heated, then mixed with rice**; *"the rice was stir-fried with other ingredients before being served"*. **1 December 1929** 『**Byeolgeon'gon**』: a **restaurant** bibimbap in **Jinju**, South Gyeongsang — sprouts, bracken, mung sprouts, cheongpomuk on the rice, **finely chopped raw beef (yukhoe)** and gochujang; the customer mixes. |
-| **Joo Young-ha (2010)**, *사회와 역사* 87, 2010.09, 5–38 (34pp) — Korean and English abstracts read; **full article paywalled** | Jeonju bibimbap, in the press since the 1960s, *"**1980년대 초반부터 전국적인 음식으로 자리를 잡았다**"* — a nationwide food **from the early 1980s**. *"**1990년대 말부터** 전주비빔밥이 **일본을 비롯하여** 해외로 진출"* — **from the late 1990s**, abroad including **Japan**. Home-style cook-mixed → restaurant eater-mixed. The competing accounts (harvest-season food; Donghak troops) are recorded as influential **discourses**, not a settled origin. |
-| **Brighton & Hove Museums**, "Trailblazer" | Names **Elizabeth David**, *A Book of Mediterranean Food*, and **moussaka** among its recipes, **1950**. The book itself was not read. |
+| `primary_inspected` | The **original record** was read — the 1864 book's own recipe text. |
+| `full_text_inspected` | The **complete modern source** was read. |
+| `abstract_only` | Only the **abstract** was read. It supports what the abstract states and nothing beyond it. |
+| `reported_only` | The claim comes through a secondary summary; the source was not reached. |
+| `inaccessible` | The source could not be reached at all. |
 
-### Not verified — access blocked, and labelled as such in the data
+### The evidence table
 
-| Chapter | Limitation |
-| --- | --- |
-| Moussaka 02 — Kremezi on the béchamel form | **HTTP 403** to the Neos Kosmos article. Reported, not inspected. The 2011 piece is itself a republication of an *Atlantic* article. **Should not be published until read.** |
-| Hot pot 01 — the 1934 table-service change | The Chongqing Morning Post page returned no readable content; neither the 1947 *Sichuan Times* nor the 1948 *Feng Tu Shi Zhi* could be consulted. Reported, not inspected. |
-| Hot pot 02 — the 1936 Chongqing→Chengdu transmission | As above. **Should not be published until a primary record is read.** |
+Every row says: the claim, the source, the locator, **what was actually inspected**, the corrections, and what remains unestablished.
 
-### Wording corrections made
+#### Bibimbap — 6 chapters
 
-- The **"late 19th century"** date for the Siuijeonseo is the **Encyclopedia's**; the 2023 review says only "late Joseon Dynasty". The fixture now attributes the date to the right source.
-- The 1810 record is a **name** record, and the Hangul form is **'Bubuyum'**. The fixture now says so.
-- The 1921 and 1929 records describe **different preparations**, not one linear development. The fixture now says so.
-- The Jeonju claim is **"became a national food from the early 1980s"**, never "originated in Jeonju".
+| # | Claim | Source | Locator | Material actually inspected | Corrections made | Not established |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | The Hangeul name first appeared in **1810** as "Bubuyum" | Mun, Lee & Cha (2023), *Journal of Ethnic Foods* 10, 39 | "History of bibimbap" section; Mongyupyeon paragraph | **Full article text** | The pack said "a Hangul form of bibimbap's name"; the article says it first appeared as "Bubuyum", and lists the later variants. The pack treated 1810 as a "historical name record"; it is a **name** record, and the review records an earlier recipe-record and an earlier attestation, so 1810 is not a beginning. | **Jang Hon's *Mongyupyeon* was not read.** The article points to *Siuijonseo* — "a cookbook compiled … in the **late Joseon Dynasty**" — and gives **no year**, so it cannot date that manuscript. |
+| 2 | The cook mixes the bowl before serving | AKS *Encyclopedia of Korean Culture*, "비빔밥" | Article body, content section | **Whole Korean article** (read in a browser — the body is JS-rendered) | The pack's ingredient list was checked against the article: rice, prepared meat, seasoned vegetables, sesame salt and plenty of oil, fried **튀각**, sliced fried egg, fried gochujang set aside, **참기름** to taste. The pack attributed the late-19th-century date to the 2023 review; it belongs to the **Encyclopedia**. The pack omitted that the Encyclopedia's own "first appearance" claim is not adopted. | **시유전서 was not read** — the encyclopedia quotes it. The date "1800년대 말" is the **Encyclopedia's**, not the review's. |
+| 3 | Mixed over heat, rather than simply assembled | AKS, *The Birth of K-Food* (2025) | Section 2 | **Whole section**, including the 1921 passage | The pack said "vegetables are heated in a pot and then stirred with rice"; the text is more specific — radish sprouts and bean sprouts into a pot, **heated**, then mixed with rice and seasonings, and "the rice was **stir-fried** with other ingredients before being served". | The **1921 cookbook** *Joseon yori jebeop* was not read. One recorded preparation, not the household norm. |
+| 4 | A topping arrangement is recorded | AKS, *The Birth of K-Food* (2025) | Section 2, the 1 December 1929 *Byeolgeon'gon* paragraph | **Whole section**, paragraph in full | The pack said "a topping arrangement with raw beef and gochujang"; the text lists bean sprouts, bracken, mung sprouts and **cheongpomuk** on the rice, then **finely chopped raw beef** and gochujang, and says the customer mixes it. | The **1 December 1929 issue** was not read. It is a **restaurant** serving — one setting, not the general way. |
+| 5 | Regional styles circulate nationally | Joo Young-ha (2010), *Society and History* 87, 2010.09, **pp. 5–38** (34 pp.) | Korean **and** English abstracts | **ABSTRACTS ONLY** — the full article is paywalled | The pack's "national recognition in the early 1980s" is the abstract's **"1980년대 초반부터 전국적인 음식으로 자리를 잡았다"**. The pack omitted that the paper attributes the spread to urbanisation from the 1970s and treats the competing accounts as influential **discourses**, not settled origin. The pack did not say the article was an abstract. **It was.** | The **full article** was not accessed. The abstract supports the early-1980s recognition and nothing more. |
+| 6 | The dish is adopted abroad | The same article | The same abstracts | **ABSTRACTS ONLY** | The pack's "overseas circulation, including adoption in Japan in the late 1990s" is the abstract's **"1990년대 말부터 전주비빔밥이 일본을 뿐만 아니라 해외로 진출"**, read as part of constructing a Jeonju-origin narrative. | The **full article** was not accessed. No first-arrival date, no route, no mechanism of the spread. |
 
----
+#### Moussaka — 3 chapters
 
-## 3. The 51-page public change, and why it is outside the pilot
+| # | Claim | Source | Locator | Material actually inspected | Corrections made | Not established |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | A **muzzakka** is printed in 1864 | *Turkish Cookery Book* (Turabi Efendi) | Internet Archive `b21527830`, University of Leeds Library copy | **THE ORIGINAL BOOK** — the edition metadata, the book's own **index**, and the **full OCR of receipt No. 106** with its ingredient and method lines | The pack's ingredient summary was checked against the recipe: a leg of mutton or lamb minced very fine, two or three chopped onions, two or three ounces of fresh butter, salt, **parsley**, three or four egg-plants in salt water, the meat and egg-plants laid **"in layers into a pan"**, **a pint of broth**, covered and simmered until the liquor is nearly absorbed. The pack's "simmers them in broth" is right but incomplete — the **layering** and the **parsley** are part of the record. The pack's "no béchamel appears" was verified by searching the recipe for béchamel, white sauce, flour and milk: **all absent**. | One recipe in one 1864 London edition. It is a **muzzakka**, not necessarily the ancestor of the modern Greek moussaka; the link is an editorial interpretation, and the absence of béchamel here does not mean béchamel was unknown. |
+| 2 | A béchamel-topped form is interpreted | Neos Kosmos, "The Greek Kitchen" | — | **NOTHING.** The article returned **HTTP 403** on every attempt on 12 November 2026. | The pack recorded this as "reported through a secondary summary" without saying the source was unreachable. **It is unreachable.** | **The claim is unresolved.** It is known only through the pack's own summary. The 2011 piece is also a republication of an *Atlantic* article, so the original may be the better source. **Not publishable.** |
+| 3 | A British cookbook prints the dish | Brighton & Hove Museums, "Trailblazer" | The account | **The whole museum account** | The pack said "described by Brighton & Hove Museums"; the account names **Elizabeth David**, *A Book of Mediterranean Food*, and **moussaka** among its recipes, with the year **1950** — stronger than the pack's summary. | The **book itself** was not read. That is readership and reception in British cooking, not origin and not first arrival. |
 
-**What changes publicly with the pilot OFF:** exactly one thing — on a dish with **no** journey beats, the Journey section now renders a **research-gap state** instead of nothing at all.
+#### Chongqing hot pot — 2 chapters, **neither publishable**
 
-| Before | After |
-| --- | --- |
-| The section renders **nothing**. A reader sees no journey, no explanation, no indication whether it is missing or broken. | The section renders: *"We have not yet verified a dated chronology for X… This is a research gap, not a claim that the dish is new."* |
+| # | Claim | Source | Locator | Material actually inspected | Corrections made | Not established |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | The 1934 table-service change | Lin Wenyu's 2023 essay | — | **NOTHING.** The Chongqing Morning Post page returned no readable content on 12 November 2026; neither the 1947 *Sichuan Times* nor the 1948 *Feng Tu Shi Zhi* could be consulted. | The pack recorded this as "the modern essay was inspected; the 1947–48 periodicals were not". **The modern essay could not be read either.** | **Unresolved.** The event date (1934), the record dates (1947–48) and the source's publication date (2023) are three different things and must not be merged. |
+| 2 | The 1936 Chongqing → Chengdu transmission | The same | — | **NOTHING**, for the same reason. | The pack recorded this as "original periodical issues not inspected", which reads as if the essay had been read. **It had not.** | **Unresolved** — and the more consequential of the two: a claimed movement between two cities is exactly what must not be drawn on a map while it rests on an unread source. |
 
-**Why this belongs outside the pilot:** it is not a design enhancement, it is a **correction of a defect that misleads**. A dish whose history has not been researched is currently presented exactly like a dish whose history is broken or absent. The research-gap state is also what makes the two **research-gap fixtures** meaningful, and it is the same state the brief requires the pilot to distinguish. Gating a defect fix behind a feature switch would leave every non-pilot dish in the misleading state for no editorial reason.
+### The tally is broken down, not aggregated
 
-**Can a fetch failure be distinguished reliably from missing research?** Yes, and it is now distinguished three ways:
-
-1. **The API returns `status`.** `"history"` when chapters exist, `"gap"` when the dish is published but has none. A 404 remains a 404 — an unknown slug is not a research gap.
-2. **The client distinguishes the two failures.** The route sets `journeyStatus = "unavailable"` when the journey request **throws**, and `"gap"` when it succeeds with no chapters. These render **different text**: an operational failure says *"This is a loading problem, not a statement about the dish's history"*; a gap says *"This is a research gap, not a claim that the dish is new."*
-3. **The two are not conflated by the component.** `status === "unavailable"` returns the operational message; `status === "gap"` returns the research-gap message; `status === "history"` renders the chapters.
-
-**Measured:** in the pilot-off build, 6 of 8 dish pages show the gap state, 2 show a populated journey (their beats exist in the database), and 0 show the unavailable state. No pilot class, no pilot CSS, no pilot chunk and no fixture text is present in the built output.
-
-**If you would rather it were gated:** set `journeyStatus` to `"gap"` only when the API confirms it, and move the gap copy behind `journeyPresentation`. That is a small change, but it leaves every non-pilot dish in the current misleading state — so my recommendation is to keep it outside the pilot, and to review it as its own change.
-
----
-
-## 4. Lineage wording now follows the recorded role
-
-The earlier sentence was **"Part of the X lineage — {role}."**, which asserted *membership* whatever the role was — and for an `ancestor` role read *"part of the X lineage — an ancestor of the X lineage"*.
-
-Now:
-
-- The **role** drives the sentence. A grouping role reads *"Part of the X lineage — a cousin dish."* A directional role reads *"An ancestor of the X lineage — X."* — never "part of".
-- The **caveat** is shown for a grouping and **withheld** for an explicit ancestry claim, because *"a culinary grouping is not a chain of descent"* would contradict an ancestor statement. A lineage's own `uncertaintyNote` always wins.
-- The **lineage name is stated once** (a short form names the relationship without repeating it).
-
-Covered by 8 new tests, including *"does NOT repeat the lineage name"*.
-
----
-
-## 5. Design coverage — measured
-
-All cases, both pilot dishes, the three other reference cases, the regression fixture and a non-pilot control, at **320 / 390 / 768 / 1280**.
-
-| Case | Chapters | Maps | State | Overflow |
-| --- | --- | --- | --- | --- |
-| `moussaka-greek` (pilot) | 3 | 3 | populated | none at any width |
-| `bibimbap` (pilot) | 6 | 6 | populated | none at any width |
-| `chongqing-hot-pot` (fixture) | 2 | 2 | populated | none at any width |
-| `century-egg-tofu` (fixture) | 0 | 0 | **research gap** | none at any width |
-| `beyaynetu` (fixture) | 0 | 0 | **research gap** | none at any width |
-| `chicken-tikka-masala` (regression) | 0 | 0 | gap state, legacy presentation preserved | none at any width |
-| `vindaloo` (non-pilot control) | — | — | **unchanged** | none at any width |
-
-**Map failure (WebGL disabled):** 3 of 3 maps show the fallback panel, and **the chapters, citations and research-limit notes all remain readable** — the prose never depends on the map.
-
-**Keyboard:** the section nav has 5 links (Journey, Ingredients, Variations, Preparation, Sources), all `href="#…"` with a **confirmed target element**, all focusable.
-
-**Reduced motion:** transitions are `0s`.
-
-**Screenshots:** `docs/gus-238-screenshots/` — each case at 390 and 1280, plus the map-failure state.
-
-### Defects found and fixed by rendering
-
-1. The grid pinned every map to row 1 and every text to row 2; with six chapters the cells overflowed and the texts **overlapped**. Now each chapter's map and text share a column, and the chapter row picks the grid row — six chapters lay out as **two rows of three**.
-2. `setPaintProperty(layer, props)` threw `e.endsWith is not a function` — the runtime resolved the group form against the single-property signature. The palette is now applied one property at a time.
-3. `React.lazy()` + `Suspense` caused **hydration error #419**: Astro renders the island on the server where `lazy()` resolves, but the client suspends on first render. The dynamic import is now resolved *before* rendering, so both sides agree.
-4. The pilot's stylesheet was in the bundle **every dish page loads**. It is now a runtime link from `public/pilot/`, added only when the pilot renders.
-5. `grid-column: attr(data-djc-col)` is not supported by Chrome, so the grid collapsed to one column. Reverted to custom properties, written as an object with a stable key order so hydration stays clean.
-
-### Map resilience
-
-The CARTO vector tile service can fail **silently**: the style, fonts and sprite load, and the map is an empty canvas that still shows attribution and a scale bar. **The LIVE site showed the same symptom at the same moment**, so it is a provider outage, not a per-page defect. The journey maps now probe the vector service once and fall back to **OSM's raster tiles**, verified reachable for every region the pilot frames.
-
----
-
-## 6. The one thing that needs you
-
-The migration list is in five files; CI compares three of them and fails if they disagree. The `gustale-bot` App is **refused by GitHub for touching a workflow file** (no `workflows` scope), so the `ci.yml` copy ships as a patch:
-
-```bash
-cd <repo>
-git checkout feature/gus-dish-journey-osm-cards
-git apply docs/ci-238-migration-chain.patch
-git commit -m "ci: add the GUS-238 migration to the CI chain"
-git push
+```
+moussaka-greek   3 chapters: 1 primary · 1 full text · 1 inaccessible · 1 unresolved · 2 publishable
+bibimbap         6 chapters: 4 full text · 2 abstract only · 0 unresolved · 6 publishable
+chongqing-hot-pot 2 chapters: 0 primary · 0 full text · 2 inaccessible · 2 unresolved · 0 publishable
 ```
 
-The patch is verified to apply cleanly. **After it is applied**, `scripts/validate-ci-migration-chain.py` reports *"CI migration chain OK (55 migrations, all three lists agree)"* — I confirmed this by applying the patch to a clean worktree at the PR head and running the validator.
-
-The **Live approval gate** also fails, by design: the PR touches `db/migrations/`, so it needs the `approved-live` label, which only you may apply.
+The component shows the level, what was inspected, what is not established, and the corrections, inside the existing "Evidence & research limits" disclosure. An unresolved chapter says so and is not publishable.
 
 ---
 
-## 7. The schema extension, and why it is needed
+## 3. Item 4 — the research-gap wording, and what counts as unavailable
 
-`dish_journey_beats` could hold a place, a point, an approximate year, a label, a confidence value and one source. It **could not** hold what a historical chapter needs:
+### The wording
 
-| Requirement | Why the existing fields cannot carry it |
+Zero journey records proves only that **no records were returned**. It does not prove the dish is unresearched — it may be well documented and not yet written up here, or the project may not have looked at it.
+
+| | Before | Now |
+| --- | --- | --- |
+| Lede | "We have not yet verified a dated chronology for X." | "A dated history of X is not available yet." |
+| Body | "The history of X is still being researched." | "No historical journey is available for X yet. There are no dated chapters for it at present…" |
+| Note | "**This is a research gap**, not a claim that the dish is new." | "A chapter appears here only when a traceable historical record supports it." |
+
+The removed sentence asserted a **research status** that nothing in the data establishes.
+
+### Fetch failure versus missing research
+
+Three mechanisms, so the two cannot be confused:
+
+1. **The API returns `status`** — `history` or `gap`. A 404 stays a 404; an unknown slug is not a gap.
+2. **The route sets `unavailable` only when the request throws.**
+3. **A malformed response is now rejected by the client.** `getDishJourney` validates the shape — the body must be an object, `beats`/`lineages`/`movements` must be arrays, `status` must be `history` or `gap`, and every beat needs an `id`, a `sequence` and a `label`. A body that fails validation throws, and the route's catch sets `unavailable`.
+
+Before this change a 200 with a malformed body was indistinguishable from an empty history, so **a broken response could be presented as an editorial statement about the dish.**
+
+The two states render different words: *"This is a loading problem, not a statement about the dish's history"* versus *"No historical journey is available for X yet."*
+
+**Covered by 21 tests** in `journeyStates.test.ts`: 15 malformed bodies (null, a string, a number, an array, a missing `beats`, non-array `beats`/`lineages`/`movements`, an unusable or missing `status`, beats without an id/sequence/label, a null beat) are all rejected; a valid gap with zero beats is **accepted**; and the wording tests assert the gap copy contains none of the over-claiming phrases.
+
+---
+
+## 4. Item 5 — the map fallback
+
+### What was observed
+
+On 12 November 2026 the CARTO **style** loaded (200) while the **vector tiles** did not, and the live `gustale.com` dish map showed the same symptom at the same moment. **That is a shared symptom, not proof of a provider outage** — it could equally be a network or CDN-path problem affecting both. The report no longer asserts a cause.
+
+What was reproducible, and is now fixed:
+
+- The probe ran **once per map card**, so a six-chapter page made six probe requests and six four-second waits on a failing service, and could get six different answers — so a page could show a **mix** of vector and raster maps.
+- With both tile services blocked, the page made **39 tile requests** to a service it had just found unreachable.
+- A map that had **loaded but painted nothing** sat blank, with attribution and a scale bar, and no explanation.
+
+### The fix
+
+The probe is **one shared, cached decision** for the page, and it distinguishes two failures that need opposite handling:
+
+| Probe result | Meaning | Behaviour |
+| --- | --- | --- |
+| `ok` | The vector service answers. | Vector tiles. |
+| `vector_down` | The **style** loaded but the vector **tiles** did not: the provider's tile service is broken, the network is fine. | OSM's raster tiles. |
+| `network_down` | Neither loaded: the network is blocked. | **No tile service is asked for anything.** The fallback panel shows the place name and the reason. |
+
+The style is fetched **first**, because it answers "is the network working at all". That is what separates "the provider is broken" from "the network is down".
+
+A map that has loaded but painted nothing now shows its fallback, detected with MapLibre's **documented** `queryRenderedFeatures()`. The earlier version reached into the private `style.sourceCaches` and reported "no tiles" on a map that had fetched 28 of them — so every map wrongly showed its fallback.
+
+### Measured, in a real browser
+
+**Network blocked** (`Network.setBlockedURLs` on both services):
+
+```
+tile requests total        : 2      (was 39)
+probe requests (style)     : 1      (once for the page)
+probe requests (tile)      : 0      (no tile service was asked)
+FALLBACK PANELS SHOWN      : 3/3
+citations still present    : 3
+research-limit notes       : 3
+chapter headings           : 3
+```
+
+**Normal path** (services reachable), 6-chapter page:
+
+```
+distinct style URLs requested : 1
+distinct tile URLs             : 28
+FALLBACK panels (should be 0)  : 0
+canvases                       : 6
+attribution shown              : © OpenStreetMap contributors © CARTO
+scale controls                 : 6
+```
+
+Both paths: **all checks passed.**
+
+### The OSM tile policy
+
+The policy was read at `operations.osmfoundation.org/policies/tiles/`. Each requirement, and what this code does:
+
+| Policy | This implementation |
 | --- | --- |
-| The chapter's own title, distinct from its explanation | `label` is one text column used for the explanation |
-| The date **as displayed** — "1810", "c. 1810", "1810–1820", "late 19th century", "1930s" | `year_approx` is an integer; a range, a century and "unknown" cannot be represented, and a missing date would have to be encoded as 0 |
-| The **kind** of record — primary record, scholarly interpretation, reported account | `confidence` answers "how sure are we"; reusing it would conflate two different facts and change a constraint other code reads |
-| The **bibliographic locator** — page, recipe number, section | the source's fields carry title, URL, year and reliability only |
-| The **authors** of the cited work | not present |
-| The place's **role** — attestation, preparation context, adaptation, reception, circulation | `place_name` is a name; the role is a separate editorial claim |
-| The **scope note** — what the record establishes, and whether the original was read or reported | not present |
-| Broad regional **framing** and named regions | only a point could be stored; a region is not a point |
-| **Source-supported movements** — a claimed transmission between two chapters, with its own claim and source | there is no table for a relation between beats; chapter order and map proximity must never imply one |
+| Use `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Exactly that URL |
+| Provide visible licence attribution | The map's attribution control shows "© OpenStreetMap contributors" |
+| Send a valid HTTP User-Agent identifying the application | `Gustale Atlas/1.0 (https://gustale.com)` via `transformRequest` |
+| Send a valid HTTP Referer from web pages | `https://gustale.com/`, also via `transformRequest` |
+| Use a restrictive Referrer-Policy that prevents the Referer being stripped | `<meta name="referrer" content="strict-origin-when-cross-origin" />` on the document |
+| Cache tiles per the HTTP caching headers | MapLibre's default |
+| **Must not** bulk-download, scrape, or offer prefetch | One tile at zoom 0, as a reachability probe, and it is to CARTO's own service |
+| **Must not** send `no-cache` headers by default | The probe sends none |
+| **Must not** use a permissive Referrer-Policy | Set as above |
 
-**The extension:** ten **nullable** columns on `dish_journey_beats` (`title`, `date_label`, `date_precision`, `evidence_kind`, `locator`, `authors`, `place_role`, `scope_note`, `bounds`, `regions`), each with a CHECK constraint on its vocabulary, plus one new table `dish_journey_movements` for the transmission edges.
+The raster fallback is used **only** when the probe has already established that the vector service is down. In the normal case the OSM service is never contacted at all.
 
-**Compatibility:**
-- The **confidence enum is untouched** — the CHECK constraint still reads `('documented','likely','possible','parallel')`, and the new `evidence_kind` is a separate field with its own constraint.
+---
+
+## 5. Item 2 — the ingredient fixtures, and the real missing state
+
+### The five presentations
+
+| Dish | Heading | Cards | Optional | Preparation notes |
+| --- | --- | --- | --- | --- |
+| `bibimbap` | **In the bowl** | 10 | 1 | 6 |
+| `moussaka-greek` | **In the bake** | 9 | 1 | 4 |
+| `chongqing-hot-pot` | **At the table** | 11 | 1 | 4 |
+| `century-egg-tofu` | **On the plate** | 6 | 1 | 1 |
+| `beyaynetu` | **On the platter** | 9 | 2 | 5 |
+
+The heading names the dish's **form**, because the form is part of what the reader is being told. Every card links to a real ingredient page (`gustale.recipes/ingredients/<slug>`), and every slug is a usable path segment.
+
+**LOCAL REVIEW DATA** — read from a module, never seeded, never written to a database. For a dish with a review fixture and the pilot **on**, the fixture's set is used; every other dish uses the published rows unchanged.
+
+### The real missing-ingredient state, measured
+
+Of the eleven published dishes in the review database, **only `moussaka-greek` has ingredient rows** (4). The other ten have none.
+
+The section therefore **shows no section at all** for those dishes — the component returns `null` for an empty list. An empty "In the bowl" heading over nothing would be worse than no section, and that is the behaviour.
+
+### Verified in the browser
+
+All five presentations: heading correct, card count correct, every card a link to `/ingredients/…`, no broken hrefs.
+
+---
+
+## 6. Item 1 — Countries & styles
+
+**It was already implemented.** There was no new content model to invent, and none was added.
+
+| Layer | What exists |
+| --- | --- |
+| Table | `dish_place_associations` — six typed relationships (`historical_emergence`, `established_tradition`, `regional_adaptation`, `later_introduction`, `earliest_documentation`, `legacy_unreviewed`), `entity_kind` (`place` \| `community`), `explanation`, `qualifiers`, `provenance`, `evidence_status`, `dispute_state`, `research_outcome`, `review_state`, `publication_state` |
+| Entities | `geo_entities` (a place: a country, a region, a cross-border area) and `dish_traditions` (a **community**: a people or a practice) |
+| API | `GET /api/dishes/:slug/atlas` → `placesAndTraditions` |
+| Component | `<AtlasPlaces>`, mounted on **every** dish page |
+
+### Measured
+
+| Dish | Associations | What the section shows |
+| --- | --- | --- |
+| `falafel` | 2 published | "Established tradition" + "Other associations", 2 rows with their evidence badges |
+| `rendang` | 3 published | the same |
+| `moussaka-greek` | 2, all draft | "No association has been published for this dish yet." + the legacy discovery value "Associated with Greece · GR" with its warning |
+| `beyaynetu`, `bibimbap` | 0 | "No association has been published for this dish yet." |
+
+The empty-state copy is already exactly what the data supports — the same principle as item 4.
+
+### The gap was the nav
+
+The section nav offered **Journey, Ingredients, Variations, Preparation, Sources** — and no link to the places and traditions that were on the page. The nav now always reaches it.
+
+The link's label is the section's own heading, **"Places & traditions"**, rather than "Countries": a place association can be a country, a region, a cross-border area **or a community**. "Israeli cuisine" is not a country and "Minangkabau" is a people, so "Countries" would misname most of the section's own rows.
+
+### Populating real associations — proposed, not started
+
+**This is a separate research work package and I have not started it.** It needs a decision from you, because it is editorial:
+
+- **Which dishes.** All five pilot dishes, or a smaller first batch?
+- **Which relationships.** `established_tradition` and `regional_adaptation` are the "countries and styles" claims; `historical_emergence` and `earliest_documentation` are *historical* claims and overlap the Journey's territory, which would risk two sections making the same claim differently.
+- **What counts as `established_tradition` for a community.** "Israeli cuisine" as a tradition is a different kind of claim from "Greek cuisine", and the model stores both under one relationship type.
+- **Who reviews.** Every existing published association is `evidence_status = unevidenced` and `review_state = unreviewed`. A section that says "Countries & styles" while every row is unreviewed would be presenting discovery values as findings. Either the associations are reviewed first, or the section says what they are.
+
+---
+
+## 7. Item 6 — the schema extension
+
+### The migration
+
+`db/migrations/gus-238-journey-editorial-fields.sql` — **additive only**.
+
+**Ten nullable columns on `dish_journey_beats`:**
+
+| Column | Why the existing fields cannot carry it |
+| --- | --- |
+| `title` | `label` is one text column, used for the explanation. A chapter needs a headline **and** a body. |
+| `date_label` | The date **as displayed**: "1810", "c. 1810", "1810–1820", "late 19th century", "1930s". |
+| `date_precision` | Whether that label is exact, a range, a decade, a century or approximate — so the renderer knows how to present it. |
+| `evidence_kind` | The **kind** of record: primary, reference work, scholarly interpretation, reported account. `confidence` answers "how sure are we"; reusing it would conflate two different facts and change a constraint other code reads. |
+| `locator` | The bibliographic locator — page, receipt number, section. The source's fields carry title, URL, year and reliability only. |
+| `authors` | The authors of the cited work. Not present. |
+| `place_role` | The place's role — attestation, preparation context, adaptation, reception, circulation. `place_name` is a name; the role is a separate editorial claim. |
+| `scope_note` | What the record establishes, and whether the original was read or reported through a summary. Not present. |
+| `bounds` | Broad regional framing. Only a **point** could be stored, and a region is not a point. |
+| `regions` | Named regions. Not present. |
+
+Each has a **CHECK constraint** on its vocabulary.
+
+**One new table: `dish_journey_movements`** — the source-supported transmission edges between chapters, with their own claim and source. There was no table for a relation between beats, and chapter order and map proximity must never imply one.
+
+### Compatibility
+
+- The **confidence enum is untouched** — the CHECK constraint still reads `('documented','likely','possible','parallel')`. The new `evidence_kind` is a separate field with its own constraint.
 - Every new column is **nullable**, so existing rows and existing consumers are unaffected.
 - **No new lineage table, no new relationship type, no competing journey store, no new endpoint family.**
 - **No historical record is created or promoted.** The migration is empty structure.
 
-**How it was tested:** `bash scripts/ci-migration-chain.sh gustale_cichain_test` → **`FULL_CI_CHAIN_OK=1`**, against the **disposable** `gustale-test-postgres` container on port 5434 (never the live database). The chained database was then inspected: all ten columns present, `dish_journey_movements` present.
+### How it was tested
 
-**Rollback:** the columns are nullable and the table is separate, so a rollback is `DROP TABLE dish_journey_movements` plus `DROP COLUMN` on the ten. **If editorial records have been approved and written, drop the table only after exporting them.** The pilot is off by default, so turning it off restores the previous presentation for every dish.
+Against the **disposable** `gustale-test-postgres` container on port 5434 — never the live database:
 
----
+```
+bash scripts/ci-migration-chain.sh gustale_cichain_test
+  → FULL_CI_CHAIN_OK=1
 
-## 8. Domain behaviour — verified, unchanged
+the chained database, inspected:
+  the 10 new columns on dish_journey_beats   present
+  dish_journey_movements                      present
+```
 
-No domain, DNS, hosting or Caddy change is made by this work. What the four requested surfaces actually do, measured with redirects **not** followed:
+And on the patched PR head, for the full chain: **`FULL_CI_CHAIN_OK=1`**, with the 10 columns and the table confirmed in the resulting database.
 
-| Surface | HTTP | Canonical | Belongs to |
-| --- | --- | --- | --- |
-| `gustale.com/` | 200, served directly | `https://gustale.com/` | **ATLAS** |
-| `gustale.com/dishes/` | 200, served directly | `https://gustale.com/dishes` | **ATLAS** |
-| `recipes.gustale.com/` | 200, served directly | **`https://gustale.recipes/`** | **RECIPES** |
-| `recipes.gustale.com/dishes/` | 200, served directly | **`https://gustale.recipes/dishes`** | **RECIPES** |
+### Rollback
 
-And for comparison, the canonical Recipes origin itself:
+The pilot is **off** by default, so turning it off restores the previous presentation for every dish immediately — no schema change is needed to stop the feature.
 
-| Surface | HTTP | Canonical |
-| --- | --- | --- |
-| `gustale.recipes/` | 200 | `https://gustale.recipes/` |
-| `gustale.recipes/dishes/` | 200 | `https://gustale.recipes/dishes` |
+If the schema itself is rolled back:
 
-**Findings:**
-- **No surface redirects.** All seven return 200 directly.
-- **`recipes.gustale.com` is an alias**: it serves the Recipes site and correctly canonicalises to `gustale.recipes`. It is **not** in `infra/prod/Caddyfile`, which routes `gustale.recipes` + `www.gustale.recipes`. This is why it works — it falls through to the default block — and it is a **pre-existing** configuration, not something this PR changes.
-- **`recipes.gustale.com/dishes/` correctly canonicalises to `gustale.recipes/dishes`**, so the alias does not create a duplicate-content problem.
-- A dish page (`gustale.com/dishes/bibimbap`) declares **11 hreflang alternates** with `x-default`; the list pages declare none, which is the existing behaviour for index pages.
+```sql
+DROP TABLE IF EXISTS dish_journey_movements;
+ALTER TABLE dish_journey_beats
+  DROP COLUMN IF EXISTS title,
+  DROP COLUMN IF EXISTS date_label,
+  DROP COLUMN IF EXISTS date_precision,
+  DROP COLUMN IF EXISTS evidence_kind,
+  DROP COLUMN IF EXISTS locator,
+  DROP COLUMN IF EXISTS authors,
+  DROP COLUMN IF EXISTS place_role,
+  DROP COLUMN IF EXISTS scope_note,
+  DROP COLUMN IF EXISTS bounds,
+  DROP COLUMN IF EXISTS regions;
+```
 
-**The recommendation, unchanged:** the canonical Recipes origin is `gustale.recipes`. `recipes.gustale.com` works, but it is an alias with no Caddy entry and no canonical of its own — worth tidying as a **separate** infrastructure change, with its own approval, and explicitly **not** as part of this design work.
-
----
-
-## 9. Ingredients and countries/styles — kept in the assessment
-
-**Ingredients.** The visible ingredient overview is a **presentation of the dish's existing `DishIngredient` rows** — the same rows the detailed list below already uses, rendered as cards that open the detailed explorer. No second content model, no invented ingredient, and the copy says *"A representative preparation. Ingredients vary by style and by cook."* Optional components are marked optional.
-
-It renders only where the dish **has** ingredient rows. In the review database only `moussaka-greek` has them, so the other reference cases show no ingredient cards — which is correct behaviour, not a gap: **the reference pack's countries/styles and ingredient content is editorial material that belongs in the content model, not in the layout.** Those cases have no published ingredient rows to show.
-
-**Countries & styles.** This is **present-day** material, deliberately separate from the historical Journey, and it is **not** implemented in this PR. The pack's own references (the Sapporo education board's school-lunch recipe, CJ's December 2025 consumer survey, KFPI's 2025 survey) are current-context material with their own scope rules — *"do not infer country popularity or national variations from restaurant locations"*, *"this pooled number is not attributed to each country or a national ranking"*. Publishing it needs:
-
-1. a content model for a present-day country/style section that does not exist yet, and
-2. an editorial decision on which countries qualify.
-
-The brief's own scope allows this: *"Add further countries only when their evidence is available."* Doing it from the pack's summary alone would publish numbers the pack itself warns are scoped. **This is an editorial task, not a layout task**, and it is listed in §11 as outstanding.
+**This is destructive to any editorial records written into those columns.** With the pilot off there are none, so the rollback is safe today. If records are approved and written later, **export them first**.
 
 ---
 
-## 10. Validation results
+## 8. Validation — what actually passed
+
+Every row below is a real run. **Local runs are labelled local.**
 
 | Check | Result |
 | --- | --- |
-| Web unit tests | **48 / 48 pass** (27 journey semantics, 13 fixture contracts, 8 lineage wording) |
-| API tests (new) | **9 / 9 pass** (`dishes-journey-v2.test.ts`) |
-| API suite (full) | **22 files, 217 passed, 3 skipped, 0 failed** |
+| Web unit tests | **111 / 111 pass** |
+| API tests — journey v2 + journey | **12 / 12 pass** (against the patched, chained DB) |
+| API suite — full | **22 files, 217 passed, 3 skipped, 0 failed** (against the patched, chained DB) |
 | `astro check` | **77 errors, 0 in the changed files** (baseline `origin/main`: 83) |
-| Biome (`pnpm lint` gate) | **exit 0** — no format or error-level findings in the changed files |
-| Atlas build, pilot OFF | **127 pages, exit 0** |
-| Atlas build, pilot ON | **127 pages, exit 0** |
-| Recipes build | **127 pages, exit 0** — no pilot CSS, no fixture data |
-| `validate-ci-migration-chain.py` | **"CI migration chain OK (55 migrations, all three lists agree)"** — after applying the patch |
-| `scripts/ci-migration-chain.sh` | **`FULL_CI_CHAIN_OK=1`** on the disposable database |
-| Pilot isolation | with the pilot off: **no pilot chunk, no pilot CSS, no fixture text** in any of the 132 built pages |
-| Domain check | all four surfaces: **200, no redirect**, canonicals as in §8 |
-| Map failure (WebGL off) | 3/3 fallbacks, **prose and citations intact** |
-| Keyboard | 5 nav links, all targets confirmed, all focusable |
-| Reduced motion | transitions `0s` |
+| Biome (the CI lint command) | **exit 0** — 266 files, no format or error-level findings |
+| API typecheck | **exit 0** |
+| DB typecheck | **exit 0** |
+| Atlas build, pilot OFF | **exit 0** — 180 pages |
+| Atlas build, pilot ON | **exit 0** — 180 pages |
+| `validate-ci-migration-chain.py`, patched | **"CI migration chain OK (55 migrations, all three lists agree)"** — exit 0 |
+| `ci-migration-chain.sh`, patched | **`FULL_CI_CHAIN_OK=1`** |
+| Pilot isolation, pilot OFF | **PILOT FULLY ABSENT** — no pilot chunk loaded by any of the 180 pages, no pilot CSS linked, no fixture string in any page, 0 pages with `dj--v2` |
+| Pilot scope, pilot ON | 5 pages carry `dj--v2` (the 5 pilot dishes); the fixture content appears in exactly 1 |
+| The public change, pilot OFF | **90 pages** carry the "not available yet" state; **0** carry "unavailable" |
+| Map — network blocked | tile requests **2** (was 39); 3/3 fallbacks; citations, notes and headings intact |
+| Map — normal path | 28 tile URLs, 6/6 maps with attribution and a scale bar, 0 fallbacks |
+| Ingredients — five presentations | all five: heading, card count, links, optional flag and preparation notes correct |
+| Places & traditions | 2 rows for falafel, 3 for rendang, the discovery-value warning for moussaka, the empty state for beyaynetu and bibimbap |
+| Domain check | all four surfaces: **200, no redirect**, canonicals as in §10 |
+
+### The coverage matrix
+
+| Case | Chapters | Maps | Ingredient cards | State |
+| --- | --- | --- | --- | --- |
+| `moussaka-greek` (pilot) | 3 | 3 | 9 | populated |
+| `bibimbap` (pilot) | 6 | 6 | 10 | populated |
+| `chongqing-hot-pot` (fixture) | 2 | 2 | 11 | populated |
+| `century-egg-tofu` (fixture) | 0 | 0 | 6 | not available yet |
+| `beyaynetu` (fixture) | 0 | 0 | 9 | not available yet |
+| `chicken-tikka-masala` (regression) | 0 | 0 | — | legacy presentation preserved |
+| `vindaloo` (non-pilot control) | — | — | — | **unchanged** |
+
+Widths **320 / 390 / 768 / 1280**: no horizontal overflow on any case at any width. Six chapters lay out as **two rows of three**. Keyboard: the section nav has 6 links, every target confirmed present, all focusable. Reduced motion: transitions `0s`.
 
 ---
 
-## 11. Outstanding — what genuinely needs access or an editorial decision
+## 9. Item 7 — the CI patch, and the exact owner action
 
-1. **Apply `docs/ci-238-migration-chain.patch`** — the App cannot push workflow files. Until then the Tests job fails with 500s.
-2. **Apply the `approved-live` label** — the PR touches `db/migrations/`.
-3. **The Neos Kosmos article (HTTP 403)** — needed before the moussaka 02 chapter can be published. It is also a republication of an *Atlantic* article, so the original may be the better source.
-4. **The Chongqing Morning Post essay** — needed before either hot-pot chapter can be published. Both are marked "reported" in the data.
-5. **The missing `gustale-osm-lineage-reference.png`** — if it exists, the map style should be reconciled against it.
-6. **Countries & styles** — needs a content model and an editorial decision on which countries qualify.
-7. **The four reference fixtures have no published ingredient rows**, so the ingredient cards do not appear for them. Reviewing that state needs seeded ingredients for the fixtures.
-8. **`gustale.recipes` vs `recipes.gustale.com`** — a separate infrastructure tidy-up, with its own approval.
-9. **The live `recipe.gustale.com` canonical points at `gustale.recipes`**, which is correct, but the alias has no Caddy entry of its own. Not changed here.
+### What is failing on GitHub, and why
+
+CI's `Lint + typecheck` job has **eight** steps. **Seven pass**: Set up job, checkout, pnpm, Node, install dependencies, **Typecheck**, **Validate seed data**, **Lint**. One fails:
+
+```
+Validate the CI migration chain → CI migration chain MISMATCH
+```
+
+The `Tests` job fails with `expected 500 to be 200` on the journey tests, because CI's database is built without the new columns.
+
+Both have the **same single root cause**: the `ci.yml` copy of the migration list does not include `gus-238-journey-editorial-fields.sql`.
+
+### The permission boundary
+
+`gustale-bot` is a GitHub App with `contents: write` and `pull_requests: write`, but **no `workflows` scope**. GitHub refuses a push that touches `.github/workflows/`:
+
+```
+refusing to allow a GitHub App to create or update workflow
+`.github/workflows/ci.yml` without `workflows` permission
+```
+
+So the `ci.yml` copy ships as a **patch file**. The other four copies — `scripts/ci-migration-chain.sh`, `scripts/repro-ci-db.sh`, `scripts/probe_migration_order.sh`, `scripts/repro-ci-test-job.sh` — are updated and pushed.
+
+### The patch
+
+`docs/ci-238-migration-chain.patch` — **regenerated from the current `ci.yml`**, not from the state it was first generated from, so it cannot reference stale context.
+
+```
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -540,6 +540,7 @@ jobs:
+             db/migrations/gus-014-technique-fallback.sql
+             db/migrations/gus-224-relations-option-b.sql
+             db/migrations/gus-227-preparation-method-names.sql
++            db/migrations/gus-238-journey-editorial-fields.sql
+             db/migrations/gus-242-seed-countries.sql
+             db/migrations/gus-242-seed-country-names.sql
+             db/migrations/gus-242-seed-cuisines.sql
+```
+
+### The one command you run
+
+```bash
+git checkout feature/gus-dish-journey-osm-cards && git apply docs/ci-238-migration-chain.patch && git commit -m "ci: add the GUS-238 migration to the CI chain" && git push
+```
+
+### What has been verified — and where
+
+**Against the PR head `3e95598`, locally** (not on GitHub, because the patch is not pushed):
+
+| Check | Result |
+| --- | --- |
+| `git apply --check` against the current `ci.yml` | applies cleanly |
+| `validate-ci-migration-chain.py` **with the patch applied** | **"CI migration chain OK (55 migrations, all three lists agree)"** — exit 0 |
+| `ci-migration-chain.sh` **with the patch applied** | **`FULL_CI_CHAIN_OK=1`** |
+| The 10 new columns + `dish_journey_movements` in the chained database | present |
+| Journey API tests against that database | **12 / 12 pass** |
+| Full API suite against that database | **22 files, 217 passed, 3 skipped, 0 failed** |
+| API + DB typecheck | exit 0 |
+| Biome | exit 0 |
+
+**These are local runs against a disposable chained database.** They are not a GitHub CI run. **After you push the patch, GitHub's CI will re-run** — and its result, not mine, is what counts.
+
+### `approved-live` — what it authorises
+
+The **Live approval gate** fails by design, because the PR touches `db/migrations/`. It reads the `approved-live` label and refuses to proceed without it.
+
+**What the label authorises:** it authorises **this PR's migration to be applied to the LIVE production database** — the `gustale` database on the VPS at `62.72.7.218`. It is not a code-review sign-off and not a deploy approval; it is the switch that lets a migration touch production data.
+
+**What it does not do:** it does not merge the PR, and it does not deploy the site.
+
+**What I have not done, and will not do without you:** apply the migration to the live database. The migration is additive — ten nullable columns and one new table — so it does not destroy anything, but "additive" is not the same as "no need for a backup and a receipt". The runbook's sequence is preflight → backup → dry-run → apply → verify → receipt, and the live database is reachable only from the VPS.
 
 ---
 
-## 12. What changed and what did not
+## 10. Domain behaviour — verified, unchanged
 
-**Changed:** the dish-page Journey presentation (pilot-gated), the research-gap and fetch-failure states (all dishes), the lineage section (pilot-gated), the visible ingredient overview (pilot-gated), the sticky section nav (pilot-gated), one additive migration, the journey payload, and the map's tile-source resilience.
+No DNS, hosting or Caddy change. Measured with redirects **not** followed:
 
-**Not changed:** the confidence enum; the lineage data model; any existing component's behaviour outside the Journey section; `gustale.recipes`; DNS, hosting or Caddy; any live database; the Recipes site's design; the editorial content model.
+| Surface | HTTP | Canonical | Belongs to |
+| --- | --- | --- | --- |
+| `gustale.com/` | 200, no redirect | `https://gustale.com/` | **ATLAS** |
+| `gustale.com/dishes/` | 200, no redirect | `https://gustale.com/dishes` | **ATLAS** |
+| `recipes.gustale.com/` | 200, no redirect | **`https://gustale.recipes/`** | **RECIPES** |
+| `recipes.gustale.com/dishes/` | 200, no redirect | **`https://gustale.recipes/dishes`** | **RECIPES** |
+| `gustale.recipes/` | 200, no redirect | `https://gustale.recipes/` | RECIPES |
+| `gustale.recipes/dishes/` | 200, no redirect | `https://gustale.recipes/dishes` | RECIPES |
 
-**Not done:** no merge, no deploy, no auto-merge, no approval label, no live migration, no published editorial data.
+`recipes.gustale.com` is a **DNS alias** on the same IP that serves the Recipes site and correctly canonicalises to `gustale.recipes`. It has **no Caddy entry of its own** — `infra/prod/Caddyfile` routes `gustale.recipes` + `www.gustale.recipes` — which is why it works: it falls through to the default block. Pre-existing, and deliberately **not** changed here.
+
+A dish page (`gustale.com/dishes/bibimbap`) declares **11 hreflang alternates** with an `x-default`; the index pages declare none, which is the existing behaviour.
+
+---
+
+## 11. Unresolved evidence gaps
+
+| # | Gap | Why it is still open |
+| --- | --- | --- |
+| 1 | **The Neos Kosmos article** (moussaka chapter 2) | HTTP 403 on every attempt. The claim is unresolved and the chapter is not publishable. The 2011 piece is also a republication of an *Atlantic* article, so the original may be the better source. |
+| 2 | **The Chongqing Morning Post essay** (both hot-pot chapters) | No readable content. Both chapters are not publishable. |
+| 3 | **Joo Young-ha (2010), full text** | Paywalled. The abstracts support the early-1980s recognition and the late-1990s spread, and nothing more. |
+| 4 | ***Mongyupyeon* (1810), *Siuijeonseo*, *Joseon yori jebeop* (1921), *Byeolgeon'gon* (1929)** | All four are quoted by sources that **were** read, but the originals were not. Each chapter says which. |
+| 5 | **Elizabeth David's *A Book of Mediterranean Food* (1950)** | The museum's account was read; the book was not. |
+| 6 | **`gustale-osm-lineage-reference.png`** | **Does not exist** in either archive — the two reference images are hero shots with no map. The map style was derived from the 21 reference JPGs' palette plus the site's own basemap. **A documented reference gap, not a blocker.** |
+| 7 | **The CARTO tile failure** | The symptom is recorded and the behaviour is fixed; the **cause is not established**. It could be a provider outage, a CDN path problem or a local network issue. |
+| 8 | **Real place associations for the pilot dishes** | Not started — it is an editorial work package, proposed in §6. |
+
+---
+
+## 12. What needs your access
+
+1. **Run the patch command** (§9) — one command; it is the only thing standing between the branch and a green CI.
+2. **Decide whether to apply `approved-live`** — this authorises the migration to touch the **live** database. It is additive, but it still needs the runbook's preflight → backup → dry-run → apply → verify → receipt sequence, on the VPS.
+3. **Decide the scope of the real place associations** (§6) — four questions: which dishes, which relationships, what counts as an established tradition for a community, and who reviews.
+4. **Supply the two unreachable sources** (or confirm those chapters stay unpublished) — the Neos Kosmos article and the Chongqing Morning Post essay.
+
+---
+
+## 13. What changed and what did not
+
+**Changed:** the dish-page Journey presentation (pilot-gated); the "not available yet" state (every dish); the lineage section (pilot-gated); the visible ingredient overview (pilot-gated); the section nav (now reaches the places & traditions section); one additive migration; the journey payload; the map's tile-source resilience; the per-chapter evidence record; the journey response validation.
+
+**Not changed:** the confidence enum; the lineage data model; the `dish_place_associations` model; any existing component's behaviour outside the Journey section; `gustale.recipes`; DNS, hosting or Caddy; any live database; the Recipes site's design; the editorial content model.
+
+**Not done:** no merge, no deploy, no `approved-live`, no live migration, no published editorial data. The pilot is off.
