@@ -316,6 +316,39 @@ export interface DishJourneyBeatSource {
   reliability: string | null;
 }
 
+/**
+ * How precisely the source dates the event. Kept apart from the
+ * confidence enum: confidence answers "how sure are we", this answers
+ * "how exactly does the source place this in time".
+ */
+export type DishJourneyDatePrecision =
+  | "exact"
+  | "circa"
+  | "range"
+  | "century"
+  | "decade"
+  | "bce"
+  | "ce"
+  | "unknown";
+
+/** The kind of record a chapter rests on. */
+export type DishJourneyEvidenceKind =
+  | "primary_record"
+  | "scholarly_interpretation"
+  | "reported_account"
+  | "reference_work"
+  | "archival_record"
+  | "comparison";
+
+/** The place's role in a chapter. Never a birthplace claim on its own. */
+export type DishJourneyPlaceRole =
+  | "attestation"
+  | "preparation_context"
+  | "adaptation"
+  | "reception"
+  | "circulation"
+  | "regional_identity";
+
 export interface DishJourneyBeat {
   id: string;
   sequence: number;
@@ -326,18 +359,158 @@ export interface DishJourneyBeat {
   label: string;
   confidence: "documented" | "likely" | "possible" | "parallel";
   source: DishJourneyBeatSource | null;
+  // ── Editorial fields (GUS-238). Absent on rows written before it. ──
+  title: string | null;
+  dateLabel: string | null;
+  datePrecision: DishJourneyDatePrecision | null;
+  evidenceKind: DishJourneyEvidenceKind | null;
+  locator: string | null;
+  authors: string | null;
+  placeRole: DishJourneyPlaceRole | null;
+  scopeNote: string | null;
+  bounds: number[];
+  regions: string[];
+}
+
+/**
+ * One claimed transmission between two chapters.
+ *
+ * A movement exists ONLY because a historical record supports it. There
+ * is never a movement inferred from chapter order, map proximity, a
+ * shared name, a shared ingredient or a lineage link.
+ */
+export interface DishJourneyMovement {
+  id: string;
+  fromBeatId: string;
+  toBeatId: string;
+  label: string;
+  confidence: "documented" | "likely" | "possible" | "parallel";
+  source: DishJourneyBeatSource | null;
+}
+
+/**
+ * A lineage the dish belongs to, with the editorial relationship.
+ *
+ * `role` is the recorded claim (ancestor, descendant, regional_variant,
+ * …). A membership role that is not directional means "a related dish in
+ * this lineage" — never an ancestor or descendant arrow.
+ */
+export interface DishJourneyLineage {
+  slug: string;
+  name: string;
+  shortDescription: string | null;
+  longDescription: string | null;
+  conceptSummary: string | null;
+  originSummary: string | null;
+  confidenceLevel:
+    | "documented"
+    | "likely"
+    | "probable"
+    | "possible"
+    | "uncertain"
+    | "parallel_evolution";
+  uncertaintyNote: string | null;
+  culturalPracticeNote: string | null;
+  role:
+    | "ancestor"
+    | "descendant"
+    | "cousin"
+    | "regional_variant"
+    | "adaptation"
+    | "fusion"
+    | "diaspora_adaptation"
+    | "trade_route_spread"
+    | "colonial_spread"
+    | "technique_relative"
+    | "ingredient_relative"
+    | "possible_influence"
+    | "parallel_evolution"
+    | "uncertain";
+  roleExplanation: string | null;
+  changedElements: string[];
+  sortOrder: number;
+  /** Published dishes in this lineage, for the related-dish list. */
+  relatedDishes: Array<{ slug: string; name: string; isCurrent: boolean }>;
 }
 
 export interface DishJourneyResponse {
   slug: string;
+  /**
+   * `history` — the dish has at least one journey chapter.
+   * `gap`     — the dish has NO journey records. This says only that no
+   *            records were RETURNED. It does NOT assert that the dish
+   *            is unresearched: the project may not have written one up
+   *            yet, or may not have looked at it. The wording on the
+   *            page reflects that.
+   * `unavailable` — the journey could not be retrieved. An OPERATIONAL
+   *            failure, which is different in kind from `gap`, and is
+   *            rendered with different words. A malformed response is
+   *            also treated as unavailable, never as a gap.
+   */
+  status: "history" | "gap" | "unavailable";
   beats: DishJourneyBeat[];
-  lineages: Array<{ slug: string; name: string }>;
+  movements: DishJourneyMovement[];
+  lineages: DishJourneyLineage[];
 }
 
-export function getDishJourney(slug: string): Promise<DishJourneyResponse> {
-  return request<DishJourneyResponse>(
+/**
+ * Validate the journey response's SHAPE.
+ *
+ * A response that does not have this shape is a broken response, not a
+ * dish without a history. Returning it unchecked would make the page
+ * render a RESEARCH GAP — an editorial statement about the dish —
+ * out of a failed request, which is exactly the confusion the three
+ * states exist to prevent.
+ *
+ * So a malformed response is rejected here, and the caller's catch
+ * marks the journey UNAVAILABLE.
+ */
+function assertJourneyShape(
+  body: unknown,
+): asserts body is DishJourneyResponse {
+  if (typeof body !== "object" || body === null) {
+    throw new Error("journey response is not an object");
+  }
+  const b = body as Partial<DishJourneyResponse>;
+
+  if (!Array.isArray(b.beats)) {
+    throw new Error("journey response has no beats array");
+  }
+  if (!Array.isArray(b.lineages)) {
+    throw new Error("journey response has no lineages array");
+  }
+  // `movements` and `status` were added with the GUS-238 payload. A
+  // response without them is from an older API and cannot be trusted to
+  // describe the current model, so it is treated as malformed.
+  if (!Array.isArray(b.movements)) {
+    throw new Error("journey response has no movements array");
+  }
+  if (b.status !== "history" && b.status !== "gap") {
+    throw new Error(
+      `journey response has an unusable status: ${String(b.status)}`,
+    );
+  }
+  for (const beat of b.beats) {
+    if (typeof beat !== "object" || beat === null) {
+      throw new Error("journey response has a malformed beat");
+    }
+    if (typeof beat.id !== "string" || typeof beat.sequence !== "number") {
+      throw new Error("journey response has a beat without an id/sequence");
+    }
+    if (typeof beat.label !== "string") {
+      throw new Error("journey response has a beat without a label");
+    }
+  }
+}
+
+export async function getDishJourney(
+  slug: string,
+): Promise<DishJourneyResponse> {
+  const body = await request<unknown>(
     `/api/dishes/${encodeURIComponent(slug)}/journey`,
   );
+  assertJourneyShape(body);
+  return body;
 }
 
 // ─── Health (GET /api/health) ─────────────────────────────────────────────
