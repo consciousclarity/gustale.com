@@ -184,6 +184,15 @@ ATLAS_BACKFILL_ASSERTIONS=scripts/test_atlas_backfill.sql
 # migration IS what the live chain runs.
 MIGRATION_0040=db/migrations/0040_atlas_publication_predicate.sql
 
+# 238b REPLACES the publication predicate from 0040, so it must run
+# after it — the GUS section runs BEFORE the base section and the
+# atlas schema does not exist yet at that point.
+#
+# It narrows what is public: an association is hidden until it is
+# EVIDENCED and REVIEWED (the owner's rule, 2026-11-13). Nothing is
+# deleted.
+MIGRATION_238B=db/migrations/gus-238b-association-review-visibility.sql
+
 # The FIXTURES — a SEED, not a migration.
 #
 # The brief's §12: the model is "demonstrated with isolated fixtures".
@@ -607,6 +616,7 @@ grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/m0039.log | tail -1 || true
 # 0040 — the publication predicate. It writes NO rows.
 echo "--- the publication predicate"
 run_pg -f - < "$MIGRATION_0040" >/tmp/m0040.log 2>&1 || { echo "FAILED: 0040"; grep -E 'ERROR|NOTICE' /tmp/m0040.log | tail -12; fail=1; }
+run_pg -f - < "$MIGRATION_238B" >/tmp/m238b.log 2>&1 || { echo "FAILED: 238b"; grep -E "ERROR|NOTICE" /tmp/m238b.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/m0040.log | tail -1 || true
 
