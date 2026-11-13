@@ -28,6 +28,8 @@ export interface DishDetailProps {
   origin: DishOrigin | null;
   variants: DishVariant[];
   ingredients: DishIngredient[];
+  /** The ingredient section's heading, which names the dish's form. */
+  ingredientHeading?: string;
   categories: DishCategory[];
   tags: DishTag[];
   preparations: DishPreparation[];
@@ -78,6 +80,7 @@ export function DishDetail({
   origin,
   variants,
   ingredients,
+  ingredientHeading,
   categories,
   tags,
   preparations,
@@ -227,6 +230,7 @@ export function DishDetail({
           <PilotIngredientOverview
             dishName={dish.name}
             ingredients={ingredients}
+            ingredientHeading={ingredientHeading}
             explorerId="ingredients-heading"
           />
         )}

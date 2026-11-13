@@ -32,6 +32,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
+import type { DishIngredient } from "../types/dish";
 import type {
   DishJourneyBeat,
   DishJourneyLineage,
@@ -55,11 +56,50 @@ export interface JourneyFixture {
    * actually read, and what that does not establish.
    */
   evidence?: JourneyEvidenceBySequence;
+  /**
+   * The dish's representative ingredients, for the review layouts.
+   *
+   * LOCAL REVIEW DATA. Not production seed data, not written to any
+   * database. It follows the existing `DishIngredient` shape so the
+   * component renders it with no special case.
+   */
+  ingredients?: DishIngredient[];
+  /**
+   * The heading the ingredient overview uses. The reference calls the
+   * section by the dish's FORM — a bowl, a bake, a pot, a plate, a
+   * platter — so the heading follows the dish.
+   */
+  ingredientHeading?: string;
 }
 
 /** Stable synthetic ids — fixtures never collide with real UUIDs. */
 let seq = 0;
 const fid = (prefix: string): string => `${prefix}-fixture-${++seq}`;
+
+/**
+ * A local review ingredient record.
+ *
+ * `id` is local to the fixture — it is not a database id — and the
+ * slug is the production ingredient slug, so the card's link resolves
+ * to a real ingredient page.
+ */
+const ing = (
+  id: string,
+  name: string,
+  slug: string,
+  position: number,
+  options: Partial<DishIngredient> = {},
+): DishIngredient => ({
+  ingredientId: `fixture-ing-${id}`,
+  position,
+  quantity: null,
+  unit: null,
+  isOptional: false,
+  preparationNote: null,
+  name,
+  slug,
+  ...options,
+});
 
 const beat = (
   b: Partial<DishJourneyBeat> & Pick<DishJourneyBeat, "placeName" | "label">,
@@ -352,6 +392,42 @@ const BIBIMBAP: JourneyFixture = {
       ],
     },
   },
+  ingredientHeading: "In the bowl",
+  ingredients: [
+    ing("bi-rice", "Cooked short-grain rice", "short-grain-rice", 1, {
+      quantity: "300 g",
+    }),
+    ing("bi-beef", "Marinated beef", "beef", 2, {
+      quantity: "120 g",
+      preparationNote: "stir-fried",
+    }),
+    ing("bi-egg", "Egg", "egg", 3, {
+      quantity: "1",
+      preparationNote: "fried, on top",
+    }),
+    ing("bi-carrot", "Carrot", "carrot", 4, {
+      quantity: "1/2",
+      preparationNote: "sautéed",
+    }),
+    ing("bi-spinach", "Spinach", "spinach", 5, {
+      quantity: "a handful",
+      preparationNote: "sautéed",
+    }),
+    ing("bi-soybean", "Soybean sprouts", "soybean-sprouts", 6, {
+      quantity: "100 g",
+      preparationNote: "blanched",
+    }),
+    ing("bi-bracken", "Bracken", "bracken", 7, {
+      quantity: "50 g",
+      preparationNote: "sautéed",
+      isOptional: true,
+    }),
+    ing("bi-gochujang", "Gochujang", "gochujang", 8, { quantity: "1–2 tbsp" }),
+    ing("bi-sesame-oil", "Sesame oil", "sesame-oil", 9, { quantity: "1 tsp" }),
+    ing("bi-sesame-seed", "Sesame seeds", "sesame-seeds", 10, {
+      quantity: "to finish",
+    }),
+  ],
 };
 
 // ─── Moussaka — three bounded records ────────────────────────────────────
@@ -527,6 +603,38 @@ const MOUSSAKA: JourneyFixture = {
       ],
     },
   },
+  ingredientHeading: "In the bake",
+  ingredients: [
+    ing("mo-eggplant", "Aubergine", "aubergine", 1, {
+      quantity: "2 large",
+      preparationNote: "sliced lengthways",
+    }),
+    ing("mo-mince", "Minced lamb", "minced-lamb", 2, { quantity: "400 g" }),
+    ing("mo-onion", "Onion", "onion", 3, {
+      quantity: "1",
+      preparationNote: "finely chopped",
+    }),
+    ing("mo-tomato", "Tomato", "tomato", 4, {
+      quantity: "2",
+      preparationNote: "chopped",
+    }),
+    ing("mo-tomato-puree", "Tomato purée", "tomato-puree", 5, {
+      quantity: "2 tbsp",
+    }),
+    ing("mo-béchamel", "Béchamel", "bechamel-sauce", 6, {
+      quantity: "300 ml",
+      preparationNote: "for the top layer",
+    }),
+    ing("mo-egg", "Egg", "egg", 7, {
+      quantity: "1",
+      preparationNote: "for the top",
+    }),
+    ing("mo-olive-oil", "Olive oil", "olive-oil", 8, { quantity: "3 tbsp" }),
+    ing("mo-oregano", "Dried oregano", "dried-oregano", 9, {
+      quantity: "1 tsp",
+      isOptional: true,
+    }),
+  ],
 };
 
 // ─── Chongqing hot pot — two attributed accounts ─────────────────────────
@@ -627,6 +735,43 @@ const HOTPOT: JourneyFixture = {
       ],
     },
   },
+  ingredientHeading: "At the table",
+  ingredients: [
+    ing("hp-pot", "Cooking pot", "hot-pot", 1, {
+      quantity: "1",
+      preparationNote: "or a deep pan over a burner",
+    }),
+    ing("hp-broth", "Chilli beef broth", "beef-stock", 2, {
+      quantity: "1.5 L",
+    }),
+    ing("hp-sichuan", "Sichuan peppercorns", "sichuan-peppercorn", 3, {
+      quantity: "2 tbsp",
+    }),
+    ing("hp-douban", "Fermented chilli bean paste", "doubanjiang", 4, {
+      quantity: "3 tbsp",
+    }),
+    ing("hp-lamb", "Sliced lamb", "lamb", 5, { quantity: "300 g" }),
+    ing("hp-tripe", "Tripe", "beef-tripe", 6, {
+      quantity: "150 g",
+      preparationNote: "cleaned",
+    }),
+    ing("hp-lotus", "Lotus root", "lotus-root", 7, {
+      quantity: "200 g",
+      preparationNote: "sliced",
+    }),
+    ing("hp-noodle", "Glass noodles", "glass-noodles", 8, {
+      quantity: "100 g",
+    }),
+    ing("hp-tofu", "Tofu", "tofu", 9, {
+      quantity: "200 g",
+      preparationNote: "soft, cubed",
+    }),
+    ing("hp-garlic", "Garlic", "garlic", 10, { quantity: "1 head" }),
+    ing("hp-chives", "Chives", "chives", 11, {
+      quantity: "a bunch",
+      isOptional: true,
+    }),
+  ],
 };
 
 // ─── Century egg & tofu — research gap ──────────────────────────────────
@@ -642,6 +787,23 @@ const CENTURY_EGG_TOFU: JourneyFixture = {
   lineages: [],
   gapNote:
     "No dated chronology for the complete named preparation was verified in this research. This is a research gap: it does not mean the dish is recent, and it does not mean the history is unrecoverable.",
+  ingredientHeading: "On the plate",
+  ingredients: [
+    ing("ce-egg", "Century egg", "century-egg", 1, {
+      quantity: "2",
+      preparationNote: "peeled and halved",
+    }),
+    ing("ce-tofu", "Silken tofu", "silken-tofu", 2, { quantity: "1 block" }),
+    ing("ce-soy", "Light soy sauce", "soy-sauce", 3, { quantity: "1 tbsp" }),
+    ing("ce-chilli-oil", "Chilli oil", "chilli-oil", 4, { quantity: "1 tsp" }),
+    ing("ce-sesame", "Sesame seeds", "sesame-seeds", 5, {
+      quantity: "to finish",
+    }),
+    ing("ce-coriander", "Coriander", "coriander", 6, {
+      quantity: "a few sprigs",
+      isOptional: true,
+    }),
+  ],
 };
 
 // ─── Beyaynetu — research gap ───────────────────────────────────────────
@@ -657,6 +819,39 @@ const BEYAYNETU: JourneyFixture = {
   lineages: [],
   gapNote:
     "No dated chronology for the complete named platter was verified in this research. No restaurant milestone, American origin or New York national-dish claim is made, and no migration route is drawn. This is a research gap, not a statement of recent invention.",
+  ingredientHeading: "On the platter",
+  ingredients: [
+    ing("be-injera", "Injera", "injera", 1, { quantity: "1 large sheet" }),
+    ing("be-berbere", "Berbere", "berbere", 2, { quantity: "to taste" }),
+    ing("be-wat", "Wat", "wat", 3, {
+      quantity: "2 ladles",
+      preparationNote: "stew",
+    }),
+    ing("be-alicha", "Alicha", "alicha", 4, {
+      quantity: "1 ladle",
+      preparationNote: "stew",
+    }),
+    ing("be-doro", "Doro wat", "chicken-wat", 5, {
+      quantity: "1 ladle",
+      preparationNote: "stew",
+    }),
+    ing("be-shiro", "Shiro", "shiro", 6, {
+      quantity: "1 ladle",
+      preparationNote: "stew",
+      isOptional: true,
+    }),
+    ing("be-collard", "Collard greens", "collard-greens", 7, {
+      quantity: "a handful",
+    }),
+    ing("be-tomato", "Tomato salad", "tomato-salad", 8, {
+      quantity: "a portion",
+    }),
+    ing("be-ayib", "Ayib", "ayib", 9, {
+      quantity: "a portion",
+      preparationNote: "aged cottage cheese",
+      isOptional: true,
+    }),
+  ],
 };
 
 export const JOURNEY_FIXTURES: Record<string, JourneyFixture> = {

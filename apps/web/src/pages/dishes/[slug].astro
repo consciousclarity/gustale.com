@@ -92,6 +92,11 @@ let journeyBeats: JourneyBeat[] = [];
 let journeyLineages: DishJourneyLineage[] = [];
 let journeyMovements: DishJourneyMovement[] = [];
 let journeyEvidence: JourneyEvidenceBySequence | undefined;
+// The review fixtures' representative ingredients, and the heading that
+// names the dish's FORM. Local review data; used only when the API
+// returned no ingredient rows.
+let reviewIngredients: DishIngredient[] | undefined;
+let reviewIngredientHeading: string | undefined;
 let journeyStatus: "history" | "gap" | "unavailable" = "gap";
 // The new presentation is off by default and applies only to the
 // pilot's allowlisted dishes. Everything else keeps the current page.
@@ -156,6 +161,8 @@ if (data) {
       // The per-chapter verification record travels with the fixture, so
       // the evidence level and the limits are the fixture's own.
       journeyEvidence = fixture.evidence;
+      reviewIngredients = fixture.ingredients;
+      reviewIngredientHeading = fixture.ingredientHeading;
       // The lineage membership is already in the live database; the
       // fixture only supplies the GUS-238 fields (role, explanation,
       // related dishes) for review. A live lineage always wins.
@@ -224,7 +231,8 @@ const servedEnglish =
         dish={data.dish}
         origin={data.origin}
         variants={data.variants}
-        ingredients={data.ingredients}
+        ingredients={reviewIngredients ?? data.ingredients}
+        ingredientHeading={reviewIngredientHeading}
         categories={data.categories}
         tags={data.tags}
         preparations={data.preparations}

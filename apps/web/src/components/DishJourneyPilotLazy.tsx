@@ -56,6 +56,7 @@ export function PilotIngredientOverview(props: {
   dishName: string;
   ingredients: DishIngredient[];
   explorerId?: string;
+  ingredientHeading?: string;
 }): ReactElement | null {
   const mod = usePilotModule(() => import("./DishJourneyPilot"));
   if (!mod) return null;

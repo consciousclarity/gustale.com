@@ -6,6 +6,13 @@ export interface DishIngredientOverviewProps {
   ingredients: DishIngredient[];
   /** The detailed ingredient explorer's anchor, when there is one. */
   explorerId?: string;
+  /**
+   * The heading, which names the dish's FORM: "In the bowl", "In the
+   * bake", "At the table", "On the plate", "On the platter". The
+   * reference uses the form rather than a generic word, because the
+   * form is part of what the reader is being told.
+   */
+  ingredientHeading?: string;
 }
 
 /**
@@ -28,6 +35,7 @@ export function DishIngredientOverview({
   dishName,
   ingredients,
   explorerId = "ingredients-heading",
+  ingredientHeading = "In the bowl",
 }: DishIngredientOverviewProps) {
   if (ingredients.length === 0) return null;
 
@@ -35,7 +43,7 @@ export function DishIngredientOverview({
     <section className="dio" aria-labelledby="dio-heading">
       <div className="dio__head">
         <h2 className="dio__title" id="dio-heading">
-          In the bowl
+          {ingredientHeading}
         </h2>
         <p className="dio__sub">
           A representative preparation of {dishName}. Ingredients vary by style
