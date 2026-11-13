@@ -630,3 +630,73 @@
     border-left-width: 3px;
   }
 }
+
+/*
+ * The per-chapter verification block.
+ *
+ * It sits inside the "Evidence & research limits" disclosure, because
+ * that is where a reader looks for the limits of a claim. The EVIDENCE
+ * LEVEL comes first and is the most visually distinct thing in the
+ * block: "Primary record read", "Full text read", "Abstract only",
+ * "Reported, source not read", "Source not reached".
+ *
+ * An unresolved chapter is marked so it cannot be mistaken for a
+ * checked one.
+ */
+.djc__evidence {
+  margin-top: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+.djc__evidence p {
+  margin: 0 0 6px;
+}
+.djc__evidence-level {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ink);
+}
+.djc__evidence-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(33, 28, 22, 0.08);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.djc__evidence-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--sub);
+}
+.djc__evidence-material,
+.djc__evidence-limits {
+  color: var(--sub);
+}
+.djc__evidence-corrections ul {
+  margin: 2px 0 6px;
+  padding-left: 1.1rem;
+}
+.djc__evidence-corrections li {
+  margin-bottom: 4px;
+  color: var(--sub);
+}
+.djc__evidence-unresolved {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+  margin-top: 8px;
+}

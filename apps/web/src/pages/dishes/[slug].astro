@@ -11,6 +11,7 @@ import { getDishDetail, getDishJourney } from "../../lib/api";
 import { getJourneyFixture } from "../../lib/dishJourneyFixtures";
 import { isPilotDish } from "../../lib/dishJourneyPilot";
 import { getFilterPageIndex, pathPageSlugs } from "../../lib/filterPages";
+import type { JourneyEvidenceBySequence } from "../../lib/journeyEvidence";
 import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
 import type { DishDetailResponse } from "../../types/dish";
 
@@ -90,6 +91,7 @@ let fetchError: string | null = null;
 let journeyBeats: JourneyBeat[] = [];
 let journeyLineages: DishJourneyLineage[] = [];
 let journeyMovements: DishJourneyMovement[] = [];
+let journeyEvidence: JourneyEvidenceBySequence | undefined;
 let journeyStatus: "history" | "gap" | "unavailable" = "gap";
 // The new presentation is off by default and applies only to the
 // pilot's allowlisted dishes. Everything else keeps the current page.
@@ -151,6 +153,9 @@ if (data) {
       journeyBeats = fixture.beats as unknown as JourneyBeat[];
       journeyMovements = fixture.movements as unknown as DishJourneyMovement[];
       journeyStatus = fixture.status === "history" ? "history" : "gap";
+      // The per-chapter verification record travels with the fixture, so
+      // the evidence level and the limits are the fixture's own.
+      journeyEvidence = fixture.evidence;
       // The lineage membership is already in the live database; the
       // fixture only supplies the GUS-238 fields (role, explanation,
       // related dishes) for review. A live lineage always wins.
@@ -231,6 +236,7 @@ const servedEnglish =
         journeyLineages={journeyLineages}
         journeyMovements={journeyMovements}
         journeyStatus={journeyStatus}
+        journeyEvidence={journeyEvidence}
         journeyPresentation={useJourneyPresentation}
         client:load
       />

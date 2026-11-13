@@ -49,6 +49,12 @@ export interface DishJourneyProps {
    * Off by default; the pilot gates it per dish.
    */
   presentation?: boolean;
+  /**
+   * The per-chapter verification record, keyed by chapter sequence.
+   * Absent for every production dish, so nothing changes on the live
+   * site; present for the review fixtures.
+   */
+  evidence?: JourneyEvidenceBySequence;
 }
 
 /**
@@ -72,8 +78,11 @@ export interface DishJourneyProps {
  *   * A lineage relationship is described in the words the recorded role
  *     actually supports. A non-directional role is never drawn as an
  *     ancestor or a descendant.
- *   * A research gap is stated plainly. It is not an empty section, and
- *     it is never dressed up with invented milestones.
+ *   * When there are no chapters, the section SAYS so, in words the data
+ *     supports: "no historical journey is available yet". It does NOT
+ *     claim the dish is unresearched — zero journey records proves only
+ *     that no records were returned, not that nobody has studied it. It
+ *     is never dressed up with invented milestones.
  */
 export function DishJourney({
   dishName,
@@ -82,6 +91,7 @@ export function DishJourney({
   movements = [],
   lineages = [],
   presentation = false,
+  evidence,
 }: DishJourneyProps) {
   // The existing P1-1 presentation is preserved exactly. The new one
   // (separate map cards, per-chapter evidence, visible lineage) is
@@ -110,18 +120,18 @@ export function DishJourney({
           <p className="dj__eyebrow">How this dish moved</p>
           <h2 id="journey-heading">Journey</h2>
           <p className="dj__lede">
-            We have not yet verified a dated chronology for {dishName}.
+            A dated history of {dishName} is not available yet.
           </p>
         </div>
         <div className="dj__state dj__state--gap">
           <p>
-            The history of {dishName} is still being researched. A dated chapter
-            appears here only when a traceable historical record supports it, so
-            this page stays empty rather than showing a history we cannot stand
-            behind.
+            No historical journey is available for {dishName} yet. There are no
+            dated chapters for it at present, so this section stays empty rather
+            than showing a history that cannot be stood behind.
           </p>
           <p className="dj__state-note">
-            This is a research gap, not a claim that the dish is new.
+            A chapter appears here only when a traceable historical record
+            supports it.
           </p>
         </div>
       </section>
@@ -181,6 +191,7 @@ export function DishJourney({
             row={Math.floor(index / columns)}
             coordinateBeats={coordinateBeats}
             movements={movements}
+            evidence={evidence}
           />
         ))}
       </div>
@@ -204,6 +215,7 @@ function Chapter({
   row,
   coordinateBeats,
   movements,
+  evidence,
 }: {
   beat: DishJourneyBeat;
   number: number;
@@ -214,9 +226,11 @@ function Chapter({
   row: number;
   coordinateBeats: DishJourneyBeat[];
   movements: DishJourneyMovement[];
+  evidence?: JourneyEvidenceBySequence;
 }) {
   const date = formatJourneyDate(beat);
   const hasDate = hasJourneyDate(beat);
+  const chapterEvidence = evidenceForBeat(beat, evidence);
 
   return (
     <article className="djc" aria-labelledby={`dj-chapter-${beat.id}`}>
@@ -292,6 +306,45 @@ function Chapter({
           <details className="djc__scope">
             <summary>Evidence &amp; research limits</summary>
             <p>{beat.scopeNote}</p>
+            {chapterEvidence && (
+              <div className="djc__evidence">
+                <p className="djc__evidence-level">
+                  <span className="djc__evidence-badge">
+                    {EVIDENCE_LEVEL_LABELS[chapterEvidence.level]}
+                  </span>
+                  {EVIDENCE_LEVEL_NOTES[chapterEvidence.level]}
+                </p>
+                <p className="djc__evidence-material">
+                  <span className="djc__evidence-label">Inspected: </span>
+                  {chapterEvidence.materialInspected}
+                </p>
+                {chapterEvidence.limits && (
+                  <p className="djc__evidence-limits">
+                    <span className="djc__evidence-label">
+                      Not established:{" "}
+                    </span>
+                    {chapterEvidence.limits}
+                  </p>
+                )}
+                {chapterEvidence.corrections &&
+                  chapterEvidence.corrections.length > 0 && (
+                    <div className="djc__evidence-corrections">
+                      <span className="djc__evidence-label">Corrections: </span>
+                      <ul>
+                        {chapterEvidence.corrections.map((c) => (
+                          <li key={c}>{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                {chapterEvidence.unresolved && (
+                  <p className="djc__evidence-unresolved">
+                    This chapter&rsquo;s source was not reached, so the claim is
+                    unresolved and it is not ready to publish.
+                  </p>
+                )}
+              </div>
+            )}
           </details>
         )}
       </div>

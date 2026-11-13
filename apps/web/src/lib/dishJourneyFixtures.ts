@@ -37,6 +37,7 @@ import type {
   DishJourneyLineage,
   DishJourneyMovement,
 } from "./api";
+import type { JourneyEvidenceBySequence } from "./journeyEvidence";
 
 export interface JourneyFixture {
   slug: string;
@@ -48,6 +49,12 @@ export interface JourneyFixture {
   lineages: DishJourneyLineage[];
   /** The gap copy, when the case is a research gap. */
   gapNote?: string;
+  /**
+   * The per-chapter verification record, keyed by the chapter's
+   * SEQUENCE ("1", "2", …) — the number the reader sees. What was
+   * actually read, and what that does not establish.
+   */
+  evidence?: JourneyEvidenceBySequence;
 }
 
 /** Stable synthetic ids — fixtures never collide with real UUIDs. */
@@ -273,6 +280,78 @@ const BIBIMBAP: JourneyFixture = {
   ],
   movements: [],
   lineages: [],
+  evidence: {
+    // Chapter 1 — the 1810 Hangul name record.
+    "1": {
+      level: "full_text_inspected",
+      materialInspected:
+        "The complete article text: the History of bibimbap section, the Mongyupyeon paragraph, and the reference list.",
+      limits:
+        "Jang Hon's Mongyupyeon itself was NOT read. The article points to Siuijonseo — calling it only “a cookbook compiled … in the late Joseon Dynasty” and giving NO year for it — so it cannot be used to date that manuscript.",
+      corrections: [
+        "The pack called this “a Hangul form of bibimbap's name”; the article says the Hangeul name first appeared as “Bubuyum”, and lists the later variant spellings.",
+        "The pack treated 1810 as a “historical name record”; it is a NAME record, and the review records an earlier recipe-record and an earlier attestation, so 1810 is not a beginning.",
+      ],
+    },
+    // Chapter 2 — the Siuijeonseo recipe record.
+    "2": {
+      level: "full_text_inspected",
+      materialInspected:
+        "The whole Korean article: the definition, the content section with the Siuijeonseo passage, and the bibliography.",
+      limits:
+        "Siuijeonseo was NOT read — the encyclopedia quotes it. The date “1800년대 말” is the ENCYCLOPEDIA'S; the 2023 review gives no year for the same manuscript, so the date must not be attributed to the review.",
+      corrections: [
+        "The pack's ingredient list was checked against the article: rice, prepared meat, seasoned vegetables, sesame salt and plenty of oil, fried t'wigak, sliced fried egg, fried gochujang set aside, and sesame oil added to taste.",
+        "The pack attributed the late-19th-century date to the 2023 review; it belongs to the Encyclopedia.",
+        "The pack omitted that the encyclopedia's own “first appearance” claim is not adopted, because the 2023 review points to earlier records.",
+      ],
+    },
+    // Chapter 3 — the 1921 cookbook preparation.
+    "3": {
+      level: "full_text_inspected",
+      materialInspected:
+        "The whole Birth of K-Food section 2, including the 1921 cookbook passage and the 1929 magazine passage.",
+      limits:
+        "The 1921 cookbook Joseon yori jebeop was NOT read. The account describes ONE recorded preparation, not the way every household made the dish.",
+      corrections: [
+        "The pack said “vegetables are heated in a pot and then stirred with rice”; the text is more specific — radish sprouts and bean sprouts into a pot, heated, then mixed with rice and seasonings, and “the rice was stir-fried with other ingredients before being served”.",
+      ],
+    },
+    // Chapter 4 — the 1929 restaurant account.
+    "4": {
+      level: "full_text_inspected",
+      materialInspected:
+        "The whole Birth of K-Food section 2, including the 1 December 1929 Byeolgeon'gon paragraph in full.",
+      limits:
+        "The 1 December 1929 issue of Byeolgeon'gon was NOT read. The account is of a RESTAURANT serving, which is one setting, not the general way the dish was prepared.",
+      corrections: [
+        "The pack said “a topping arrangement with raw beef and gochujang”; the text lists bean sprouts, bracken, mung bean sprouts and cheongpomuk on the rice, then finely chopped raw beef and gochujang, and says the customer mixes it.",
+      ],
+    },
+    // Chapter 5 — Jeonju and Seoul. The ABSTRACT only.
+    "5": {
+      level: "abstract_only",
+      materialInspected:
+        "The Korean and English ABSTRACTS, and the article's metadata (Society and History 87, 2010.09, pp. 5–38, 34 pages).",
+      limits:
+        "The FULL ARTICLE was not accessed — it is paywalled. The abstract supports what it states and nothing more: the early-1980s national recognition and the late-1990s spread to Japan. It does not support any claim beyond that about the competing origin accounts.",
+      corrections: [
+        "The pack's “Jeonju style's national recognition in the early 1980s” is the abstract's “1980년대 초반부터 전국적인 음식으로 자리를 잡았다”. The pack also omitted that the paper attributes the spread to urbanization from the 1970s and treats the competing accounts as influential DISCURSES rather than settled origin.",
+        "The pack did not say the article was an abstract. It was.",
+      ],
+    },
+    // Chapter 6 — Japan. The same abstract.
+    "6": {
+      level: "abstract_only",
+      materialInspected:
+        "The Korean and English ABSTRACTS of the same article.",
+      limits:
+        "The FULL ARTICLE was not accessed. The abstract supports the late-1990s spread to Japan and the rise of the royal-dish claim; it does not support a first-arrival date, a route, or anything about the mechanism of the spread.",
+      corrections: [
+        "The pack's “overseas circulation, including adoption in Japan in the late 1990s” is the abstract's “1990년대 말부터 전주비빔밥이 일본을 뿐만 아니라 해외로 진출”, and the spread was read as part of constructing a Jeonju-origin narrative.",
+      ],
+    },
+  },
 };
 
 // ─── Moussaka — three bounded records ────────────────────────────────────
@@ -410,6 +489,44 @@ const MOUSSAKA: JourneyFixture = {
       relatedDishes: [],
     },
   ],
+  evidence: {
+    // Chapter 1 — the 1864 recipe. THE PRIMARY RECORD.
+    "1": {
+      level: "primary_inspected",
+      materialInspected:
+        "The original book: the Internet Archive item's edition metadata, the book's own index, and the full OCR of receipt No. 106 with its ingredient and method lines.",
+      limits:
+        "This is ONE recipe in ONE 1864 London edition. It is a MOCKAKKA, not necessarily the ancestor of the modern Greek moussaka; the link is an editorial interpretation, and the absence of béchamel here does not mean béchamel was unknown.",
+      corrections: [
+        "The pack's ingredient summary was checked against the recipe: a leg of mutton or lamb minced very fine, two or three chopped onions, two or three ounces of fresh butter, salt, parsley, three or four egg-plants in salt water, the meat and egg-plants laid “in layers into a pan”, a pint of broth, covered and simmered until the liquor is nearly absorbed.",
+        "The pack's “simmers them in broth” is right but incomplete — the layering and the parsley are part of the record.",
+        "The pack's “no béchamel appears” was verified by searching the recipe for béchamel, white sauce, flour and milk: all absent.",
+      ],
+    },
+    // Chapter 2 — Kremezi. NOT REACHED.
+    "2": {
+      level: "inaccessible",
+      materialInspected:
+        "Nothing. The article returned HTTP 403 on every attempt on 12 November 2026.",
+      limits:
+        "The claim is UNRESOLVED. It is known only through the reference pack's summary of the article, which is itself a secondary account. The 2011 piece is also a republication of an Atlantic article, so the original may be the better source.",
+      unresolved: true,
+      corrections: [
+        "The pack recorded this as “reported through a secondary summary” without saying the source was unreachable. It is unreachable.",
+      ],
+    },
+    // Chapter 3 — Elizabeth David. The museum account, not the book.
+    "3": {
+      level: "full_text_inspected",
+      materialInspected:
+        "The whole Brighton & Hove Museums account, which names Elizabeth David, A Book of Mediterranean Food, and moussaka among its recipes, with the year 1950.",
+      limits:
+        "The BOOK ITSELF was not read — only the museum's account of it. That is readership and reception in British cooking, not origin and not first arrival.",
+      corrections: [
+        "The pack said “described by Brighton & Hove Museums”; the account names the book, the author and the year, which is stronger than the pack's summary.",
+      ],
+    },
+  },
 };
 
 // ─── Chongqing hot pot — two attributed accounts ─────────────────────────
@@ -485,6 +602,31 @@ const HOTPOT: JourneyFixture = {
   ],
   movements: [],
   lineages: [],
+  evidence: {
+    // Chapter 1 — the 1934 table-service change.
+    "1": {
+      level: "inaccessible",
+      materialInspected:
+        "Nothing. The Chongqing Morning Post page did not return readable content on 12 November 2026, and neither the 1947 Sichuan Times nor the 1948 Feng Tu Shi Zhi could be consulted.",
+      limits:
+        "The claim is UNRESOLVED. It is known only through the reference pack's summary of Lin Wenyu's 2023 essay, which is itself a secondary account. The event date (1934), the underlying record dates (1947–48) and the source's publication date (2023) are three different things and must not be merged.",
+      unresolved: true,
+      corrections: [
+        "The pack recorded this as “the modern essay was inspected; the 1947 Sichuan Times and 1948 Feng Tu Shi Zhi issues were not”. The modern essay could not be read either — so the level is “source not reached”, not “full text read”.",
+      ],
+    },
+    // Chapter 2 — the 1936 Chongqing → Chengdu transmission.
+    "2": {
+      level: "inaccessible",
+      materialInspected: "Nothing, for the same reason as chapter 1.",
+      limits:
+        "The claim is UNRESOLVED, and it is the more consequential of the two: a claimed movement between two cities is exactly the kind of claim that must not be drawn on a map while it rests on an unread source.",
+      unresolved: true,
+      corrections: [
+        "The pack recorded this as “original periodical issues not inspected”, which reads as if the modern essay had been read. It had not.",
+      ],
+    },
+  },
 };
 
 // ─── Century egg & tofu — research gap ──────────────────────────────────

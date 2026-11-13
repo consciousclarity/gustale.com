@@ -436,12 +436,16 @@ export interface DishJourneyLineage {
 export interface DishJourneyResponse {
   slug: string;
   /**
-   * `history` — chapters exist.
-   * `gap`     — the dish has no verified chronology. NOT the same as
-   *             `unavailable`, and not the same as an empty page.
-   * `unavailable` — the journey could not be fetched. An operational
-   *             failure, which must be distinguishable from a research
-   *             gap.
+   * `history` — the dish has at least one journey chapter.
+   * `gap`     — the dish has NO journey records. This says only that no
+   *            records were RETURNED. It does NOT assert that the dish
+   *            is unresearched: the project may not have written one up
+   *            yet, or may not have looked at it. The wording on the
+   *            page reflects that.
+   * `unavailable` — the journey could not be retrieved. An OPERATIONAL
+   *            failure, which is different in kind from `gap`, and is
+   *            rendered with different words. A malformed response is
+   *            also treated as unavailable, never as a gap.
    */
   status: "history" | "gap" | "unavailable";
   beats: DishJourneyBeat[];
@@ -449,10 +453,64 @@ export interface DishJourneyResponse {
   lineages: DishJourneyLineage[];
 }
 
-export function getDishJourney(slug: string): Promise<DishJourneyResponse> {
-  return request<DishJourneyResponse>(
+/**
+ * Validate the journey response's SHAPE.
+ *
+ * A response that does not have this shape is a broken response, not a
+ * dish without a history. Returning it unchecked would make the page
+ * render a RESEARCH GAP — an editorial statement about the dish —
+ * out of a failed request, which is exactly the confusion the three
+ * states exist to prevent.
+ *
+ * So a malformed response is rejected here, and the caller's catch
+ * marks the journey UNAVAILABLE.
+ */
+function assertJourneyShape(
+  body: unknown,
+): asserts body is DishJourneyResponse {
+  if (typeof body !== "object" || body === null) {
+    throw new Error("journey response is not an object");
+  }
+  const b = body as Partial<DishJourneyResponse>;
+
+  if (!Array.isArray(b.beats)) {
+    throw new Error("journey response has no beats array");
+  }
+  if (!Array.isArray(b.lineages)) {
+    throw new Error("journey response has no lineages array");
+  }
+  // `movements` and `status` were added with the GUS-238 payload. A
+  // response without them is from an older API and cannot be trusted to
+  // describe the current model, so it is treated as malformed.
+  if (!Array.isArray(b.movements)) {
+    throw new Error("journey response has no movements array");
+  }
+  if (b.status !== "history" && b.status !== "gap") {
+    throw new Error(
+      `journey response has an unusable status: ${String(b.status)}`,
+    );
+  }
+  for (const beat of b.beats) {
+    if (typeof beat !== "object" || beat === null) {
+      throw new Error("journey response has a malformed beat");
+    }
+    if (typeof beat.id !== "string" || typeof beat.sequence !== "number") {
+      throw new Error("journey response has a beat without an id/sequence");
+    }
+    if (typeof beat.label !== "string") {
+      throw new Error("journey response has a beat without a label");
+    }
+  }
+}
+
+export async function getDishJourney(
+  slug: string,
+): Promise<DishJourneyResponse> {
+  const body = await request<unknown>(
     `/api/dishes/${encodeURIComponent(slug)}/journey`,
   );
+  assertJourneyShape(body);
+  return body;
 }
 
 // ─── Health (GET /api/health) ─────────────────────────────────────────────
