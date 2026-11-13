@@ -81,3 +81,74 @@ export function basemapTransformRequest(url: string): { url: string } {
 export function hasCartoApiKey(): boolean {
   return CARTO_API_KEY.length > 0;
 }
+
+/**
+ * OpenStreetMap's own raster tile service.
+ *
+ * Used as a FALLBACK source for the journey maps. It was verified
+ * reachable for every region the pilot frames (Korea, Jinju,
+ * Jeonju/Seoul, Japan) on 12 November 2026, the same day CARTO's vector
+ * tile service was timing out.
+ *
+ * OSM's tile usage policy (https://operations.osmfoundation.org/policies/tiles/)
+ * requires a valid identifying User-Agent and forbids heavy or bulk
+ * downloading. The maps load a handful of tiles per chapter as a reader
+ * scrolls, which is the intended use; the site's own MapLibre maps
+ * already follow the same pattern.
+ */
+export const OSM_RASTER_TILES =
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+/**
+ * The identifying User-Agent the OSM tile policy asks for.
+ *
+ * A browser cannot set its own User-Agent, but MapLibre CAN send a
+ * custom one per request through `transformRequest` — and the policy
+ * asks for something that identifies the application rather than the
+ * browser. The site's existing maps do not set one; this does, for the
+ * journey maps only, so the requests are identifiable and rate-friendly.
+ */
+export const OSM_TILE_USER_AGENT = "Gustale Atlas/1.0 (https://gustale.com)";
+
+/**
+ * True when a request is for the OSM raster tile service.
+ */
+export function isOsmRasterTile(url: string): boolean {
+  return url.includes("tile.openstreetmap.org");
+}
+
+/**
+ * Probe the CARTO vector tile service.
+ *
+ * Returns:
+ *   "ok"      — the service answered, so the vector tiles are usable.
+ *   "failed"  — the service did not answer, so use the raster fallback.
+ *   "unknown" — the probe could not tell (a slow answer, a blocked
+ *               request). Use the vector tiles and keep the per-map
+ *               watchdog as a backstop.
+ *
+ * ONE tile at a low zoom is requested. That is not a bulk download and
+ * does not breach the provider's tile policy; it is the same kind of
+ * request the browser makes anyway.
+ */
+export async function probeVectorTiles(): Promise<"ok" | "failed" | "unknown"> {
+  const probeUrl =
+    "https://tiles.basemaps.cartocdn.com/v/20261026-01/vectortiles/carto.streets/v2/0/0/0.mvt";
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(probeUrl, {
+      method: "GET",
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    clearTimeout(timer);
+    if (res.ok) return "ok";
+    // A 404 means the service is up but the tile path has moved — which
+    // is also a failure for our purposes.
+    return "failed";
+  } catch {
+    // A timeout or a network error: the service is not answering.
+    return "failed";
+  }
+}

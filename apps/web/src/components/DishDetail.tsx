@@ -17,9 +17,11 @@ import type {
 import { AlsoExplore } from "./AlsoExplore";
 import { DishCoverHero } from "./DishCoverHero";
 import { DishGallery } from "./DishGallery";
-import { DishIngredientOverview } from "./DishIngredientOverview";
 import { DishJourney, type JourneyBeat } from "./DishJourney";
-import { DishSectionNav } from "./DishSectionNav";
+import {
+  PilotIngredientOverview,
+  PilotSectionNav,
+} from "./DishJourneyPilotLazy";
 
 export interface DishDetailProps {
   dish: DishDetailCore;
@@ -204,7 +206,7 @@ export function DishDetail({
 
         {/* ─── Sticky section nav (GUS-238) ───────────────────────────── */}
         {journeyPresentation && (
-          <DishSectionNav
+          <PilotSectionNav
             dishName={dish.name}
             links={buildSectionLinks({
               hasJourney: true,
@@ -222,7 +224,7 @@ export function DishDetail({
             is the SAME ingredient data the detailed list below uses —
             a presentation, not a second content model. */}
         {journeyPresentation && (
-          <DishIngredientOverview
+          <PilotIngredientOverview
             dishName={dish.name}
             ingredients={ingredients}
             explorerId="ingredients-heading"

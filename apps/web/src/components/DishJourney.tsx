@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+import { lazy, Suspense } from "react";
 import type {
   DishJourneyBeat,
   DishJourneyLineage,
@@ -8,22 +10,32 @@ import {
   EVIDENCE_KIND_LABELS,
   formatJourneyDate,
   hasJourneyDate,
+  isMembershipLineageRole,
+  lineageCaveat,
   lineageMembersLabel,
   lineageRoleLabel,
+  lineageRoleShort,
   PLACE_ROLE_LABELS,
 } from "../lib/journey";
-import { JourneyMapCard } from "./JourneyMapCard";
 import { LegacyJourney } from "./LegacyJourney";
-
-// The GUS-238 presentation styles ride with this component, so a build
-// that never renders the pilot presentation does not ship them. The
-// pilot is off by default (see lib/dishJourneyPilot).
-import "../styles/dish-journey-v2.css";
 
 export type {
   JourneyBeat,
   JourneyLineageLink,
 } from "../lib/journey";
+
+/**
+ * The per-chapter map card is loaded lazily.
+ *
+ * `DishJourney` is reachable from the LEGACY path, so a static import of
+ * the map card would put the pilot's map component into the chunk every
+ * dish page loads. A dynamic import splits it into its own chunk, which
+ * is only fetched when the pilot actually renders a map.
+ */
+const LazyJourneyMapCard = lazy(async () => {
+  const mod = await import("./JourneyMapCard");
+  return { default: mod.JourneyMapCard };
+});
 
 export interface DishJourneyProps {
   dishName: string;
@@ -117,6 +129,11 @@ export function DishJourney({
   }
 
   const sorted = [...beats].sort((a, b) => a.sequence - b.sequence);
+  // How many chapters sit side by side. The reference shows three on a
+  // wide screen, two on a tablet and one on a phone; the CSS media
+  // queries reduce the column count, and the component sets the
+  // desktop value here.
+  const columns = Math.min(sorted.length, 3);
   const coordinateBeats = sorted.filter(
     (b) =>
       typeof b.lat === "number" &&
@@ -144,13 +161,15 @@ export function DishJourney({
         </p>
       </div>
 
+      {/*
+        The grid lays the chapters out in rows of `--djc-columns`. Each
+        chapter needs to know its column within the row and which row it
+        is in, so its map and its text land in the same column, directly
+        above one another.
+      */}
       <div
         className="dj__chapters"
-        style={
-          {
-            "--djc-columns": String(Math.min(sorted.length, 3)),
-          } as React.CSSProperties
-        }
+        style={{ "--djc-columns": String(columns) } as CSSProperties}
       >
         {sorted.map((beat, index) => (
           <Chapter
@@ -158,6 +177,8 @@ export function DishJourney({
             beat={beat}
             number={index + 1}
             total={sorted.length}
+            column={(index % columns) + 1}
+            row={Math.floor(index / columns)}
             coordinateBeats={coordinateBeats}
             movements={movements}
           />
@@ -179,12 +200,18 @@ function Chapter({
   beat,
   number,
   total,
+  column,
+  row,
   coordinateBeats,
   movements,
 }: {
   beat: DishJourneyBeat;
   number: number;
   total: number;
+  /** The chapter's column within its row of chapters (1-based). */
+  column: number;
+  /** Which row of chapters this is (0-based). */
+  row: number;
   coordinateBeats: DishJourneyBeat[];
   movements: DishJourneyMovement[];
 }) {
@@ -193,7 +220,15 @@ function Chapter({
 
   return (
     <article className="djc" aria-labelledby={`dj-chapter-${beat.id}`}>
-      <div className="djc__text">
+      <div
+        className="djc__text"
+        style={
+          {
+            "--djc-col": String(column),
+            "--djc-row": String(row),
+          } as CSSProperties
+        }
+      >
         <div className="djc__meta">
           <span className="djc__num" aria-hidden="true">
             {String(number).padStart(2, "0")}
@@ -261,13 +296,23 @@ function Chapter({
         )}
       </div>
 
-      <div className="djc__map">
-        <JourneyMapCard
-          beat={beat}
-          coordinateBeats={coordinateBeats}
-          movements={movements}
-          markerNumber={number}
-        />
+      <div
+        className="djc__map"
+        style={
+          {
+            "--djc-col": String(column),
+            "--djc-row": String(row),
+          } as CSSProperties
+        }
+      >
+        <Suspense fallback={null}>
+          <LazyJourneyMapCard
+            beat={beat}
+            coordinateBeats={coordinateBeats}
+            movements={movements}
+            markerNumber={number}
+          />
+        </Suspense>
       </div>
     </article>
   );
@@ -286,11 +331,29 @@ function LineageNote({ lineage }: { lineage: DishJourneyLineage }) {
   return (
     <div className="djl">
       <p className="djl__lead">
-        Part of the{" "}
-        <a href={`/lineages/${lineage.slug}`} className="djl__name">
-          {lineage.name}
-        </a>{" "}
-        lineage — {lineageRoleLabel(lineage).toLowerCase()}.
+        {/*
+          The sentence is driven by the RECORDED ROLE. For a grouping
+          role it reads "Part of the X lineage — a cousin dish in the X
+          lineage". For a directional role it must NOT say "part of",
+          because the recorded claim is an ancestry, not a membership.
+        */}
+        {isMembershipLineageRole(lineage.role) ? (
+          <>
+            Part of the{" "}
+            <a href={`/lineages/${lineage.slug}`} className="djl__name">
+              {lineage.name}
+            </a>{" "}
+            lineage — {lineageRoleShort(lineage)}.
+          </>
+        ) : (
+          <>
+            <span className="djl__role">{lineageRoleLabel(lineage)}</span> —{" "}
+            <a href={`/lineages/${lineage.slug}`} className="djl__name">
+              {lineage.name}
+            </a>
+            .
+          </>
+        )}
       </p>
 
       {lineage.shortDescription && (
@@ -308,8 +371,16 @@ function LineageNote({ lineage }: { lineage: DishJourneyLineage }) {
         </p>
       )}
 
-      {lineage.uncertaintyNote && (
-        <p className="djl__uncertain">{lineage.uncertaintyNote}</p>
+      {/*
+        The caveat states what the data does and does not support. It
+        is shown for a GROUPING, where "not a chain of descent" is the
+        honest limit. It is NOT shown next to an explicit ancestry
+        claim (an ancestor or a descendant role), because there the
+        relationship IS a directional claim and the blanket caveat
+        would contradict the sentence above it.
+      */}
+      {lineageCaveat(lineage) && (
+        <p className="djl__uncertain">{lineageCaveat(lineage)}</p>
       )}
 
       {members.length > 0 && (

@@ -95,7 +95,7 @@ const BIBIMBAP: JourneyFixture = {
       sequence: 1,
       title: "A Korean name appears in an early text.",
       placeName: "Korea — name attestation",
-      dateLabel: "1810 · historical name record",
+      dateLabel: "1810 · Hangul name record",
       datePrecision: "exact",
       yearApprox: 1810,
       evidenceKind: "scholarly_interpretation",
@@ -104,9 +104,10 @@ const BIBIMBAP: JourneyFixture = {
       bounds: [124.0, 33.0, 131.0, 43.5],
       regions: ["Korea"],
       label:
-        "A scholarly review identifies a Hangul form of bibimbap’s name in Jang Hon’s Mongyupyeon, dated 1810. This is a historical name attestation, not evidence that the dish was invented in that year.",
+        "The name of bibimbap in Hangeul first appeared in 1810 as “Bubuyum”, in Mongyupyeon, an encyclopedia compiled by Jang Hon. The name was afterwards recorded in several further forms before settling as “bibimbap”. This is a name attestation, not evidence that the dish was invented in that year.",
       authors: "Mun, Eun-Gyung; Lee, Young-Eun; Cha, Youn-Soo",
-      locator: "Journal of Ethnic Foods 10, 39 (2023), historical section",
+      locator:
+        "Journal of Ethnic Foods 10, 39 (2023), History of bibimbap, paragraph on Mongyupyeon",
       source: {
         id: fid("src"),
         title:
@@ -118,7 +119,7 @@ const BIBIMBAP: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The review was inspected; Jang Hon’s Mongyupyeon was not. The 1810 name record is a dated reference, not the dish’s beginning — earlier antecedents need separate verification.",
+        "VERIFIED 12 November 2026: the article's own text was read. It states that the Hangeul name first appeared in 1810 as “Bubuyum” in Mongyupyeon, and gives the later variant spellings. The 1810 record is a NAME record, not a recipe record. The same paragraph also points to an earlier recipe-record, Siuijonseo, called only “a cookbook compiled … in the late Joseon Dynasty” with no year given, and to “Hondonban” in Kijaijabki (~1590). Jang Hon's Mongyupyeon itself was not read.",
     }),
     beat({
       sequence: 2,
@@ -133,9 +134,10 @@ const BIBIMBAP: JourneyFixture = {
       bounds: [124.0, 33.0, 131.0, 43.5],
       regions: ["Korea"],
       label:
-        "Siuijeonseo records rice mixed with prepared meat, vegetables, sesame seasoning and oil, then finished with egg and meatball garnishes — a preparation mixed before serving, unlike the bowl mixed at the table today.",
+        "Siuijeonseo records a bowl in which the cook mixes everything before serving: rice, prepared meat, seasoned vegetables, sesame salt and plenty of oil, topped with fried t'wigak and slices of fried egg, with fried gochujang set aside to taste. This is the preparation mixed by the cook, unlike the bowl the diner mixes at the table today.",
       authors: "Hwang Hye-seong",
-      locator: "Encyclopedia of Korean Culture, “Bibimbap”, Content section",
+      locator:
+        "Encyclopedia of Korean Culture, “Bibimbap”, 내용 (Content) section; bibliography 『한국요리문화사』",
       source: {
         id: fid("src"),
         title: "Bibimbap — Encyclopedia of Korean Culture",
@@ -146,7 +148,7 @@ const BIBIMBAP: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The encyclopedia entry was inspected; the Siuijeonseo manuscript was not. The entry’s older “first appearance” claim is not adopted here, because newer research identifies earlier records.",
+        "VERIFIED 12 November 2026: the Korean article was read in a browser (its body is loaded by JavaScript, so it cannot be read with curl). Author: 황혜성 (Hwang Hye-seong), compiled 1995, last revised 7 February 2023. It states that bibimbap first appears in the 1800년대 말 (late 19th century) 『시의전서(是議全書)』, Siuijeonseo, and quotes the mixing method, the fried t'wigak, the fried egg, the sesame salt and oil, the fried gochujang set aside, and 참기름 (sesame oil) added to taste. It cites 『한국요리문화사』 (Lee Seong-u, Kyomunsa, 1985). The DATE IS THE ENCYCLOPEDIA'S: the Mun/Lee/Cha review calls Siuijonseo only “a cookbook compiled … in the late Joseon Dynasty” and gives no year. The Siuijeonseo manuscript itself was NOT read, and the encyclopedia's older “first appearance” claim is not adopted — the 2023 review points to earlier records.",
     }),
     beat({
       sequence: 3,
@@ -161,10 +163,10 @@ const BIBIMBAP: JourneyFixture = {
       bounds: [124.0, 33.0, 131.0, 43.5],
       regions: ["Korea"],
       label:
-        "Vegetables are heated in a pot and then stirred with rice and seasonings — the mixed-over-heat preparation recorded in a 1921 Joseon yori jebeop.",
+        "The 1921 cookbook Joseon yori jebeop puts radish sprouts and bean sprouts into a pot, heats them, then mixes them with rice and adds seasonings. The rice was stir-fried with the other ingredients before being served — a mixed-over-heat preparation, not the assembled bowl of today.",
       authors: "Academy of Korean Studies",
       locator:
-        "The Birth of K-Food: History of 20th Century Korean Food, section 2",
+        "The Birth of K-Food: History of 20th Century Korean Food, section 2 (Joseon yori jebeop, 1921)",
       source: {
         id: fid("src"),
         title: "The Birth of K-Food: History of 20th Century Korean Food",
@@ -175,7 +177,7 @@ const BIBIMBAP: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The Academy’s account was inspected; the 1921 cookbook was not. This records a different preparation, not proof that all bowls followed one linear development.",
+        "VERIFIED 12 November 2026: the article's own text was read. It says that according to the cookbook Joseon yori jebeop published in 1921, radish sprouts and bean sprouts were placed into a pot, heated, and then mixed with rice, with seasonings added and stirred with chopsticks, and that “the rice was stir-fried with other ingredients before being served”. The 1921 cookbook itself was NOT read. This records a different preparation from the 1929 restaurant account — not one linear development in which every bowl followed a single path.",
     }),
     beat({
       sequence: 4,
@@ -192,9 +194,10 @@ const BIBIMBAP: JourneyFixture = {
       bounds: [125.5, 34.5, 129.0, 36.5],
       regions: ["Jinju", "Korea"],
       label:
-        "A 1 December 1929 account from Jinju describes the topping arrangement with raw beef and gochujang — a regional preparation recorded alongside the earlier mixed-over-heat form.",
+        "The 1 December 1929 issue of the magazine Byeolgeon’gon describes a bibimbap sold at a restaurant in Jinju, South Gyeongsang: bean sprouts, bracken, mung bean sprouts and cheongpomuk placed on the rice, then finely chopped raw beef and gochujang on top. At the restaurant the customer mixes it at the table.",
       authors: "Academy of Korean Studies",
-      locator: "The Birth of K-Food, section 2 (Byeolgeon’gon, 1 Dec 1929)",
+      locator:
+        "The Birth of K-Food: History of 20th Century Korean Food, section 2 (Byeolgeon’gon, 1 December 1929)",
       source: {
         id: fid("src"),
         title: "The Birth of K-Food: History of 20th Century Korean Food",
@@ -205,7 +208,7 @@ const BIBIMBAP: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The Academy’s account was inspected; the 1929 periodical was not. Jinju is recorded here as a place a preparation was documented — not as an invention site.",
+        "VERIFIED 12 November 2026: the article's own text was read. It says that the December 1 1929 issue of Byeolgeon’gon describes a bibimbap sold at a restaurant in Jinju, South Gyeongsang province, with bean sprouts, bracken, mung bean sprouts and yellow mung bean jelly (cheongpomuk) placed on the rice, followed by finely chopped raw beef (yukhoe) and a dollop of gochujang, and that at the restaurant the ingredients are placed on top and the customer mixes. The 1929 periodical itself was NOT read. Jinju is recorded here as a place a preparation was documented — NOT as an invention site.",
     }),
     beat({
       sequence: 5,
@@ -222,7 +225,7 @@ const BIBIMBAP: JourneyFixture = {
       bounds: [125.5, 34.5, 129.5, 38.7],
       regions: ["Jeonju", "Seoul", "Korea"],
       label:
-        "Jeonju style’s national recognition in the early 1980s is interpreted alongside the growth of the rice-and-side-dish meal in cities.",
+        "Jeonju bibimbap, already appearing in the press from the 1960s, became a nationwide food from the early 1980s as branch restaurants of provincial cuisines opened in Seoul. The study treats this as the making of a Jeonju-origin narrative, and records the competing accounts — a harvest-season food of the Jeonju farming region, and a dish said to have been developed for speed by Donghak army troops — as influential discourses rather than as a settled origin.",
       authors: "Joo Young-ha",
       locator: "Society and History 87 (2010), pp. 5–38",
       source: {
@@ -235,7 +238,7 @@ const BIBIMBAP: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The Korean and English abstracts were inspected; the full article was not accessed. The Jeonju–Seoul connection is an attributed schematic circulation, not a reconstructed route.",
+        "VERIFIED 12 November 2026: the article's Korean and English ABSTRACTS were read (the full article is paywalled — ₩8,500). Citation confirmed: Joo Young-ha, “비빔밥”의 진화와 담론 연구, 사회와 역사 87 (2010.09), pp. 5–38, 34 pages. The abstract states that Jeonju bibimbap, appearing in the press since the 1960s, “1980년대 초반부터 전국적인 음식으로 자리를 잡았다” — took its place as a nationwide food from the early 1980s — and that urbanization from the 1970s drove the discourse. The abstract also describes the shift from cook-mixed to eater-mixed. The Jeonju–Seoul connection is an attributed schematic circulation, not a reconstructed route. THE FULL ARTICLE WAS NOT READ.",
     }),
     beat({
       sequence: 6,
@@ -252,7 +255,7 @@ const BIBIMBAP: JourneyFixture = {
       bounds: [129.0, 31.0, 146.0, 45.5],
       regions: ["Japan", "Korea"],
       label:
-        "Overseas circulation, including adoption in Japan in the late 1990s, is interpreted in the same historical study.",
+        "From the late 1990s, Jeonju bibimbap spread abroad, including to Japan, and the claim that it had been a royal dish was taken up more actively. The study reads this circulation as part of the making of a Jeonju-origin narrative.",
       authors: "Joo Young-ha",
       locator: "Society and History 87 (2010), pp. 5–38",
       source: {
@@ -265,7 +268,7 @@ const BIBIMBAP: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "Abstracts inspected; the full article was not accessed. This is a country-level reception claim at a broad period, not a first-arrival date.",
+        "VERIFIED 12 November 2026: from the Korean abstract — “1990년대 말부터 전주비빔밥이 일본을 비롯하여 해외로 진출” — from the late 1990s Jeonju bibimbap went abroad including to Japan. This is a country-level reception claim at a broad period, NOT a first-arrival date and NOT a reconstruction of any route. The full article was not read.",
     }),
   ],
   movements: [],
@@ -296,9 +299,9 @@ const MOUSSAKA: JourneyFixture = {
       bounds: [26.0, 36.0, 45.0, 42.5],
       regions: ["Ottoman Empire"],
       label:
-        "Recipe 106 “Muzakka” layers minced mutton and eggplant and simmers them in broth. No béchamel appears.",
+        "Recipe 106, “Muzakka”: a leg of mutton or lamb is minced very fine and fried with onions, butter and salt, stirred with parsley, then laid with sliced egg-plants in layers into a pan, covered with a pint of broth, and simmered until the liquor is nearly absorbed. No béchamel appears.",
       authors: "Turabi Efendi",
-      locator: "Turkish Cookery Book, recipe 106, pp. 35–36",
+      locator: "Turkish Cookery Book (1864), receipt No. 106, printed p. 36",
       source: {
         id: fid("src"),
         title: "Turkish Cookery Book",
@@ -309,7 +312,7 @@ const MOUSSAKA: JourneyFixture = {
         reliability: "primary",
       },
       scopeNote:
-        "The edition metadata, the OCR recipe text and the printed-page/scan mapping were inspected directly. The title’s 1862 banquet context is not the 1864 edition date, and London publication is not London origin.",
+        "VERIFIED 12 November 2026 — THIS IS A PRIMARY RECORD, READ DIRECTLY. The Internet Archive item b21527830 (University of Leeds Library copy) gives the edition as London, 1864, and the book's own index reads: “Muzakka — Minced mutton, done with egg-plants … 106”. The full OCR of receipt No. 106 was read: minced mutton or lamb, two or three finely chopped onions, two or three ounces of fresh butter, parsley, three or four egg-plants in salt water, the meat and egg-plants laid “in layers into a pan”, a pint of broth (No. 1), covered and simmered. The printed page is 36. CHECKED AND ABSENT from the recipe: béchamel, white sauce, flour, milk. The title's 1862 banquet context is NOT the 1864 edition date, and London publication is NOT London origin.",
     }),
     beat({
       sequence: 2,
@@ -326,7 +329,7 @@ const MOUSSAKA: JourneyFixture = {
       bounds: [19.0, 34.8, 29.5, 41.8],
       regions: ["Greece"],
       label:
-        "An interpretation of the dish’s early development in Greece discusses Tselementes’ cookbook and the familiar béchamel-topped form.",
+        "An interpretation of the dish’s early development in Greece discusses Tselementes’ cookbook and the familiar béchamel-topped form. (Reported through a secondary summary — the original article could not be read.)",
       authors: "Aglaia Kremezi",
       locator: "“Moussaka: not so classic a dish”",
       source: {
@@ -339,7 +342,7 @@ const MOUSSAKA: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The article was inspected; the cookbook it discusses was not. No exact invention year, exclusive inventor, or direct route from recipe 106 is claimed.",
+        "NOT VERIFIED — ACCESS BLOCKED. The Neos Kosmos article returned HTTP 403 to every attempt on 12 November 2026, so the author's own words were NOT read. What is recorded here comes from the reference pack's summary of that article and is therefore a REPORTED claim, not an inspected one. The 2011 article is also a republication: it was first published in The Atlantic. The cookbook it discusses (Tselementes') was NOT read either. No exact invention year, exclusive inventor, or direct route from recipe 106 is claimed. THIS CHAPTER SHOULD NOT BE PUBLISHED until the article is read.",
     }),
     beat({
       sequence: 3,
@@ -370,7 +373,7 @@ const MOUSSAKA: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The museum account was inspected; the first edition was not. This is historical readership and reception — not British origin and not first arrival.",
+        "VERIFIED 12 November 2026: the Brighton and Hove Museums account was read and names Elizabeth David, A Book of Mediterranean Food, and moussaka among its recipes, with the year 1950. The BOOK ITSELF WAS NOT READ — only the museum's account of it. This is historical readership and reception — NOT British origin and NOT first arrival.",
     }),
   ],
   // No movements: the three records are three different KINDS of
@@ -446,7 +449,7 @@ const HOTPOT: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "The modern essay was inspected; the 1947 Sichuan Times and 1948 Feng Tu Shi Zhi issues were not. The event date, the underlying record dates and the source’s publication date are three different things.",
+        "NOT VERIFIED — ACCESS UNAVAILABLE. The Chongqing Morning Post page (epaper.cqcb.com) did not return readable content on 12 November 2026, and neither the 1947 Sichuan Times nor the 1948 Feng Tu Shi Zhi could be consulted. What is recorded here comes from the reference pack's summary of Lin Wenyu's 2023 essay and is therefore REPORTED, not inspected. The event date (1934), the underlying record dates (1947-48) and the source's publication date (2023) are three different things and must not be merged.",
     }),
     beat({
       sequence: 2,
@@ -477,7 +480,7 @@ const HOTPOT: JourneyFixture = {
         reliability: "secondary",
       },
       scopeNote:
-        "Original periodical issues not inspected. Competing origin and first-establishment accounts exist; the source’s categorical exclusive-origin argument is not adopted.",
+        "NOT VERIFIED — ACCESS UNAVAILABLE. The 2023 essay could not be read, and neither the 1947 Sichuan Times nor the 1948 Feng Tu Shi Zhi could be consulted. The 1936 transmission is REPORTED, not inspected. Competing origin and first-establishment accounts exist; the source's categorical exclusive-origin argument is not adopted. THIS CHAPTER SHOULD NOT BE PUBLISHED until a primary record is read.",
     }),
   ],
   movements: [],

@@ -51,12 +51,6 @@
 
 /* ─── Chapters: the text and the map side by side ─────────────────────── */
 
-.dj__chapters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
 /*
  * The reference's central idea: the MAPS sit side by side so the reader
  * compares them, and the TEXTS sit side by side beneath them.
@@ -70,10 +64,28 @@
  * The chapter wrapper uses `display: contents` so its two children
  * participate directly in the container's grid.
  */
+/*
+ * The grid works for ANY number of chapters.
+ *
+ * Each chapter contributes TWO cells: a map and a text block. The
+ * chapter index decides the COLUMN, so a chapter's map sits directly
+ * above its own text, and the maps of the first row of chapters sit
+ * side by side for comparison.
+ *
+ * The column count is `--djc-columns` (3 on wide screens, 2 on tablets,
+ * 1 on phones) and the number of ROWS of chapters is
+ * `ceil(chapters / columns)`. Both are set inline by the component, so
+ * the grid never has to guess.
+ *
+ * An earlier version pinned every map to `grid-row: 1` and every text to
+ * `grid-row: 2`. With six chapters and three columns that put six maps
+ * into three columns and six texts into three columns, and the cells
+ * overflowed their columns and overlapped.
+ */
 .dj__chapters {
   display: grid;
   grid-template-columns: repeat(var(--djc-columns, 3), minmax(0, 1fr));
-  grid-auto-flow: row;
+  grid-auto-rows: auto;
   gap: var(--space-5) var(--space-4);
   align-items: start;
 }
@@ -82,16 +94,28 @@
   display: contents;
 }
 
+/*
+ * The map cell and its text cell share a column. `--djc-col` is the
+ * chapter's index within its row of chapters, and `--djc-row` is which
+ * row of chapters it belongs to. The component sets both inline.
+ */
+/*
+ * The map cell and its text cell share a column, and the chapter row
+ * decides which pair of grid rows they occupy: row 0 -> map in row 1,
+ * text in row 2; row 1 -> map in row 3, text in row 4; and so on.
+ *
+ * The values are CSS custom properties written as a single stable
+ * style STRING by the component, so the server-rendered and the
+ * client-rendered markup are identical and React's hydration check is
+ * satisfied.
+ */
 .djc__map {
-  grid-row: 1;
+  grid-column: var(--djc-col, auto);
+  grid-row: calc((var(--djc-row, 0) * 2) + 1);
 }
 .djc__text {
-  grid-row: 2;
-}
-
-/* The map caption belongs to the map cell, so it travels with it. */
-.djc__map .jmc__caption {
-  grid-column: 1 / -1;
+  grid-column: var(--djc-col, auto);
+  grid-row: calc((var(--djc-row, 0) * 2) + 2);
 }
 
 /*
@@ -276,8 +300,15 @@
   pointer-events: none;
   transition: opacity 200ms ease;
 }
-.jmc__frame:has([data-map-loaded="true"]) .jmc__status {
+/*
+ * The note is hidden once the map has drawn. The `data-map-loaded`
+ * attribute is set on the note itself when the canvas appears, so the
+ * selector is a plain attribute match — no `:has()` and no dependence
+ * on the note's position in the DOM.
+ */
+.jmc__status[data-map-loaded="true"] {
   opacity: 0;
+  visibility: hidden;
 }
 .jmc__fallback {
   position: absolute;

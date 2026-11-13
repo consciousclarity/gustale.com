@@ -212,6 +212,12 @@ export function isDirectionalLineageRole(
  * A directional role gets an explicit statement. Everything else is
  * described as a relationship within the grouping, which is what the
  * data actually records.
+ *
+ * The wording names the RELATIONSHIP FIRST. It must not be combined with
+ * a blanket "part of the X lineage", because that would assert
+ * membership even for a role that says something more specific (an
+ * ancestor, a descendant, a possible influence) — producing sentences
+ * like "part of the X lineage — an ancestor of the X lineage".
  */
 export function lineageRoleLabel(
   lineage: Pick<DishJourneyLineage, "role" | "name">,
@@ -248,6 +254,81 @@ export function lineageRoleLabel(
       // wording: "related to", which claims nothing about descent.
       return `Related to the ${lineage.name} lineage`;
   }
+}
+
+/**
+ * The short form of the role, for use after the lineage name has already
+ * been stated.
+ *
+ * "Part of the Stuffed Leaves and Vegetables lineage — a cousin dish in
+ * the stuffed leaves and vegetables lineage" says the name twice and
+ * reads badly. The short form names the relationship only.
+ */
+export function lineageRoleShort(
+  lineage: Pick<DishJourneyLineage, "role" | "name">,
+): string {
+  switch (lineage.role) {
+    case "ancestor":
+      return "an ancestor";
+    case "descendant":
+      return "a descendant";
+    case "regional_variant":
+      return "a regional variant";
+    case "adaptation":
+      return "an adaptation";
+    case "fusion":
+      return "a fusion";
+    case "diaspora_adaptation":
+      return "a diaspora adaptation";
+    case "trade_route_spread":
+      return "a trade-route relative";
+    case "colonial_spread":
+      return "a colonial-spread relative";
+    case "technique_relative":
+      return "a technique relative";
+    case "ingredient_relative":
+      return "an ingredient relative";
+    case "possible_influence":
+      return "possibly influential";
+    case "parallel_evolution":
+      return "a parallel tradition";
+    case "cousin":
+      return "a cousin dish";
+    default:
+      return "related";
+  }
+}
+
+/**
+ * True when the recorded role is a MEMBERSHIP — a grouping the dish
+ * belongs to, rather than a specific relationship to it.
+ *
+ * Only for these roles may the page say "part of the ... lineage".
+ * For a directional or influence role the membership phrasing would
+ * flatten the recorded claim, so it is not used.
+ */
+export function isMembershipLineageRole(
+  role: DishJourneyLineage["role"],
+): boolean {
+  return !isDirectionalLineageRole(role) && role !== "possible_influence";
+}
+
+/**
+ * The caveat shown under a lineage. It states what the data does and
+ * does not support, and it is only shown when the relationship is a
+ * grouping rather than a directional claim.
+ *
+ * A directional role (an ancestor, a descendant) is a historical claim
+ * in its own right, and it needs its own sources — which live on the
+ * lineage record. The blanket "a grouping is not a chain of descent"
+ * caveat would be wrong next to an explicit ancestry claim.
+ */
+export function lineageCaveat(
+  lineage: Pick<DishJourneyLineage, "role" | "uncertaintyNote">,
+): string | null {
+  if (lineage.uncertaintyNote) return lineage.uncertaintyNote;
+  if (isDirectionalLineageRole(lineage.role)) return null;
+  return "A culinary grouping is not a proven chain of descent. The relationship recorded here is membership, not ancestry.";
 }
 
 /**

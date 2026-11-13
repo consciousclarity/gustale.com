@@ -13,8 +13,11 @@ import {
   frameForBeat,
   hasJourneyDate,
   isDirectionalLineageRole,
+  isMembershipLineageRole,
+  lineageCaveat,
   lineageMembersLabel,
   lineageRoleLabel,
+  lineageRoleShort,
   mapCaptionForBeat,
   PLACE_ROLE_LABELS,
 } from "./journey.ts";
@@ -297,5 +300,114 @@ describe("map caption — the precision of the geography is stated", () => {
   it("says plainly when no location was recorded", () => {
     const text = mapCaptionForBeat(beat({ placeName: "Ottoman Turkish" }));
     assert.ok(text.includes("no location recorded"));
+  });
+});
+
+describe("lineage wording follows the RECORDED role", () => {
+  const lineage = (role: DishJourneyLineage["role"]): DishJourneyLineage => ({
+    slug: "rice-pilaf",
+    name: "Rice as Carrier",
+    shortDescription: null,
+    longDescription: null,
+    conceptSummary: null,
+    originSummary: null,
+    confidenceLevel: "likely",
+    uncertaintyNote: null,
+    culturalPracticeNote: null,
+    role,
+    roleExplanation: null,
+    changedElements: [],
+    sortOrder: 5,
+    relatedDishes: [],
+  });
+
+  it("treats a grouping role as a membership", () => {
+    assert.equal(isMembershipLineageRole("cousin"), true);
+    assert.equal(isMembershipLineageRole("regional_variant"), true);
+    assert.equal(isMembershipLineageRole("parallel_evolution"), true);
+    assert.equal(isMembershipLineageRole("uncertain"), true);
+  });
+
+  it("does NOT treat a directional role as a membership", () => {
+    // "part of the X lineage - an ancestor of the X lineage" would be
+    // a self-contradicting sentence.
+    assert.equal(isMembershipLineageRole("ancestor"), false);
+    assert.equal(isMembershipLineageRole("descendant"), false);
+    assert.equal(isMembershipLineageRole("possible_influence"), false);
+  });
+
+  it("shows the grouping caveat for a grouping role", () => {
+    const caveat = lineageCaveat(lineage("cousin"));
+    assert.ok(caveat);
+    assert.ok(caveat.includes("membership, not ancestry"));
+  });
+
+  it("withholds the grouping caveat next to an explicit ancestry claim", () => {
+    assert.equal(lineageCaveat(lineage("ancestor")), null);
+    assert.equal(lineageCaveat(lineage("descendant")), null);
+  });
+
+  it("prefers the lineage's own uncertainty note when it has one", () => {
+    const l = lineage("cousin");
+    l.uncertaintyNote = "The grouping is a modern editorial construct.";
+    const caveat = lineageCaveat(l);
+    assert.ok(caveat);
+    assert.ok(caveat.includes("modern editorial construct"));
+  });
+});
+
+describe("lineageRoleShort — the relationship without repeating the name", () => {
+  const lineage = (role: DishJourneyLineage["role"]): DishJourneyLineage => ({
+    slug: "stuffed-leaves",
+    name: "Stuffed Leaves and Vegetables",
+    shortDescription: null,
+    longDescription: null,
+    conceptSummary: null,
+    originSummary: null,
+    confidenceLevel: "likely",
+    uncertaintyNote: null,
+    culturalPracticeNote: null,
+    role,
+    roleExplanation: null,
+    changedElements: [],
+    sortOrder: 5,
+    relatedDishes: [],
+  });
+
+  it("names the relationship only", () => {
+    assert.equal(lineageRoleShort(lineage("cousin")), "a cousin dish");
+    assert.equal(lineageRoleShort(lineage("ancestor")), "an ancestor");
+    assert.equal(lineageRoleShort(lineage("uncertain")), "related");
+  });
+
+  it("does NOT repeat the lineage name", () => {
+    for (const role of [
+      "cousin",
+      "ancestor",
+      "descendant",
+      "regional_variant",
+      "adaptation",
+      "fusion",
+      "parallel_evolution",
+      "possible_influence",
+      "uncertain",
+    ] as const) {
+      const short = lineageRoleShort(lineage(role));
+      assert.ok(
+        !short.toLowerCase().includes("stuffed leaves"),
+        `short form for ${role} repeats the name: ${short}`,
+      );
+    }
+  });
+
+  it("pairs with the long form so the sentence names the lineage once", () => {
+    const l = lineage("cousin");
+    const sentence = `Part of the ${l.name} lineage — ${lineageRoleShort(l)}.`;
+    assert.equal(
+      sentence,
+      "Part of the Stuffed Leaves and Vegetables lineage — a cousin dish.",
+    );
+    // The name appears exactly once.
+    assert.equal(sentence.split(l.name).length - 1, 1);
   });
 });
