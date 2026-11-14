@@ -37,8 +37,8 @@
  * that fails the moment the derivation comes back.
  */
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -54,9 +54,7 @@ describe("the passkey RP ID", () => {
 
     // The derivation must not come back. This is the assertion that
     // matters most: a derived RP ID changes silently.
-    expect(auth).not.toMatch(
-      /rpID:\s*env\.BETTER_AUTH_URL/,
-    );
+    expect(auth).not.toMatch(/rpID:\s*env\.BETTER_AUTH_URL/);
     expect(auth).toMatch(/rpID:\s*env\.PASSKEY_RP_ID/);
   });
 
@@ -79,7 +77,9 @@ describe("the passkey RP ID", () => {
     // section 5.6, and it is why the auth origin stays on
     // api.gustale.com.
     for (const host of ["api.gustale.com", "recipes.gustale.com"]) {
-      expect(host === "gustale.com" || host.endsWith(".gustale.com")).toBe(true);
+      expect(host === "gustale.com" || host.endsWith(".gustale.com")).toBe(
+        true,
+      );
     }
   });
 
