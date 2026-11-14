@@ -1,8 +1,56 @@
+# PR #236's ci.yml patch — PR #232's patch MUST be applied FIRST.
+#
+# WHY THE ORDER MATTERS
+# ---------------------
+# PR #232's patch and this one both touch the deploy's "Real verify" step
+# and the lint job, and both proposed a "served SHA" check there. Applied
+# one after the other with `git apply`, the SECOND patch uses the FIRST
+# patch's hunk CONTEXT to decide what to replace -- and that context is
+# the first patch's newly-added text. So #232's patch would silently
+# CONSUME parts of this one (it does: the served-SHA block, the
+# migration lines, and the contract-test step all disappear).
+#
+# So they are applied in this order:
+#
+#   1. #232's patch  (docs/ci-patches/ci-workflow-dispatch-and-served-sha.patch)
+#   2. THIS patch    (docs/ci-238-migration-chain.patch)
+#
+# ...and the result is the ci.yml that both PRs intend.
+#
+# WHO OWNS THE SERVED-SHA CHECK
+# -----------------------------
+# #232 owns it, as "Check 2b". It is the better implementation: it sits
+# immediately after the container-image check it complements, reads
+# /health over the PUBLIC hostname (so it exercises the path a visitor
+# actually takes), and extracts the SHA with `sed` -- no `jq` on the
+# deploy box.
+#
+# This patch therefore does NOT add a served-SHA check. It adds the
+# PER-CONTAINER check, which is a different thing: it asks each web
+# container's image tag whether it carries this run's SHA. That is the
+# per-container form of the split-brain check -- the one that would have
+# caught the 2026-11-13 half-deployed state, where the API was on the
+# new SHA and both web containers were on the old one for 23 hours.
+#
+# WHAT THIS PATCH ADDS
+# ---------------------
+#   * the two new migrations (gus-238b, gus-238c), placed AFTER 0040,
+#     where their dependencies exist;
+#   * the corrected tag-file assertions -- real commands, not `:?`
+#     parameter expansions, which do not fire the ERR trap and let a
+#     failed deploy report success;
+#   * the fixed EXIT trap;
+#   * the deploy tag-file contract test step;
+#   * the per-container SHA check (Check 3).
+#
+# The App has no `workflows` scope, so this ships as a patch file for the
+# owner to apply.
+
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index 89fe4fe..21c2d3a 100644
+index c3c5d9e..144053e 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -248,6 +248,31 @@ jobs:
+@@ -280,6 +280,31 @@ jobs:
        - name: Test the CI marker checker
          run: bash scripts/test-check-ci-markers.sh
  
@@ -34,7 +82,7 @@ index 89fe4fe..21c2d3a 100644
        # The lint wrapper's own test.
        #
        # `biome check --no-errors-on-unmatched` can exit 0 while having
-@@ -883,6 +908,24 @@ jobs:
+@@ -927,6 +952,24 @@ jobs:
            PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
              -f db/migrations/0040_atlas_publication_predicate.sql
  
@@ -59,7 +107,7 @@ index 89fe4fe..21c2d3a 100644
        # 0041 is the ROLE SEPARATION for the publish credential.
        #
        # 0038's guard checked that the credential's ACCOUNT is real. It
-@@ -1479,8 +1522,49 @@ jobs:
+@@ -1549,8 +1592,49 @@ jobs:
                DEPLOY_LOG="/tmp/gustale-deploy-${GITHUB_RUN_ID}.log"
                : > "$DEPLOY_LOG"
                _DEPLOY_EXIT=0
@@ -111,7 +159,7 @@ index 89fe4fe..21c2d3a 100644
  
                # --- Deploy lock ------------------------------------------------
                # A VPS-side lock, so that two deploys can never interleave
-@@ -1663,10 +1747,49 @@ jobs:
+@@ -1733,10 +1817,49 @@ jobs:
                }
  
                # The script writes TAG / IMAGE_RECIPES / IMAGE_GEO to $TAG_FILE.
@@ -163,67 +211,28 @@ index 89fe4fe..21c2d3a 100644
  
                # The tag the script wrote MUST be the tag this run asked
                # for. A mismatch means the deploy read a stale file, which
-@@ -1876,7 +1999,80 @@ jobs:
+@@ -1997,6 +2120,44 @@ jobs:
                  FAILED=1
                fi
  
--              # --- Check 4: BOTH domains serve the expected sitemap ---
-+              # --- Check 4: the SERVED build identity ---
-+              # Check 2 proves what each container was STARTED with. It
-+              # cannot prove what is SERVING traffic right now: the
-+              # container could have been recreated from a retagged
-+              # image, the deploy could have been rolled back, or a
-+              # second process could be bound to the port.
-+              #
-+              # So the API reports its own build identity at /health
-+              # (the `build` object), and this compares the SERVED SHA
-+              # with the SHA this run deployed.
-+              #
-+              # The endpoint only carries the identity once the image was
-+              # built with the BUILD_SHA build arg. If it is not there
-+              # yet, this check is SKIPPED and says so -- it does not
-+              # pass silently, and it does not fail a deploy for a
-+              # missing optional feature.
-+              echo ""
-+              echo "--- Check 4: the SERVED build identity ---"
-+              SERVED_JSON=$(curl -fsS --max-time 10 "https://api.gustale.com/health" 2>&1) || {
-+                echo "::error::could not read https://api.gustale.com/health"
-+                FAILED=1
-+                SERVED_JSON=""
-+              }
-+              SERVED_SHA=$(printf '%s' "$SERVED_JSON" \
-+                | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' \
-+                | head -1 | grep -oE '[0-9a-f]{40}' || true)
-+              if [ -z "$SERVED_SHA" ]; then
-+                echo "  the API does not report a build identity (the BUILD_SHA build arg is not in the image yet) -- SKIPPED"
-+                echo "  the container check (Check 2) still applies"
-+              elif [ "$SERVED_SHA" = "$SHA" ]; then
-+                echo "  the API is SERVING $SERVED_SHA  OK"
-+              else
-+                echo "::error::the API is SERVING $SERVED_SHA but this run deployed $SHA"
-+                echo "::error::the container's image tag says what it was started with; this says what answered the request"
-+                FAILED=1
-+              fi
-+
-+              # --- Check 5: every container serves the expected SHA ---
-+              # Check 2 compares each container's IMAGE TAG with the
-+              # expected tag. This check asks the stricter question: is
-+              # the expected SHA actually the one serving traffic on
-+              # EACH public surface?
++              # --- Check 3: every web container serves this run's SHA ---
++              # Check 2 proves what each container was STARTED with, and
++              # Check 2b proves what the API is SERVING. Neither says
++              # anything about the WEB containers' own images.
 +              #
 +              # gustale.com and gustale.recipes are TWO SEPARATE sites,
-+              # served by TWO SEPARATE containers, built independently.
++              # served by TWO SEPARATE containers, built INDEPENDENTLY.
 +              # A container can be on the right image and still be
-+              # serving a stale build if the image itself was built
-+              # from the wrong tree -- which is exactly what the sitemap
-+              # check (Check 6) catches by comparing counts.
++              # serving a stale build -- which is exactly the
++              # half-deployed state of 2026-11-13, where the API was on
++              # the new SHA and both web containers were on the old one,
++              # for 23 hours, with the deploy log saying DEPLOY_EXIT_CODE=0.
 +              #
-+              # So this check verifies that BOTH web containers are
-+              # running an image whose tag carries this run's short SHA.
-+              # It is the per-container form of the split-brain check,
-+              # and it is cheap.
++              # The image tag carries the short SHA, so this is the
++              # per-container form of the split-brain check that the
++              # sitemap comparison does by count.
 +              echo ""
-+              echo "--- Check 5: every web container serves this run's SHA ---"
++              echo "--- Check 3: every web container serves this run's SHA ---"
 +              for NAME in gustale-web-recipes gustale-web-geo; do
 +                if ! docker inspect "$NAME" >/dev/null 2>&1; then
 +                  echo "::error::Container $NAME is missing"
@@ -237,20 +246,13 @@ index 89fe4fe..21c2d3a 100644
 +                    ;;
 +                  *)
 +                    echo "::error::$NAME is serving $IMAGE -- expected a live-data-${SHORT_SHA}-* image"
++                    echo "::error::$NAME expected tag: live-data-${SHORT_SHA}-*"
++                    echo "::error::$NAME actual   tag: ${IMAGE##*:}"
 +                    FAILED=1
 +                    ;;
 +                esac
 +              done
-+              # --- Check 6: BOTH domains serve the expected sitemap ---
++
+               # --- Check 4: BOTH domains serve the expected sitemap ---
                # gustale.com and gustale.recipes are TWO SEPARATE sites,
                # served by TWO SEPARATE containers, built and deployed
-               # INDEPENDENTLY. They are the same app and the same commit,
-@@ -1893,7 +2089,7 @@ jobs:
-               # dishes + 43 content-bearing families + 12 content-bearing
-               # lineages + 2 static URLs.
-               echo ""
--              echo "--- Check 4: both domains' sitemaps ---"
-+              echo "--- Check 6: both domains' sitemaps ---"
-               if ! bash "$BUILD_DIR/scripts/check-live-sitemaps.sh" 1531; then
-                 echo "::error::the sitemap check failed -- one of the two sites is serving a stale build"
-                 FAILED=1
