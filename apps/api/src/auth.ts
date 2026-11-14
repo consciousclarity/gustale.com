@@ -115,9 +115,25 @@ export const auth = betterAuth({
     }),
     passkey({
       rpName: "Gustale",
-      rpID: env.BETTER_AUTH_URL
-        ? new URL(env.BETTER_AUTH_URL).hostname
-        : "gustale.com",
+      // The RP ID is EXPLICIT, not derived from BETTER_AUTH_URL.
+      //
+      // It was `new URL(env.BETTER_AUTH_URL).hostname`, which in
+      // production is `api.gustale.com`. That is a SIBLING of
+      // `recipes.gustale.com` under `gustale.com`, not a suffix of it,
+      // so WebAuthn would refuse it on the recipes host -- and the
+      // value would change silently if BETTER_AUTH_URL ever changed.
+      //
+      // `gustale.com` is the registrable domain (eTLD+1) of BOTH
+      // `api.gustale.com` and `recipes.gustale.com`, so one RP ID
+      // covers the whole tree. `api.gustale.recipes` has eTLD+1
+      // `gustale.recipes` -- a different registrable domain -- and a
+      // passkey scoped to `gustale.com` does NOT work there.
+      //
+      // Changed on 2026-11-14 with ZERO passkeys registered, so no
+      // credential was stranded. It is a ONE-WAY operation: the RP ID
+      // is hashed into the credential, so a later change would strand
+      // every enrolled passkey.
+      rpID: env.PASSKEY_RP_ID,
       origin: env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : undefined,
     }),
   ],
