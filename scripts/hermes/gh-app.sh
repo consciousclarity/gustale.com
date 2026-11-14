@@ -57,7 +57,24 @@ from cryptography.hazmat.primitives import serialization
 
 APP_ID = "5596451"
 INSTALL_ID = "178310866"
-KEY_PATH = Path("/home/gustale/.hermes/github-app/gustale-bot.pem")
+# The key lives under the USER's home, not a fixed account's. The VPS
+# account is "gustale"; the local WSL account is "alex". A hardcoded
+# path made the helper fail with FileNotFoundError on this box, which
+# reads like "the App is broken" when the App is fine.
+_KEY_CANDIDATES = (
+    Path.home() / ".hermes" / "github-app" / "gustale-bot.pem",
+    Path("/home/gustale/.hermes/github-app/gustale-bot.pem"),
+)
+
+
+def _key_path() -> Path:
+    for candidate in _KEY_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return _KEY_CANDIDATES[0]
+
+
+KEY_PATH = _key_path()
 REPO = "consciousclarity/gustale.com"
 
 
