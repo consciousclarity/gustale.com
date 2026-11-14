@@ -99,6 +99,66 @@ else
   TAG_FILE="$(mktemp /tmp/gustale-web-live-tag.XXXXXX.env)"
   trap 'rm -f "$TAG_FILE"' EXIT
 fi
+
+# -------------------------------------------------------------------------
+# WRITE THE TAG FILE BEFORE THE BUILDS, NOT AFTER.
+#
+# THE 2026-11-13 FAILURE, AND WHY THE ORDER MATTERS
+# ---------------------------------------------------
+# The tag file used to be written AFTER both builds succeeded. The geo
+# build failed, so the script died before writing it, and the caller's
+# `source "$TAG_FILE"` read a ZERO-BYTE file.
+#
+# An empty file sources successfully and exports NOTHING. The caller's
+# next line was:
+#
+#     : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+#
+# and THAT is the trap. A `:?` parameter expansion is NOT a command:
+#
+#   * the ERR trap does not fire on it,
+#   * the failure does not set a non-zero exit status,
+#   * the script CONTINUES and exits 0.
+#
+# So the deploy wrote exactly one line to its log --
+#
+#     DEPLOY_EXIT_CODE=0
+#
+# -- for a deploy that had swapped the API and then died, leaving the
+# web containers on the PREVIOUS SHA. The log said success. The site
+# was half-deployed. Verified: run 43429059289, log 19 bytes.
+#
+# Two fixes, both needed:
+#
+#   1. Write the tag file BEFORE the builds. The tags are computed from
+#      the SHA and are known up front, so there is no reason to wait for
+#      the build to advertise them. A failed build then leaves a VALID
+#      tag file, and the caller's `source` gets what it expects.
+#
+#   2. The caller's assertion must be a REAL command, not a `:?`
+#      expansion. That is the caller's half of the fix -- see
+#      scripts/hermes/rebuild-web-live.sh and the ci.yml deploy step.
+#
+# This function writes the file. It is called before the builds, and
+# again after them (so the file's mtime reflects the build).
+# -------------------------------------------------------------------------
+write_tag_file() {
+  rm -f "$TAG_FILE"
+  cat >"$TAG_FILE" <<EOF
+TAG=$TAG
+TAG_RECIPES=$TAG-recipes
+TAG_GEO=$TAG-geo
+IMAGE_RECIPES=$REGISTRY/gustale-web-recipes:$TAG-recipes
+IMAGE_GEO=$REGISTRY/gustale-web-geo:$TAG-geo
+EOF
+  # Make the file world-readable so the deploy script (running as root)
+  # can `source` it even if the file was originally written by hermes
+  # (the rebuild user).
+  chmod 0644 "$TAG_FILE"
+}
+
+# Write it NOW, before anything can fail.
+write_tag_file
 NO_PUSH="${GUSTALE_NO_PUSH:-0}"
 
 if [ "$NO_PUSH" != "1" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
@@ -183,24 +243,11 @@ build_one() {
 build_one recipes gustale-web-recipes recipes
 build_one geo     gustale-web-geo geo
 
-# Emit the deploy variables. Two channels: stdout (line-prefixed with TAG=
-# / IMAGE_=, for the deploy script to capture) and a file (for operators
-# to inspect after a deploy). Remove any stale file first so the `cat >`
-# below doesn't fail with "Permission denied" if a previous run (run as
-# a different user — e.g. hermes for the rebuild, root for the deploy)
-# left a non-writable file behind.
-rm -f "$TAG_FILE"
-cat >"$TAG_FILE" <<EOF
-TAG=$TAG
-TAG_RECIPES=$TAG-recipes
-TAG_GEO=$TAG-geo
-IMAGE_RECIPES=$REGISTRY/gustale-web-recipes:$TAG-recipes
-IMAGE_GEO=$REGISTRY/gustale-web-geo:$TAG-geo
-EOF
-# Make the file world-readable so the deploy script (running as root)
-# can `source` it even if the file was originally written by hermes
-# (the rebuild user).
-chmod 0644 "$TAG_FILE"
+# Emit the deploy variables. The file was ALREADY written before the
+# builds (see write_tag_file above and the note on the 2026-11-13
+# failure). Rewrite it now so its mtime reflects the build, and so the
+# values are provably the ones the builds used.
+write_tag_file
 cat "$TAG_FILE"
 
 echo ""

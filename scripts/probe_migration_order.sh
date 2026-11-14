@@ -60,6 +60,8 @@ gus-224-relations-option-b
 gus-227-preparation-method-names
 gus-238-journey-editorial-fields
 gus-238b-association-review-visibility
+gus-238c-constraint-idempotence-and-ledger
+gus-238b-association-review-visibility
 gus-241-taxonomy-and-unset-dimensions
 gus-242-schema-prep
 gus-242-seed-countries
