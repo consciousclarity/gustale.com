@@ -85,6 +85,7 @@ gus_files=(
     db/migrations/gus-014-technique-fallback.sql
     db/migrations/gus-224-relations-option-b.sql
     db/migrations/gus-227-preparation-method-names.sql
+    db/migrations/gus-238-journey-editorial-fields.sql
     db/migrations/gus-242-seed-countries.sql
     db/migrations/gus-242-seed-country-names.sql
     db/migrations/gus-242-seed-cuisines.sql

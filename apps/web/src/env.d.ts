@@ -16,6 +16,15 @@ interface ImportMetaEnv {
    */
   readonly PUBLIC_SITE_ORIGIN?: string;
   /**
+   * GUS-238: the dish-journey presentation pilot.
+   *
+   * OFF unless this is exactly "1". When it is on, the two-dish
+   * pilot (Bibimbap, moussaka) uses the new presentation — separate
+   * OSM map cards, a visible lineage section, a sticky section nav —
+   * and every other dish keeps the current one.
+   */
+  readonly PUBLIC_DISH_JOURNEY_PILOT?: string;
+  /**
    * Vite's built-in flag for whether the code is running on the
    * server. Vite declares it in its own client types, but the web
    * app's tsconfig does not pull those in.

@@ -1878,6 +1878,48 @@ export const journeyConfidence = [
 ] as const;
 export type JourneyConfidence = (typeof journeyConfidence)[number];
 
+// ── Journey editorial vocabularies (GUS-238) ───────────────────────────
+//
+// The confidence enum above is NOT extended. Confidence answers "how sure
+// are we"; these answer "what kind of record is this" and "what is the
+// date's precision". Keeping them apart lets the badge wording change
+// editorially without touching a constraint that other code reads.
+
+/** How precisely the source dates the event. */
+export const journeyDatePrecision = [
+  "exact",
+  "circa",
+  "range",
+  "century",
+  "decade",
+  "bce",
+  "ce",
+  "unknown",
+] as const;
+export type JourneyDatePrecision = (typeof journeyDatePrecision)[number];
+
+/** The kind of record a chapter rests on. */
+export const journeyEvidenceKind = [
+  "primary_record",
+  "scholarly_interpretation",
+  "reported_account",
+  "reference_work",
+  "archival_record",
+  "comparison",
+] as const;
+export type JourneyEvidenceKind = (typeof journeyEvidenceKind)[number];
+
+/** The place's role in a chapter. Never a birthplace claim on its own. */
+export const journeyPlaceRole = [
+  "attestation",
+  "preparation_context",
+  "adaptation",
+  "reception",
+  "circulation",
+  "regional_identity",
+] as const;
+export type JourneyPlaceRole = (typeof journeyPlaceRole)[number];
+
 export const dishJourneyBeats = pgTable(
   "dish_journey_beats",
   {
@@ -1895,6 +1937,36 @@ export const dishJourneyBeats = pgTable(
     sourceId: uuid("source_id").references(() => sources.id, {
       onDelete: "set null",
     }),
+    // ── Editorial fields of a historical chapter (GUS-238) ────────────
+    // The chapter's own title, separate from `label` (the explanation).
+    title: text("title"),
+    // The date AS DISPLAYED: "1810", "c. 1810", "1810-1820",
+    // "late 19th century", "1930s". `yearApprox` stays the machine
+    // anchor; this carries the precision the source actually supports.
+    dateLabel: text("date_label"),
+    datePrecision: text("date_precision").$type<JourneyDatePrecision>(),
+    // What sort of record this is — deliberately NOT the confidence
+    // enum, which answers "how sure are we", not "what kind of source".
+    evidenceKind: text("evidence_kind").$type<JourneyEvidenceKind>(),
+    // Page / recipe number / section of the cited work.
+    locator: text("locator"),
+    // Authors of the cited work, when the citation record lacks them.
+    authors: text("authors"),
+    // The place's role in this chapter. NOT a birthplace claim.
+    placeRole: text("place_role").$type<JourneyPlaceRole>(),
+    // What the record establishes — and what it does not. Also carries
+    // the inspection status (primary read directly, or reported).
+    scopeNote: text("scope_note"),
+    // Coarse framing for broad regional evidence: [w, s, e, n].
+    bounds: jsonb("bounds")
+      .$type<number[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    // Named regions this chapter refers to.
+    regions: jsonb("regions")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1912,6 +1984,66 @@ export const dishJourneyBeats = pgTable(
     sequencePositiveCheck: check(
       "dish_journey_beats_sequence_positive_check",
       sql`${t.sequence} >= 1`,
+    ),
+    // GUS-238 — the new editorial vocabularies are constrained too, so a
+    // typo in an import can never write a value the UI cannot render.
+    datePrecisionCheck: check(
+      "dish_journey_beats_date_precision_check",
+      sql`${t.datePrecision} IS NULL OR ${t.datePrecision} IN ('exact','circa','range','century','decade','bce','ce','unknown')`,
+    ),
+    evidenceKindCheck: check(
+      "dish_journey_beats_evidence_kind_check",
+      sql`${t.evidenceKind} IS NULL OR ${t.evidenceKind} IN ('primary_record','scholarly_interpretation','reported_account','reference_work','archival_record','comparison')`,
+    ),
+    placeRoleCheck: check(
+      "dish_journey_beats_place_role_check",
+      sql`${t.placeRole} IS NULL OR ${t.placeRole} IN ('attestation','preparation_context','adaptation','reception','circulation','regional_identity')`,
+    ),
+  }),
+);
+
+// ─── Dish ↔ Journey movement (GUS-238) ─────────────────────────────────
+//
+// One row = ONE claimed transmission between two chapters, carrying its
+// own claim text, its own source and its own confidence.
+//
+// The point of this table is what it does NOT contain: there is no row
+// for "these two chapters are adjacent", and no row is ever inferred
+// from chapter order, map proximity, a shared name, a shared ingredient
+// or a lineage link. A line appears on a map only because a row exists
+// here, and a row exists only because a historical record supports it.
+
+export const dishJourneyMovements = pgTable(
+  "dish_journey_movements",
+  {
+    id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
+    dishId: uuid("dish_id")
+      .notNull()
+      .references(() => dishes.id, { onDelete: "cascade" }),
+    fromBeatId: uuid("from_beat_id")
+      .notNull()
+      .references(() => dishJourneyBeats.id, { onDelete: "cascade" }),
+    toBeatId: uuid("to_beat_id")
+      .notNull()
+      .references(() => dishJourneyBeats.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    confidence: text("confidence").$type<JourneyConfidence>().notNull(),
+    sourceId: uuid("source_id").references(() => sources.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    dishIdx: index("dish_journey_movements_dish_idx").on(t.dishId),
+    confidenceCheck: check(
+      "dish_journey_movements_confidence_check",
+      sql`${t.confidence} IN ('documented', 'likely', 'possible', 'parallel')`,
+    ),
+    distinctBeatsCheck: check(
+      "dish_journey_movements_distinct_beats_check",
+      sql`${t.fromBeatId} <> ${t.toBeatId}`,
     ),
   }),
 );

@@ -58,6 +58,7 @@ gus-014-broadened-family-corrections
 gus-014-technique-fallback
 gus-224-relations-option-b
 gus-227-preparation-method-names
+gus-238-journey-editorial-fields
 gus-241-taxonomy-and-unset-dimensions
 gus-242-schema-prep
 gus-242-seed-countries
