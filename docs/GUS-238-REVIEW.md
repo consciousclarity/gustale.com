@@ -1,8 +1,13 @@
 # GUS-238 — dish journey: the review report
 
 **Branch:** `feature/gus-dish-journey-osm-cards`
-**PR:** #234 — **draft**, **pilot disabled**, not merged, not deployed, no live data written
-**Status at the time of writing:** the branch head is the PR head; CI's `Lint + typecheck` job fails on one step, and the `Live approval gate` fails by design. Both are explained in §9.
+**PR:** #234 — **MERGED** 2026-11-13 12:54 UTC as `8750b17`, with `approved-live`
+**Follow-up PR:** #236 — the publish rule and the association visibility rule
+
+**Status at the time of writing:** PR #234 is merged and the API is deployed on
+the live site. **The live migration has NOT been applied**, so
+`GET /api/dishes/:slug/journey` returns **HTTP 500** on live. The web
+containers are still on the previous SHA, so no page shows it yet. See §14.
 
 ---
 
@@ -487,3 +492,224 @@ A dish page (`gustale.com/dishes/bibimbap`) declares **11 hreflang alternates** 
 **Not changed:** the confidence enum; the lineage data model; the `dish_place_associations` model; any existing component's behaviour outside the Journey section; `gustale.recipes`; DNS, hosting or Caddy; any live database; the Recipes site's design; the editorial content model.
 
 **Not done:** no merge, no deploy, no `approved-live`, no live migration, no published editorial data. The pilot is off.
+
+---
+
+## 14. After the merge — the live state, measured
+
+**PR #234 was merged** 2026-11-13 12:54 UTC by `consciousclarity`, as
+`8750b17`, with the `approved-live` label applied at 12:28 and the PR
+marked ready at 12:53. The merge is a fact, and the whole of §12 above
+describes the state *before* it. This section describes the state after,
+measured on the VPS and against the live endpoints.
+
+### 14.1 What CI did
+
+The merge run is `43429059289`. Every job except the deploy passed:
+
+| Job | Result |
+| --- | --- |
+| `Lint + typecheck` | **success** |
+| `Tests (vitest + postgis)` | **success** |
+| `Accessibility gate (axe)` | **success** |
+| `Docker build (gustale-api)` | **success** |
+| `Docker build (gustale-web-recipes)` | **success** |
+| `Docker build (gustale-web-geo)` | **success** |
+| `Deploy to Hostinger` | **failure** — `Deploy via SSH`, then `Real verify` |
+
+The migration-chain check that used to fail is now green: the `ci.yml`
+copy of the migration list carries `gus-238-journey-editorial-fields.sql`
+at line 543.
+
+### 14.2 The live database was NOT migrated
+
+This is the finding that matters, and it is not a judgement call — the
+table says so:
+
+```
+$ docker exec shared-postgres psql -U postgres -d gustale -c "\d dish_journey_beats"
+ id | dish_id | sequence | place_name | lat | lng | year_approx |
+ label | confidence | source_id | created_at          <- 11 columns, no `title`
+```
+
+`dish_journey_movements` does not exist. The **10 new columns and the new
+table are absent from live.** The `approved-live` label authorised the
+migration; it did not apply it. Applying a live migration is the owner's
+step, by direct `psql`, on the VPS (runbook §1 and §3).
+
+### 14.3 The consequence: the live journey endpoint returns 500
+
+The deployed API selects the new columns. The live database does not have
+them. The query fails:
+
+```
+PostgresError: column dish_journey_beats.title does not exist
+  at /app/dist/routes/dishes.js:1121:26
+```
+
+Measured against the live API, 2026-11-14:
+
+| Endpoint | HTTP |
+| --- | --- |
+| `GET /api/dishes/bibimbap/journey` | **500** |
+| `GET /api/dishes/moussaka-greek/journey` | **500** |
+| `GET /api/dishes/falafel/journey` | **500** |
+| `GET /api/dishes/rendang/journey` | **500** |
+| `GET /api/dishes/vindaloo/journey` | **500** |
+| `GET /api/dishes/chicken-tikka-masala/journey` | **500** |
+| `GET /api/dishes/bibimbap/atlas` | 200 |
+| `GET /api/dishes/bibimbap` | 200 |
+| `GET /api/dishes/map?limit=5` | 200 |
+
+**The blast radius is one endpoint.** Every other live route is healthy,
+and the site itself is up: `gustale.com/`, `/dishes/bibimbap` and
+`api.gustale.com/health` all return 200.
+
+### 14.4 Why no page shows it yet
+
+The web containers were never swapped. They are still on the previous SHA:
+
+```
+gustale-api           …gustale-api:8750b17…              Up 14 hours (healthy)   <- NEW
+gustale-web-geo       …gustale-web-geo:live-data-af4a0f8-geo    Up 2 days (healthy)  <- OLD
+gustale-web-recipes   …gustale-web-recipes:live-data-af4a0f8-recipes  Up 2 days (healthy)  <- OLD
+```
+
+The recipes image for the new SHA **was** built
+(`gustale-web-recipes:live-data-8750b17-recipes`, 922 MB, present on the
+box) but never started; there is **no** `gustale-web-geo:live-data-8750b17-geo`
+image at all. The deploy log for the run is a single line:
+
+```
+DEPLOY_EXIT_CODE=0
+```
+
+…with no `DEPLOY_FAILED_AT=` line, even though the SSH step failed. And
+the per-run tag file the deploy sourced, `/tmp/gustale-web-live-tag.viLVsv.env`
+(2026-11-13 20:58), is **0 bytes** — the deploy looked for a tag that was
+never written, which is the GUS-229 hazard the `ci.yml` comment describes
+("the script wrote the correct tag to its own mktemp file, and the deploy
+then 'source'd the stale fixed path"), recurring in the per-run form.
+
+**So the live site is currently in a half-deployed state:** new API, old
+web. That combination is *lucky*, not designed. The moment the web
+containers are rebuilt to `8750b17`, every dish page that reads the
+journey client-side would render the "This is a loading problem, not a
+statement about the dish's history" state.
+
+**The correct order is therefore: migrate the database first, then
+rebuild the web.** Doing it in the other order ships the broken state
+to readers.
+
+### 14.5 The migration is proven safe to apply — a real dry run
+
+The migration was applied to a **copy** of the live journey data, on the
+disposable `gustale-test-postgres` container, never to live:
+
+* The live `dish_journey_beats` structure and its **36 real rows** were
+  dumped with `pg_dump` (read-only) and restored into a fresh database,
+  with the referenced `dishes` and `sources` ids stubbed so the foreign
+  keys could be enforced.
+* The copy reproduced live exactly: **36 beats, 11 columns, no
+  movements table**.
+* The real `db/migrations/gus-238-journey-editorial-fields.sql` was
+  applied to it: **`COMMIT`, exit 0**, no errors.
+* After: **36 beats (unchanged), 21 columns, movements table present and
+  empty, 9 CHECK constraints.** The exact query the deployed API runs
+  returns rows.
+* Re-running it: the `ADD COLUMN IF NOT EXISTS` statements are no-ops
+  (NOTICEs), but the three `ADD CONSTRAINT` statements **abort**, because
+  PostgreSQL has no `ADD CONSTRAINT IF NOT EXISTS`.
+
+**A defect, honestly stated:** the migration's own header claims
+"Idempotent: re-running produces no changes." That is **false** for the
+three CHECK constraints. CI never re-runs a migration against the same
+database, so nothing breaks today — but the header is wrong, and a
+re-run aborts. The fix is a `DO $$ … IF NOT EXISTS (SELECT 1 FROM
+pg_constraint …) $$` guard around each constraint, which is a **new
+migration number** (Rule 11: an applied migration's file is immutable —
+and this one is now applied on live, so it is frozen).
+
+### 14.6 The two commits that are not in main
+
+`c342411` (the publish rule) and `7457ab0` (its tests) were committed
+**after** the merge and exist only on the branch. They are the ones that
+make the publish rule actually *bind*:
+
+```
+primary_inspected, full_text_inspected   → publishable
+abstract_only                            → publishable only for what the
+                                           abstract states, and labelled
+reported_only, inaccessible              → NEVER published
+```
+
+Before `c342411`, `isPublishable()` existed and **nothing called it** at
+render time, so a `reported_only` chapter would have been rendered with
+the pilot on. After it, the component builds its chapter list through
+`publishableChapters()`, and the exclusion happens **before** the display
+numbering, so the reader sees "1 / 3" rather than "1 / 4" with a gap.
+
+`c342411` also carries `db/migrations/gus-238b-association-review-visibility.sql`,
+which implements the owner's rule of 2026-11-13: an association is hidden
+until it is **evidenced and reviewed**. It is a `CREATE OR REPLACE
+FUNCTION` — genuinely idempotent — and it deletes nothing.
+
+### 14.7 The follow-up PR
+
+The two commits ship as **PR #236**, off `origin/main`. It needs the
+`ci.yml` line, which the App cannot push, so it ships as the patch file
+`docs/ci-238-migration-chain.patch`:
+
+```
++            db/migrations/gus-238b-association-review-visibility.sql
+```
+
+Verified against `origin/main`'s `ci.yml`:
+
+| Check | Result |
+| --- | --- |
+| `git apply --check` | applies cleanly |
+| `validate-ci-migration-chain.py` **with the patch applied** | **"CI migration chain OK (56 migrations, all three lists agree)"** — exit 0 |
+| the same validator **without** the patch | MISMATCH — and the mismatch is **exactly one line**, the missing `gus-238b` entry, and nothing else |
+| `ci-migration-chain.sh` (both migrations) | **`FULL_CI_CHAIN_OK=1`** |
+| `repro-ci-test-job.sh --with-0053` | exit 0, `RECIPES_PUBLISHED_VIEW_OK=1` |
+| API suite against that database | **22 files, 223 tests, 210 passed, 3 skipped, 0 failed** |
+| Web suite (`node --test`, 7 files) | **125 / 125 pass** |
+| `pnpm -r run typecheck` | exit 0 |
+| `node scripts/run-lint.mjs` | **"the lint: OK"** — 267 files |
+
+### 14.8 What still needs the owner
+
+1. **Apply `gus-238-journey-editorial-fields.sql` to the live database**,
+   by direct `psql` on the VPS, with a backup first
+   (`docker cp shared-postgres:/tmp/pre-XXXX.dump "$DUMP"`). It is
+   additive — 10 nullable columns and one empty table — and §14.5 proves
+   it applies cleanly against the live data. It is now FROZEN: fixes go
+   into a new migration number.
+2. **Apply `gus-238b-association-review-visibility.sql`** after it, if
+   PR #236 is merged.
+3. **Apply the `ci.yml` patch** from PR #236, or CI's database will not
+   have `gus-238b` and its tests will fail.
+4. **Rebuild the web containers** — after the migration, not before.
+
+### 14.9 The one thing to fix in the migration
+
+The three CHECK constraints are not re-runnable. Fix in a **new**
+migration number, with a `DO $$` guard, so the file stays frozen:
+
+```sql
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'dish_journey_beats_date_precision_check'
+      AND conrelid = 'dish_journey_beats'::regclass
+  ) THEN
+    ALTER TABLE "dish_journey_beats"
+      ADD CONSTRAINT "dish_journey_beats_date_precision_check"
+      CHECK ("date_precision" IS NULL OR "date_precision" IN (
+        'exact', 'circa', 'range', 'century', 'decade', 'bce', 'ce', 'unknown'
+      ));
+  END IF;
+END $$;
+```

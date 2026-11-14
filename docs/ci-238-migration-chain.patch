@@ -1,11 +1,256 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 89fe4fe..21c2d3a 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -540,6 +540,7 @@
-             db/migrations/gus-014-technique-fallback.sql
-             db/migrations/gus-224-relations-option-b.sql
-             db/migrations/gus-227-preparation-method-names.sql
-+            db/migrations/gus-238-journey-editorial-fields.sql
-             db/migrations/gus-242-seed-countries.sql
-             db/migrations/gus-242-seed-country-names.sql
-             db/migrations/gus-242-seed-cuisines.sql
+@@ -248,6 +248,31 @@ jobs:
+       - name: Test the CI marker checker
+         run: bash scripts/test-check-ci-markers.sh
+ 
++      # The deploy's tag-file contract, and its exit-code contract.
++      #
++      # On 2026-11-13 the deploy of PR #234 reported SUCCESS for a deploy
++      # that had swapped the API, died, and left the web containers on the
++      # previous SHA. Its log held exactly one line -- `DEPLOY_EXIT_CODE=0`
++      # -- and the site was half-deployed for 23 hours.
++      #
++      # Two bugs, both needed:
++      #
++      #   1. build-web-live.sh wrote the tag file AFTER the builds, so a
++      #      failed build left a ZERO-BYTE file, and `source` on an empty
++      #      file exports nothing.
++      #   2. The EXIT trap did `exit "$_DEPLOY_EXIT"`, and `_DEPLOY_EXIT`
++      #      was only set by the ERR trap -- which does NOT fire on a `:?`
++      #      parameter expansion or on an explicit `exit 1`. So the trap
++      #      REPLACED the intended exit code with 0.
++      #
++      # A test that only proves the success path would pass against the
++      # broken code, so this one drives a REAL failing build and asserts
++      # the failure is visible: a non-empty tag file, a non-zero exit, a
++      # DEPLOY_FAILED_AT line, and a log that does NOT say
++      # DEPLOY_EXIT_CODE=0.
++      - name: Test the deploy tag-file and exit-code contract
++        run: bash scripts/test-deploy-tag-file.sh
++
+       # The lint wrapper's own test.
+       #
+       # `biome check --no-errors-on-unmatched` can exit 0 while having
+@@ -883,6 +908,24 @@ jobs:
+           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+             -f db/migrations/0040_atlas_publication_predicate.sql
+ 
++      # 238b and 238c come AFTER 0040, and NOT in the gus_files list
++      # above.
++      #
++      # 238b replaces the function 0040 creates
++      # (`published_associations_for_dish`) and references the table
++      # 0036 creates (`dish_place_associations`). In the gus_files list
++      # -- which runs BEFORE 0036 and 0040 -- it failed with:
++      #
++      #     ERROR:  type "dish_place_associations" does not exist
++      #
++      # So it belongs here, where its dependencies exist.
++      - name: Apply the association review visibility and the GUS-238 ledger
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/gus-238b-association-review-visibility.sql
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/gus-238c-constraint-idempotence-and-ledger.sql
++
+       # 0041 is the ROLE SEPARATION for the publish credential.
+       #
+       # 0038's guard checked that the credential's ACCOUNT is real. It
+@@ -1479,8 +1522,49 @@ jobs:
+               DEPLOY_LOG="/tmp/gustale-deploy-${GITHUB_RUN_ID}.log"
+               : > "$DEPLOY_LOG"
+               _DEPLOY_EXIT=0
+-              trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ] && [ "$_DEPLOY_EXIT" = "0" ]; then _DEPLOY_EXIT=$rc; echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; fi' ERR
+-              trap 'echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "$_DEPLOY_EXIT"' EXIT
++              # THE ERR TRAP AND THE EXIT TRAP
++              # --------------------------------
++              # The ERR trap catches a command that returns non-zero. The
++              # EXIT trap writes the final code.
++              #
++              # BOTH WERE WRONG BEFORE 2026-11-14, in a way that made a
++              # failed deploy report success.
++              #
++              # 1. The EXIT trap did `exit "$_DEPLOY_EXIT"`. But
++              #    `_DEPLOY_EXIT` is only set by the ERR trap, and the
++              #    ERR trap does NOT fire on:
++              #       * a `:?` parameter expansion,
++              #       * an explicit `exit 1`.
++              #    So a script that reached `exit 1` still ended with
++              #    `_DEPLOY_EXIT=0`, and the EXIT trap REPLACED the
++              #    intended exit code with 0.
++              #
++              #    Verified: run 43429059289's log was 19 bytes and held
++              #    exactly one line -- `DEPLOY_EXIT_CODE=0` -- for a
++              #    deploy that had swapped the API, died, and left the
++              #    web containers on the previous SHA.
++              #
++              # 2. The ERR trap's own condition was fragile: it only
++              #    recorded the FIRST failure, and only when
++              #    `_DEPLOY_EXIT` was still 0.
++              #
++              # THE FIX
++              # --------
++              # The EXIT trap now uses the status the script is EXITING
++              # with, and only falls back to `_DEPLOY_EXIT`:
++              #
++              #     trap 'rc=$?; ...; exit "${rc}"' EXIT
++              #
++              # `$?` inside the EXIT trap is the script's exit status.
++              # So an `exit 1` is now reported as 1, a `set -e`
++              # failure is reported as its own status, and the ERR trap
++              # still adds the `DEPLOY_FAILED_AT=` line.
++              #
++              # The ERR trap is also widened to record the failure
++              # REGARDLESS of `_DEPLOY_EXIT`, so a second failure is
++              # never swallowed.
++              trap '_LAST_CMD=${BASH_COMMAND}; rc=$?; if [ $rc -ne 0 ]; then echo "DEPLOY_FAILED_AT=${_LAST_CMD} (rc=$rc)" >> "$DEPLOY_LOG"; _DEPLOY_EXIT=$rc; fi' ERR
++              trap 'rc=$?; if [ "$rc" != "0" ]; then _DEPLOY_EXIT=$rc; fi; echo "DEPLOY_EXIT_CODE=${_DEPLOY_EXIT}" >> "$DEPLOY_LOG"; exit "${_DEPLOY_EXIT}"' EXIT
+ 
+               # --- Deploy lock ------------------------------------------------
+               # A VPS-side lock, so that two deploys can never interleave
+@@ -1663,10 +1747,49 @@ jobs:
+               }
+ 
+               # The script writes TAG / IMAGE_RECIPES / IMAGE_GEO to $TAG_FILE.
++              #
++              # build-web-live.sh now writes that file BEFORE the builds, so
++              # a failed build still leaves a VALID file. But the file is
++              # read here, so the read must be defensive: an empty or
++              # missing file means the build died before it could write
++              # one, and that must ABORT THE DEPLOY, not continue.
++              #
++              # THE 2026-11-13 FAILURE, AND WHY THIS ASSERTION IS NOT A
++              # `:?` EXPANSION
++              # -------------------------------------------
++              # These two lines used to be:
++              #
++              #     : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
++              #     : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
++              #
++              # and the deploy died with `DEPLOY_EXIT_CODE=0` in its log
++              # and a 19-byte log file -- for a deploy that had swapped
++              # the API and left the web containers on the previous SHA.
++              #
++              # A `:?` parameter expansion is NOT A COMMAND. The ERR trap
++              # does not fire on it, it does not set a non-zero exit
++              # status, and the script CONTINUES and exits 0. So the
++              # failure was invisible to every check the deploy had.
++              #
++              # The assertions below are REAL COMMANDS (`test -n`), which
++              # fire the ERR trap, set a non-zero status, and abort.
++              if [ ! -s "$TAG_FILE" ]; then
++                echo "::error::the tag file $TAG_FILE is missing or EMPTY -- the web build died before it could write it"
++                echo "DEPLOY_FAILED_AT=tag file missing or empty" >> "$DEPLOY_LOG"
++                exit 1
++              fi
+               # shellcheck disable=SC1090
+               source "$TAG_FILE"
+-              : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+-              : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
++              if [ -z "${IMAGE_RECIPES:-}" ]; then
++                echo "::error::the tag file has no IMAGE_RECIPES -- build-web-live.sh did not write it"
++                echo "DEPLOY_FAILED_AT=tag file has no IMAGE_RECIPES" >> "$DEPLOY_LOG"
++                exit 1
++              fi
++              if [ -z "${IMAGE_GEO:-}" ]; then
++                echo "::error::the tag file has no IMAGE_GEO -- build-web-live.sh did not write it"
++                echo "DEPLOY_FAILED_AT=tag file has no IMAGE_GEO" >> "$DEPLOY_LOG"
++                exit 1
++              fi
+ 
+               # The tag the script wrote MUST be the tag this run asked
+               # for. A mismatch means the deploy read a stale file, which
+@@ -1876,7 +1999,80 @@ jobs:
+                 FAILED=1
+               fi
+ 
+-              # --- Check 4: BOTH domains serve the expected sitemap ---
++              # --- Check 4: the SERVED build identity ---
++              # Check 2 proves what each container was STARTED with. It
++              # cannot prove what is SERVING traffic right now: the
++              # container could have been recreated from a retagged
++              # image, the deploy could have been rolled back, or a
++              # second process could be bound to the port.
++              #
++              # So the API reports its own build identity at /health
++              # (the `build` object), and this compares the SERVED SHA
++              # with the SHA this run deployed.
++              #
++              # The endpoint only carries the identity once the image was
++              # built with the BUILD_SHA build arg. If it is not there
++              # yet, this check is SKIPPED and says so -- it does not
++              # pass silently, and it does not fail a deploy for a
++              # missing optional feature.
++              echo ""
++              echo "--- Check 4: the SERVED build identity ---"
++              SERVED_JSON=$(curl -fsS --max-time 10 "https://api.gustale.com/health" 2>&1) || {
++                echo "::error::could not read https://api.gustale.com/health"
++                FAILED=1
++                SERVED_JSON=""
++              }
++              SERVED_SHA=$(printf '%s' "$SERVED_JSON" \
++                | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' \
++                | head -1 | grep -oE '[0-9a-f]{40}' || true)
++              if [ -z "$SERVED_SHA" ]; then
++                echo "  the API does not report a build identity (the BUILD_SHA build arg is not in the image yet) -- SKIPPED"
++                echo "  the container check (Check 2) still applies"
++              elif [ "$SERVED_SHA" = "$SHA" ]; then
++                echo "  the API is SERVING $SERVED_SHA  OK"
++              else
++                echo "::error::the API is SERVING $SERVED_SHA but this run deployed $SHA"
++                echo "::error::the container's image tag says what it was started with; this says what answered the request"
++                FAILED=1
++              fi
++
++              # --- Check 5: every container serves the expected SHA ---
++              # Check 2 compares each container's IMAGE TAG with the
++              # expected tag. This check asks the stricter question: is
++              # the expected SHA actually the one serving traffic on
++              # EACH public surface?
++              #
++              # gustale.com and gustale.recipes are TWO SEPARATE sites,
++              # served by TWO SEPARATE containers, built independently.
++              # A container can be on the right image and still be
++              # serving a stale build if the image itself was built
++              # from the wrong tree -- which is exactly what the sitemap
++              # check (Check 6) catches by comparing counts.
++              #
++              # So this check verifies that BOTH web containers are
++              # running an image whose tag carries this run's short SHA.
++              # It is the per-container form of the split-brain check,
++              # and it is cheap.
++              echo ""
++              echo "--- Check 5: every web container serves this run's SHA ---"
++              for NAME in gustale-web-recipes gustale-web-geo; do
++                if ! docker inspect "$NAME" >/dev/null 2>&1; then
++                  echo "::error::Container $NAME is missing"
++                  FAILED=1
++                  continue
++                fi
++                IMAGE=$(docker inspect --format='{{.Config.Image}}' "$NAME" 2>/dev/null)
++                case "$IMAGE" in
++                  *"live-data-${SHORT_SHA}-"*)
++                    echo "  $NAME: $IMAGE  OK"
++                    ;;
++                  *)
++                    echo "::error::$NAME is serving $IMAGE -- expected a live-data-${SHORT_SHA}-* image"
++                    FAILED=1
++                    ;;
++                esac
++              done
++              # --- Check 6: BOTH domains serve the expected sitemap ---
+               # gustale.com and gustale.recipes are TWO SEPARATE sites,
+               # served by TWO SEPARATE containers, built and deployed
+               # INDEPENDENTLY. They are the same app and the same commit,
+@@ -1893,7 +2089,7 @@ jobs:
+               # dishes + 43 content-bearing families + 12 content-bearing
+               # lineages + 2 static URLs.
+               echo ""
+-              echo "--- Check 4: both domains' sitemaps ---"
++              echo "--- Check 6: both domains' sitemaps ---"
+               if ! bash "$BUILD_DIR/scripts/check-live-sitemaps.sh" 1531; then
+                 echo "::error::the sitemap check failed -- one of the two sites is serving a stale build"
+                 FAILED=1

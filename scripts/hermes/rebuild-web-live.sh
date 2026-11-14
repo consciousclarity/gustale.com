@@ -430,10 +430,59 @@ GUSTALE_NO_PUSH=1 \
   GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
   /home/deploy/gustale-rebuild/build-web-live.sh "$BUILD_SHA"
 
+# -------------------------------------------------------------------------
+# READ THE TAG FILE SAFELY.
+#
+# THE 2026-11-13 FAILURE
+# ----------------------
+# The two lines below used to be:
+#
+#     source "$TAG_FILE"
+#     : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+#     : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
+#
+# The build script wrote the tag file AFTER both builds succeeded. The
+# geo build failed, so the file was ZERO BYTES. `source` on an empty
+# file succeeds and exports nothing, and then the `:?` assertions
+# fired -- but a `:?` parameter expansion is NOT A COMMAND:
+#
+#   * the ERR trap does not fire on it,
+#   * it does not set a non-zero exit status,
+#   * the script CONTINUES and exits 0.
+#
+# The deploy therefore reported success while the API had been swapped
+# and the web containers had not. Verified on run 43429059289: the log
+# held exactly one line, `DEPLOY_EXIT_CODE=0`, for a half-deployed
+# site.
+#
+# Two things are now true:
+#
+#   1. build-web-live.sh writes the tag file BEFORE the builds, so a
+#      failed build still leaves a VALID file.
+#   2. The assertions here are REAL COMMANDS -- `test -n` -- which fire
+#      the ERR trap, set a non-zero status, and abort the script.
+#
+# The file is also checked for being non-empty, because "the file
+# exists" is not the same as "the file has what we need".
+# -------------------------------------------------------------------------
+if [ ! -s "$TAG_FILE" ]; then
+  log "ERROR: the tag file $TAG_FILE is missing or EMPTY."
+  log "  build-web-live.sh writes it BEFORE the builds now, so an empty"
+  log "  file means the build script died before it could write it."
+  exit 1
+fi
+
 # shellcheck disable=SC1090
 source "$TAG_FILE"
-: "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
-: "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
+
+if [ -z "${IMAGE_RECIPES:-}" ]; then
+  log "ERROR: the tag file has no IMAGE_RECIPES (build-web-live.sh did not write it)."
+  exit 1
+fi
+if [ -z "${IMAGE_GEO:-}" ]; then
+  log "ERROR: the tag file has no IMAGE_GEO (build-web-live.sh did not write it)."
+  exit 1
+fi
 log "  $IMAGE_RECIPES"
 log "  $IMAGE_GEO"
 

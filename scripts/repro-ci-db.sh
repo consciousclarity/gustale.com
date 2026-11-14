@@ -345,6 +345,11 @@ grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/repro_journey_queue.log | tail -1 || true
 # three times. This creates the three predicates.
 step "the publication predicate"
 run_pg -f - < "$(dirname "$0")/../db/migrations/0040_atlas_publication_predicate.sql" > /tmp/repro_publication.log 2>&1 \
+run_pg -f - < "$(dirname "$0")/../db/migrations/gus-238b-association-review-visibility.sql" > /tmp/repro_238b.log 2>&1 \
+  || { echo "  FAILED: 238b"; grep -E 'ERROR|NOTICE' /tmp/repro_238b.log | tail -8; fail=1; }
+run_pg -f - < "$(dirname "$0")/../db/migrations/gus-238c-constraint-idempotence-and-ledger.sql" > /tmp/repro_238c.log 2>&1 \
+  || { echo "  FAILED: 238c"; grep -E 'ERROR|NOTICE|GUS_238C_OK' /tmp/repro_238c.log | tail -8; fail=1; }
+  db/migrations/gus-238b-association-review-visibility.sql
   || { echo "  FAILED: 0040"; grep -E 'ERROR' /tmp/repro_publication.log | head -6; fail=1; }
 grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/repro_publication.log | tail -1 || true
 
