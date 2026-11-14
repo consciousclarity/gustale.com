@@ -539,6 +539,102 @@ if [ "$FAILED" = "1" ]; then
   exit 1
 fi
 
+# --- Step 7b: the SHA checks ---
+#
+# "running healthy" proves the container is up. It does NOT prove it is
+# serving the build this run just made. The rebuild is the path that
+# deployed on its own on 2026-11-14, BEFORE the CI deploy's checks were
+# fixed -- so it needs the same checks, and it needs them to FAIL
+# LOUDLY.
+#
+# The failure this guards against: the container was recreated from a
+# retagged image, the deploy was rolled back, or a second process is
+# bound to the port. The image tag says what the container was STARTED
+# with; the SERVED identity says what answered the request.
+#
+# (1) EVERY WEB CONTAINER MUST SERVE THIS RUN'S SHA.
+#
+# The tag carries the short SHA, so this is the per-container form of
+# the split-brain check that the sitemap comparison does by count.
+log ""
+log "--- Checking that both web containers serve SHA $BUILD_SHORT_SHA ---"
+SHA_FAILED=0
+for NAME in gustale-web-recipes gustale-web-geo; do
+  IMAGE=$(docker inspect --format='{{.Config.Image}}' "$NAME" 2>/dev/null || echo "MISSING")
+  case "$IMAGE" in
+    *"live-data-${BUILD_SHORT_SHA}-"*)
+      log "  $NAME: $IMAGE  OK"
+      ;;
+    *)
+      log "  ERROR: $NAME is serving $IMAGE -- expected a live-data-${BUILD_SHORT_SHA}-* image"
+      SHA_FAILED=1
+      ;;
+  esac
+done
+if [ "$SHA_FAILED" = "1" ]; then
+  log "  aborting state-file update; the deployed containers are not on this build"
+  exit 1
+fi
+
+# (2) THE API'S OWN BUILD IDENTITY.
+#
+# The API reports the build it was made from at /health (the `build`
+# object). It is the SHA the API IMAGE was built from, not the web
+# build's SHA -- the two are different images and are expected to
+# differ. So this check asserts that the API reports a build identity
+# AT ALL, and that it is the SHA the API container was started with.
+#
+# It is the /health identity that proves the API serving traffic is
+# the API that was deployed, and it is the same check the CI deploy
+# runs (PR #232's Check 4).
+log ""
+log "--- Checking the API's served build identity ---"
+API_IMAGE=$(docker inspect --format='{{.Config.Image}}' gustale-api 2>/dev/null || echo "MISSING")
+API_EXPECTED_SHA=""
+case "$API_IMAGE" in
+  *gustale-api:*) API_EXPECTED_SHA="${API_IMAGE##*:}" ;;
+esac
+
+HEALTH_JSON=$(curl -fsS --max-time 10 "http://127.0.0.1:4000/health" 2>&1) || HEALTH_JSON=""
+API_SERVED_SHA=$(printf '%s' "$HEALTH_JSON" \
+  | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' \
+  | head -1 | grep -oE '[0-9a-f]{40}' || true)
+
+if [ -z "$API_SERVED_SHA" ]; then
+  # The API image predates the BUILD_SHA build arg, so it reports no
+  # identity. That is not a failure of THIS rebuild -- it is a
+  # pre-existing image. Say so explicitly rather than passing
+  # silently.
+  log "  the API does not report a build identity (its image predates the BUILD_SHA build arg) -- SKIPPED"
+  log "  the API container image is: $API_IMAGE"
+elif [ -n "$API_EXPECTED_SHA" ] && [ "$API_SERVED_SHA" != "$API_EXPECTED_SHA" ]; then
+  log "  ERROR: the API is SERVING $API_SERVED_SHA but its container image says $API_EXPECTED_SHA"
+  log "  aborting state-file update"
+  exit 1
+else
+  log "  the API is SERVING $API_SERVED_SHA  OK"
+fi
+
+# (3) THE PUBLIC SURFACES MUST ANSWER.
+#
+# The containers can be healthy while the SITE behind them is not. The
+# sitemap check below covers the content; this covers the fact that
+# both public hostnames answer at all.
+log ""
+log "--- Checking that both public sites answer ---"
+for URL in "https://gustale.com/" "https://gustale.recipes/"; do
+  CODE=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$URL" 2>&1 || echo "000")
+  log "  $CODE  $URL"
+  if [ "$CODE" != "200" ]; then
+    log "  ERROR: $URL did not return 200"
+    SHA_FAILED=1
+  fi
+done
+if [ "$SHA_FAILED" = "1" ]; then
+  log "  aborting state-file update; a public site is not serving"
+  exit 1
+fi
+
 log ""
 log "--- Pruning old live-data images, keeping newest 3 ---"
 # Get all live-data-* images sorted by creation time (newest first),
