@@ -1,4 +1,6 @@
+import type { DishJourneyLineage, DishJourneyMovement } from "../lib/api";
 import { selectDishHeroMedia } from "../lib/dishMedia";
+import { buildSectionLinks } from "../lib/dishSections";
 import { authoringHref } from "../lib/domain";
 import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 import type {
@@ -15,17 +17,19 @@ import type {
 import { AlsoExplore } from "./AlsoExplore";
 import { DishCoverHero } from "./DishCoverHero";
 import { DishGallery } from "./DishGallery";
+import { DishJourney, type JourneyBeat } from "./DishJourney";
 import {
-  DishJourney,
-  type JourneyBeat,
-  type JourneyLineageLink,
-} from "./DishJourney";
+  PilotIngredientOverview,
+  PilotSectionNav,
+} from "./DishJourneyPilotLazy";
 
 export interface DishDetailProps {
   dish: DishDetailCore;
   origin: DishOrigin | null;
   variants: DishVariant[];
   ingredients: DishIngredient[];
+  /** The ingredient section's heading, which names the dish's form. */
+  ingredientHeading?: string;
   categories: DishCategory[];
   tags: DishTag[];
   preparations: DishPreparation[];
@@ -38,9 +42,33 @@ export interface DishDetailProps {
    * notice that the dish's claims are not yet evidenced.
    */
   unevidenced?: boolean;
-  /** P1-1 journey beats; omit or [] hides the Journey section. */
+  /**
+   * P1-1 journey beats; omit or [] hides the Journey section.
+   *
+   * `journeyStatus` distinguishes the three states the brief requires:
+   * a dish with a verified chronology, a dish with no verified
+   * chronology (a RESEARCH GAP), and a journey that could not be
+   * fetched (an OPERATIONAL failure). They are not the same thing and
+   * the page must not present them as the same thing.
+   */
   journeyBeats?: JourneyBeat[];
-  journeyLineages?: JourneyLineageLink[];
+  /**
+   * The lineage records for this dish.
+   *
+   * The legacy P1-1 presentation needs only `{slug, name}`; the GUS-238
+   * presentation needs the full editorial record (role, explanation,
+   * changed elements, confidence, related dishes). The API returns the
+   * full shape, so one type covers both and the legacy view simply
+   * reads the two fields it uses.
+   */
+  journeyLineages?: DishJourneyLineage[];
+  journeyStatus?: "history" | "gap" | "unavailable";
+  journeyMovements?: DishJourneyMovement[];
+  /**
+   * The new journey presentation (separate map cards, lineage section)
+   * is behind an off-by-default switch. See lib/dishJourneyPilot.
+   */
+  journeyPresentation?: boolean;
 }
 
 /**
@@ -52,6 +80,7 @@ export function DishDetail({
   origin,
   variants,
   ingredients,
+  ingredientHeading,
   categories,
   tags,
   preparations,
@@ -61,6 +90,9 @@ export function DishDetail({
   unevidenced = false,
   journeyBeats = [],
   journeyLineages = [],
+  journeyStatus = "gap",
+  journeyMovements = [],
+  journeyPresentation = false,
 }: DishDetailProps) {
   const primaryCategory =
     categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
@@ -175,6 +207,34 @@ export function DishDetail({
           )}
         </header>
 
+        {/* ─── Sticky section nav (GUS-238) ───────────────────────────── */}
+        {journeyPresentation && (
+          <PilotSectionNav
+            dishName={dish.name}
+            links={buildSectionLinks({
+              hasJourney: true,
+              hasIngredients: ingredients.length > 0,
+              hasVariants: variants.length > 0,
+              hasPreparation: preparations.length > 0,
+              hasSources: sources.length > 0,
+            })}
+          />
+        )}
+
+        {/* ─── Visible ingredient overview (GUS-238) ───────────────────── */}
+        {/* The reference puts the dish's representative ingredients near
+            the introduction, visible without hover or a hotspot hunt. This
+            is the SAME ingredient data the detailed list below uses —
+            a presentation, not a second content model. */}
+        {journeyPresentation && (
+          <PilotIngredientOverview
+            dishName={dish.name}
+            ingredients={ingredients}
+            ingredientHeading={ingredientHeading}
+            explorerId="ingredients-heading"
+          />
+        )}
+
         {/* ─── Regional variants band ───────────────────────────────────── */}
         {variants.length > 0 && (
           <section className="world" aria-labelledby="variants-heading">
@@ -200,12 +260,25 @@ export function DishDetail({
           </section>
         )}
 
-        {/* ─── Journey (P1-1) — after hero/variants, before preparation ─ */}
-        <DishJourney
-          dishName={dish.name}
-          beats={journeyBeats}
-          lineages={journeyLineages}
-        />
+        {/* ─── Journey (GUS-238) — FIRST substantive section ─────────── */}
+        {journeyPresentation ? (
+          <DishJourney
+            dishName={dish.name}
+            status={journeyStatus ?? "gap"}
+            beats={journeyBeats}
+            movements={journeyMovements ?? []}
+            lineages={journeyLineages ?? []}
+            presentation={journeyPresentation}
+          />
+        ) : (
+          /* The existing P1-1 presentation, unchanged. */
+          <DishJourney
+            dishName={dish.name}
+            status={journeyStatus ?? "gap"}
+            beats={journeyBeats}
+            lineages={journeyLineages}
+          />
+        )}
 
         {/* ─── Body: ingredients + preparation ──────────────────────────── */}
         <div className="rec-body">

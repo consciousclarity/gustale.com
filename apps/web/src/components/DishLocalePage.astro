@@ -49,12 +49,20 @@ if (notFound) {
 // ── The journey beats ──────────────────────────────────────────────────
 let journeyBeats: DishDetailResponse extends never ? never : any[] = [];
 let journeyLineages: any[] = [];
+let journeyMovements: any[] = [];
+let journeyStatus: "history" | "gap" | "unavailable" = "gap";
 try {
   const j = await getDishJourney(slug);
   journeyBeats = (j as any)?.beats ?? [];
   journeyLineages = (j as any)?.lineages ?? [];
+  journeyMovements = (j as any)?.movements ?? [];
+  // A dish with no chapters is a research gap; a failed fetch is an
+  // operational failure. The page must not confuse the two.
+  journeyStatus = (j as any)?.status === "history" ? "history" : "gap";
 } catch {
-  // The journey is optional — a dish without one still renders.
+  // The journey is optional — a dish without one still renders. But a
+  // failed fetch is NOT a research gap.
+  journeyStatus = "unavailable";
 }
 
 // ── The locales this dish actually has content in ─────────────────────
@@ -122,6 +130,8 @@ const localeUrls = Object.fromEntries(
         unevidenced={data.unevidenced}
         journeyBeats={journeyBeats}
         journeyLineages={journeyLineages}
+        journeyMovements={journeyMovements}
+        journeyStatus={journeyStatus}
         pathPages={pathPages}
         client:load
       />

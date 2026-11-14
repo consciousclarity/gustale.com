@@ -8,6 +8,7 @@ import {
   dishes,
   dishIngredients,
   dishJourneyBeats,
+  dishJourneyMovements,
   dishLineages,
   dishNames,
   dishPreparations,
@@ -1449,6 +1450,16 @@ export function registerDishRoutes(app: FastifyInstance): void {
         yearApprox: dishJourneyBeats.yearApprox,
         label: dishJourneyBeats.label,
         confidence: dishJourneyBeats.confidence,
+        title: dishJourneyBeats.title,
+        dateLabel: dishJourneyBeats.dateLabel,
+        datePrecision: dishJourneyBeats.datePrecision,
+        evidenceKind: dishJourneyBeats.evidenceKind,
+        locator: dishJourneyBeats.locator,
+        authors: dishJourneyBeats.authors,
+        placeRole: dishJourneyBeats.placeRole,
+        scopeNote: dishJourneyBeats.scopeNote,
+        bounds: dishJourneyBeats.bounds,
+        regions: dishJourneyBeats.regions,
         sourceId: sources.id,
         sourceTitle: sources.title,
         sourceUrl: sources.url,
@@ -1461,10 +1472,42 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .where(eq(dishJourneyBeats.dishId, dishId))
       .orderBy(asc(dishJourneyBeats.sequence));
 
+    // ── Source-supported transmission edges (GUS-238) ──────────────────
+    // A movement is returned ONLY when a row exists, and a row exists
+    // ONLY when a historical record supports the claim. Chapter order
+    // and map proximity never produce one.
+    const movementRows = await db
+      .select({
+        id: dishJourneyMovements.id,
+        fromBeatId: dishJourneyMovements.fromBeatId,
+        toBeatId: dishJourneyMovements.toBeatId,
+        label: dishJourneyMovements.label,
+        confidence: dishJourneyMovements.confidence,
+        sourceId: sources.id,
+        sourceTitle: sources.title,
+        sourceUrl: sources.url,
+        sourceCitationText: sources.citationText,
+        sourceYear: sources.year,
+        sourceReliability: sources.reliability,
+      })
+      .from(dishJourneyMovements)
+      .leftJoin(sources, eq(dishJourneyMovements.sourceId, sources.id))
+      .where(eq(dishJourneyMovements.dishId, dishId));
+
     const lineageRows = await db
       .select({
         slug: lineages.slug,
         name: lineages.name,
+        shortDescription: lineages.shortDescription,
+        longDescription: lineages.longDescription,
+        conceptSummary: lineages.conceptSummary,
+        originSummary: lineages.originSummary,
+        lineageConfidence: lineages.confidenceLevel,
+        uncertaintyNote: lineages.uncertaintyNote,
+        culturalPracticeNote: lineages.culturalPracticeNote,
+        role: dishLineages.role,
+        roleExplanation: dishLineages.explanation,
+        changedElements: dishLineages.changedElements,
         sortOrder: dishLineages.sortOrder,
       })
       .from(dishLineages)
@@ -1472,8 +1515,46 @@ export function registerDishRoutes(app: FastifyInstance): void {
       .where(eq(dishLineages.dishId, dishId))
       .orderBy(desc(dishLineages.sortOrder), asc(lineages.name));
 
+    // Related published dishes in each lineage. These are real, published
+    // members — not a curated list and not the current dish itself.
+    // The dish's display name lives in `dish_names` (one row per
+    // language), so the English primary name is joined for the label.
+    const relatedDishRows = lineageRows.length
+      ? await db
+          .select({
+            lineageSlug: lineages.slug,
+            dishSlug: dishes.slug,
+            dishName: dishNames.name,
+            dishId: dishes.id,
+          })
+          .from(dishLineages)
+          .innerJoin(lineages, eq(dishLineages.lineageId, lineages.id))
+          .innerJoin(dishes, eq(dishLineages.dishId, dishes.id))
+          .leftJoin(
+            dishNames,
+            and(
+              eq(dishNames.dishId, dishes.id),
+              eq(dishNames.language, "en"),
+              eq(dishNames.isPrimary, true),
+            ),
+          )
+          .where(
+            and(
+              inArray(
+                lineages.slug,
+                lineageRows.map((l) => l.slug),
+              ),
+              eq(dishes.status, "published"),
+            ),
+          )
+      : [];
+
     return {
       slug,
+      // A dish with no chapters is a RESEARCH GAP, not a fetch failure.
+      // The two must be distinguishable: "we have not verified a
+      // chronology" is an editorial statement, "the API is down" is not.
+      status: beatRows.length > 0 ? ("history" as const) : ("gap" as const),
       beats: beatRows.map((b) => ({
         id: b.id,
         sequence: b.sequence,
@@ -1483,6 +1564,16 @@ export function registerDishRoutes(app: FastifyInstance): void {
         yearApprox: b.yearApprox,
         label: b.label,
         confidence: b.confidence,
+        title: b.title,
+        dateLabel: b.dateLabel,
+        datePrecision: b.datePrecision,
+        evidenceKind: b.evidenceKind,
+        locator: b.locator,
+        authors: b.authors,
+        placeRole: b.placeRole,
+        scopeNote: b.scopeNote,
+        bounds: (b.bounds as number[] | null) ?? [],
+        regions: (b.regions as string[] | null) ?? [],
         source: b.sourceId
           ? {
               id: b.sourceId,
@@ -1494,9 +1585,46 @@ export function registerDishRoutes(app: FastifyInstance): void {
             }
           : null,
       })),
+      movements: movementRows.map((m) => ({
+        id: m.id,
+        fromBeatId: m.fromBeatId,
+        toBeatId: m.toBeatId,
+        label: m.label,
+        confidence: m.confidence,
+        source: m.sourceId
+          ? {
+              id: m.sourceId,
+              title: m.sourceTitle,
+              url: m.sourceUrl,
+              citationText: m.sourceCitationText,
+              year: m.sourceYear,
+              reliability: m.sourceReliability,
+            }
+          : null,
+      })),
       lineages: lineageRows.map((l) => ({
         slug: l.slug,
         name: l.name,
+        shortDescription: l.shortDescription,
+        longDescription: l.longDescription,
+        conceptSummary: l.conceptSummary,
+        originSummary: l.originSummary,
+        confidenceLevel: l.lineageConfidence,
+        uncertaintyNote: l.uncertaintyNote,
+        culturalPracticeNote: l.culturalPracticeNote,
+        role: l.role,
+        roleExplanation: l.roleExplanation,
+        changedElements: (l.changedElements as string[] | null) ?? [],
+        sortOrder: l.sortOrder,
+        relatedDishes: relatedDishRows
+          .filter((r) => r.lineageSlug === l.slug && r.dishId !== dishId)
+          .map((r) => ({
+            slug: r.dishSlug,
+            // Fall back to the canonical name when the dish has no English
+            // primary name row, so a related-dish link is never blank.
+            name: r.dishName ?? r.dishSlug,
+            isCurrent: false,
+          })),
       })),
     };
   });

@@ -136,6 +136,14 @@ const canonicalUrl =
 <html lang={locale} dir={rtl ? "rtl" : "ltr"}>
   <head>
     <meta charset="utf-8" />
+    <!--
+      The OSM tile policy asks for a restrictive Referrer-Policy that
+      prevents the Referer header being stripped, so that the tile
+      requests carry a valid Referer. "strict-origin-when-cross-origin"
+      sends the origin across origins — enough to identify the site,
+      without leaking the full path.
+    -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
