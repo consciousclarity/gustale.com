@@ -184,6 +184,15 @@ ATLAS_BACKFILL_ASSERTIONS=scripts/test_atlas_backfill.sql
 # migration IS what the live chain runs.
 MIGRATION_0040=db/migrations/0040_atlas_publication_predicate.sql
 
+# 238b REPLACES the publication predicate from 0040, so it must run
+# after it — the GUS section runs BEFORE the base section and the
+# atlas schema does not exist yet at that point.
+#
+# It narrows what is public: an association is hidden until it is
+# EVIDENCED and REVIEWED (the owner's rule, 2026-11-13). Nothing is
+# deleted.
+MIGRATION_238B=db/migrations/gus-238b-association-review-visibility.sql
+
 # The FIXTURES — a SEED, not a migration.
 #
 # The brief's §12: the model is "demonstrated with isolated fixtures".
@@ -607,6 +616,27 @@ grep -E 'ATLAS_JOURNEY_QUEUE_OK' /tmp/m0039.log | tail -1 || true
 # 0040 — the publication predicate. It writes NO rows.
 echo "--- the publication predicate"
 run_pg -f - < "$MIGRATION_0040" >/tmp/m0040.log 2>&1 || { echo "FAILED: 0040"; grep -E 'ERROR|NOTICE' /tmp/m0040.log | tail -12; fail=1; }
+
+# 238b and 238c come AFTER 0040, and not in the GUS_FILES list above.
+#
+# 238b replaces the function 0040 creates
+# (`published_associations_for_dish`), and it references the table 0036
+# creates (`dish_place_associations`). In the GUS_FILES list -- which
+# runs BEFORE 0036 and 0040 -- it failed with:
+#
+#     ERROR:  type "dish_place_associations" does not exist
+#
+# So it belongs here, where its dependencies exist.
+echo "--- the association review visibility"
+run_pg -f - < "db/migrations/gus-238b-association-review-visibility.sql" >/tmp/m238b.log 2>&1 || { echo "FAILED: 238b"; grep -E 'ERROR|NOTICE' /tmp/m238b.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'NOTICE' /tmp/m238b.log | head -2 || true
+
+echo "--- the GUS-238 constraint idempotence and ledger"
+run_pg -f - < "db/migrations/gus-238c-constraint-idempotence-and-ledger.sql" >/tmp/m238c.log 2>&1 || { echo "FAILED: 238c"; grep -E 'ERROR|NOTICE|GUS_238C_OK' /tmp/m238c.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'GUS_238C_OK' /tmp/m238c.log | tail -1 || true
+run_pg -f - < "$MIGRATION_238B" >/tmp/m238b.log 2>&1 || { echo "FAILED: 238b"; grep -E "ERROR|NOTICE" /tmp/m238b.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'ATLAS_PUBLICATION_PREDICATE_OK' /tmp/m0040.log | tail -1 || true
 
