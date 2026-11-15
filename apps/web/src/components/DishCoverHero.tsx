@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { stripUrls } from "../lib/creditText";
 import { selectDishHeroMedia } from "../lib/dishMedia";
 import type { DishMediaAttachment, DishOrigin } from "../types/dish";
 
@@ -13,7 +15,7 @@ export interface DishCoverHeroProps {
  * Build-time render: the API bakes the same-origin public URL into
  * each media row (`publicUrl` + `variantsUrls`), so this component
  * paints a real `<img src=...>` directly from the static HTML —
- * no `useEffect`, no signed-URL fetch, no spinner.
+ * no signed-URL fetch, no spinner.
  *
  * Selection matches `selectDishHeroMedia` — gallery must exclude that
  * mediaId.
@@ -24,6 +26,41 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
   const placeCode = (origin?.isoCode ?? origin?.name ?? "—")
     .toString()
     .toUpperCase();
+
+  // THE SETTLE — an ENHANCEMENT, never a gate.
+  //
+  // The photograph is VISIBLE AS SOON AS IT IS PAINTED: the CSS says
+  // `opacity: 1`, and that is what makes the photograph appear. It used
+  // to say `opacity: 0` and wait for an `is-ready` class that NOTHING
+  // EVER ADDED, so the image loaded, the browser decoded it, and the
+  // reader still saw a 720px dark block. The 2026-11-15 blueprint
+  // recorded it as "the cover photo stays invisible".
+  //
+  // What this effect does is settle the 1.02 scale to 1.0 once the
+  // image has decoded. That is a flourish, not a gate: if the effect
+  // never runs — no JavaScript, a blocked script, a slow parser — the
+  // photograph is STILL THERE. Only the scale settles late.
+  //
+  // The `complete` check matters: on a warm cache the image has
+  // already decoded by the time this runs, the `load` event has fired
+  // and will NOT fire again, and a handler that only listened for
+  // `load` would leave the scale at 1.02 forever.
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+
+    const settle = () => img.classList.add("is-ready");
+
+    if (img.complete && img.naturalWidth > 0) {
+      // Already decoded — the warm-cache path.
+      settle();
+      return;
+    }
+    img.addEventListener("load", settle, { once: true });
+    return () => img.removeEventListener("load", settle);
+  }, []);
 
   // Resolve the image URLs from the API shape. We render the
   // <picture>/<img> tag with a srcset built from variantsUrls (e.g.
@@ -44,14 +81,25 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
   const height = cover?.height ?? null;
   const alt = cover?.altText ?? `${dishName} — cover`;
 
+  // The caption prints the credit as TEXT, not as a wall of URLs. The
+  // stored credit is one string with the URLs inside parentheses --
+  // "Michael Hays (https://www.flickr.com/photos/...) — Flickr
+  // (https://...) via Wikimedia Commons (https://...)" -- and printing
+  // it verbatim produced a 553px-wide run of text at a 390px viewport,
+  // which is the horizontal overflow the 2026-11-15 blueprint recorded.
+  // The names are the information; the URLs are behind them.
+  const creditText = cover?.credit ? stripUrls(cover.credit) : null;
+
   return (
     <figure className="dish-cover-hero">
       <div className="dish-cover-hero__frame">
         {/* Always-present fallback — typographic place mark, never a
-            spinner. The <img> renders on top with opacity 0, fades
-            in when the browser reports a successful load. For SSR
-            builds the <img> is the real source so crawlers + first
-            byte see the actual image. */}
+            spinner. The <img> renders on top of it and is VISIBLE AS
+            SOON AS IT IS PAINTED: the photograph is not gated on a
+            load event, a hydration pass or a class toggle. The
+            `is-ready` class is an enhancement that only settles the
+            1.02 scale; if it never arrives, the photograph is still
+            there. */}
         <div
           className="dish-cover-hero__fallback"
           aria-hidden={Boolean(imgSrc)}
@@ -66,6 +114,7 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
         {imgSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
+            ref={imgRef}
             src={imgSrc}
             srcSet={srcSet}
             sizes={sizes}
@@ -90,11 +139,11 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
       <figcaption className="dish-cover-hero__cap">
         <span>
           {cover
-            ? cover.altText || cover.credit || "Cover photograph"
+            ? cover.altText || creditText || "Cover photograph"
             : "Cover pending — place mark shown until a photo is attached"}
         </span>
         <span className="dish-cover-hero__cap-meta">
-          {cover?.credit && <em>{cover.credit}</em>}
+          {creditText && <em>{creditText}</em>}
           {cover?.license && (
             <span className="dish-cover-hero__license">{cover.license}</span>
           )}

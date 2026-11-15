@@ -48,6 +48,18 @@ import { useEffect, useState } from "react";
 import type { AtlasAssociation, AtlasResponse } from "../lib/api";
 import { ApiError, getDishAtlas } from "../lib/api";
 
+/**
+ * How long the loading state may last before the section says what
+ * happened.
+ *
+ * Five seconds is long enough for a slow connection to answer and short
+ * enough that a reader who has scrolled to the section does not think
+ * the page is broken. The request is NOT aborted when this fires — a
+ * late answer still renders — but the reader is not left looking at a
+ * line that says "Loading" with nothing behind it.
+ */
+const LOAD_TIMEOUT_MS = 5000;
+
 // ─── The relationship types, in presentation order ───────────────────────
 //
 // ADR-004 D3's six types. The four the brief's reading order names are
@@ -298,6 +310,31 @@ export default function AtlasPlaces({
     let cancelled = false;
     setState("loading");
 
+    // THE FIVE-SECOND TIMEOUT.
+    //
+    // A fetch that never settles — a hung request, a service worker that
+    // holds the connection open, a proxy that accepts and then goes
+    // quiet — leaves this section on "Loading the associations for …"
+    // FOREVER. That is the permanent loading line the 2026-11-15
+    // blueprint recorded: the text did not describe a slow network, it
+    // described a request that was never made.
+    //
+    // So the loading state is bounded. After five seconds the section
+    // says what happened and offers the action. The request is NOT
+    // aborted — if it answers later, the content still appears — but
+    // the reader is never left staring at a spinner that will not
+    // resolve.
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setState((current) => {
+        if (current === "loading") {
+          setReason("the request did not answer within 5 seconds");
+          return "error";
+        }
+        return current;
+      });
+    }, LOAD_TIMEOUT_MS);
+
     getDishAtlas(slug)
       .then((res) => {
         if (cancelled) return;
@@ -318,6 +355,7 @@ export default function AtlasPlaces({
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [slug]);
 
@@ -343,8 +381,24 @@ export default function AtlasPlaces({
         <AtlasPlacesStyles />
         <h2 id="atlas-places-heading">Places &amp; traditions</h2>
         <p className="alert alert-warning">
-          The associations could not be loaded ({reason}). The dish’s own
-          details below are unaffected.
+          This part did not load ({reason}). The dish’s own details below are
+          unaffected.
+        </p>
+        {/* The blueprint's error state: say what happened, then give the
+            reader the one action that can change it. A section that
+            only says it failed leaves the reader with nothing to do. */}
+        <p>
+          <button
+            type="button"
+            className="btn-accent"
+            onClick={() => {
+              setData(null);
+              setReason("");
+              setState("loading");
+            }}
+          >
+            Retry
+          </button>
         </p>
       </section>
     );
@@ -377,8 +431,20 @@ export default function AtlasPlaces({
 
       {hasNothing ? (
         <>
+          {/* THE EMPTY STATE.
+              A successful response with zero associations is NOT a
+              failure and NOT a blank space. It says what is missing and
+              what the reader has instead.
+
+              The blueprint's wording is: "No reviewed place associations
+              yet. Commonly associated with <legacy origin name>, not yet
+              verified." The legacy origin is discovery data, so it is
+              named as a common association and marked as not verified —
+              never as an origin, and never as a claim. */}
           <p className="sub">
-            No association has been published for this dish yet.
+            {legacy
+              ? `No reviewed place associations yet. Commonly associated with ${legacy.name}, not yet verified.`
+              : "No reviewed place associations yet."}
           </p>
           {legacy ? (
             <div className="atlas-legacy">

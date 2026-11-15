@@ -180,20 +180,37 @@ export function DishDetail({
                 {origin?.name ?? "—"}
               </div>
             </div>
-            <div className="cell">
-              <div className="k">Variants</div>
-              <div className="v">{variants.length}</div>
-            </div>
+            {/* A meta cell is shown only when it says something. "Variants
+                0" and "Contributors 0" are not information — they are
+                counters with nothing behind them, and they make the
+                page look like a thing that failed to load. The 2026-11-15
+                blueprint recorded it as "Published place associations
+                label with no value", the same defect in a different
+                place: a zero that is printed rather than a zero that is
+                absent.
+
+                A dish with no variants and no contributors now simply has
+                fewer cells. Nothing is lost: the reader learns the same
+                thing from the absence, and the page stops asserting a
+                number it has no reason to assert. */}
+            {variants.length > 0 && (
+              <div className="cell">
+                <div className="k">Variants</div>
+                <div className="v">{variants.length}</div>
+              </div>
+            )}
             <div className="cell">
               <div className="k">Category</div>
               <div className="v" style={{ fontSize: 19 }}>
                 {primaryCategory?.name ?? "—"}
               </div>
             </div>
-            <div className="cell">
-              <div className="k">Contributors</div>
-              <div className="v">{dish.contributorCount}</div>
-            </div>
+            {dish.contributorCount > 0 && (
+              <div className="cell">
+                <div className="k">Contributors</div>
+                <div className="v">{dish.contributorCount}</div>
+              </div>
+            )}
           </div>
 
           {tags.length > 0 && (
@@ -411,11 +428,40 @@ export function DishDetail({
                       {cite.claimText}
                     </p>
                   )}
-                  <p>
+                  <p className="source-card__cite">
                     {cite.citationText ? (
-                      <span
-                        dangerouslySetInnerHTML={{ __html: cite.citationText }}
-                      />
+                      // The citation text is PLAIN TEXT from the API, not
+                      // HTML — the Wikipedia citation is "Wikipedia.
+                      // (2026). Chicken Tikka Masala. Retrieved from
+                      // https://en.wikipedia.org/wiki/...". It was
+                      // rendered with `dangerouslySetInnerHTML`, which
+                      // was both unnecessary (there is no markup in it)
+                      // and the cause of the mobile overflow: the raw
+                      // URL was printed in full, and an unbroken URL at
+                      // 390px pushed the page sideways.
+                      //
+                      // Now the URL is a link whose TEXT is the URL —
+                      // the source is still one click away, and the
+                      // `overflow-wrap` on this class lets it break
+                      // rather than widen the page.
+                      <span>
+                        {cite.citationText
+                          .split(/(https?:\/\/\S+)/)
+                          .map((part, i) =>
+                            part.startsWith("http") ? (
+                              <a
+                                key={`${cite.id}-u-${i}`}
+                                href={part}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              >
+                                {part}
+                              </a>
+                            ) : (
+                              <span key={`${cite.id}-t-${i}`}>{part}</span>
+                            ),
+                          )}
+                      </span>
                     ) : (
                       <>
                         {cite.title ?? cite.sourceType}
@@ -487,11 +533,19 @@ export function DishDetail({
           <div>
             {dish.viewCount.toLocaleString()} view
             {dish.viewCount === 1 ? "" : "s"}
-            {" · "}
-            {dish.editCount} edit{dish.editCount === 1 ? "" : "s"}
-            {" · "}
-            {dish.contributorCount} contributor
-            {dish.contributorCount === 1 ? "" : "s"}
+            {dish.editCount > 0 && (
+              <>
+                {" · "}
+                {dish.editCount} edit{dish.editCount === 1 ? "" : "s"}
+              </>
+            )}
+            {dish.contributorCount > 0 && (
+              <>
+                {" · "}
+                {dish.contributorCount} contributor
+                {dish.contributorCount === 1 ? "" : "s"}
+              </>
+            )}
           </div>
           <div className="muted">
             Last updated {new Date(dish.updatedAt).toISOString().slice(0, 10)}
