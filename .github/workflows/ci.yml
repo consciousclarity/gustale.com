@@ -28,24 +28,22 @@ on:
   # all, so the pull_request trigger skipped it too.
   #
   # workflow_dispatch is the escape hatch: a human can run the pipeline
-  # against a chosen ref and watch what it does, without a commit and
-  # without waiting for a merge event.
+  # and watch what it does, without a commit and without waiting for a
+  # merge event. The revision is the branch picked in GitHub's "Use
+  # workflow from" selector -- there is no separate ref input.
   #
-  # NOTE: `deploy` defaults to true, but the deploy job still requires
-  # the live-approval gate (see the job's `if:`), so a manual run does
-  # NOT deploy without a human approval. Set `deploy: false` to run the
-  # whole pipeline -- build, test, axe gate -- without deploying.
+  # NOTE: there is NO extra approval step for a manual run. The
+  # live-approval gate (live-approval.yml) checks PRs before merge; it
+  # does not gate this trigger. Starting a run from `main` with
+  # `deploy: true` deploys to production -- the person who clicks "Run
+  # workflow" (repo write access required) IS the approval. `deploy`
+  # therefore defaults to false: build, test and the axe gate only.
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'The ref to build and deploy (a branch or a tag)'
-        required: false
-        default: 'main'
-        type: string
       deploy:
-        description: 'Deploy to the VPS after the build and tests pass'
+        description: 'Deploy to PRODUCTION after the build and tests pass (only from main; no further approval)'
         required: false
-        default: true
+        default: false
         type: boolean
   # The live-approval gate is NOT here: it runs on pull_request_target
   # from its own workflow, .github/workflows/live-approval.yml.
@@ -1484,10 +1482,11 @@ jobs:
       # the old build. A human could not start the pipeline at all --
       # there was no trigger for it. workflow_dispatch is that trigger.
       #
-      # It is NOT a way to deploy an arbitrary commit to production
-      # without a human in the loop: `refs/heads/main` is required, and
-      # the live-approval gate (live-approval.yml) has to pass on the
-      # commit, exactly as for a push.
+      # It is NOT a way to deploy an arbitrary commit: `refs/heads/main`
+      # is required, and `deploy` must be ticked explicitly (it defaults
+      # to false). There is no further approval step -- live-approval.yml
+      # gates PRs before merge, not this trigger -- so the human who
+      # starts the run with `deploy: true` is the one in the loop.
       if: >
         (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
         (github.event_name == 'workflow_dispatch' &&
