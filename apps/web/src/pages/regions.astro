@@ -4,66 +4,51 @@ import BrowseHeader from "../components/BrowseHeader.astro";
 import { CountryDirectory } from "../components/CountryDirectory.tsx";
 import ErrorBoundary from "../components/ErrorBoundary.tsx";
 import Layout from "../layouts/Layout.astro";
-import { listDishes } from "../lib/api";
-import { buildCountryDirectory, recoveryLinks } from "../lib/browse";
-import { currentDomain } from "../lib/domain";
-import type { DishListResponse } from "../types/dish";
+import { buildCountryDirectory, listAllDishes } from "../lib/browse";
+import { getFilterPageIndex, pathPageSlugs } from "../lib/filterPages";
 
-// Route stays /regions; the public language is "Places" — the
-// directory holds places, and the nav beside it says "Places" too.
-// The old label was "Countries", and 42 of the entities it listed were
-// regions and cultural areas rather than countries (ADR-004 F8).
-let initial: DishListResponse = {
-  dishes: [],
-  limit: 100,
-  offset: 0,
-  total: null,
-  hasMore: null,
-};
-let buildFailed = false;
+// Let catalogue failures propagate: a short directory must fail the build.
+//
+// `listAllDishes` pages the whole catalogue and asserts that the
+// collected count AND the distinct-slug count equal the API's total. If
+// the list comes back short, it THROWS -- so the build fails and no
+// page is written. That is the WP-02 count gate, and it is why this
+// page does not use `listDishes({ limit: 100 })`: a directory built
+// from the first 100 dishes would show 36 origins where the catalogue
+// has 178.
+const dishes = await listAllDishes({ status: "published" });
+const countries = buildCountryDirectory(dishes);
 
+// The path-form pages, so an origin with a page links to it and the
+// filtered list works with JavaScript disabled. `filterHref` falls back
+// to the query form for an origin below the page threshold, which is
+// the client-side filter.
+let pathPages = null;
 try {
-  initial = await listDishes({ status: "published", limit: 100 });
+  pathPages = pathPageSlugs(await getFilterPageIndex());
 } catch {
-  buildFailed = true;
+  // Links fall back to the query form (client-side filter).
 }
-
-const domain = currentDomain();
-const countries = buildCountryDirectory(initial.dishes);
-const recovery = recoveryLinks(domain);
 ---
 
 <Layout
-  title="Places — Gustale"
-  description="Browse Gustale dishes by country of origin — a compact country directory for the atlas."
+  title="Dish origins — Gustale"
+  description="Browse Gustale dishes by origin — a complete origin directory for the atlas."
 >
-  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Places' }]} />
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Dish origins' }]} />
 
   <BrowseHeader
     eyebrow="Browse the atlas"
-    title="Places"
-    subtitle="A compact directory of origins. Search by country or dish name, then follow the dishes into the atlas."
-    countLabel={`${countries.length} countries`}
+    title="Dish origins"
+    subtitle="A compact directory of origins. Search by origin or dish name, then follow the dishes into the atlas."
+    countLabel={`${countries.length} origins`}
     showToolbar={false}
     showFilters={false}
   />
 
-  {buildFailed && (
-    <div class="wrap">
-      <div class="browse-banner browse-banner--error" role="status">
-        <p>Browse data was unavailable at build time. Retry from the live page when the API recovers.</p>
-        <ul class="browse-recovery">
-          {recovery.primary.map((l) => (
-            <li><a href={l.href}>{l.label}</a></li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  )}
-
   <section class="wrap browse-page">
     <ErrorBoundary name="Country directory">
-      <CountryDirectory dishes={initial.dishes} client:load />
+      <CountryDirectory dishes={dishes} pathPages={pathPages} client:load />
     </ErrorBoundary>
   </section>
 </Layout>

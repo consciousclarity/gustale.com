@@ -8,10 +8,26 @@
  * Default when unset: `recipes` (matches Nav, post-build.mjs).
  */
 
-export type GustaleDomain = "geo" | "recipes";
+export type GustaleDomain = "geo" | "recipes" | "staging";
 
 export const ATLAS_ORIGIN = "https://gustale.com";
 export const RECIPES_ORIGIN = "https://gustale.recipes";
+
+/**
+ * The STAGING origin (WP-00b, card GUS-1122).
+ *
+ * Staging serves the RECIPES site's code -- the same pages, the same
+ * routes -- but on its own host, with its own canonical URLs and its
+ * own origin. That matters: a staging build that pointed its
+ * canonicals at gustale.recipes would tell a search engine (and
+ * anyone reading the source) that the staging copy is the real one.
+ *
+ * It is `noindex`, so it should never be indexed at all -- but the
+ * canonicals still have to be right, because a staging page is
+ * sometimes read by a human and sometimes fetched by a crawler that
+ * ignores noindex.
+ */
+export const STAGING_ORIGIN = "https://staging.gustale.com";
 
 /** Paths that exist only on gustale.recipes (removed from geo post-build). */
 export const RECIPES_ONLY_PATH_PREFIXES = [
@@ -28,7 +44,9 @@ export const RECIPES_ONLY_PATH_PREFIXES = [
 export function resolveGustaleDomain(
   raw: string | undefined | null,
 ): GustaleDomain {
-  return raw === "geo" ? "geo" : "recipes";
+  if (raw === "geo") return "geo";
+  if (raw === "staging") return "staging";
+  return "recipes";
 }
 
 export function currentDomain(): GustaleDomain {
@@ -66,7 +84,9 @@ export function recipesUrl(path: string): string {
  * human-readable name was wrong.
  */
 export function siteName(): string {
-  return isGeoDomain() ? "gustale.com" : "gustale.recipes";
+  if (isGeoDomain()) return "gustale.com";
+  if (currentDomain() === "staging") return "staging.gustale.com";
+  return "gustale.recipes";
 }
 
 /**

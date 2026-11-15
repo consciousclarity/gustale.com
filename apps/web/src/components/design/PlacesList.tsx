@@ -16,6 +16,8 @@
  * Each place is a link, because a place has its own page.
  */
 
+import { slugify } from "../../lib/slug";
+
 interface PlaceLink {
   name: string;
   count: number;
@@ -54,22 +56,13 @@ export function buildPlaceList(
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 export function PlacesList({ places, locatedCount }: PlacesListProps) {
   if (places.length === 0) {
     // An empty state WITH an action. No dash, and no bare zero.
     return (
       <section className="places" aria-labelledby="places-heading">
         <h2 id="places-heading" className="places-heading">
-          Places
+          Mapped places
         </h2>
         <div className="places-empty">
           <p>No dish in the catalogue has a location yet.</p>
@@ -85,7 +78,7 @@ export function PlacesList({ places, locatedCount }: PlacesListProps) {
     <section className="places" aria-labelledby="places-heading">
       <div className="places-head">
         <h2 id="places-heading" className="places-heading">
-          Places
+          Mapped places
         </h2>
         {locatedCount !== null && locatedCount > 0 ? (
           <p className="places-note">

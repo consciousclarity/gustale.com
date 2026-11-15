@@ -1,16 +1,23 @@
 ---
 import AtlasPlaces from "../../components/AtlasPlaces";
 import { DishDetail } from "../../components/DishDetail";
-import type {
-  JourneyBeat,
-  JourneyLineageLink,
-} from "../../components/DishJourney";
+import type { JourneyBeat } from "../../components/DishJourney";
 import { DishMap } from "../../components/DishMap";
 import { EditDishButton } from "../../components/EditDishButton";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
+import type { DishJourneyLineage, DishJourneyMovement } from "../../lib/api";
 import { getDishDetail, getDishJourney } from "../../lib/api";
-import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
+import { applyDishLimit, buildLocales } from "../../lib/buildScope";
+import { getJourneyFixture } from "../../lib/dishJourneyFixtures";
+import { isPilotDish } from "../../lib/dishJourneyPilot";
+import { getFilterPageIndex, pathPageSlugs } from "../../lib/filterPages";
+import type { JourneyEvidenceBySequence } from "../../lib/journeyEvidence";
+import {
+  dishUrl,
+  hreflangAlternates,
+  siteOrigin as resolveSiteOrigin,
+} from "../../lib/locales";
 import type { DishDetailResponse } from "../../types/dish";
 
 // MapLibre control + popup CSS — required by <DishMap> and journey path map.
@@ -63,7 +70,16 @@ export async function getStaticPaths() {
       // the build.
       if (offset >= 500 * PAGE_SIZE) break;
     }
-    return allSlugs.map((slug) => ({ params: { slug } }));
+    // A SCOPED build (the staging environment) covers only the first
+    // N dishes. The production build is unaffected: the limit is unset,
+    // so `kept` is every slug.
+    const { kept, limit } = applyDishLimit(allSlugs);
+    if (limit !== null && kept.length < allSlugs.length) {
+      console.log(
+        `[build-scope] this build covers ${kept.length} of ${allSlugs.length} dishes (PUBLIC_BUILD_DISH_LIMIT=${limit})`,
+      );
+    }
+    return kept.map((slug) => ({ params: { slug } }));
   } catch (err) {
     // Log but don't crash the build. CI will surface the error in logs.
     // eslint-disable-next-line no-console
@@ -74,11 +90,31 @@ export async function getStaticPaths() {
 
 const { slug } = Astro.params;
 
+// Which filtered lists have a static path page -- the dish page's
+// category / method / region links go straight to those (works without JS).
+let pathPages = null;
+try {
+  pathPages = pathPageSlugs(await getFilterPageIndex());
+} catch {
+  // Links fall back to the query form, which the client-side filter handles.
+}
+
 let data: DishDetailResponse | null = null;
 let notFound = false;
 let fetchError: string | null = null;
 let journeyBeats: JourneyBeat[] = [];
-let journeyLineages: JourneyLineageLink[] = [];
+let journeyLineages: DishJourneyLineage[] = [];
+let journeyMovements: DishJourneyMovement[] = [];
+let journeyEvidence: JourneyEvidenceBySequence | undefined;
+// The review fixtures' representative ingredients, and the heading that
+// names the dish's FORM. Local review data; used only when the API
+// returned no ingredient rows.
+let reviewIngredients: DishIngredient[] | undefined;
+let reviewIngredientHeading: string | undefined;
+let journeyStatus: "history" | "gap" | "unavailable" = "gap";
+// The new presentation is off by default and applies only to the
+// pilot's allowlisted dishes. Everything else keeps the current page.
+const useJourneyPresentation = isPilotDish(slug as string);
 
 try {
   data = await getDishDetail(slug as string);
@@ -103,10 +139,51 @@ if (data) {
     const journey = await getDishJourney(slug as string);
     journeyBeats = journey.beats ?? [];
     journeyLineages = journey.lineages ?? [];
+    journeyMovements = journey.movements ?? [];
+    // The API distinguishes a dish with a chronology from one with a
+    // research gap. The two are different editorial statements.
+    journeyStatus = journey.status === "history" ? "history" : "gap";
   } catch {
-    // Journey is optional — never fail the dish page if the sub-resource errs.
+    // Journey is optional — never fail the dish page if the sub-resource
+    // errs. But an operational failure is NOT a research gap, and the
+    // page must not present it as one.
     journeyBeats = [];
     journeyLineages = [];
+    journeyMovements = [];
+    journeyStatus = "unavailable";
+  }
+
+  // ── The pilot's REVIEW fixtures ────────────────────────────────────
+  //
+  // The live database has no journey beats for the pilot dishes yet, so
+  // a review build would show an empty research-gap state instead of
+  // the design. The fixtures are REVIEW MATERIAL: they let the
+  // presentation be evaluated end to end before any editorial record is
+  // approved or written to the database.
+  //
+  // This substitution happens ONLY for an allowlisted dish under the
+  // pilot switch. It never touches a live record, and it is skipped
+  // entirely when the pilot is off — so a production build contains
+  // none of it (verified: the fixture strings do not appear in the
+  // built output when the switch is off).
+  if (useJourneyPresentation && journeyBeats.length === 0) {
+    const fixture = getJourneyFixture(slug as string);
+    if (fixture) {
+      journeyBeats = fixture.beats as unknown as JourneyBeat[];
+      journeyMovements = fixture.movements as unknown as DishJourneyMovement[];
+      journeyStatus = fixture.status === "history" ? "history" : "gap";
+      // The per-chapter verification record travels with the fixture, so
+      // the evidence level and the limits are the fixture's own.
+      journeyEvidence = fixture.evidence;
+      reviewIngredients = fixture.ingredients;
+      reviewIngredientHeading = fixture.ingredientHeading;
+      // The lineage membership is already in the live database; the
+      // fixture only supplies the GUS-238 fields (role, explanation,
+      // related dishes) for review. A live lineage always wins.
+      if (journeyLineages.length === 0 && fixture.lineages.length > 0) {
+        journeyLineages = fixture.lineages as unknown as DishJourneyLineage[];
+      }
+    }
   }
 }
 
@@ -135,14 +212,22 @@ const seoDescription =
 //
 // The English page is at the ROOT, so the English alternate is the
 // un-prefixed URL.
-const siteOrigin =
-  import.meta.env.PUBLIC_SITE_ORIGIN ??
-  (import.meta.env.PUBLIC_DOMAIN === "geo"
-    ? "https://gustale.com"
-    : "https://gustale.recipes");
-const alternates = hreflangAlternates(slug as string, SITE_LOCALES, siteOrigin);
+// The shared origin resolver, so a staging build gets its own origin
+// (and its own canonical URLs) instead of pointing at the recipes
+// site. This page used to inline its own copy of the logic, which is
+// exactly how the staging origin got missed.
+const siteOrigin = resolveSiteOrigin();
+// Only the locales THIS build covers. A scoped build must not
+// advertise alternates for pages it never built -- a hreflang tag
+// pointing at a 404 is worse than no hreflang tag.
+const BUILD_LOCALES = buildLocales();
+const alternates = hreflangAlternates(
+  slug as string,
+  BUILD_LOCALES,
+  siteOrigin,
+);
 const localeUrls = Object.fromEntries(
-  SITE_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
+  BUILD_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
 );
 
 // The English page IS the English one, so it never shows the
@@ -168,15 +253,21 @@ const servedEnglish =
         dish={data.dish}
         origin={data.origin}
         variants={data.variants}
-        ingredients={data.ingredients}
+        ingredients={reviewIngredients ?? data.ingredients}
+        ingredientHeading={reviewIngredientHeading}
         categories={data.categories}
         tags={data.tags}
         preparations={data.preparations}
         sources={data.sources}
         media={data.media}
+        pathPages={pathPages}
         unevidenced={data.unevidenced}
         journeyBeats={journeyBeats}
         journeyLineages={journeyLineages}
+        journeyMovements={journeyMovements}
+        journeyStatus={journeyStatus}
+        journeyEvidence={journeyEvidence}
+        journeyPresentation={useJourneyPresentation}
         client:load
       />
 

@@ -41,7 +41,12 @@ const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
 const SHARED_PAGES = ["", "dishes/"];
 
 function siteOrigin(domain) {
-  return domain === "geo" ? "https://gustale.com" : "https://gustale.recipes";
+  if (domain === "geo") return "https://gustale.com";
+  // The staging origin (WP-00b). A staging sitemap must point at the
+  // staging host, not at gustale.recipes -- otherwise it advertises
+  // the production URLs for a site that is not production.
+  if (domain === "staging") return "https://staging.gustale.com";
+  return "https://gustale.recipes";
 }
 
 function localePrefix(locale) {
@@ -80,9 +85,51 @@ async function collectDishSlugs(dist) {
   // counted it — and the sitemap then listed a form URL as if it were
   // a dish page. These are the reserved routes under /dishes/.
   const RESERVED = new Set(["new", "edit", "create", "search"]);
+  // The FILTER-KIND parents are not dishes either. WP-01b added the
+  // static filtered pages at /dishes/<kind>/<slug>/ (region, category,
+  // technique), so the build output now contains:
+  //
+  //   dishes/category/indonesian-cuisine/index.html
+  //   dishes/region/indonesia/index.html
+  //   dishes/technique/curry/index.html
+  //
+  // and a naive scan of dist/dishes/ saw "category", "region" and
+  // "technique" as dish slugs. The sitemap then listed three URLs
+  // that 404:
+  //
+  //   /dishes/category   /dishes/region   /dishes/technique
+  //
+  // Hardcoding those three names would fix it today and break again
+  // the next time a filter kind is added. So they are detected
+  // STRUCTURALLY instead: a dish directory contains its own
+  // index.html, while a filter-kind parent contains only
+  // subdirectories. That is a property of the build output, not a
+  // duplicate of the route table, so it cannot go stale.
+  const isFilterKindParent = async (name) => {
+    const dir = join(dishes, name);
+    let children;
+    try {
+      children = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+    if (children.length === 0) return false;
+    // It has its own page -> it is a dish (or a reserved route).
+    if (children.some((c) => c.isFile() && c.name === "index.html")) {
+      return false;
+    }
+    // It has only subdirectories -> it is a filter-kind parent.
+    return children.every((c) => c.isDirectory());
+  };
+
+  const isReserved = async (name) => {
+    if (RESERVED.has(name)) return true;
+    return isFilterKindParent(name);
+  };
+
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      if (!RESERVED.has(entry.name)) slugs.add(entry.name);
+      if (!(await isReserved(entry.name))) slugs.add(entry.name);
     } else if (entry.name.endsWith(".html") && entry.name !== "index.html") {
       // Node's Dirent has no `.stem` — that is Python's pathlib API.
       // Strip the extension by hand.
@@ -354,26 +401,56 @@ async function main() {
           "/ingredients",
         ];
 
-  const robots = [
-    `# Gustale — ${domain === "geo" ? "Atlas (gustale.com)" : "Recipes (gustale.recipes)"}`,
-    "#",
-    "# The archive is public and meant to be read and indexed. The",
-    "# authoring surfaces are not: they are behind an account, and a",
-    "# crawler that submits them wastes the site's crawl budget on",
-    "# forms that always answer the same way.",
-    "",
-    "User-agent: *",
-    "Allow: /",
-    ...disallowed.map((path) => `Disallow: ${path}`),
-    "",
-    "# Sitemap: the index, which points at one sitemap per locale.",
-    `Sitemap: ${origin}/sitemap.xml`,
-    "",
-  ].join("\n");
+  // A STAGING site disallows EVERYTHING.
+  //
+  // Staging is a copy of the site, built from a branch, and some of
+  // it may be broken by definition -- it is where you SEE the
+  // breakage. A crawler that indexes it competes with production in
+  // the search results, and a sitemap pointing at it invites exactly
+  // that.
+  //
+  // The noindex RESPONSE HEADER (set by Caddy) is the primary
+  // signal; this is the belt to that braces, because some crawlers
+  // read robots.txt and ignore headers.
+  const isStaging = domain === "staging";
+
+  const robots = isStaging
+    ? [
+        "# Gustale — STAGING (staging.gustale.com)",
+        "#",
+        "# This is the staging environment. It is a copy of the site",
+        "# built from a branch, and some of it may be broken by",
+        "# definition -- it is where breakage is seen before it goes",
+        "# to production.",
+        "#",
+        "# Nothing here should be indexed. Everything is disallowed.",
+        "",
+        "User-agent: *",
+        "Disallow: /",
+        "",
+      ].join("\n")
+    : [
+        `# Gustale — ${domain === "geo" ? "Atlas (gustale.com)" : "Recipes (gustale.recipes)"}`,
+        "#",
+        "# The archive is public and meant to be read and indexed. The",
+        "# authoring surfaces are not: they are behind an account, and a",
+        "# crawler that submits them wastes the site's crawl budget on",
+        "# forms that always answer the same way.",
+        "",
+        "User-agent: *",
+        "Allow: /",
+        ...disallowed.map((path) => `Disallow: ${path}`),
+        "",
+        "# Sitemap: the index, which points at one sitemap per locale.",
+        `Sitemap: ${origin}/sitemap.xml`,
+        "",
+      ].join("\n");
 
   await writeFile(robotsPath, robots, "utf-8");
   console.log(
-    `[sitemap] wrote robots.txt (${disallowed.length} disallowed paths)`,
+    isStaging
+      ? "[sitemap] wrote robots.txt (staging: everything disallowed)"
+      : `[sitemap] wrote robots.txt (${disallowed.length} disallowed paths)`,
   );
 }
 

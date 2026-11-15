@@ -85,6 +85,7 @@ gus_files=(
     db/migrations/gus-014-technique-fallback.sql
     db/migrations/gus-224-relations-option-b.sql
     db/migrations/gus-227-preparation-method-names.sql
+    db/migrations/gus-238-journey-editorial-fields.sql
     db/migrations/gus-242-seed-countries.sql
     db/migrations/gus-242-seed-country-names.sql
     db/migrations/gus-242-seed-cuisines.sql
@@ -157,6 +158,8 @@ numbered=(
     db/migrations/0038_publish_credential.sql
     db/migrations/0039_journey_place_queue.sql
     db/migrations/0040_atlas_publication_predicate.sql
+    db/migrations/gus-238b-association-review-visibility.sql
+    db/migrations/gus-238c-constraint-idempotence-and-ledger.sql
     db/migrations/0041_credential_role_separation.sql
     db/migrations/0042_credential_trigger_revocation.sql
     db/migrations/0043_taxonomy_canonicalisation.sql

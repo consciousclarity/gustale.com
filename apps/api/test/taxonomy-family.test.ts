@@ -23,6 +23,8 @@
  *   - it exposes nothing editorial
  */
 
+import { db } from "@gustale/db";
+import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
@@ -56,24 +58,26 @@ beforeAll(async () => {
     }
   }
 
-  // Otherwise, take the first family the list endpoint knows about and
+  // Otherwise, discover canonical families from the dish list and
   // check whether it has a definition.
   const list = await app.inject({
     method: "GET",
-    url: "/api/categories",
+    url: "/api/dishes?limit=100",
   });
   if (list.statusCode !== 200) return;
-  const cats =
-    (list.json() as { categories?: { slug: string }[] }).categories ?? [];
-  for (const cat of cats) {
+  const dishes =
+    (list.json() as { dishes?: { familySlug: string | null }[] }).dishes ?? [];
+  const slugs = new Set(dishes.map((dish) => dish.familySlug));
+  for (const slug of slugs) {
+    if (!slug) continue;
     const probe = await app.inject({
       method: "GET",
-      url: `/api/taxonomy/family/${cat.slug}`,
+      url: `/api/taxonomy/family/${slug}`,
     });
     if (probe.statusCode !== 200) continue;
     const body = probe.json() as { family?: { definition?: string | null } };
     if (body.family?.definition) {
-      FAMILY = cat.slug;
+      FAMILY = slug;
       return;
     }
   }
@@ -189,6 +193,25 @@ describe("GET /api/taxonomy/family/:slug — the dishes", () => {
     // dishes are all drafts legitimately counts zero, and the API says
     // so rather than counting the drafts.
     expect(body.counts.dishes).toBeGreaterThanOrEqual(0);
+  });
+
+  it("uses active canonical membership without adding legacy category matches", async () => {
+    const body = await getFamily(FAMILY);
+    const expected = (await db.execute(sql`
+      SELECT d.slug
+        FROM dishes d
+       WHERE d.status = 'published'
+         AND EXISTS (
+           SELECT 1 FROM dish_dish_families x
+           JOIN dish_families f ON f.id = x.value_id
+           WHERE x.dish_id = d.id AND x.status = 'active' AND f.slug = ${FAMILY}
+         )
+       ORDER BY d.canonical_name
+       LIMIT 200
+    `)) as unknown as { slug: string }[];
+    expect(body.dishes.map((dish) => dish.slug).sort()).toEqual(
+      expected.map((dish) => dish.slug).sort(),
+    );
   });
 
   it("serves only PUBLISHED dishes", async () => {

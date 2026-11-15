@@ -45,15 +45,15 @@ const countLabel =
         `${initial.dishes.length.toLocaleString("en-US")} ${
           initial.dishes.length === 1 ? "dish" : "dishes"
         }`
-    : "Recipes";
+    : "Dishes";
 ---
 
-<Layout title="Recipes — Gustale" description="Browse Gustale recipes and culinary encyclopedia entries.">
-  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Recipes' }]} />
+<Layout title="Dishes — Gustale" description="Browse Gustale dishes and culinary encyclopedia entries.">
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Dishes' }]} />
 
   <BrowseHeader
     eyebrow={property}
-    title="Recipes"
+    title="Dishes"
     subtitle="Browse dishes by name, country, or family. Load more to keep exploring beyond the first page."
     countLabel={countLabel}
     showToolbar={false}

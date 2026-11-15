@@ -1,0 +1,105 @@
+# recipes.gustale.com — the recipes site on the gustale.com domain
+#
+# Added 2026-11-12, as a PREPARATION for the cutover. This host serves
+# the SAME recipes build as gustale.recipes. It is NOT the canonical
+# site yet, and nothing here redirects.
+#
+# WHY THIS IS SEPARATE FROM THE gustale.recipes BLOCK
+# ---------------------------------------------------
+# gustale.recipes stays live and canonical. This host is a second door
+# onto the same content, marked noindex so Google does not see two
+# copies of the site.
+#
+# It is a copy of the gustale.recipes vhost with ONE difference: the
+# noindex header. Everything else -- the MinIO /media proxy, the
+# /api/* proxy, the security headers -- is identical on purpose. A
+# partial copy is how you end up with a host that serves HTML but
+# 404s every image, which is exactly what the first version of this
+# block did (see below).
+#
+# THE NOINDEX HEADER
+# -----------------
+# X-Robots-Tag: noindex, nofollow is sent on every response. It is the
+# server-side equivalent of <meta name="robots" content="noindex">,
+# and it is the one that search engines actually honour for a whole
+# host, including assets. The page HTML itself still says
+# <meta name="robots" content="index,follow"> -- because the HTML is
+# the SAME BUILD as gustale.recipes, and changing it would mean a
+# second build. The header wins, so the host is not indexed.
+#
+# WHY THE HEADER AND NOT A META TAG
+# ---------------------------------
+# The two must agree. If the HTML said noindex but the header said
+# index, the header wins and the page is indexed anyway -- which is
+# the opposite of what you want. The header is authoritative, so it
+# is the one that carries the noindex, and the HTML is left alone
+# because it is shared with the canonical host.
+#
+# REMOVING THIS BLOCK
+# -------------------
+# When the cutover happens, this block is DELETED, not edited: the
+# recipes site moves to recipes.gustale.com permanently, and
+# gustale.recipes becomes a pure 301 redirect to it. See
+# docs/CUTOVER-recipes-gustale-com.md.
+#
+# NOTE ON THE DOCS
+# -----------------
+# The /media/* and /api/* rules below are copies of the ones in the
+# gustale.recipes block. Caddy has no "include a snippet from
+# another site block" mechanism short of named snippets, so they are
+# duplicated. If the MinIO bucket name or the API port ever changes,
+# BOTH blocks have to change.
+
+recipes.gustale.com {
+	# ─── /media/* — published dish media ─────────────────────────────
+	# Same-origin, read-only proxy to the public MinIO bucket. The
+	# bucket name is hard-coded; the URI rewrite maps /media/<key> to
+	# /gustale-public/<key>. Without this block every cover image on
+	# the site is a 404, because the static build references /media/...
+	# paths that only exist in the object store.
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+	# Anything else under /media (listing, writes) -> 404
+	@media_other path /media /media/ /media/*
+	handle @media_other {
+		respond 404
+	}
+
+	# ─── /api/* — the API, same-origin ───────────────────────────────
+	# The browser calls /api/... relative to the page origin (see
+	# apps/web/src/lib/api.ts: API_BASE is "" in the browser), so this
+	# proxy is what makes the site work at all. Without it every
+	# client-side fetch is a 404.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	reverse_proxy 127.0.0.1:4001
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+
+		# ─── noindex — do not index this host ─────────────────────────
+		# This host is a second copy of gustale.recipes. Until the
+		# cutover it must not be indexed, or Google sees the same
+		# content at two URLs and picks one.
+		#
+		# REMOVE THIS LINE AT CUTOVER. It is the whole reason this
+		# block exists separately from the gustale.recipes block.
+		X-Robots-Tag "noindex, nofollow"
+	}
+
+	encode gzip zstd
+}

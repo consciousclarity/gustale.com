@@ -4,63 +4,31 @@ import BrowseHeader from "../components/BrowseHeader.astro";
 import ErrorBoundary from "../components/ErrorBoundary.tsx";
 import { FamilyDirectory } from "../components/FamilyDirectory.tsx";
 import Layout from "../layouts/Layout.astro";
-import { listDishes } from "../lib/api";
-import { buildFamilyDirectory, recoveryLinks } from "../lib/browse";
-import { currentDomain } from "../lib/domain";
-import type { DishListResponse } from "../types/dish";
+import { buildFamilyDirectory, listAllDishes } from "../lib/browse";
 
-let initial: DishListResponse = {
-  dishes: [],
-  limit: 100,
-  offset: 0,
-  total: null,
-  hasMore: null,
-};
-let buildFailed = false;
-
-try {
-  initial = await listDishes({ status: "published", limit: 100 });
-} catch (err: unknown) {
-  buildFailed = true;
-  void err;
-}
-
-const domain = currentDomain();
-const families = buildFamilyDirectory(initial.dishes);
-const recovery = recoveryLinks(domain);
+// Let catalogue failures propagate: a short directory must fail the build.
+const dishes = await listAllDishes({ status: "published" });
+const families = buildFamilyDirectory(dishes);
 ---
 
 <Layout
   title="Food families — Gustale"
-  description="Browse Gustale dishes by the form they take — dumplings, flatbreads, stews, and more."
+  description="Browse Gustale food families by form, course, content type, and cuisine."
 >
   <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Food families' }]} />
 
   <BrowseHeader
     eyebrow="Browse the atlas"
     title="Food families"
-    subtitle="One entry per form — dumplings, stews, flatbreads — with counts and representative dishes."
+    subtitle="Food families grouped by form, course, content type, and cuisine, with counts and representative dishes."
     countLabel={`${families.length} families`}
     showToolbar={false}
     showFilters={false}
   />
 
-  {buildFailed && (
-    <div class="wrap">
-      <div class="browse-banner browse-banner--error" role="status">
-        <p>Browse data was unavailable at build time. Cached family entries stay below when present.</p>
-        <ul class="browse-recovery">
-          {recovery.primary.map((l) => (
-            <li><a href={l.href}>{l.label}</a></li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  )}
-
   <section class="wrap browse-page">
     <ErrorBoundary name="Family directory">
-      <FamilyDirectory dishes={initial.dishes} client:load />
+      <FamilyDirectory dishes={dishes} client:load />
     </ErrorBoundary>
   </section>
 </Layout>

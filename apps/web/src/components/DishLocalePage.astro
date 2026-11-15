@@ -1,12 +1,9 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../lib/api";
-import {
-  type CoreLocale,
-  dishUrl,
-  hreflangAlternates,
-  SITE_LOCALES,
-} from "../lib/locales";
+import { buildLocales } from "../lib/buildScope";
+import { getFilterPageIndex, pathPageSlugs } from "../lib/filterPages";
+import { type CoreLocale, dishUrl, hreflangAlternates } from "../lib/locales";
 import type { DishDetailResponse } from "../types/dish";
 import { DishDetail } from "./DishDetail";
 import { EditDishButton } from "./EditDishButton";
@@ -20,6 +17,14 @@ export interface Props {
 }
 
 const { slug, locale, origin } = Astro.props;
+
+// Category / method / region links go to the static path pages.
+let pathPages = null;
+try {
+  pathPages = pathPageSlugs(await getFilterPageIndex());
+} catch {
+  // Query-form fallback.
+}
 
 // ── The dish, in this locale ──────────────────────────────────────────
 let data: DishDetailResponse | null = null;
@@ -40,12 +45,20 @@ if (notFound) {
 // ── The journey beats ──────────────────────────────────────────────────
 let journeyBeats: DishDetailResponse extends never ? never : any[] = [];
 let journeyLineages: any[] = [];
+let journeyMovements: any[] = [];
+let journeyStatus: "history" | "gap" | "unavailable" = "gap";
 try {
   const j = await getDishJourney(slug);
   journeyBeats = (j as any)?.beats ?? [];
   journeyLineages = (j as any)?.lineages ?? [];
+  journeyMovements = (j as any)?.movements ?? [];
+  // A dish with no chapters is a research gap; a failed fetch is an
+  // operational failure. The page must not confuse the two.
+  journeyStatus = (j as any)?.status === "history" ? "history" : "gap";
 } catch {
-  // The journey is optional — a dish without one still renders.
+  // The journey is optional — a dish without one still renders. But a
+  // failed fetch is NOT a research gap.
+  journeyStatus = "unavailable";
 }
 
 // ── The locales this dish actually has content in ─────────────────────
@@ -53,7 +66,8 @@ try {
 // The hreflang set is the locales the site ships pages for, not the
 // locales the dish happens to have a name in. A dish with a Tagalog
 // name but no Tagalog page would advertise a URL that 404s.
-const alternates = hreflangAlternates(slug, SITE_LOCALES, origin);
+const BUILD_LOCALES = buildLocales();
+const alternates = hreflangAlternates(slug, BUILD_LOCALES, origin);
 
 // ── The English-fallback notice ────────────────────────────────────────
 //
@@ -74,7 +88,7 @@ const seoDescription =
 
 // The language switcher: the same dish in every locale the site ships.
 const localeUrls = Object.fromEntries(
-  SITE_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
+  BUILD_LOCALES.map((l) => [l, `${origin}${dishUrl(l, slug)}`]),
 );
 ---
 
@@ -113,6 +127,9 @@ const localeUrls = Object.fromEntries(
         unevidenced={data.unevidenced}
         journeyBeats={journeyBeats}
         journeyLineages={journeyLineages}
+        journeyMovements={journeyMovements}
+        journeyStatus={journeyStatus}
+        pathPages={pathPages}
         client:load
       />
 

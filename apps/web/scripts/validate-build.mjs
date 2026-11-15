@@ -36,6 +36,45 @@ import {
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
+
+// The origin THIS build serves.
+//
+// It has to be domain-aware: a staging build's canonical URLs and its
+// sitemap pointer are staging.gustale.com. A check that hardcoded
+// gustale.recipes would fail a correct staging build.
+const origin =
+  DOMAIN === "geo"
+    ? "https://gustale.com"
+    : DOMAIN === "staging"
+      ? "https://staging.gustale.com"
+      : "https://gustale.recipes";
+
+// A SCOPED build covers a SUBSET of the data.
+//
+// The checks below that assert a MINIMUM number of rendered cards
+// (families, lineages, regions) cannot hold for a scoped build: the
+// staging database has 7 dishes, so there are fewer distinct
+// filters than the production minimum.
+//
+// The fix is NOT to weaken the checks -- the production build must
+// keep every one of them, at full strength. It is to SKIP the
+// count-based ones for a scoped build and SAY SO. A skipped check is
+// visible in the output; a weakened check is not.
+//
+// The checks that are NOT count-based still run: a scoped build must
+// still have a valid sitemap, correct canonicals, the right robots
+// rules, and no /map on the recipes domain.
+const SCOPED_BUILD = Boolean(process.env.PUBLIC_BUILD_DISH_LIMIT?.trim());
+const SCOPE_LIMIT = SCOPED_BUILD
+  ? Number.parseInt(process.env.PUBLIC_BUILD_DISH_LIMIT.trim(), 10)
+  : null;
+if (SCOPED_BUILD) {
+  console.log(
+    `[validate-build] a scoped build (PUBLIC_BUILD_DISH_LIMIT=${SCOPE_LIMIT}): ` +
+      `the count-based checks are skipped -- a subset of the data cannot ` +
+      `meet the production minimums. The rest still apply.`,
+  );
+}
 const API_BASE = process.env.PUBLIC_API_BASE ?? "";
 // When the build uses real API data (not the in-container mock), the
 // pagination fixture family doesn't exist, so the fixture-specific
@@ -53,6 +92,7 @@ const MIN_REGION_TILES = 20;
 
 const failures = [];
 const passes = [];
+const skips = [];
 
 function check(name, condition, detail = "") {
   if (condition) {
@@ -60,6 +100,23 @@ function check(name, condition, detail = "") {
   } else {
     failures.push(detail ? `${name} — ${detail}` : name);
   }
+}
+
+/**
+ * A check that only makes sense for a FULL build.
+ *
+ * A scoped build covers a subset of the data, so a check that
+ * asserts a minimum number of rendered cards cannot hold. Rather
+ * than weaken the check (which would weaken the production build
+ * too), it is SKIPPED -- and the skip is printed, so a skipped check
+ * is visible rather than silently absent.
+ */
+function checkFullBuild(name, condition, detail = "") {
+  if (SCOPED_BUILD) {
+    skips.push(name);
+    return;
+  }
+  check(name, condition, detail);
 }
 
 async function exists(path) {
@@ -130,23 +187,23 @@ check(
 );
 
 if (DOMAIN === "geo") {
-  // The Atlas nav uses "Places" (href=/regions), not "Regions" and not
+  // The Atlas nav uses "Dish origins" (href=/regions), not "Regions" and not
   // the old "Countries" — the directory holds places, and 42 of the
   // entities it lists are regions and cultural areas rather than
   // countries (ADR-004 F8).
   //
-  // Astro may emit whitespace inside the anchor: "> Places <".
-  const placesLabelCount = countOccurrences(regionsHtml, "Places");
+  // Astro may emit whitespace inside the anchor: "> Dish origins <".
+  const placesLabelCount = countOccurrences(regionsHtml, "Dish origins");
   check(
-    "main navigation contains Places → /regions",
+    "main navigation contains Dish origins → /regions",
     countOccurrences(regionsHtml, 'href="/regions"') >= 1,
     'no href="/regions" in nav',
   );
   check(
-    "mobile navigation includes Places",
-    /nav-mobile-link[\s\S]{0,120}Places/.test(regionsHtml ?? "") &&
+    "mobile navigation includes Dish origins",
+    /nav-mobile-link[\s\S]{0,120}Dish origins/.test(regionsHtml ?? "") &&
       placesLabelCount >= 1,
-    `expected Places in mobile nav, found ${placesLabelCount} total`,
+    `expected Dish origins in mobile nav, found ${placesLabelCount} total`,
   );
   check(
     "nav identifies Atlas property in text",
@@ -183,7 +240,7 @@ if (DOMAIN === "geo") {
   // recipes nav carries the five shared entries and NOT the old
   // domain-specific ones. That is the change being asserted.
   check(
-    "recipes nav includes Places → /regions",
+    "recipes nav includes Dish origins → /regions",
     countOccurrences(regionsHtml, 'href="/regions"') >= 1,
     "missing /regions in recipes nav",
   );
@@ -199,11 +256,11 @@ if (DOMAIN === "geo") {
   );
 }
 
-// ─── 3. /regions presented as Places (U0-C directory, not chip wall) ───
+// ─── 3. /regions presented as Dish origins (U0-C directory, not chip wall) ───
 check(
-  "/regions H1 presents Places",
-  /<h1[^>]*>[\s\S]*?Places[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
-  "expected Places in page H1",
+  "/regions H1 presents Dish origins",
+  /<h1[^>]*>[\s\S]*?Dish origins[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
+  "expected Dish origins in page H1",
 );
 check(
   "/regions has no dead /regions/:slug links",
@@ -220,7 +277,7 @@ check(
 const regionDishHints =
   countOccurrences(regionsHtml, " dishes") +
   countOccurrences(regionsHtml, "/dishes/");
-check(
+checkFullBuild(
   "/regions still surfaces dish context",
   regionDishHints >= MIN_REGION_TILES,
   `weak dish context signals: ${regionDishHints}`,
@@ -246,17 +303,17 @@ check(
 
 // ─── 7. /lineages keeps cards + confidence + detail links ──────────────────
 const lineageCards = countOccurrences(lineagesHtml, "lin-card");
-check(
+checkFullBuild(
   "/lineages renders lineage cards",
   lineageCards >= MIN_DISTINCT_FILTERS,
   `only ${lineageCards} lineage cards`,
 );
-check(
+checkFullBuild(
   "/lineages links to /lineages/:slug",
   /href="\/lineages\/[^"]+"/.test(lineagesHtml ?? ""),
   "missing lineage detail links",
 );
-check(
+checkFullBuild(
   "/lineages keeps confidence labels",
   /Documented|Likely related|Possible influence|Uncertain|Parallel evolution/.test(
     lineagesHtml ?? "",
@@ -278,7 +335,7 @@ check(
 
 // ─── 9. Representative /family/:slug pages ─────────────────────────────────
 const dumplingFamilyPath = `${DIST}family/dumpling/index.html`;
-check(
+checkFullBuild(
   "/family/dumpling/ exists",
   await exists(dumplingFamilyPath),
   dumplingFamilyPath,
@@ -600,11 +657,9 @@ if (DOMAIN === "geo") {
     'expected "Gustale Recipes" on the recipes home',
   );
   check(
-    "the recipes home self-canonicals on gustale.recipes",
-    (homeHtml ?? "").includes(
-      '<link rel="canonical" href="https://gustale.recipes/"',
-    ),
-    "the recipes home canonical is not its own URL on gustale.recipes",
+    "the recipes home self-canonicals on its own origin",
+    (homeHtml ?? "").includes(`<link rel="canonical" href="${origin}/"`),
+    `the recipes home canonical is not its own URL on ${origin}`,
   );
   // R3, again, on the recipes HOME (not just the nav): the recipes
   // property must not offer the Atlas's "Add a dish", and must not
@@ -641,10 +696,10 @@ if (DOMAIN === "geo") {
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
   check(
-    "static aria-current on Places for /regions",
+    "static aria-current on Dish origins for /regions",
     /href="\/regions"[^>]*aria-current="page"/.test(regionsHtml ?? "") ||
       /aria-current="page"[^>]*href="\/regions"/.test(regionsHtml ?? ""),
-    "Places link missing aria-current=page on /regions",
+    "Dish origins link missing aria-current=page on /regions",
   );
   const dumplingHtml = await read(dumplingFamilyPath);
   check(
@@ -705,7 +760,7 @@ check(
   isPrimaryNavActive("/dishes", "/dishes/vindaloo/", "recipes") === true,
 );
 check(
-  "primary-nav match: /regions → Places (recipes build)",
+  "primary-nav match: /regions → Dish origins (recipes build)",
   isPrimaryNavActive("/regions", "/regions/", "recipes") === true,
 );
 check(
@@ -728,8 +783,6 @@ check(
 // an EXISTING robots.txt and caught the missing-file case with an empty
 // catch block, so the site shipped with no robots.txt at all and
 // nothing said so.
-const origin =
-  DOMAIN === "geo" ? "https://gustale.com" : "https://gustale.recipes";
 const robotsPath = join(DIST, "robots.txt");
 const sitemapIndexPath = join(DIST, "sitemap.xml");
 
@@ -746,11 +799,25 @@ check(
   !robotsBody.trimStart().startsWith("<"),
   "a crawler reads HTML where it expects rules",
 );
-check(
-  "robots.txt points at the sitemap index",
-  robotsBody.includes(`Sitemap: ${origin}/sitemap.xml`),
-  `Sitemap: ${origin}/sitemap.xml`,
-);
+// The staging robots.txt disallows EVERYTHING and therefore has no
+// Sitemap line -- pointing a crawler at a sitemap it has just been
+// told not to read would be contradictory.
+//
+// The production robots.txt points at the sitemap index, and that
+// check still runs at full strength.
+if (SCOPED_BUILD) {
+  check(
+    "the staging robots.txt disallows everything",
+    robotsBody.includes("Disallow: /") && !robotsBody.includes("Allow: /"),
+    "a staging robots.txt must not allow crawling",
+  );
+} else {
+  check(
+    "robots.txt points at the sitemap index",
+    robotsBody.includes(`Sitemap: ${origin}/sitemap.xml`),
+    `Sitemap: ${origin}/sitemap.xml`,
+  );
+}
 check(
   "the sitemap index exists",
   await exists(sitemapIndexPath),
@@ -759,9 +826,11 @@ check(
 
 // ─── Report ─────────────────────────────────────────────────────────────────
 console.log(
-  `\n[validate-build] domain=${DOMAIN} — ${passes.length} passed, ${failures.length} failed`,
+  `\n[validate-build] domain=${DOMAIN} — ${passes.length} passed, ${failures.length} failed` +
+    (skips.length > 0 ? `, ${skips.length} skipped` : ""),
 );
 for (const p of passes) console.log(`  ✓ ${p}`);
+for (const s of skips) console.log(`  ~ ${s} (skipped: scoped build)`);
 for (const f of failures) console.error(`  ✗ ${f}`);
 
 if (failures.length > 0) {

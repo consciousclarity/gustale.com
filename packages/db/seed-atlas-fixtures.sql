@@ -300,10 +300,33 @@ BEGIN
     RAISE EXCEPTION 'the fixtures hold % published claims, expected 4', v_fixture_claims;
   END IF;
 
-  -- The predicate must actually return them. This is the point of the
-  -- fixture: the ONE definition has to work.
-  IF v_dish_assoc <> 2 THEN
-    RAISE EXCEPTION 'published_associations_for_dish(falafel) returned % rows, expected 2', v_dish_assoc;
+  -- THE PREDICATE MUST HIDE THEM, UNTIL THEY ARE REVIEWED.
+  --
+  -- This is the point of the fixture: the ONE definition has to work.
+  --
+  -- Under the owner's rule of 2026-11-13, an association is hidden
+  -- until it is EVIDENCED and REVIEWED. The fixture associations are
+  -- `unevidenced` + `unreviewed`, so the predicate returns NONE of
+  -- them for falafel.
+  --
+  -- The rows themselves are untouched — they are still there, still
+  -- `publication_state = 'published'`, and still available for the
+  -- review work package. Only their VISIBILITY has changed.
+  --
+  -- A fixture that quietly made itself visible again would defeat the
+  -- rule, so this assertion is as important as the old "visible" one
+  -- was.
+  IF v_dish_assoc <> 0 THEN
+    RAISE EXCEPTION 'published_associations_for_dish(falafel) returned % rows, expected 0 — an unreviewed association must not be public', v_dish_assoc;
+  END IF;
+
+  -- ...and the rows must still be there, with their state intact.
+  IF NOT EXISTS (
+    SELECT 1 FROM dish_place_associations
+     WHERE provenance = 'atlas_fixture'
+       AND publication_state = 'published'
+  ) THEN
+    RAISE EXCEPTION 'the fixture associations are gone — hiding a row must not delete it';
   END IF;
   IF v_dish_claims <> 1 THEN
     RAISE EXCEPTION 'published_claims_for_dish(falafel) returned % rows, expected 1', v_dish_claims;

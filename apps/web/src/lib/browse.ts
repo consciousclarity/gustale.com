@@ -1,5 +1,5 @@
 /**
- * Pure helpers for U0-C browse/list-page usability.
+ * Shared helpers for U0-C browse/list-page usability.
  *
  * Shared by /dishes, /families, /regions, /lineages. Pure functions so
  * tests run in plain Node without a DOM or React.
@@ -8,6 +8,8 @@
  * in one place.
  */
 
+import type { DishSummary } from "../types/dish";
+import { type ListDishesParams, listDishes } from "./api";
 import { ATLAS_ORIGIN, type GustaleDomain, RECIPES_ORIGIN } from "./domain";
 
 // ─── Shared link type ───────────────────────────────────────────────────
@@ -25,6 +27,12 @@ export interface BrowseQueryState {
   family: string | null;
   country: string | null;
   cuisine: string | null;
+  /**
+   * A category SLUG (exact match), from `?category=` -- the dish pages'
+   * "Same category" links. NOT an alias of `cuisine`: `cuisine` is a
+   * name matched with ILIKE, so `indonesian-cuisine` would match nothing.
+   */
+  category: string | null;
   type: string | null;
   ingredient: string | null;
   technique: string | null;
@@ -38,6 +46,7 @@ export const DEFAULT_BROWSE_STATE: BrowseQueryState = {
   family: null,
   country: null,
   cuisine: null,
+  category: null,
   type: null,
   ingredient: null,
   technique: null,
@@ -52,12 +61,16 @@ export const BROWSE_URL_KEYS = [
   "family",
   "country",
   "cuisine",
+  "category",
   "type",
   "ingredient",
   "technique",
   "sort",
   "page",
 ] as const;
+
+/** Aliases accepted on the URL; they are serialised back to `country`. */
+export const COUNTRY_URL_ALIASES = ["country", "region", "origin"] as const;
 
 export function parseBrowseState(
   source: URLSearchParams | Record<string, string | string[] | undefined>,
@@ -79,8 +92,11 @@ export function parseBrowseState(
   return {
     q: (get("q") ?? "").trim(),
     family: emptyToNull(get("family")),
-    country: emptyToNull(get("country")),
+    // `region` and `origin` are aliases of `country` (the API treats
+    // them identically). Serialised back to `country`.
+    country: emptyToNull(get("country") ?? get("region") ?? get("origin")),
     cuisine: emptyToNull(get("cuisine")),
+    category: emptyToNull(get("category")),
     type: emptyToNull(get("type")),
     ingredient: emptyToNull(get("ingredient")),
     technique: emptyToNull(get("technique")),
@@ -101,6 +117,7 @@ export function serializeBrowseState(state: BrowseQueryState): URLSearchParams {
   if (state.family) sp.set("family", state.family);
   if (state.country) sp.set("country", state.country);
   if (state.cuisine) sp.set("cuisine", state.cuisine);
+  if (state.category) sp.set("category", state.category);
   if (state.type) sp.set("type", state.type);
   if (state.ingredient) sp.set("ingredient", state.ingredient);
   if (state.technique) sp.set("technique", state.technique);
@@ -133,8 +150,10 @@ export function parseStructuredTokens(
     free = free.replace(tok, "");
     if (key === "origin" || key === "country" || key === "region") {
       result.country = val;
-    } else if (key === "cuisine" || key === "category") {
+    } else if (key === "cuisine") {
       result.cuisine = val;
+    } else if (key === "category") {
+      result.category = val;
     } else if (key === "type" || key === "dish-type") {
       result.type = val;
     } else if (key === "ingredient") {
@@ -238,6 +257,7 @@ export function applyBrowseFilter<T extends LikeableDish>(
     !state.family &&
     !state.country &&
     !state.cuisine &&
+    !state.category &&
     !state.type &&
     !state.ingredient &&
     !state.technique
@@ -327,6 +347,7 @@ export function browseFiltersKey(state: BrowseQueryState): string {
     state.family ?? "",
     state.country ?? "",
     state.cuisine ?? "",
+    state.category ?? "",
     state.type ?? "",
     state.ingredient ?? "",
     state.technique ?? "",
@@ -360,6 +381,7 @@ const FRIENDLY_LABELS: Record<keyof BrowseQueryState, string> = {
   family: "Family",
   country: "Country",
   cuisine: "Cuisine",
+  category: "Category",
   type: "Type",
   ingredient: "Ingredient",
   technique: "Technique",
@@ -502,6 +524,51 @@ export interface CountryEntry {
   letter: string;
 }
 
+/** Fetch the complete filtered catalogue; never build a partial directory. */
+export async function listAllDishes(
+  params: Omit<ListDishesParams, "limit" | "offset"> = {},
+): Promise<DishSummary[]> {
+  const all: DishSummary[] = [];
+  const slugs = new Set<string>();
+  let expected: number | null = null;
+  for (;;) {
+    const page = await listDishes({
+      ...params,
+      limit: 100,
+      offset: all.length,
+    });
+    if (
+      page.total === null ||
+      !Number.isSafeInteger(page.total) ||
+      page.total < 0
+    ) {
+      throw new Error("[directories] API did not report a valid dish total.");
+    }
+    expected ??= page.total;
+    if (page.total !== expected) {
+      throw new Error(
+        "[directories] API dish total changed during pagination.",
+      );
+    }
+    all.push(...page.dishes);
+    for (const dish of page.dishes) slugs.add(dish.slug);
+    if (!page.hasMore || page.dishes.length === 0) break;
+    if (all.length > 100_000) {
+      throw new Error(
+        "[directories] Dish pagination exceeded the runaway guard.",
+      );
+    }
+  }
+  if (all.length !== expected || slugs.size !== expected) {
+    throw new Error(
+      `[directories] the dish list is SHORT or inconsistent: collected ${all.length} ` +
+        `(${slugs.size} distinct), the API says ${expected}. ` +
+        "The directory would be built from an incomplete catalogue.",
+    );
+  }
+  return all;
+}
+
 export function buildCountryDirectory(
   dishes: readonly LikeableDish[],
 ): CountryEntry[] {
@@ -517,8 +584,7 @@ export function buildCountryDirectory(
       count: list.length,
       dishNames: list
         .map((d) => d.canonicalName)
-        .filter((x): x is string => Boolean(x))
-        .slice(0, 8),
+        .filter((x): x is string => Boolean(x)),
       letter: name.charAt(0).toUpperCase(),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

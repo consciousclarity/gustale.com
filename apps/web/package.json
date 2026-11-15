@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "build:recipes": "PUBLIC_DOMAIN=recipes BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} astro build && PUBLIC_DOMAIN=recipes BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} node scripts/post-build.mjs && PUBLIC_DOMAIN=recipes BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} node scripts/validate-build.mjs",
+    "build:recipes": "PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-recipes} BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} astro build && PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-recipes} BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} node scripts/post-build.mjs && PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-recipes} BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} node scripts/validate-build.mjs",
     "build:geo": "PUBLIC_DOMAIN=geo BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} astro build && PUBLIC_DOMAIN=geo BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} node scripts/post-build.mjs && PUBLIC_DOMAIN=geo BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE:-mock} node scripts/validate-build.mjs",
     "preview": "astro preview",
     "astro": "astro"
@@ -19,7 +19,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "astro": "^7.4.4",
+    "astro": "^7.4.7",
     "better-auth": "^1.7.14",
     "maplibre-gl": "^6.16.0",
     "react": "^19.3.1",
