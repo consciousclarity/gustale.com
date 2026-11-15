@@ -15,7 +15,11 @@ import { LocaleSuggestion } from "../components/LocaleSuggestion";
 import LocaleSwitcher from "../components/LocaleSwitcher.astro";
 import Nav from "../components/Nav.astro";
 import { isGeoDomain } from "../lib/domain";
-import { type CoreLocale, isRtl } from "../lib/locales";
+import {
+  type CoreLocale,
+  isRtl,
+  siteOrigin as resolveSiteOrigin,
+} from "../lib/locales";
 
 export interface Props {
   title: string;
@@ -110,11 +114,10 @@ const rtl = isRtl(locale);
 // The 404 page is the exception: it has no canonical, because it is
 // not a page that should be in an index at all. A 404 that declares
 // itself canonical asks to be indexed.
-const siteOrigin =
-  import.meta.env.PUBLIC_SITE_ORIGIN ??
-  (import.meta.env.PUBLIC_DOMAIN === "geo"
-    ? "https://gustale.com"
-    : "https://gustale.recipes");
+// The shared origin resolver, so a staging build gets its own origin
+// and its own canonical URLs. This used to inline its own copy of the
+// logic, which is how the staging origin got missed on the dish pages.
+const siteOrigin = resolveSiteOrigin();
 
 // The 404 page. It is detected from the PAGE, not the URL: Astro
 // serves it for any missing path, so the pathname at build time is

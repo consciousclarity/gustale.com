@@ -1,10 +1,7 @@
 ---
 import DishLocalePage from "../../../components/DishLocalePage.astro";
-import {
-  type CoreLocale,
-  SITE_LOCALES,
-  siteOrigin,
-} from "../../../lib/locales";
+import { applyDishLimit, buildLocales } from "../../../lib/buildScope";
+import { type CoreLocale, siteOrigin } from "../../../lib/locales";
 
 export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
@@ -31,14 +28,22 @@ export async function getStaticPaths() {
       if (offset >= 500 * PAGE_SIZE) break;
     }
 
-    const locales = SITE_LOCALES.filter((l) => l !== "en");
+    // Only the locales THIS build covers. A scoped build (the staging
+    // environment) covers one locale; the production build covers all
+    // of them, so `buildLocales()` returns SITE_LOCALES and nothing
+    // changes.
+    const locales = buildLocales().filter((l) => l !== "en");
+
+    // The same dish limit as the English route, so a scoped build
+    // covers the same dishes in every locale it builds.
+    const { kept } = applyDishLimit(allSlugs);
     const paths: Array<{
       params: { locale: string; slug: string };
       props: { slug: string; locale: CoreLocale; origin: string };
     }> = [];
 
     for (const locale of locales) {
-      for (const slug of allSlugs) {
+      for (const slug of kept) {
         paths.push({
           params: { locale, slug },
           props: { slug, locale, origin: siteOrigin() },

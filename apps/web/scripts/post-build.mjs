@@ -59,6 +59,91 @@ const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 // a partial build (stale cache, flaky incremental, etc.). Bump this
 // if seed-data.ts grows.
 const MIN_EXPECTED_DISHES = 20;
+
+// A SCOPED build has its own floor.
+//
+// The floor of 20 exists to catch a PARTIAL build: a build that
+// produced only a few dish pages because it was interrupted, or
+// because the API only answered once, must never be pruned and
+// shipped. That is a real and valuable guard.
+//
+// But a SCOPED build -- the staging environment -- is partial ON
+// PURPOSE. It covers PUBLIC_BUILD_DISH_LIMIT dishes, and if that
+// limit is below the floor, the floor would refuse a perfectly good
+// build.
+//
+// So when a scope is set, the floor becomes the scope's own limit
+// (minus a small tolerance for the non-dish directories that live
+// under dist/dishes/ alongside the dishes). Without this, the
+// staging build fails at the post-build step with a message about a
+// "partial or stale build" when nothing is wrong.
+//
+// The production build is unaffected: no scope, so the floor stays 20.
+const SCOPED_DISH_LIMIT = (() => {
+  const raw = process.env.PUBLIC_BUILD_DISH_LIMIT;
+  if (!raw || !raw.trim()) return null;
+  const n = Number.parseInt(raw.trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+})();
+
+// The floor for a scoped build.
+//
+// It CANNOT be the limit. The limit is a CEILING on what the build
+// covers -- the staging database holds 7 dishes while the limit is
+// 50 -- so a floor derived from the limit refuses a perfectly good
+// build.
+//
+// The floor must be a FLOOR: the smallest number of dish directories
+// that still means "the build worked". The guard's real job is
+// catching an INTERRUPTED build -- one that produced a handful of
+// pages out of thousands.
+//
+// So for a scoped build the floor is derived from what the build was
+// SUPPOSED to produce: the smaller of the scope limit and the number
+// of published dishes the API reports. The second one is what makes
+// it correct -- the staging database has 7 dishes, so the build can
+// produce 7 pages and it did, and a floor of 48 called that a
+// partial build.
+//
+// The API count is read from PUBLIC_API_BASE, which the build already
+// used. When there is no reachable API -- a mock build, or a build
+// with no API configured -- the limit is used and the floor is a
+// quarter of it, which is still a floor rather than a ceiling.
+//
+// The production floor is unchanged: without a scope, it is 20.
+/**
+ * How many published dishes the API reports.
+ *
+ * This is what a build can legitimately produce: it fetches exactly
+ * the published dishes. The staging database holds 7, so a staging
+ * build produces 7 dish pages, and a floor derived from the SCOPE
+ * LIMIT (50) would call that a partial build.
+ *
+ * Returns null when there is no reachable API -- a mock build, or a
+ * build with no API configured. The caller then falls back to a
+ * fraction of the limit.
+ */
+async function apiDishCount() {
+  const apiBase = process.env.PUBLIC_API_BASE;
+  if (!apiBase || !apiBase.startsWith("http")) return null;
+  try {
+    const res = await fetch(`${apiBase}/api/dishes?limit=1`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const total = Number(json?.total);
+    return Number.isFinite(total) && total > 0 ? total : null;
+  } catch {
+    return null;
+  }
+}
+
+const SCOPED_FLOOR =
+  SCOPED_DISH_LIMIT !== null
+    ? Math.max(1, Math.floor(SCOPED_DISH_LIMIT / 4))
+    : MIN_EXPECTED_DISHES;
+
 // `astro build`, only moussaka-greek ships in the dist. Setting
 // ALLOW_PARTIAL=1 lets you run the post-build anyway for manual
 // experimentation. CI MUST NOT set this.
@@ -116,17 +201,48 @@ async function pruneEmptyParents(dir, stop) {
 // If the build is partial, the floor catches it BEFORE we delete the
 // few surviving pages and end up with a near-empty dist.
 const dishDirs = await listDirs(join(DIST, "dishes"));
-if (dishDirs.length < MIN_EXPECTED_DISHES) {
+
+// The effective floor.
+//
+// For a scoped build it is the smaller of the scope limit and what
+// the API reports -- because the build fetches exactly the published
+// dishes, so THAT is the most the dist can legitimately contain. A
+// staging build of 7 dishes against a limit of 50 is working
+// correctly, not partially.
+//
+// Without a scope the floor is the production floor of 20, unchanged.
+let effectiveFloor = MIN_EXPECTED_DISHES;
+if (SCOPED_DISH_LIMIT !== null) {
+  const apiTotal = await apiDishCount();
+  if (apiTotal !== null) {
+    // The tolerance: dist/dishes/ also holds the filter-kind parents
+    // (category/, region/, technique/) and the reserved route
+    // directories, which are not dishes.
+    effectiveFloor = Math.max(1, Math.min(SCOPED_DISH_LIMIT, apiTotal));
+    console.log(
+      `[post-build] a scoped build: the API reports ${apiTotal} published dishes, ` +
+        `the scope limit is ${SCOPED_DISH_LIMIT}, so the completeness floor is ${effectiveFloor}`,
+    );
+  } else {
+    effectiveFloor = SCOPED_FLOOR;
+    console.log(
+      `[post-build] a scoped build (PUBLIC_BUILD_DISH_LIMIT=${SCOPED_DISH_LIMIT}): ` +
+        `no API count available, so the completeness floor is ${effectiveFloor}`,
+    );
+  }
+}
+
+if (dishDirs.length < effectiveFloor) {
   if (ALLOW_PARTIAL) {
     console.warn(
       `[post-build] WARNING: dist/dishes/ has only ${dishDirs.length} ` +
-        `directories (expected ≥${MIN_EXPECTED_DISHES}). ALLOW_PARTIAL=1 ` +
+        `directories (expected ≥${effectiveFloor}). ALLOW_PARTIAL=1 ` +
         `is set, so proceeding with pruning anyway. Do not deploy this dist.`,
     );
   } else {
     console.error(
       `[post-build] REFUSING to prune — dist/dishes/ has ${dishDirs.length} ` +
-        `directories (expected ≥${MIN_EXPECTED_DISHES}). This looks like a ` +
+        `directories (expected ≥${effectiveFloor}). This looks like a ` +
         `partial or stale build. Re-run a clean astro build (e.g. ` +
         `"rm -rf dist .astro && astro build") before post-processing, ` +
         `or set ALLOW_PARTIAL=1 if you really mean to ship a partial dist.`,
@@ -144,7 +260,18 @@ if (dishDirs.length < MIN_EXPECTED_DISHES) {
 let removed = 0;
 
 // Always-on: drop pages only relevant to the OTHER domain.
-const drop = DOMAIN === "recipes" ? GEO_ONLY : RECIPES_ONLY;
+// Which paths to drop.
+//
+// The geo domain keeps /map and drops the recipes-only routes; the
+// recipes domain does the opposite.
+//
+// The STAGING domain is the recipes site -- it is the same code, on
+// another host -- so it drops the GEO_ONLY paths exactly as the
+// recipes domain does. Without this, a staging build kept /map and
+// the validate-build check ("recipes removes /map") failed on a
+// build that was actually correct.
+const isGeoLike = DOMAIN === "geo";
+const drop = isGeoLike ? RECIPES_ONLY : GEO_ONLY;
 for (const target of drop) {
   const full = join(DIST, target);
   if (await rmIfExists(full)) {
