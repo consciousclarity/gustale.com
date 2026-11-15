@@ -47,6 +47,7 @@
 import { useEffect, useState } from "react";
 import type { AtlasAssociation, AtlasResponse } from "../lib/api";
 import { ApiError, getDishAtlas } from "../lib/api";
+import { EvidenceLabel } from "./EvidenceLabel";
 
 /**
  * How long the loading state may last before the section says what
@@ -108,30 +109,31 @@ const GROUPS: Group[] = [
   },
 ];
 
-// The badge wording, per evidence state. The brief forbids a
-// numerical confidence score, so the evidence is a WORD.
-const EVIDENCE_LABEL: Record<string, string> = {
-  evidenced: "Evidenced",
-  provisional: "Proposed",
-  research_pending: "Being researched",
-  unevidenced: "Not yet evidenced",
-};
-
-const EVIDENCE_CLASS: Record<string, string> = {
-  evidenced: "atlas-evidence--evidenced",
-  provisional: "atlas-evidence--provisional",
-  research_pending: "atlas-evidence--pending",
-  unevidenced: "atlas-evidence--unevidenced",
-};
-
+// The association's evidence badge.
+//
+// IT USED TO HAVE ITS OWN VOCABULARY. Four vocabularies were in use at
+// once on this site:
+//
+//   the journey's  — "Documented", "Likely", "Possible", "Parallel tradition"
+//   the dish page's — "unevidenced"
+//   this one       — "Evidenced", "Proposed", "Being researched", "Not yet evidenced"
+//   the lineages'  — six values of its own
+//
+// A reader could not tell that "Proposed" and "Likely" meant roughly
+// the same thing, or that "Not yet evidenced" and "Unverified" were
+// the same state under two names.
+//
+// Now all of them go through `evidenceLabel` in
+// `apps/web/src/lib/evidenceLabel.ts`, and the badge is the shared
+// `EvidenceLabel` component. The wording is no longer decided here.
 function EvidenceBadge({ association }: { association: AtlasAssociation }) {
-  const status = association.evidence.status;
   return (
-    <span
-      className={`atlas-evidence ${EVIDENCE_CLASS[status] ?? EVIDENCE_CLASS.unevidenced}`}
-    >
-      {EVIDENCE_LABEL[status] ?? status}
-    </span>
+    <EvidenceLabel
+      evidenceStatus={association.evidence.status}
+      disputeState={association.evidence.dispute}
+      reviewState={association.reviewState}
+      subject="association"
+    />
   );
 }
 

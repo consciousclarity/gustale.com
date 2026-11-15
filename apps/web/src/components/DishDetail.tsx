@@ -22,6 +22,7 @@ import {
   PilotIngredientOverview,
   PilotSectionNav,
 } from "./DishJourneyPilotLazy";
+import { EvidenceLabel } from "./EvidenceLabel";
 
 export interface DishDetailProps {
   dish: DishDetailCore;
@@ -143,7 +144,19 @@ export function DishDetail({
               text, not colour alone — WCAG 1.4.1. */}
           {unevidenced && (
             <p className="rec-evidence" role="note">
-              <span className="rec-evidence__badge">unevidenced</span>
+              {/* THE EVIDENCE LABEL — the shared badge. This used to
+                  print the raw database value "unevidenced", while the
+                  journey printed "Possible" and "Parallel tradition"
+                  for the same underlying state. Two vocabularies for
+                  one thing. Now it is the site's four labels.
+
+                  The sentence below is the meaning of the label, and it
+                  says it in the site's own words. */}
+              <EvidenceLabel
+                evidenceStatus="unevidenced"
+                hasSource={false}
+                subject="claim"
+              />
               <span className="rec-evidence__text">
                 This dish was found through Wikipedia and is classified, but its
                 claims have not yet been checked against a source. Treat the

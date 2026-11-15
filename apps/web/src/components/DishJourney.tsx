@@ -24,6 +24,7 @@ import {
   type JourneyEvidenceBySequence,
   publishableChapters,
 } from "../lib/journeyEvidence";
+import { EvidenceLabel } from "./EvidenceLabel";
 import { LegacyJourney } from "./LegacyJourney";
 
 export type {
@@ -294,9 +295,22 @@ function Chapter({
               {EVIDENCE_KIND_LABELS[beat.evidenceKind]}
             </span>
           )}
-          <span className={`djc__badge djc__badge--${beat.confidence}`}>
-            {CONFIDENCE_LABELS[beat.confidence]}
-          </span>
+          {/* THE EVIDENCE LABEL — the shared badge.
+              This used to render `djc__badge--${beat.confidence}` with
+              `CONFIDENCE_LABELS`, which meant the journey showed
+              "Possible" and "Parallel tradition" while a dish page
+              showed "unevidenced" for the same underlying state. Two
+              vocabularies for one thing.
+
+              Now the journey uses the site's four labels. The
+              evidenceKind badge stays as it is: it describes the KIND
+              of record, which is a different fact from how sure we
+              are, and the blueprint keeps them apart. */}
+          <EvidenceLabel
+            confidence={beat.confidence}
+            hasSource={Boolean(beat.source)}
+            subject="beat"
+          />
         </div>
 
         {beat.source && (

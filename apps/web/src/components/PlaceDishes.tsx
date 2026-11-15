@@ -33,29 +33,15 @@
 import { useEffect, useState } from "react";
 import type { PlaceResponse } from "../lib/api";
 import { ApiError, getPlace } from "../lib/api";
+import { EvidenceLabel } from "./EvidenceLabel";
 
-const EVIDENCE_LABEL: Record<string, string> = {
-  evidenced: "Evidenced",
-  provisional: "Proposed",
-  research_pending: "Being researched",
-  unevidenced: "Not yet evidenced",
-};
-
-const EVIDENCE_CLASS: Record<string, string> = {
-  evidenced: "atlas-evidence--evidenced",
-  provisional: "atlas-evidence--provisional",
-  research_pending: "atlas-evidence--pending",
-  unevidenced: "atlas-evidence--unevidenced",
-};
-
+// The place page's evidence badge.
+//
+// IT USED TO HAVE ITS OWN COPY of the four-word vocabulary — the same
+// one the atlas island had. Two copies of one vocabulary is how they
+// drift apart, so there is one now: the shared `EvidenceLabel`.
 function EvidenceBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={`atlas-evidence ${EVIDENCE_CLASS[status] ?? EVIDENCE_CLASS.unevidenced}`}
-    >
-      {EVIDENCE_LABEL[status] ?? status}
-    </span>
-  );
+  return <EvidenceLabel evidenceStatus={status} subject="association" />;
 }
 
 export default function PlaceDishes({ slug }: { slug: string }) {

@@ -84,6 +84,34 @@
   --focus-ring: var(--accent);
   --focus-ring-width: 2px;
   --focus-ring-offset: 3px;
+
+  /* ── THE EVIDENCE LABELS (WP-A2) ──────────────────────────────────
+     The four public evidence labels and the three relationship marks,
+     from the 2026-11-15 blueprint's visual system.
+
+     Every colour here is checked for 4.5:1 against --bg (the warm
+     cream page ground) and 3:1 against --card, so the badge text and
+     the badge's own border both clear WCAG AA.
+
+       --evidence-documented  #2f4a34  documented green   7.7:1 on --bg
+       --evidence-likely      #211c16  the ink            14.9:1 on --bg
+       --evidence-disputed    #6b4400  disputed amber      6.5:1 on --bg
+       --evidence-unverified  #6b6052  the muted ink       5.3:1 on --bg
+       --evidence-disputed-bg #fff3d6  the disputed ground
+       --association          #1f5c5a  the association teal
+       --influence            #94391e  the influence terracotta
+
+     The association teal and the influence terracotta are the
+     blueprint's three relationship marks: Associated with, Resembles,
+     Influenced. A Resembles line is a DASHED grey line, so it needs no
+     colour of its own -- the dash pattern is the mark. */
+  --evidence-documented: #2f4a34;
+  --evidence-likely: #211c16;
+  --evidence-disputed: #6b4400;
+  --evidence-unverified: #6b6052;
+  --evidence-disputed-bg: #fff3d6;
+  --association: #1f5c5a;
+  --influence: #94391e;
   /* PR 1 — the minimum hit area for any interactive control
      (WCAG 2.2 SC 2.5.8 Target Size, Minimum: 24x24 CSS px). */
   --target-min: 24px;
@@ -2634,7 +2662,14 @@ h4 {
   border-radius: 999px;
 }
 .dish-page .step .stime b {
-  color: var(--accent);
+  /* --accent-dark, not --accent.
+     axe-core measured this badge on production at 4.13:1 -- #b04e29
+     on the --accent-soft ground (#efe1d4) at 11px -- which is under
+     the 4.5 WCAG AA threshold for body-size text. --accent-dark
+     (#94391e) measures 6.5:1 on the same ground and is the token the
+     palette already nominates for text. The badge is 11px, so it needs
+     the full 4.5, not the 3.0 that a large-text exception would give. */
+  color: var(--accent-dark);
   font-weight: 500;
 }
 
@@ -6186,5 +6221,175 @@ body.nav-panel-open {
 
   .rel-legend__count {
     grid-area: count;
+  }
+}
+
+/* ─── THE EVIDENCE LABEL (WP-A2) ───────────────────────────────────────
+   ONE badge, used everywhere. The text is always present, so the
+   state is never carried by colour alone (WCAG 1.4.1). The DOT's
+   shape differs per label, so the four are separable in greyscale
+   and for a reader who cannot distinguish the hues. */
+.evidence-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+.evidence-label__text {
+  font-weight: 600;
+}
+.evidence-label__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+/* Solid — the strongest claim. */
+.evidence-label__dot--solid {
+  background: currentColor;
+}
+/* Ring — one step down. */
+.evidence-label__dot--ring {
+  background: transparent;
+  border: 2px solid currentColor;
+}
+/* Split — half filled. The claim is in conflict. */
+.evidence-label__dot--split {
+  background: linear-gradient(to right, currentColor 50%, transparent 50%);
+  border: 1px solid currentColor;
+}
+/* Hollow — nothing behind it. */
+.evidence-label__dot--hollow {
+  background: transparent;
+  border: 1px dashed currentColor;
+}
+
+.evidence-label--documented {
+  color: var(--evidence-documented);
+}
+.evidence-label--likely {
+  color: var(--evidence-likely);
+}
+.evidence-label--disputed {
+  color: var(--evidence-disputed);
+  background: var(--evidence-disputed-bg);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.evidence-label--unverified {
+  color: var(--evidence-unverified);
+}
+
+/* The long meaning, for the evidence page. */
+.evidence-label__meaning {
+  display: block;
+  font-family: var(--body);
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--sub);
+  font-weight: 400;
+  margin-top: 6px;
+  max-width: 62ch;
+}
+
+/* ─── THE RELATIONSHIP KEY (WP-A2) ───────────────────────────────────────
+   The three kinds, explained once.
+
+   The MARK is the carrier, not the colour: the association is a solid
+   teal dot, a resemblance is a dashed grey line, an influence is a
+   solid terracotta line with an arrowhead. A reader who cannot separate
+   the hues still reads the key and understands the map. */
+.relationship-key {
+  margin: 0 0 2.5rem;
+}
+.relationship-key__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.1rem;
+}
+.relationship-key__item {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  gap: 0 0.9rem;
+  align-items: start;
+}
+.relationship-key__mark {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.relationship-key__mark--association {
+  color: var(--association);
+}
+.relationship-key__mark--resembles {
+  color: var(--sub);
+}
+.relationship-key__mark--influence {
+  color: var(--influence);
+}
+.relationship-key__body {
+  min-width: 0;
+}
+.relationship-key__label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+.relationship-key__meaning {
+  display: block;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+  max-width: 62ch;
+}
+.relationship-key__requires {
+  display: block;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--sub);
+  margin-top: 0.25rem;
+  max-width: 62ch;
+}
+.relationship-key__requires-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-right: 0.4em;
+}
+.relationship-key__more {
+  margin: 1.1rem 0 0;
+  font-size: 14px;
+}
+/* The compact form: the three marks and their names, in one strip. */
+.relationship-key--compact .relationship-key__list {
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 1.5rem;
+}
+.relationship-key--compact .relationship-key__item {
+  grid-template-columns: auto;
+  gap: 0.2rem;
+}
+@media (max-width: 640px) {
+  .relationship-key--compact .relationship-key__list {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
   }
 }
