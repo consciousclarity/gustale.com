@@ -96,7 +96,17 @@ COPY --from=prod-extract --chown=node:node /app/apps/api/deploy .
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
-ENV NODE_ENV=production \
+# The build identity, baked into the image so /health can report what is
+# actually SERVING traffic. The post-deploy check compares this with the
+# SHA it expects -- the container's image tag says what it was started
+# with, this says what answered the request.
+ARG BUILD_SHA=""
+ARG BUILD_TIME=""
+ARG GIT_REF=""
+ENV BUILD_SHA=${BUILD_SHA} \
+    BUILD_TIME=${BUILD_TIME} \
+    GIT_REF=${GIT_REF} \
+    NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=4000 \
     LOG_LEVEL=info

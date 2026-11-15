@@ -80,9 +80,51 @@ async function collectDishSlugs(dist) {
   // counted it — and the sitemap then listed a form URL as if it were
   // a dish page. These are the reserved routes under /dishes/.
   const RESERVED = new Set(["new", "edit", "create", "search"]);
+  // The FILTER-KIND parents are not dishes either. WP-01b added the
+  // static filtered pages at /dishes/<kind>/<slug>/ (region, category,
+  // technique), so the build output now contains:
+  //
+  //   dishes/category/indonesian-cuisine/index.html
+  //   dishes/region/indonesia/index.html
+  //   dishes/technique/curry/index.html
+  //
+  // and a naive scan of dist/dishes/ saw "category", "region" and
+  // "technique" as dish slugs. The sitemap then listed three URLs
+  // that 404:
+  //
+  //   /dishes/category   /dishes/region   /dishes/technique
+  //
+  // Hardcoding those three names would fix it today and break again
+  // the next time a filter kind is added. So they are detected
+  // STRUCTURALLY instead: a dish directory contains its own
+  // index.html, while a filter-kind parent contains only
+  // subdirectories. That is a property of the build output, not a
+  // duplicate of the route table, so it cannot go stale.
+  const isFilterKindParent = async (name) => {
+    const dir = join(dishes, name);
+    let children;
+    try {
+      children = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+    if (children.length === 0) return false;
+    // It has its own page -> it is a dish (or a reserved route).
+    if (children.some((c) => c.isFile() && c.name === "index.html")) {
+      return false;
+    }
+    // It has only subdirectories -> it is a filter-kind parent.
+    return children.every((c) => c.isDirectory());
+  };
+
+  const isReserved = async (name) => {
+    if (RESERVED.has(name)) return true;
+    return isFilterKindParent(name);
+  };
+
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      if (!RESERVED.has(entry.name)) slugs.add(entry.name);
+      if (!(await isReserved(entry.name))) slugs.add(entry.name);
     } else if (entry.name.endsWith(".html") && entry.name !== "index.html") {
       // Node's Dirent has no `.stem` — that is Python's pathlib API.
       // Strip the extension by hand.

@@ -1,0 +1,59 @@
+# recipe.gustale.com (SINGULAR) — the common typo for recipes.gustale.com
+#
+# Added 2026-11-12. A 301 to the recipes site.
+#
+# THE DNS SITUATION (read this before changing anything)
+# ----------------------------------------------------
+# At the time of writing, recipe.gustale.com has an A record pointing at
+# 15.197.162.184 -- NOT at this VPS (62.72.7.218). That address is a
+# registrar's URL-redirect service, which already answers with:
+#
+#     HTTP/1.1 301 Moved Permanently
+#     Location: https://recipes.gustale.com
+#
+# So the singular host already redirects, and it did so before any of
+# this. What the registrar's redirect does NOT do is preserve the path:
+#
+#     recipe.gustale.com/dishes/bakso/   ->  https://recipes.gustale.com/
+#     recipe.gustale.com/families        ->  https://recipes.gustale.com/
+#
+# Every deep link collapses onto the homepage.
+#
+# THE PLAN
+# --------
+# 1. The owner changes the A record for recipe.gustale.com to
+#    62.72.7.218. Until that happens this block is dormant -- Caddy
+#    never sees the host.
+# 2. Caddy picks up the host, obtains a certificate for it, and serves
+#    the 301 itself -- WITH the path preserved.
+# 3. At cutover, the target of the redirect changes from
+#    recipes.gustale.com to whatever is canonical then (it is already
+#    recipes.gustale.com, so this may not need to change at all).
+#
+# WHY SERVE IT OURSELVES RATHER THAN LEAVING IT AT THE REGISTRAR
+# ---------------------------------------------------------------
+# Two reasons, one of which only matters after the cutover.
+#
+# - The path. A registrar redirect drops it. A shared link of the form
+#   recipe.gustale.com/dishes/bakso/ should land on the dish, not the
+#   homepage. Links get shortened and pasted, and people type the
+#   singular form.
+# - Control. The registrar's redirect target is set in the registrar's
+#   panel. At cutover the canonical recipes host changes. If the
+#   redirect lives in the registrar it has to be remembered, updated,
+#   and verified separately from the deploy -- a second place for the
+#   cutover to go wrong, at exactly the moment when the redirect
+#   matters most.
+#
+# PATH PRESERVATION
+# -----------------
+# `redir` rewrites the host and keeps the path and query string:
+#
+#     recipe.gustale.com/dishes/bakso/   ->  https://recipes.gustale.com/dishes/bakso/
+#
+# Caddy's `redir` with a host replacement does this by default. The
+# explicit `{uri}` is not needed and would drop the query string.
+
+recipe.gustale.com {
+	redir https://recipes.gustale.com{uri} permanent
+}
