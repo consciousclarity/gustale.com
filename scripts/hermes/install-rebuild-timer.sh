@@ -240,3 +240,35 @@ fi
 systemctl daemon-reload
 systemctl enable --now gustale-rebuild-web.timer
 systemctl status gustale-rebuild-web.timer --no-pager
+
+# -------------------------------------------------------------------------
+# PROVE THE TIMER IS ARMED. A timer can be enabled, active and still never
+# fire again -- and on 2026-11-15 that is exactly what happened.
+#
+# `enable --now` starts the unit, but the rebuild service is Type=oneshot.
+# If the timer is started while that service has not just run, no activation
+# happens, no next elapse is ever computed, and systemd reports:
+#
+#     Active: active (elapsed)     Trigger: n/a
+#     NextElapseUSecMonotonic=infinity
+#
+# The unit LOOKS healthy -- `systemctl is-enabled` says `enabled`,
+# `systemctl is-active` says `active`, `list-timers` shows the row -- and
+# it will never fire again. That is the worst kind of failure: silent,
+# permanent, and invisible to every status check short of the one below.
+#
+# `NextElapseUSecMonotonic=infinity` is the tell. A correctly armed timer
+# shows a finite value.
+#
+# The unit file uses OnActiveSec (seed) + OnUnitInactiveSec (re-arm) so
+# that this state cannot arise. This check proves it.
+# -------------------------------------------------------------------------
+NEXT_ELAPSE=$(systemctl show gustale-rebuild-web.timer -p NextElapseUSecMonotonic --value)
+if [ "$NEXT_ELAPSE" = "infinity" ] || [ -z "$NEXT_ELAPSE" ]; then
+  echo "ERROR: the timer is NOT armed -- NextElapseUSecMonotonic=$NEXT_ELAPSE" >&2
+  echo "  The unit is enabled and active but will never fire again." >&2
+  echo "  Check that the unit has BOTH OnActiveSec and OnUnitInactiveSec," >&2
+  echo "  then: systemctl restart gustale-rebuild-web.timer" >&2
+  exit 1
+fi
+echo "timer armed: next elapse in $NEXT_ELAPSE"

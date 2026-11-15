@@ -375,7 +375,66 @@ not on a fixed minute). Check before merging:
 systemctl list-timers --all | grep gustale-rebuild-web
 ```
 
-### 16b. The systemd unit files are ROOT-OWNED
+### 16b. An enabled, active timer can still be DEAD — check `NextElapse`
+
+**This is the failure that cost Gustale 7+ hours of silent staleness on 2026-11-15.**
+
+`systemctl is-enabled` → `enabled`. `systemctl is-active` → `active`. `systemctl status` →
+`Active: active (elapsed)`. `systemctl list-timers` → shows the row. **And the timer will never
+fire again.**
+
+The tell is in `systemctl show`:
+
+```bash
+systemctl show gustale-rebuild-web.timer -p NextElapseUSecMonotonic
+```
+
+A correctly armed timer prints a finite duration. A dead one prints:
+
+```
+NextElapseUSecMonotonic=infinity
+```
+
+**Why it happens.** `OnUnitActiveSec` arms only when the *triggered unit* becomes active. The
+rebuild service is `Type=oneshot`: it runs, then goes inactive. If the timer is started while
+that service has not just run, no activation happens, so no next elapse is ever computed. The
+timer sits in the `elapsed` state forever.
+
+`systemctl enable --now` triggers it. `systemctl restart` does **not** fix it either — a
+restart re-reads the unit but still produces no activation, so the elapse stays at infinity.
+
+**Why `OnBootSec` does not save it.** `OnBootSec` fires once, 30 minutes after *boot*. The host
+booted long ago, so that moment is gone and will never arrive again.
+
+**The fix.** The unit uses **both**:
+
+| directive | role |
+|---|---|
+| `OnActiveSec=30min` | the **seed** — 30 min after the timer starts, the service runs for the first time |
+| `OnUnitInactiveSec=30min` | the **re-arm** — 30 min after that run finishes, it runs again, and so on |
+
+`OnUnitInactiveSec` is also the semantically correct rule: "30 minutes after the last run
+*finished*", which matters because a build can take 7 hours.
+
+Proven on systemd 255 (Ubuntu 24.04) with controlled test timers:
+
+| unit | result |
+|---|---|
+| `OnActiveSec` + `OnUnitInactiveSec` | fired twice, service ran twice ✅ |
+| `OnUnitActiveSec` alone | never armed — `NextElapse=infinity` ❌ |
+| `OnBootSec` + `OnUnitInactiveSec` | never armed (boot already past) ❌ |
+
+`scripts/hermes/install-rebuild-timer.sh` now **fails the install** if the timer is not armed,
+so a bad unit can never be installed silently.
+
+**Check it after any timer change:**
+
+```bash
+systemctl show gustale-rebuild-web.timer -p NextElapseUSecMonotonic
+# want a finite duration; "infinity" means dead
+```
+
+### 16c. The systemd unit files are ROOT-OWNED
 
 `/etc/systemd/system/gustale-rebuild-web.service` and its `.timer` must be owned by
 **`root:root`**. The service still **runs** as `gustale` — that is set by `User=` inside the
