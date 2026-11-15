@@ -4,7 +4,51 @@ Description=Gustale: rebuild web from live API every 30 minutes
 [Timer]
 # Run 30 minutes after boot, then every 30 minutes.
 OnBootSec=30min
-OnUnitActiveSec=30min
+# OnActiveSec SEEDS the first trigger; OnUnitInactiveSec RE-ARMS after
+# each run. Both are required -- neither alone is sufficient.
+#
+# WHY NOT OnUnitActiveSec
+# ----------------------
+# OnUnitActiveSec arms only when the TRIGGERED UNIT becomes active. The
+# rebuild service is Type=oneshot: it runs, then goes inactive again. If
+# the timer is (re)started while the service has not just run, no
+# activation happens and the timer never arms: systemd reports
+# `active (elapsed)`, `Trigger: n/a`, and
+# `NextElapseUSecMonotonic=infinity`. That is a silent, permanent stop --
+# the unit looks enabled and active while it will never fire again.
+#
+# This is exactly what happened on 2026-11-15: the timer was re-enabled
+# with `systemctl enable --now` while its last activation was 2026-11-14,
+# so it sat armed-looking and dead for 7+ hours while `state.json` still
+# pointed at build 8750b17 and main had moved on.
+#
+# `systemctl restart` does NOT fix it either: a restart re-reads the unit
+# but still produces no activation, so the monotonic elapse stays at
+# infinity.
+#
+# WHY OnBootSec ALONE IS NOT ENOUGH
+# ---------------------------------
+# OnBootSec only fires once, 30 minutes after BOOT. The host booted long
+# ago, so that moment is long past and will never arrive again. On a
+# timer (re)started days later it provides no trigger at all.
+#
+# THE FIX
+# -------
+#   OnActiveSec=30min        -> the seed: 30 min after the timer starts,
+#                               the service runs for the first time.
+#   OnUnitInactiveSec=30min  -> the re-arm: 30 min after that run
+#                               finishes, the service runs again, and so
+#                               on. This is also the semantically correct
+#                               rule: "30 minutes after the last run
+#                               finished", which matters because a build
+#                               can take 7 hours.
+#
+# Verified on systemd 255 (Ubuntu 24.04) with controlled test timers:
+#   OnActiveSec + OnUnitInactiveSec -> fired twice, service ran twice.
+#   OnUnitActiveSec alone           -> never armed (NextElapse=infinity).
+#   OnBootSec + OnUnitInactiveSec   -> never armed (boot already past).
+OnActiveSec=30min
+OnUnitInactiveSec=30min
 # Persistent across reboots (catch up if missed).
 Persistent=true
 
