@@ -1333,6 +1333,13 @@ jobs:
         with:
           context: .
           file: apps/api/Dockerfile
+          # The API reports these at /health as its served build identity
+          # (apps/api/src/routes/health.ts). Without them the Dockerfile's
+          # ARGs default to "" and the post-deploy served-SHA check skips.
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            GIT_REF=${{ github.ref }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp }}
           tags: ghcr.io/${{ github.repository }}/gustale-api:latest,ghcr.io/${{ github.repository }}/gustale-api:${{ github.sha }}
           push: true
           # GHA layer cache. The Dockerfile splits COPY so the install
