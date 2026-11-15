@@ -657,6 +657,20 @@ h4 {
 .fam-stats {
   display: flex;
   gap: 30px;
+  /* The row holds up to six region counters, each with a 32px display
+     number and an uppercase region name. Without a wrap they form one
+     unbreakable run, and at a 390px viewport the page scrolls sideways
+     -- the overflow the 2026-11-15 blueprint recorded on the family
+     page. `flex-wrap` lets the counters reflow onto more lines, and
+     `min-width: 0` lets a long region name break instead of pushing the
+     row wider. */
+  flex-wrap: wrap;
+  row-gap: 20px;
+}
+.fam-stats .s {
+  /* A cell must be allowed to shrink below its content's width, or the
+     flex row refuses to fit. */
+  min-width: 0;
 }
 .fam-stats .s b {
   font-family: var(--display);
@@ -674,6 +688,9 @@ h4 {
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--sub);
+  /* A region name is free text. "United Kingdom" must be able to break
+     rather than widen the row. */
+  overflow-wrap: anywhere;
 }
 
 .fam-group {
@@ -2112,7 +2129,13 @@ h4 {
   width: 100%;
   min-height: min(72vh, 720px);
   height: clamp(420px, 62vw, 720px);
-  overflow: hidden;
+  /* `clip` and not `hidden`: `hidden` makes this box a SCROLL
+     CONTAINER, and a scroll container still contributes its content's
+     width to the document's scroll width. The cover image carries a
+     1.02 scale, so at a 390px viewport the scaled image was 397.8px
+     wide and the page scrolled sideways by 4px. `overflow: clip` does
+     the same clipping with no scroll container and no scroll width. */
+  overflow: clip;
   background: #2a221c;
 }
 .dish-cover-hero__fallback {
@@ -2157,21 +2180,45 @@ h4 {
   line-height: 0.95;
   letter-spacing: -0.02em;
 }
+/* THE COVER IMAGE IS VISIBLE BY DEFAULT.
+ *
+ * It used to start at `opacity: 0` and wait for an `is-ready` class that
+ * NOTHING EVER ADDED -- the component is server-rendered, and no script
+ * set the class. So the photograph loaded, the browser had it decoded,
+ * and the reader still saw a 720px dark block. That is the defect the
+ * 2026-11-15 blueprint recorded as "the cover photo stays invisible,
+ * leaving a 720 px dark block".
+ *
+ * The rule now: the image is visible as soon as it is painted, and the
+ * fade is an ENHANCEMENT -- `.is-ready` is added by the small inline
+ * script in DishCoverHero once the image has decoded, and the class only
+ * changes the transform, never the visibility. If the script never runs
+ * (no JS, a blocked script, a slow parser) the photograph is STILL
+ * there.
+ *
+ * The transform is kept because a 1.02 scale settling to 1.0 is a
+ * pleasant, non-essential flourish that costs nothing when it does not
+ * happen. */
 .dish-cover-hero__img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
+  opacity: 1;
   transform: scale(1.02);
-  transition:
-    opacity 0.7s ease,
-    transform 1.1s ease;
+  transition: transform 1.1s ease;
 }
 .dish-cover-hero__img.is-ready {
   opacity: 1;
   transform: scale(1);
+}
+/* Before the image has decoded, the typographic fallback sits UNDER it
+ * and the photograph is not yet painted. The fallback is the placeholder;
+ * once the photograph is there, it covers the placeholder by itself. */
+.dish-cover-hero__fallback {
+  /* the fallback is visible until the photograph paints over it */
+  transition: opacity 0.5s ease;
 }
 .dish-cover-hero__veil {
   position: absolute;
@@ -2202,10 +2249,25 @@ h4 {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
+  /* The credit is free text and can be long. Without this, one
+     unbreakable run of it -- a URL, a long name -- makes the caption
+     wider than the viewport and the whole page scrolls sideways. The
+     `anywhere` value breaks a long token even when there is no space
+     in it, which is the case that actually overflowed. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.dish-cover-hero__cap > span {
+  /* Same reason: the alt text is free text too. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .dish-cover-hero__cap-meta em {
   font-style: italic;
   font-family: var(--body);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .dish-cover-hero__license {
   letter-spacing: 0.04em;
@@ -2598,6 +2660,19 @@ h4 {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+/* A citation is plain text that ends in a URL, and a URL is one
+   unbroken token. Without this the citation line is wider than a
+   390px viewport and the whole page scrolls sideways -- the
+   "578 px content width from unbroken credit URLs" the 2026-11-15
+   blueprint recorded. */
+.dish-page .source-card__cite {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.dish-page .source-card__cite a {
+  overflow-wrap: anywhere;
 }
 .dish-page .source-card {
   border: none;

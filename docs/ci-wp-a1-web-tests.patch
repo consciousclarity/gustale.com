@@ -1,0 +1,59 @@
+# The web unit tests in CI — one step, for the owner to apply
+#
+# WHY THIS IS A PATCH AND NOT A COMMIT: the GitHub App has NO
+# workflows scope, so a change to .github/workflows/ci.yml cannot be
+# pushed by the bot. This is the repo's established pattern — see
+# docs/ci-workflow-patch-evidence.md and the 0056/0057 patch.
+#
+# WHAT IT ADDS: one step to the "Tests (vitest + postgis)" job, after
+# the sourcing rating engine tests:
+#
+#   - name: Run the web unit tests
+#     working-directory: apps/web
+#     run: pnpm test
+#
+# WHAT IT FIXES: apps/web had no `test` script and no CI step, so the
+# seven test files already in apps/web/src/lib/ — 125 assertions — were
+# ORPHANED. They passed; nothing ran them. WP-A1 adds
+# apps/web/src/lib/creditText.test.ts to that set, and this step is what
+# makes it a gate instead of a comment.
+#
+# HOW TO APPLY (from the repository root):
+#
+#   git apply docs/ci-wp-a1-web-tests.patch
+#
+# The patch applies cleanly to ci.yml at this PR's base. It touches
+# nothing else.
+#
+# WHAT TO EXPECT: the step runs 131 tests (125 existing + 6 new) with
+# Node's built-in test runner. They need no database and no services.
+#
+# ---------------------------------------------------------------------
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 482f2dd..747544f 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1252,6 +1252,23 @@ jobs:
+         working-directory: packages/sourcing
+         run: pnpm test -- --reporter=verbose
+ 
++      # The web's unit tests (apps/web/src/lib/*.test.ts). These are
++      # PURE functions over plain data -- no database, no I/O -- and
++      # they use Node's built-in test runner, the same style as the
++      # seven files that were already there.
++      #
++      # WHY THIS STEP EXISTS: until now NOTHING ran them. The CI
++      # pipeline invoked `pnpm test` in apps/api and packages/sourcing
++      # only, and apps/web had no `test` script at all, so the seven
++      # existing web test files -- and the 125 assertions in them --
++      # were orphaned. They passed; nobody was checking.
++      #
++      # WP-A1 adds apps/web/src/lib/creditText.test.ts to that set, and
++      # this step is what makes it a gate rather than a comment.
++      - name: Run the web unit tests
++        working-directory: apps/web
++        run: pnpm test
++
+   # ─── Job 2b: Accessibility gate (axe-core) ─────────────────────────
+   #
+   # WHY THIS JOB EXISTS

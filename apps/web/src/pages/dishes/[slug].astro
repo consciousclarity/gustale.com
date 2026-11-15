@@ -282,12 +282,27 @@ const servedEnglish =
           discovery data.
 
           It is an island, so the page stays static and the associations
-          load when the section approaches the viewport. */}
+          load when the section approaches the viewport.
+
+          `client:idle`, NOT `client:visible`. With `client:visible` the
+          island only hydrated when the section scrolled into view, and
+          the section sits about 3.5 viewports down the page. A reader
+          who reached the text before scrolling past it saw "Loading the
+          associations for …" and nothing else — the request was never
+          made, so the empty state that already exists could never
+          render. That is the permanent loading line the 2026-11-15
+          blueprint recorded.
+
+          `client:idle` hydrates the island when the browser is idle,
+          which is after the static HTML has painted and after the
+          critical path is done. The page stays static and fast, and the
+          section has its real content — or its honest empty state — by
+          the time a reader gets to it. */}
       <div class="wrap">
         <AtlasPlaces
           slug={data.dish.slug}
           dishName={data.dish.name}
-          client:visible
+          client:idle
         />
       </div>
 
