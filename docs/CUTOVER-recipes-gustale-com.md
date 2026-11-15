@@ -671,6 +671,53 @@ But this is the owner's call — §5.5's whole point is that the
 mechanism has to be chosen deliberately, not by default. **Do not
 change `rpID` until the owner picks.**
 
+> ### 5.5.1 DECISION — Option A, taken on 2026-11-14
+>
+> **The owner chose Option A.** The RP ID is now `gustale.com`.
+>
+> **Why it was safe to do now, and not later.** The audit in §5.4 was
+> re-checked against live on 2026-11-14, immediately before the
+> change:
+>
+> ```
+> passkey table rows:  0
+> ```
+>
+> The `passkey` table has no `rpID` column — the RP ID is hashed into
+> the credential, not stored — so there was nothing to migrate and
+> nobody to strand. The change is **one-way** (see §5.3): once a
+> passkey exists, changing the RP ID again would strand it.
+>
+> **What changed in the code.** The RP ID was *derived* from
+> `BETTER_AUTH_URL`'s hostname:
+>
+> ```ts
+> rpID: env.BETTER_AUTH_URL
+>   ? new URL(env.BETTER_AUTH_URL).hostname
+>   : "gustale.com",
+> ```
+>
+> — so it was `api.gustale.com` in production, and it would have
+> changed *silently* if `BETTER_AUTH_URL` ever changed. It is now
+> **explicit**, via a new `PASSKEY_RP_ID` environment variable that
+> defaults to `gustale.com`:
+>
+> ```ts
+> rpID: env.PASSKEY_RP_ID,
+> ```
+>
+> **The derivation was the deeper bug.** Even with the right value, a
+> derived RP ID is wrong: the RP ID is a property of the *deployment*,
+> not of the auth origin. The two must be separable.
+>
+> **What did NOT change.** `BETTER_AUTH_URL` stays
+> `https://api.gustale.com` (§5.6), the cookie domain does not change
+> (§5.9), and no credential was re-enrolled (there were none).
+>
+> **Still true after the change:** a passkey scoped to `gustale.com`
+> does **not** work on `api.gustale.recipes`, whose eTLD+1 is
+> `gustale.recipes` (§5.6).
+
 
 ### 5.6 The `api.gustale.recipes` trap
 
@@ -754,9 +801,10 @@ by the geo site.
 Do these **before** the 301, so there is never a window where the new
 host is live and auth is broken:
 
-1. `rpID: "gustale.com"` in `apps/api/src/auth.ts` — **only after the
-   owner chooses Option A** (§5.5). If they choose Option B, this step
-   is replaced by publishing `/.well-known/webauthn` from the web host.
+1. ~~`rpID: "gustale.com"` in `apps/api/src/auth.ts`~~ — **DONE
+   2026-11-14** (§5.5.1). The owner chose Option A; the RP ID is now
+   the explicit `PASSKEY_RP_ID` env var, defaulting to `gustale.com`.
+   The live table had 0 passkeys, so nothing was stranded.
 2. `trustedOrigins` += `https://recipes.gustale.com`
 3. `CORS_ORIGIN` += `https://recipes.gustale.com`
 4. deploy the API
