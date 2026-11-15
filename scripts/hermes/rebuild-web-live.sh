@@ -430,10 +430,59 @@ GUSTALE_NO_PUSH=1 \
   GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
   /home/deploy/gustale-rebuild/build-web-live.sh "$BUILD_SHA"
 
+# -------------------------------------------------------------------------
+# READ THE TAG FILE SAFELY.
+#
+# THE 2026-11-13 FAILURE
+# ----------------------
+# The two lines below used to be:
+#
+#     source "$TAG_FILE"
+#     : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+#     : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
+#
+# The build script wrote the tag file AFTER both builds succeeded. The
+# geo build failed, so the file was ZERO BYTES. `source` on an empty
+# file succeeds and exports nothing, and then the `:?` assertions
+# fired -- but a `:?` parameter expansion is NOT A COMMAND:
+#
+#   * the ERR trap does not fire on it,
+#   * it does not set a non-zero exit status,
+#   * the script CONTINUES and exits 0.
+#
+# The deploy therefore reported success while the API had been swapped
+# and the web containers had not. Verified on run 43429059289: the log
+# held exactly one line, `DEPLOY_EXIT_CODE=0`, for a half-deployed
+# site.
+#
+# Two things are now true:
+#
+#   1. build-web-live.sh writes the tag file BEFORE the builds, so a
+#      failed build still leaves a VALID file.
+#   2. The assertions here are REAL COMMANDS -- `test -n` -- which fire
+#      the ERR trap, set a non-zero status, and abort the script.
+#
+# The file is also checked for being non-empty, because "the file
+# exists" is not the same as "the file has what we need".
+# -------------------------------------------------------------------------
+if [ ! -s "$TAG_FILE" ]; then
+  log "ERROR: the tag file $TAG_FILE is missing or EMPTY."
+  log "  build-web-live.sh writes it BEFORE the builds now, so an empty"
+  log "  file means the build script died before it could write it."
+  exit 1
+fi
+
 # shellcheck disable=SC1090
 source "$TAG_FILE"
-: "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
-: "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
+
+if [ -z "${IMAGE_RECIPES:-}" ]; then
+  log "ERROR: the tag file has no IMAGE_RECIPES (build-web-live.sh did not write it)."
+  exit 1
+fi
+if [ -z "${IMAGE_GEO:-}" ]; then
+  log "ERROR: the tag file has no IMAGE_GEO (build-web-live.sh did not write it)."
+  exit 1
+fi
 log "  $IMAGE_RECIPES"
 log "  $IMAGE_GEO"
 
@@ -487,6 +536,102 @@ for NAME in gustale-web-recipes gustale-web-geo; do
 done
 if [ "$FAILED" = "1" ]; then
   log "  aborting state-file update; will retry on next run"
+  exit 1
+fi
+
+# --- Step 7b: the SHA checks ---
+#
+# "running healthy" proves the container is up. It does NOT prove it is
+# serving the build this run just made. The rebuild is the path that
+# deployed on its own on 2026-11-14, BEFORE the CI deploy's checks were
+# fixed -- so it needs the same checks, and it needs them to FAIL
+# LOUDLY.
+#
+# The failure this guards against: the container was recreated from a
+# retagged image, the deploy was rolled back, or a second process is
+# bound to the port. The image tag says what the container was STARTED
+# with; the SERVED identity says what answered the request.
+#
+# (1) EVERY WEB CONTAINER MUST SERVE THIS RUN'S SHA.
+#
+# The tag carries the short SHA, so this is the per-container form of
+# the split-brain check that the sitemap comparison does by count.
+log ""
+log "--- Checking that both web containers serve SHA $BUILD_SHORT_SHA ---"
+SHA_FAILED=0
+for NAME in gustale-web-recipes gustale-web-geo; do
+  IMAGE=$(docker inspect --format='{{.Config.Image}}' "$NAME" 2>/dev/null || echo "MISSING")
+  case "$IMAGE" in
+    *"live-data-${BUILD_SHORT_SHA}-"*)
+      log "  $NAME: $IMAGE  OK"
+      ;;
+    *)
+      log "  ERROR: $NAME is serving $IMAGE -- expected a live-data-${BUILD_SHORT_SHA}-* image"
+      SHA_FAILED=1
+      ;;
+  esac
+done
+if [ "$SHA_FAILED" = "1" ]; then
+  log "  aborting state-file update; the deployed containers are not on this build"
+  exit 1
+fi
+
+# (2) THE API'S OWN BUILD IDENTITY.
+#
+# The API reports the build it was made from at /health (the `build`
+# object). It is the SHA the API IMAGE was built from, not the web
+# build's SHA -- the two are different images and are expected to
+# differ. So this check asserts that the API reports a build identity
+# AT ALL, and that it is the SHA the API container was started with.
+#
+# It is the /health identity that proves the API serving traffic is
+# the API that was deployed, and it is the same check the CI deploy
+# runs (PR #232's Check 4).
+log ""
+log "--- Checking the API's served build identity ---"
+API_IMAGE=$(docker inspect --format='{{.Config.Image}}' gustale-api 2>/dev/null || echo "MISSING")
+API_EXPECTED_SHA=""
+case "$API_IMAGE" in
+  *gustale-api:*) API_EXPECTED_SHA="${API_IMAGE##*:}" ;;
+esac
+
+HEALTH_JSON=$(curl -fsS --max-time 10 "http://127.0.0.1:4000/health" 2>&1) || HEALTH_JSON=""
+API_SERVED_SHA=$(printf '%s' "$HEALTH_JSON" \
+  | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' \
+  | head -1 | grep -oE '[0-9a-f]{40}' || true)
+
+if [ -z "$API_SERVED_SHA" ]; then
+  # The API image predates the BUILD_SHA build arg, so it reports no
+  # identity. That is not a failure of THIS rebuild -- it is a
+  # pre-existing image. Say so explicitly rather than passing
+  # silently.
+  log "  the API does not report a build identity (its image predates the BUILD_SHA build arg) -- SKIPPED"
+  log "  the API container image is: $API_IMAGE"
+elif [ -n "$API_EXPECTED_SHA" ] && [ "$API_SERVED_SHA" != "$API_EXPECTED_SHA" ]; then
+  log "  ERROR: the API is SERVING $API_SERVED_SHA but its container image says $API_EXPECTED_SHA"
+  log "  aborting state-file update"
+  exit 1
+else
+  log "  the API is SERVING $API_SERVED_SHA  OK"
+fi
+
+# (3) THE PUBLIC SURFACES MUST ANSWER.
+#
+# The containers can be healthy while the SITE behind them is not. The
+# sitemap check below covers the content; this covers the fact that
+# both public hostnames answer at all.
+log ""
+log "--- Checking that both public sites answer ---"
+for URL in "https://gustale.com/" "https://gustale.recipes/"; do
+  CODE=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$URL" 2>&1 || echo "000")
+  log "  $CODE  $URL"
+  if [ "$CODE" != "200" ]; then
+    log "  ERROR: $URL did not return 200"
+    SHA_FAILED=1
+  fi
+done
+if [ "$SHA_FAILED" = "1" ]; then
+  log "  aborting state-file update; a public site is not serving"
   exit 1
 fi
 

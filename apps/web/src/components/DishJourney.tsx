@@ -22,6 +22,7 @@ import {
   EVIDENCE_LEVEL_NOTES,
   evidenceForBeat,
   type JourneyEvidenceBySequence,
+  publishableChapters,
 } from "../lib/journeyEvidence";
 import { LegacyJourney } from "./LegacyJourney";
 
@@ -144,7 +145,19 @@ export function DishJourney({
     );
   }
 
-  const sorted = [...beats].sort((a, b) => a.sequence - b.sequence);
+  // THE PUBLISH RULE, ENFORCED.
+  //
+  // A chapter whose evidence is `reported_only` or `inaccessible` is
+  // NOT rendered. It is not greyed out and it does not carry a warning:
+  // it is absent, because a claim nobody has checked against its
+  // record must not appear on the page at all.
+  //
+  // The exclusion happens on the beat list BEFORE the display
+  // numbering, so the reader sees "1 / 3" and not "2 / 4".
+  const sorted = publishableChapters(
+    [...beats].sort((a, b) => a.sequence - b.sequence),
+    evidence,
+  );
   // How many chapters sit side by side. The reference shows three on a
   // wide screen, two on a tablet and one on a phone; the CSS media
   // queries reduce the column count, and the component sets the

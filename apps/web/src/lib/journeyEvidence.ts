@@ -100,22 +100,6 @@ export const EVIDENCE_LEVEL_NOTES: Record<EvidenceLevel, string> = {
 };
 
 /**
- * True when a chapter may be PUBLISHED.
- *
- * A chapter whose source was only reported, or could not be reached at
- * all, is not publishable: its wording would carry a claim nobody has
- * checked against the record.
- */
-export function isPublishable(
-  evidence: JourneyEvidence | null | undefined,
-): boolean {
-  if (!evidence) return true; // no evidence recorded: not a blocker
-  return (
-    evidence.level !== "reported_only" && evidence.level !== "inaccessible"
-  );
-}
-
-/**
  * The evidence for one chapter, keyed by the chapter's SEQUENCE.
  *
  * The sequence is the number the reader sees ("01", "02"), so it is the
@@ -132,6 +116,56 @@ export function evidenceForBeat(
 ): JourneyEvidence | null {
   if (!evidence) return null;
   return evidence[String(beat.sequence)] ?? null;
+}
+
+/**
+ * True when a chapter may be PUBLISHED.
+ *
+ * A chapter whose source was only reported, or could not be reached at
+ * all, is not publishable: its wording would carry a claim nobody has
+ * checked against the record.
+ */
+export function isPublishable(
+  evidence: JourneyEvidence | null | undefined,
+): boolean {
+  if (!evidence) return true; // no evidence recorded: not a blocker
+  return (
+    evidence.level !== "reported_only" && evidence.level !== "inaccessible"
+  );
+}
+
+/**
+ * The chapters that may be PUBLISHED, in order.
+ *
+ * A chapter whose evidence is `reported_only` or `inaccessible` is
+ * EXCLUDED — not rendered with a warning, not greyed out. Absent.
+ * The rule is enforced here so it cannot be forgotten at a call site.
+ */
+export function publishableChapters(
+  beats: DishJourneyBeat[],
+  evidence: JourneyEvidenceBySequence | undefined,
+): DishJourneyBeat[] {
+  return beats.filter((beat) => {
+    const ev = evidenceForBeat(beat, evidence);
+    return isPublishable(ev);
+  });
+}
+
+/**
+ * The chapters that are publishable but rest on an ABSTRACT.
+ *
+ * They are rendered, because an abstract that states a claim supports
+ * that claim — but they carry the "Abstract only" label, so the reader
+ * knows the full source was not read.
+ */
+export function abstractOnlyChapters(
+  beats: DishJourneyBeat[],
+  evidence: JourneyEvidenceBySequence | undefined,
+): DishJourneyBeat[] {
+  return beats.filter((beat) => {
+    const ev = evidenceForBeat(beat, evidence);
+    return ev?.level === "abstract_only";
+  });
 }
 
 /**
