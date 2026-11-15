@@ -2,6 +2,7 @@
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import Layout from "../../layouts/Layout.astro";
 import { ApiError, getLineage } from "../../lib/api";
+import { EVIDENCE_LABELS, evidenceLabel } from "../../lib/evidenceLabel";
 import type { LineageDetailResponse, LineageRole } from "../../types/lineage";
 
 export async function getStaticPaths() {
@@ -88,14 +89,15 @@ const FORCE_LABELS: Record<string, string> = {
   war_and_displacement: "War & displacement",
 };
 
-const CONFIDENCE_LABELS: Record<string, string> = {
-  documented: "Documented",
-  likely: "Likely related",
-  probable: "Probable",
-  possible: "Possible influence",
-  uncertain: "Uncertain",
-  parallel_evolution: "Parallel evolution",
-};
+// The thread's confidence.
+//
+// IT USED TO HAVE ITS OWN SIX WORDS — "Likely related", "Probable",
+// "Possible influence", "Uncertain", "Parallel evolution" — a fifth
+// vocabulary on the site, and the only one whose words described the
+// RELATIONSHIP rather than the evidence.
+//
+// Now it goes through the shared `evidenceLabel`, so a thread and a
+// claim and an association all use the site's four labels.
 
 function labelFor(map: Record<string, string>, key: string): string {
   return (
@@ -108,7 +110,7 @@ function labelFor(map: Record<string, string>, key: string): string {
 }
 
 function confidenceLabel(level: string): string {
-  return CONFIDENCE_LABELS[level] ?? level;
+  return EVIDENCE_LABELS[evidenceLabel({ confidenceLevel: level })];
 }
 
 // Total mapped dish count (distinct dishes)

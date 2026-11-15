@@ -1,0 +1,186 @@
+---
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import { EvidenceLabel } from "../../components/EvidenceLabel";
+import { RelationshipKey } from "../../components/RelationshipKey";
+import Layout from "../../layouts/Layout.astro";
+import { siteName } from "../../lib/domain";
+
+const site = siteName();
+---
+
+<Layout
+  title={`How we handle evidence — ${site}`}
+  description="What Documented, Likely, Disputed and Unverified mean on Gustale, and what Associated with, Resembles and Influenced mean.">
+  <Breadcrumbs
+    crumbs={[{ href: '/', label: 'Home' }, { label: 'How we handle evidence' }]}
+  />
+
+  <article class="about-page inner evidence-page">
+    <h1 class="about-page h1">How we handle evidence</h1>
+
+    <p class="text-lg mb-8">
+      Every claim on Gustale carries a label saying how well it is supported.
+      Every connection between two things carries a mark saying what kind of
+      connection it is. This page explains both, once, so you do not have to
+      guess what a badge means.
+    </p>
+
+    <h2 class="about-page h2">The four evidence labels</h2>
+
+    <p class="mb-6">
+      The label belongs to a single claim or a single connection. It never
+      belongs to a dish as a whole. A dish can have a well-documented name, a
+      likely history and an unverified origin, and each of those is labelled
+      on its own.
+    </p>
+
+    <ul class="evidence-page__labels">
+      <li>
+        <EvidenceLabel
+          subject="claim"
+          evidenceStatus="evidenced"
+          hasSource={true}
+          withMeaning
+        />
+      </li>
+      <li>
+        <EvidenceLabel
+          subject="claim"
+          evidenceStatus="provisional"
+          hasSource={true}
+          withMeaning
+        />
+      </li>
+      <li>
+        <EvidenceLabel
+          subject="claim"
+          evidenceStatus="evidenced"
+          disputeState="disputed"
+          withMeaning
+        />
+      </li>
+      <li>
+        <EvidenceLabel
+          subject="claim"
+          evidenceStatus="unevidenced"
+          hasSource={false}
+          withMeaning
+        />
+      </li>
+    </ul>
+
+    <h2 class="about-page h2">The three relationships</h2>
+
+    <p class="mb-6">
+      Three kinds of connection appear on Gustale. They are not
+      interchangeable, and the mark tells you which one you are looking at.
+    </p>
+
+    <RelationshipKey>
+      <a href="/about/evidence">The full method, explained once.</a>
+    </RelationshipKey>
+
+    <h2 class="about-page h2">Things we do not do</h2>
+
+    <ul class="evidence-page__rules">
+      <li>
+        <strong>No dish has an "Origin" field.</strong> An origin claim is a
+        claim, and it carries a label like any other.
+      </li>
+      <li>
+        <strong>The earliest surviving reference is not an origin.</strong> We
+        show it as the earliest record found, never as the place a dish began.
+      </li>
+      <li>
+        <strong>Resemblance never implies descent.</strong> Two dishes can look
+        alike because they were made independently. We say so, and we do not
+        draw an arrow.
+      </li>
+      <li>
+        <strong>A map position is not a claim.</strong> Where a dish is plotted
+        on the map does not make the plot a historical assertion.
+      </li>
+      <li>
+        <strong>Classification is not ancestry.</strong> A dish's family says
+        what shape it has. It does not say where it came from.
+      </li>
+      <li>
+        <strong>When sources conflict, we show the conflict.</strong> We do not
+        pick a winner in the summary.
+      </li>
+    </ul>
+
+    <h2 class="about-page h2">Who checks this</h2>
+    <p class="mb-4">
+      Every published claim says who verified it and when. Anyone can propose a
+      correction, and a proposed claim has to name its source. Agent-written
+      claims enter as Unverified drafts with their source candidates attached;
+      they are never published as findings.
+    </p>
+  </article>
+</Layout>
+
+<style>
+  .evidence-page__labels {
+    list-style: none;
+    margin: 0 0 2.5rem;
+    padding: 0;
+    display: grid;
+    gap: 1.5rem;
+  }
+  .evidence-page__table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 2.5rem;
+    font-size: 15px;
+  }
+  .evidence-page__table th,
+  .evidence-page__table td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.85rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .evidence-page__table thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sub);
+    font-weight: 600;
+  }
+  .evidence-page__table tbody th {
+    font-family: var(--body);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .evidence-page__rules {
+    margin: 0 0 2.5rem;
+    padding-left: 1.2rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+  @media (max-width: 640px) {
+    .evidence-page__table,
+    .evidence-page__table tbody,
+    .evidence-page__table tr,
+    .evidence-page__table td,
+    .evidence-page__table th {
+      display: block;
+      width: 100%;
+    }
+    .evidence-page__table thead {
+      display: none;
+    }
+    .evidence-page__table tbody th {
+      white-space: normal;
+      border-bottom: 0;
+      padding-bottom: 0.15rem;
+    }
+    .evidence-page__table tbody td {
+      border-bottom: 0;
+      padding-top: 0.15rem;
+      padding-bottom: 0.75rem;
+    }
+  }
+</style>

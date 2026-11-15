@@ -12,7 +12,21 @@ import {
 } from "../lib/browse";
 import { currentDomain } from "../lib/domain";
 import type { LineageSummary } from "../types/lineage";
+import { EvidenceLabel } from "./EvidenceLabel";
 
+/**
+ * The filter dropdown's level names.
+ *
+ * These are the LEVELS, not the public evidence labels. A filter
+ * option has to name the thing it filters by, so "Probable" and
+ * "Uncertain" stay here as distinct options — a reader who filters by
+ * "Uncertain" wants only the uncertain threads, and a public label
+ * would collapse several levels into one.
+ *
+ * The BADGE on each card, though, is the shared `EvidenceLabel`, so
+ * the card says "Likely" or "Unverified" while the filter still offers
+ * the precise level.
+ */
 const CONFIDENCE_LABELS: Record<string, string> = {
   documented: "Documented",
   likely: "Likely related",
@@ -323,11 +337,20 @@ export function LineageBrowse({
           <article key={lin.slug} className="lin-card">
             <header className="lin-card__head">
               <span className="lin-card__slug mono-sub">{lin.slug}</span>
-              <span
-                className={`lin-card__conf lin-card__conf--${lin.confidenceLevel}`}
-              >
-                {CONFIDENCE_LABELS[lin.confidenceLevel] ?? lin.confidenceLevel}
-              </span>
+              {/* THE EVIDENCE LABEL — the shared badge. This used to
+                  print "Likely related", "Probable", "Possible
+                  influence", "Uncertain" and "Parallel evolution" —
+                  a fifth vocabulary, and the only one whose words
+                  described the RELATIONSHIP rather than the evidence.
+
+                  The filter dropdown above still lists the specific
+                  levels, because a filter option has to name the
+                  thing it filters by. The badge is about how well the
+                  thread is supported. */}
+              <EvidenceLabel
+                confidenceLevel={lin.confidenceLevel}
+                subject="thread"
+              />
             </header>
             <h2 className="lin-card__title">
               <a href={`/lineages/${lin.slug}`}>{lin.name}</a>
