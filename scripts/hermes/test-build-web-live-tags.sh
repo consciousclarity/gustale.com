@@ -69,6 +69,7 @@ echo "=== build-web-live.sh image tags ==="
   GITHUB_REPOSITORY="consciousclarity/gustale.com" \
   GUSTALE_NO_PUSH=1 \
   GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
+  GUSTALE_SKIP_SNAPSHOT=1 \
   bash "$SCRIPT" "$SHA" ) > "$TMP/out.log" 2>&1
 rc=$?
 

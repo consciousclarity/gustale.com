@@ -44,17 +44,63 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA = JSON.parse(
-  readFileSync(join(__dirname, "mock-api-data.json"), "utf-8"),
-);
+
+// THE DATA FILE.
+//
+// By default the mock serves `mock-api-data.json` -- the committed CI
+// capture. But it can also serve a LIVE SNAPSHOT: a file fetched from
+// the running API just before the build.
+//
+// WHY THIS EXISTS
+// ---------------
+// The production build used to run with `BUILD_DATA_SOURCE=live`, which
+// pointed the Astro build straight at the live API. The build then
+// fetched every page's data one request at a time -- 16,764 x
+// GET /api/dishes/<slug> plus 16,757 x .../journey, at a sustained ~48
+// requests/second for 13+ minutes -- while the Astro build sat at
+// 25-32% CPU on 4 vCPUs. It was I/O-bound, not CPU-bound.
+//
+// CI does the SAME work in 2m43s because it uses THIS mock: the same
+// endpoints, served from a file. So the build does not need the network
+// at all -- it needs the DATA in the shape this file already has.
+//
+// `fetch-live-snapshot.mjs` fetches the live data once (a few dozen
+// requests, bounded concurrency, cached between runs) and writes it in
+// this exact shape. Then the build runs this mock against it: the same
+// code path as CI, with live data.
+//
+// The snapshot path is given by SNAPSHOT_FILE, or --snapshot. When it is
+// absent the committed CI capture is used, exactly as before.
+const SNAPSHOT_PATH = process.env.SNAPSHOT_FILE || null;
+const DATA_PATH = SNAPSHOT_PATH ?? join(__dirname, "mock-api-data.json");
+if (!existsSync(DATA_PATH)) {
+  console.error(`mock-api: the data file does not exist: ${DATA_PATH}`);
+  process.exit(1);
+}
+const DATA = JSON.parse(readFileSync(DATA_PATH, "utf-8"));
+if (SNAPSHOT_PATH) {
+  console.log(`mock-api: serving the LIVE SNAPSHOT ${DATA_PATH}`);
+} else {
+  console.log(`mock-api: serving the committed capture ${DATA_PATH}`);
+}
 
 // Lineages live in a separate JSON file (generated from packages/db seed-data.ts
 // at seed time). Optional so older builds without lineages still work.
-const LINEAGES_DATA_PATH = join(__dirname, "mock-api-lineages.json");
-const HAS_LINEAGES = existsSync(LINEAGES_DATA_PATH);
-const LINEAGES_DATA = HAS_LINEAGES
+//
+// A LIVE SNAPSHOT carries its own lineages, in `DATA.lineages`. When the
+// snapshot is present it is used, so the build renders the lineages the
+// live API actually has rather than the committed CI capture's -- which
+// is the whole point of fetching a snapshot instead of using the
+// committed file.
+const LINEAGES_DATA_PATH = SNAPSHOT_PATH
+  ? null
+  : join(__dirname, "mock-api-lineages.json");
+const HAS_LINEAGES = LINEAGES_DATA_PATH
+  ? existsSync(LINEAGES_DATA_PATH)
+  : Boolean(DATA.lineages?.list?.lineages);
+const LINEAGES_DATA = LINEAGES_DATA_PATH
   ? JSON.parse(readFileSync(LINEAGES_DATA_PATH, "utf-8"))
-  : { list: null, details: {} };
+  : (DATA.lineages ?? { list: null, details: {} });
 
 const LIST = DATA.list ?? [];
 
