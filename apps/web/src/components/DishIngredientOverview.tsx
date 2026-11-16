@@ -53,10 +53,7 @@ export function DishIngredientOverview({
       <ul className="dio__grid">
         {ingredients.map((ing) => (
           <li className="dio__card" key={ing.ingredientId}>
-            <a
-              className="dio__link"
-              href={`/ingredients/${ing.slug}`}
-            >
+            <a className="dio__link" href={`/ingredients/${ing.slug}`}>
               <span className="dio__name">{ing.name}</span>
               {ing.preparationNote && (
                 <span className="dio__note">{ing.preparationNote}</span>

@@ -562,9 +562,10 @@ if (DOMAIN === "geo") {
   // And the local authoring route is actually present in the markup --
   // not merely absent of a cross-host link. A page that dropped the
   // link altogether would pass the check above.
-  const anyLocalAuthoring = pagesToScan.some((html) =>
-    /href="\/dishes\/new"/.test(html ?? "") ||
-    /href="\/ingredients\//.test(html ?? ""),
+  const anyLocalAuthoring = pagesToScan.some(
+    (html) =>
+      /href="\/dishes\/new"/.test(html ?? "") ||
+      /href="\/ingredients\//.test(html ?? ""),
   );
   check(
     "the authoring routes are linked locally",

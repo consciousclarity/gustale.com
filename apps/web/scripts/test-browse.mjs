@@ -241,19 +241,14 @@ describe("safe encoding + domain recovery", () => {
     assert.equal(absoluteDishesIndexHref("recipes", "pho"), "/dishes?q=pho");
     const geo = recoveryLinks("geo");
     assert.ok(
-      geo.primary.some((l) => l.href === "/lineages" && l.label === "History & connections"),
+      geo.primary.some(
+        (l) => l.href === "/lineages" && l.label === "History & connections",
+      ),
     );
     // The six sections, every one of them relative.
     assert.deepEqual(
       geo.primary.map((l) => l.href),
-      [
-        "/",
-        "/dishes",
-        "/families",
-        "/ingredients",
-        "/lineages",
-        "/recipes",
-      ],
+      ["/", "/dishes", "/families", "/ingredients", "/lineages", "/recipes"],
     );
     // There is no second browse surface on another host, so there is
     // no alternative browse link to offer.

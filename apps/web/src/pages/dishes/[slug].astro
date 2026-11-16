@@ -283,18 +283,10 @@ const seoDescription = isGeo
 // With one site that argument is gone. The dish page declares its
 // locale set, on every build, and the hub section inherits the page's
 // canonical and its alternates along with it.
-const siteOrigin =
-  import.meta.env.PUBLIC_SITE_ORIGIN ?? "https://gustale.com";
-const alternates = hreflangAlternates(
-  slug as string,
-  SITE_LOCALES,
-  siteOrigin,
-);
+const siteOrigin = import.meta.env.PUBLIC_SITE_ORIGIN ?? "https://gustale.com";
+const alternates = hreflangAlternates(slug as string, SITE_LOCALES, siteOrigin);
 const localeUrls = Object.fromEntries(
-  SITE_LOCALES.map((l) => [
-    l,
-    `${siteOrigin}${dishUrl(l, slug as string)}`,
-  ]),
+  SITE_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
 );
 
 // The English page IS the English one, so it never shows the

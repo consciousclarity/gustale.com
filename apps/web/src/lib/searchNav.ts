@@ -3,7 +3,7 @@
  * Domain is passed explicitly so Node tests can run without Vite.
  */
 
-import { type GustaleDomain } from "./domain";
+import type { GustaleDomain } from "./domain";
 import { siteSections } from "./sections";
 
 export type SearchPlacement = "header" | "drawer";
@@ -51,7 +51,10 @@ export function resolveSearchHitHref(
  * geo build stripped the dishes list. The dishes list is on this site
  * now, so the link is local on every variant.
  */
-export function seeAllDishesHref(query: string, _domain: GustaleDomain): string {
+export function seeAllDishesHref(
+  query: string,
+  _domain: GustaleDomain,
+): string {
   const qs = `?q=${encodeURIComponent(query)}`;
   return `/dishes${qs}`;
 }
@@ -165,8 +168,7 @@ export function isPrimaryNavActive(
       : pathname;
 
   if (href === "/") return p === "/" || p === "";
-  if (href === "/regions")
-    return p === "/regions" || p.startsWith("/regions/");
+  if (href === "/regions") return p === "/regions" || p.startsWith("/regions/");
   if (href === "/dishes") {
     return p === "/dishes" || p.startsWith("/dishes/");
   }

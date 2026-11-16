@@ -338,9 +338,7 @@ export function DishDetail({
                         : (ing.unit ?? "")}
                     </span>
                     <span className="nm">
-                      <a href={`/ingredients/${ing.slug}`}>
-                        {ing.name}
-                      </a>
+                      <a href={`/ingredients/${ing.slug}`}>{ing.name}</a>
                       {ing.isOptional && <small> optional</small>}
                       {ing.preparationNote && (
                         <small>{ing.preparationNote}</small>

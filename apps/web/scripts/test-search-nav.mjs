@@ -30,10 +30,7 @@ describe("resolveSearchHitHref", () => {
       resolveSearchHitHref("/ingredients/ginger", "geo"),
       "/ingredients/ginger",
     );
-    assert.equal(
-      resolveSearchHitHref("/dishes?q=pho", "geo"),
-      "/dishes?q=pho",
-    );
+    assert.equal(resolveSearchHitHref("/dishes?q=pho", "geo"), "/dishes?q=pho");
     assert.equal(resolveSearchHitHref("/dishes", "geo"), "/dishes");
   });
 
@@ -62,7 +59,10 @@ describe("resolveSearchHitHref", () => {
 
 describe("seeAllDishesHref", () => {
   it("uses a relative dishes URL and preserves query encoding", () => {
-    assert.equal(seeAllDishesHref("filled dough", "geo"), "/dishes?q=filled%20dough");
+    assert.equal(
+      seeAllDishesHref("filled dough", "geo"),
+      "/dishes?q=filled%20dough",
+    );
     assert.equal(seeAllDishesHref("pho", "recipes"), "/dishes?q=pho");
   });
 });
@@ -112,9 +112,7 @@ describe("fallback browse links", () => {
     assert.ok(
       help.some((l) => l.href === "/ingredients" && l.label === "Ingredients"),
     );
-    assert.ok(
-      help.some((l) => l.href === "/recipes" && l.label === "Recipes"),
-    );
+    assert.ok(help.some((l) => l.href === "/recipes" && l.label === "Recipes"));
     assert.ok(!help.some((l) => l.href.startsWith("https://")));
 
     // The error links are the SAME list, with the same labels.
@@ -122,9 +120,7 @@ describe("fallback browse links", () => {
       err.some((l) => l.href === "/families" && l.label === "Families"),
     );
     assert.ok(err.some((l) => l.href === "/lineages" && l.label === "History"));
-    assert.ok(
-      err.some((l) => l.href === "/recipes" && l.label === "Recipes"),
-    );
+    assert.ok(err.some((l) => l.href === "/recipes" && l.label === "Recipes"));
   });
 
   it("Recipes help + error links stay local where valid", () => {
