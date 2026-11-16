@@ -263,6 +263,16 @@ MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # nine drinks. It writes CONTENT rows (it backfills a column), so it
 # runs in the chain and not in the fixture seed.
 MIGRATION_0049=db/migrations/0049_content_type.sql
+# 0058 adds `dish_families.listed` -- which families are part of the
+# PUBLISHED family vocabulary -- and deletes the single Musakka
+# `dish_variants` row whose slug collides with a published dish. It
+# writes CONTENT rows (the backfill) and deletes one row, so it runs in
+# the chain and not in the fixture seed.
+#
+# It is numbered 0058 rather than 0056 because PR #219 already claims
+# 0056 and 0057 for the ingredient alias table and the sourcing
+# vocabulary. Two migrations must never share a number.
+MIGRATION_0058=db/migrations/0058_dish_families_listed.sql
 
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
@@ -833,6 +843,17 @@ echo "--- the sourcing availability tables"
 run_pg -f - < "$MIGRATION_0055" >/tmp/m0055.log 2>&1 || { echo "FAILED: 0055"; grep -E 'ERROR|NOTICE' /tmp/m0055.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/m0055.log | tail -1 || true
+
+# The listed families and the Musakka variant.
+#
+# 0058 adds `dish_families.listed` -- which families are part of the
+# PUBLISHED vocabulary -- and deletes the one Musakka `dish_variants`
+# row whose slug collides with a published dish. Its own assertions
+# run inside its transaction, so a failed proof rolls it back.
+echo "--- the listed families and the Musakka variant"
+run_pg -f - < "$MIGRATION_0058" >/tmp/m0058.log 2>&1 || { echo "FAILED: 0058"; grep -E 'ERROR|NOTICE' /tmp/m0058.log | tail -14; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0058: ok' /tmp/m0058.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

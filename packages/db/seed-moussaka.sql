@@ -110,12 +110,30 @@ FROM categories WHERE slug = 'greek-cuisine'
 ON CONFLICT (dish_id, category_id) DO NOTHING;
 
 -- Dish variant
+--
+-- NOT THE MUSAKKA ONE.
+--
+-- This used to seed "Turkish Moussaka (Musakka)", slug
+-- `musakka-turkish`. Migration 0058 deletes that row on production: it
+-- collided with a STANDALONE published dish of the same slug, and the
+-- blueprint asks for the variant to go while the `similar_form`
+-- relation stays.
+--
+-- The fixture still needs A variant, because `dishes-slug.test.ts`
+-- asserts the dish payload carries at least one, and that is the only
+-- thing in the fixture that exercises the variants path.
+--
+-- So the fixture seeds the LEVANTINE moussaka instead -- the other
+-- relation production already records
+-- ("Levantine moussaka uses tomato and chickpeas, the Greek version
+-- adds béchamel"). Same shape, same slug space, no collision with a
+-- standalone dish.
 INSERT INTO dish_variants (parent_dish_id, name, slug, description, status, creator_name)
 VALUES (
   '00000000-0000-0000-0000-000000000020'::uuid,
-  'Turkish Moussaka (Musakka)',
-  'musakka-turkish',
-  'A Turkish variant, often lighter, sometimes without béchamel, using green peppers and tomatoes.',
+  'Levantine Moussaka',
+  'moussaka-levant',
+  'A Levantine relative that uses tomato and chickpeas where the Greek version uses béchamel.',
   'published',
   'Anonymous'
 )

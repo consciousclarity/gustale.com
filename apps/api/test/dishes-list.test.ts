@@ -57,6 +57,10 @@ describe("GET /api/dishes — the list route", () => {
             FROM dish_dish_families x
             JOIN dish_families f ON f.id = x.value_id
            WHERE x.dish_id = d.id AND x.status = 'active'
+           -- ONLY A LISTED FAMILY (migration 0058). The route filters
+           -- the same way, so the two agree -- and the comparison is
+           -- about the two agreeing, not about which family is right.
+           AND f.listed
            -- The SAME tie-break as the route's lateral, or the
            -- comparison would fail on a tie instead of proving that
            -- the two agree.
