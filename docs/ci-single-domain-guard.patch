@@ -1,0 +1,37 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c3b36a5..5bc31db 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -141,6 +141,23 @@ jobs:
+           pnpm --filter @gustale/db run typecheck
+           pnpm --filter @gustale/api run typecheck
+ 
++      # THE RETIRED-HOST GUARD
++      #
++      # gustale.com is the only domain now. gustale.recipes and
++      # recipes.gustale.com are redirect-only, and a reference to them
++      # in the shipping trees means a link, a canonical, an og:url or a
++      # sitemap entry that points at a host that is being switched off.
++      #
++      # The failure is quiet when it happens: the page still renders and
++      # the link still works (it redirects), so the defect only shows up
++      # as a crawl that bounces. Catching it at build time is the whole
++      # point.
++      #
++      # The script's allowlist covers the transition-only trusted-origins
++      # list and the frozen historical migrations, each WITH A REASON.
++      - name: The retired-host guard
++        run: python3 scripts/check-no-legacy-recipes-domain.py
++
+       # Seed-data content gate (no DB). SEED_ALLOW_ORPHANS=1 until the
+       # dangling DISH_RELATIONS / DISH_LINEAGES cleanup pass — remove the
+       # env once SHARED_STATE orphans are fixed so orphan refs fail PRs.
+@@ -1475,7 +1492,7 @@ jobs:
+           file: apps/web/Dockerfile
+           build-args: |
+             PUBLIC_DOMAIN=${{ matrix.domain }}
+-            PUBLIC_API_BASE=https://api.gustale.recipes
++            PUBLIC_API_BASE=https://api.gustale.com
+             PUBLIC_CARTO_API_KEY=${{ secrets.CARTO_BASEMAP_API_KEY }}
+           tags: >-
+             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
