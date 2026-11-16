@@ -336,11 +336,26 @@ export function registerDishRoutes(app: FastifyInstance): void {
         -- placeholders or description-less forms. With the filter it
         -- shows only the families that are really in the vocabulary.
         --
-        -- 29 published dishes carry no listed family at all, and 1105
-        -- carry only an unlisted one. They are not left with a
-        -- placeholder; they have no family, and the dish page says so
-        -- rather than claiming a shape it does not have. Classifying
-        -- them is editorial work (WP-R), not a migration's job.
+        -- 849 published dishes end up with no listed family: 820 carry
+        -- only an unlisted one and 29 carry no family row at all. They
+        -- are not left with a placeholder; they have no family, and the
+        -- dish page says so rather than claiming a shape it does not
+        -- have. Classifying them is editorial work (WP-R), not a
+        -- migration's job.
+        --
+        -- MEASURED ON LIVE, 2026-11-16, after 0059 and 0058:
+        --
+        --   published dishes                        1474
+        --   with a LISTED family                     625
+        --   with only an unlisted family             820
+        --   with no family row                        29
+        --
+        -- The 1,105 that appears elsewhere in this PR's prose is the
+        -- count BEFORE 0059 -- when 106 families were listed. 0059
+        -- gives 56 more families a description, and every one of them
+        -- moves its dishes back into the "has a family" column. That
+        -- is why the two numbers differ, and 849 is the one that
+        -- describes the live database now.
         --
         -- The stable tie-break comes after the filter: without it, a
         -- dish with two active listed families of equal is_primary
