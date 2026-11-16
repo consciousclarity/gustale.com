@@ -338,7 +338,34 @@ STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-geo:$STAGING_TAG"
 # wait-for-api with a connection timeout that looks like the API is
 # down. With --network host the build container shares the host's
 # network namespace and reaches 127.0.0.1 directly.
+# THE CACHE TOGGLE
+# -----------------
+# The Astro build step is a Docker layer, and it is cached. That means
+# a deploy can ship the PREVIOUS build: the source is unchanged (the
+# API's DATA changed, not the code), so the layer is a cache hit and
+# the build is not re-run.
+#
+# This is not hypothetical. The same bug was found and fixed in the
+# PRODUCTION build script on 2026-10-17 -- "buildx layer-cache hit on
+# the COPY-fetch-Dockerfile steps and re-baked the OLD data even when
+# the API had changed". The staging script never got the fix, so it
+# had the same behaviour.
+#
+# It bit the single-domain verification: the moussaka pilot recipe was
+# inserted into the staging database, the deploy ran, the build step
+# was a cache hit, and the recipe page was not in the output. The
+# build had to be re-run with --no-cache before the page appeared.
+#
+# So: GUSTALE_BUILD_NO_CACHE=1 forces a clean rebuild, exactly as in
+# the production script. The default is to use the cache (fast).
+local -a cache_args=()
+if [ "${GUSTALE_BUILD_NO_CACHE:-0}" = "1" ]; then
+  cache_args=(--no-cache --pull)
+  echo "  the cache is OFF -- this build will re-run every step"
+fi
+
 docker build \
+  "${cache_args[@]}" \
   --network host \
   --build-arg PUBLIC_DOMAIN=staging \
   --build-arg "PUBLIC_API_BASE=http://127.0.0.1:${STAGING_API_PORT}" \
