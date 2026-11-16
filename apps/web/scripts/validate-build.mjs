@@ -246,23 +246,48 @@ if (DOMAIN === "geo") {
     await exists(`${DIST}ingredients/index.html`),
     "ingredients/index.html missing",
   );
-  // The navigation is now the SAME on both domains (P4), so the
-  // recipes nav carries the five shared entries and NOT the old
-  // domain-specific ones. That is the change being asserted.
+  // THE SIX SECTIONS (WP-A3).
+  //
+  // The nav is now ONE list -- Atlas, Dishes, Families, Ingredients,
+  // History, Recipes -- and it is the SAME on both domains. The old
+  // domain-specific entries are gone: "Dish origins → /regions" is not
+  // a section (the place pages are WP-C3's job, and /regions is not
+  // one of the six), and "Ingredients" IS a section now, so it is
+  // present rather than absent.
+  //
+  // What is asserted here is that the six are present AND that the
+  // retired entries are gone. A nav that quietly grew a seventh entry
+  // would still pass a "the six are present" check.
   check(
-    "recipes nav includes Dish origins → /regions",
-    countOccurrences(regionsHtml, 'href="/regions"') >= 1,
-    "missing /regions in recipes nav",
+    "recipes nav includes Atlas → /",
+    countOccurrences(regionsHtml, 'href="/"') >= 1,
+    "missing the home link in the recipes nav",
   );
   check(
-    "recipes nav includes History & connections → /lineages",
+    "recipes nav includes Dishes → /dishes",
+    countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
+    "missing /dishes in the recipes nav",
+  );
+  check(
+    "recipes nav includes Families → /families",
+    countOccurrences(regionsHtml, 'href="/families"') >= 1,
+    "missing /families in the recipes nav",
+  );
+  check(
+    "recipes nav includes Ingredients → /ingredients",
+    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
+    "missing /ingredients in the recipes nav",
+  );
+  check(
+    "recipes nav includes History → /lineages",
     countOccurrences(regionsHtml, 'href="/lineages"') >= 1,
-    "missing /lineages in recipes nav",
+    "missing /lineages in the recipes nav",
   );
+  // The retired entry: "Dish origins → /regions" was never a section.
   check(
-    "recipes nav no longer lists Ingredients",
-    countOccurrences(regionsHtml, 'href="/ingredients"') === 0,
-    "/ingredients is still in the recipes nav",
+    "recipes nav no longer lists Dish origins → /regions",
+    countOccurrences(regionsHtml, 'href="/regions"') === 0,
+    "/regions is still in the recipes nav",
   );
 }
 
