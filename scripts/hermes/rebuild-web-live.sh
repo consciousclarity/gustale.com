@@ -695,7 +695,26 @@ if [ ! -f "$CHECK_SCRIPT" ]; then
   log "ERROR: the sitemap check script is missing ($CHECK_SCRIPT) -- the rebuild cannot verify the two sites"
   exit 1
 fi
-if ! bash "$CHECK_SCRIPT" 1531; then
+# THE EXPECTED COUNT IS DERIVED, NOT HARDCODED.
+#
+# This call used to pass a hardcoded 1531. That number was written for
+# the pre-WP-02b vocabulary -- 1474 dishes + 43 families + 12 lineages +
+# 2 static -- and it went stale the moment the family vocabulary grew to
+# 123 families (1611 URLs).
+#
+# The check script DERIVES the expected count from the live API. Passing
+# an argument OVERRIDES that derivation, so the hardcoded argument
+# defeated the whole point of the fix and made the timer fail every run
+# even when both sites were serving the correct build.
+#
+# Observed on 2026-11-16: the timer built and deployed both web images
+# correctly, both containers served the right SHA, both sites answered
+# 200, and the check STILL failed -- because it compared 1611 against
+# 1531. The site was healthy; the assertion was wrong.
+#
+# The CI workflow was fixed the same way in PR #241 (it calls the script
+# with no argument). This is the same fix, applied to the timer.
+if ! bash "$CHECK_SCRIPT"; then
   log "ERROR: the sitemap check failed -- one of the two sites is serving a stale build"
   exit 1
 fi
