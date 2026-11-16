@@ -255,7 +255,13 @@ DATA_SOURCE="${GUSTALE_BUILD_DATA_SOURCE:-snapshot}"
 # The snapshot is fetched ONCE, before both builds, so the two images are
 # built from the SAME data. (Fetching per image would double the cost
 # and could produce two images with different content.)
-if [ "$DATA_SOURCE" = "snapshot" ]; then
+#
+# `GUSTALE_SKIP_SNAPSHOT=1` skips the fetch entirely and uses whatever
+# snapshot file is already in the build context. That is what the
+# tag-file test does -- it stubs docker and curl but has no API on
+# :4000, so an unconditional fetch would abort the script before a
+# single image was built.
+if [ "$DATA_SOURCE" = "snapshot" ] && [ "${GUSTALE_SKIP_SNAPSHOT:-0}" != "1" ]; then
   fetch_snapshot "${GUSTALE_SNAPSHOT_API_BASE:-http://127.0.0.1:4000}" || exit 1
 fi
 

@@ -1,0 +1,40 @@
+--- a/.github/workflows/ci.yml	2026-11-16 09:27:35.210436673 +0800
++++ b/.github/workflows/ci.yml	2026-11-16 10:46:56.035965160 +0800
+@@ -268,6 +268,37 @@
+       - name: The web build's image tags
+         run: bash scripts/hermes/test-build-web-live-tags.sh
+ 
++      # The web build's live-snapshot path.
++      #
++      # build-web-live.sh fetches a live snapshot before the builds. That
++      # fetch is a NETWORK call, so the tag test above must skip it --
++      # otherwise the script aborts before a single image is built and
++      # the test reports the confusing symptom "built [] but the tag
++      # file advertises ...", which looks like a TAG bug when in fact no
++      # build ran at all. That is exactly what happened on 2026-11-16.
++      #
++      # This test covers the behaviour that matters:
++      #   1. GUSTALE_SKIP_SNAPSHOT=1 skips the fetch and builds both images.
++      #   2. WITHOUT the skip, an unreachable API FAILS THE BUILD -- a
++      #      stale snapshot must never be silently shipped.
++      #   3. BUILD_DATA_SOURCE=mock and =live do not fetch at all.
++      - name: The web build's live-snapshot path
++        run: bash scripts/hermes/test-build-web-live-snapshot.sh
++
++      # The parallel-build wait pattern.
++      #
++      # The two web images are now built in parallel. Two shell
++      # subtleties make that easy to get wrong, and both were wrong
++      # before this test existed:
++      #   - a SUBSHELL cannot `wait` for a PID that is not its own
++      #     child, so `$( wait $PID; echo $? )` returns -1 and loses
++      #     the real exit status.
++      #   - with `set -euo pipefail`, a pipeline whose FIRST command
++      #     fails aborts the script AT THE PIPELINE, before
++      #     PIPESTATUS can be read.
++      - name: The parallel-build wait pattern
++        run: bash scripts/test-parallel-build-wait.sh
++
+       # The marker checker's own test.
+       #
+       # The marker check is what makes the gates' markers matter: it is
