@@ -139,7 +139,16 @@ for p in /admin /admin/dishes /admin/dishes/moussaka-greek; do
     continue
   fi
   # Data markers: a real dish name, an ingredient, a count.
-  hits=$(printf '%s' "$body" | grep -ioE 'moussaka|bakso|feijoada|risotto|tacos-al-pastor|ingredients|servings|calories|citation' | sort -u | tr '\n' ',' | sed 's/,$//')
+  #
+  # The SLUG is not data. It is in the breadcrumb and in the island's
+  # props by design, and on /admin/dishes/<slug> it is the very thing
+  # the page is named after. So the slug is REMOVED before the markers
+  # are counted -- otherwise this check fails on the very page it is
+  # meant to clear.
+  hits=$(printf '%s' "$body" \
+    | sed 's/moussaka-greek//g' \
+    | grep -ioE 'moussaka|bakso|feijoada|risotto|tacos-al-pastor|ingredients|servings|calories|citation' \
+    | sort -u | tr '\n' ',' | sed 's/,$//')
   if [ -z "$hits" ]; then
     ok "$p carries no dish data"
   else
@@ -154,9 +163,17 @@ for p in /admin /admin/dishes /admin/dishes/moussaka-greek; do
 done
 
 # The robots.txt must still disallow /admin.
+#
+# Two shapes are correct:
+#   production -- "Disallow: /admin" alongside "Allow: /"
+#   staging    -- "Disallow: /" (everything is disallowed, which
+#                 includes /admin and is stricter)
+# What is NOT correct is a robots.txt that allows /admin.
 robots=$("${CURL[@]}" "$ORIGIN/robots.txt" 2>/dev/null || echo "")
 if printf '%s' "$robots" | grep -qE '^Disallow: /admin'; then
   ok "robots.txt still has 'Disallow: /admin'"
+elif printf '%s' "$robots" | grep -qE '^Disallow: /\s*$'; then
+  ok "robots.txt disallows EVERYTHING (staging shape) -- /admin is covered"
 else
   bad "robots.txt does NOT disallow /admin"
 fi
