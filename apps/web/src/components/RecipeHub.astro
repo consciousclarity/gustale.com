@@ -169,7 +169,17 @@ const comingFilters = [
 ];
 ---
 
-<section class="recipe-hub" aria-labelledby="recipe-hub-title">
+<!--
+  The id="recipes" is the ANCHOR TARGET for the redirect that lands a
+  dish page's old recipe URL here:
+
+      /dishes/<slug>  ->  https://gustale.com/dishes/<slug>#recipes
+
+  Without it the redirect lands at the TOP of the dish page, and the
+  visitor has to hunt for the block they were sent to. The anchor is
+  the whole point of the "#recipes" in the rule.
+-->
+<section id="recipes" class="recipe-hub" aria-labelledby="recipe-hub-title">
   <div class="wrap">
 
     <p class="recipe-hub__kicker">{propertyName()}</p>
