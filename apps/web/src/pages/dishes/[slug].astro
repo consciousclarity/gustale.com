@@ -12,7 +12,12 @@ import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
 import { getDishDetail, getDishJourney } from "../../lib/api";
 import { isGeoDomain } from "../../lib/domain";
-import { dishUrl, hreflangAlternates, SITE_LOCALES } from "../../lib/locales";
+import {
+  dishUrl,
+  hreflangAlternates,
+  SITE_LOCALES,
+  siteOrigin as siteOriginFor,
+} from "../../lib/locales";
 import { getHubDishSummaries, getHubRecipes } from "../../lib/recipeHubData";
 import type { DishDetailResponse } from "../../types/dish";
 
@@ -283,7 +288,25 @@ const seoDescription = isGeo
 // With one site that argument is gone. The dish page declares its
 // locale set, on every build, and the hub section inherits the page's
 // canonical and its alternates along with it.
-const siteOrigin = import.meta.env.PUBLIC_SITE_ORIGIN ?? "https://gustale.com";
+// The origin comes from the SHARED helper, not from a second copy of
+// the logic.
+//
+// This line used to be:
+//
+//     const siteOrigin = import.meta.env.PUBLIC_SITE_ORIGIN ?? "https://gustale.com";
+//
+// which is a SECOND answer to "what is this site's origin", and it
+// was the WRONG one on staging: the helper knows that a staging build
+// is the same site on its own host and must not advertise production
+// canonicals, but this inline copy skipped that and hard-coded
+// gustale.com. The measured effect in the staging build was that the
+// dish pages -- the most-linked pages on the site -- carried
+// production canonicals and hreflangs while the home page and
+// /recipes correctly carried the staging origin.
+//
+// A page that carries its own canonical is the tell. One helper, one
+// answer.
+const siteOrigin = siteOriginFor();
 const alternates = hreflangAlternates(slug as string, SITE_LOCALES, siteOrigin);
 const localeUrls = Object.fromEntries(
   SITE_LOCALES.map((l) => [l, `${siteOrigin}${dishUrl(l, slug as string)}`]),
