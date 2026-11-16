@@ -5922,6 +5922,17 @@ body.nav-panel-open {
   color: var(--sub);
   text-decoration: none;
   border-bottom: 1px solid var(--line);
+  /* The locale links are 13px text, which is 16px tall — under the
+     24px minimum target size (WCAG 2.2 SC 2.5.8).
+
+     axe-core measured the Hindi link on /dishes/empanada at 46.8px by
+     16px and reported "Target has insufficient size". The fix is the
+     repo's own --target-min token, applied as an INLINE-BLOCK box with
+     vertical padding, so the row's baseline alignment and the 10px gap
+     are unchanged and the link's hit area is 24px tall. */
+  display: inline-block;
+  min-height: var(--target-min);
+  line-height: 24px;
 }
 .gst-locales__link:hover,
 .gst-locales__suggested:hover {

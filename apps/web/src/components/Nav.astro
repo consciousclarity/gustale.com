@@ -4,14 +4,8 @@
  * SiteHeader.astro is a stale unused alternative and must not be reintroduced.
  */
 import "../styles/global.css";
-import {
-  ATLAS_ORIGIN,
-  authoringHref,
-  currentDomain,
-  isGeoDomain,
-  RECIPES_ORIGIN,
-} from "../lib/domain";
-import { isPrimaryNavActive } from "../lib/searchNav";
+import { authoringHref, currentDomain, isGeoDomain } from "../lib/domain";
+import { isSectionActive, siteSections } from "../lib/sections";
 import { AuthMenu } from "./AuthMenu";
 import { GlobalSearch } from "./GlobalSearch";
 
@@ -23,16 +17,45 @@ const atlasProperty = {
   id: "atlas" as const,
   label: "Atlas",
   description: "Explore the world through food.",
-  href: `${ATLAS_ORIGIN}/`,
+  href: "/",
 };
 const recipesProperty = {
   id: "recipes" as const,
   label: "Recipes",
   description: "Cook and contribute recipes.",
-  href: `${RECIPES_ORIGIN}/`,
+  href: "/recipes",
 };
 
 const currentProperty = isGeo ? atlasProperty : recipesProperty;
+
+/**
+ * THE SIX SECTIONS.
+ *
+ * The blueprint's decision D2. The old navigation had five items with
+ * names that did not match what they pointed at -- "Explore" for the
+ * home page, "Dish origins" for the places list -- and the footer had
+ * a different set again.
+ *
+ * One definition now, in `lib/sections.ts`, and the header, the mobile
+ * drawer and the footer all read it. When WP-D1 lands the single build,
+ * this is the one place that changes.
+ *
+ * The two sections that live on the recipes host until then are marked
+ * `external`, and their href is the absolute URL.
+ */
+const sections = siteSections(!isGeo);
+
+/**
+ * A section's href.
+ *
+ * The two sections that live on the recipes host until WP-D1 ships get
+ * an absolute URL, because the geo build strips those paths in
+ * post-build and a relative link would be a 404. `authoringHref()` is
+ * exactly that rule, and it is the ONLY place in the navigation that
+ * knows about the host split.
+ */
+const sectionHref = (section: (typeof sections)[number]): string =>
+  section.external ? authoringHref(section.path) : section.path;
 
 /**
  * The OTHER property — the one this build is not.
@@ -43,52 +66,6 @@ const currentProperty = isGeo ? atlasProperty : recipesProperty;
  * destination rather than offering a choice between two.
  */
 const otherProperty = isGeo ? recipesProperty : atlasProperty;
-
-/**
- * Primary nav — only routes that exist in the corresponding post-build
- * dist.
- *
- * P4: the navigation becomes Explore / Places / Food families / History &
- * connections / About, CONSISTENTLY ON BOTH DOMAINS.
- *
- * The previous version had two different navigations — "Globe /
- * Countries / Food families / Lineages / About" on the geo domain and
- * "Recipes / Ingredients / Food families / Lineages / About" on the
- * recipes one — so a reader moving between the domains found a
- * different site. The concepts are the same on both; only the recipes
- * domain's extra section is dropped, because a recipes site whose nav
- * cannot show you where a dish came from is not telling the whole
- * story.
- *
- * The PATHS do not change:
- *
- *   /            Explore       (the globe / the atlas home)
- *   /regions     Places       (the path stays; the label changes)
- *   /families    Food families
- *   /lineages    History & connections
- *   /about       About
- *
- * The old lineage URLs are the redirect question (see the 301 work); the
- * path here is unchanged so nothing 404s in the meantime.
- */
-const primaryLinks = isGeo
-  ? [
-      { href: "/", label: "Explore" },
-      { href: "/regions", label: "Dish origins" },
-      { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "History & connections" },
-      { href: "/about", label: "About" },
-    ]
-  : [
-      // On the recipes domain "Explore" is the recipes home, which is
-      // the recipes LISTING — the site's entry point on this domain.
-      // The other four are the same pages as on the atlas domain.
-      { href: "/dishes", label: "Explore" },
-      { href: "/regions", label: "Dish origins" },
-      { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "History & connections" },
-      { href: "/about", label: "About" },
-    ];
 
 const addDishHref = authoringHref("/dishes/new");
 
@@ -121,48 +98,38 @@ const showAddDish = isGeo;
         </span>
       </a>
 
-      <!-- Explicit Atlas / Recipes switcher (absolute URLs) -->
-      <div
-        class="property-switch property-switch--desktop"
-        role="group"
-        aria-label="Gustale property"
-      >
-        <a
-          href={atlasProperty.href}
-          class="property-switch__opt"
-          data-active={isGeo ? 'true' : undefined}
-          aria-current={isGeo ? 'true' : undefined}
-          title={atlasProperty.description}
-        >
-          <span class="property-switch__name">Atlas</span>
-          <span class="property-switch__hint">gustale.com</span>
-        </a>
-        <a
-          href={recipesProperty.href}
-          class="property-switch__opt"
-          data-active={!isGeo ? 'true' : undefined}
-          aria-current={!isGeo ? 'true' : undefined}
-          title={recipesProperty.description}
-        >
-          <span class="property-switch__name">Recipes</span>
-          <span class="property-switch__hint">gustale.recipes</span>
-        </a>
-      </div>
+      <!-- THE HOST SWITCH IS GONE.
+
+           The blueprint's decision D1 is ONE site, gustale.com, with
+           six sections. A two-cell Atlas/Recipes switch in the header
+           is a message that there are two sites, and there were two
+           copies of it -- the header's and the footer's.
+
+           The two sections that still live on the recipes host (the
+           ingredients index and the recipes pages) are marked in the
+           navigation as leaving the site, which says the same thing
+           without a switch. -->
 
       <div class="gst-header-search">
         <GlobalSearch client:load variant="compact" placement="header" />
       </div>
 
       <div class="gst-navlinks" id="nav-links">
-        {primaryLinks.map((link) => {
-          const on = isPrimaryNavActive(link.href, pathname, domain);
+        {sections.map((section) => {
+          const href = sectionHref(section);
+          const on = !section.external && isSectionActive(section.path, pathname);
           return (
             <a
-              href={link.href}
-              class:list={['gst-navlink', { 'gst-navlink--on': on }]}
+              href={href}
+              class:list={[
+                'gst-navlink',
+                { 'gst-navlink--on': on },
+                { 'gst-navlink--external': section.external },
+              ]}
               aria-current={on ? 'page' : undefined}
+              title={section.description}
             >
-              {link.label}
+              {section.label}
             </a>
           );
         })}
@@ -247,15 +214,21 @@ const showAddDish = isGeo;
 
         <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
         <div role="group" aria-labelledby="nav-mobile-primary-label">
-          {primaryLinks.map((link) => {
-            const on = isPrimaryNavActive(link.href, pathname, domain);
+          {sections.map((section) => {
+            const href = sectionHref(section);
+            const on = !section.external && isSectionActive(section.path, pathname);
             return (
               <a
-                href={link.href}
-                class:list={['nav-mobile-link', { 'nav-mobile-link--on': on }]}
+                href={href}
+                class:list={[
+                  'nav-mobile-link',
+                  { 'nav-mobile-link--on': on },
+                  { 'nav-mobile-link--external': section.external },
+                ]}
                 aria-current={on ? 'page' : undefined}
               >
-                {link.label}
+                <span class="nav-mobile-link__label">{section.label}</span>
+                <span class="nav-mobile-link__desc">{section.description}</span>
               </a>
             );
           })}

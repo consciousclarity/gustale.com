@@ -14,12 +14,13 @@ import "../styles/recipes-theme.css";
 import { LocaleSuggestion } from "../components/LocaleSuggestion";
 import LocaleSwitcher from "../components/LocaleSwitcher.astro";
 import Nav from "../components/Nav.astro";
-import { isGeoDomain } from "../lib/domain";
+import { authoringHref, isGeoDomain } from "../lib/domain";
 import {
   type CoreLocale,
   isRtl,
   siteOrigin as resolveSiteOrigin,
 } from "../lib/locales";
+import { siteSections } from "../lib/sections";
 
 export interface Props {
   title: string;
@@ -87,6 +88,10 @@ const {
   noindex = false,
 } = Astro.props;
 const isGeo = isGeoDomain();
+
+// The six sections, for the footer. The header reads the same list --
+// see `lib/sections.ts` for why there is only one of it.
+const sections = siteSections(!isGeo);
 const rtl = isRtl(locale);
 
 // The canonical, when the page does not name one.
@@ -221,11 +226,22 @@ const canonicalUrl =
           </div>
         </div>
         <div class="fl">
-          <a href="https://gustale.com/">Atlas</a>
-          <a href="https://gustale.recipes/">Recipes</a>
-          <a href="/families">Food families</a>
-          <a href="/lineages">Lineages</a>
+          {sections.map((section) => {
+            const href = section.external
+              ? authoringHref(section.path)
+              : section.path;
+            return (
+              <a
+                href={href}
+                class:list={{ "foot-link--external": section.external }}
+                title={section.description}
+              >
+                {section.label}
+              </a>
+            );
+          })}
           <a href="/about">About</a>
+          <a href="/about/evidence">Evidence</a>
         </div>
       </div>
     </footer>

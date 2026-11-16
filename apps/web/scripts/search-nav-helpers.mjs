@@ -12,6 +12,45 @@ export const RECIPES_ONLY_PATH_PREFIXES = [
   "/admin",
 ];
 
+/**
+ * THE SIX SECTIONS — the ESM twin of `src/lib/sections.ts`.
+ *
+ * Keep in sync with the TypeScript source.
+ */
+export const SECTION_LABELS = [
+  "Atlas",
+  "Dishes",
+  "Families",
+  "Ingredients",
+  "History",
+  "Recipes",
+];
+
+export const SECTION_PATHS = {
+  Atlas: "/",
+  Dishes: "/dishes",
+  Families: "/families",
+  Ingredients: "/ingredients",
+  History: "/lineages",
+  Recipes: "/recipes",
+};
+
+export const RECIPES_HOST_SECTIONS = ["Ingredients", "Recipes"];
+
+export function siteSections(onRecipesHost) {
+  return SECTION_LABELS.map((label) => ({
+    label,
+    path: SECTION_PATHS[label],
+    external: !onRecipesHost && RECIPES_HOST_SECTIONS.includes(label),
+  }));
+}
+
+export function authoringHrefFor(domain, path) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (domain === "geo") return `${RECIPES_ORIGIN}${p}`;
+  return p;
+}
+
 export function isRecipesOnlyPath(path) {
   const p = path.split("?")[0];
   if (p === "/dishes/new" || p.startsWith("/dishes/new/")) return true;
@@ -71,42 +110,19 @@ export function clampActiveIndex(activeIdx, count) {
 }
 
 export function searchHelpLinks(domain) {
-  if (domain === "geo") {
-    return [
-      { href: "/", label: "Globe" },
-      { href: "/regions", label: "Places" },
-      { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "History & connections" },
-      { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
-    ];
-  }
-  return [
-    { href: "/dishes", label: "Recipes" },
-    { href: "/ingredients", label: "Ingredients" },
-    { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "History & connections" },
-    { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
-  ];
+  // THE SIX SECTIONS — the same list the header and the footer show.
+  // This used to be a FOURTH copy of the navigation with its own
+  // labels ("Globe", "Places", "Food families", "History & connections").
+  return siteSections(domain !== "geo").map((s) => ({
+    href: s.external ? authoringHrefFor(domain, s.path) : s.path,
+    label: s.label,
+  }));
 }
 
 export function searchErrorBrowseLinks(domain) {
-  // The labels here are the NAV labels, so a reader who lands on a
-  // search error sees the same words they would see in the nav.
-  if (domain === "geo") {
-    return [
-      { href: "/regions", label: "Places" },
-      { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "History & connections" },
-      { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
-    ];
-  }
-  return [
-    { href: "/dishes", label: "Recipes" },
-    { href: "/ingredients", label: "Ingredients" },
-    { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "History & connections" },
-    { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
-  ];
+  // The same six sections as the help links, so a reader who lands on
+  // a search error sees the same words they would see in the nav.
+  return searchHelpLinks(domain);
 }
 
 export function isPrimaryNavActive(href, pathname, domain) {

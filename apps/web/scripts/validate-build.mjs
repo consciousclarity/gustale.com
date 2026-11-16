@@ -187,23 +187,33 @@ check(
 );
 
 if (DOMAIN === "geo") {
-  // The Atlas nav uses "Dish origins" (href=/regions), not "Regions" and not
-  // the old "Countries" — the directory holds places, and 42 of the
-  // entities it lists are regions and cultural areas rather than
-  // countries (ADR-004 F8).
+  // THE SIX SECTIONS (the blueprint's decision D2).
   //
-  // Astro may emit whitespace inside the anchor: "> Dish origins <".
-  const placesLabelCount = countOccurrences(regionsHtml, "Dish origins");
+  // The nav used to say "Explore / Dish origins / Food families /
+  // History & connections / About". It now says "Atlas / Dishes /
+  // Families / Ingredients / History / Recipes", and the header, the
+  // mobile drawer, the footer and the search all read the same list.
+  //
+  // Astro may emit whitespace inside the anchor: "> Dishes <".
+  for (const label of [
+    "Atlas",
+    "Dishes",
+    "Families",
+    "Ingredients",
+    "History",
+    "Recipes",
+  ]) {
+    check(
+      `main navigation contains ${label}`,
+      countOccurrences(regionsHtml, `>s*${label}s*<`) >= 1 ||
+        countOccurrences(regionsHtml, `>${label}<`) >= 1,
+      `no "${label}" link in nav`,
+    );
+  }
   check(
-    "main navigation contains Dish origins → /regions",
-    countOccurrences(regionsHtml, 'href="/regions"') >= 1,
-    'no href="/regions" in nav',
-  );
-  check(
-    "mobile navigation includes Dish origins",
-    /nav-mobile-link[\s\S]{0,120}Dish origins/.test(regionsHtml ?? "") &&
-      placesLabelCount >= 1,
-    `expected Dish origins in mobile nav, found ${placesLabelCount} total`,
+    "the nav carries no host switch",
+    !/property-switch/.test(regionsHtml ?? ""),
+    "the property switch is still in the nav",
   );
   check(
     "nav identifies Atlas property in text",
@@ -236,23 +246,48 @@ if (DOMAIN === "geo") {
     await exists(`${DIST}ingredients/index.html`),
     "ingredients/index.html missing",
   );
-  // The navigation is now the SAME on both domains (P4), so the
-  // recipes nav carries the five shared entries and NOT the old
-  // domain-specific ones. That is the change being asserted.
+  // THE SIX SECTIONS (WP-A3).
+  //
+  // The nav is now ONE list -- Atlas, Dishes, Families, Ingredients,
+  // History, Recipes -- and it is the SAME on both domains. The old
+  // domain-specific entries are gone: "Dish origins → /regions" is not
+  // a section (the place pages are WP-C3's job, and /regions is not
+  // one of the six), and "Ingredients" IS a section now, so it is
+  // present rather than absent.
+  //
+  // What is asserted here is that the six are present AND that the
+  // retired entries are gone. A nav that quietly grew a seventh entry
+  // would still pass a "the six are present" check.
   check(
-    "recipes nav includes Dish origins → /regions",
-    countOccurrences(regionsHtml, 'href="/regions"') >= 1,
-    "missing /regions in recipes nav",
+    "recipes nav includes Atlas → /",
+    countOccurrences(regionsHtml, 'href="/"') >= 1,
+    "missing the home link in the recipes nav",
   );
   check(
-    "recipes nav includes History & connections → /lineages",
+    "recipes nav includes Dishes → /dishes",
+    countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
+    "missing /dishes in the recipes nav",
+  );
+  check(
+    "recipes nav includes Families → /families",
+    countOccurrences(regionsHtml, 'href="/families"') >= 1,
+    "missing /families in the recipes nav",
+  );
+  check(
+    "recipes nav includes Ingredients → /ingredients",
+    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
+    "missing /ingredients in the recipes nav",
+  );
+  check(
+    "recipes nav includes History → /lineages",
     countOccurrences(regionsHtml, 'href="/lineages"') >= 1,
-    "missing /lineages in recipes nav",
+    "missing /lineages in the recipes nav",
   );
+  // The retired entry: "Dish origins → /regions" was never a section.
   check(
-    "recipes nav no longer lists Ingredients",
-    countOccurrences(regionsHtml, 'href="/ingredients"') === 0,
-    "/ingredients is still in the recipes nav",
+    "recipes nav no longer lists Dish origins → /regions",
+    countOccurrences(regionsHtml, 'href="/regions"') === 0,
+    "/regions is still in the recipes nav",
   );
 }
 
@@ -695,11 +730,25 @@ if (DOMAIN === "geo") {
 
 // Static aria-current on taxonomy pages (no client JS required).
 if (DOMAIN === "geo") {
+  // THE CURRENT PAGE IS MARKED, AND ONLY IT.
+  //
+  // This check runs on the /regions page. The six sections do NOT
+  // include a Places section — the blueprint's D2 gives six, and the
+  // places directory becomes `/places` in WP-C3 — so no nav link
+  // matches /regions, and NONE of them may claim to be current.
+  //
+  // The positive case is checked on the home page below, where the
+  // "Atlas" section IS the current page.
   check(
-    "static aria-current on Dish origins for /regions",
-    /href="\/regions"[^>]*aria-current="page"/.test(regionsHtml ?? "") ||
-      /aria-current="page"[^>]*href="\/regions"/.test(regionsHtml ?? ""),
-    "Dish origins link missing aria-current=page on /regions",
+    "no nav link wrongly claims to be current on /regions",
+    !/gst-navlink[^>]*aria-current="page"/.test(regionsHtml ?? ""),
+    "a nav link carries aria-current=page on /regions",
+  );
+  check(
+    "the nav marks the Atlas section on the home page",
+    /href="\/"[^>]*aria-current="page"/.test(homeHtml ?? "") ||
+      /aria-current="page"[^>]*href="\/"/.test(homeHtml ?? ""),
+    "the Atlas link is missing aria-current=page on the home page",
   );
   const dumplingHtml = await read(dumplingFamilyPath);
   check(
@@ -739,16 +788,28 @@ check(
 );
 const atlasHelp = searchHelpLinks("geo");
 const atlasErr = searchErrorBrowseLinks("geo");
+// The search's fallback links are the SIX SECTIONS now, so the
+// recipes-host sections are ABSOLUTE on the Atlas build — a relative
+// "/ingredients" would 404, because the geo build strips that path.
 check(
   "Atlas help links omit local recipes-only paths",
-  atlasHelp.every(
-    (l) => l.href !== "/dishes" && !l.href.startsWith("/ingredients"),
-  ),
+  atlasHelp.every((l) => !l.href.startsWith("/ingredients")) &&
+    atlasHelp.every((l) => l.href !== "/dishes/new"),
 );
 check(
-  "Atlas error fallback includes Food families + Browse recipes",
-  atlasErr.some((l) => l.href === "/families") &&
-    atlasErr.some((l) => l.href === "https://gustale.recipes/dishes"),
+  "Atlas help links name the six sections",
+  ["Atlas", "Dishes", "Families", "Ingredients", "History", "Recipes"].every(
+    (label) => atlasHelp.some((l) => l.label === label),
+  ),
+  `got ${atlasHelp.map((l) => l.label).join(", ")}`,
+);
+check(
+  "Atlas error fallback includes Families + Recipes",
+  atlasErr.some((l) => l.href === "/families" && l.label === "Families") &&
+    atlasErr.some(
+      (l) =>
+        l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
+    ),
 );
 
 check(
