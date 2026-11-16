@@ -3,8 +3,25 @@
 # WHAT THIS IS
 # ------------
 # After the cutover, gustale.com is the ONLY domain. This host, and
-# its two siblings (www.gustale.recipes, recipes.gustale.com), exist
+# its siblings (www.gustale.recipes, recipes.gustale.com), exist
 # only to send a 301 to the right place on gustale.com.
+#
+# ONE HOST PER FILE
+# -----------------
+# This file owns `gustale.recipes` and `www.gustale.recipes`. The
+# third host has its own file, `recipes.gustale.com.caddy`, with the
+# SAME rules.
+#
+# Why not all three here? Because Caddy refuses to start when two
+# imported files declare the same host, and because a per-host file is
+# what the VPS already has: `/etc/caddy/sites/` holds one file per
+# vhost and the Caddyfile imports them by name. Keeping that shape
+# means the owner replaces one file per host and can diff the three
+# against each other.
+#
+# The rules are identical, and `scripts/verify-redirect-rules.sh`
+# exercises ALL THREE files against a real Caddy, so a divergence
+# between them fails the test rather than shipping.
 #
 # The domains STAY REGISTERED. A registered domain that redirects is
 # how a shared link keeps working; an unregistered one returns the
@@ -62,8 +79,7 @@
 # Every target is on gustale.com, which does not redirect. No rule
 # points at another redirect host, so there is never a chain.
 gustale.recipes,
-www.gustale.recipes,
-recipes.gustale.com {
+www.gustale.recipes {
 	# ═══ /api/* — PROXY, DO NOT REDIRECT ═════════════════════════
 	#
 	# A 301 on /api/* would break every POST. The browser follows a

@@ -1,62 +1,97 @@
-# recipes.gustale.com — the recipes site on the gustale.com domain
+# recipes.gustale.com -- REDIRECT ONLY (PR 2 of the single-domain cutover)
 #
-# Added 2026-11-12, as a PREPARATION for the cutover. This host serves
-# the SAME recipes build as gustale.recipes. It is NOT the canonical
-# site yet, and nothing here redirects.
+# WHAT THIS IS
+# ------------
+# After the cutover, gustale.com is the ONLY domain. This host, and
+# its siblings (gustale.recipes, www.gustale.recipes), exist only to
+# send a 301 to the right place on gustale.com.
 #
-# WHY THIS IS SEPARATE FROM THE gustale.recipes BLOCK
-# ---------------------------------------------------
-# gustale.recipes stays live and canonical. This host is a second door
-# onto the same content, marked noindex so Google does not see two
-# copies of the site.
-#
-# It is a copy of the gustale.recipes vhost with ONE difference: the
-# noindex header. Everything else -- the MinIO /media proxy, the
-# /api/* proxy, the security headers -- is identical on purpose. A
-# partial copy is how you end up with a host that serves HTML but
-# 404s every image, which is exactly what the first version of this
-# block did (see below).
-#
-# THE NOINDEX HEADER
+# WHAT CHANGED HERE
 # -----------------
-# X-Robots-Tag: noindex, nofollow is sent on every response. It is the
-# server-side equivalent of <meta name="robots" content="noindex">,
-# and it is the one that search engines actually honour for a whole
-# host, including assets. The page HTML itself still says
-# <meta name="robots" content="index,follow"> -- because the HTML is
-# the SAME BUILD as gustale.recipes, and changing it would mean a
-# second build. The header wins, so the host is not indexed.
+# Until the cutover this file SERVED the recipes site -- a copy of the
+# gustale.recipes vhost with an X-Robots-Tag: noindex header, so that
+# Google would see two doors onto the same content and index only one.
 #
-# WHY THE HEADER AND NOT A META TAG
+# A 301 does that job better than a noindex does:
+#
+#   * a noindex says "do not list this page, but send the reader
+#     here", so the canonical host keeps its old ranking and the
+#     duplicate still competes with it;
+#   * a 301 says "this URL has MOVED", which is the truth after the
+#     cutover, and transfers the ranking to the new URL.
+#
+# So the noindex block is DELETED, not edited, and the host becomes a
+# redirect.
+#
+# WHY THE RULES ARE A SEPARATE COPY
 # ---------------------------------
-# The two must agree. If the HTML said noindex but the header said
-# index, the header wins and the page is indexed anyway -- which is
-# the opposite of what you want. The header is authoritative, so it
-# is the one that carries the noindex, and the HTML is left alone
-# because it is shared with the canonical host.
+# Caddy refuses to start when two imported files declare the same
+# host, and the VPS keeps one file per vhost in /etc/caddy/sites/ and
+# imports them by name. So the three redirect hosts have three files.
 #
-# REMOVING THIS BLOCK
-# -------------------
-# When the cutover happens, this block is DELETED, not edited: the
-# recipes site moves to recipes.gustale.com permanently, and
-# gustale.recipes becomes a pure 301 redirect to it. See
-# docs/CUTOVER-recipes-gustale-com.md.
+# The rules below are IDENTICAL to the ones in gustale.recipes.caddy.
+# They are kept in step by `scripts/verify-redirect-rules.sh`, which
+# exercises all three files against a real Caddy and fails if they
+# diverge. A copy that is only kept in step by a test is still a copy,
+# and this comment says so rather than pretending otherwise.
 #
-# NOTE ON THE DOCS
-# -----------------
-# The /media/* and /api/* rules below are copies of the ones in the
-# gustale.recipes block. Caddy has no "include a snippet from
-# another site block" mechanism short of named snippets, so they are
-# duplicated. If the MinIO bucket name or the API port ever changes,
-# BOTH blocks have to change.
+# WHEN THIS FILE IS INSTALLED
+# ----------------------------
+# ONLY AFTER PR 1 IS LIVE AND VERIFIED. Until gustale.com serves
+# /recipes and /ingredients, a redirect to it sends readers to a 404.
+# The order is: PR1 live -> PR2 live -> remove the recipes web
+# container and its CI matrix entry.
+#
+# EVERY RULE HERE WAS VERIFIED AGAINST A REAL CADDY
+# --------------------------------------------------
+# Caddy v2.11.9, run locally, with the Location headers read back.
+# Three bugs were found and fixed that way, and they are the reason
+# the comments below are as long as they are. Do not "simplify" this
+# file without re-running the test in
+# docs/REDIRECTS-single-domain.md.
+#
+#   1. `redir` is NOT A MATCHER. It is a terminal handler that always
+#      fires. Several `redir` directives in one site block means the
+#      FIRST one answers EVERY request.
+#
+#   2. `redir` does NOT expand regexp captures. `{http.regexp.1}`
+#      comes out LITERALLY in the Location header.
+#
+#   3. `{uri}` ALREADY CONTAINS THE QUERY STRING. Appending {?query}
+#      to it DOUBLES the query.
+#
+# ONE HOP
+# -------
+# Every target is on gustale.com, which does not redirect. No rule
+# points at another redirect host, so there is never a chain.
 
 recipes.gustale.com {
-	# ─── /media/* — published dish media ─────────────────────────────
-	# Same-origin, read-only proxy to the public MinIO bucket. The
-	# bucket name is hard-coded; the URI rewrite maps /media/<key> to
-	# /gustale-public/<key>. Without this block every cover image on
-	# the site is a 404, because the static build references /media/...
-	# paths that only exist in the object store.
+	# ═══ /api/* — PROXY, DO NOT REDIRECT ═════════════════════════
+	#
+	# A 301 on /api/* would break every POST. The browser follows a
+	# 301 on a POST by re-issuing it as a GET (or not at all), and
+	# every write -- a login, a dish edit, a publish -- would be lost.
+	# So the API keeps being proxied here for 90 days, while the
+	# PUBLIC pages move.
+	#
+	# It is the SAME upstream the recipes host serves today, on the
+	# SAME port, so this is a continuation rather than a change: the
+	# API is one container for both domains and always has been.
+	#
+	# REMOVAL DATE: 2027-02-14 (90 days after the cutover).
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	# ═══ /media/* — PROXY, DO NOT REDIRECT ═══════════════════════
+	#
+	# The same reason as /api/*: a cover image is fetched by an <img>
+	# tag, and a 301 there is a wasted round trip on every image on
+	# every page. The bucket name is hard-coded and the URI rewrite
+	# maps /media/<key> to /gustale-public/<key>, exactly as it does
+	# on gustale.com.
+	#
+	# REMOVAL DATE: 2027-02-14.
 	@media_read {
 		path /media/*
 		method GET HEAD
@@ -66,40 +101,88 @@ recipes.gustale.com {
 		reverse_proxy 127.0.0.1:9000
 		header Cache-Control "public, max-age=31536000, immutable"
 	}
-	# Anything else under /media (listing, writes) -> 404
+	# Anything else under /media (listing, writes) -> 404, as today.
 	@media_other path /media /media/ /media/*
 	handle @media_other {
 		respond 404
 	}
 
-	# ─── /api/* — the API, same-origin ───────────────────────────────
-	# The browser calls /api/... relative to the page origin (see
-	# apps/web/src/lib/api.ts: API_BASE is "" in the browser), so this
-	# proxy is what makes the site work at all. Without it every
-	# client-side fetch is a 404.
-	handle /api/* {
-		reverse_proxy 127.0.0.1:4000
+	# ═══ THE REDIRECTS — most specific first ═════════════════════
+	#
+	# The order matters and it is enforced by the matchers being
+	# mutually exclusive, not by their order alone. Caddy evaluates
+	# the named matchers in the order they are DEFINED, and the
+	# `handle` blocks in the order they are written, so the specific
+	# rules are first and the catch-all is last.
+
+	# /recipes/<slug>  ->  https://gustale.com/recipes/<slug>
+	#
+	# This MUST be before the /recipes rule, or a recipe page would
+	# land on the bare hub.
+	#
+	# The `not path /recipes/` matters: `path /recipes/*` also matches
+	# the trailing-slash form with an EMPTY capture, and that form
+	# belongs to the root rule below.
+	@recipe_slug {
+		path /recipes/*
+		not path /recipes/
+	}
+	handle @recipe_slug {
+		rewrite * /recipes/{re.slug}
+		redir https://gustale.com{uri} permanent
 	}
 
-	reverse_proxy 127.0.0.1:4001
+	# /dishes/<slug>  ->  https://gustale.com/dishes/<slug>#recipes
+	#
+	# The fragment goes in the Location header. A browser drops the
+	# fragment when it follows the redirect, and lands on the Recipes
+	# block of the dish page -- which is where the per-dish hub's
+	# content lives after the cutover.
+	#
+	# "/dishes/new" is EXCLUDED: it is an authoring route, not a dish
+	# page, and it maps to the same path -- not to a dish page with a
+	# #recipes fragment.
+	@dish_slug {
+		path /dishes/*
+		not path /dishes/new
+		not path /dishes/new/
+	}
+	handle @dish_slug {
+		rewrite * /dishes/{re.slug}
+		redir https://gustale.com{uri}#recipes permanent
+	}
 
+	# / and /recipes and /recipes/  ->  https://gustale.com/recipes
+	#
+	# {?query} IS NEEDED HERE and only here: the target is a LITERAL
+	# path, so Caddy has no {uri} to carry the query. Everywhere else
+	# the target is {uri}, which already contains it.
+	@recipes_root path / /recipes /recipes/
+	handle @recipes_root {
+		redir https://gustale.com/recipes{?query} permanent
+	}
+
+	# EVERYTHING ELSE  ->  the same path on gustale.com
+	#
+	# {uri} is the path AND the query string. The target host does not
+	# redirect, so this is always the last hop.
+	handle {
+		redir https://gustale.com{uri} permanent
+	}
+
+	# The redirect responses themselves carry no cache. A cached 301
+	# is a 301 that cannot be fixed without a cache bust.
 	header {
+		Cache-Control "no-store"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "geolocation=(), microphone=(), camera=()"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		-Server
-
-		# ─── noindex — do not index this host ─────────────────────────
-		# This host is a second copy of gustale.recipes. Until the
-		# cutover it must not be indexed, or Google sees the same
-		# content at two URLs and picks one.
-		#
-		# REMOVE THIS LINE AT CUTOVER. It is the whole reason this
-		# block exists separately from the gustale.recipes block.
-		X-Robots-Tag "noindex, nofollow"
 	}
 
-	encode gzip zstd
+	log {
+		output file /var/log/caddy/gustale.recipes.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
 }

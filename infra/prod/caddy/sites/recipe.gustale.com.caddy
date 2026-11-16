@@ -19,6 +19,14 @@
 #
 # Every deep link collapses onto the homepage.
 #
+# THAT IS CONFIRMED, NOT ASSUMED. Measured on 2026-11-16:
+#
+#     recipe.gustale.com/                     -> 301  https://recipes.gustale.com/
+#     recipe.gustale.com/recipes/moussaka-greek -> 301  https://recipes.gustale.com/
+#     recipe.gustale.com/dishes/moussaka-greek  -> 301  https://recipes.gustale.com/
+#
+# The path is gone in all three.
+#
 # THE PLAN
 # --------
 # 1. The owner changes the A record for recipe.gustale.com to
@@ -26,9 +34,8 @@
 #    never sees the host.
 # 2. Caddy picks up the host, obtains a certificate for it, and serves
 #    the 301 itself -- WITH the path preserved.
-# 3. At cutover, the target of the redirect changes from
-#    recipes.gustale.com to whatever is canonical then (it is already
-#    recipes.gustale.com, so this may not need to change at all).
+# 3. At the single-domain cutover the target changes from
+#    recipes.gustale.com to gustale.com, which is the canonical site.
 #
 # WHY SERVE IT OURSELVES RATHER THAN LEAVING IT AT THE REGISTRAR
 # ---------------------------------------------------------------
@@ -39,7 +46,7 @@
 #   homepage. Links get shortened and pasted, and people type the
 #   singular form.
 # - Control. The registrar's redirect target is set in the registrar's
-#   panel. At cutover the canonical recipes host changes. If the
+#   panel. At cutover the canonical host changes. If the
 #   redirect lives in the registrar it has to be remembered, updated,
 #   and verified separately from the deploy -- a second place for the
 #   cutover to go wrong, at exactly the moment when the redirect
@@ -47,13 +54,85 @@
 #
 # PATH PRESERVATION
 # -----------------
-# `redir` rewrites the host and keeps the path and query string:
+# `redir` rewrites the host and keeps the path AND the query string:
 #
-#     recipe.gustale.com/dishes/bakso/   ->  https://recipes.gustale.com/dishes/bakso/
+#     recipe.gustale.com/dishes/bakso/   ->  https://gustale.com/dishes/bakso/
+#     recipe.gustale.com/families?q=indonesia -> https://gustale.com/families?q=indonesia
 #
-# Caddy's `redir` with a host replacement does this by default. The
-# explicit `{uri}` is not needed and would drop the query string.
+# A CORRECTION TO THE COMMENT THAT WAS HERE BEFORE
+# ------------------------------------------------
+# The previous version of this file said:
+#
+#     "The explicit `{uri}` is not needed and would drop the query
+#      string."
+#
+# That is BACKWARDS, and it is worth recording why, because a
+# plausible-sounding wrong comment is worse than no comment.
+#
+# `{uri}` expands to `http.request.uri`, which is Go's
+# `req.URL.RequestURI()` -- the path AND the query string. It is
+# `{path}` that drops the query.
+#
+# Confirmed from the Caddy source, not from memory:
+#
+#     caddyconfig/httpcaddyfile/shorthands.go
+#         "uri"   -> http.request.uri
+#         "path"  -> http.request.uri.path
+#     modules/caddyhttp/replacer.go
+#         http.request.uri -> req.URL.RequestURI()   // path + query
+#
+# So `{uri}` is exactly what this rule needs: it carries the path
+# across AND keeps the query string, in one placeholder.
+#
+# THE TARGET
+# ----------
+# gustale.com. It does not redirect, so this is ONE hop. The old
+# target, recipes.gustale.com, becomes a redirect host itself after
+# the cutover -- pointing this rule at it would make a TWO-HOP chain,
+# and a two-hop chain is slow, breaks cached links, and leaks the
+# referrer through the intermediate.
+#
+# Note the special case: the bare root "/" would become
+# "https://gustale.com/" by the `{uri}` rule, but the root of the
+# recipes site redirects to "https://gustale.com/recipes" -- so the
+# root gets its own rule, first.
+#
+# THE RULES ARE THE SAME THREE THAT THE OTHER REDIRECT HOSTS USE
+# ---------------------------------------------------------------
+# See gustale.recipes.caddy for the full explanation of each rule and
+# for the three Caddy behaviours that are easy to get wrong.
+# scripts/verify-redirect-rules.sh exercises this file against a real
+# Caddy alongside the other two.
 
 recipe.gustale.com {
-	redir https://recipes.gustale.com{uri} permanent
+	# The root of the recipes site is the recipes HUB, not the
+	# site home. Declared and used FIRST, because the catch-all
+	# below would otherwise send it to the site home.
+	@recipes_root path /
+	handle @recipes_root {
+		redir https://gustale.com/recipes{?query} permanent
+	}
+
+	# EVERYTHING ELSE -> the same path on gustale.com.
+	#
+	# `{uri}` is the path AND the query string.
+	handle {
+		redir https://gustale.com{uri} permanent
+	}
+
+	# The redirect responses themselves carry no cache. A cached 301
+	# is a 301 that cannot be fixed without a cache bust.
+	header {
+		Cache-Control "no-store"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/recipe.gustale.com.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
 }
