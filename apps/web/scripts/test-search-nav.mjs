@@ -92,31 +92,64 @@ describe("clampActiveIndex", () => {
 });
 
 describe("fallback browse links", () => {
+  // THE SIX SECTIONS.
+  //
+  // These used to assert a FOURTH navigation with its own labels
+  // ("Globe", "Places", "Food families", "History & connections",
+  // "Browse recipes"). Now the search names the same six sections the
+  // header and the footer do, with the same labels and the same
+  // hrefs.
   it("Atlas help + error links are domain-valid", () => {
     const help = searchHelpLinks("geo");
     const err = searchErrorBrowseLinks("geo");
-    assert.ok(help.some((l) => l.href === "/"));
-    assert.ok(help.some((l) => l.href === "/regions"));
-    assert.ok(help.some((l) => l.href === "/families"));
-    assert.ok(help.some((l) => l.href === "/lineages"));
-    assert.ok(help.some((l) => l.href === "https://gustale.recipes/dishes"));
-    assert.ok(!help.some((l) => l.href === "/dishes"));
-    assert.ok(!help.some((l) => l.href === "/ingredients"));
 
-    assert.ok(err.some((l) => l.href === "/regions" && l.label === "Places"));
+    assert.ok(help.some((l) => l.href === "/" && l.label === "Atlas"));
+    assert.ok(help.some((l) => l.href === "/dishes" && l.label === "Dishes"));
     assert.ok(
-      err.some((l) => l.href === "/families" && l.label === "Food families"),
+      help.some((l) => l.href === "/families" && l.label === "Families"),
     );
-    assert.ok(err.some((l) => l.href === "/lineages"));
-    assert.ok(err.some((l) => l.href === "https://gustale.recipes/dishes"));
+    assert.ok(
+      help.some((l) => l.href === "/lineages" && l.label === "History"),
+    );
+    // The two recipes-host sections are ABSOLUTE on the Atlas build,
+    // because the geo build strips those paths in post-build.
+    assert.ok(
+      help.some(
+        (l) =>
+          l.href === "https://gustale.recipes/ingredients" &&
+          l.label === "Ingredients",
+      ),
+    );
+    assert.ok(
+      help.some(
+        (l) =>
+          l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
+      ),
+    );
+
+    // The error links are the SAME list, with the same labels.
+    assert.ok(
+      err.some((l) => l.href === "/families" && l.label === "Families"),
+    );
+    assert.ok(err.some((l) => l.href === "/lineages" && l.label === "History"));
+    assert.ok(
+      err.some(
+        (l) =>
+          l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
+      ),
+    );
   });
 
   it("Recipes help + error links stay local where valid", () => {
     const help = searchHelpLinks("recipes");
     const err = searchErrorBrowseLinks("recipes");
-    assert.ok(help.some((l) => l.href === "/dishes"));
-    assert.ok(help.some((l) => l.href === "/ingredients"));
-    assert.ok(help.some((l) => l.href === "https://gustale.com/"));
+    // Everything is relative on the recipes build.
+    assert.ok(help.some((l) => l.href === "/dishes" && l.label === "Dishes"));
+    assert.ok(
+      help.some((l) => l.href === "/ingredients" && l.label === "Ingredients"),
+    );
+    assert.ok(help.some((l) => l.href === "/recipes" && l.label === "Recipes"));
+    assert.ok(!help.some((l) => l.href.startsWith("https://")));
     assert.ok(err.some((l) => l.href === "/dishes"));
     assert.ok(err.some((l) => l.href === "/ingredients"));
   });

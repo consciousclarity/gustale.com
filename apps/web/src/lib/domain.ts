@@ -113,8 +113,20 @@ export function atlasUrl(path: string): string {
  * On Recipes builds → same-origin relative path.
  */
 export function authoringHref(path: string): string {
+  return authoringHrefFor(currentDomain(), path);
+}
+
+/**
+ * The same rule, with the domain as an argument.
+ *
+ * `authoringHref()` reads the build-time domain, which makes it
+ * impossible to unit-test: `import.meta.env` is not available outside
+ * Vite. This version takes the domain, so the navigation's hrefs can be
+ * asserted for all three hosts.
+ */
+export function authoringHrefFor(domain: GustaleDomain, path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
-  if (isGeoDomain()) return recipesUrl(p);
+  if (domain === "geo") return recipesUrl(p);
   return p;
 }
 

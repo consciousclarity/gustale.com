@@ -5,10 +5,12 @@
 
 import {
   ATLAS_ORIGIN,
+  authoringHref,
   type GustaleDomain,
   isRecipesOnlyPath,
   RECIPES_ORIGIN,
 } from "./domain";
+import { siteSections } from "./sections";
 
 export type SearchPlacement = "header" | "drawer";
 
@@ -84,22 +86,19 @@ export function clampActiveIndex(activeIdx: number, count: number): number {
 
 /** Initial/help browse links when query length < 2. */
 export function searchHelpLinks(domain: GustaleDomain): BrowseLink[] {
-  if (domain === "geo") {
-    return [
-      { href: "/", label: "Globe" },
-      { href: "/regions", label: "Places" },
-      { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "History & connections" },
-      { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
-    ];
-  }
-  return [
-    { href: "/dishes", label: "Recipes" },
-    { href: "/ingredients", label: "Ingredients" },
-    { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "History & connections" },
-    { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
-  ];
+  // THE SIX SECTIONS.
+  //
+  // This used to carry a FOURTH copy of the navigation, with its own
+  // labels again: "Globe", "Places", "Food families", "History &
+  // connections", "Browse recipes". A reader who opened the search and
+  // read the header would see two different names for the same pages.
+  //
+  // Now the search names the same six sections as the header and the
+  // footer, and the labels come from the same table.
+  return siteSections(domain !== "geo").map((s) => ({
+    href: s.external ? authoringHref(s.path) : s.path,
+    label: s.label,
+  }));
 }
 
 /** Empty-state alternate browse links. */
@@ -113,21 +112,9 @@ export function searchEmptyBrowseLinks(domain: GustaleDomain): BrowseLink[] {
  * Recipes may use local /dishes and /ingredients.
  */
 export function searchErrorBrowseLinks(domain: GustaleDomain): BrowseLink[] {
-  if (domain === "geo") {
-    return [
-      { href: "/regions", label: "Places" },
-      { href: "/families", label: "Food families" },
-      { href: "/lineages", label: "History & connections" },
-      { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
-    ];
-  }
-  return [
-    { href: "/dishes", label: "Recipes" },
-    { href: "/ingredients", label: "Ingredients" },
-    { href: "/families", label: "Food families" },
-    { href: "/lineages", label: "History & connections" },
-    { href: `${ATLAS_ORIGIN}/`, label: "Browse Atlas" },
-  ];
+  // The same six sections as the help links, minus the one the reader
+  // is already on.
+  return searchHelpLinks(domain);
 }
 
 /** Aria-live status copy for search panel states. */
