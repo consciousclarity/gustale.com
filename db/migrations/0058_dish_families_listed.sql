@@ -132,16 +132,65 @@ COMMENT ON COLUMN dish_families.listed IS
 -- `family_class IS DISTINCT FROM 'FORM'` rather than `<> 'FORM'`,
 -- because a family with a NULL class is also not a FORM family, and
 -- NULL <> 'FORM' is NULL, which would skip it.
+--
+-- THE BACKFILL SETS BOTH SIDES, AND THAT IS THE FIX
+-- --------------------------------------------------
+-- The first version set ONLY the false cases:
+--
+--     UPDATE dish_families SET listed = false WHERE <not a listed family>
+--
+-- and relied on the column DEFAULT (true) to leave everything else
+-- listed. That works ONCE, on a table where the column did not exist:
+-- the ALTER adds it with DEFAULT true, so the rows the UPDATE did not
+-- touch are true.
+--
+-- It does NOT work on a RE-RUN, and that is a real bug. The re-run
+-- starts from a table where the column already exists, so the DEFAULT
+-- applies to nothing. A family that gained a description since the
+-- last run -- 0059 gives 56 of them one -- stays listed = false,
+-- because the backfill has no statement that could turn it back on.
+--
+-- The symptom, reproduced:
+--
+--     0058 (first)      -> 106 listed, 200 unlisted   (ok)
+--     0059              -> the 56 gain their descriptions
+--     0058 (re-run)     -> UPDATE 144 ... and the assertion says
+--                          "0058: 106 families are listed, but 162
+--                           FORM families have a description"
+--
+-- That is the CI chain's own failure mode, because CI applies the
+-- migrations to a database and then the live-migration gate re-runs
+-- the chain over it.
+--
+-- So the backfill now DERIVES `listed` for EVERY row:
+--
+--     listed = (family_class = 'FORM' AND it has a description)
+--
+-- which is the definition, applied to all 306 rows, in one
+-- statement. The result does not depend on the column's history, so
+-- the migration is idempotent in the sense that matters: running it
+-- again leaves the table in the state the definition implies.
+--
+-- The assertion below (4f) checks the same thing from the other
+-- direction -- that the listed set IS the FORM-with-description set --
+-- so a backfill that drifts is caught rather than trusted.
 UPDATE dish_families
-   SET listed = false
- WHERE family_class IS DISTINCT FROM 'FORM'
-    OR description IS NULL
-    OR btrim(description) = '';
+   SET listed = (
+         family_class = 'FORM'
+     AND description IS NOT NULL
+     AND btrim(description) <> ''
+       )
+ WHERE listed IS DISTINCT FROM (
+         family_class = 'FORM'
+     AND description IS NOT NULL
+     AND btrim(description) <> ''
+       );
 
 -- A family that IS a FORM and HAS a description is listed. The
--- backfill above only ever sets FALSE, so a row the UPDATE did not
--- touch keeps the DEFAULT true. That is correct, but it is asserted
--- below rather than assumed.
+-- backfill above derives `listed` from the definition for EVERY row,
+-- so a row it did not touch already holds the right value -- whether
+-- that value is true or false. That is asserted below rather than
+-- assumed.
 
 -- =====================================================================
 -- 3. THE MUSAKKA VARIANT

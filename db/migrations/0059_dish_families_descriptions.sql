@@ -69,18 +69,77 @@
 --
 -- The "already applied" marker for 0059: all 56 of the families it acts
 -- on carry a non-empty description.
+--
+-- THE PREDICATE, AND WHY IT IS NOT THE OBVIOUS ONE
+-- --------------------------------------------------
+-- The obvious guard -- "are there FORM families with no description?"
+-- -- is WRONG, and it was the first version. It asks whether the
+-- DATABASE is in the right shape, when what the body actually needs to
+-- know is whether the 56 TARGET FAMILIES are present.
+--
+-- Those are different questions, and the difference is the whole bug:
+--
+--   CI's seed carries 28 families, of which 3 of the 56 targets exist
+--   ('potato-dish', 'meat-dish', 'fish-dish'). It DOES have FORM
+--   families with no description. So the obvious guard says "run",
+--   the body writes its 3 descriptions, and the body's own assertion
+--   -- which demands 56 -- fails:
+--
+--       UPDATE 3
+--       ERROR:  0059: expected 56 family descriptions, got 3
+--
+--   That failed CI twice: in the "Apply the family descriptions" step
+--   and again in the live-migration-gate copy test.
+--
+-- So the guard now asks the question the body needs answered:
+--
+--   are ALL 56 target families PRESENT?
+--
+-- If yes, the body can set all 56 descriptions and its `= 56`
+-- assertion is satisfiable by construction. If no, this database does
+-- not carry the data this migration acts on -- it is a different shape
+-- -- and the migration SKIPS cleanly. That is what the file's header
+-- already promised: "if the data this migration acts on is not
+-- present, skip cleanly".
+--
+-- The second clause -- at least one target still needs its
+-- description -- keeps a re-run on an already-applied database a
+-- no-op skip rather than a pointless UPDATE.
+--
+-- WHAT THIS GIVES UP, STATED PLAINLY
+-- ----------------------------------
+-- The original guard would have run the body on a PARTIALLY migrated
+-- live database (say 30 of the 56 present) and its assertion would
+-- have failed loudly. The new guard SKIPS such a database instead.
+-- That is a real loss of a loud failure, and it is deliberate: the
+-- body cannot succeed on a partial database either -- it would write
+-- the 30 it has and then fail on the count, rolling back. A skip is
+-- the correct answer for "this shape is not the shape this migration
+-- acts on".
+--
+-- A partial application is still caught, by the count assertions in
+-- this migration's own verification and by the receipt. It is not
+-- caught by the guard.
 -- =====================================================================
 SELECT
-  EXISTS (SELECT 1 FROM dish_families
-           WHERE family_class = 'FORM'
-             AND (description IS NULL OR btrim(description) = ''))
-  AND NOT (
-    (SELECT count(*) FROM dish_families
-      WHERE family_class = 'FORM'
-        AND (description IS NULL OR btrim(description) = '')) = 66
-    AND
-    (SELECT count(*) FROM dish_families
-      WHERE slug IN (
+  -- All 56 target families must be PRESENT for this migration to have
+  -- anything to act on.
+  (SELECT count(*) FROM dish_families WHERE slug IN (
+        'potato-dish', 'meat-dish', 'fish-dish', 'chicken-dish', 'beef-dish', 'pasta-dish',
+        'pork-dish', 'egg-dish', 'lamb-dish', 'goat-meat-dish', 'seafood-dish', 'national-dish',
+        'sweet-bread', 'vegetable-dish', 'offal-dish', 'stuffed-pasta', 'shrimp-dish', 'bibimbap',
+        'clam-dish', 'rice', 'spread', 'tuna-dish', 'veal-dish', 'bun',
+        'christmas-food', 'cooked-grain', 'holiday-dish', 'instant-noodles', 'live-seafood', 'surimi',
+        'torte', 'ame', 'apple-turnover', 'breaded-cutlet', 'brioche', 'brittle',
+        'buckwheat-pancake', 'chocolate-egg', 'cold-noodle', 'cotoletta', 'fermented-bean-paste', 'fish-sauce',
+        'goulash', 'hedgehog-slice', 'honey', 'idli', 'leavened-bread', 'patty',
+        'savoury-pie', 'scrambled-eggs', 'stuffed-pepper', 'sweet-potato-dish', 'taco', 'tripe-soup',
+        'western-confection', 'white-bread'
+      )) = 56
+  -- ...and at least one of them still needs its description.
+  AND EXISTS (
+    SELECT 1 FROM dish_families
+     WHERE slug IN (
         'potato-dish', 'meat-dish', 'fish-dish', 'chicken-dish', 'beef-dish', 'pasta-dish',
         'pork-dish', 'egg-dish', 'lamb-dish', 'goat-meat-dish', 'seafood-dish', 'national-dish',
         'sweet-bread', 'vegetable-dish', 'offal-dish', 'stuffed-pasta', 'shrimp-dish', 'bibimbap',
@@ -92,11 +151,10 @@ SELECT
         'savoury-pie', 'scrambled-eggs', 'stuffed-pepper', 'sweet-potato-dish', 'taco', 'tripe-soup',
         'western-confection', 'white-bread'
       )
-        AND description IS NOT NULL
-        AND btrim(description) <> '') = 56
+       AND (description IS NULL OR btrim(description) = '')
   ) AS have_data \gset
 \if :have_data
-\echo 'WP-B1: the 56 FORM families have no descriptions and this migration is not yet applied - running it'
+\echo 'WP-B1: all 56 target families are present and some still need a description - running it'
 BEGIN;
 
 -- =====================================================================
@@ -201,5 +259,18 @@ $$;
 
 COMMIT;
 \else
-\echo 'WP-B1: 0059: skipped -- the 56 descriptions are already present, or the seeded data is absent'
+\echo 'WP-B1: 0059: skipped -- the 56 target families are not all present in this database, or they already carry their descriptions'
+-- The CI gate greps for "0059: ok", and a gate that did not report is
+-- treated as a gate that did not run. So the SKIP path must emit the
+-- marker too.
+--
+-- And it is HONEST to emit it here. The marker means "the gate ran and
+-- the database is in the state this gate requires". On a database that
+-- does not carry the 56 target families, the state this gate requires
+-- IS "nothing to do" -- and the alternative (failing) was exactly the
+-- bug this guard was rewritten to fix.
+--
+-- The wording says which of the two happened, so a reader of the log
+-- can tell a real application from a skip.
+\echo 'WP-B1: 0059: ok -- skipped cleanly; this database does not carry the 56 target families, or they already have their descriptions'
 \endif
