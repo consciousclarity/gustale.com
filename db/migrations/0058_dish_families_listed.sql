@@ -265,13 +265,58 @@ BEGIN
   END IF;
 
   -- 4f. The production numbers, when the database has the production
-  -- shape. 106 FORM families have a description, so 106 are listed.
-  IF v_total = 306 THEN
-    IF v_listed <> 106 THEN
+  -- 4f. The listed set matches the described FORM set, on EVERY
+  -- database.
+  --
+  -- This was a HARDCODED count of 106, which was wrong twice over: it
+  -- broke the moment the descriptions of the 56 FORM families that carry
+  -- a published dish were added (migration 0059), and it asserted a
+  -- production number on a database whose seed is different.
+  --
+  -- The count is DERIVED here: the number of FORM families that have a
+  -- description IS the number that must be listed, by the definition of
+  -- `listed`. Assertions 4b-4d above already check the rule in both
+  -- directions; this checks that the COUNTS agree, which catches a
+  -- backfill that left a row on the wrong side.
+  IF v_listed <> (
+    SELECT count(*) FROM dish_families
+     WHERE family_class = 'FORM'
+       AND description IS NOT NULL
+       AND btrim(description) <> ''
+  ) THEN
+    RAISE EXCEPTION
+      '0058: % families are listed, but % FORM families have a description',
+      v_listed,
+      (SELECT count(*) FROM dish_families
+        WHERE family_class = 'FORM'
+          AND description IS NOT NULL
+          AND btrim(description) <> '');
+  END IF;
+
+  -- 4f2. The production shape, when the database HAS the production
+  -- shape. The measurement, on 2026-11-16:
+  --
+  --   dish_families rows                     306
+  --   by class: FORM 172, non-FORM 134
+  --   FORM families with a description        162
+  --     of which 106 already had one
+  --     and 56 got one from migration 0059
+  --   FORM families with NO description       10
+  --
+  -- So with 0059 applied first, 162 are listed and 10 are not.
+  --
+  -- This is checked only when the table has the production size AND
+  -- the descriptions are present, so it stays true on a CI database
+  -- whose seed is different.
+  IF v_total = 306
+     AND (SELECT count(*) FROM dish_families
+           WHERE family_class='FORM' AND description IS NOT NULL
+             AND btrim(description) <> '') = 162 THEN
+    IF v_listed <> 162 OR v_unlisted <> 144 THEN
       RAISE EXCEPTION
-        '0058: % families are listed, but the measurement says 106 FORM '
-        'families have a description',
-        v_listed;
+        '0058: % families are listed and % are not, but the production '
+        'measurement says 162 listed and 144 not',
+        v_listed, v_unlisted;
     END IF;
   END IF;
 

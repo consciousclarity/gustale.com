@@ -263,6 +263,18 @@ MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # nine drinks. It writes CONTENT rows (it backfills a column), so it
 # runs in the chain and not in the fixture seed.
 MIGRATION_0049=db/migrations/0049_content_type.sql
+# 0059 sets a ONE-LINE DESCRIPTION on the 56 FORM families that carry a
+# published dish and have no description. It writes CONTENT rows (the
+# descriptions), so it runs in the chain and not in the fixture seed.
+#
+# IT MUST RUN BEFORE 0058. 0058 sets `listed` from the description:
+# a FORM family is listed only when it has one. So the descriptions have
+# to be in place before the flag is computed, or 0058 would mark those
+# 56 families unlisted and take the family off every dish that uses it.
+#
+# It is numbered 0059 because 0058 is taken by the `listed` migration.
+# Two migrations must never share a number.
+MIGRATION_0059=db/migrations/0059_dish_families_descriptions.sql
 # 0058 adds `dish_families.listed` -- which families are part of the
 # PUBLISHED family vocabulary -- and deletes the single Musakka
 # `dish_variants` row whose slug collides with a published dish. It
@@ -843,6 +855,18 @@ echo "--- the sourcing availability tables"
 run_pg -f - < "$MIGRATION_0055" >/tmp/m0055.log 2>&1 || { echo "FAILED: 0055"; grep -E 'ERROR|NOTICE' /tmp/m0055.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/m0055.log | tail -1 || true
+
+# The family descriptions.
+#
+# 0059 sets a one-line description on the 56 FORM families that carry a
+# published dish and have none. It MUST run before 0058: 0058 computes
+# `listed` from the description, so the descriptions have to be in place
+# first, or those 56 families would be marked unlisted and every dish
+# using them would lose its family.
+echo "--- the family descriptions"
+run_pg -f - < "$MIGRATION_0059" >/tmp/m0059.log 2>&1 || { echo "FAILED: 0059"; grep -E 'ERROR|NOTICE' /tmp/m0059.log | tail -14; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0059: ok' /tmp/m0059.log | tail -1 || true
 
 # The listed families and the Musakka variant.
 #

@@ -531,6 +531,18 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0055_sourcing_availability.sql" 
   || { echo "  FAILED: 0055"; grep -E 'ERROR' /tmp/repro_0055.log | head -6; fail=1; }
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/repro_0055.log | tail -1 || true
 
+# The family descriptions.
+#
+# 0059 sets a one-line description on the 56 FORM families that carry a
+# published dish and have none. It MUST run before 0058: 0058 computes
+# `listed` from the description, so the descriptions have to be in place
+# first, or those 56 families would be marked unlisted and every dish
+# using them would lose its family.
+step "the family descriptions"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0059_dish_families_descriptions.sql" > /tmp/repro_0059.log 2>&1 \
+  || { echo "  FAILED: 0059"; grep -E 'ERROR' /tmp/repro_0059.log | head -8; fail=1; }
+grep -E '0059: ok' /tmp/repro_0059.log | tail -1 || true
+
 # The listed families and the Musakka variant.
 #
 # 0058 adds `dish_families.listed` -- which families are part of the

@@ -1,0 +1,25 @@
+--- a/.github/workflows/ci.yml	2026-11-16 14:36:21.058381030 +0800
++++ b/.github/workflows/ci.yml	2026-11-16 14:37:51.831241907 +0800
+@@ -1219,6 +1219,22 @@
+             -f db/migrations/0055_sourcing_availability.sql 2>&1 | tee /tmp/m0055.log
+           bash scripts/check-ci-markers.sh "the sourcing availability tables" "INGREDIENT_SOURCING_AVAILABILITY_OK" /tmp/m0055.log
+ 
++      # ── 0059: the family descriptions ─────────────────────────────
++      #
++      # WP-B1, part 2. Sets a one-line description on the 56 FORM
++      # families that carry a published dish and have none.
++      #
++      # IT MUST RUN BEFORE 0058. 0058 computes `listed` from the
++      # description -- a FORM family is listed only when it has one --
++      # so the descriptions have to be in place first. Otherwise those
++      # 56 families would be marked unlisted and every dish using them
++      # would lose its family.
++      - name: Apply the family descriptions
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0059_dish_families_descriptions.sql 2>&1 | tee /tmp/m0059.log
++          bash scripts/check-ci-markers.sh "the family descriptions" "0059: ok" /tmp/m0059.log
++
+       # ── 0058: the listed families and the Musakka variant ─────────
+       #
+       # WP-B1. Adds `dish_families.listed` -- which families are part
