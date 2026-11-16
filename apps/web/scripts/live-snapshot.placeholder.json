@@ -1,0 +1,15 @@
+{
+  "_placeholder": "This file is replaced at build time by fetch-live-snapshot.mjs when BUILD_DATA_SOURCE=snapshot. It is committed so the build CONTEXT always has the file (the Dockerfile does COPY . .), and so a `mock` build never fails on a missing file. It must NEVER be served: the mock only reads it when SNAPSHOT_FILE points at it, and the real snapshot is written over this file before the docker build.",
+  "generatedFrom": "placeholder -- no data",
+  "list": [],
+  "map": { "dishes": [], "count": 0 },
+  "details": {},
+  "atlas": {},
+  "counts": {},
+  "places": { "list": null, "details": {} },
+  "connections": { "list": null, "details": {} },
+  "categories": { "categories": [] },
+  "lineages": { "list": null, "details": {} },
+  "ingredients": { "ingredients": [] },
+  "featured": { "dishes": [] }
+}

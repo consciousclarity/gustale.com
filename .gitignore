@@ -143,3 +143,15 @@ data/pool_a_descriptions.json
 
 # Smoke test browser libraries (downloaded, not committed)
 scripts/smoke/.browser-libs/
+
+# The live snapshot cache (written by fetch-live-snapshot.mjs at build time).
+# It is a BUILD ARTIFACT, not source: it maps each dish slug to its last
+# fetch, so a rebuild that changed no dish skips the fetch entirely.
+apps/web/scripts/.live-snapshot-cache.json
+
+# The REAL live snapshot, written at build time by fetch-live-snapshot.mjs.
+# It is 7 MB of live data and changes on every build, so it must never be
+# committed. The committed PLACEHOLDER is
+# apps/web/scripts/live-snapshot.placeholder.json; the build copies it into
+# place at apps/web/scripts/live-snapshot.json before the docker build.
+apps/web/scripts/live-snapshot.json

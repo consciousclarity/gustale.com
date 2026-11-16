@@ -55,19 +55,50 @@ ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
 # BUILD_DATA_SOURCE controls where the build gets its data.
-#   mock  (default) — start an in-container mock on :8742 from the
-#                     committed seed. Used by GHA, which cannot reach
-#                     the VPS due to firewall rules.
-#   live           — fetch from a real API at PUBLIC_API_BASE. Used
-#                     when building on the VPS itself (where the API
-#                     is reachable on 127.0.0.1:4000). Skips the mock
-#                     and the wait-for-mock step, so the build is
-#                     faster and the static pages reflect the live
-#                     data (newly-published dishes, updated
-#                     longDescriptions, etc.) instead of the snapshot
-#                     in mock-api-data.json.
+#   mock     (default) — start an in-container mock on :8742 from the
+#                        committed seed. Used by GHA, which cannot reach
+#                        the VPS due to firewall rules.
+#   live              — fetch from a real API at PUBLIC_API_BASE. Used
+#                        when building on the VPS itself (where the API
+#                        is reachable on 127.0.0.1:4000). Skips the mock
+#                        and the wait-for-mock step, so the build is
+#                        faster and the static pages reflect the live
+#                        data (newly-published dishes, updated
+#                        longDescriptions, etc.) instead of the snapshot
+#                        in mock-api-data.json.
+#   snapshot          — LIVE DATA, fetched ONCE, served from a file.
+#
+# WHY `snapshot` EXISTS
+# --------------------
+# `live` was measured to be the reason the production build took 27
+# minutes (and 14 hours on a bad day) while CI took 2m43s for the SAME
+# page count. The difference is not the data and not the CPU -- it is the
+# ROUND TRIPS:
+#
+#   the build fetched every page's data one request at a time --
+#   16,764 x GET /api/dishes/<slug> plus 16,757 x .../journey, at a
+#   sustained ~48 requests/second for 13+ minutes -- while the Astro
+#   build sat at 25-32% CPU on 4 vCPUs. It was I/O-bound.
+#
+# CI builds the identical 1,474 dishes in 2m43s because it uses the
+# mock: the same endpoints, served from an inlined JSON file. So the
+# build does not need the network -- it needs the DATA in the shape the
+# mock already reads.
+#
+# `snapshot` is that: `fetch-live-snapshot.mjs` fetches the live data
+# once (45.8 seconds measured, ~46 requests, cached between runs) and
+# writes it in the mock's own shape. The build then runs the mock
+# against it. Same code path as CI, live data, no 32,000 round trips.
+#
+# The snapshot file is copied in by build-web-live.sh, which fetches it
+# on the build host BEFORE the docker build.
 ARG BUILD_DATA_SOURCE=mock
 ENV BUILD_DATA_SOURCE=${BUILD_DATA_SOURCE}
+
+# The live snapshot, when BUILD_DATA_SOURCE=snapshot. The path is
+# inside the image; the host path is chosen by the caller.
+ARG BUILD_SNAPSHOT_PATH="/app/apps/web/scripts/live-snapshot.json"
+ENV BUILD_SNAPSHOT_PATH=${BUILD_SNAPSHOT_PATH}
 
 # Optional CARTO basemap key. CARTO's *vector* basemap styles still load
 # without a key, so this defaults to empty and the maps work keyless.
@@ -142,10 +173,22 @@ RUN node scripts/fetch_noto_fonts.mjs
 # mock URL.
 
 # Build step. Branches on BUILD_DATA_SOURCE:
-#   mock → start an in-container mock on :8742, wait for it, build
-#   live → trust PUBLIC_API_BASE (the caller chose it; must be reachable
-#          on the build host), wait for its /health, build
-# In both cases the same pnpm build:recipes / build:geo script runs.
+#   mock     → start an in-container mock on :8742 from the committed
+#               seed, wait for it, build
+#   snapshot → the SAME mock, but serving the live snapshot that was
+#               copied in at /build/live-snapshot.json. Same code path as
+#               `mock`; only the data differs.
+#   live     → trust PUBLIC_API_BASE (the caller chose it; must be
+#               reachable on the build host), wait for its /health, build
+# In all cases the same pnpm build:recipes / build:geo script runs.
+#
+# `live` is kept for a one-off emergency build, but it is SLOW: it makes
+# ~32,000 per-page API calls. `snapshot` is the normal path on the VPS.
+#
+# The snapshot arrives through the build CONTEXT: the caller writes it to
+# apps/web/scripts/live-snapshot.json before the docker build, and the
+# `COPY . .` above brings it in. A placeholder is committed so the file
+# always exists -- without it the COPY would fail for the `mock` builds.
 RUN if [ "$BUILD_DATA_SOURCE" = "live" ]; then \
       node apps/web/scripts/wait-for-api.mjs "$PUBLIC_API_BASE" && \
       if [ "$PUBLIC_DOMAIN" = "geo" ]; then \
@@ -154,7 +197,11 @@ RUN if [ "$BUILD_DATA_SOURCE" = "live" ]; then \
         pnpm --filter @gustale/web run build:recipes; \
       fi; \
     else \
-      node apps/web/scripts/mock-api.mjs --port 8742 & \
+      if [ "$BUILD_DATA_SOURCE" = "snapshot" ]; then \
+        SNAPSHOT_FILE="$BUILD_SNAPSHOT_PATH" node apps/web/scripts/mock-api.mjs --port 8742 & \
+      else \
+        node apps/web/scripts/mock-api.mjs --port 8742 & \
+      fi; \
       MOCK_PID=$!; \
       trap 'kill $MOCK_PID 2>/dev/null || true; wait $MOCK_PID 2>/dev/null || true' EXIT; \
       node apps/web/scripts/wait-for-api.mjs http://127.0.0.1:8742; \
