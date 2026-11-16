@@ -781,8 +781,19 @@ check(
     /aria-current="page"[^>]*href="\/"/.test(homeHtml ?? ""),
   "the Atlas link is missing aria-current=page on the home page",
 );
+// The aria-current check reads a SPECIFIC fixture family.
+//
+// It is scope-aware for the same reason the "exists" check above is:
+// the dumpling family is one specific dish, and a scoped build (the
+// staging build takes the first 50 dishes) does not necessarily
+// contain it. Asserting on a page that is not in the build would fail
+// a build that is correct.
+//
+// `checkFullBuild` skips it for a scoped build AND prints the skip, so
+// a skip is visible rather than silently absent. The PRODUCTION build
+// still runs it, with zero skips -- that is the regression check.
 const dumplingHtml = await read(dumplingFamilyPath);
-check(
+checkFullBuild(
   "static aria-current on Food families for /family/:slug",
   /href="\/families"[^>]*aria-current="page"/.test(dumplingHtml ?? "") ||
     /aria-current="page"[^>]*href="\/families"/.test(dumplingHtml ?? ""),
