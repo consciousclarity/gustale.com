@@ -1,0 +1,114 @@
+# gustale.com + www.gustale.com — the ONE site
+#
+# Added 2026-11-16 to the repo, as part of the single-domain cutover.
+#
+# WHY THIS FILE IS NEW
+# --------------------
+# This vhost has always lived only in the VPS Caddyfile
+# (/etc/caddy/Caddyfile). It was never in the repo, which means the
+# /admin change below had nowhere reviewable to live. The redirect
+# hosts are all in the repo (gustale.recipes.caddy,
+# recipes.gustale.com.caddy, recipe.gustale.com.caddy); this site is
+# the one that was missing.
+#
+# It is NOT imported by the VPS Caddyfile as a separate file today —
+# the gustale.com block is inline in /etc/caddy/Caddyfile. This file is
+# the REVIEWABLE SOURCE of that block. Applying it means replacing the
+# inline block with:
+#
+#     import /etc/caddy/sites/gustale.com.caddy
+#
+# and installing this file. See scripts/apply-admin-unblock.sh.
+#
+# ─────────────────────────────────────────────────────────────────────
+# THE /admin CHANGE (2026-11-16, the owner's decision)
+# ─────────────────────────────────────────────────────────────────────
+# ADMIN MOVES TO gustale.com, under these conditions:
+#
+#   1. Unblock /admin AND /api/admin/* on gustale.com ONLY (same
+#      origin). /api/admin/* stays BLOCKED on api.gustale.com.
+#   2. Prove, logged out, that every /api/admin/* route returns
+#      401/403 and that the static admin shell renders no data.
+#   3. Prove, signed in as admin on staging, that the admin editor
+#      loads and saves.
+#
+# WHAT CHANGED HERE, AND WHY IT IS SAFE
+# --------------------------------------
+# Before: two handlers answered 404 for /admin and /api/admin/* on
+# this host. Both are GONE.
+#
+# /admin — the pages are STATIC HTML SHELLS. There is no SSR adapter,
+# so src/middleware.ts never runs at request time; at build time it
+# FAILS OPEN and the shells are emitted as real static HTML. A shell
+# carries no data: the admin content is a React island that fetches
+# /api/admin/* at runtime. (This was measured: the built admin dish
+# pages contained zero dish names, ingredients, counts or citations --
+# only the slug, in the breadcrumb.)
+#
+# /api/admin/* — proxied to the API, same-origin, so the browser sends
+# the session cookie and no cross-origin credential question arises.
+# EVERY admin route calls app.requireRole(request, "admin"), which
+# throws 401 for an anonymous caller and 403 for a caller whose role
+# is too low. That check is on the API, per request, and is unchanged
+# by anything in this file.
+#
+# So what this change does NOT do: it does not make the admin DATA
+# public. It moves the admin SURFACE to the canonical host and leaves
+# the admin DATA behind the same gate it was always behind.
+#
+# Note the /api/* handle below is UNCHANGED and still proxies to the
+# API. The explicit /api/admin/* handle in front of it exists only to
+# make the admin route's presence intentional and reviewable, rather
+# than an accident of the general /api/* rule.
+gustale.com,
+www.gustale.com {
+	# ─── /api/admin/* — the admin API, same-origin ────────────────────
+	# Same upstream as the general /api/* handle below, but named
+	# explicitly so that the admin route is a DELIBERATE part of this
+	# vhost and not an accident. The API does the auth; Caddy does not
+	# add any.
+	handle /api/admin/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	# ─── /media/* — published dish media (gustale PR #78) ──────────────
+	# Same-origin, read-only proxy to the public MinIO bucket (hard-coded).
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+	# Anything else under /media (listing, writes) -> 404
+	@media_other path /media /media/ /media/*
+	handle @media_other {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	reverse_proxy 127.0.0.1:4002
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	encode gzip zstd
+
+	log {
+		output file /var/log/caddy/gustale.com.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
+}
