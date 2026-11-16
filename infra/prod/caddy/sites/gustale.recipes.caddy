@@ -1,0 +1,186 @@
+# gustale.recipes -- REDIRECT ONLY (PR 2 of the single-domain cutover)
+#
+# WHAT THIS IS
+# ------------
+# After the cutover, gustale.com is the ONLY domain. This host, and
+# its two siblings (www.gustale.recipes, recipes.gustale.com), exist
+# only to send a 301 to the right place on gustale.com.
+#
+# The domains STAY REGISTERED. A registered domain that redirects is
+# how a shared link keeps working; an unregistered one returns the
+# registrar's parking page, which is a worse answer than a redirect.
+#
+# WHEN THIS FILE IS INSTALLED
+# ----------------------------
+# ONLY AFTER PR 1 IS LIVE AND VERIFIED. Until gustale.com serves
+# /recipes and /ingredients, a redirect to it sends readers to a 404.
+# The order is: PR1 live -> PR2 live -> remove the recipes web
+# container and its CI matrix entry.
+#
+# EVERY RULE HERE WAS VERIFIED AGAINST A REAL CADDY
+# --------------------------------------------------
+# Caddy v2.11.9, run locally, with the Location headers read back.
+# Three bugs were found and fixed that way, and they are the reason
+# the comments below are as long as they are. Do not "simplify" this
+# file without re-running the test in
+# docs/REDIRECTS-single-domain.md.
+#
+#   1. `redir` is NOT A MATCHER. It is a terminal handler that always
+#      fires. Several `redir` directives in one site block means the
+#      FIRST one answers EVERY request:
+#
+#          /login -> https://gustale.com/recipes    (WRONG)
+#
+#      So every rule needs its own path matcher, and the handlers must
+#      be mutually exclusive.
+#
+#   2. `redir` does NOT expand regexp captures. `{http.regexp.1}`
+#      came out LITERALLY in the Location header. The slug is
+#      captured with a NAMED capture and re-emitted with {re.slug}.
+#
+#   3. `{uri}` ALREADY CONTAINS THE QUERY STRING. Appending {?query}
+#      to it doubled the query: "?q=x?q=x". So {?query} is used ONLY
+#      where the target is a LITERAL path (the /recipes rule), and
+#      nowhere else.
+#
+# THE RULE TABLE
+# --------------
+#   /                     -> https://gustale.com/recipes
+#   /recipes              -> https://gustale.com/recipes
+#   /recipes/             -> https://gustale.com/recipes
+#   /recipes/<slug>       -> https://gustale.com/recipes/<slug>
+#   /dishes/<slug>        -> https://gustale.com/dishes/<slug>#recipes
+#   /ingredients...       -> https://gustale.com/ingredients...
+#   /dishes/new           -> https://gustale.com/dishes/new
+#   /login /account /dashboard -> the same path on gustale.com
+#   /<locale>/...         -> the same path on gustale.com
+#   anything else         -> https://gustale.com{uri}
+#   /api/* and /media/*   -> PROXIED, NOT REDIRECTED, for 90 days
+#
+# ONE HOP
+# -------
+# Every target is on gustale.com, which does not redirect. No rule
+# points at another redirect host, so there is never a chain.
+gustale.recipes,
+www.gustale.recipes,
+recipes.gustale.com {
+	# ═══ /api/* — PROXY, DO NOT REDIRECT ═════════════════════════
+	#
+	# A 301 on /api/* would break every POST. The browser follows a
+	# 301 on a POST by re-issuing it as a GET (or not at all), and
+	# every write -- a login, a dish edit, a publish -- would be lost.
+	# So the API keeps being proxied here for 90 days, while the
+	# PUBLIC pages move.
+	#
+	# It is the SAME upstream the recipes host serves today, on the
+	# SAME port, so this is a continuation rather than a change: the
+	# API is one container for both domains and always has been.
+	#
+	# REMOVAL DATE: 2027-02-14 (90 days after the cutover).
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	# ═══ /media/* — PROXY, DO NOT REDIRECT ═══════════════════════
+	#
+	# The same reason as /api/*: a cover image is fetched by an <img>
+	# tag, and a 301 there is a wasted round trip on every image on
+	# every page. The bucket name is hard-coded and the URI rewrite
+	# maps /media/<key> to /gustale-public/<key>, exactly as it does
+	# on gustale.com.
+	#
+	# REMOVAL DATE: 2027-02-14.
+	@media_read {
+		path /media/*
+		method GET HEAD
+	}
+	handle @media_read {
+		uri replace /media/ /gustale-public/ 1
+		reverse_proxy 127.0.0.1:9000
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+	# Anything else under /media (listing, writes) -> 404, as today.
+	@media_other path /media /media/ /media/*
+	handle @media_other {
+		respond 404
+	}
+
+	# ═══ THE REDIRECTS — most specific first ═════════════════════
+	#
+	# The order matters and it is enforced by the matchers being
+	# mutually exclusive, not by their order alone. Caddy evaluates
+	# the named matchers in the order they are DEFINED, and the
+	# `handle` blocks in the order they are written, so the specific
+	# rules are first and the catch-all is last.
+
+	# /recipes/<slug>  ->  https://gustale.com/recipes/<slug>
+	#
+	# This MUST be before the /recipes rule, or a recipe page would
+	# land on the bare hub.
+	#
+	# The `not path /recipes/` matters: `path /recipes/*` also matches
+	# the trailing-slash form with an EMPTY capture, and that form
+	# belongs to the root rule below.
+	@recipe_slug {
+		path /recipes/*
+		not path /recipes/
+	}
+	handle @recipe_slug {
+		rewrite * /recipes/{re.slug}
+		redir https://gustale.com{uri} permanent
+	}
+
+	# /dishes/<slug>  ->  https://gustale.com/dishes/<slug>#recipes
+	#
+	# The fragment goes in the Location header. A browser drops the
+	# fragment when it follows the redirect, and lands on the Recipes
+	# block of the dish page -- which is where the per-dish hub's
+	# content lives after the cutover.
+	#
+	# "/dishes/new" is EXCLUDED: it is an authoring route, not a dish
+	# page, and it maps to the same path -- not to a dish page with a
+	# #recipes fragment.
+	@dish_slug {
+		path /dishes/*
+		not path /dishes/new
+		not path /dishes/new/
+	}
+	handle @dish_slug {
+		rewrite * /dishes/{re.slug}
+		redir https://gustale.com{uri}#recipes permanent
+	}
+
+	# / and /recipes and /recipes/  ->  https://gustale.com/recipes
+	#
+	# {?query} IS NEEDED HERE and only here: the target is a LITERAL
+	# path, so Caddy has no {uri} to carry the query. Everywhere else
+	# the target is {uri}, which already contains it.
+	@recipes_root path / /recipes /recipes/
+	handle @recipes_root {
+		redir https://gustale.com/recipes{?query} permanent
+	}
+
+	# EVERYTHING ELSE  ->  the same path on gustale.com
+	#
+	# {uri} is the path AND the query string. The target host does not
+	# redirect, so this is always the last hop.
+	handle {
+		redir https://gustale.com{uri} permanent
+	}
+
+	# The redirect responses themselves carry no cache. A cached 301
+	# is a 301 that cannot be fixed without a cache bust.
+	header {
+		Cache-Control "no-store"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/gustale.recipes.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
+}
