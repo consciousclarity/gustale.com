@@ -1,0 +1,183 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c3b36a5..eb34e51 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1426,12 +1426,23 @@ jobs:
+           cache-to: type=gha,mode=max
+           provenance: false
+ 
+-  # ─── Job 3b+3c: Docker build for both web domains ─────────────────
+-  # recipes variant → gustale-web-recipes (serves gustale.recipes)
+-  # geo variant     → gustale-web-geo     (serves gustale.com)
+-  # Both use the same Dockerfile; only PUBLIC_DOMAIN and the image
+-  # tag differ. Matrix runs both legs in parallel; failure of one leg
+-  # does not block the other.
++  # ─── Job 3b+3c: Docker build for the ONE web image ─────────────────
++  # ONE SITE. There is one build and one container.
++  #
++  # There used to be a matrix with two legs -- a `recipes` variant and
++  # a `geo` variant -- because the site was two properties on two
++  # hosts. Both legs used the same Dockerfile and differed only in
++  # PUBLIC_DOMAIN and the image tag.
++  #
++  # The geo variant is the one that is kept: it is the variant with the
++  # map and the terracotta hero, and it is the variant the site has
++  # always been served as. The recipes variant goes with the recipes
++  # host.
++  #
++  # The matrix is kept as a ONE-ENTRY matrix rather than flattened
++  # into a plain job, so that adding a variant later is a one-line
++  # change rather than a rewrite of every reference to `matrix.domain`
++  # and `matrix.image`.
+   build-web:
+     name: Docker build (gustale-web-${{ matrix.image }})
+     runs-on: ubuntu-24.04
+@@ -1441,8 +1452,6 @@ jobs:
+       fail-fast: false  # let the other domain's build finish even if one fails
+       matrix:
+         include:
+-          - domain: recipes
+-            image:  recipes
+           - domain: geo
+             image:  geo
+     steps:
+@@ -1726,12 +1735,14 @@ jobs:
+               # network namespace so 127.0.0.1 resolves correctly.
+               #
+               # Port mapping:
+-              #   gustale-api           → host:4000 → container:4000
+-              #   gustale-web-recipes   → host:4001 → container:4001
+-              #   gustale-web-geo       → host:4002 → container:4001
+-              # Both web containers listen on the same internal port (4001);
+-              # the host-side port differs so they don't collide. Caddy
+-              # routes gustale.recipes → :4001 and gustale.com → :4002.
++              #   gustale-api       → host:4000 → container:4000
++              #   gustale-web-geo   → host:4002 → container:4001
++              # Caddy routes gustale.com → :4002.
++              #
++              # The recipes web container (:4001) is NOT redeployed by
++              # this workflow any more. It is removed by the owner AFTER
++              # the redirects are live -- see
++              # docs/CUTOVER-recipes-gustale-com.md section 2.
+ 
+               echo "=== Gustale deploy run $GITHUB_RUN_ID at SHA=$SHORT_SHA ==="
+               echo "    run_id:    $GITHUB_RUN_ID"
+@@ -1845,7 +1856,7 @@ jobs:
+                 exit 1
+               }
+ 
+-              # The script writes TAG / IMAGE_RECIPES / IMAGE_GEO to $TAG_FILE.
++              # The script writes TAG / IMAGE_GEO to $TAG_FILE.
+               #
+               # build-web-live.sh now writes that file BEFORE the builds, so
+               # a failed build still leaves a VALID file. But the file is
+@@ -1879,11 +1890,6 @@ jobs:
+               fi
+               # shellcheck disable=SC1090
+               source "$TAG_FILE"
+-              if [ -z "${IMAGE_RECIPES:-}" ]; then
+-                echo "::error::the tag file has no IMAGE_RECIPES -- build-web-live.sh did not write it"
+-                echo "DEPLOY_FAILED_AT=tag file has no IMAGE_RECIPES" >> "$DEPLOY_LOG"
+-                exit 1
+-              fi
+               if [ -z "${IMAGE_GEO:-}" ]; then
+                 echo "::error::the tag file has no IMAGE_GEO -- build-web-live.sh did not write it"
+                 echo "DEPLOY_FAILED_AT=tag file has no IMAGE_GEO" >> "$DEPLOY_LOG"
+@@ -1901,34 +1907,30 @@ jobs:
+                 exit 1
+               fi
+               echo "--- Tag confirmed: $TAG ---"
+-              WEB_RECIPES_IMAGE="$IMAGE_RECIPES"
++              # ONE WEB IMAGE.
++              #
++              # There used to be two, and they MUST have had distinct
++              # tags -- if they shared one, a cached layer from one could
++              # be served for the other, which is exactly the
++              # stale-sitemap failure the split-brain check exists to
++              # prevent.
++              #
++              # With one image that failure mode is gone: there is no
++              # second image to be confused with the first.
+               WEB_GEO_IMAGE="$IMAGE_GEO"
+-
+-              # The two images MUST have distinct tags. If they share
+-              # one, a cached layer from one can be served for the
+-              # other -- exactly the stale-sitemap failure this change
+-              # exists to prevent.
+-              if [ "$WEB_RECIPES_IMAGE" = "$WEB_GEO_IMAGE" ]; then
+-                echo "::error::the two web images share a tag: $WEB_RECIPES_IMAGE"
+-                echo "DEPLOY_FAILED_AT=web images share a tag" >> "$DEPLOY_LOG"
+-                exit 1
+-              fi
+-              echo "--- The two web images have distinct tags ---"
+-              echo "    the recipes image: $WEB_RECIPES_IMAGE"
+-              echo "    the geo image:     $WEB_GEO_IMAGE"
++              echo "    the web image: $WEB_GEO_IMAGE"
+ 
+               # The local rebuild just produced the images and pushed them
+               # nowhere (GUSTALE_NO_PUSH=1 default). Tag them as :latest
+               # locally so `docker image inspect` resolves the same way
+               # the live data was built for.
+               echo "--- Tagging local web images as live-data ---"
+-              docker tag "$WEB_RECIPES_IMAGE" "gustale-web-recipes:live-data-$SHORT_SHA-recipes" 2>/dev/null || true
+-              docker tag "$WEB_GEO_IMAGE"     "gustale-web-geo:live-data-$SHORT_SHA-geo"      2>/dev/null || true
++              docker tag "$WEB_GEO_IMAGE" "gustale-web-geo:live-data-$SHORT_SHA-geo" 2>/dev/null || true
+ 
+               # Verify ALL THREE images are present locally before destroying
+               # any running container.
+               echo "--- Verifying all images are present locally ---"
+-              for IMG in "$API_IMAGE" "$WEB_RECIPES_IMAGE" "$WEB_GEO_IMAGE"; do
++              for IMG in "$API_IMAGE" "$WEB_GEO_IMAGE"; do
+                 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
+                   echo "::error::Image $IMG not present locally — aborting deploy to keep old containers running"
+                   echo "DEPLOY_FAILED_AT=image missing: $IMG" >> "$DEPLOY_LOG"
+@@ -1941,15 +1943,20 @@ jobs:
+               # do NOT redeploy it here (a second stop/start would be a
+               # needless API outage mid-deploy). deploy_container() is
+               # defined at the top of this script, before first use.
+-              deploy_container "gustale-web-recipes" "$WEB_RECIPES_IMAGE" "4001" "4001"
+-              deploy_container "gustale-web-geo"     "$WEB_GEO_IMAGE"     "4002" "4001"
++              # ONE WEB CONTAINER. The recipes container is NOT
++              # redeployed and NOT stopped here -- it is removed
++              # separately, by the owner, AFTER the redirects are live
++              # (see docs/CUTOVER-recipes-gustale-com.md section 2).
++              # Removing it here would take the old host down before
++              # its redirects are in place.
++              deploy_container "gustale-web-geo" "$WEB_GEO_IMAGE" "4002" "4001"
+ 
+               echo "--- Waiting 10s for containers to boot + healthcheck ---"
+               sleep 10
+ 
+               echo "--- Verifying ALL containers are Up + healthy ---"
+               FAILED=0
+-              for NAME in gustale-api gustale-web-recipes gustale-web-geo; do
++              for NAME in gustale-api gustale-web-geo; do
+                 STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$NAME" 2>/dev/null || echo "MISSING")
+                 echo "  $NAME status: $STATUS"
+                 if [ "$STATUS" != "running healthy" ] && [ "$STATUS" != "running  healthy" ]; then
+@@ -2042,7 +2049,6 @@ jobs:
+               # different builds (different PUBLIC_DOMAIN), so one tag
+               # for both made them indistinguishable -- and let a stale
+               # cache layer masquerade as a fresh one.
+-              EXPECTED_RECIPES="gustale-web-recipes:live-data-${SHORT_SHA}-recipes"
+               EXPECTED_GEO="gustale-web-geo:live-data-${SHORT_SHA}-geo"
+ 
+               # Diagnostic dump first: if a container is on the wrong SHA,
+@@ -2056,7 +2062,7 @@ jobs:
+               docker images --format '  {{.Repository}}:{{.Tag}}\t{{.CreatedSince}}' 2>&1 \
+                 | grep -E 'gustale-(api|web)' || echo "  (none)"
+ 
+-              for ENTRY in "gustale-api:${EXPECTED_API}" "gustale-web-recipes:${EXPECTED_RECIPES}" "gustale-web-geo:${EXPECTED_GEO}"; do
++              for ENTRY in "gustale-api:${EXPECTED_API}" "gustale-web-geo:${EXPECTED_GEO}"; do
+                 NAME="${ENTRY%%:*}"
+                 EXPECT_SUFFIX="${ENTRY#*:}"
+                 if ! docker inspect "$NAME" >/dev/null 2>&1; then
+@@ -2167,7 +2173,7 @@ jobs:
+               # sitemap comparison does by count.
+               echo ""
+               echo "--- Check 3: every web container serves this run's SHA ---"
+-              for NAME in gustale-web-recipes gustale-web-geo; do
++              for NAME in gustale-web-geo; do
+                 if ! docker inspect "$NAME" >/dev/null 2>&1; then
+                   echo "::error::Container $NAME is missing"
+                   FAILED=1
