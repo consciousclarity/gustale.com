@@ -27,26 +27,37 @@ import { mkdir } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium } from "playwright";
 
-const DOMAINS = (process.env.DOMAINS ?? "gustale.com,gustale.recipes")
+// ONE SITE.
+//
+// It used to check BOTH hosts, because the site was two properties on
+// two hosts and the map page existed on only one of them. There is one
+// host now, and the map page is on it.
+//
+// `DOMAINS` is still an override so the test can point at a local
+// stub, exactly as it was.
+const DOMAINS = (process.env.DOMAINS ?? "gustale.com")
   .split(",")
   .map((d) => d.trim())
   .filter(Boolean);
 
 const OUTPUT_DIR = process.env.OUTPUT_DIR ?? "/tmp/snap";
 
-// Targets we always check. /map is intentionally only valid on
-// gustale.com — gustale.recipes drops it in post-build.mjs (see
-// apps/web/scripts/post-build.mjs:66-67 GEO_ONLY). The script will
-// record a 404 on recipes /map as INFO, not a failure.
+// Targets we always check.
+//
+// /map used to be valid on gustale.com only — the recipes build dropped
+// it in post-build, and the script recorded a 404 on the recipes host
+// as INFO rather than a failure. There is one build now, and the map
+// is on it.
 const TARGETS = [
-  {
-    slug: "map",
-    path: "/map",
-    expectHttp: (code, host) =>
-      host.includes("gustale.recipes") ? code === 404 : code === 200,
-  },
+  { slug: "map", path: "/map", expectHttp: (code) => code === 200 },
   { slug: "dish", path: "/dishes/rendang", expectHttp: (code) => code === 200 },
   { slug: "home", path: "/", expectHttp: (code) => code === 200 },
+  { slug: "recipes", path: "/recipes", expectHttp: (code) => code === 200 },
+  {
+    slug: "ingredients",
+    path: "/ingredients",
+    expectHttp: (code) => code === 200,
+  },
 ];
 
 const VIEWPORTS = [

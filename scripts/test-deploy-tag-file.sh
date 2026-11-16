@@ -23,6 +23,17 @@
 # This test drives the REAL build script through a failing build and
 # asserts the fixed behaviour end to end.
 #
+# ONE WEB IMAGE
+# -------------
+# There used to be two web images (gustale-web-recipes and
+# gustale-web-geo) and the tag file carried both (IMAGE_RECIPES and
+# IMAGE_GEO). There is ONE image now -- gustale-web-geo -- and the tag
+# file carries TAG, TAG_GEO and IMAGE_GEO. The assertions below also
+# prove the retired IMAGE_RECIPES / TAG_RECIPES do NOT come back: a tag
+# file that advertises two images is how a deploy would swap one
+# container and leave the other behind, which is the 2026-11-13
+# half-deploy shape.
+#
 # Usage: bash scripts/test-deploy-tag-file.sh
 
 set -uo pipefail
@@ -93,11 +104,24 @@ else
   bad "the tag file is EMPTY after a failed build -- this is the 2026-11-13 bug"
 fi
 
-if grep -q "^IMAGE_RECIPES=" "$TAG_FILE" 2>/dev/null \
-   && grep -q "^IMAGE_GEO=" "$TAG_FILE" 2>/dev/null; then
-  ok "the tag file carries IMAGE_RECIPES and IMAGE_GEO"
+if grep -q "^IMAGE_GEO=" "$TAG_FILE" 2>/dev/null; then
+  ok "the tag file carries IMAGE_GEO"
 else
-  bad "the tag file does not carry IMAGE_RECIPES / IMAGE_GEO"
+  bad "the tag file does not carry IMAGE_GEO"
+fi
+
+# THE RETIRED RECIPES IMAGE MUST NOT COME BACK.
+#
+# There is ONE web image now: gustale-web-geo. The tag file must not
+# advertise a second one. A tag file that carries IMAGE_RECIPES again
+# is how the deploy would swap two containers -- and a deploy that
+# swaps one container and leaves the other on the old build is the
+# exact shape of the 2026-11-13 half-deploy this test exists to
+# prevent.
+if grep -qE "^(IMAGE_RECIPES|TAG_RECIPES)=" "$TAG_FILE" 2>/dev/null; then
+  bad "the tag file still carries IMAGE_RECIPES / TAG_RECIPES -- there is ONE web image"
+else
+  ok "the tag file does not carry IMAGE_RECIPES / TAG_RECIPES"
 fi
 
 if grep -q "^TAG=live-data-abc1234$" "$TAG_FILE" 2>/dev/null; then
@@ -124,7 +148,6 @@ run_deploy() {
     trap "$EXIT_TRAP" EXIT
     if [ "$mode" = "old" ]; then
       source "$tagf"
-      : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
       : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
     else
       if [ ! -s "$tagf" ]; then
@@ -132,10 +155,6 @@ run_deploy() {
         exit 1
       fi
       source "$tagf"
-      if [ -z "${IMAGE_RECIPES:-}" ]; then
-        echo "DEPLOY_FAILED_AT=tag file has no IMAGE_RECIPES" >> "$DEPLOY_LOG"
-        exit 1
-      fi
       if [ -z "${IMAGE_GEO:-}" ]; then
         echo "DEPLOY_FAILED_AT=tag file has no IMAGE_GEO" >> "$DEPLOY_LOG"
         exit 1

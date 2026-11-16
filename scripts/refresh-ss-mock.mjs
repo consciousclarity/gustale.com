@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Refresh apps/web/scripts/mock-api-data.json + mock-api-lineages.json
- * from the live prod API at api.gustale.recipes (https-only, read-only).
+ * from the live prod API at api.gustale.com (https-only, read-only).
  *
  * Run from the worktree root:
- *   node scripts/refresh-ss-mock.mjs [--api-base https://api.gustale.recipes]
+ *   node scripts/refresh-ss-mock.mjs [--api-base https://api.gustale.com]
  *
  * Idempotent. Writes only the two files. Validates the produced counts
  * against the live `/api/dishes/map?limit=2000` count field before exit.
@@ -34,7 +34,12 @@ const WEB_SCRIPTS = join(__dirname, "..", "apps", "web", "scripts");
 const MOCK_DATA_PATH = join(WEB_SCRIPTS, "mock-api-data.json");
 const MOCK_LINEAGES_PATH = join(WEB_SCRIPTS, "mock-api-lineages.json");
 
-let API_BASE = "https://api.gustale.recipes";
+// The live API's origin.
+//
+// It used to be the API origin of the retired recipes host. That host
+// is redirect-only now, and a default that points at a 301 is a
+// default that fetches a redirect page and fails to parse it as JSON.
+let API_BASE = "https://api.gustale.com";
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (a === "--api-base" && i + 1 < process.argv.length) {

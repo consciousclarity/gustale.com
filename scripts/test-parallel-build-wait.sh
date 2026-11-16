@@ -3,9 +3,12 @@
 #
 # WHY THIS TEST EXISTS
 # -------------------
-# build-web-live.sh builds the two web images in parallel and must
-# report WHICH one failed. Two shell subtleties make that easy to get
-# wrong, and both were got wrong before this test existed:
+# build-web-live.sh used to build the two web images in parallel and
+# had to report WHICH one failed. There is now ONE web image, but the
+# build still runs it as a background job and still has to capture its
+# exit status without `set -e` aborting the script first. Two shell
+# subtleties make that easy to get wrong, and both were got wrong
+# before this test existed:
 #
 #  1. `set -e` is active in the script. A `wait` that returns non-zero
 #     ABORTS the script at that line -- before the error handler can
@@ -14,7 +17,7 @@
 #  2. The obvious workaround -- capturing the status in a command
 #     substitution -- is WRONG:
 #
-#         RECIPES_RC="$( set +e; wait "$PID"; echo $? )"
+#         GEO_RC="$( set +e; wait "$PID"; echo $? )"
 #
 #     A SUBSHELL CANNOT `wait` FOR A PID THAT IS NOT ITS OWN CHILD. It
 #     returns -1 and the real status is lost. So the parent must do the
@@ -28,6 +31,10 @@
 # command's. `docker build ... | tee "$log" | tail -10` would report
 # tail's status -- 0 -- even when the build failed. The build's real
 # status is PIPESTATUS[0].
+#
+# The job labels below are `build A` / `build B` rather than the old
+# `recipes` / `geo`: there is ONE web build now. The PATTERN is what is
+# under test, and the pattern is what the deploy still depends on.
 #
 # Run: bash scripts/test-parallel-build-wait.sh
 set -euo pipefail
@@ -55,8 +62,8 @@ set +e
 wait "$A"; A_RC=$?
 wait "$B"; B_RC=$?
 set -e
-check "recipes rc" "$A_RC" "0"
-check "geo rc" "$B_RC" "0"
+check "build A rc" "$A_RC" "0"
+check "build B rc" "$B_RC" "0"
 
 echo
 echo "=== 2. ONE job fails: the parent must NOT abort, and the status must survive ==="
@@ -77,8 +84,8 @@ set +e
 wait "$A"; A_RC=$?
 wait "$B"; B_RC=$?
 set -e
-check "recipes rc" "$A_RC" "3"
-check "geo rc" "$B_RC" "5"
+check "build A rc" "$A_RC" "3"
+check "build B rc" "$B_RC" "5"
 
 echo
 echo "=== 4. a pipeline's exit status is the LAST command's, not the build's ==="

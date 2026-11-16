@@ -18,7 +18,7 @@
 #
 # Args:
 #   <git-sha>  Required. The commit SHA to tag the images with. The deploy
-#              job should pull gustale-web-{recipes,geo}:live-data-<short-sha>.
+#              job should pull gustale-web-geo:live-data-<short-sha>.
 #
 # Required env:
 #   GITHUB_TOKEN     PAT or workflow token with packages:write on this repo.
@@ -35,9 +35,19 @@
 #
 # Output (stdout, line-prefixed with "TAG=" for easy parsing by the deploy):
 #   TAG=live-data-<short-sha>
-#   IMAGE_RECIPES=ghcr.io/consciousclarity/gustale.com/gustale-web-recipes:live-data-<short-sha>
 #   IMAGE_GEO=ghcr.io/consciousclarity/gustale.com/gustale-web-geo:live-data-<short-sha>
-# Also writes the three lines to /tmp/gustale-web-live-tag.env for the deploy script.
+# Also writes the lines to /tmp/gustale-web-live-tag.env for the deploy script.
+#
+# ONE IMAGE
+# ---------
+# This used to build TWO images -- a `recipes` variant and a `geo`
+# variant -- because the site was two properties on two hosts. The
+# recipes variant went with the recipes host; there is one site and one
+# image.
+#
+# The geo variant is the one that is kept. It is the variant with the
+# map and the terracotta hero, and it is the variant the site has
+# always been served as.
 #
 # Notes:
 #   - The script does NOT restart the running containers. The deploy
@@ -60,12 +70,13 @@ SHA="$1"
 SHORT_SHA="$(echo "$SHA" | cut -c1-7)"
 REPO="${GITHUB_REPOSITORY:-consciousclarity/gustale.com}"
 GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
-# THE TAG MUST BE DISTINCT PER BUILD.
+# THE TAG NAMES THE BUILD.
 #
-# Both web images are built from the same commit but are DIFFERENT
-# builds: PUBLIC_DOMAIN=recipes and PUBLIC_DOMAIN=geo produce different
-# static output (different sitemaps, different URLs). They used to share
-# one tag, `live-data-<short-sha>`, which was wrong twice over:
+# There were once TWO web images, built from the same commit but as
+# DIFFERENT builds: PUBLIC_DOMAIN=recipes and PUBLIC_DOMAIN=geo
+# produced different static output (different sitemaps, different URLs).
+# They used to share one tag, `live-data-<short-sha>`, which was wrong
+# twice over:
 #
 #   1. It made the two images indistinguishable — the verify step could
 #      not tell them apart, and neither could an operator.
@@ -73,12 +84,16 @@ GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
 #      2026-11-02 the recipes image carried a sitemap generated 13
 #      minutes before the geo one, from a build that predated the fix.
 #      Both containers reported the SAME tag and were "healthy", while
-#      gustale.com served 1,531 sitemap URLs and gustale.recipes served
-#      1,643.
+#      the two hosts served 1,531 and 1,643 sitemap URLs.
 #
-# So each build gets its own tag, suffixed with the domain:
+# So each build got its own tag, suffixed with the variant:
 #   live-data-<short-sha>-recipes
 #   live-data-<short-sha>-geo
+#
+# There is ONE image now, and it keeps the `-geo` suffix. The suffix is
+# kept rather than dropped because the deploy verifies the tag against
+# `live-data-<short-sha>-*`, and because a tag that changes shape is a
+# tag every consumer has to be taught about again.
 #
 # TAG is the shared base; build_one appends the variant's suffix. TAG
 # itself must be set here: the deploy checks it against
@@ -112,7 +127,7 @@ fi
 # An empty file sources successfully and exports NOTHING. The caller's
 # next line was:
 #
-#     : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+#     : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
 #
 # and THAT is the trap. A `:?` parameter expansion is NOT a command:
 #
@@ -146,9 +161,7 @@ write_tag_file() {
   rm -f "$TAG_FILE"
   cat >"$TAG_FILE" <<EOF
 TAG=$TAG
-TAG_RECIPES=$TAG-recipes
 TAG_GEO=$TAG-geo
-IMAGE_RECIPES=$REGISTRY/gustale-web-recipes:$TAG-recipes
 IMAGE_GEO=$REGISTRY/gustale-web-geo:$TAG-geo
 EOF
   # Make the file world-readable so the deploy script (running as root)
@@ -352,30 +365,25 @@ build_one() {
 # images can never share a tag — and a cached layer from one can never be
 # served for the other.
 #
-# THE TWO BUILDS RUN IN PARALLEL.
+# ONE BUILD.
 #
-# They used to run one after the other, so the wall-clock was the SUM of
-# both. Measured on the 2026-11-16 run: recipes 14m10s, then geo 12m38s
-# — 27m06s total, for two images that share every layer except the last
-# Astro build. CI runs them in parallel via a matrix, which is why CI's
-# two build jobs are 2m43s and 2m16s rather than their sum.
+# There used to be TWO builds, running in PARALLEL: a `recipes` variant
+# and a `geo` variant. The parallel structure existed because two
+# images that share every layer except the last Astro build are nearly
+# free after the first one, and the wall-clock is the SLOWER of the two
+# rather than their sum. (Measured on the 2026-11-16 run: recipes
+# 14m10s, then geo 12m38s — 27m06s serial, against CI's 2m43s and
+# 2m16s parallel.)
 #
-# In parallel the total is the SLOWER of the two, not the sum. The two
-# builds share the dependency-install and `COPY . .` layers, so with the
-# buildx cache the second one is nearly free.
+# With one image there is no second build to run in parallel with, and
+# no second image to be confused with the first.
 #
-# The exit code of EACH build is captured separately: `wait` on a PID
-# returns that child's status. A failure in one must fail the script --
-# it must not be masked by the other succeeding.
-build_one recipes gustale-web-recipes recipes &
-RECIPES_PID=$!
-build_one geo     gustale-web-geo     geo &
-GEO_PID=$!
-
-# `set -e` is active, so a `wait` that returns non-zero would ABORT the
-# script at that line -- before the handler below could report WHICH
-# build broke. `set +e` around the two waits disables that abort, and
-# each status is read on the line immediately after its own `wait`.
+# The exit status is still captured explicitly. `wait` on a PID returns
+# that child's status, and `set -e` is active, so a bare `wait` on a
+# failing build would abort the script at that line -- before the
+# handler below could report WHICH build broke. `set +e` around the
+# wait disables that abort, and the status is read on the line
+# immediately after.
 #
 # NOTE: this cannot be done in a command substitution. A subshell cannot
 # `wait` for a PID that is not its own child, so `$( wait $PID; echo $? )`
@@ -383,20 +391,20 @@ GEO_PID=$!
 #
 # Proven by scripts/test-parallel-build-wait.sh (4 cases: both succeed,
 # one fails, both fail, and the PIPESTATUS of `tee | tail`).
+build_one geo     gustale-web-geo     geo &
+GEO_PID=$!
+
 set +e
-wait "$RECIPES_PID"
-RECIPES_RC=$?
 wait "$GEO_PID"
 GEO_RC=$?
 set -e
 
-if [ "$RECIPES_RC" != "0" ] || [ "$GEO_RC" != "0" ]; then
+if [ "$GEO_RC" != "0" ]; then
   echo ""
-  echo "ERROR: a web image build FAILED -- recipes rc=$RECIPES_RC, geo rc=$GEO_RC"
+  echo "ERROR: the web image build FAILED -- geo rc=$GEO_RC"
   echo "  the build logs are in ${TMPDIR:-/tmp}/gustale-web-build-*.log"
   # The exit code must be the failing one, so a caller sees WHICH build
   # broke rather than a bare 1.
-  [ "$RECIPES_RC" != "0" ] && exit "$RECIPES_RC"
   exit "$GEO_RC"
 fi
 
@@ -410,8 +418,8 @@ cat "$TAG_FILE"
 echo ""
 echo "=== DONE ==="
 if [ "$NO_PUSH" = "1" ]; then
-  echo "  images built (local only): $REGISTRY/gustale-web-recipes:$TAG-recipes, $REGISTRY/gustale-web-geo:$TAG-geo"
+  echo "  image built (local only): $REGISTRY/gustale-web-geo:$TAG-geo"
 else
-  echo "  images pushed: $REGISTRY/gustale-web-recipes:$TAG-recipes, $REGISTRY/gustale-web-geo:$TAG-geo"
+  echo "  image pushed: $REGISTRY/gustale-web-geo:$TAG-geo"
 fi
 echo "  tag file:      $TAG_FILE"

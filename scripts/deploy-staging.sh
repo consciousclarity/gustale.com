@@ -123,6 +123,11 @@ case "$STAGING_API_PORT" in
 esac
 
 # The container names must not collide with production.
+#
+# Production runs gustale-api and ONE web container, gustale-web-geo.
+# gustale-web-recipes is the RETIRED web container: it keeps serving the
+# old host until the owner removes it after the redirects go live, and
+# its name stays on this list so staging can never take it either.
 for c in "$STAGING_WEB_CONTAINER" "$STAGING_API_CONTAINER"; do
   case "$c" in
     gustale-api|gustale-web-geo|gustale-web-recipes)
@@ -321,7 +326,7 @@ done
 # paths as production, a fraction of the pages.
 echo "--- 3. the staging web (a scoped build) ---"
 STAGING_TAG="staging-data-${SHORT_SHA}"
-STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-recipes:$STAGING_TAG"
+STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-geo:$STAGING_TAG"
 
 # The build runs against the STAGING API, so the staging pages show
 # staging data.
