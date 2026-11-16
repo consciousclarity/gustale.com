@@ -1219,6 +1219,29 @@ jobs:
             -f db/migrations/0055_sourcing_availability.sql 2>&1 | tee /tmp/m0055.log
           bash scripts/check-ci-markers.sh "the sourcing availability tables" "INGREDIENT_SOURCING_AVAILABILITY_OK" /tmp/m0055.log
 
+      # ── 0058: the listed families and the Musakka variant ─────────
+      #
+      # WP-B1. Adds `dish_families.listed` -- which families are part
+      # of the PUBLISHED family vocabulary -- and deletes the single
+      # Musakka `dish_variants` row whose slug collided with a
+      # published dish.
+      #
+      # It runs AFTER 0051 (the family classification), because
+      # `listed` is defined in terms of `family_class` and the
+      # description.
+      #
+      # It is numbered 0058 rather than 0056 because PR #219 already
+      # claims 0056 and 0057. Two migrations must never share a number.
+      #
+      # It WRITES content rows (the backfill) and deletes one row, and
+      # its proof runs inside its own transaction, so a failed proof
+      # rolls it back.
+      - name: Apply the listed families and the Musakka variant
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0058_dish_families_listed.sql 2>&1 | tee /tmp/m0058.log
+          bash scripts/check-ci-markers.sh "the listed families and the Musakka variant" "0058: ok" /tmp/m0058.log
+
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.
