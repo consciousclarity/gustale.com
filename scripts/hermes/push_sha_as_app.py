@@ -13,54 +13,28 @@ RULES ENFORCED HERE
   fast-forward-only; if the remote has commits we do not have, it fails.
 * The sha pushed is an EXPLICIT argument, never HEAD.
 * The token is never printed, never written to a file, never logged.
+
+THE TOKEN
+---------
+Minted by the ONE shared mint, `scripts/hermes/gh_app_auth.py`. It used to
+be minted HERE with `{"repositories": ["gustale.com"]}`, which meant this
+script could never push to `gustale-state` -- an installation token
+carries NO permission on a repository it does not name.
+
+The token reaches git through a GIT_ASKPASS helper, so it never appears in
+argv, in a shell history, in a log, or in the remote URL git stores. (A
+token embedded in the URL works too, but then it lands in the process
+table and in any error message that echoes the remote.)
 """
 from __future__ import annotations
 
-import json
-import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-import jwt
-from cryptography.hazmat.primitives import serialization
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-APP_ID = "5596451"
-INSTALL_ID = "178310866"
-KEY_PATH = Path(
-    os.environ.get("GUSTALE_APP_KEY_PATH")
-    or "/home/alex/.hermes/github-app/gustale-bot.pem"
-)
-REPO = "consciousclarity/gustale.com"
-
-
-def _app_jwt() -> str:
-    with KEY_PATH.open("rb") as fh:
-        key = serialization.load_pem_private_key(fh.read(), password=None)
-    now = int(time.time())
-    return jwt.encode(
-        {"iat": now - 60, "exp": now + 540, "iss": APP_ID}, key, algorithm="RS256"
-    )
-
-
-def _installation_token() -> str:
-    out = subprocess.run(
-        [
-            "curl", "-sS", "-X", "POST",
-            "-H", f"Authorization: Bearer {_app_jwt()}",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
-            "-H", "Content-Type: application/json",
-            "-d", json.dumps({"repositories": ["gustale.com"]}),
-            f"https://api.github.com/app/installations/{INSTALL_ID}/access_tokens",
-        ],
-        capture_output=True, text=True, check=True,
-    )
-    payload = json.loads(out.stdout)
-    if "token" not in payload:
-        raise SystemExit(f"could not mint an installation token: {payload}")
-    return payload["token"]
+from gh_app_auth import installation_token, push_with_token, scrub  # noqa: E402
 
 
 def git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
@@ -115,15 +89,15 @@ def main(argv: list[str]) -> int:
             )
             return 1
 
-    token = _installation_token()
-    url = f"https://x-access-token:{token}@github.com/{REPO}.git"
-    push = subprocess.run(
-        ["git", "push", url, f"{sha}:refs/heads/{branch}"],
-        capture_output=True, text=True,
+    token = installation_token()
+    push = push_with_token(
+        token,
+        repo_dir=".",
+        remote=remote,
+        refspec=f"{sha}:refs/heads/{branch}",
     )
     # Scrub the token from anything we print.
-    out = (push.stdout or "") + (push.stderr or "")
-    out = out.replace(token, "***").replace(url, "***")
+    out = scrub((push.stdout or "") + (push.stderr or ""), token)
     sys.stdout.write(out)
     if push.returncode != 0:
         print("::error::push failed")

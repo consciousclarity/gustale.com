@@ -2,12 +2,17 @@
 """
 Open a pull request as the gustale-bot App.
 
-WHY NOT scripts/hermes/gh-app.sh
---------------------------------
-That helper mints an installation token for `["gustale.com"]` only and
-hardcodes GH_REPO to gustale.com. It is fine for what it does, but a
-pull request needs a token that can also read the branch it is
-comparing, and it needs to attach files.
+WHY A SHARED MINT
+-----------------
+The token is minted by `scripts/hermes/gh_app_auth.py` -- the ONE shared
+mint -- and it covers EVERY repository the App is installed on
+(`gustale.com`, `gustale-state`, `gustale.recipes`).
+
+It used to be minted HERE with its own copy of the JWT code and its own
+repository list, while `gh-app.sh` minted a different list. That drift is
+how a helper ended up able to see `gustale.com` but not `gustale-state`:
+an installation token carries NO permission on a repository it does not
+name.
 
 This helper:
   * mints an installation token covering every repository the App is
@@ -23,85 +28,12 @@ from __future__ import annotations
 
 import json
 import mimetypes
-import subprocess
 import sys
-import time
 from pathlib import Path
 
-import jwt
-from cryptography.hazmat.primitives import serialization
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-APP_ID = "5596451"
-INSTALL_ID = "178310866"
-# The key lives under the USER's home, not a fixed account's. The VPS
-# account is "gustale"; the local WSL account is "alex". A hardcoded
-# path made the helper fail with FileNotFoundError on this box, which
-# reads like "the App is broken" when the App is fine.
-_KEY_CANDIDATES = (
-    Path.home() / ".hermes" / "github-app" / "gustale-bot.pem",
-    Path("/home/gustale/.hermes/github-app/gustale-bot.pem"),
-)
-
-
-def _key_path() -> Path:
-    for candidate in _KEY_CANDIDATES:
-        if candidate.exists():
-            return candidate
-    return _KEY_CANDIDATES[0]
-
-
-KEY_PATH = _key_path()
-REPOS = ["gustale.com", "gustale-state", "gustale.recipes"]
-OWNER = "consciousclarity"
-API = "https://api.github.com"
-
-
-def app_jwt() -> str:
-    with KEY_PATH.open("rb") as fh:
-        key = serialization.load_pem_private_key(fh.read(), password=None)
-    now = int(time.time())
-    return jwt.encode(
-        {"iat": now - 60, "exp": now + 540, "iss": APP_ID}, key, algorithm="RS256"
-    )
-
-
-def token() -> str:
-    out = subprocess.run(
-        [
-            "curl", "-sS", "-X", "POST",
-            "-H", f"Authorization: Bearer {app_jwt()}",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
-            "-H", "Content-Type: application/json",
-            "-d", json.dumps({"repositories": REPOS}),
-            f"{API}/app/installations/{INSTALL_ID}/access_tokens",
-        ],
-        capture_output=True, text=True, check=True,
-    )
-    payload = json.loads(out.stdout)
-    if "token" not in payload:
-        raise SystemExit(f"could not mint an installation token: {payload}")
-    return payload["token"]
-
-
-def api(tok: str, method: str, path: str, body=None, raw=None,
-        content_type: str | None = None):
-    cmd = [
-        "curl", "-sS", "-X", method,
-        "-H", f"Authorization: Bearer {tok}",
-        "-H", "Accept: application/vnd.github+json",
-        "-H", "X-GitHub-Api-Version: 2022-11-28",
-    ]
-    if body is not None:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
-    if raw is not None:
-        cmd += ["-H", f"Content-Type: {content_type}", "--data-binary", f"@{raw}"]
-    cmd.append(f"{API}{path}")
-    out = subprocess.run(cmd, capture_output=True, text=True)
-    try:
-        return json.loads(out.stdout)
-    except json.JSONDecodeError:
-        return {"raw": out.stdout, "stderr": out.stderr}
+from gh_app_auth import API, OWNER, api, installation_token  # noqa: E402
 
 
 def existing_open_pr(tok: str, repo: str, head: str):
@@ -115,29 +47,17 @@ def existing_open_pr(tok: str, repo: str, head: str):
     """
     owner = repo.split("/")[0] if "/" in repo else OWNER
     name = repo.split("/")[-1]
-    cmd = [
-        "curl", "-sS", "-X", "GET",
-        "-H", f"Authorization: Bearer {tok}",
-        "-H", "Accept: application/vnd.github+json",
-        "-H", "X-GitHub-Api-Version: 2022-11-28",
-        "-w", "\n%{http_code}",
-        f"{API}/repos/{owner}/{name}/pulls?head={owner}:{head}&state=open",
-    ]
-    out = subprocess.run(cmd, capture_output=True, text=True)
-    parts = out.stdout.rsplit("\n", 1)
-    if len(parts) != 2 or parts[1].strip() != "200":
-        return None
-    try:
-        payload = json.loads(parts[0])
-    except json.JSONDecodeError:
-        return None
+    payload = api(
+        tok, "GET",
+        f"/repos/{owner}/{name}/pulls?head={owner}:{head}&state=open",
+    )
     if isinstance(payload, list) and payload:
         return payload[0].get("html_url")
     return None
 
 
 def main() -> int:
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         print(__doc__)
         print("usage: open-pr.py <repo> <head-branch> <title> <body-file> "
               "[--base <branch>] [image ...]")
@@ -164,7 +84,7 @@ def main() -> int:
         i += 1
     images = rest
 
-    tok = token()
+    tok = installation_token()
 
     # A re-run must NOT open a SECOND PR for the same branch.
     already = existing_open_pr(tok, repo, head)
@@ -184,7 +104,7 @@ def main() -> int:
             "maintainer_can_modify": True,
         },
     )
-    if "number" not in result:
+    if not isinstance(result, dict) or "number" not in result:
         print("could not create the PR:")
         print(json.dumps(result, indent=2)[:2000])
         return 1
@@ -200,7 +120,7 @@ def main() -> int:
         # and the create response does not carry it -- it is read from
         # the PR object itself, fetched fresh.
         pr = api(tok, "GET", f"/repos/{OWNER}/{repo}/pulls/{number}")
-        tmpl = pr.get("upload_url", "")
+        tmpl = pr.get("upload_url", "") if isinstance(pr, dict) else ""
         if not tmpl:
             print("  could not read the upload URL; skipping the images")
             images = []
@@ -208,14 +128,14 @@ def main() -> int:
         for img in images:
             p = Path(img)
             if not p.exists():
-                print(f"  skipped (not found): {img}")
+                print(f"  skipped (not found): {p}")
                 continue
             ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
             out = api(
                 tok, "POST", upload_url,
-                raw=str(p), content_type=ctype,
+                raw_body=p.read_bytes(), content_type=ctype,
             )
-            if "browser_download_url" in out:
+            if isinstance(out, dict) and "browser_download_url" in out:
                 print(f"  attached: {p.name} -> {out['browser_download_url']}")
             else:
                 print(f"  FAILED to attach {p.name}: "

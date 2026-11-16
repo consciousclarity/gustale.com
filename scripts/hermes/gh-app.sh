@@ -16,30 +16,25 @@ design:
 So this helper cannot administer the repo, cannot push to a workflow
 workflow, and cannot change branch protection. That is the point.
 
-THE TWO TOKENS
---------------
-There are two different tokens, and mixing them up is the usual failure:
-
-  * the **App JWT** -- signed with the private key, `iss` = the App ID.
-    It identifies the APP. It can read `/app` and `/app/installations`, and
-    it can MINT installation tokens. It cannot act on a repository.
-
-  * the **installation token** -- minted from the App JWT, scoped to the
-    installation and the repositories it was granted. It acts ON the
-    repository. It expires in 1 hour.
-
-An installation token cannot be minted by hand: it requires the App JWT.
-So this helper mints a fresh one each run and never stores it.
+THE TOKEN
+---------
+The token is minted by `scripts/hermes/gh_app_auth.py` -- the ONE shared
+mint -- and it covers EVERY repository the App is installed on
+(`gustale.com`, `gustale-state`, `gustale.recipes`). It used to be minted
+here with `{"repositories": ["gustale.com"]}` only, which meant this
+helper could never see `gustale-state`: an installation token carries NO
+permission on a repository it does not name.
 
 THE TOKEN IS NEVER PRINTED
 --------------------------
-Neither token is ever written to stdout, a log, or a file. `gh` is
+The token is never written to stdout, a log, or a file. `gh` is
 invoked with the token in its environment only, and `GH_TOKEN` is set
 for the child process alone.
 
 USAGE
 -----
     python3 scripts/hermes/gh-app.sh api GET /installation/repositories
+    python3 scripts/hermes/gh-app.sh api GET /repos/OWNER/REPO/actions/runs/ID/logs
     python3 scripts/hermes/gh-app.sh pr list
     python3 scripts/hermes/gh-app.sh pr create "title" "body"
 """
@@ -49,68 +44,27 @@ import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-import jwt
-from cryptography.hazmat.primitives import serialization
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-APP_ID = "5596451"
-INSTALL_ID = "178310866"
-# The key lives under the USER's home, not a fixed account's. The VPS
-# account is "gustale"; the local WSL account is "alex". A hardcoded
-# path made the helper fail with FileNotFoundError on this box, which
-# reads like "the App is broken" when the App is fine.
-_KEY_CANDIDATES = (
-    Path.home() / ".hermes" / "github-app" / "gustale-bot.pem",
-    Path("/home/gustale/.hermes/github-app/gustale-bot.pem"),
+from gh_app_auth import (  # noqa: E402
+    REPOS,
+    api as _api,
+    api_bytes as _api_bytes,
+    installation_repositories,
+    installation_token,
+    scrub,
 )
 
-
-def _key_path() -> Path:
-    for candidate in _KEY_CANDIDATES:
-        if candidate.exists():
-            return candidate
-    return _KEY_CANDIDATES[0]
-
-
-KEY_PATH = _key_path()
+# The default repository for the `gh` modes.
 REPO = "consciousclarity/gustale.com"
-
-
-def _app_jwt() -> str:
-    with KEY_PATH.open("rb") as fh:
-        key = serialization.load_pem_private_key(fh.read(), password=None)
-    now = int(time.time())
-    return jwt.encode(
-        {"iat": now - 60, "exp": now + 540, "iss": APP_ID}, key, algorithm="RS256"
-    )
-
-
-def _installation_token() -> str:
-    """Mint an installation token. The value is returned, never printed."""
-    out = subprocess.run(
-        [
-            "curl", "-sS", "-X", "POST",
-            "-H", f"Authorization: Bearer {_app_jwt()}",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
-            "-H", "Content-Type: application/json",
-            "-d", json.dumps({"repositories": ["gustale.com"]}),
-            f"https://api.github.com/app/installations/{INSTALL_ID}/access_tokens",
-        ],
-        capture_output=True, text=True, check=True,
-    )
-    payload = json.loads(out.stdout)
-    if "token" not in payload:
-        raise SystemExit(f"::error::could not mint an installation token: {payload}")
-    return payload["token"]
 
 
 def _run_gh(args: list[str]) -> int:
     """Run `gh` with the installation token, without ever echoing it."""
     env = dict(os.environ)
-    env["GH_TOKEN"] = _installation_token()
+    env["GH_TOKEN"] = installation_token()
     env["GH_REPO"] = REPO
     env["GH_PAGER"] = "cat"
     # `gh` must not fall back to a stored credential.
@@ -131,25 +85,43 @@ def main(argv: list[str]) -> int:
     mode = argv[0]
 
     if mode == "api":
-        if len(argv) < 2:
+        if len(argv) < 3:
             print("usage: gh-app.sh api <METHOD> <path> [json-body]")
             return 2
-        method = argv[1]
-        path = argv[2]
+        method, path = argv[1], argv[2]
         body = argv[3] if len(argv) > 3 else None
-        cmd = [
-            "curl", "-sS", "-X", method,
-            "-H", f"Authorization: Bearer {_installation_token()}",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
-        ]
-        if body:
-            cmd += ["-H", "Content-Type: application/json", "-d", body]
-        cmd.append(f"https://api.github.com{path}")
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        # Print the body, but never the token (it is only in the header).
-        sys.stdout.write(proc.stdout)
-        return proc.returncode
+        token = installation_token()
+        payload = _api(token, method, path, body)
+        if isinstance(payload, str):
+            print(payload)
+        else:
+            print(json.dumps(payload, indent=2))
+        return 0
+
+    if mode == "api-raw":
+        # For endpoints that answer with BINARY -- the Actions logs return
+        # a ZIP. `follow` makes curl follow the 302 to the signed
+        # blob-storage URL; WITHOUT it the body is 0 bytes, which is what
+        # made the CI logs look empty for weeks.
+        if len(argv) < 3:
+            print("usage: gh-app.sh api-raw <METHOD> <path> [out-file]")
+            return 2
+        method, path = argv[1], argv[2]
+        out_file = argv[3] if len(argv) > 3 else None
+        token = installation_token()
+        data, status = _api_bytes(token, path, follow_redirects=True)
+        if out_file:
+            Path(out_file).write_bytes(data)
+            print(f"HTTP {status}  {len(data)} bytes -> {out_file}")
+        else:
+            sys.stdout.buffer.write(data)
+        return 0 if status == 200 else 1
+
+    if mode == "repos":
+        token = installation_token()
+        for r in installation_repositories(token):
+            print(f"  {r['full_name']:<44} private={r['private']}")
+        return 0
 
     if mode == "pr":
         return _run_gh(["pr", *argv[1:]])
