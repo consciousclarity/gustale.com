@@ -13,14 +13,14 @@ const families = buildFamilyDirectory(dishes);
 
 <Layout
   title="Food families — Gustale"
-  description="Browse Gustale food families by form, course, content type, and cuisine."
+  description="Browse Gustale food families by the form a dish takes."
 >
   <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: 'Food families' }]} />
 
   <BrowseHeader
     eyebrow="Browse the atlas"
     title="Food families"
-    subtitle="Food families grouped by form, course, content type, and cuisine, with counts and representative dishes."
+    subtitle="The shapes a dish takes, with counts and representative dishes."
     countLabel={`${families.length} families`}
     showToolbar={false}
     showFilters={false}
