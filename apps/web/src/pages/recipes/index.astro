@@ -1,0 +1,205 @@
+---
+/**
+ * THE RECIPE HUB INDEX — `/recipes`.
+ *
+ * WHY THIS PAGE EXISTS AND WHY IT IS NEW
+ * --------------------------------------
+ * PR #216 added `recipes/[slug].astro` — the page for ONE recipe — and
+ * mounted the per-dish hub on `/dishes/<slug>`. It did NOT add a
+ * `/recipes` index, because on the old two-host setup the recipes
+ * property's home was `RecipesHome.astro` on `/`, and `/recipes` was
+ * a section the navigation pointed at.
+ *
+ * On ONE site, `/recipes` is the section's own page: the list of every
+ * published recipe. This is that page.
+ *
+ * WHAT IT SHOWS
+ * -------------
+ * Every published recipe, from the API's FEED (`GET /api/recipes`),
+ * which reads the `recipe_published` VIEW — so it is exactly the set
+ * of recipes that are live. A recipe that is not published is not in
+ * the feed, so it is not listed and its page is not built.
+ *
+ * THE EMPTY STATE
+ * ---------------
+ * There are ZERO published recipes today, and the page says so. It
+ * does not pretend to be a populated collection, and it does not hide:
+ *
+ *   * the number is the honest one, from the API's `total`;
+ *   * the reader is given somewhere to go — the dishes, which are the
+ *     thing the recipes are about;
+ *   * the page is `noindex` while it is empty, because a page with no
+ *     content is not worth indexing. That is the same rule the
+ *     per-dish hub follows, and it is derived from the count, so the
+ *     two cannot disagree.
+ *
+ * It is NOT a 404. A section that exists but has nothing in it yet is
+ * a reachable page with an honest state, and the requirement is that
+ * `/recipes` returns 200 on a direct visit AND on a refresh.
+ */
+import Layout from "../../layouts/Layout.astro";
+import { listRecipes, type RecipeSummary } from "../../lib/recipes";
+
+// The feed. Fetched ONCE, at build time.
+//
+// The API's page size is 100 and it caps `limit` there, so the feed
+// is paged. The build must not fail if the API is unreachable: the
+// recipes are simply absent and the page says so.
+const apiBase = import.meta.env.PUBLIC_API_BASE;
+
+type Feed = {
+  recipes: RecipeSummary[];
+  total: number;
+};
+
+async function fetchFeed(): Promise<Feed> {
+  if (!apiBase) {
+    return { recipes: [], total: 0 };
+  }
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 60; // the API caps the offset; this is a backstop
+  const recipes: RecipeSummary[] = [];
+  let total = 0;
+  try {
+    for (let offset = 0; offset < PAGE_SIZE * MAX_PAGES; offset += PAGE_SIZE) {
+      const res = await fetch(
+        `${apiBase}/api/recipes?limit=${PAGE_SIZE}&offset=${offset}`,
+      );
+      if (!res.ok) throw new Error(`recipe feed returned ${res.status}`);
+      const json = (await res.json()) as {
+        recipes?: RecipeSummary[];
+        total?: number;
+      };
+      const page = json.recipes ?? [];
+      total = json.total ?? total;
+      recipes.push(...page);
+      if (page.length < PAGE_SIZE) break;
+    }
+  } catch {
+    // The build must not fail because the API is down. The page
+    // renders its empty state, and the empty state says what is
+    // missing.
+    return { recipes: [], total: 0 };
+  }
+  return { recipes, total };
+}
+
+const { recipes, total } = await fetchFeed();
+
+// The empty flag is DERIVED from the count, exactly as the per-dish
+// hub derives it. A page with a total of 30 and an empty page of
+// results is not empty.
+const empty = total === 0;
+
+// The page title and description.
+const seoTitle = "Recipes — Gustale";
+const seoDescription = empty
+  ? "Every published recipe on Gustale. The collection is being built."
+  : `${total} published recipes on Gustale.`;
+---
+
+<Layout
+  title={seoTitle}
+  description={seoDescription}
+  locale="en"
+  noindex={empty}
+>
+  <div class="recipe-hub">
+    <div class="wrap">
+      <header class="recipe-hub__head">
+        <div class="recipe-hub__headtext">
+          <p class="recipe-hub__kicker">Recipes</p>
+          <h1 class="recipe-hub__title">How to cook it</h1>
+          <p class="recipe-hub__definition">
+            {
+              empty
+                ? "Every published recipe on Gustale. The collection is being built."
+                : `${total} published recipe${total === 1 ? "" : "s"}, each one sourced and checked.`
+            }
+          </p>
+        </div>
+      </header>
+
+      {/*
+        THE EMPTY STATE.
+
+        It says three true things: no recipe is published yet; the
+        dishes themselves ARE documented, and a recipe is what is
+        missing; and the reader is not stranded.
+
+        The link is to `/dishes`, not to another host — there is one
+        site, and the dishes are on it.
+      */}
+      {empty ? (
+        <div class="recipe-hub__empty" role="status">
+          <h2 class="recipe-hub__emptytitle">No recipes published yet</h2>
+          <p class="recipe-hub__emptybody">
+            Nobody has written a recipe for Gustale yet. Every dish in
+            the archive is documented — what it is, where it comes from
+            and what it is made of — and a recipe for it is what is
+            missing. The first one is the one you can write.
+          </p>
+          <div class="recipe-hub__emptyactions">
+            <a href="/dishes" class="btn-accent">Browse the dishes →</a>
+            <a href="/contribute" class="btn-ghost">Add a dish →</a>
+          </div>
+        </div>
+      ) : (
+        <ul class="recipe-index__list">
+          {recipes.map((recipe) => (
+            <li class="recipe-index__item" key={recipe.id}>
+              <a href={`/recipes/${recipe.slug}`} class="recipe-index__link">
+                <span class="recipe-index__title">{recipe.title}</span>
+                <span class="recipe-index__dish">
+                  {recipe.dish.name} · /dishes/{recipe.dish.slug}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </div>
+</Layout>
+
+<style>
+  /*
+   * The list's own styles. They live in a scoped <style> block
+   * because they are used by ONE page and no React island renders
+   * them -- unlike the hub's filter island, whose styles had to go
+   * into the global stylesheet.
+   */
+  .recipe-index__list {
+    list-style: none;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .recipe-index__link {
+    display: block;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--line, rgba(0, 0, 0, 0.12));
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+    background: var(--card, #fbf8f1);
+  }
+
+  .recipe-index__link:hover {
+    border-color: var(--accent);
+  }
+
+  .recipe-index__title {
+    display: block;
+    font-weight: 600;
+  }
+
+  .recipe-index__dish {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.9rem;
+    color: var(--sub);
+  }
+</style>

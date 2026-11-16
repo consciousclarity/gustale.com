@@ -4,29 +4,28 @@
  * SiteHeader.astro is a stale unused alternative and must not be reintroduced.
  */
 import "../styles/global.css";
-import { authoringHref, currentDomain, isGeoDomain } from "../lib/domain";
+import { currentDomain } from "../lib/domain";
 import { isSectionActive, siteSections } from "../lib/sections";
 import { AuthMenu } from "./AuthMenu";
 import { GlobalSearch } from "./GlobalSearch";
 
 const domain = currentDomain();
-const isGeo = isGeoDomain();
 const pathname = Astro.url.pathname;
 
-const atlasProperty = {
-  id: "atlas" as const,
-  label: "Atlas",
+/**
+ * THE ONE PROPERTY.
+ *
+ * There used to be two — the Atlas and the Recipes — and the header
+ * carried a switch between them. The blueprint's decision D1 is ONE
+ * site, gustale.com, with six sections, so there is one property and
+ * it is simply "Gustale".
+ */
+const currentProperty = {
+  id: "gustale" as const,
+  label: "Gustale",
   description: "Explore the world through food.",
   href: "/",
 };
-const recipesProperty = {
-  id: "recipes" as const,
-  label: "Recipes",
-  description: "Cook and contribute recipes.",
-  href: "/recipes",
-};
-
-const currentProperty = isGeo ? atlasProperty : recipesProperty;
 
 /**
  * THE SIX SECTIONS.
@@ -37,52 +36,23 @@ const currentProperty = isGeo ? atlasProperty : recipesProperty;
  * a different set again.
  *
  * One definition now, in `lib/sections.ts`, and the header, the mobile
- * drawer and the footer all read it. When WP-D1 lands the single build,
- * this is the one place that changes.
+ * drawer and the footer all read it.
  *
- * The two sections that live on the recipes host until then are marked
- * `external`, and their href is the absolute URL.
+ * Every section is served by this build, so every href is a relative,
+ * same-origin path. Nothing here leaves the site any more.
  */
-const sections = siteSections(!isGeo);
+const sections = siteSections();
 
-/**
- * A section's href.
- *
- * The two sections that live on the recipes host until WP-D1 ships get
- * an absolute URL, because the geo build strips those paths in
- * post-build and a relative link would be a 404. `authoringHref()` is
- * exactly that rule, and it is the ONLY place in the navigation that
- * knows about the host split.
- */
-const sectionHref = (section: (typeof sections)[number]): string =>
-  section.external ? authoringHref(section.path) : section.path;
+const addDishHref = "/dishes/new";
 
-/**
- * The OTHER property — the one this build is not.
- *
- * The mobile drawer's cross-property link points here. The brief
- * (P0-4) asks for a quiet "Recipes ↗️" / "Atlas ↗️" link instead of
- * the boxed two-cell switch, so the link always names the
- * destination rather than offering a choice between two.
- */
-const otherProperty = isGeo ? recipesProperty : atlasProperty;
-
-const addDishHref = authoringHref("/dishes/new");
-
-// R3 — "Add a dish" belongs to the ATLAS only.
+// "Add a dish" is always available.
 //
-// The brief's R tier: "Add a dish" on geo; "Add a recipe" on recipes.
-// There is no "Add a recipe" yet — there is no recipe to add — so on
-// the recipes property the control is REMOVED rather than renamed.
-// Offering a link to a form that does not exist is worse than offering
-// nothing, and inventing a second authoring surface is not this
-// change's job.
-//
-// The authoring form itself is a RECIPES-ONLY path
-// (`RECIPES_ONLY_PATH_PREFIXES` in lib/domain.ts), and on the Atlas
-// `authoringHref()` sends it to the recipes host. So the Atlas's
-// "Add a dish" still works; it just lives at the recipes origin.
-const showAddDish = isGeo;
+// The brief's R tier once split this by property: "Add a dish" on the
+// Atlas, "Add a recipe" on the recipes property, and — because there
+// is no recipe to add yet — no control at all on the recipes side.
+// There is one site now, and the authoring form is a local path on
+// gustale.com, so the control is simply always there.
+const showAddDish = true;
 ---
 
 <header class="gst-header" data-domain={domain}>
@@ -105,10 +75,9 @@ const showAddDish = isGeo;
            is a message that there are two sites, and there were two
            copies of it -- the header's and the footer's.
 
-           The two sections that still live on the recipes host (the
-           ingredients index and the recipes pages) are marked in the
-           navigation as leaving the site, which says the same thing
-           without a switch. -->
+           Every section is served here now, so every link below is a
+           relative, same-origin path. Nothing in this navigation
+           leaves the site. -->
 
       <div class="gst-header-search">
         <GlobalSearch client:load variant="compact" placement="header" />
@@ -116,11 +85,10 @@ const showAddDish = isGeo;
 
       <div class="gst-navlinks" id="nav-links">
         {sections.map((section) => {
-          const href = sectionHref(section);
-          const on = !section.external && isSectionActive(section.path, pathname);
+          const on = isSectionActive(section.path, pathname);
           return (
             <a
-              href={href}
+              href={section.path}
               class:list={[
                 'gst-navlink',
                 { 'gst-navlink--on': on },
@@ -215,11 +183,10 @@ const showAddDish = isGeo;
         <p class="nav-mobile-section" id="nav-mobile-primary-label">Browse</p>
         <div role="group" aria-labelledby="nav-mobile-primary-label">
           {sections.map((section) => {
-            const href = sectionHref(section);
-            const on = !section.external && isSectionActive(section.path, pathname);
+            const on = isSectionActive(section.path, pathname);
             return (
               <a
-                href={href}
+                href={section.path}
                 class:list={[
                   'nav-mobile-link',
                   { 'nav-mobile-link--on': on },
@@ -233,38 +200,6 @@ const showAddDish = isGeo;
             );
           })}
         </div>
-
-        <div class="nav-mobile-divider" role="presentation"></div>
-
-        {/* The cross-property link.
-
-           The brief (design-brief-discovery-2026-11-05.md, P0-4) asks
-           for a QUIET "Recipes / Atlas" link with an arrow, instead of
-           the boxed two-cell switch that used to be here. The reason is
-           that the header switch and the footer links were two
-           mechanisms for the same job, and the switch was the loud
-           one: a segmented control in a drawer that is already a stack
-           of sections.
-
-           So this is ONE link, to the OTHER property, with an arrow
-           that says "you are leaving this site". The link points at
-           the other property, so the reader always knows where it goes
-           before tapping.
-
-           Both absolute destinations are still present in the nav (the
-           desktop switch and this link), which is what
-           apps/web/scripts/validate-build.mjs checks for.
-
-           This is a JSX-style comment on purpose: an HTML comment
-           would be shipped into every built page. */}
-        <a
-          href={otherProperty.href}
-          class="nav-mobile-property-link"
-          aria-label={`${otherProperty.label} — ${otherProperty.description}`}
-        >
-          {otherProperty.label}
-          <span class="nav-mobile-property-arrow" aria-hidden="true">↗️</span>
-        </a>
 
         <div class="nav-mobile-divider" role="presentation"></div>
 

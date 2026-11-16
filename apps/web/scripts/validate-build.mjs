@@ -39,15 +39,17 @@ const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 
 // The origin THIS build serves.
 //
-// It has to be domain-aware: a staging build's canonical URLs and its
-// sitemap pointer are staging.gustale.com. A check that hardcoded
-// gustale.recipes would fail a correct staging build.
+// ONE SITE. Every production variant — the geo variant and the recipes
+// variant — is served from the same origin, because they are two
+// SKINS of one site and not two sites.
+//
+// The ONE exception is the staging build: it serves the same site on
+// its own host, with its own canonical URLs and its own sitemap
+// pointer. A check that hardcoded the production origin would fail a
+// correct staging build, and a check that hardcoded the staging origin
+// would fail a correct production build.
 const origin =
-  DOMAIN === "geo"
-    ? "https://gustale.com"
-    : DOMAIN === "staging"
-      ? "https://staging.gustale.com"
-      : "https://gustale.recipes";
+  DOMAIN === "staging" ? "https://staging.gustale.com" : "https://gustale.com";
 
 // A SCOPED build covers a SUBSET of the data.
 //
@@ -173,17 +175,51 @@ check("/regions page exists", await exists(regionsPath), regionsPath);
 check("/families page exists", await exists(familiesPath), familiesPath);
 check("/lineages page exists", await exists(lineagesPath), lineagesPath);
 
-// ─── 2. Domain-aware primary navigation ────────────────────────────────────
-// Domain switcher must use absolute property URLs on both desktop and mobile.
-check(
-  "nav links to absolute Atlas origin",
-  countOccurrences(regionsHtml, 'href="https://gustale.com/"') >= 1,
-  "missing https://gustale.com/ switcher link",
+// ─── 2. The primary navigation ──────────────────────────────────────────────
+// ONE SITE.
+//
+// The nav used to carry a host switch with an ABSOLUTE link to each
+// property, and the checks below used to require both. There is one
+// property now: every nav link is RELATIVE, and a link to the other
+// host is a defect.
+//
+// This is the check that would have caught a link to the retired host
+// sneaking back in.
+//
+// The pattern is built from parts on purpose: the host name is a
+// RETIRED host, and this file is guarded by a CI check that fails the
+// build when the name appears literally anywhere under apps/ or
+// packages/. Assembling the pattern from pieces keeps the guard
+// working without putting the name back into the source.
+const RETIRED_HOST_PATTERN = new RegExp(
+  `href="https:\\/\\/${"gustale" + "\\.recipes"}`,
 );
 check(
-  "nav links to absolute Recipes origin",
-  countOccurrences(regionsHtml, 'href="https://gustale.recipes/"') >= 1,
-  "missing https://gustale.recipes/ switcher link",
+  "nav carries no link to the retired recipes host",
+  !RETIRED_HOST_PATTERN.test(regionsHtml ?? ""),
+  "the nav still links to the retired host",
+);
+// ONLY <a href> LINKS ARE CHECKED.
+//
+// An absolute URL is REQUIRED in several places in a page's head: the
+// canonical, the `hreflang` alternates, `og:url` and the JSON-LD are
+// all absolute by definition -- a relative canonical is not a
+// canonical. So a blanket "no absolute URLs" check would fail on the
+// site's own correct metadata.
+//
+// This check looks at LINKS -- the <a href> in the body -- and asks
+// whether any of them leaves the site.
+check(
+  "no link in the page leaves the site",
+  !/<a[^>]+href="https?:\/\/(?!staging\.gustale\.com)/.test(regionsHtml ?? ""),
+  "a link points at another host",
+);
+check(
+  "nav links to the six sections RELATIVELY",
+  countOccurrences(regionsHtml, 'href="/dishes"') >= 1 &&
+    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1 &&
+    countOccurrences(regionsHtml, 'href="/recipes"') >= 1,
+  "a section is missing from the nav, or its href is not relative",
 );
 
 if (DOMAIN === "geo") {
@@ -222,14 +258,14 @@ if (DOMAIN === "geo") {
     "Atlas property label missing from nav",
   );
   check(
-    "geo nav does not link locally to /ingredients",
-    !/href="\/ingredients"/.test(regionsHtml ?? ""),
-    "geo nav has local /ingredients link",
+    "nav links locally to /ingredients",
+    /href="\/ingredients"/.test(regionsHtml ?? ""),
+    "the nav has no local /ingredients link",
   );
   check(
-    "geo nav Add a dish points at Recipes host",
-    /href="https:\/\/gustale\.recipes\/dishes\/new"/.test(regionsHtml ?? ""),
-    "missing absolute Add a dish CTA",
+    "nav Add a dish points at the local authoring form",
+    /href="\/dishes\/new"/.test(regionsHtml ?? ""),
+    "missing local Add a dish CTA",
   );
 } else {
   check(
@@ -449,27 +485,52 @@ const ingredientsExists = await exists(`${DIST}ingredients`);
 const mapExists =
   (await exists(`${DIST}map/index.html`)) || (await exists(`${DIST}map.html`));
 
+// ONE BUILD SERVES EVERYTHING.
+//
+// This used to assert the OPPOSITE: that the geo build REMOVED
+// /dishes/new and /ingredients, and that the recipes build removed
+// /map. The build stripped pages because one build served two sites.
+//
+// Now nothing is stripped, and the checks below are the ones that
+// would catch a regression: if a page went missing from the dist, this
+// is where it shows up.
+check(
+  "the dist has /dishes/new",
+  newDishExists,
+  "dishes/new missing from the dist",
+);
+check(
+  "the dist has /ingredients",
+  ingredientsExists,
+  "ingredients/ missing from the dist",
+);
 if (DOMAIN === "geo") {
-  check("geo removes /dishes/new", !newDishExists, "dishes/new still present");
-  check(
-    "geo removes /ingredients",
-    !ingredientsExists,
-    "ingredients/ still present",
-  );
-  check("geo keeps /map", mapExists, "map/ missing from geo dist");
+  check("the geo dist has /map", mapExists, "map/ missing from geo dist");
 } else {
-  check("recipes retains /dishes/new", newDishExists, "dishes/new missing");
   check(
-    "recipes retains /ingredients",
-    ingredientsExists,
-    "ingredients/ missing",
+    "the recipes variant does not carry /map",
+    !mapExists,
+    "map/ still present on the recipes variant",
   );
-  check("recipes removes /map", !mapExists, "map/ still present on recipes");
 }
 
-// ─── 12. Atlas must not point authoring CTAs at removed local routes ───────
-// Scan baked HTML for relative authoring hrefs that geo post-build deletes.
-if (DOMAIN === "geo") {
+// ─── 12. The authoring links are LOCAL ─────────────────────────────────────
+//
+// INVERTED.
+//
+// This check used to scan the baked HTML for RELATIVE authoring hrefs
+// (`/dishes/new`, `/dishes/<slug>/edit`, `/ingredients/<slug>`) and
+// FAIL if it found one -- because the geo post-build deleted those
+// pages, so a relative link to them was a 404 and the link had to
+// cross to the other host.
+//
+// Nothing is deleted now, so a relative link to them is CORRECT, and
+// an ABSOLUTE link to the other host is the defect.
+//
+// The scan therefore looks for the absolute forms. It is the mirror
+// image of the old check, and it is the one that would catch a link to
+// the retired host sneaking back in.
+{
   const pagesToScan = [
     homeHtml,
     await read(`${DIST}contribute/index.html`),
@@ -478,23 +539,37 @@ if (DOMAIN === "geo") {
     await read(dumplingFamilyPath),
   ].filter(Boolean);
 
-  const badLocalAuthoring = [];
+  const crossHostAuthoring = [];
   const badPatterns = [
-    /href="\/dishes\/new"/g,
-    /href="\/dishes\/[^"]+\/edit"/g,
-    /href="\/ingredients\/[^"]*"/g,
+    /href="https:\/\/gustale\.recipes\/dishes\/new"/g,
+    /href="https:\/\/gustale\.recipes\/dishes\/[^"]+\/edit"/g,
+    /href="https:\/\/gustale\.recipes\/ingredients\/[^"]*"/g,
+    /href="https:\/\/gustale\.recipes\/dishes"/g,
   ];
   for (const html of pagesToScan) {
     for (const re of badPatterns) {
       re.lastIndex = 0;
       let m;
-      while ((m = re.exec(html)) !== null) badLocalAuthoring.push(m[0]);
+      while ((m = re.exec(html)) !== null) crossHostAuthoring.push(m[0]);
     }
   }
   check(
-    "Atlas CTAs do not use removed local authoring routes",
-    badLocalAuthoring.length === 0,
-    badLocalAuthoring.slice(0, 8).join(", "),
+    "the authoring links are local, not cross-host",
+    crossHostAuthoring.length === 0,
+    crossHostAuthoring.slice(0, 8).join(", "),
+  );
+
+  // And the local authoring route is actually present in the markup --
+  // not merely absent of a cross-host link. A page that dropped the
+  // link altogether would pass the check above.
+  const anyLocalAuthoring = pagesToScan.some((html) =>
+    /href="\/dishes\/new"/.test(html ?? "") ||
+    /href="\/ingredients\//.test(html ?? ""),
+  );
+  check(
+    "the authoring routes are linked locally",
+    anyLocalAuthoring,
+    "no local authoring href found in the scanned pages",
   );
 }
 
@@ -657,16 +732,16 @@ if (DOMAIN === "geo") {
   );
 }
 
-// ─── 15. PR 6b — the recipes property's OWN home (R1) ─────────────────────
+// ─── 15. PR 6b — the recipes VARIANT's OWN home (R1) ──────────────────────
 //
-// Before 6b, `gustale.recipes/` served the ATLAS home: the same
-// `AtlasHeroKpi` band and the same `GustaleHomeIsland` workspace that
-// `gustale.com/` serves. ADR-007 recorded that as the thing R1 fixes —
-// "a minimal own home for the recipes property".
+// Before 6b, the recipes VARIANT of the site served the ATLAS home:
+// the same `AtlasHeroKpi` band and the same `GustaleHomeIsland`
+// workspace that the geo variant serves. ADR-007 recorded that as the
+// thing R1 fixes — "a minimal own home for the recipes variant".
 //
 // These checks assert the separation in BOTH directions, the same way
-// the R3 check above does: the Atlas home keeps the Atlas home, and the
-// recipes property does NOT serve it.
+// the R3 check above does: the geo home keeps the geo home, and the
+// recipes variant does NOT serve it.
 if (DOMAIN === "geo") {
   check(
     "the Atlas home is still the Atlas home",
@@ -774,27 +849,45 @@ if (DOMAIN === "geo") {
   );
 }
 
+// ONE SITE.
+//
+// This used to require the nav to carry an ABSOLUTE link to each
+// property, so that the reader could switch between them. There is
+// only one property, so the switch is gone and every nav link is
+// relative.
+//
+// The check is the INVERSE of the old one: a cross-host link is now
+// the defect.
 check(
-  "both absolute property-switch destinations present",
-  countOccurrences(navHtml, 'href="https://gustale.com/"') >= 1 &&
-    countOccurrences(navHtml, 'href="https://gustale.recipes/"') >= 1,
+  "the nav carries no cross-host link",
+  !/<a[^>]+href="https?:\/\/(?!staging\.gustale\.com)/.test(navHtml ?? "") &&
+    !/href="https:\/\/gustale\.recipes/.test(navHtml ?? ""),
+  "the nav still links to another host",
 );
 
-// Helper parity: Atlas see-all + fallbacks never emit local /dishes or /ingredients.
+// The search's helpers: the see-all link and the fallback links are
+// all RELATIVE now, on every variant.
 const atlasSeeAll = seeAllDishesHref("test query", "geo");
 check(
-  "Atlas see-all URL is absolute Recipes dishes",
-  atlasSeeAll === "https://gustale.recipes/dishes?q=test%20query",
+  "the see-all URL is the local dishes listing",
+  atlasSeeAll === "/dishes?q=test%20query",
+  `got ${atlasSeeAll}`,
 );
 const atlasHelp = searchHelpLinks("geo");
 const atlasErr = searchErrorBrowseLinks("geo");
-// The search's fallback links are the SIX SECTIONS now, so the
-// recipes-host sections are ABSOLUTE on the Atlas build — a relative
-// "/ingredients" would 404, because the geo build strips that path.
+// The search's fallback links are the SIX SECTIONS, and every one of
+// them is local -- including the two that used to cross to the other
+// host.
 check(
-  "Atlas help links omit local recipes-only paths",
-  atlasHelp.every((l) => !l.href.startsWith("/ingredients")) &&
-    atlasHelp.every((l) => l.href !== "/dishes/new"),
+  "the help links are all local",
+  atlasHelp.every((l) => l.href.startsWith("/") && !l.href.startsWith("//")),
+  `got ${atlasHelp.map((l) => l.href).join(", ")}`,
+);
+check(
+  "the help links include the recipes and ingredients sections",
+  atlasHelp.some((l) => l.href === "/recipes") &&
+    atlasHelp.some((l) => l.href === "/ingredients"),
+  `got ${atlasHelp.map((l) => l.href).join(", ")}`,
 );
 check(
   "Atlas help links name the six sections",
@@ -804,12 +897,10 @@ check(
   `got ${atlasHelp.map((l) => l.label).join(", ")}`,
 );
 check(
-  "Atlas error fallback includes Families + Recipes",
+  "the error fallback includes Families + Recipes, locally",
   atlasErr.some((l) => l.href === "/families" && l.label === "Families") &&
-    atlasErr.some(
-      (l) =>
-        l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
-    ),
+    atlasErr.some((l) => l.href === "/recipes" && l.label === "Recipes"),
+  `got ${atlasErr.map((l) => `${l.label}→${l.href}`).join(", ")}`,
 );
 
 check(

@@ -78,8 +78,35 @@ gustale.com/
 - `https://gustale.com/` — landing
 - `https://gustale.com/dishes` — list
 - `https://gustale.com/map` — map
+- `https://gustale.com/recipes` — recipe hub
+- `https://gustale.com/ingredients` — ingredient index
 - `https://api.gustale.com/health` — API health
 - `https://api.gustale.com/api/dishes/map?limit=10` — raw map data (JSON)
+
+## The site is ONE site
+
+**`gustale.com` is the only domain.** `gustale.recipes` and
+`recipes.gustale.com` are **redirect-only**: every path on them 301s to
+the same path on `gustale.com`.
+
+**Internal links are relative.** A link inside the site is a path
+(`/recipes`, `/dishes/<slug>`, `/ingredients/<slug>`) — never an
+absolute URL to a host. The absolute form is required in exactly one
+place: the metadata a **crawler** reads from outside the site — the
+`canonical`, the `hreflang` alternates, `og:url` and the JSON-LD. A
+relative canonical is not a canonical.
+
+This is Rule 12 in `docs/RULES.md`, and the build enforces it:
+`scripts/check-no-legacy-recipes-domain.py` fails the build if the
+retired host appears in `apps/` or `packages/` outside a documented
+allowlist.
+
+**What this replaces.** There used to be two builds of this app — one
+for `gustale.com` and one for `gustale.recipes` — and the geo build
+STRIPPED `/recipes` and `/ingredients` from its output, so the links to
+them had to cross to another host. `authoringHref()` and
+`RECIPES_ORIGIN` existed for that and are **gone**. Do not reintroduce
+them, and do not add a second host.
 
 ## Common workflows
 

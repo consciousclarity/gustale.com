@@ -138,13 +138,30 @@ export const auth = betterAuth({
     }),
   ],
 
+  // THE TRUSTED ORIGINS
+  // -------------------
+  // `gustale.com` and `www.gustale.com` are the site.
+  //
+  // The three retired hosts are STILL here, and that is deliberate:
+  // they are the hosts that become 301s at the cutover, and a browser
+  // that is mid-session on one of them must still be able to complete
+  // a sign-in and land on a working page. A trusted origin that is
+  // removed the moment the redirect goes live would sign the reader
+  // out at the door of the new site.
+  //
+  // They are removed when the transition is over -- and the CI guard
+  // (`scripts/check-no-legacy-recipes-domain.py`) has an allowlist
+  // entry for this block, so removing the entry is what makes the
+  // guard fail and prompts the removal here.
   trustedOrigins: [
     "http://localhost:3000",
     "http://localhost:4000",
     "https://gustale.com",
     "https://www.gustale.com",
+    // TRANSITION ONLY -- the retired hosts. See the note above.
     "https://gustale.recipes",
     "https://www.gustale.recipes",
+    "https://recipes.gustale.com",
   ],
 
   advanced: {

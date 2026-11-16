@@ -12,11 +12,11 @@
  * which made it `api.gustale.com` in production. Two things were wrong
  * with that, and the second one is why this test is here at all:
  *
- *   1. `api.gustale.com` is a SIBLING of `recipes.gustale.com` under
- *      `gustale.com`, not a suffix of it. WebAuthn requires the RP ID
- *      to be the caller's effective domain or a registrable-domain
- *      suffix of it, so a passkey registered under `api.gustale.com`
- *      would be refused on `recipes.gustale.com`.
+ *   1. `api.gustale.com` is a SIBLING of `gustale.com`, not a suffix
+ *      of it. WebAuthn requires the RP ID to be the caller's effective
+ *      domain or a registrable-domain suffix of it, so a passkey
+ *      registered under `api.gustale.com` would be refused on the
+ *      site's own pages.
  *
  *   2. A DERIVED value changes SILENTLY. Anyone who changed
  *      `BETTER_AUTH_URL` — to move the auth origin, or just to point
@@ -65,18 +65,17 @@ describe("the passkey RP ID", () => {
     );
   });
 
-  it("is the registrable domain that covers api.gustale.com AND recipes.gustale.com", () => {
+  it("is the registrable domain that covers gustale.com AND api.gustale.com", () => {
     // WebAuthn: the RP ID must equal the caller's effective domain, or
     // be a registrable-domain suffix of it. `gustale.com` is the
     // eTLD+1 of BOTH hosts, so one RP ID covers both.
     //
-    // `api.gustale.recipes` has eTLD+1 `gustale.recipes` -- a
-    // DIFFERENT registrable domain -- so a passkey scoped to
-    // `gustale.com` does NOT work there. That is a known and accepted
-    // limitation, recorded in docs/CUTOVER-recipes-gustale-com.md
-    // section 5.6, and it is why the auth origin stays on
-    // api.gustale.com.
-    for (const host of ["api.gustale.com", "recipes.gustale.com"]) {
+    // A host on a DIFFERENT registrable domain -- and the retired
+    // encyclopedia host was one -- would not accept a passkey scoped
+    // to `gustale.com`. That is a known and accepted limitation,
+    // recorded in docs/CUTOVER-recipes-gustale-com.md section 5.6, and
+    // it is why the auth origin stays on api.gustale.com.
+    for (const host of ["api.gustale.com", "gustale.com"]) {
       expect(host === "gustale.com" || host.endsWith(".gustale.com")).toBe(
         true,
       );
@@ -85,8 +84,8 @@ describe("the passkey RP ID", () => {
 
   it("leaves BETTER_AUTH_URL alone -- the auth origin does not move", () => {
     // The RP ID and the auth origin are separate concerns. Moving the
-    // origin to api.gustale.recipes would break api.gustale.com
-    // logins; it is deliberately NOT done here.
+    // origin to a host on another registrable domain would break
+    // api.gustale.com logins; it is deliberately NOT done here.
     const auth = readSource("auth.ts");
     expect(auth).toMatch(
       /origin:\s*env\.BETTER_AUTH_URL\s*\?\s*\[env\.BETTER_AUTH_URL\]/,

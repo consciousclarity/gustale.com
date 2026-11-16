@@ -40,7 +40,6 @@ import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
 } from "../../lib/basemap";
-import { authoringHref } from "../../lib/domain";
 import {
   allShareSameCoordKey,
   coordKey,
@@ -1419,7 +1418,7 @@ export default function GustaleHomeIsland() {
           <div className="band-cta">
             <button
               onClick={() => {
-                window.location.href = authoringHref("/dishes/new");
+                window.location.href = "/dishes/new";
               }}
             >
               Add a dish →

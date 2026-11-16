@@ -2,7 +2,11 @@
 
 interface ImportMetaEnv {
   readonly PUBLIC_API_BASE?: string;
-  /** Build-time domain: `geo` (gustale.com Atlas) or `recipes` (gustale.recipes). */
+  /**
+   * Build-time variant of the one site: `geo` (the map-and-terracotta
+   * variant) or `recipes` (the encyclopedia variant). Both are served
+   * from gustale.com.
+   */
   readonly PUBLIC_DOMAIN?: "geo" | "recipes" | string;
   /**
    * Optional CARTO basemap key. Public browser-side token (like a Mapbox

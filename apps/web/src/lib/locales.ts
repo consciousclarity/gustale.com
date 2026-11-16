@@ -179,8 +179,19 @@ export function suggestLocale(
 /**
  * The origin the site is served from.
  *
- * PUBLIC_SITE_ORIGIN is set in CI. The fallback is derived from the
- * build domain, so a local build still produces working hreflang URLs.
+ * ONE SITE. The origin is `https://gustale.com` — for the geo variant,
+ * for the recipes variant, and for every canonical, every `hreflang`
+ * alternate, every `og:url` and every JSON-LD block.
+ *
+ * The retired encyclopedia host was the origin of the recipes
+ * VARIANT before the cutover. It is gone: a build that still pointed
+ * its canonicals at it would tell a crawler that the old host is the
+ * real one, and the old host is now a 301.
+ *
+ * `PUBLIC_SITE_ORIGIN` is set in CI, and it is what the staging build
+ * uses to give itself its own origin and its own canonical URLs. The
+ * fallback is derived from the build domain, so a local build still
+ * produces working hreflang URLs.
  *
  * It lives HERE, in a module, rather than in a page's frontmatter: an
  * Astro page compiles its frontmatter into a module where a `const`
@@ -191,11 +202,12 @@ export function siteOrigin(): string {
   const explicit = import.meta.env.PUBLIC_SITE_ORIGIN;
   if (explicit) return explicit;
   const domain = import.meta.env.PUBLIC_DOMAIN ?? "recipes";
-  if (domain === "geo") return "https://gustale.com";
-  // The staging origin (WP-00b). A staging build is the recipes site
-  // on its own host, with its own canonical URLs -- pointing them at
-  // gustale.recipes would tell a crawler that the staging copy is the
+  // The staging origin (WP-00b). A staging build is the SAME site on
+  // its own host, with its own canonical URLs -- pointing them at
+  // gustale.com would tell a crawler that the staging copy is the
   // real one.
   if (domain === "staging") return "https://staging.gustale.com";
-  return "https://gustale.recipes";
+  // One site. Both variants. The geo variant and the recipes variant
+  // are skins of gustale.com, and their canonicals say so.
+  return "https://gustale.com";
 }

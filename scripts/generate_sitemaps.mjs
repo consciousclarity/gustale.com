@@ -36,17 +36,42 @@ import { join } from "node:path";
 // The locales that get a sitemap. English is the base, at the root.
 const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
 
-// The pages that are not dish pages, per locale. The homepage and the
-// dish list are in every locale.
-const SHARED_PAGES = ["", "dishes/"];
+/**
+ * The pages that are not dish pages, per locale. The homepage and the
+ * dish list are in every locale.
+ *
+ * `/recipes/` and `/ingredients/` are here because one build serves
+ * everything now. They used to be absent from the sitemap because the
+ * geo build stripped them and the recipes build's sitemap was a
+ * separate document on a separate host.
+ *
+ * The RECIPES INDEX is listed even while it is empty, because the
+ * empty state is a real page with a real URL and a reader can reach
+ * it from the navigation. (The page itself carries `noindex` while
+ * the collection is empty, and the sitemap and the page agree -- a
+ * page that says "do not index me" is not listed once it has content
+ * either, until the build that has content says otherwise.)
+ */
+const SHARED_PAGES = ["", "dishes/", "recipes/", "ingredients/"];
 
+/**
+ * The origin the sitemap's URLs are built on.
+ *
+ * ONE SITE. Every variant's sitemap points at `https://gustale.com`.
+ *
+ * It used to be `https://gustale.recipes` for the recipes variant,
+ * because that was the recipes property's origin. That host is now a
+ * 301, and a sitemap that lists redirected URLs is a sitemap that
+ * points a crawler at the wrong place.
+ *
+ * The staging origin is the exception, and it is the RIGHT exception:
+ * a staging sitemap must point at the staging host, not at production,
+ * or it advertises the production URLs for a site that is not
+ * production.
+ */
 function siteOrigin(domain) {
-  if (domain === "geo") return "https://gustale.com";
-  // The staging origin (WP-00b). A staging sitemap must point at the
-  // staging host, not at gustale.recipes -- otherwise it advertises
-  // the production URLs for a site that is not production.
   if (domain === "staging") return "https://staging.gustale.com";
-  return "https://gustale.recipes";
+  return "https://gustale.com";
 }
 
 function localePrefix(locale) {
@@ -264,6 +289,17 @@ async function main() {
   // picks it up.
   const families = await collectContentBearingSlugs(dist, "family");
   const lineages = await collectContentBearingSlugs(dist, "lineages");
+  // The INGREDIENTS and the RECIPES.
+  //
+  // One build serves everything now, so these are pages this site
+  // serves -- and a page the site serves but does not list in the
+  // sitemap is a page the crawler has to find by accident.
+  //
+  // The same content-bearing rule applies: an ingredient page with
+  // dishes behind it is listed, and one without is omitted (and is
+  // marked noindex by the build).
+  const ingredients = await collectContentBearingSlugs(dist, "ingredients");
+  const recipes = await collectContentBearingSlugs(dist, "recipes");
 
   // The locale pages are only built for the geo domain for now, and
   // the sitemap must not list URLs that 404.
@@ -278,6 +314,14 @@ async function main() {
   console.log(
     `[sitemap] lineages: ${lineages.withDishes.length} with dishes, ` +
       `${lineages.withoutDishes.length} without (omitted)`,
+  );
+  console.log(
+    `[sitemap] ingredients: ${ingredients.withDishes.length} with dishes, ` +
+      `${ingredients.withoutDishes.length} without (omitted)`,
+  );
+  console.log(
+    `[sitemap] recipes: ${recipes.withDishes.length} with dishes, ` +
+      `${recipes.withoutDishes.length} without (omitted)`,
   );
 
   for (const locale of locales) {
@@ -326,6 +370,38 @@ async function main() {
     for (const [section, group] of [
       ["family", families],
       ["lineages", lineages],
+    ]) {
+      for (const slug of group.withDishes) {
+        const links = [];
+        for (const l of locales) {
+          links.push(
+            `    <xhtml:link rel="alternate" hreflang="${l}" href="${esc(
+              `${origin}${localePrefix(l)}/${section}/${slug}`,
+            )}" />`,
+          );
+        }
+        links.push(
+          `    <xhtml:link rel="alternate" hreflang="x-default" href="${esc(
+            `${origin}/${section}/${slug}`,
+          )}" />`,
+        );
+        urls.push(
+          `  <url>\n    <loc>${esc(
+            `${origin}/${section}/${slug}`,
+          )}</loc>\n${links.join("\n")}\n  </url>`,
+        );
+      }
+    }
+
+    // The INGREDIENT and RECIPE pages that have content behind them.
+    //
+    // They are listed under the English prefix only, like the
+    // families and the lineages: only the English pages are built for
+    // them, and listing a locale URL that was never built would put a
+    // 404 in a sitemap.
+    for (const [section, group] of [
+      ["ingredients", ingredients],
+      ["recipes", recipes],
     ]) {
       for (const slug of group.withDishes) {
         const links = [];

@@ -22,14 +22,15 @@ import type {
   AdminLookupsResponse,
   AdminStatsResponse,
 } from "../../lib/api";
-import { authoringHref } from "../../lib/domain";
 
 type Phase = "loading" | "ready" | "error";
 
 // -1 marks a metric that can't be computed without the stats endpoint.
 const UNKNOWN = -1;
 
-const ADD_DISH_HREF = authoringHref("/dishes/new");
+// The authoring form is a local path on gustale.com — the single build
+// serves it, so the href is relative and same-origin.
+const ADD_DISH_HREF = "/dishes/new";
 
 function formatRelative(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();

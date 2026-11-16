@@ -24,18 +24,19 @@ const envSchema = z.object({
   // The WebAuthn RP ID.
   //
   // It was DERIVED from BETTER_AUTH_URL's hostname, which made it
-  // `api.gustale.com` in production. That is a sibling of
-  // `recipes.gustale.com`, not a suffix of it, so a passkey registered
-  // under it could not be used on the recipes host -- and the value
+  // `api.gustale.com` in production. That is a SIBLING of
+  // `gustale.com`, not a suffix of it, so a passkey registered under
+  // it could not be used on the site's own pages -- and the value
   // changed silently if BETTER_AUTH_URL ever changed.
   //
-  // `gustale.com` is the registrable domain of BOTH
-  // `api.gustale.com` and `recipes.gustale.com`, so one RP ID covers
-  // the whole tree.
+  // `gustale.com` is the registrable domain of the whole tree, so one
+  // RP ID covers every host under it: `gustale.com` itself and
+  // `api.gustale.com`.
   //
-  // It is explicit now, not derived. `api.gustale.recipes` has eTLD+1
-  // `gustale.recipes`, a DIFFERENT registrable domain -- a passkey
-  // scoped to `gustale.com` will not work there.
+  // It is explicit now, not derived. Any host on a DIFFERENT
+  // registrable domain would not accept a passkey scoped to
+  // `gustale.com`, because WebAuthn requires the RP ID to be the
+  // caller's effective domain or a registrable-domain suffix of it.
   //
   // The value was changed on 2026-11-14 with ZERO passkeys registered
   // (the table had 0 rows), so no credential was stranded. Changing it

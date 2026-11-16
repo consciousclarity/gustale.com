@@ -4,7 +4,7 @@
 WHAT THIS PROVES
 ----------------
 `scripts/check-live-sitemaps.sh` is the gate that stops a deploy from
-being reported as clean when one of the two sites is a stale build.
+being reported as clean when the site is serving a stale sitemap.
 
 A gate that can pass on ABSENCE is worse than no gate, so each test
 below runs the check against a controlled stub server and asserts it
@@ -13,8 +13,13 @@ FAILS when it should. In particular:
 - a domain serving a stale sitemap FAILS;
 - a domain serving NO sitemap FAILS (the absence case);
 - a domain serving an EMPTY sitemap FAILS;
-- both domains stale by the same amount still FAIL (the expectation
-  is checked, not just the agreement).
+- a sitemap that is stale by the same amount as the expectation still
+  FAILs (the expectation is checked, not just the agreement);
+- a sitemap that still contains the RETIRED host FAILS -- this is the
+  single-domain replacement for the old "the two domains must agree"
+  check. Two containers meant one of them could be stale; one container
+  means the sitemap can still be wrong in the other way, by pointing
+  at the host that is being switched off.
 
 USAGE
 -----
@@ -77,11 +82,11 @@ class StubHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-def make_sitemap(path: Path, count: int) -> None:
+def make_sitemap(path: Path, count: int, origin: str = "https://gustale.com") -> None:
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for i in range(count):
-        lines.append(f"  <url><loc>https://gustale.com/dishes/dish-{i + 1}/</loc></url>")
+        lines.append(f"  <url><loc>{origin}/dishes/dish-{i + 1}/</loc></url>")
     lines.append("</urlset>")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -118,41 +123,79 @@ def main() -> int:
         make_sitemap(tmp / "b.xml", 1531)
         out = run_check(port, 1531)
         check(
-            "both domains serving the expected count passes",
+            "the site serving the expected count passes",
             "the post-deploy sitemap check: PASSED" in out,
             out.strip().splitlines()[-1] if out.strip() else "no output",
         )
 
-        # 2. One domain stale (the 2026-11-02 failure) → FAIL.
+        # 2. A stale sitemap → FAIL.
+        #
+        # With one container there is no second sitemap to disagree
+        # with, so the stale-build detection is the COUNT against the
+        # API-derived expectation. That is the case this asserts.
         make_sitemap(tmp / "b.xml", 1643)
         out = run_check(port, 1531)
         check(
-            "a stale domain FAILS the check",
+            "a stale sitemap FAILS the check",
             "the post-deploy sitemap check: FAILED" in out,
             "the check passed a stale build",
         )
+
+        # 3. THE RETIRED HOST IN THE SITEMAP → FAIL.
+        #
+        # This is the single-domain replacement for the old
+        # "the two domains must agree" check. A sitemap that still
+        # lists gustale.recipes points a crawler at URLs that are
+        # about to 301, and it says the site's canonical location is a
+        # host that is being switched off.
+        make_sitemap(tmp / "a.xml", 1531)
+        make_sitemap(tmp / "b.xml", 1531, origin="https://gustale.recipes")
+        out = run_check(port, 1531)
         check(
-            "the disagreement between the two domains is reported",
-            "DISAGREE" in out,
-            "no DISAGREE message",
+            "a sitemap on the retired host FAILS the check",
+            "the post-deploy sitemap check: FAILED" in out,
+            "the check passed a sitemap pointing at the retired host",
+        )
+        check(
+            "the retired host is named in the failure",
+            "gustale.recipes" in out,
+            "no mention of the retired host",
         )
 
-        # 3. Both stale by the same amount → FAIL (the expectation is
-        #    still checked, not just the agreement).
+        # 4. A sitemap with ONE off-site URL → FAIL.
+        #
+        # The check is not "does the word gustale.recipes appear" -- it
+        # is "is every URL on the site's own origin". A single stray
+        # URL is enough.
+        make_sitemap(tmp / "b.xml", 1531)
+        mixed = (tmp / "b.xml").read_text().replace(
+            "https://gustale.com/dishes/dish-3/",
+            "https://example.invalid/dishes/dish-3/",
+        )
+        (tmp / "b.xml").write_text(mixed)
+        out = run_check(port, 1531)
+        check(
+            "a sitemap with one off-site URL FAILS the check",
+            "the post-deploy sitemap check: FAILED" in out,
+            "the check passed a sitemap with an off-site URL",
+        )
+
+        # 5. Stale by the same amount → FAIL (the expectation is
+        #    still checked, not just the count against itself).
         make_sitemap(tmp / "a.xml", 1643)
         make_sitemap(tmp / "b.xml", 1643)
         out = run_check(port, 1531)
         check(
-            "both domains stale by the same amount still FAIL",
+            "a sitemap stale by the same amount still FAILs",
             "the post-deploy sitemap check: FAILED" in out,
             "the check passed",
         )
 
-        # 4. A domain serving NOTHING → FAIL. The absence case.
+        # 6. A domain serving NOTHING → FAIL. The absence case.
         (tmp / "b.xml").unlink(missing_ok=True)
         out = run_check(port, 1531)
         check(
-            "a domain serving no sitemap FAILS the check",
+            "a site serving no sitemap FAILS the check",
             "the post-deploy sitemap check: FAILED" in out,
             "the check passed an absent sitemap",
         )
@@ -162,7 +205,7 @@ def main() -> int:
             "no explicit message",
         )
 
-        # 5. An EMPTY sitemap → FAIL.
+        # 7. An EMPTY sitemap → FAIL.
         make_sitemap(tmp / "b.xml", 0)
         out = run_check(port, 1531)
         check(
@@ -171,7 +214,7 @@ def main() -> int:
             "the check passed an empty sitemap",
         )
 
-        # 6. Exactly one result marker, so a CI step that greps for it
+        # 8. Exactly one result marker, so a CI step that greps for it
         #    cannot match a partial or doubled run.
         make_sitemap(tmp / "a.xml", 1531)
         make_sitemap(tmp / "b.xml", 1531)
@@ -183,7 +226,7 @@ def main() -> int:
             f"found {markers}",
         )
 
-        # 7. The check's exit code must be non-zero on failure — CI reads
+        # 9. The check's exit code must be non-zero on failure — CI reads
         #    the exit code, not the text.
         env = dict(os.environ)
         env["DOMAINS"] = "stub-a.test stub-b.test"

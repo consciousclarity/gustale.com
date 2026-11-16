@@ -1,4 +1,3 @@
-import { authoringHref } from "../lib/domain";
 import type { DishIngredient } from "../types/dish";
 
 export interface DishIngredientOverviewProps {
@@ -56,7 +55,7 @@ export function DishIngredientOverview({
           <li className="dio__card" key={ing.ingredientId}>
             <a
               className="dio__link"
-              href={authoringHref(`/ingredients/${ing.slug}`)}
+              href={`/ingredients/${ing.slug}`}
             >
               <span className="dio__name">{ing.name}</span>
               {ing.preparationNote && (

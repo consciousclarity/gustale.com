@@ -1,12 +1,13 @@
 # Gustale Web — multi-stage Dockerfile
 #
-# Builds one of two domain variants:
-#   - PUBLIC_DOMAIN=recipes → encyclopedia site (gustale.recipes)
-#   - PUBLIC_DOMAIN=geo     → geo/map site (gustale.com)
+# Builds ONE site. `PUBLIC_DOMAIN` selects the VARIANT of that site
+# (geo|recipes) — two skins of gustale.com, not two sites. There is one
+# image and one container.
 #
-# Both use the same Astro codebase; the difference is the post-build
-# filter (apps/web/scripts/post-build.mjs) that drops domain-specific
-# pages from the dist/ tree. See the script for the page mapping.
+# Both variants use the same Astro codebase; the difference is the
+# post-build filter (apps/web/scripts/post-build.mjs) that drops
+# variant-specific pages from the dist/ tree. See the script for the
+# page mapping.
 #
 # Stage 1: builder
 #   Builds the Astro front-end with PUBLIC_DOMAIN set so the post-build
@@ -15,10 +16,8 @@
 #
 # Stage 2: runtime
 #   nginx:alpine serving the static `dist/` directory on port 4001.
-#   Two separate images are produced from this same Dockerfile, one
-#   per PUBLIC_DOMAIN, and deployed to two containers behind Caddy:
-#     - gustale-web-recipes  → gustale.recipes
-#     - gustale-web-geo      → gustale.com
+#   One image is produced from this same Dockerfile and deployed to one
+#   container behind Caddy: gustale-web → gustale.com.
 #
 # ---------- Cache structure ----------
 # Same pattern as apps/api/Dockerfile: copy pnpm-lock.yaml + the four
@@ -50,7 +49,9 @@ RUN pnpm install --frozen-lockfile
 # rebuilding @gustale/db / @gustale/api for a web-only change.
 # PUBLIC_DOMAIN picks which page subset to keep (recipes|geo).
 ARG PUBLIC_DOMAIN=recipes
-ARG PUBLIC_API_BASE=https://api.gustale.recipes
+# The API the build reads from. ONE API, on the same registrable domain
+# as the site: https://api.gustale.com.
+ARG PUBLIC_API_BASE=https://api.gustale.com
 ENV PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
@@ -163,7 +164,7 @@ RUN node scripts/fetch_noto_fonts.mjs
 # See apps/web/scripts/mock-api.mjs for the mock implementation.
 #
 # Why: GHA runner IPs are blocked by the VPS firewall, so the runner
-# cannot reach the production API at api.gustale.recipes. The mock
+# cannot reach the production API at api.gustale.com. The mock
 # serves the same data shapes from the inlined 31-dish seed, making
 # CI fully self-contained. No upstream API = no CI dependency.
 #

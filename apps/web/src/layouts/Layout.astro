@@ -14,7 +14,7 @@ import "../styles/recipes-theme.css";
 import { LocaleSuggestion } from "../components/LocaleSuggestion";
 import LocaleSwitcher from "../components/LocaleSwitcher.astro";
 import Nav from "../components/Nav.astro";
-import { authoringHref, isGeoDomain } from "../lib/domain";
+import { isGeoDomain } from "../lib/domain";
 import {
   type CoreLocale,
   isRtl,
@@ -91,7 +91,7 @@ const isGeo = isGeoDomain();
 
 // The six sections, for the footer. The header reads the same list --
 // see `lib/sections.ts` for why there is only one of it.
-const sections = siteSections(!isGeo);
+const sections = siteSections();
 const rtl = isRtl(locale);
 
 // The canonical, when the page does not name one.
@@ -138,6 +138,66 @@ const canonicalUrl =
   (isNotFound
     ? undefined
     : `${siteOrigin}${Astro.url.pathname.replace(/\/+$/, "") || "/"}`);
+
+// The `og:url` — the Open Graph URL of THIS page.
+//
+// It is the SAME variable as the canonical, on purpose. A canonical
+// and an og:url that disagree is a site that tells a crawler two
+// different things about where it is, and the crawler is entitled to
+// believe either.
+//
+// It is NOT computed from `Astro.url` separately: at build time
+// `Astro.url` has no origin, so a separate computation would yield a
+// path-only value, which is not a URL.
+//
+// og:url is emitted only when there IS a canonical — that is, not on
+// the 404 page. A 404 that advertises a URL to a social card is
+// advertising a page that does not exist.
+//
+// WHY IT IS HERE AND NOT IN A PAGE
+// --------------------------------
+// The <head> is assembled in one place, and this is that place. A
+// per-page og:url is how the two start to drift.
+const ogUrl = canonicalUrl;
+
+// The JSON-LD.
+//
+// THREE BLOCKS, TWO OF THEM HERE
+// ------------------------------
+// `WebSite` and `BreadcrumbList` are site-level and belong here: this
+// is the only place that can see both the canonical URL and the
+// locale. `Recipe` is per-dish and belongs on the dish page, where
+// the dish's own data is -- a Recipe block in the layout would
+// describe a recipe that is not the page.
+//
+// The JSON-LD uses the same `siteOrigin` as the canonical, so it
+// cannot point at a different host than the page does.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Gustale",
+    url: `${siteOrigin}/`,
+    inLanguage: locale,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${siteOrigin}/` },
+      ...(Astro.url.pathname === "/" || Astro.url.pathname === "/"
+        ? []
+        : [
+            {
+              "@type": "ListItem",
+              position: 2,
+              name: title,
+              item: canonicalUrl ?? `${siteOrigin}${Astro.url.pathname}`,
+            },
+          ]),
+    ],
+  },
+];
 ---
 
 <!doctype html>
@@ -169,6 +229,64 @@ const canonicalUrl =
     }
     {
       /*
+       * THE OPEN GRAPH TAGS.
+       *
+       * They are NEW in the single-domain cutover. The site had a
+       * canonical and hreflang and no Open Graph at all, which means a
+       * shared link rendered as a bare URL with no title, no
+       * description and no image.
+       *
+       * `og:url` reuses the canonical variable, so the two cannot
+       * disagree -- see the note where it is defined.
+       *
+       * `og:image` points at the site's own image on the ONE origin. It
+       * is absolute, because a social crawler fetches it out of
+       * context and a relative path would resolve against nothing.
+       *
+       * IT IS THE SVG THAT EXISTS. There is no `og-image.png` in
+       * `public/`, and pointing `og:image` at a file that is not
+       * there is a promise the site cannot keep: the crawler fetches
+       * it, gets a 404, and renders the card with no image. The hero
+       * artwork is the site's own visual and it IS served.
+       *
+       * (A dedicated 1200x630 PNG would be better for a social card,
+       * and several crawlers will not render an SVG at all. That is a
+       * separate piece of work and it is NOT pretended to be done
+       * here.)
+       */
+      ogUrl && (
+        <>
+          <meta property="og:type" content="website" />
+          <meta property="og:site_name" content="Gustale" />
+          <meta property="og:title" content={title} />
+          <meta property="og:description" content={description} />
+          <meta property="og:url" content={ogUrl} />
+          <meta property="og:image" content={`${siteOrigin}/hero-world-land.svg`} />
+          <meta property="og:locale" content={locale} />
+          <meta name="twitter:card" content="summary_large_image" />
+        </>
+      )
+    }
+    {
+      /*
+       * THE JSON-LD.
+       *
+       * `WebSite` and `BreadcrumbList`. The `Recipe` block is on the
+       * dish page, where the recipe is.
+       *
+       * `set:html` with a JSON.stringify is the correct Astro idiom
+       * here: the value is JSON, and escaping it as text would put
+       * `&quot;` in the attribute.
+       */
+      !isNotFound && (
+        <script
+          type="application/ld+json"
+          set:html={JSON.stringify(jsonLd)}
+        />
+      )
+    }
+    {
+      /*
        * A page with no content behind it — a family page whose dishes
        * have not been mapped yet, a lineage with nothing mapped to it —
        * is a valid URL that a crawler can reach, but it is not worth
@@ -184,7 +302,25 @@ const canonicalUrl =
       noindex && <meta name="robots" content="noindex, follow" />
     }
   </head>
-  <body class="gst" data-domain={isGeo ? "geo" : "recipes"}>
+  {/*
+   * `data-domain="recipes"`, ALWAYS.
+   *
+   * It used to be `isGeo ? "geo" : "recipes"`, because the two
+   * builds were two properties with two themes: the Atlas carried the
+   * terracotta and the Recipes site the herb-green.
+   *
+   * There is one site now, and the herb-green is its theme. The
+   * `recipes-theme.css` token overrides and the `recipe-hub.css`
+   * styles are both scoped to `body[data-domain="recipes"]`, so this
+   * attribute is what applies them. Setting it to "geo" on the geo
+   * variant would leave the whole site terracotta with an unstyled
+   * recipe hub on it.
+   *
+   * The attribute keeps its name because renaming it would touch every
+   * selector in two stylesheets for no gain; what it now means is "the
+   * site", not "the recipes property".
+   */}
+  <body class="gst" data-domain="recipes">
     <Nav />
 
     {
@@ -218,28 +354,23 @@ const canonicalUrl =
             )
           }
           <div class="fcap">
-            <a href="https://gustale.com/" class="foot-domain" data-active={isGeo ? 'true' : undefined} aria-current={isGeo ? 'page' : undefined}>Atlas</a>
+            <a href="/" class="foot-domain" data-active={isGeo ? 'true' : undefined} aria-current={isGeo ? 'page' : undefined}>Atlas</a>
             <span class="foot-sep">·</span>
-            <a href="https://gustale.recipes/" class="foot-domain" data-active={!isGeo ? 'true' : undefined} aria-current={!isGeo ? 'page' : undefined}>Recipes</a>
+            <a href="/recipes" class="foot-domain" data-active={!isGeo ? 'true' : undefined} aria-current={!isGeo ? 'page' : undefined}>Recipes</a>
             <span class="foot-sep">·</span>
             Open knowledge, slow cooking — {new Date().getFullYear()}
           </div>
         </div>
         <div class="fl">
-          {sections.map((section) => {
-            const href = section.external
-              ? authoringHref(section.path)
-              : section.path;
-            return (
-              <a
-                href={href}
-                class:list={{ "foot-link--external": section.external }}
-                title={section.description}
-              >
-                {section.label}
-              </a>
-            );
-          })}
+          {sections.map((section) => (
+            <a
+              href={section.path}
+              class:list={{ "foot-link--external": section.external }}
+              title={section.description}
+            >
+              {section.label}
+            </a>
+          ))}
           <a href="/about">About</a>
           <a href="/about/evidence">Evidence</a>
         </div>

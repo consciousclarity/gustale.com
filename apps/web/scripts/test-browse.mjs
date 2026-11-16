@@ -233,19 +233,32 @@ describe("history restoration plans", () => {
 });
 
 describe("safe encoding + domain recovery", () => {
-  it("encodes queries and keeps Atlas recovery absolute", () => {
+  it("encodes queries and keeps every recovery link local", () => {
     assert.equal(safeQueryEncode("filled dough"), "filled%20dough");
-    assert.equal(
-      absoluteDishesIndexHref("geo", "pho"),
-      "https://gustale.recipes/dishes?q=pho",
-    );
+    // ONE SITE. There is no other host to point at, so the dishes
+    // index is a RELATIVE link on every build.
+    assert.equal(absoluteDishesIndexHref("geo", "pho"), "/dishes?q=pho");
     assert.equal(absoluteDishesIndexHref("recipes", "pho"), "/dishes?q=pho");
     const geo = recoveryLinks("geo");
     assert.ok(
-      geo.primary.some((l) => l.href === "/regions" && l.label === "Places"),
+      geo.primary.some((l) => l.href === "/lineages" && l.label === "History & connections"),
     );
-    assert.equal(geo.altBrowse?.href, "https://gustale.recipes/dishes");
-    assert.equal(mapBrowseHref("recipes"), "https://gustale.com/map");
+    // The six sections, every one of them relative.
+    assert.deepEqual(
+      geo.primary.map((l) => l.href),
+      [
+        "/",
+        "/dishes",
+        "/families",
+        "/ingredients",
+        "/lineages",
+        "/recipes",
+      ],
+    );
+    // There is no second browse surface on another host, so there is
+    // no alternative browse link to offer.
+    assert.equal(geo.altBrowse, null);
+    assert.equal(mapBrowseHref("recipes"), "/map");
     assert.equal(mapBrowseHref("geo"), "/map");
   });
 });
