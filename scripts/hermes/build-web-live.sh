@@ -68,6 +68,40 @@ fi
 
 SHA="$1"
 SHORT_SHA="$(echo "$SHA" | cut -c1-7)"
+
+# The BUILD DATE -- the commit date of the commit being built.
+#
+# It becomes the sitemaps' <lastmod>, so it must say when the CONTENT
+# last changed. The commit date is that truth; the wall clock is not
+# (the rebuild timer rebuilds the same commit over and over, and a
+# wall-clock lastmod would claim every page changed every time).
+#
+# It is the COMMITTER date, not the author date: the committer date is
+# when the change landed, and it is what `git log --date=short` prints.
+#
+# The date is taken for the SPECIFIC SHA being built, not for HEAD.
+# Those differ when the build is running against a checkout that has
+# moved on, and the date must describe the content in the image.
+#
+# THE CALLER MAY SUPPLY IT. The date is read from git only when it was
+# not given, because the SHA being built is sometimes not in this
+# checkout -- CI builds a SHA it fetched, and a test builds a SHA that
+# does not exist at all. Where that happens the caller knows the date
+# and passes it in (GUSTALE_BUILD_DATE), and the sitemap generator
+# still refuses to write a sitemap without one, so a missing date is
+# still a build failure rather than a guess.
+BUILD_DATE="${GUSTALE_BUILD_DATE:-}"
+if [ -z "$BUILD_DATE" ]; then
+  BUILD_DATE="$(git log -1 --date=short --format=%cd "$SHA" 2>/dev/null || true)"
+fi
+if ! printf '%s' "$BUILD_DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+  echo "ERROR: could not read the commit date of $SHA (got '${BUILD_DATE:-}')." >&2
+  echo "       The sitemaps' lastmod is generated from this date, and the" >&2
+  echo "       generator refuses to guess one. Either $SHA is not in this" >&2
+  echo "       checkout, or it must be supplied as GUSTALE_BUILD_DATE=YYYY-MM-DD." >&2
+  exit 1
+fi
+
 REPO="${GITHUB_REPOSITORY:-consciousclarity/gustale.com}"
 GITHUB_ACTOR="${GITHUB_ACTOR:-${USER:-hermes}}"
 # THE TAG NAMES THE BUILD.
@@ -346,6 +380,7 @@ build_one() {
     --build-arg BUILD_DATA_SOURCE="$DATA_SOURCE" \
     --build-arg PUBLIC_API_BASE=http://127.0.0.1:4000 \
     --build-arg BUILD_SHA="$SHA" \
+    --build-arg BUILD_DATE="$BUILD_DATE" \
     -f apps/web/Dockerfile \
     -t "$img" \
     . 2>&1 | tee "$build_log" | tail -10

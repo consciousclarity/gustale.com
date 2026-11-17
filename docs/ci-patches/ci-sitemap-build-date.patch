@@ -1,0 +1,54 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index da25906..fcd8dcb 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -412,6 +412,19 @@ jobs:
+         # is not silently dropped (a name blacklist would drop it).
+         run: node apps/web/scripts/test-sitemap-dish-slugs.mjs
+ 
++      - name: Test the sitemap's build date
++        # The sitemaps' <lastmod> is generated from the build date -- the
++        # commit date of the commit being built. It used to be a hardcoded
++        # constant in the index, and the locale sitemaps had no lastmod
++        # at all, so both said the content last changed on a day it did
++        # not.
++        #
++        # This test proves the generator REFUSES to write a sitemap
++        # without a date (rather than guessing one), that it refuses a
++        # malformed date, that every entry carries the date, and that
++        # every build site passes the date to the image.
++        run: bash scripts/test-sitemap-build-date.sh
++
+       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
+         # The backlog lives on the private/state branch, NOT on main —
+         # .hermes/ was untracked from main on 2026-10-29 because it
+@@ -1526,6 +1539,20 @@ jobs:
+       - name: Set up Docker Buildx
+         uses: docker/setup-buildx-action@v3
+ 
++      # The build date -- the commit date of the commit being built.
++      #
++      # It becomes the sitemaps' <lastmod>, so it says when the CONTENT
++      # last changed, not when the image was assembled. The commit date
++      # is that truth: a wall clock would tell a search engine that every
++      # page changed every time the image was rebuilt, which would make
++      # the lastmod worth nothing.
++      #
++      # The build container has no git, so it cannot work this out for
++      # itself -- it has to be handed over.
++      - name: Read the commit date
++        id: commit-date
++        run: echo "date=$(git log -1 --date=short --format=%cd "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
++
+       - name: Log in to GitHub Container Registry
+         uses: docker/login-action@v3
+         with:
+@@ -1542,6 +1569,8 @@ jobs:
+             PUBLIC_DOMAIN=${{ matrix.domain }}
+             PUBLIC_API_BASE=https://api.gustale.com
+             PUBLIC_CARTO_API_KEY=${{ secrets.CARTO_BASEMAP_API_KEY }}
++            BUILD_SHA=${{ github.sha }}
++            BUILD_DATE=${{ steps.commit-date.outputs.date }}
+           tags: >-
+             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
+             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}

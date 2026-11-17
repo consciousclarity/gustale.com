@@ -86,6 +86,97 @@ function localePrefix(locale) {
   return locale === "en" ? "" : `/${locale}`;
 }
 
+/**
+ * The build date, as a W3C date (YYYY-MM-DD), or null when it is not
+ * known.
+ *
+ * A sitemap's <lastmod> must be a date the search engine can compare
+ * against the page's real modification time, so it has to be a plain
+ * calendar date -- no time, no timezone offset. The spec allows the
+ * full W3C datetime form, but a date alone is what the other sitemaps
+ * in the wild carry and it is unambiguous.
+ *
+ * THE VALUE IS VALIDATED rather than trusted. A build arg is a string
+ * that arrived from outside this file, and a malformed date in the
+ * sitemap is worse than no date at all: a crawler that cannot parse
+ * it may discard the entry, and we would never know, because the file
+ * would still look correct.
+ *
+ * A date like 2026-02-30 parses in JavaScript (it rolls over to
+ * 2 March), so the round-trip has to be checked.
+ *
+ * A MISSING date is not an error here. The generator returns null, and
+ * the caller OMITS the <lastmod> entirely -- which is what the locale
+ * sitemaps used to do, and which is honest: no date is better than a
+ * false one. A build that knows its commit date passes it in (the
+ * BUILD_DATE build arg, the commit date of the commit being built) and
+ * gets a real <lastmod>.
+ *
+ * A MALFORMED date IS an error. It means somebody passed something
+ * that looks like a date but is not, and shipping it would put a
+ * value in the sitemap that no reader can trust.
+ */
+function resolveBuildDate(raw) {
+  const value = String(raw ?? "").trim();
+
+  // No date, or the placeholder the Dockerfile carries when the build
+  // did not supply one.
+  if (!value || value === "unknown") return null;
+
+  // Accept YYYY-MM-DD, and the first 10 characters of a full ISO
+  // timestamp (which is what `git log --date=short` and most CI
+  // variables hand over).
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ]|$)/.exec(value);
+  if (!match) {
+    throw new Error(
+      `[sitemap] the build date "${value}" is not a YYYY-MM-DD date. ` +
+        "The BUILD_DATE build arg must be the commit date of the commit " +
+        "being built, as YYYY-MM-DD.",
+    );
+  }
+
+  // A value that LOOKS like a full timestamp must BE one. Truncating
+  // "2026-11-17T25:99" to its date part would accept a timestamp that
+  // is not a timestamp at all -- and the same truncation would hide a
+  // typo'd time in a value that came from somewhere else.
+  if (/[T ]/.test(value)) {
+    const timestamp = new Date(value);
+    if (Number.isNaN(timestamp.getTime())) {
+      throw new Error(
+        `[sitemap] the build date "${value}" is not a valid timestamp. ` +
+          "The BUILD_DATE build arg must be the commit date of the commit " +
+          "being built, as YYYY-MM-DD.",
+      );
+    }
+  }
+
+  const [, year, month, day] = match;
+  const parsed = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(
+      `[sitemap] the build date "${value}" is not a real date. ` +
+        "The BUILD_DATE build arg must be the commit date of the commit " +
+        "being built, as YYYY-MM-DD.",
+    );
+  }
+
+  // A date like 2026-02-30 parses in JavaScript (it rolls over to
+  // March 2), so the round-trip has to be checked.
+  if (
+    parsed.getUTCFullYear() !== Number(year) ||
+    parsed.getUTCMonth() + 1 !== Number(month) ||
+    parsed.getUTCDate() !== Number(day)
+  ) {
+    throw new Error(
+      `[sitemap] the build date "${value}" is not a real date. ` +
+        "The BUILD_DATE build arg must be the commit date of the commit " +
+        "being built, as YYYY-MM-DD.",
+    );
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 /** The XML-escaped form of a URL for a <loc> element. */
 function esc(text) {
   return String(text)
@@ -284,6 +375,32 @@ async function main() {
     .map((l) => l.trim())
     .filter(Boolean);
 
+  // The build date -- the date the content was last changed.
+  //
+  // It is the COMMIT date of the commit being built, not the wall
+  // clock. Two reasons, and the second is the important one:
+  //
+  //   1. The wall clock makes the sitemap change on every rebuild, even
+  //      when the content did not. A search engine is told "this page
+  //      changed today" when it did not, and a site that says that
+  //      every day is a site whose lastmod is worth nothing.
+  //
+  //   2. The commit date is the truth about the CONTENT. A dish page
+  //      that was edited in the commit of 3 November was last changed on
+  //      3 November, no matter which day the image was built.
+  //
+  // It arrives as the BUILD_DATE build arg (see apps/web/Dockerfile),
+  // computed by whoever ran the build, because the build container has
+  // no git and could not work it out for itself.
+  //
+  // It can be null, when the build did not supply one -- and then the
+  // <lastmod> is OMITTED rather than filled with a guess. An omitted
+  // <lastmod> is valid sitemap and is honest; a wrong one is neither.
+  const buildDate = resolveBuildDate(getArg("build-date", process.env.BUILD_DATE));
+
+  // The <lastmod> element, or the empty string when there is no date.
+  const lastmod = buildDate ? `\n    <lastmod>${buildDate}</lastmod>` : "";
+
   const origin = siteOrigin(domain);
   const slugs = await collectDishSlugs(dist);
 
@@ -338,7 +455,9 @@ async function main() {
     // The shared pages.
     for (const page of SHARED_PAGES) {
       const path = page ? `${prefix}/${page}` : `${prefix}/`;
-      urls.push(`  <url>\n    <loc>${esc(origin + path)}</loc>\n  </url>`);
+      urls.push(
+        `  <url>\n    <loc>${esc(origin + path)}</loc>${lastmod}\n  </url>`,
+      );
     }
 
     // The dishes. Every entry carries the alternates, so one entry
@@ -360,7 +479,7 @@ async function main() {
       urls.push(
         `  <url>\n    <loc>${esc(
           `${origin}${prefix}/dishes/${slug}`,
-        )}</loc>\n${links.join("\n")}\n  </url>`,
+        )}</loc>${lastmod}\n${links.join("\n")}\n  </url>`,
       );
     }
 
@@ -395,7 +514,7 @@ async function main() {
         urls.push(
           `  <url>\n    <loc>${esc(
             `${origin}/${section}/${slug}`,
-          )}</loc>\n${links.join("\n")}\n  </url>`,
+          )}</loc>${lastmod}\n${links.join("\n")}\n  </url>`,
         );
       }
     }
@@ -427,7 +546,7 @@ async function main() {
         urls.push(
           `  <url>\n    <loc>${esc(
             `${origin}/${section}/${slug}`,
-          )}</loc>\n${links.join("\n")}\n  </url>`,
+          )}</loc>${lastmod}\n${links.join("\n")}\n  </url>`,
         );
       }
     }
@@ -442,12 +561,19 @@ async function main() {
   }
 
   // The index.
+  //
+  // The index's lastmod is the build date, like every entry in the
+  // locale sitemaps. It used to be a hardcoded constant -- a date
+  // from late October 2026 -- which was a day the file's own history
+  // had moved on from: the index claimed to have last changed on a
+  // day that had nothing to do with when the sitemaps it pointed at
+  // were actually generated.
   const index = locales
     .map(
       (l) =>
         `  <sitemap>\n    <loc>${esc(
           `${origin}/sitemap-${l}.xml`,
-        )}</loc>\n    <lastmod>2026-10-29</lastmod>\n  </sitemap>`,
+        )}</loc>${lastmod}\n  </sitemap>`,
     )
     .join("\n");
   const indexXml =
