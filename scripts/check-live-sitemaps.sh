@@ -129,12 +129,19 @@ count_lineage_urls() {
 
 count_ingredient_urls() {
   local host="$1"
-  fetch_sitemap "$host" | grep -c "<loc>[^<]*/ingredients/"
+  # The DETAIL pages only. The index is `/ingredients` (no trailing
+  # slash -- nginx 301s the slash form to the bare one), so this
+  # pattern cannot match it, and the index is counted in STATIC
+  # instead. The trailing slash after the name is what makes it a
+  # detail page.
+  fetch_sitemap "$host" | grep -c "<loc>[^<]*/ingredients/[^<]*</loc>"
 }
 
 count_recipe_urls() {
   local host="$1"
-  fetch_sitemap "$host" | grep -c "<loc>[^<]*/recipes/"
+  # The DETAIL pages only, for the same reason as the ingredients:
+  # the index is `/recipes` and is counted in STATIC.
+  fetch_sitemap "$host" | grep -c "<loc>[^<]*/recipes/[^<]*</loc>"
 }
 
 # The published dish count, from the API.

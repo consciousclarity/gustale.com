@@ -40,10 +40,17 @@ const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
  * The pages that are not dish pages, per locale. The homepage and the
  * dish list are in every locale.
  *
- * `/recipes/` and `/ingredients/` are here because one build serves
+ * `/recipes` and `/ingredients` are here because one build serves
  * everything now. They used to be absent from the sitemap because the
  * geo build stripped them and the recipes build's sitemap was a
  * separate document on a separate host.
+ *
+ * The trailing slash is NOT part of these paths, and that is
+ * deliberate: nginx 301s `/recipes/` to `/recipes` (one hop, query
+ * preserved), so the slash form is a redirect. A sitemap that lists a
+ * redirected URL sends a crawler at the redirect instead of at the
+ * page, and the canonical the page declares would disagree with the
+ * sitemap. One form, the one the server serves with 200.
  *
  * The RECIPES INDEX is listed even while it is empty, because the
  * empty state is a real page with a real URL and a reader can reach
@@ -52,7 +59,7 @@ const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
  * page that says "do not index me" is not listed once it has content
  * either, until the build that has content says otherwise.)
  */
-const SHARED_PAGES = ["", "dishes/", "recipes/", "ingredients/"];
+const SHARED_PAGES = ["", "dishes", "recipes", "ingredients"];
 
 /**
  * The origin the sitemap's URLs are built on.
