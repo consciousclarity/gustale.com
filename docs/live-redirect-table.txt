@@ -1,0 +1,127 @@
+=== the live curl table ===
+
+── gustale.recipes (the old canonical recipes host) ──
+  gustale.recipes/            -> /recipes              301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/recipes     -> /recipes              301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/recipes/    -> /recipes              301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/dishes/bakso -> /dishes/bakso#recipes 301  https://gustale.com/dishes/bakso#recipes                    hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/ingredients/tomato -> same path      301  https://gustale.com/ingredients/tomato                      hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/login       -> same path             301  https://gustale.com/login                                   hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/dishes/new  -> /dishes/new           301  https://gustale.com/dishes/new                              hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+
+  -- the QUERY case (the query must survive the redirect) --
+  gustale.recipes/recipes?q=tomato -> /recipes?q=tomato 301  https://gustale.com/recipes?q=tomato                        hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/dishes/bakso?x=1 -> same path+query  301  https://gustale.com/dishes/bakso?x=1#recipes                hops=1  final=200
+      PASS
+
+  -- the LOCALE case (the locale prefix must survive) --
+  gustale.recipes/es/dishes/bakso -> /es/dishes/bakso  301  https://gustale.com/es/dishes/bakso                         hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  gustale.recipes/es/ingredients/tomato -> same path   301  https://gustale.com/es/ingredients/tomato                   hops=1  final=404
+      PASS
+
+  -- the API and MEDIA paths are PROXIED, not redirected --
+  gustale.recipes/api/dishes                           200  (proxied, no redirect)
+      PASS
+  gustale.recipes/media/ (listing)                     403  (proxied, no redirect)
+      PASS
+
+── www.gustale.recipes ──
+  www.gustale.recipes/         -> /recipes             301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  www.gustale.recipes/dishes/bakso -> /dishes/bakso#recipes 301  https://gustale.com/dishes/bakso#recipes                    hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  www.gustale.recipes/es/dishes/bakso -> /es/dishes/bakso 301  https://gustale.com/es/dishes/bakso                         hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+
+── recipes.gustale.com ──
+  recipes.gustale.com/         -> /recipes             301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/recipes  -> /recipes             301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/recipes/ -> /recipes             301  https://gustale.com/recipes                                 hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/dishes/bakso -> /dishes/bakso#recipes 301  https://gustale.com/dishes/bakso#recipes                    hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/ingredients/tomato -> same path  301  https://gustale.com/ingredients/tomato                      hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/login    -> same path            301  https://gustale.com/login                                   hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/dishes/new -> /dishes/new        301  https://gustale.com/dishes/new                              hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+
+  -- the QUERY case --
+  recipes.gustale.com/recipes?q=tomato -> /recipes?q=tomato 301  https://gustale.com/recipes?q=tomato                        hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/dishes/bakso?x=1 -> same path+query 301  https://gustale.com/dishes/bakso?x=1#recipes                hops=1  final=200
+      PASS
+
+  -- the LOCALE case --
+  recipes.gustale.com/es/dishes/bakso -> /es/dishes/bakso 301  https://gustale.com/es/dishes/bakso                         hops=1  final=200
+      PASS
+      PASS  (the final page is a 200)
+  recipes.gustale.com/es/ingredients/tomato -> same path 301  https://gustale.com/es/ingredients/tomato                   hops=1  final=404
+      PASS
+
+  -- the API and MEDIA paths are PROXIED, not redirected --
+  recipes.gustale.com/api/dishes                       200  (proxied, no redirect)
+      PASS
+  recipes.gustale.com/media/ (listing)                 403  (proxied, no redirect)
+      PASS
+
+── recipe.gustale.com (the singular typo) ──
+  NOT SERVED BY THIS VPS: the A record still points at the registrar
+  (15.197.162.184), so the public answer comes from there. Our file
+  is in place and will take over when the A record is pointed here.
+  The registrar's 301 DROPS the path, which is the bug this file fixes.
+  Caddy holds NO certificate for this name -- it never could, because
+  the A record is not here. The OLD config imported the same file, so
+  this is pre-existing and dormant, NOT a regression.
+
+  -- what the registrar answers (the path is DROPPED) --
+  recipe.gustale.com/dishes/bakso                      301  https://recipes.gustale.com/
+      PASS  (the registrar answers 301 and drops the path -- as documented)
+
+  -- and OUR answer, from this server, with the hostname forced --
+     (the TLS handshake fails: no certificate can be issued while
+      the A record points elsewhere. This is the dormancy, not a fault.)
+curl: (35) OpenSSL/3.0.13: error:0A000438:SSL routines::tlsv1 alert internal error
+  HTTP 000  Location: 
+
+── gustale.com itself does NOT redirect (it is the target) ──
+  gustale.com/                                         200
+  gustale.com/dishes                                   200
+  gustale.com/recipes                                  200
+  gustale.com/ingredients                              200
+  gustale.com/map                                      200
+  gustale.com/admin                                    200
+
+=== 57 passed, 0 failed ===
