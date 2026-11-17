@@ -345,6 +345,7 @@ build_one() {
     --build-arg PUBLIC_DOMAIN="$domain" \
     --build-arg BUILD_DATA_SOURCE="$DATA_SOURCE" \
     --build-arg PUBLIC_API_BASE=http://127.0.0.1:4000 \
+    --build-arg BUILD_SHA="$SHA" \
     -f apps/web/Dockerfile \
     -t "$img" \
     . 2>&1 | tee "$build_log" | tail -10
@@ -355,6 +356,39 @@ build_one() {
     tail -40 "$build_log"
     return "$build_rc"
   fi
+
+  # ─── THE IMAGE MUST PROVE ITS OWN PROVENANCE ──────────────────────────
+  #
+  # THE TAG IS NOT PROOF. A tag is a NAME; it says what the image was
+  # called, not what it contains. On 2026-11-17 a staging deploy shipped
+  # an image whose tag named one commit and whose content was another --
+  # the build had run against a different checkout -- and every check
+  # passed, because the only identity available was the tag.
+  #
+  # So the commit is written INTO the image at build time (the
+  # Dockerfile's BUILD_SHA ARG -> dist/.build-sha), and it is read back
+  # out of the finished image here. The value comes from the image's
+  # own filesystem, so it cannot be inherited from anything else.
+  #
+  # A mismatch means the image does not contain the commit it claims,
+  # and the build is REFUSED: the image is never pushed and never
+  # deployed.
+  local image_sha
+  image_sha="$(docker run --rm --entrypoint sh "$img" -c \
+    'cat /usr/share/nginx/html/.build-sha 2>/dev/null || cat /app/apps/web/dist/.build-sha 2>/dev/null || true' |
+    tr -d '\r\n ')"
+  if [ -z "$image_sha" ]; then
+    echo "ERROR: the $domain image carries NO .build-sha -- it cannot prove its provenance."
+    echo "  the build did not receive BUILD_SHA, or the Dockerfile did not write it."
+    return 1
+  fi
+  if [ "$image_sha" != "$SHA" ]; then
+    echo "ERROR: the $domain image claims to be $image_sha but $SHA was built."
+    echo "  the tag and the content disagree. The image is NOT pushed and NOT deployed."
+    return 1
+  fi
+  echo "  the image proves its provenance: $image_sha"
+
   if [ "$NO_PUSH" != "1" ]; then
     echo "  pushing $img to ghcr..."
     docker push "$img" | tail -5

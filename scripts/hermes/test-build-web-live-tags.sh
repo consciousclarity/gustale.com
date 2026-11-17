@@ -47,33 +47,41 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Shims: docker records every `-t <image>` it is asked to build; curl
-# answers the API health check.
+# Shims: docker records every `-t <image>` it is asked to build AND
+# answers the provenance read; curl answers the API health check.
+#
+# The docker stub is scripts/hermes/docker-stub.sh. It also answers
+# `docker run --rm --entrypoint sh <image> -c 'cat .../.build-sha'` to
+# prove the finished image contains the commit it claims, because
+# build-web-live.sh PROVES the image's provenance before it pushes.
+# A stub that ignored that call made the real script refuse to proceed
+# ("the geo image carries NO .build-sha") -- which is the check
+# WORKING, but the stub has to model a real image, or the test can only
+# assert the failure.
+#
+# The stub remembers the BUILD_SHA it was handed for each image it
+# "builds" and answers the read with that SHA. A real image built by
+# the Dockerfile carries exactly this file, so this is the faithful
+# model, not a rubber stamp.
+# shellcheck source=scripts/hermes/docker-stub.sh
+. "$(dirname "$0")/docker-stub.sh"
 SHIM="$TMP/bin"
 mkdir -p "$SHIM"
-cat > "$SHIM/docker" <<'EOF'
-#!/usr/bin/env bash
-if [ "${1:-}" = "build" ]; then
-  prev=""
-  for a in "$@"; do
-    [ "$prev" = "-t" ] && echo "$a" >> "$DOCKER_BUILT"
-    prev="$a"
-  done
-fi
-exit 0
-EOF
 cat > "$SHIM/curl" <<'EOF'
 #!/usr/bin/env bash
 echo '{"status":"ok"}'
 EOF
-chmod +x "$SHIM/docker" "$SHIM/curl"
+chmod +x "$SHIM/curl"
 
 SHA="0123456789abcdef0123456789abcdef01234567"
 SHORT="0123456"
 REG="ghcr.io/consciousclarity/gustale.com"
 TAG_FILE="$TMP/tag.env"
 export DOCKER_BUILT="$TMP/built.txt"
+export DOCKER_BUILT_SHA="$TMP/built-sha.txt"
 : > "$DOCKER_BUILT"
+: > "$DOCKER_BUILT_SHA"
+write_docker_stub "$SHIM/docker"
 
 echo "=== build-web-live.sh image tags ==="
 
@@ -139,6 +147,50 @@ grep -qxF "$IMAGE_GEO" "$DOCKER_BUILT" && [ -n "$IMAGE_GEO" ] \
 
 [ "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" -eq 1 ] && pass "exactly one image build ran" \
   || fail "the build ran $(wc -l < "$DOCKER_BUILT" | tr -d ' ') times: [$(tr '\n' ' ' < "$DOCKER_BUILT")]"
+
+# ─── the NEGATIVE case ────────────────────────────────────────────────
+# The stub above answers the provenance read with the SHA it was handed,
+# so the run above proves the happy path. This run makes the stub answer
+# with a DIFFERENT SHA -- the image claims a commit it does not contain
+# -- and the build must REFUSE.
+#
+# Without this, the test would pass against a stub that always says
+# "yes", and would prove nothing about the check.
+echo
+echo "=== the negative case: the image claims the wrong commit ==="
+
+# The stub honours DOCKER_LIE_SHA: every provenance read answers with
+# it instead of the real SHA.
+export DOCKER_LIE_SHA="ffffffffffffffffffffffffffffffffffffffff"
+rm -f "$TAG_FILE"
+: > "$DOCKER_BUILT"
+
+( cd "$REPO_ROOT" && \
+  PATH="$SHIM:$PATH" \
+  GITHUB_REPOSITORY="consciousclarity/gustale.com" \
+  GUSTALE_NO_PUSH=1 \
+  GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
+  GUSTALE_SKIP_SNAPSHOT=1 \
+  bash "$SCRIPT" "$SHA" ) > "$TMP/out-lie.log" 2>&1
+rc=$?
+
+if [ "$rc" -ne 0 ]; then
+  pass "the build REFUSES an image whose .build-sha is a different commit (exit $rc)"
+else
+  fail "the build accepted an image claiming $DOCKER_LIE_SHA while $SHA was built"
+fi
+
+if grep -qi "claims to be" "$TMP/out-lie.log"; then
+  pass "the refusal says WHY: the image's commit and the built commit disagree"
+else
+  fail "the refusal did not name the disagreement: $(grep -m1 -iE 'error|claim' "$TMP/out-lie.log" || tail -1 "$TMP/out-lie.log")"
+fi
+
+if grep -qi "pushing" "$TMP/out-lie.log"; then
+  fail "the bad image was PUSHED -- a refused build must not publish"
+else
+  pass "the bad image was NOT pushed"
+fi
 
 echo
 echo "BUILD_WEB_LIVE_TAGS: $PASS passed, $FAIL failed"
