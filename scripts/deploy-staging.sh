@@ -647,12 +647,17 @@ else
 fi
 
 # The retired host must not be in the built HTML. This is a property of
-# the COMMIT, not of a date: the single-domain cutover removed
-# gustale.recipes from the site, so a build of that commit cannot
-# contain it. Its presence means the wrong tree was built.
+# the COMMIT, not of a date: the single-domain cutover removed the
+# retired host from the site, so a build of that commit cannot contain
+# it. Its presence means the wrong tree was built.
+#
+# The pattern matches BOTH retired forms, the same way the repo's own
+# guard (scripts/check-no-legacy-recipes-domain.py) matches them, so
+# the deploy and the build agree on what "retired" means. Checking only
+# one form would let the other slip through.
 if docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
-  'grep -rql "gustale\.recipes" /usr/share/nginx/html/ 2>/dev/null' 2>/dev/null; then
-  echo "  ::error::the web image contains the retired host gustale.recipes -- the wrong commit was built"
+  'grep -rqlE "(gustale\.recipes|recipes\.gustale\.com)" /usr/share/nginx/html/ 2>/dev/null' 2>/dev/null; then
+  echo "  ::error::the web image contains the retired host -- the wrong commit was built"
   FAILED=1
 else
   echo "  the web image has no reference to the retired host"
