@@ -155,3 +155,21 @@ apps/web/scripts/.live-snapshot-cache.json
 # apps/web/scripts/live-snapshot.placeholder.json; the build copies it into
 # place at apps/web/scripts/live-snapshot.json before the docker build.
 apps/web/scripts/live-snapshot.json
+
+# The staging-only admin test account's SQL.
+#
+# It PROMOTES a real account to admin on the STAGING database, and it is
+# a deployment script that runs against that database. It must never be
+# committed: it names the test account, it is staging-specific, and a
+# committed copy is one more copy of a credential-adjacent artefact to
+# keep in sync with a database that gets reset.
+#
+# It is also gitignored so it cannot be swept in by a `git add -A`.
+# The proof script that USES it is tracked:
+# scripts/verify-staging-admin-lifecycle.sh.
+#
+# The DELETE counterpart (scripts/staging-admin-test-account-delete.sql)
+# IS tracked on purpose: it holds no credential and no hash, it only
+# removes the account and its sessions, and having it in the tree means
+# the cleanup is reproducible after a database reset.
+scripts/staging-admin-test-account.sql
