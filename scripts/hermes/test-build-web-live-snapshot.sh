@@ -38,26 +38,28 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
 
-# A docker stub that records the -t tags, and a curl stub.
-cat > "$TMP/bin/docker" <<'EOF'
-#!/usr/bin/env bash
-if [ "${1:-}" = "build" ]; then
-  prev=""
-  for a in "$@"; do
-    [ "$prev" = "-t" ] && echo "$a" >> "$DOCKER_BUILT"
-    prev="$a"
-  done
-fi
-exit 0
-EOF
+# A docker stub that records the -t tags and answers the provenance
+# read the way a real image would, and a curl stub.
+#
+# The shared stub is scripts/hermes/docker-stub.sh: it also answers
+# `docker run ... cat .../.build-sha` with the BUILD_SHA the image was
+# built with, because build-web-live.sh PROVES the image's provenance
+# before it pushes, and a stub that cannot be read from makes the real
+# script refuse to proceed.
+# shellcheck source=scripts/hermes/docker-stub.sh
+. "$(dirname "$0")/docker-stub.sh"
+export DOCKER_BUILT="$TMP/built.txt"
+export DOCKER_BUILT_SHA="$TMP/built-sha.txt"
+: > "$DOCKER_BUILT"
+: > "$DOCKER_BUILT_SHA"
+write_docker_stub "$TMP/bin/docker"
 cat > "$TMP/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 echo '{"status":"ok"}'
 EOF
-chmod +x "$TMP/bin/docker" "$TMP/bin/curl"
+chmod +x "$TMP/bin/curl"
 
 SHA="0123456789abcdef0123456789abcdef01234567"
-export DOCKER_BUILT="$TMP/built.txt"
 
 run_build() {
   # run_build <extra env assignments...>
