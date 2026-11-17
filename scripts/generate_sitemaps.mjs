@@ -396,7 +396,9 @@ async function main() {
   // It can be null, when the build did not supply one -- and then the
   // <lastmod> is OMITTED rather than filled with a guess. An omitted
   // <lastmod> is valid sitemap and is honest; a wrong one is neither.
-  const buildDate = resolveBuildDate(getArg("build-date", process.env.BUILD_DATE));
+  const buildDate = resolveBuildDate(
+    getArg("build-date", process.env.BUILD_DATE),
+  );
 
   // The <lastmod> element, or the empty string when there is no date.
   const lastmod = buildDate ? `\n    <lastmod>${buildDate}</lastmod>` : "";
