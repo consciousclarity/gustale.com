@@ -5,12 +5,12 @@
 // In production, we use the same-origin /api/* path so the browser
 // hits Caddy, which reverse-proxies to the API container. This means:
 //   - No CORS: the cookie + fetch happen on the same origin.
-//   - No domain-aware code: gustale.com and gustale.recipes share the
-//     same gustale-web container and the same /api/* prefix.
+//   - No domain-aware code: the site is a single domain now, and it
+//     shares the gustale-web container and the same /api/* prefix.
 //   - The build-time PUBLIC_API_BASE is only used during server-side
 //     rendering (Astro getStaticPaths), where the container doesn't
-//     know which domain the user came in on — so it bakes in a single
-//     canonical API host (api.gustale.recipes going forward).
+//     know which host the user came in on — so it bakes in a single
+//     canonical API host (api.gustale.com going forward).
 //
 // All dish routes are mounted under /api/* on the server
 // (see apps/api/src/routes/dishes.ts: app.get('/api/dishes', ...)).

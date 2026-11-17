@@ -33,11 +33,11 @@
  * (gustale.com, decision D1) with six sections, and a switch is a
  * message that there are two sites.
  *
- * Until WP-D1 lands the single build, the Recipes and Ingredients
- * sections still have to point at the host where those pages actually
- * live. That is what `authoringHref()` is for, and it is the only
- * place in the navigation that knows about the split. When WP-D1
- * ships, this file changes in one place.
+ * WP-D1 HAS NOW LANDED: there is ONE build, on gustale.com, and it
+ * serves every section — the ingredients index, the recipes pages and
+ * the map alike. The host split is gone, so every section's href is a
+ * RELATIVE, same-origin path. There is no cross-host link left in
+ * the navigation to get wrong.
  *
  * WHY THIS MODULE HAS NO `domain.ts` IMPORT
  * -----------------------------------------
@@ -62,9 +62,10 @@ export type SectionLabel = (typeof SECTION_LABELS)[number];
 /**
  * The section that each label points at, as a PATH.
  *
- * The path is the same on every host. What changes is whether the path
- * is served here or on the recipes host, and that is the `external`
- * flag's job.
+ * The path is the same on every host, and after the single-domain
+ * cutover there is only one host: every path below is served by the
+ * ONE build, on gustale.com. The `external` flag is therefore always
+ * false — see `SectionLink.external`.
  */
 export const SECTION_PATHS: Record<SectionLabel, string> = {
   Atlas: "/",
@@ -74,19 +75,6 @@ export const SECTION_PATHS: Record<SectionLabel, string> = {
   History: "/lineages",
   Recipes: "/recipes",
 };
-
-/**
- * Which sections live on the RECIPES host until WP-D1 ships.
- *
- * The ingredients index and the recipes pages are built into the
- * recipes image, and the geo build strips them in post-build. A
- * relative link to them from the Atlas would be a 404, so these two
- * are the ones that have to cross to the other host.
- */
-export const RECIPES_HOST_SECTIONS: readonly SectionLabel[] = [
-  "Ingredients",
-  "Recipes",
-];
 
 /** One line: what this section is for. Used in the footer. */
 export const SECTION_DESCRIPTIONS: Record<SectionLabel, string> = {
@@ -110,23 +98,34 @@ export interface SectionLink {
    *
    * The footer and the mobile drawer mark these, so a reader knows
    * they are leaving the site rather than moving within it.
+   *
+   * After the single-domain cutover this is ALWAYS false: there is no
+   * other host to leave for. The field is kept because the footer's
+   * and the drawer's "leaves the site" styling is keyed off it, and
+   * deleting the flag would mean deleting that styling — which would
+   * be a change of presentation for a change of fact, and not this
+   * refactor's business.
    */
   readonly external: boolean;
 }
 
 /**
- * The six sections, for a given host.
+ * The six sections.
  *
- * `onRecipesHost` says whether this build is the recipes one. When it
- * is, every section is served here. When it is not, the two
- * recipes-host sections are marked external.
+ * There is ONE host now (gustale.com, blueprint decision D1) and it
+ * serves every section, so every section is LOCAL: `external` is
+ * false for all six, and every `path` is a relative, same-origin path
+ * that this build actually serves.
+ *
+ * The argument the split used to need is gone. That is the point of
+ * the cutover: the navigation no longer knows which host it is on.
  */
-export function siteSections(onRecipesHost: boolean): SectionLink[] {
+export function siteSections(): SectionLink[] {
   return SECTION_LABELS.map((label) => ({
     label,
     path: SECTION_PATHS[label],
     description: SECTION_DESCRIPTIONS[label],
-    external: !onRecipesHost && RECIPES_HOST_SECTIONS.includes(label),
+    external: false,
   }));
 }
 

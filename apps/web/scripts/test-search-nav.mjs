@@ -23,29 +23,25 @@ import {
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("resolveSearchHitHref", () => {
-  it("rewrites ingredients and dishes index on Atlas", () => {
+  it("is a no-op: every hit is already local", () => {
+    // ONE SITE. There is no other host, so there is nothing to
+    // rewrite — the href comes back exactly as it went in.
     assert.equal(
       resolveSearchHitHref("/ingredients/ginger", "geo"),
-      "https://gustale.recipes/ingredients/ginger",
+      "/ingredients/ginger",
     );
-    assert.equal(
-      resolveSearchHitHref("/dishes?q=pho", "geo"),
-      "https://gustale.recipes/dishes?q=pho",
-    );
-    assert.equal(
-      resolveSearchHitHref("/dishes", "geo"),
-      "https://gustale.recipes/dishes",
-    );
+    assert.equal(resolveSearchHitHref("/dishes?q=pho", "geo"), "/dishes?q=pho");
+    assert.equal(resolveSearchHitHref("/dishes", "geo"), "/dishes");
   });
 
-  it("preserves dish detail and query strings on Atlas", () => {
+  it("preserves dish detail and query strings", () => {
     assert.equal(
       resolveSearchHitHref("/dishes/vindaloo", "geo"),
       "/dishes/vindaloo",
     );
     assert.equal(
       resolveSearchHitHref("/ingredients/salt?x=1", "geo"),
-      "https://gustale.recipes/ingredients/salt?x=1",
+      "/ingredients/salt?x=1",
     );
   });
 
@@ -62,10 +58,10 @@ describe("resolveSearchHitHref", () => {
 });
 
 describe("seeAllDishesHref", () => {
-  it("uses absolute Recipes URL on Atlas and preserves query encoding", () => {
+  it("uses a relative dishes URL and preserves query encoding", () => {
     assert.equal(
       seeAllDishesHref("filled dough", "geo"),
-      "https://gustale.recipes/dishes?q=filled%20dough",
+      "/dishes?q=filled%20dough",
     );
     assert.equal(seeAllDishesHref("pho", "recipes"), "/dishes?q=pho");
   });
@@ -111,33 +107,20 @@ describe("fallback browse links", () => {
     assert.ok(
       help.some((l) => l.href === "/lineages" && l.label === "History"),
     );
-    // The two recipes-host sections are ABSOLUTE on the Atlas build,
-    // because the geo build strips those paths in post-build.
+    // EVERY section is relative, because there is no other host to
+    // point at.
     assert.ok(
-      help.some(
-        (l) =>
-          l.href === "https://gustale.recipes/ingredients" &&
-          l.label === "Ingredients",
-      ),
+      help.some((l) => l.href === "/ingredients" && l.label === "Ingredients"),
     );
-    assert.ok(
-      help.some(
-        (l) =>
-          l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
-      ),
-    );
+    assert.ok(help.some((l) => l.href === "/recipes" && l.label === "Recipes"));
+    assert.ok(!help.some((l) => l.href.startsWith("https://")));
 
     // The error links are the SAME list, with the same labels.
     assert.ok(
       err.some((l) => l.href === "/families" && l.label === "Families"),
     );
     assert.ok(err.some((l) => l.href === "/lineages" && l.label === "History"));
-    assert.ok(
-      err.some(
-        (l) =>
-          l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
-      ),
-    );
+    assert.ok(err.some((l) => l.href === "/recipes" && l.label === "Recipes"));
   });
 
   it("Recipes help + error links stay local where valid", () => {
@@ -178,8 +161,10 @@ describe("isPrimaryNavActive", () => {
 });
 
 describe("addDishHref", () => {
-  it("is absolute on Atlas and local on Recipes", () => {
-    assert.equal(addDishHref("geo"), "https://gustale.recipes/dishes/new");
+  it("is relative on every build", () => {
+    // ONE SITE: the authoring form is on this site, so the link to it
+    // is a relative path.
+    assert.equal(addDishHref("geo"), "/dishes/new");
     assert.equal(addDishHref("recipes"), "/dishes/new");
   });
 });

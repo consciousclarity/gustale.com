@@ -1,7 +1,6 @@
 import type { DishJourneyLineage, DishJourneyMovement } from "../lib/api";
 import { selectDishHeroMedia } from "../lib/dishMedia";
 import { buildSectionLinks } from "../lib/dishSections";
-import { authoringHref } from "../lib/domain";
 import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 import type {
   DishCategory,
@@ -339,9 +338,7 @@ export function DishDetail({
                         : (ing.unit ?? "")}
                     </span>
                     <span className="nm">
-                      <a href={authoringHref(`/ingredients/${ing.slug}`)}>
-                        {ing.name}
-                      </a>
+                      <a href={`/ingredients/${ing.slug}`}>{ing.name}</a>
                       {ing.isOptional && <small> optional</small>}
                       {ing.preparationNote && (
                         <small>{ing.preparationNote}</small>

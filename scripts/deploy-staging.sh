@@ -123,6 +123,11 @@ case "$STAGING_API_PORT" in
 esac
 
 # The container names must not collide with production.
+#
+# Production runs gustale-api and ONE web container, gustale-web-geo.
+# gustale-web-recipes is the RETIRED web container: it keeps serving the
+# old host until the owner removes it after the redirects go live, and
+# its name stays on this list so staging can never take it either.
 for c in "$STAGING_WEB_CONTAINER" "$STAGING_API_CONTAINER"; do
   case "$c" in
     gustale-api|gustale-web-geo|gustale-web-recipes)
@@ -146,6 +151,89 @@ if [ -z "$BRANCH" ]; then
 fi
 SHA="${2:-}"
 
+# ─── The bootstrap: run the script FROM the tree being deployed ─────
+#
+# This is the FIRST thing that happens, before the SHA is even
+# resolved, and that ordering is the whole point.
+#
+# WHY: the build directory is a checkout, and a checkout can sit at
+# any commit. The deploy is invoked by a human, so the copy of
+# scripts/deploy-staging.sh that runs is whatever copy they happened
+# to invoke -- which may be OLDER than the commit being deployed. When
+# that happens, the guards that run are the OLD guards, and the
+# deployed commit's guards never run at all.
+#
+# On 2026-11-17 that is exactly what happened. The deploy was driven
+# from a build directory stuck at 53b30b5, whose script had NO SHA
+# checkout and NO provenance check. It deployed 0583313 by building
+# 53b30b5's tree, tagged it staging-data-0583313, and reported success
+# on every check -- because none of the checks that could have caught
+# it existed in the script that ran.
+#
+# So the tree becomes the authority. The script checks out the target
+# commit and then re-executes ITSELF from that tree. Every guard that
+# runs after that point is the guard the DEPLOYED COMMIT wrote, and
+# the build is of that same tree.
+#
+# The environment variable is the guard against an exec loop: it is
+# set only by the re-exec, so the second run knows it already
+# happened. And because this block runs BEFORE the SHA resolution, an
+# old driver script that predates this bootstrap still gets to it --
+# the OLD script's SHA handling is never reached.
+#
+# The checkout itself has to happen before the re-exec, because the
+# script to re-exec lives in the tree being deployed. So the order is:
+#
+#   1. resolve the SHA inside $REPO
+#   2. check out that SHA inside $REPO
+#   3. re-exec $REPO/scripts/deploy-staging.sh
+#   4. from there on, the deployed commit's rules are the rules
+#
+# With GUSTALE_DEPLOY_REEXEC already set, steps 1-3 are skipped and
+# this script -- the one from the deployed tree -- simply proceeds.
+if [ -z "${GUSTALE_DEPLOY_REEXEC:-}" ]; then
+  cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
+
+  if [ -z "$SHA" ]; then
+    git fetch origin "$BRANCH" >/dev/null 2>&1
+    SHA="$(git rev-parse "origin/$BRANCH" 2>/dev/null)"
+  fi
+  if [ -z "$SHA" ]; then
+    refuse "could not resolve a SHA for '$BRANCH'"
+  fi
+
+  # Put the tree at exactly that commit. A detached checkout is
+  # deliberate: the tree must not depend on which branch the build
+  # directory happens to have checked out, and a later deploy of
+  # another branch must not be silently blocked by a dirty tree.
+  git checkout --detach --force "$SHA" >/dev/null 2>&1 ||
+    refuse "could not check out $SHA in $REPO"
+
+  # The checkout is verified, not assumed. `git rev-parse HEAD` is the
+  # commit the BUILD will contain; if it is not the commit we were
+  # asked to deploy, the image tag would lie about its own contents --
+  # which is exactly the failure this guards.
+  BUILT_SHA="$(git rev-parse HEAD 2>/dev/null)"
+  if [ "$BUILT_SHA" != "$SHA" ]; then
+    refuse "the build tree is at $BUILT_SHA but $SHA was requested"
+  fi
+
+  DEPLOY_SCRIPT="$REPO/scripts/deploy-staging.sh"
+  if [ ! -f "$DEPLOY_SCRIPT" ]; then
+    refuse "the deploy script is not in the build tree ($DEPLOY_SCRIPT)"
+  fi
+
+  echo "  bootstrapping: re-executing the deploy script from the deployed tree"
+  export GUSTALE_DEPLOY_REEXEC=1
+  export GUSTALE_REPO="$REPO"
+  exec bash "$DEPLOY_SCRIPT" "$@"
+fi
+
+# ─── The build tree ─────────────────────────────────────────────────
+# From here on this IS the script from the deployed commit, and $REPO
+# is checked out at exactly that commit.
+cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
+
 if [ -z "$SHA" ]; then
   git fetch origin "$BRANCH" >/dev/null 2>&1
   SHA="$(git rev-parse "origin/$BRANCH" 2>/dev/null)"
@@ -153,6 +241,23 @@ fi
 if [ -z "$SHA" ]; then
   refuse "could not resolve a SHA for '$BRANCH'"
 fi
+
+# Put the tree at exactly that commit. A detached checkout is
+# deliberate: the tree must not depend on which branch the build
+# directory happens to have checked out, and a later deploy of another
+# branch must not be silently blocked by a dirty tree.
+git checkout --detach --force "$SHA" >/dev/null 2>&1 ||
+  refuse "could not check out $SHA in $REPO"
+
+# The checkout is verified, not assumed. `git rev-parse HEAD` is the
+# commit the BUILD will contain; if it is not the commit we were asked
+# to deploy, the image tag would lie about its own contents -- which
+# is exactly the failure this guards.
+BUILT_SHA="$(git rev-parse HEAD 2>/dev/null)"
+if [ "$BUILT_SHA" != "$SHA" ]; then
+  refuse "the build tree is at $BUILT_SHA but $SHA was requested"
+fi
+
 SHORT_SHA="$(echo "$SHA" | cut -c1-7)"
 
 echo "=== staging deploy: $BRANCH @ $SHORT_SHA ==="
@@ -161,9 +266,8 @@ echo "  web port    $STAGING_WEB_PORT"
 echo "  api port    $STAGING_API_PORT"
 echo "  database    $STAGING_DB_NAME on $STAGING_DB_HOST:$STAGING_DB_PORT ($STAGING_PG_CONTAINER)"
 echo "  build scope $STAGING_BUILD_LOCALES / $STAGING_BUILD_DISH_LIMIT dishes"
+echo "  build tree  $REPO @ $SHORT_SHA (verified)"
 echo ""
-
-cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
 
 # ─── 1. The staging database ────────────────────────────────────────
 # The migrations run against the staging database, and the same
@@ -227,9 +331,59 @@ echo "--- 2. the staging API ---"
 # staging API came up healthy and answered requests from production
 # data, which is exactly the failure this environment must never
 # have. The filter is what makes the isolation real.
+# The staging API inherits the PRODUCTION API's environment -- except
+# for the values that must be the staging ones.
+#
+# WHY IT IS NOT A CHAIN OF `grep -vE` PIPES
+# -----------------------------------------
+# The obvious spelling is a pipeline of filters:
+#
+#     docker inspect ... | grep -vE "^(DATABASE_URL|...)=" \
+#                        | grep -vE "^(BUILD_SHA|...)=" > "$FILE"
+#
+# That FAILS, and fails silently in the worst way: `grep` exits as soon
+# as it has seen what it needs and closes the pipe, so `docker inspect`
+# is killed by SIGPIPE (exit 141). Under `set -euo pipefail` the whole
+# script then exits at that line, LEAVING THE ENV FILE EMPTY -- and the
+# staging API starts with none of the inherited variables, so it dies
+# with "Invalid environment variables: SESSION_SECRET, MINIO_*".
+#
+# So the filtering is done with ONE `awk`, which reads all of its input
+# and writes one line at a time. There is no early exit, so no SIGPIPE,
+# and the env file is always complete.
+#
+# The excluded names are: the values that must be the staging ones
+# (DATABASE_URL, the auth settings, CORS_ORIGIN, PORT, HOST) AND the
+# build identity (BUILD_SHA, BUILD_TIME, GIT_REF).
+#
+# The build identity must NOT be inherited. The staging API used to
+# inherit the PRODUCTION API's build identity and report production's
+# SHA in /health while serving the staging image. The identity was
+# INHERITED instead of coming from the thing that is actually serving;
+# the image's own ENV is now the only source.
 docker inspect gustale-api --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  grep -vE "^(DATABASE_URL|BETTER_AUTH_URL|BETTER_AUTH_SECRET|CORS_ORIGIN|BETTER_AUTH_TRUSTED_ORIGINS|PORT|HOST)=" \
-  > "$STAGING_ENV_FILE"
+  awk -F= '
+    /^DATABASE_URL=/           { next }
+    /^BETTER_AUTH_URL=/        { next }
+    /^BETTER_AUTH_SECRET=/     { next }
+    /^CORS_ORIGIN=/            { next }
+    /^BETTER_AUTH_TRUSTED_ORIGINS=/ { next }
+    /^PORT=/                   { next }
+    /^HOST=/                   { next }
+    /^BUILD_SHA=/              { next }
+    /^BUILD_TIME=/             { next }
+    /^GIT_REF=/                { next }
+    { print }
+  ' > "$STAGING_ENV_FILE"
+
+# The env file must not be empty: an empty one means the inheritance
+# silently produced nothing, and the API would start without its
+# secrets. That failure mode is caught here, where the cause is
+# visible, instead of three steps later as "Invalid environment
+# variables".
+if [ ! -s "$STAGING_ENV_FILE" ]; then
+  refuse "the inherited staging environment is EMPTY -- the production API's environment could not be read"
+fi
 
 # The password, taken from the production container and never printed.
 #
@@ -256,38 +410,57 @@ test_pg_psql postgres -q -c \
   refuse "could not align the staging role's password"
 echo "  the staging role's password is aligned with the production one"
 
-# The API IMAGE. By default it is the image for the SHA being
-# deployed -- but that image only exists if CI has built it, and a
-# BRANCH that has never been through CI has no image.
+# The API IMAGE. It is the image for the SHA being deployed -- and it
+# is BUILT here, from the tree that is being deployed, when it is not
+# already on the box.
 #
-# So the image is RESOLVED, not assumed:
+# WHY IT IS BUILT HERE
+# --------------------
+# The staging API used to FALL BACK to the newest gustale-api image on
+# the box when the branch's image was absent. That fallback is what
+# left staging serving an API from a DIFFERENT commit than the web --
+# and because the deploy passed `-e BUILD_SHA=$SHA` at RUNTIME, the
+# fallback image's /health reported the REQUESTED sha, not its own.
+# The identity was asserted rather than proven.
 #
-#   1. the image for the SHA, if it is present locally or in the
-#      registry
-#   2. otherwise the newest gustale-api image already on the box
+# So the API image is now built from the deployed tree, and its
+# BAKE-IN BUILD_SHA (the image's own ENV, not a runtime override) is
+# what the deploy verifies. A fallback is no longer possible.
 #
-# The second case is the honest one for a first staging deploy of a
-# branch: the STAGING API is the same API code as production, and the
-# thing being tested on staging is the WEB change. When the branch has
-# been through CI, the first case applies and the API is exactly the
-# branch's.
+# The image's own identity is checked with:
 #
-# The image actually used is recorded in the state file, so "what is
-# staging running?" has an answer.
+#   docker run --rm --entrypoint sh <image> -c 'echo $BUILD_SHA'
+#
+# which reads the ENV the Dockerfile baked in -- NOT the one the
+# container was given.
 docker rm -f "$STAGING_API_CONTAINER" >/dev/null 2>&1
 STAGING_API_IMAGE="${STAGING_IMAGE_REPO}/gustale-api:${SHA}"
+
 if ! docker image inspect "$STAGING_API_IMAGE" >/dev/null 2>&1; then
-  FALLBACK_IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' |
-    grep "^${STAGING_IMAGE_REPO}/gustale-api:" |
-    grep -v ":latest$" |
-    head -1)
-  if [ -z "$FALLBACK_IMAGE" ]; then
-    refuse "there is no gustale-api image on this box for $SHA, and no older one to fall back to"
+  echo "  the API image for $SHORT_SHA is not on the box -- building it from the deployed tree"
+  API_BUILD_ARGS=()
+  if [ "${GUSTALE_BUILD_NO_CACHE:-0}" = "1" ]; then
+    API_BUILD_ARGS=(--no-cache)
   fi
-  echo "  the image for $SHORT_SHA has not been built yet; using $FALLBACK_IMAGE"
-  echo "  (the web change is what staging is for; the API is production's)"
-  STAGING_API_IMAGE="$FALLBACK_IMAGE"
+  ( cd "$REPO" && docker build "${API_BUILD_ARGS[@]}" \
+      --build-arg "BUILD_SHA=$SHA" \
+      --build-arg "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --build-arg "GIT_REF=refs/heads/$BRANCH" \
+      -f apps/api/Dockerfile \
+      -t "$STAGING_API_IMAGE" . ) \
+    || refuse "the API image build for $SHORT_SHA failed"
+  echo "  the API image $STAGING_API_IMAGE is built"
 fi
+
+# The image's OWN build identity. This is the ENV the Dockerfile baked
+# in. If it is not the SHA we are deploying, the image is not the
+# commit we think it is -- and no runtime environment variable can
+# change what this reads.
+API_IMAGE_SHA=$(docker run --rm --entrypoint sh "$STAGING_API_IMAGE" -c 'echo "$BUILD_SHA"' 2>/dev/null | tr -d '\r\n ')
+if [ "$API_IMAGE_SHA" != "$SHA" ]; then
+  refuse "the API image $STAGING_API_IMAGE carries BUILD_SHA='$API_IMAGE_SHA', but $SHA was requested"
+fi
+echo "  the API image carries BUILD_SHA $API_IMAGE_SHA (verified from the image itself)"
 
 docker run -d --name "$STAGING_API_CONTAINER" \
   --network host --restart unless-stopped \
@@ -300,7 +473,6 @@ docker run -d --name "$STAGING_API_CONTAINER" \
   -e "BETTER_AUTH_SECRET=${STAGING_BETTER_AUTH_SECRET}" \
   -e "CORS_ORIGIN=https://${STAGING_HOST}" \
   -e "BETTER_AUTH_TRUSTED_ORIGINS=https://${STAGING_HOST}" \
-  -e "BUILD_SHA=$SHA" \
   "$STAGING_API_IMAGE" >/dev/null 2>&1 ||
   refuse "could not start the staging API container"
 
@@ -321,7 +493,7 @@ done
 # paths as production, a fraction of the pages.
 echo "--- 3. the staging web (a scoped build) ---"
 STAGING_TAG="staging-data-${SHORT_SHA}"
-STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-recipes:$STAGING_TAG"
+STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-geo:$STAGING_TAG"
 
 # The build runs against the STAGING API, so the staging pages show
 # staging data.
@@ -333,7 +505,42 @@ STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-recipes:$STAGING_TAG"
 # wait-for-api with a connection timeout that looks like the API is
 # down. With --network host the build container shares the host's
 # network namespace and reaches 127.0.0.1 directly.
+# THE CACHE TOGGLE
+# -----------------
+# The Astro build step is a Docker layer, and it is cached. That means
+# a deploy can ship the PREVIOUS build: the source is unchanged (the
+# API's DATA changed, not the code), so the layer is a cache hit and
+# the build is not re-run.
+#
+# This is not hypothetical. The same bug was found and fixed in the
+# PRODUCTION build script on 2026-10-17 -- "buildx layer-cache hit on
+# the COPY-fetch-Dockerfile steps and re-baked the OLD data even when
+# the API had changed". The staging script never got the fix, so it
+# had the same behaviour.
+#
+# It bit the single-domain verification: the moussaka pilot recipe was
+# inserted into the staging database, the deploy ran, the build step
+# was a cache hit, and the recipe page was not in the output. The
+# build had to be re-run with --no-cache before the page appeared.
+#
+# So: GUSTALE_BUILD_NO_CACHE=1 forces a clean rebuild, exactly as in
+# the production script. The default is to use the cache (fast).
+#
+# `local` is NOT used here: this code is at the top level of the
+# script, not inside a function, so `local` prints
+# "local: can only be used in a function" and returns non-zero. The
+# script runs with `set -uo pipefail` and no `-e`, so the error was
+# cosmetic -- the array still ended up correct -- but a script that
+# prints an error on every deploy trains the reader to ignore its
+# output. A plain array is the correct construct here.
+cache_args=()
+if [ "${GUSTALE_BUILD_NO_CACHE:-0}" = "1" ]; then
+  cache_args=(--no-cache --pull)
+  echo "  the cache is OFF -- this build will re-run every step"
+fi
+
 docker build \
+  "${cache_args[@]}" \
   --network host \
   --build-arg PUBLIC_DOMAIN=staging \
   --build-arg "PUBLIC_API_BASE=http://127.0.0.1:${STAGING_API_PORT}" \
@@ -463,12 +670,72 @@ else
 fi
 
 # The SERVED build is the build that was deployed.
+#
+# NOTE what this does NOT prove: /health is the API's endpoint, so it
+# reports the SHA of the API IMAGE, not of the web image that was just
+# built. A deploy that shipped the wrong web tree passed this check
+# unchanged. The web image's own content is verified below, by reading
+# the image itself.
+#
+# This check used to be a WARNING. It is now an ERROR, because the API
+# image's own BUILD_SHA was already verified against the image above --
+# so if /health disagrees, something is actively wrong (a runtime
+# override, a stale container, a proxy) and the deploy must not claim
+# success.
 SERVED_SHA=$(curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_API_PORT}/health" 2>/dev/null |
   sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{7,40\}\)".*/\1/p' | head -1)
 if [ "$SERVED_SHA" = "$SHA" ]; then
-  echo "  the served SHA matches the deployed SHA ($SHORT_SHA)"
+  echo "  the served API SHA matches the deployed SHA ($SHORT_SHA)"
 else
-  echo "  ::warning::the API did not report the deployed SHA (served='${SERVED_SHA:-none}')"
+  echo "  ::error::the API reports SHA '${SERVED_SHA:-none}' but $SHA was deployed -- the image's own BUILD_SHA was verified, so the running container is not the verified image"
+  FAILED=1
+fi
+
+# THE WEB IMAGE'S OWN CONTENT IS VERIFIED.
+#
+# This is the check that would have caught the 2026-11-17 deployment
+# that shipped a 9-url, no-/recipes, gustale.recipes-baked image under
+# the tag staging-data-0583313. Every other check passed: the container
+# was healthy, the pages served, the API answered, and the SHA the
+# deploy reported was the SHA it had LIED about.
+#
+# So the image is inspected directly, and it must prove it came from
+# the commit being deployed -- by reading the BUILD_SHA that the build
+# baked into it, and by finding that commit's OWN marker in its
+# content.
+#
+# The marker is the site itself: the retired host must NOT be in the
+# HTML (the single-domain cutover removed it), and the routes the
+# commit added must BE there. A build of the wrong commit cannot
+# satisfy both.
+WEB_IMAGE_SHA=$(docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
+  'cat /usr/share/nginx/html/.build-sha 2>/dev/null' 2>/dev/null | tr -d '[:space:]')
+if [ -z "$WEB_IMAGE_SHA" ]; then
+  WEB_IMAGE_SHA=$(docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
+    'grep -rhoE "[0-9a-f]{40}" /usr/share/nginx/html/ 2>/dev/null | head -1' 2>/dev/null | tr -d '[:space:]')
+fi
+if [ "$WEB_IMAGE_SHA" = "$SHA" ]; then
+  echo "  the web image was built from the deployed SHA ($SHORT_SHA)"
+else
+  echo "  ::error::the web image was NOT built from $SHA (it reports '${WEB_IMAGE_SHA:-none}') -- the image tag would lie about its own contents"
+  FAILED=1
+fi
+
+# The retired host must not be in the built HTML. This is a property of
+# the COMMIT, not of a date: the single-domain cutover removed the
+# retired host from the site, so a build of that commit cannot contain
+# it. Its presence means the wrong tree was built.
+#
+# The pattern matches BOTH retired forms, the same way the repo's own
+# guard (scripts/check-no-legacy-recipes-domain.py) matches them, so
+# the deploy and the build agree on what "retired" means. Checking only
+# one form would let the other slip through.
+if docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
+  'grep -rqlE "(gustale\.recipes|recipes\.gustale\.com)" /usr/share/nginx/html/ 2>/dev/null' 2>/dev/null; then
+  echo "  ::error::the web image contains the retired host -- the wrong commit was built"
+  FAILED=1
+else
+  echo "  the web image has no reference to the retired host"
 fi
 
 # THE ISOLATION PROOF. This is the check that matters most, so it is

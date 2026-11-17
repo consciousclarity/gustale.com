@@ -3,13 +3,7 @@
  * Domain is passed explicitly so Node tests can run without Vite.
  */
 
-import {
-  ATLAS_ORIGIN,
-  authoringHref,
-  type GustaleDomain,
-  isRecipesOnlyPath,
-  RECIPES_ORIGIN,
-} from "./domain";
+import type { GustaleDomain } from "./domain";
 import { siteSections } from "./sections";
 
 export type SearchPlacement = "header" | "drawer";
@@ -23,44 +17,45 @@ export function isDishesIndexPath(path: string): boolean {
 }
 
 /**
- * Rewrite a search-hit href for the current domain.
- * On Atlas: recipes-only paths and the dishes *list* become absolute Recipes URLs.
- * Dish detail (`/dishes/<slug>`) stays local (retained in geo dist).
- * Query strings are preserved.
+ * Rewrite a search-hit href.
+ *
+ * IT IS A NO-OP NOW, and that is the point.
+ *
+ * It used to rewrite a hit's path into an ABSOLUTE url on the recipes
+ * host when the hit was a recipes-only path (`/ingredients`,
+ * `/dishes/new`) or the dishes *list*, because the geo build stripped
+ * those paths and a relative link to them was a 404 there.
+ *
+ * One build serves everything now, so every hit is already local and
+ * every hit is already correct. The function is kept — it is called
+ * from the search component and from the Node-side copy in
+ * `scripts/search-nav-helpers.mjs` — and it returns the href
+ * unchanged.
+ *
+ * The `domain` argument is kept for the same reason: the callers pass
+ * it, and removing it would be a wider change than this cutover needs.
+ *
+ * Query strings are preserved by returning the href untouched.
  */
 export function resolveSearchHitHref(
   href: string,
-  domain: GustaleDomain,
+  _domain: GustaleDomain,
 ): string {
-  try {
-    let pathOnly: string;
-    let qs = "";
-    if (href.startsWith("http://") || href.startsWith("https://")) {
-      const u = new URL(href);
-      pathOnly = u.pathname;
-      qs = u.search;
-    } else {
-      const qIdx = href.indexOf("?");
-      pathOnly = qIdx >= 0 ? href.slice(0, qIdx) : href;
-      qs = qIdx >= 0 ? href.slice(qIdx) : "";
-    }
-
-    if (domain !== "geo") return href;
-
-    if (isRecipesOnlyPath(pathOnly) || isDishesIndexPath(pathOnly)) {
-      const p = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
-      return `${RECIPES_ORIGIN}${p}${qs}`;
-    }
-    return href;
-  } catch {
-    return href;
-  }
+  return href;
 }
 
-/** “See all dish matches” — never local `/dishes` on Atlas (list index removed). */
-export function seeAllDishesHref(query: string, domain: GustaleDomain): string {
+/**
+ * “See all dish matches” — the local dishes listing.
+ *
+ * It used to point at the RECIPES HOST on the geo build, because the
+ * geo build stripped the dishes list. The dishes list is on this site
+ * now, so the link is local on every variant.
+ */
+export function seeAllDishesHref(
+  query: string,
+  _domain: GustaleDomain,
+): string {
   const qs = `?q=${encodeURIComponent(query)}`;
-  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes${qs}`;
   return `/dishes${qs}`;
 }
 
@@ -95,8 +90,10 @@ export function searchHelpLinks(domain: GustaleDomain): BrowseLink[] {
   //
   // Now the search names the same six sections as the header and the
   // footer, and the labels come from the same table.
-  return siteSections(domain !== "geo").map((s) => ({
-    href: s.external ? authoringHref(s.path) : s.path,
+  // Every section is local. There is no section that leaves the site,
+  // because there is only one site.
+  return siteSections().map((s) => ({
+    href: s.path,
     label: s.label,
   }));
 }
@@ -146,46 +143,37 @@ export function searchStatusMessage(opts: {
  * Primary-nav active match — mirrors Nav.astro match functions.
  * Used for static aria-current and for tests.
  */
+/**
+ * Whether a navigation link is the one the reader is on.
+ *
+ * ONE matcher for the whole site.
+ *
+ * It used to have two -- the geo branch and the recipes branch -- and
+ * they disagreed about `/dishes` and `/ingredients`. The geo branch
+ * did not mark them active, because the geo build stripped them and a
+ * reader could never be on one.
+ *
+ * Every path is served here now, so the dishes and the ingredients are
+ * as reachable as the families and the lineages, and the matcher says
+ * so.
+ */
 export function isPrimaryNavActive(
   href: string,
   pathname: string,
-  domain: GustaleDomain,
+  _domain: GustaleDomain,
 ): boolean {
   const p =
     pathname.endsWith("/") && pathname.length > 1
       ? pathname.slice(0, -1)
       : pathname;
 
-  if (domain === "geo") {
-    if (href === "/") return p === "/" || p === "";
-    if (href === "/regions")
-      return p === "/regions" || p.startsWith("/regions/");
-    if (href === "/families") {
-      return (
-        p === "/families" ||
-        p.startsWith("/families/") ||
-        p === "/family" ||
-        p.startsWith("/family/")
-      );
-    }
-    if (href === "/lineages") {
-      return p === "/lineages" || p.startsWith("/lineages/");
-    }
-    if (href === "/about") return p === "/about" || p.startsWith("/about/");
-    return p === href || p.startsWith(`${href}/`);
-  }
-
-  // Recipes — the navigation is now the SAME as the geo one (P4):
-  // Explore / Places / Food families / History & connections / About.
-  //
-  // So the matcher handles the same paths on both, and the recipes
-  // domain's own /dishes and /ingredients pages are still "active"
-  // when the reader is on one — they are reachable from the site's
-  // content, and the nav item that matches them is the site's home.
   if (href === "/") return p === "/" || p === "";
   if (href === "/regions") return p === "/regions" || p.startsWith("/regions/");
   if (href === "/dishes") {
     return p === "/dishes" || p.startsWith("/dishes/");
+  }
+  if (href === "/recipes") {
+    return p === "/recipes" || p.startsWith("/recipes/");
   }
   if (href === "/ingredients") {
     return p === "/ingredients" || p.startsWith("/ingredients/");
@@ -205,9 +193,13 @@ export function isPrimaryNavActive(
   return p === href || p.startsWith(`${href}/`);
 }
 
-/** Add-a-dish CTA href for a given domain. */
-export function addDishHref(domain: GustaleDomain): string {
-  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes/new`;
+/**
+ * Add-a-dish CTA href.
+ *
+ * It used to point at the RECIPES HOST on the geo build. The authoring
+ * form is on this site now, so the link is local on every variant.
+ */
+export function addDishHref(_domain: GustaleDomain): string {
   return "/dishes/new";
 }
 

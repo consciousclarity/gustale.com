@@ -11,14 +11,14 @@
  * list, and every /dishes/:slug detail page via getStaticPaths.
  *
  * GHA runner IPs are blocked by the VPS firewall, so the build cannot reach
- * the production API at api.gustale.recipes. Instead, the Dockerfile starts
+ * the production API at api.gustale.com. Instead, the Dockerfile starts
  * THIS server on a local port and points PUBLIC_API_BASE at it, making CI
  * fully self-contained.
  *
  * Source of truth
  * ---------------
  * The data in `mock-api-data.json` is captured verbatim from the live API
- * (https://api.gustale.recipes — all 60 published dishes) so the baked HTML
+ * (https://api.gustale.com — all 60 published dishes) so the baked HTML
  * matches production exactly: real methodSlug/familySlug/originName, so
  * /lineages and /families render real lineages/families instead of "Other".
  *

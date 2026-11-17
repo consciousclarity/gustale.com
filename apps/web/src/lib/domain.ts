@@ -1,45 +1,71 @@
 /**
- * Domain helpers for the Atlas (gustale.com) / Recipes (gustale.recipes) split.
+ * Domain helpers for Gustale — ONE site.
  *
- * `PUBLIC_DOMAIN` is baked at Astro/Vite build time (`geo` | `recipes`).
- * Authoring/cook routes are stripped from geo post-build — always use
- * `authoringHref()` for those links so Atlas never points at a removed path.
+ * THE HOST SPLIT IS GONE
+ * ----------------------
+ * This file used to describe TWO properties: the Atlas (gustale.com)
+ * and the Recipes site (a second, retired host), with `PUBLIC_DOMAIN`
+ * picking which one a build produced and `authoringHref()` routing the
+ * authoring links to whichever host actually served them.
  *
- * Default when unset: `recipes` (matches Nav, post-build.mjs).
+ * There is ONE site now. gustale.com serves everything: the map, the
+ * dishes, the families, the ingredients, the recipes and the authoring
+ * surfaces. So every internal link is a RELATIVE path, and a relative
+ * path is always right — there is no second host to be wrong about.
+ *
+ * What `PUBLIC_DOMAIN` still selects is the VARIANT of the one site:
+ * the "geo" variant and the "recipes" variant differ in the home hero,
+ * in whether the map page is built, and in a theme's scope. They are
+ * two skins of one site, not two sites.
+ *
+ * WHY THE CROSS-HOST LOGIC WAS DELETED RATHER THAN KEPT
+ * ------------------------------------------------------
+ * `authoringHref()` existed because a relative link to `/ingredients`
+ * or `/dishes/new` was a 404 on the Atlas build: post-build stripped
+ * those paths from the geo dist. It was a workaround for a build that
+ * removed content from the site it was serving.
+ *
+ * With one build that serves everything, the workaround's premise is
+ * gone. Keeping it would mean keeping a second origin, a second
+ * canonical, and a rule that says "this link is special" — for a
+ * distinction that no longer exists.
  */
 
 export type GustaleDomain = "geo" | "recipes" | "staging";
 
-export const ATLAS_ORIGIN = "https://gustale.com";
-export const RECIPES_ORIGIN = "https://gustale.recipes";
+/**
+ * The ONE origin.
+ *
+ * It is used for the absolute URLs a page must have: the canonical,
+ * the `hreflang` alternates, `og:url` and the JSON-LD. A relative
+ * path is right for a LINK; it is wrong for a canonical, because a
+ * canonical has to be an absolute URL to be a canonical at all.
+ *
+ * The staging build has its own origin — see `siteOrigin()` in
+ * `lib/locales.ts`, which is the resolver that knows about it.
+ */
+export const SITE_ORIGIN = "https://gustale.com";
 
 /**
  * The STAGING origin (WP-00b, card GUS-1122).
  *
- * Staging serves the RECIPES site's code -- the same pages, the same
- * routes -- but on its own host, with its own canonical URLs and its
- * own origin. That matters: a staging build that pointed its
- * canonicals at gustale.recipes would tell a search engine (and
- * anyone reading the source) that the staging copy is the real one.
+ * Staging serves the SAME site — the same pages, the same routes — but
+ * on its own host, with its own canonical URLs and its own origin.
+ * That matters: a staging build that pointed its canonicals at
+ * gustale.com would tell a search engine (and anyone reading the
+ * source) that the staging copy is the real one.
  *
- * It is `noindex`, so it should never be indexed at all -- but the
+ * It is `noindex`, so it should never be indexed at all — but the
  * canonicals still have to be right, because a staging page is
  * sometimes read by a human and sometimes fetched by a crawler that
  * ignores noindex.
  */
 export const STAGING_ORIGIN = "https://staging.gustale.com";
 
-/** Paths that exist only on gustale.recipes (removed from geo post-build). */
-export const RECIPES_ONLY_PATH_PREFIXES = [
-  "/dishes/new",
-  "/ingredients",
-  "/admin",
-] as const;
-
 /**
  * Pure domain resolver — safe to unit-test without Vite.
- * Only the exact string `geo` selects Atlas; anything else (including
- * unset / empty) is Recipes.
+ * Only the exact string `geo` selects the geo variant; anything else
+ * (including unset / empty) is the recipes variant.
  */
 export function resolveGustaleDomain(
   raw: string | undefined | null,
@@ -53,95 +79,65 @@ export function currentDomain(): GustaleDomain {
   return resolveGustaleDomain(import.meta.env.PUBLIC_DOMAIN);
 }
 
+/**
+ * Whether this build is the geo VARIANT.
+ *
+ * It is not "is this a different site". It is "does this build carry
+ * the map and the terracotta accent". The /map page and the home hero
+ * are the only two things it still decides.
+ */
 export function isGeoDomain(): boolean {
   return currentDomain() === "geo";
 }
 
+/**
+ * Whether this build is the recipes VARIANT.
+ *
+ * The inverse of `isGeoDomain()`, kept because the two are read in
+ * different places and the inverse reads better at some of them.
+ */
 export function isRecipesDomain(): boolean {
   return currentDomain() === "recipes";
-}
-
-/** Absolute URL on the Recipes host. */
-export function recipesUrl(path: string): string {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${RECIPES_ORIGIN}${p}`;
 }
 
 /**
  * The name of the site THIS build is serving.
  *
- * PR 2 — the branding leak fix.
+ * It was "gustale.com" on the Atlas and the retired host's own name on
+ * the Recipes site, and that difference was a bug in disguise: the
+ * /dishes/ list page on gustale.com carried the eyebrow "Gustale
+ * Recipes", which is the OTHER property's name, on a page that is not
+ * the other property.
  *
- * The brand wordmark is always "Gustale" on both properties (the
- * Nav renders `<span class="gst-wordmark">Gustale</span>` plus a
- * property switch). But a page TITLE and a page HEADING that name the
- * OTHER property is a leak: gustale.com served
- * `<title>About — gustale.recipes</title>` and an <h1> reading
- * "About gustale.recipes", which told a reader on gustale.com that
- * they had somehow landed on the recipes site.
- *
- * The canonical URL was always correct (gustale.com/about) — only the
- * human-readable name was wrong.
+ * There is one name now.
  */
 export function siteName(): string {
-  if (isGeoDomain()) return "gustale.com";
   if (currentDomain() === "staging") return "staging.gustale.com";
-  return "gustale.recipes";
+  return "gustale.com";
 }
 
 /**
- * The name of the property the reader is currently on, for use in an
- * eyebrow or heading.
+ * The name of the property the reader is currently on, for an eyebrow
+ * or a heading.
  *
- * The Atlas is "Gustale Atlas" and the Recipes site is "Gustale
- * Recipes". PR 2 — the /dishes/ list page on gustale.com carried the
- * eyebrow "Gustale Recipes", which is the OTHER property's name.
+ * It was "Gustale Atlas" or "Gustale Recipes" depending on the build.
+ * There is one property, and its name is the brand.
  */
 export function propertyName(): string {
-  return isGeoDomain() ? "Gustale Atlas" : "Gustale Recipes";
-}
-
-/** Absolute URL on the Atlas host. */
-export function atlasUrl(path: string): string {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${ATLAS_ORIGIN}${p}`;
+  return "Gustale";
 }
 
 /**
- * Href for create/edit/ingredient/cook surfaces.
- * On Atlas builds → absolute gustale.recipes URL.
- * On Recipes builds → same-origin relative path.
- */
-export function authoringHref(path: string): string {
-  return authoringHrefFor(currentDomain(), path);
-}
-
-/**
- * The same rule, with the domain as an argument.
+ * A path, normalised to start with a slash.
  *
- * `authoringHref()` reads the build-time domain, which makes it
- * impossible to unit-test: `import.meta.env` is not available outside
- * Vite. This version takes the domain, so the navigation's hrefs can be
- * asserted for all three hosts.
+ * Every internal link goes through here, so that a link can never be
+ * written as `"dishes/new"` (which is relative to the CURRENT
+ * directory, and breaks on /dishes/bakso) or as an absolute URL to
+ * another host.
+ *
+ * This is the replacement for `authoringHref()`: the one place that
+ * decides what a link looks like.
  */
-export function authoringHrefFor(domain: GustaleDomain, path: string): string {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  if (domain === "geo") return recipesUrl(p);
-  return p;
-}
-
-/** Dish edit URL — always authoring surface. */
-export function dishEditHref(slug: string): string {
-  return authoringHref(`/dishes/${encodeURIComponent(slug)}/edit`);
-}
-
-/** True if a relative path is recipes-only (must not be used as a local Atlas link). */
-export function isRecipesOnlyPath(path: string): boolean {
-  const p = path.split("?")[0];
-  if (p === "/dishes/new" || p.startsWith("/dishes/new/")) return true;
-  if (p.startsWith("/ingredients")) return true;
-  if (p.startsWith("/admin")) return true;
-  // /dishes/<slug>/edit
-  if (/^\/dishes\/[^/]+\/edit\/?$/.test(p)) return true;
-  return false;
+export function href(path: string): string {
+  return path.startsWith("/") ? path : `/${path}`;
 }

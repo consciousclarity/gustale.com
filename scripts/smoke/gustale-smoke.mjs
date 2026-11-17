@@ -218,8 +218,8 @@ async function run() {
     // differed, and passed even for a page that filtered nothing.
     // A missing link is a FAIL, not a WARN.
     for (const [label, re] of [
-      ["category", /href="(\/dishes\/category\/([^"\/?#]+)\/?)"/],
-      ["technique", /href="(\/dishes\/technique\/([^"\/?#]+)\/?)"/],
+      ["category", /href="(\/dishes\/category\/([^"/?#]+)\/?)"/],
+      ["technique", /href="(\/dishes\/technique\/([^"/?#]+)\/?)"/],
     ]) {
       const m = rendang.match(re);
       if (!m) {
@@ -403,11 +403,24 @@ async function run() {
       );
     }
     const home = await text("/");
+    // The home must not link to the retired host. It used to be
+    // checked as "the home does not link to the recipes host's
+    // authoring form" -- the authoring form lived on the OTHER host
+    // while the recipes one was being built.
+    //
+    // Now there is ONE host and the authoring form is ON it, so the
+    // check is that no link leaves the site at all.
     record(
       "WP-03",
-      "no-dead-add-dish-link",
-      /gustale\.recipes\/dishes\/new/.test(home) ? "FAIL" : "PASS",
-      "Home links to gustale.recipes/dishes/new while recipe submission is unavailable",
+      "no-cross-host-link",
+      /href="https?:\/\/(?!staging\.gustale\.com)/.test(home) ? "FAIL" : "PASS",
+      "the home carries a link to another host",
+    );
+    record(
+      "WP-03",
+      "add-dish-link-is-local",
+      /href="\/dishes\/new"/.test(home) ? "PASS" : "FAIL",
+      "the home does not link to the local authoring form",
     );
     const es = stripTags(await text("/es/dishes/feijoada"));
     const english = [

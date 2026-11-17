@@ -10,7 +10,7 @@
 
 import type { DishSummary } from "../types/dish";
 import { type ListDishesParams, listDishes } from "./api";
-import { ATLAS_ORIGIN, type GustaleDomain, RECIPES_ORIGIN } from "./domain";
+import { type GustaleDomain } from "./domain";
 
 // ─── Shared link type ───────────────────────────────────────────────────
 
@@ -796,33 +796,45 @@ export interface RecoveryLinks {
   altBrowse: BrowseLink | null;
 }
 
-export function recoveryLinks(domain: GustaleDomain): RecoveryLinks {
-  if (domain === "geo") {
-    return {
-      primary: [
-        { href: "/", label: "Globe" },
-        { href: "/regions", label: "Places" },
-        { href: "/families", label: "Food families" },
-        { href: "/lineages", label: "History & connections" },
-      ],
-      altBrowse: { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
-    };
-  }
+/**
+ * The links a reader is offered when a page has nothing to show.
+ *
+ * ONE set now.
+ *
+ * It used to have two, chosen by the build's domain: the geo build
+ * offered Globe / Places / Food families / History and pointed
+ * "Browse recipes" at the OTHER HOST; the recipes build offered
+ * Recipes / Ingredients / Food families / History and pointed "Gustale
+ * Atlas" at the other host. The `altBrowse` link existed only because
+ * the primary list was missing the pages the other host served.
+ *
+ * One site serves all of them, so the primary list has all six
+ * sections and there is no "other" to point at. `altBrowse` is kept in
+ * the shape -- the callers read it -- and it is null.
+ */
+export function recoveryLinks(_domain: GustaleDomain): RecoveryLinks {
   return {
     primary: [
-      { href: "/dishes", label: "Recipes" },
-      { href: "/ingredients", label: "Ingredients" },
+      { href: "/", label: "Atlas" },
+      { href: "/dishes", label: "Dishes" },
       { href: "/families", label: "Food families" },
+      { href: "/ingredients", label: "Ingredients" },
       { href: "/lineages", label: "History & connections" },
+      { href: "/recipes", label: "Recipes" },
     ],
-    altBrowse: { href: `${ATLAS_ORIGIN}/`, label: "Gustale Atlas" },
+    altBrowse: null,
   };
 }
 
-/** Map CTA — local on Atlas, absolute on Recipes (map stripped post-build). */
-export function mapBrowseHref(domain: GustaleDomain): string {
-  if (domain === "geo") return "/map";
-  return `${ATLAS_ORIGIN}/map`;
+/**
+ * The map CTA — a local path on every variant.
+ *
+ * It used to be an ABSOLUTE url to `https://gustale.com/map` on the
+ * recipes build, because the map page was stripped from that build.
+ * The map is on this site now, so the link is relative.
+ */
+export function mapBrowseHref(_domain: GustaleDomain): string {
+  return "/map";
 }
 
 export function safeQueryEncode(value: string, maxLen = 200): string {
@@ -830,13 +842,18 @@ export function safeQueryEncode(value: string, maxLen = 200): string {
   return encodeURIComponent(trimmed);
 }
 
+/**
+ * The dishes listing, with the query preserved.
+ *
+ * It used to be an ABSOLUTE url on the geo build, because the geo
+ * build stripped the dishes list. The dishes list is on this site now.
+ */
 export function absoluteDishesIndexHref(
-  domain: GustaleDomain,
+  _domain: GustaleDomain,
   query = "",
 ): string {
   const q = query.trim();
   const suffix = q ? `?q=${safeQueryEncode(q)}` : "";
-  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes${suffix}`;
   return `/dishes${suffix}`;
 }
 

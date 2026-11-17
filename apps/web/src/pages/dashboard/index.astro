@@ -38,9 +38,8 @@ import ContributorSubmissionsList from "../../components/dashboard/ContributorSu
  *   - No edits to admin pages, AdminLayout, or admin.css.
  */
 import Layout from "../../layouts/Layout.astro";
-import { authoringHref } from "../../lib/domain";
 
-const addDishHref = authoringHref("/dishes/new");
+const addDishHref = "/dishes/new";
 
 // Read the resolved user from middleware (populated on real SSR
 // requests; null at static-build time per fail-open semantics).

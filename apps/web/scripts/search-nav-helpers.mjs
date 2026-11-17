@@ -3,14 +3,13 @@
  * Keep algorithms in sync with the TypeScript source.
  */
 
-export const ATLAS_ORIGIN = "https://gustale.com";
-export const RECIPES_ORIGIN = "https://gustale.recipes";
-
-export const RECIPES_ONLY_PATH_PREFIXES = [
-  "/dishes/new",
-  "/ingredients",
-  "/admin",
-];
+// ONE SITE.
+//
+// `ATLAS_ORIGIN` and `RECIPES_ORIGIN` are gone: there was one origin
+// for the site and another for the recipes property, and there is one
+// origin now. `RECIPES_ONLY_PATH_PREFIXES` went with them -- it
+// listed the paths the geo build STRIPPED, and nothing is stripped.
+export const SITE_ORIGIN = "https://gustale.com";
 
 /**
  * THE SIX SECTIONS — the ESM twin of `src/lib/sections.ts`.
@@ -35,29 +34,32 @@ export const SECTION_PATHS = {
   Recipes: "/recipes",
 };
 
-export const RECIPES_HOST_SECTIONS = ["Ingredients", "Recipes"];
+// `RECIPES_HOST_SECTIONS` is gone. It listed the two sections that
+// lived on the OTHER host, and there is no other host.
 
-export function siteSections(onRecipesHost) {
+/**
+ * The six sections, every one of them local.
+ *
+ * The `external` flag is kept because the footer and the drawer read
+ * it -- but it is now always false. There is no section that leaves
+ * the site, because there is only one site.
+ */
+export function siteSections() {
   return SECTION_LABELS.map((label) => ({
     label,
     path: SECTION_PATHS[label],
-    external: !onRecipesHost && RECIPES_HOST_SECTIONS.includes(label),
+    external: false,
   }));
 }
 
-export function authoringHrefFor(domain, path) {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  if (domain === "geo") return `${RECIPES_ORIGIN}${p}`;
-  return p;
-}
-
-export function isRecipesOnlyPath(path) {
-  const p = path.split("?")[0];
-  if (p === "/dishes/new" || p.startsWith("/dishes/new/")) return true;
-  if (p.startsWith("/ingredients")) return true;
-  if (p.startsWith("/admin")) return true;
-  if (/^\/dishes\/[^/]+\/edit\/?$/.test(p)) return true;
-  return false;
+/**
+ * A path, normalised to start with a slash.
+ *
+ * This replaces `authoringHrefFor()`, which used to return an ABSOLUTE
+ * url on the recipes host for the geo build.
+ */
+export function localHref(path) {
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
 export function isDishesIndexPath(path) {
@@ -65,33 +67,20 @@ export function isDishesIndexPath(path) {
   return bare === "/dishes";
 }
 
-export function resolveSearchHitHref(href, domain) {
-  try {
-    let pathOnly;
-    let qs = "";
-    if (href.startsWith("http://") || href.startsWith("https://")) {
-      const u = new URL(href);
-      pathOnly = u.pathname;
-      qs = u.search;
-    } else {
-      const qIdx = href.indexOf("?");
-      pathOnly = qIdx >= 0 ? href.slice(0, qIdx) : href;
-      qs = qIdx >= 0 ? href.slice(qIdx) : "";
-    }
-    if (domain !== "geo") return href;
-    if (isRecipesOnlyPath(pathOnly) || isDishesIndexPath(pathOnly)) {
-      const p = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
-      return `${RECIPES_ORIGIN}${p}${qs}`;
-    }
-    return href;
-  } catch {
-    return href;
-  }
+/**
+ * Rewrite a search-hit href.
+ *
+ * A NO-OP now, and that is the point: it used to rewrite recipes-only
+ * paths into absolute urls on the retired host, because the geo build
+ * stripped them. One build serves everything, so every hit is already
+ * local and already correct.
+ */
+export function resolveSearchHitHref(href, _domain) {
+  return href;
 }
 
-export function seeAllDishesHref(query, domain) {
+export function seeAllDishesHref(query, _domain) {
   const qs = `?q=${encodeURIComponent(query)}`;
-  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes${qs}`;
   return `/dishes${qs}`;
 }
 
@@ -113,8 +102,9 @@ export function searchHelpLinks(domain) {
   // THE SIX SECTIONS — the same list the header and the footer show.
   // This used to be a FOURTH copy of the navigation with its own
   // labels ("Globe", "Places", "Food families", "History & connections").
-  return siteSections(domain !== "geo").map((s) => ({
-    href: s.external ? authoringHrefFor(domain, s.path) : s.path,
+  // Every section is local. There is no section that leaves the site.
+  return siteSections().map((s) => ({
+    href: s.path,
     label: s.label,
   }));
 }
@@ -125,40 +115,30 @@ export function searchErrorBrowseLinks(domain) {
   return searchHelpLinks(domain);
 }
 
-export function isPrimaryNavActive(href, pathname, domain) {
+/**
+ * Whether a navigation link is the one the reader is on.
+ *
+ * ONE matcher for the whole site.
+ *
+ * It used to have two: the geo branch and the recipes branch, and they
+ * disagreed about `/dishes` and `/ingredients`. The geo branch did not
+ * mark them active, because the geo build stripped them and a reader
+ * could never be on one.
+ *
+ * Now every path is served here, so the dishes and the ingredients are
+ * as reachable as the families and the lineages, and the matcher says
+ * so.
+ */
+export function isPrimaryNavActive(href, pathname, _domain) {
   const p =
     pathname.endsWith("/") && pathname.length > 1
       ? pathname.slice(0, -1)
       : pathname;
 
-  if (domain === "geo") {
-    if (href === "/") return p === "/" || p === "";
-    if (href === "/regions")
-      return p === "/regions" || p.startsWith("/regions/");
-    if (href === "/families") {
-      return (
-        p === "/families" ||
-        p.startsWith("/families/") ||
-        p === "/family" ||
-        p.startsWith("/family/")
-      );
-    }
-    if (href === "/lineages")
-      return p === "/lineages" || p.startsWith("/lineages/");
-    if (href === "/about") return p === "/about" || p.startsWith("/about/");
-    return p === href || p.startsWith(`${href}/`);
-  }
-
-  // The recipes domain's navigation is now the SAME as the geo one —
-  // Explore / Places / Food families / History & connections / About —
-  // so the matcher handles the same paths on both.
-  //
-  // The recipes domain still has its own /dishes and /ingredients
-  // pages, and they are reachable from the site's content, so a link to
-  // one is still "active" when the reader is on it.
   if (href === "/") return p === "/" || p === "";
   if (href === "/regions") return p === "/regions" || p.startsWith("/regions/");
   if (href === "/dishes") return p === "/dishes" || p.startsWith("/dishes/");
+  if (href === "/recipes") return p === "/recipes" || p.startsWith("/recipes/");
   if (href === "/ingredients") {
     return p === "/ingredients" || p.startsWith("/ingredients/");
   }
@@ -176,7 +156,6 @@ export function isPrimaryNavActive(href, pathname, domain) {
   return p === href || p.startsWith(`${href}/`);
 }
 
-export function addDishHref(domain) {
-  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes/new`;
+export function addDishHref(_domain) {
   return "/dishes/new";
 }

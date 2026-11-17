@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# The staging deploy entry point.
+#
+# WHY THIS EXISTS
+# ---------------
+# The staging deploy used to be invoked by hand, as:
+#
+#     cd /home/deploy/gustale-build && bash scripts/deploy-staging.sh <branch> [sha]
+#
+# That is unsafe, and on 2026-11-17 it shipped a broken image.
+#
+# The command runs whatever copy of scripts/deploy-staging.sh happens
+# to be in the build directory at that moment -- and a build directory
+# is a checkout, which can sit at ANY commit. On that day the build
+# directory was at 53b30b5, whose deploy script had no SHA checkout
+# and no provenance check. It deployed 0583313 by building 53b30b5's
+# tree, tagged the image staging-data-0583313, and reported success on
+# every check -- because none of the checks that could have caught it
+# existed in the script that ran.
+#
+# The fix inside the script is not enough on its own: a script that
+# PREDATES the fix cannot bootstrap itself. So this wrapper does the
+# bootstrap, outside any versioned file, and it always runs the
+# deployed commit's own script.
+#
+# WHAT IT DOES
+# ------------
+#   1. resolve the target commit inside the build directory
+#   2. check that commit out there
+#   3. re-exec $REPO/scripts/deploy-staging.sh FROM THAT TREE
+#
+# So the guards that run are always the guards the deployed commit
+# wrote, and the build is of that same tree.
+#
+# USAGE
+# -----
+#   staging-deploy <branch> [sha]
+#   staging-deploy --list
+#
+# The SHA defaults to the branch's remote head, resolved INSIDE the
+# build directory.
+#
+# EXIT CODES
+# ----------
+#   0  the staging stack is up and serving
+#   1  a refusal, a failure, or a failed health check
+
+set -uo pipefail
+
+REPO="${GUSTALE_REPO:-/home/deploy/gustale-build}"
+BRANCH="${1:-}"
+
+if [ "$BRANCH" = "--list" ] || [ -z "$BRANCH" ]; then
+  echo "usage: staging-deploy <branch> [sha]" >&2
+  echo "       staging-deploy --list   (the recent staging deployments)" >&2
+  if [ -f /var/lib/gustale-staging/state.json ]; then
+    echo ""
+    echo "the current staging deployment:"
+    cat /var/lib/gustale-staging/state.json
+  fi
+  exit 1
+fi
+
+if [ ! -d "$REPO/.git" ]; then
+  echo "::error::the build directory $REPO is not a git checkout" >&2
+  exit 1
+fi
+
+cd "$REPO" || exit 1
+
+# Resolve the SHA here, in the build directory -- never in whatever
+# directory the operator happened to be in.
+SHA="${2:-}"
+if [ -z "$SHA" ]; then
+  git fetch origin "$BRANCH" >/dev/null 2>&1
+  SHA="$(git rev-parse "origin/$BRANCH" 2>/dev/null)"
+fi
+if [ -z "$SHA" ]; then
+  echo "::error::could not resolve a SHA for '$BRANCH'" >&2
+  exit 1
+fi
+
+# Check out the commit that is going to be built, and VERIFY it. The
+# build and the script must be the same tree.
+git checkout --detach --force "$SHA" >/dev/null 2>&1 || {
+  echo "::error::could not check out $SHA in $REPO" >&2
+  exit 1
+}
+BUILT_SHA="$(git rev-parse HEAD 2>/dev/null)"
+if [ "$BUILT_SHA" != "$SHA" ]; then
+  echo "::error::the build tree is at $BUILT_SHA but $SHA was requested" >&2
+  exit 1
+fi
+
+DEPLOY_SCRIPT="$REPO/scripts/deploy-staging.sh"
+if [ ! -f "$DEPLOY_SCRIPT" ]; then
+  echo "::error::the deploy script is not in the build tree ($DEPLOY_SCRIPT)" >&2
+  exit 1
+fi
+
+echo "  staging-deploy: $BRANCH @ $(echo "$SHA" | cut -c1-7) from $REPO (verified)"
+exec bash "$DEPLOY_SCRIPT" "$BRANCH" "$SHA"

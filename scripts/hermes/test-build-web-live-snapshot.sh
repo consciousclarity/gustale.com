@@ -9,7 +9,7 @@
 # fetch aborted the whole script before a single image was built, and
 # that test failed with the confusing symptom:
 #
-#   FAIL: built [] but the tag file advertises '...-recipes'
+#   FAIL: built [] but the tag file advertises '...-geo'
 #
 # i.e. it looked like the TAGS were wrong when in fact no build had run
 # at all. So the skip switch and the fetch-failure behaviour both need
@@ -72,10 +72,10 @@ run_build() {
   echo $?
 }
 
-echo "=== 1. GUSTALE_SKIP_SNAPSHOT=1 skips the fetch and builds both images ==="
+echo "=== 1. GUSTALE_SKIP_SNAPSHOT=1 skips the fetch and builds the one image ==="
 rc=$(run_build env GUSTALE_SKIP_SNAPSHOT=1)
 check "the exit code" "$rc" "0"
-check "the number of images built" "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" "2"
+check "the number of images built" "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" "1"
 
 echo
 echo "=== 2. WITHOUT the skip, an unreachable API must FAIL THE BUILD ==="
@@ -102,13 +102,13 @@ echo
 echo "=== 3. BUILD_DATA_SOURCE=mock does not fetch at all ==="
 rc=$(run_build env GUSTALE_BUILD_DATA_SOURCE=mock)
 check "the exit code" "$rc" "0"
-check "the number of images built" "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" "2"
+check "the number of images built" "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" "1"
 
 echo
 echo "=== 4. BUILD_DATA_SOURCE=live does not fetch either (the old path) ==="
 rc=$(run_build env GUSTALE_BUILD_DATA_SOURCE=live)
 check "the exit code" "$rc" "0"
-check "the number of images built" "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" "2"
+check "the number of images built" "$(wc -l < "$DOCKER_BUILT" | tr -d ' ')" "1"
 
 echo
 echo "=== $PASS passed, $FAIL failed ==="

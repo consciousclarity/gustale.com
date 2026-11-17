@@ -63,10 +63,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Resolve the session once per gated request and reuse the result
   // for both /admin and /dashboard branches below. This keeps the
   // fail-open semantics identical for both sections.
+  // The API the session check talks to.
+  //
+  // ONE API, on the same registrable domain as the site:
+  // https://api.gustale.com. The other host that used to appear here
+  // is the retired one, and a middleware that called it would be
+  // asking a live site for a session from a host that is being
+  // switched off.
   const apiBase =
     context.locals?.runtime?.env?.PUBLIC_API_BASE ??
     import.meta.env.PUBLIC_API_BASE ??
-    "https://api.gustale.recipes";
+    "https://api.gustale.com";
 
   const cookieHeader = context.request.headers.get("cookie") ?? "";
 

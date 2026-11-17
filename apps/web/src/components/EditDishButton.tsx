@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { authoringHref } from "../lib/domain";
 import { getClientSession } from "../lib/session";
 
 export interface EditDishButtonProps {
@@ -15,7 +14,8 @@ export interface EditDishButtonProps {
  * the button in its own island keeps the static dish page fast while
  * still showing the edit affordance to logged-in editors.
  *
- * Edit lives on gustale.recipes — Atlas builds link absolutely there.
+ * The edit surface is a local path on gustale.com — the single build
+ * serves it, so the link is relative and same-origin.
  */
 export function EditDishButton({ slug }: EditDishButtonProps) {
   const [authed, setAuthed] = useState(false);
@@ -40,7 +40,7 @@ export function EditDishButton({ slug }: EditDishButtonProps) {
 
   return (
     <a
-      href={authoringHref(`/dishes/${slug}/edit`)}
+      href={`/dishes/${slug}/edit`}
       className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-emerald-300 hover:text-emerald-700"
     >
       <svg

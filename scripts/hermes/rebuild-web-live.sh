@@ -86,8 +86,8 @@ log() { echo "$LOG_PREFIX $*"; }
 # If another run is in progress, exit 0. The timer will fire again in 30 min.
 #
 # THE LOCK IS SHARED WITH THE CI DEPLOY. This is the whole point of
-# this file: the CI deploy and this timer both swap the SAME two
-# containers (gustale-web-recipes, gustale-web-geo), and until
+# this file: the CI deploy and this timer both swap the SAME web
+# container (gustale-web-geo), and until
 # 2026-11-07 they used DIFFERENT lock files:
 #
 #   CI deploy  -> /tmp/gustale-deploy.lock
@@ -358,8 +358,8 @@ log "  fetched sha: $FETCHED_SHA"
 DEPLOYED_SHA="${PREV_BUILD_SHA:-}"
 if [ -z "$DEPLOYED_SHA" ]; then
   # No state file yet. Fall back to the tag of the running container.
-  DEPLOYED_SHA=$(docker inspect --format '{{index .Config.Image "ghcr.io/consciousclarity/gustale.com/gustale-web-recipes"}}' \
-    gustale-web-recipes 2>/dev/null | sed -n 's/.*live-data-\([0-9a-f]\{7,40\}\)$/\1/p' || true)
+  DEPLOYED_SHA=$(docker inspect --format '{{index .Config.Image "ghcr.io/consciousclarity/gustale.com/gustale-web-geo"}}' \
+    gustale-web-geo 2>/dev/null | sed -n 's/.*live-data-\([0-9a-f]\{7,40\}\)$/\1/p' || true)
   [ -n "$DEPLOYED_SHA" ] && DEPLOYED_SHA=$(git rev-parse "$DEPLOYED_SHA" 2>/dev/null || echo "$DEPLOYED_SHA")
 fi
 
@@ -438,7 +438,7 @@ GUSTALE_NO_PUSH=1 \
 # The two lines below used to be:
 #
 #     source "$TAG_FILE"
-#     : "${IMAGE_RECIPES:?build-web-live.sh did not write IMAGE_RECIPES}"
+#     : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
 #     : "${IMAGE_GEO:?build-web-live.sh did not write IMAGE_GEO}"
 #
 # The build script wrote the tag file AFTER both builds succeeded. The
@@ -475,26 +475,22 @@ fi
 # shellcheck disable=SC1090
 source "$TAG_FILE"
 
-if [ -z "${IMAGE_RECIPES:-}" ]; then
-  log "ERROR: the tag file has no IMAGE_RECIPES (build-web-live.sh did not write it)."
-  exit 1
-fi
 if [ -z "${IMAGE_GEO:-}" ]; then
   log "ERROR: the tag file has no IMAGE_GEO (build-web-live.sh did not write it)."
   exit 1
 fi
-log "  $IMAGE_RECIPES"
 log "  $IMAGE_GEO"
 
-# The two images MUST have distinct tags. They are different builds
-# (different PUBLIC_DOMAIN); sharing one tag let a stale build-cache
-# layer masquerade as a fresh one, which is how gustale.recipes ended
-# up serving 1,643 sitemap URLs while gustale.com served 1,531 -- on
-# the same commit, with both containers "healthy".
-if [ "$IMAGE_RECIPES" = "$IMAGE_GEO" ]; then
-  log "ERROR: the two web images share a tag: $IMAGE_RECIPES"
-  exit 1
-fi
+# THE "TWO IMAGES MUST HAVE DISTINCT TAGS" CHECK IS GONE.
+#
+# There were two web images, built from the same commit as DIFFERENT
+# builds (different PUBLIC_DOMAIN), and sharing one tag let a stale
+# build-cache layer masquerade as a fresh one: the two hosts served
+# 1,643 and 1,531 sitemap URLs on the same commit, with both
+# containers "healthy".
+#
+# With ONE image that failure mode cannot happen. There is no second
+# image for a cached layer to be confused with the first.
 
 # --- Step 6: pull + restart the web containers ---
 # With GUSTALE_NO_PUSH=1 the image is in the local docker cache; no
@@ -518,15 +514,22 @@ deploy_container() {
     "$IMAGE"
 }
 
-deploy_container "gustale-web-recipes" "$IMAGE_RECIPES" 4001 4001
-deploy_container "gustale-web-geo"     "$IMAGE_GEO"     4002 4001
+# ONE WEB CONTAINER.
+#
+# The gustale-web-recipes container is NOT redeployed and NOT stopped
+# here. It keeps serving the old host until the owner removes it, and
+# the owner removes it AFTER the redirects are live -- see
+# docs/CUTOVER-recipes-gustale-com.md section 2. Stopping it here would
+# take the old host down before its redirects were in place, and a
+# retired host with no redirect is a 404 on every old URL.
+deploy_container "gustale-web-geo" "$IMAGE_GEO" 4002 4001
 
 # --- Step 7: healthcheck + prune old live-data images ---
 log ""
 log "--- Waiting 10s for healthcheck ---"
 sleep 10
 FAILED=0
-for NAME in gustale-web-recipes gustale-web-geo; do
+for NAME in gustale-web-geo; do
   STATUS=$(docker inspect --format='{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$NAME" 2>/dev/null || echo "MISSING")
   log "  $NAME: $STATUS"
   if [ "$STATUS" != "running healthy" ] && [ "$STATUS" != "running  healthy" ]; then
@@ -557,9 +560,9 @@ fi
 # The tag carries the short SHA, so this is the per-container form of
 # the split-brain check that the sitemap comparison does by count.
 log ""
-log "--- Checking that both web containers serve SHA $BUILD_SHORT_SHA ---"
+log "--- Checking that the web container serves SHA $BUILD_SHORT_SHA ---"
 SHA_FAILED=0
-for NAME in gustale-web-recipes gustale-web-geo; do
+for NAME in gustale-web-geo; do
   IMAGE=$(docker inspect --format='{{.Config.Image}}' "$NAME" 2>/dev/null || echo "MISSING")
   case "$IMAGE" in
     *"live-data-${BUILD_SHORT_SHA}-"*)
@@ -640,6 +643,13 @@ log "--- Pruning old live-data images, keeping newest 3 ---"
 # Get all live-data-* images sorted by creation time (newest first),
 # skip the first 3 (keep), and remove the rest. Don't touch images
 # that are currently in use by the running containers.
+# BOTH containers are inspected, not just the one this script deploys.
+#
+# The gustale-web-recipes container is still running its image, and that
+# image must not be pruned out from under it -- a pruned image leaves
+# the container running with no image behind it, and a restart then
+# fails. The recipes container is removed by the owner AFTER the
+# redirects are live; until then its image is still in use.
 IN_USE=$(docker inspect --format='{{.Image}}' gustale-web-recipes gustale-web-geo 2>/dev/null | sort -u)
 PRUNE_LIST=$(docker images --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' \
   | (grep -E 'live-data-[0-9a-f]{7,}$' || true) \
@@ -668,7 +678,6 @@ cat >"$STATE_TMP" <<EOF
 {
   "contentVersion": "$CURRENT_VERSION",
   "buildSha": "$BUILD_SHA",
-  "imageRecipes": "$IMAGE_RECIPES",
   "imageGeo": "$IMAGE_GEO",
   "lastRunAt": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
   "prunedImages": $PRUNE_COUNT
@@ -723,5 +732,5 @@ log ""
 log "=== gustale-rebuild-web OK at $BUILD_SHORT_SHA ==="
 log "  newest dish: $NEWEST_DISH_SLUG @ $NEWEST_DISH_UPDATED_AT"
 log "  category count: $CATEGORY_COUNT"
-log "  images: $IMAGE_RECIPES, $IMAGE_GEO"
+log "  image: $IMAGE_GEO"
 log "  next run: see gustale-rebuild-web.timer"

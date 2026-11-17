@@ -12,7 +12,6 @@ import {
   type DashboardDraft,
   type DashboardDraftsResponse,
 } from "../../lib/api";
-import { authoringHref } from "../../lib/domain";
 
 interface Props {
   /** Empty-state heading. */
@@ -94,10 +93,7 @@ export function ContributorDraftsList({
     <ul className="cd-list" aria-label="Your drafts">
       {data.map((d) => (
         <li key={d.id} className="cd-list__row">
-          <a
-            className="cd-list__link"
-            href={authoringHref(`/dishes/${d.slug}/edit`)}
-          >
+          <a className="cd-list__link" href={`/dishes/${d.slug}/edit`}>
             <span className="cd-list__name">{d.canonicalName}</span>
             <span className="cd-list__meta">
               <span className="cd-list__status">draft</span>

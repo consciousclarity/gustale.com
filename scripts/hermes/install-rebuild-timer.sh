@@ -40,7 +40,7 @@
 # /tmp/gustale-deploy.lock -- the SAME file the CI deploy (running as
 # root) locks. It cannot be owned by `gustale` and it must not be a
 # second, private lock: two different lock files do not exclude each
-# other, and both sides swap the same two web containers. See
+# other, and both sides swap the same web container. See
 # scripts/hermes/rebuild-web-live.sh, Step 1.
 #
 # WHY THE TIMER GETS ITS OWN CHECKOUT

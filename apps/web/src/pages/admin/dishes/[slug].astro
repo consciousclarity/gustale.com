@@ -1,42 +1,77 @@
 ---
-import { AdminDishEditor } from "../../../components/admin/AdminDishEditor";
+import { AdminDishEditorLoader } from "../../../components/admin/AdminDishEditorLoader";
 /**
  * /admin/dishes/[slug] — Admin dish editor (Phase 4 — Admin Dish Editor redo)
  *
- * SSR-fetches BOTH the dish detail AND the lookups in parallel, then
- * passes them as props to <AdminDishEditor client:load />. The page
- * itself is the route shell — all editing happens in the React island.
+ * The page is the ROUTE SHELL. All editing happens in the React island.
  *
- * Bug fix: the reverted PR passed only `dishSlug` + `apiBase` props to
- * the editor, but AdminDishEditor expects `initialDish` + `lookups` +
- * `apiBase` (per the SPEC's Props contract). The component would crash
- * on render. The fix is to SSR-fetch and pass the data through.
+ * WHY THE DATA IS FETCHED IN THE BROWSER, NOT AT BUILD TIME
+ * ---------------------------------------------------------
+ * This page used to fetch the dish detail and the lookups at BUILD time
+ * with a top-level `await`, and on failure it returned a bare
+ * `new Response(...)`:
  *
- * Bug fix: Breadcrumbs uses `crumbs` prop (NOT `items`).
+ *     if (loadError) {
+ *       return new Response(`Failed to load dish editor: ${loadError}`, { status: 502 });
+ *     }
  *
- * Static-site constraint: this project ships as fully-static Astro
- * (no SSR adapter). Therefore admin pages must be pre-rendered at
- * build time, with the slug list pulled from the public API (which
- * doesn't require admin auth). Drafts are included so the editor
- * can reach them. The runtime auth gate is enforced by the Caddy
- * vhost (Plan 5) and by the admin React island itself (which 401s
- * on /api/admin/* without a session).
+ * **That could never work, and it silently broke every admin dish
+ * editor.** This is a fully-static Astro build — there is no SSR
+ * adapter — so `astro build` is the only place that code ever runs,
+ * and a build has no admin session cookie. Every `/api/admin/*` call
+ * from the build returned 401, and the 502 body was written to disk as
+ * the page:
+ *
+ *     Failed to load dish editor: GET /api/admin/dishes/<slug> failed (401)
+ *
+ * nginx then served that 77-byte file as a normal page with a **200**.
+ * The measured state on the live production containers was **101 of
+ * 102** admin dish-editor pages broken this way, in BOTH the geo and
+ * the recipes images. The page "worked" (200) and was useless.
+ *
+ * The admin DASHBOARD never had this bug, because it fetches nothing
+ * at build time — `<AdminDashboard client:load />` takes no data props
+ * and does its own `fetch(..., { credentials: "include" })` in a
+ * `useEffect`. `AdminDishEditorLoader` is that same pattern applied to
+ * the editor: the browser has the session cookie, so the browser is
+ * where the admin fetch belongs.
+ *
+ * WHAT `getStaticPaths` STILL DOES, AND WHY
+ * -----------------------------------------
+ * The page still has to be PRERENDERED — a static build cannot make a
+ * page for a slug it does not know about. `getStaticPaths` fetches the
+ * slug list from the **PUBLIC** `/api/dishes` endpoint (which needs no
+ * auth) across all three statuses, because the admin editor has to
+ * reach drafts too. That part works at build time and is unchanged.
+ *
+ * The per-dish DATA — the admin view of the dish, its draft fields, its
+ * related dishes, its edit history — is fetched in the browser.
+ *
+ * WHAT IS STILL STATIC
+ * --------------------
+ * The page HTML is static: the admin shell, and a loading state. The
+ * data arrives from `/api/admin/*` at runtime, which requires an admin
+ * session and returns 401/403 otherwise — the same gate as before,
+ * just evaluated at the right time. A visitor without a session sees
+ * the shell and "You need an admin session to edit dishes".
  */
 import AdminLayout from "../../../layouts/AdminLayout.astro";
-import { getAdminDish, getAdminLookups } from "../../../lib/api";
 
 export async function getStaticPaths() {
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
     // No API configured at build time. Fall back to a placeholder slug
-    // so the build doesn't fail; the runtime SPA fallback in the React
-    // island will handle the real slug.
+    // so the build doesn't fail; the island fetches the real slug from
+    // the URL at runtime.
     return [{ params: { slug: "moussaka-greek" } }];
   }
   try {
     // Fetch slugs for every status (draft, published, archived) since
     // the admin editor needs to reach drafts too. /api/dishes defaults
     // to status=published, so we have to query explicitly.
+    //
+    // This is the PUBLIC endpoint — it needs no admin auth, which is
+    // exactly why it can run at build time.
     const allSlugs = new Set<string>();
     for (const status of ["draft", "published", "archived"] as const) {
       const res = await fetch(
@@ -58,73 +93,22 @@ export async function getStaticPaths() {
 }
 
 const { slug } = Astro.params;
-
-if (!slug || typeof slug !== "string") {
-  return new Response("Not found", { status: 404 });
-}
-
-const cookieHeader =
-  typeof Astro.request?.headers?.get === "function"
-    ? (Astro.request.headers.get("cookie") ?? "")
-    : "";
-const apiInit = cookieHeader
-  ? { headers: { cookie: cookieHeader } }
-  : undefined;
-
-const [initialDishResult, lookupsResult] = await Promise.all([
-  getAdminDish(slug, apiInit)
-    .then((d) => ({ ok: true as const, data: d }))
-    .catch((err) => ({
-      ok: false as const,
-      error: err instanceof Error ? err.message : String(err),
-    })),
-  getAdminLookups(apiInit)
-    .then((l) => ({ ok: true as const, data: l }))
-    .catch((err) => ({
-      ok: false as const,
-      error: err instanceof Error ? err.message : String(err),
-    })),
-]);
-
-const loadError = !initialDishResult.ok
-  ? initialDishResult.error
-  : !lookupsResult.ok
-    ? lookupsResult.error
-    : null;
-
-if (loadError) {
-  return new Response(`Failed to load dish editor: ${loadError}`, {
-    status: 502,
-  });
-}
-
-const initialDish = initialDishResult.ok ? initialDishResult.data : null;
-const lookups = lookupsResult.ok ? lookupsResult.data : null;
-
-if (!initialDish || !lookups) {
-  return new Response("Failed to load dish editor: missing data", {
-    status: 502,
-  });
-}
+const dishSlug =
+  typeof slug === "string" && slug.length > 0 ? slug : "moussaka-greek";
 ---
 
 <AdminLayout
-  title={`Admin · ${initialDish.canonicalName} — Gustale`}
+  title={`Admin · Edit dish — Gustale`}
   pageTitle="Edit dish"
   active="dishes"
   crumbs={[
     { href: '/admin', label: 'Admin' },
     { href: '/admin/dishes', label: 'Dishes' },
-    { label: initialDish.canonicalName },
+    { label: dishSlug },
   ]}
   description="Edit dish"
 >
   <div style="max-width: 880px;">
-    <AdminDishEditor
-      client:load
-      initialDish={initialDish}
-      lookups={lookups}
-      apiBase=""
-    />
+    <AdminDishEditorLoader client:load slug={dishSlug} apiBase="" />
   </div>
 </AdminLayout>

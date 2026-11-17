@@ -328,6 +328,33 @@ would have been a 301 to `gustale.com/map` already. Nothing to do.
 
 ## 3. The 301 map
 
+> **THE AUTHORITATIVE RULE TABLE IS
+> [`infra/prod/caddy/REDIRECTS-single-domain.md`](../../infra/prod/caddy/REDIRECTS-single-domain.md).**
+>
+> It has the full table, the one-hop guarantee, the `/api/*` and
+> `/media/*` exception and its **2027-02-14** removal date, the
+> verification `curl` commands, and the three Caddy behaviours that
+> break these rules.
+>
+> The three config files are:
+>
+> | file | hosts |
+> |---|---|
+> | `infra/prod/caddy/sites/gustale.recipes.caddy` | `gustale.recipes`, `www.gustale.recipes` |
+> | `infra/prod/caddy/sites/recipes.gustale.com.caddy` | `recipes.gustale.com` |
+> | `infra/prod/caddy/sites/recipe.gustale.com.caddy` | `recipe.gustale.com` (the singular typo) |
+>
+> They are verified by `scripts/verify-redirect-rules.sh`, which loads
+> **all three** into a real Caddy and asserts the same table against
+> every host — **89 assertions, 89 passed**.
+>
+> The sections below describe the ORIGINAL two-property plan. They are
+> kept for the reasoning (the public-suffix trap, the RP ID, the
+> sitemaps), but where they name a target host, the target is now
+> `gustale.com` and only `gustale.com`.
+
+### 3.0 The original map, superseded
+
 ### 3.1 `gustale.recipes/*` → `recipes.gustale.com/*`
 
 **Host-only replacement. Every path, every query string, one rule.**

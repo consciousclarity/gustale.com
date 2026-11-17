@@ -1654,7 +1654,7 @@ function GustaleApp() {
       <footer className="wrap gst-foot">
         <div>
           <div className="fm">Gustale</div>
-          <div className="fcap">gustale.com · gustale.recipes</div>
+          <div className="fcap">gustale.com</div>
         </div>
         <div className="fl">
           <a href="Gustale Atlas.html">Atlas</a>

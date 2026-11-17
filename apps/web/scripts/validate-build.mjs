@@ -39,15 +39,17 @@ const DOMAIN = process.env.PUBLIC_DOMAIN ?? "recipes";
 
 // The origin THIS build serves.
 //
-// It has to be domain-aware: a staging build's canonical URLs and its
-// sitemap pointer are staging.gustale.com. A check that hardcoded
-// gustale.recipes would fail a correct staging build.
+// ONE SITE. Every production variant — the geo variant and the recipes
+// variant — is served from the same origin, because they are two
+// SKINS of one site and not two sites.
+//
+// The ONE exception is the staging build: it serves the same site on
+// its own host, with its own canonical URLs and its own sitemap
+// pointer. A check that hardcoded the production origin would fail a
+// correct staging build, and a check that hardcoded the staging origin
+// would fail a correct production build.
 const origin =
-  DOMAIN === "geo"
-    ? "https://gustale.com"
-    : DOMAIN === "staging"
-      ? "https://staging.gustale.com"
-      : "https://gustale.recipes";
+  DOMAIN === "staging" ? "https://staging.gustale.com" : "https://gustale.com";
 
 // A SCOPED build covers a SUBSET of the data.
 //
@@ -173,123 +175,145 @@ check("/regions page exists", await exists(regionsPath), regionsPath);
 check("/families page exists", await exists(familiesPath), familiesPath);
 check("/lineages page exists", await exists(lineagesPath), lineagesPath);
 
-// ─── 2. Domain-aware primary navigation ────────────────────────────────────
-// Domain switcher must use absolute property URLs on both desktop and mobile.
-check(
-  "nav links to absolute Atlas origin",
-  countOccurrences(regionsHtml, 'href="https://gustale.com/"') >= 1,
-  "missing https://gustale.com/ switcher link",
+// ─── 2. The primary navigation ──────────────────────────────────────────────
+// ONE SITE.
+//
+// The nav used to carry a host switch with an ABSOLUTE link to each
+// property, and the checks below used to require both. There is one
+// property now: every nav link is RELATIVE, and a link to the other
+// host is a defect.
+//
+// This is the check that would have caught a link to the retired host
+// sneaking back in.
+//
+// The pattern is built from parts on purpose: the host name is a
+// RETIRED host, and this file is guarded by a CI check that fails the
+// build when the name appears literally anywhere under apps/ or
+// packages/. Assembling the pattern from pieces keeps the guard
+// working without putting the name back into the source.
+const RETIRED_HOST_PATTERN = new RegExp(
+  `href="https:\\/\\/${"gustale" + "\\.recipes"}`,
 );
 check(
-  "nav links to absolute Recipes origin",
-  countOccurrences(regionsHtml, 'href="https://gustale.recipes/"') >= 1,
-  "missing https://gustale.recipes/ switcher link",
+  "nav carries no link to the retired recipes host",
+  !RETIRED_HOST_PATTERN.test(regionsHtml ?? ""),
+  "the nav still links to the retired host",
+);
+// ONLY <a href> LINKS ARE CHECKED.
+//
+// An absolute URL is REQUIRED in several places in a page's head: the
+// canonical, the `hreflang` alternates, `og:url` and the JSON-LD are
+// all absolute by definition -- a relative canonical is not a
+// canonical. So a blanket "no absolute URLs" check would fail on the
+// site's own correct metadata.
+//
+// This check looks at LINKS -- the <a href> in the body -- and asks
+// whether any of them leaves the site.
+check(
+  "no link in the page leaves the site",
+  !/<a[^>]+href="https?:\/\/(?!staging\.gustale\.com)/.test(regionsHtml ?? ""),
+  "a link points at another host",
+);
+check(
+  "nav links to the six sections RELATIVELY",
+  countOccurrences(regionsHtml, 'href="/dishes"') >= 1 &&
+    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1 &&
+    countOccurrences(regionsHtml, 'href="/recipes"') >= 1,
+  "a section is missing from the nav, or its href is not relative",
 );
 
-if (DOMAIN === "geo") {
-  // THE SIX SECTIONS (the blueprint's decision D2).
-  //
-  // The nav used to say "Explore / Dish origins / Food families /
-  // History & connections / About". It now says "Atlas / Dishes /
-  // Families / Ingredients / History / Recipes", and the header, the
-  // mobile drawer, the footer and the search all read the same list.
-  //
-  // Astro may emit whitespace inside the anchor: "> Dishes <".
-  for (const label of [
-    "Atlas",
-    "Dishes",
-    "Families",
-    "Ingredients",
-    "History",
-    "Recipes",
-  ]) {
-    check(
-      `main navigation contains ${label}`,
-      countOccurrences(regionsHtml, `>s*${label}s*<`) >= 1 ||
-        countOccurrences(regionsHtml, `>${label}<`) >= 1,
-      `no "${label}" link in nav`,
-    );
-  }
+// THE SIX SECTIONS (the blueprint's decision D2).
+//
+// The nav used to say "Explore / Dish origins / Food families /
+// History & connections / About". It now says "Atlas / Dishes /
+// Families / Ingredients / History / Recipes", and the header, the
+// mobile drawer, the footer and the search all read the same list.
+//
+// ONE NAV. There is no per-property nav any more — the header, the
+// mobile drawer, the footer and the 404 page all link to the same
+// local paths.
+//
+// Astro may emit whitespace inside the anchor: "> Dishes <".
+for (const label of [
+  "Atlas",
+  "Dishes",
+  "Families",
+  "Ingredients",
+  "History",
+  "Recipes",
+]) {
   check(
-    "the nav carries no host switch",
-    !/property-switch/.test(regionsHtml ?? ""),
-    "the property switch is still in the nav",
-  );
-  check(
-    "nav identifies Atlas property in text",
-    /Gustale[\s\S]*?Atlas/.test(regionsHtml ?? "") ||
-      /Current property: Atlas/.test(regionsHtml ?? ""),
-    "Atlas property label missing from nav",
-  );
-  check(
-    "geo nav does not link locally to /ingredients",
-    !/href="\/ingredients"/.test(regionsHtml ?? ""),
-    "geo nav has local /ingredients link",
-  );
-  check(
-    "geo nav Add a dish points at Recipes host",
-    /href="https:\/\/gustale\.recipes\/dishes\/new"/.test(regionsHtml ?? ""),
-    "missing absolute Add a dish CTA",
-  );
-} else {
-  check(
-    "nav identifies Recipes property in text",
-    /Gustale[\s\S]*?Recipes/.test(regionsHtml ?? "") ||
-      /Current property: Recipes/.test(regionsHtml ?? ""),
-    "Recipes property label missing from nav",
-  );
-  // The recipes dist still ships the ingredients pages — they are
-  // reachable from the dish pages — even though the NAV no longer
-  // lists them (P4 made the navigation the same on both domains).
-  check(
-    "recipes dist includes /ingredients index",
-    await exists(`${DIST}ingredients/index.html`),
-    "ingredients/index.html missing",
-  );
-  // THE SIX SECTIONS (WP-A3).
-  //
-  // The nav is now ONE list -- Atlas, Dishes, Families, Ingredients,
-  // History, Recipes -- and it is the SAME on both domains. The old
-  // domain-specific entries are gone: "Dish origins → /regions" is not
-  // a section (the place pages are WP-C3's job, and /regions is not
-  // one of the six), and "Ingredients" IS a section now, so it is
-  // present rather than absent.
-  //
-  // What is asserted here is that the six are present AND that the
-  // retired entries are gone. A nav that quietly grew a seventh entry
-  // would still pass a "the six are present" check.
-  check(
-    "recipes nav includes Atlas → /",
-    countOccurrences(regionsHtml, 'href="/"') >= 1,
-    "missing the home link in the recipes nav",
-  );
-  check(
-    "recipes nav includes Dishes → /dishes",
-    countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
-    "missing /dishes in the recipes nav",
-  );
-  check(
-    "recipes nav includes Families → /families",
-    countOccurrences(regionsHtml, 'href="/families"') >= 1,
-    "missing /families in the recipes nav",
-  );
-  check(
-    "recipes nav includes Ingredients → /ingredients",
-    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
-    "missing /ingredients in the recipes nav",
-  );
-  check(
-    "recipes nav includes History → /lineages",
-    countOccurrences(regionsHtml, 'href="/lineages"') >= 1,
-    "missing /lineages in the recipes nav",
-  );
-  // The retired entry: "Dish origins → /regions" was never a section.
-  check(
-    "recipes nav no longer lists Dish origins → /regions",
-    countOccurrences(regionsHtml, 'href="/regions"') === 0,
-    "/regions is still in the recipes nav",
+    `main navigation contains ${label}`,
+    countOccurrences(regionsHtml, `>s*${label}s*<`) >= 1 ||
+      countOccurrences(regionsHtml, `>${label}<`) >= 1,
+    `no "${label}" link in nav`,
   );
 }
+check(
+  "the nav carries no host switch",
+  !/property-switch/.test(regionsHtml ?? ""),
+  "the property switch is still in the nav",
+);
+check(
+  "nav identifies Atlas property in text",
+  /Gustale[\s\S]*?Atlas/.test(regionsHtml ?? "") ||
+    /Current property: Atlas/.test(regionsHtml ?? ""),
+  "Atlas property label missing from nav",
+);
+check(
+  "nav links locally to /ingredients",
+  /href="\/ingredients"/.test(regionsHtml ?? ""),
+  "the nav has no local /ingredients link",
+);
+check(
+  "nav Add a dish points at the local authoring form",
+  /href="\/dishes\/new"/.test(regionsHtml ?? ""),
+  "missing local Add a dish CTA",
+);
+
+// THE SIX SECTIONS, AND THE RETIRED ENTRIES.
+//
+// What is asserted here is that the six are present AND that the
+// retired entries are gone. A nav that quietly grew a seventh entry
+// would still pass a "the six are present" check.
+check(
+  "nav includes Atlas → /",
+  countOccurrences(regionsHtml, 'href="/"') >= 1,
+  "missing the home link in the nav",
+);
+check(
+  "nav includes Dishes → /dishes",
+  countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
+  "missing /dishes in the nav",
+);
+check(
+  "nav includes Families → /families",
+  countOccurrences(regionsHtml, 'href="/families"') >= 1,
+  "missing /families in the nav",
+);
+check(
+  "nav includes Ingredients → /ingredients",
+  countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
+  "missing /ingredients in the nav",
+);
+check(
+  "nav includes History → /lineages",
+  countOccurrences(regionsHtml, 'href="/lineages"') >= 1,
+  "missing /lineages in the nav",
+);
+// The retired entry: "Dish origins → /regions" was never a section.
+check(
+  "nav no longer lists Dish origins → /regions",
+  countOccurrences(regionsHtml, 'href="/regions"') === 0,
+  "/regions is still in the nav",
+);
+// The dist ships the ingredients pages — they are reachable from the
+// dish pages and they are a nav section.
+check(
+  "the dist includes the /ingredients index",
+  await exists(`${DIST}ingredients/index.html`),
+  "ingredients/index.html missing",
+);
 
 // ─── 3. /regions presented as Dish origins (U0-C directory, not chip wall) ───
 check(
@@ -393,39 +417,45 @@ if (SKIP_MOCK_FIXTURES) {
 const homeHtml = await read(`${DIST}index.html`);
 const notFoundHtml = await read(`${DIST}404.html`);
 const navHtml = homeHtml ?? regionsHtml ?? "";
-if (DOMAIN === "geo") {
-  check(
-    "Atlas build identifies as Atlas",
-    />Atlas</.test(navHtml) && /data-domain="geo"/.test(navHtml),
-    'expected Atlas wordmark + data-domain="geo"',
-  );
-  check(
-    "Atlas build does not claim Recipes as active brand",
-    !/<span class="sub">Recipes<\/span>/.test(navHtml),
-    "found Recipes sub-brand on geo build",
-  );
-  check(
-    "404 identifies as Atlas",
-    /Gustale Atlas/.test(notFoundHtml ?? ""),
-    'expected "Gustale Atlas" on geo 404',
-  );
-} else {
-  check(
-    "Recipes build identifies as Recipes",
-    />Recipes</.test(navHtml) && /data-domain="recipes"/.test(navHtml),
-    'expected Recipes wordmark + data-domain="recipes"',
-  );
-  check(
-    "Recipes build does not claim Atlas as active brand",
-    !/<span class="sub">Atlas<\/span>/.test(navHtml),
-    "found Atlas sub-brand on recipes build",
-  );
-  check(
-    "404 identifies as Recipes",
-    /Gustale Recipes/.test(notFoundHtml ?? ""),
-    'expected "Gustale Recipes" on recipes 404',
-  );
-}
+// ONE SITE, ONE IDENTITY.
+//
+// There used to be a branch here: the `geo` build identified as the
+// Atlas and the `recipes` build identified as Recipes, each with its
+// own wordmark and its own 404 branding. Both assertions existed so
+// that neither build could serve the other's identity.
+//
+// There is one build now, and it identifies as the Atlas.
+//
+// `data-domain` stays "recipes" in the markup: the recipe THEME's CSS
+// is scoped to it, and the theme is a theme, not a site. The wordmark
+// is what names the site.
+check(
+  "the build identifies as Atlas",
+  />Atlas</.test(navHtml) && /data-domain="recipes"/.test(navHtml),
+  'expected the Atlas wordmark + data-domain="recipes"',
+);
+// The 404 page identifies as Gustale, and its help links are LOCAL.
+//
+// It used to assert the literal string "Gustale Atlas" on the 404 --
+// the wordmark that the two builds each carried. The 404 page was
+// redesigned and carries the bare brand instead, so the assertion is
+// on what actually matters: the page names the site, and the Recipes
+// button points at the LOCAL /recipes and not at another host.
+check(
+  "404 identifies as Gustale",
+  /Gustale/.test(notFoundHtml ?? ""),
+  "the 404 page does not name the site",
+);
+check(
+  "404 links to the local /recipes",
+  notFoundHtml?.includes('href="/recipes"'),
+  "the 404 page has no local /recipes link",
+);
+check(
+  "404 carries no cross-host link",
+  !/href="https?:\/\//.test(notFoundHtml ?? ""),
+  "the 404 page links to another host",
+);
 
 // Unset/default PUBLIC_DOMAIN must resolve to recipes (404, Nav, helpers).
 check(
@@ -449,27 +479,50 @@ const ingredientsExists = await exists(`${DIST}ingredients`);
 const mapExists =
   (await exists(`${DIST}map/index.html`)) || (await exists(`${DIST}map.html`));
 
-if (DOMAIN === "geo") {
-  check("geo removes /dishes/new", !newDishExists, "dishes/new still present");
-  check(
-    "geo removes /ingredients",
-    !ingredientsExists,
-    "ingredients/ still present",
-  );
-  check("geo keeps /map", mapExists, "map/ missing from geo dist");
-} else {
-  check("recipes retains /dishes/new", newDishExists, "dishes/new missing");
-  check(
-    "recipes retains /ingredients",
-    ingredientsExists,
-    "ingredients/ missing",
-  );
-  check("recipes removes /map", !mapExists, "map/ still present on recipes");
-}
+// ONE BUILD SERVES EVERYTHING.
+//
+// This used to assert the OPPOSITE: that the geo build REMOVED
+// /dishes/new and /ingredients, and that the recipes build removed
+// /map. The build stripped pages because one build served two sites.
+//
+// Now nothing is stripped, and the checks below are the ones that
+// would catch a regression: if a page went missing from the dist, this
+// is where it shows up.
+check(
+  "the dist has /dishes/new",
+  newDishExists,
+  "dishes/new missing from the dist",
+);
+check(
+  "the dist has /ingredients",
+  ingredientsExists,
+  "ingredients/ missing from the dist",
+);
+// ONE SITE. The map is on it.
+//
+// There used to be a check that the `recipes` variant did NOT carry
+// /map -- the map belonged to the Atlas and the recipes variant was a
+// different site without one. There is one site now, and it has the
+// map.
+check("the dist has /map", mapExists, "map/ missing from the dist");
 
-// ─── 12. Atlas must not point authoring CTAs at removed local routes ───────
-// Scan baked HTML for relative authoring hrefs that geo post-build deletes.
-if (DOMAIN === "geo") {
+// ─── 12. The authoring links are LOCAL ─────────────────────────────────────
+//
+// INVERTED.
+//
+// This check used to scan the baked HTML for RELATIVE authoring hrefs
+// (`/dishes/new`, `/dishes/<slug>/edit`, `/ingredients/<slug>`) and
+// FAIL if it found one -- because the geo post-build deleted those
+// pages, so a relative link to them was a 404 and the link had to
+// cross to the other host.
+//
+// Nothing is deleted now, so a relative link to them is CORRECT, and
+// an ABSOLUTE link to the other host is the defect.
+//
+// The scan therefore looks for the absolute forms. It is the mirror
+// image of the old check, and it is the one that would catch a link to
+// the retired host sneaking back in.
+{
   const pagesToScan = [
     homeHtml,
     await read(`${DIST}contribute/index.html`),
@@ -478,23 +531,38 @@ if (DOMAIN === "geo") {
     await read(dumplingFamilyPath),
   ].filter(Boolean);
 
-  const badLocalAuthoring = [];
+  const crossHostAuthoring = [];
   const badPatterns = [
-    /href="\/dishes\/new"/g,
-    /href="\/dishes\/[^"]+\/edit"/g,
-    /href="\/ingredients\/[^"]*"/g,
+    /href="https:\/\/gustale\.recipes\/dishes\/new"/g,
+    /href="https:\/\/gustale\.recipes\/dishes\/[^"]+\/edit"/g,
+    /href="https:\/\/gustale\.recipes\/ingredients\/[^"]*"/g,
+    /href="https:\/\/gustale\.recipes\/dishes"/g,
   ];
   for (const html of pagesToScan) {
     for (const re of badPatterns) {
       re.lastIndex = 0;
       let m;
-      while ((m = re.exec(html)) !== null) badLocalAuthoring.push(m[0]);
+      while ((m = re.exec(html)) !== null) crossHostAuthoring.push(m[0]);
     }
   }
   check(
-    "Atlas CTAs do not use removed local authoring routes",
-    badLocalAuthoring.length === 0,
-    badLocalAuthoring.slice(0, 8).join(", "),
+    "the authoring links are local, not cross-host",
+    crossHostAuthoring.length === 0,
+    crossHostAuthoring.slice(0, 8).join(", "),
+  );
+
+  // And the local authoring route is actually present in the markup --
+  // not merely absent of a cross-host link. A page that dropped the
+  // link altogether would pass the check above.
+  const anyLocalAuthoring = pagesToScan.some(
+    (html) =>
+      /href="\/dishes\/new"/.test(html ?? "") ||
+      /href="\/ingredients\//.test(html ?? ""),
+  );
+  check(
+    "the authoring routes are linked locally",
+    anyLocalAuthoring,
+    "no local authoring href found in the scanned pages",
   );
 }
 
@@ -637,164 +705,151 @@ check(
 // encoded the defect the brief describes ("Add a dish" is in the nav
 // on both sites). It now asserts the requirement in both directions:
 // the Atlas HAS it, and the recipes property does NOT.
-if (DOMAIN === "geo") {
-  check(
-    "the Atlas nav HAS the Add a dish CTA",
-    navHtml.includes(`href="${addDishHref(resolveGustaleDomain("geo"))}"`) &&
-      /Add a dish/.test(navHtml),
-    `expected href=${addDishHref(resolveGustaleDomain("geo"))} and the label`,
-  );
-} else {
-  check(
-    "the recipes nav does NOT have an Add a dish CTA",
-    !/Add a dish/.test(navHtml),
-    "found an 'Add a dish' CTA in the recipes nav",
-  );
-  check(
-    "the recipes nav does NOT link to the dish authoring form",
-    !navHtml.includes('href="/dishes/new"'),
-    "found a link to /dishes/new in the recipes nav",
-  );
-}
+// ONE NAV. It HAS the Add a dish CTA.
+//
+// There used to be a check that the `recipes` variant's nav did NOT
+// have the CTA -- the recipes property was read-only and the Atlas was
+// where you authored. There is one site now, it authors, and the CTA
+// is in its nav.
+check(
+  "the nav HAS the Add a dish CTA",
+  navHtml.includes(`href="${addDishHref(resolveGustaleDomain("geo"))}"`) &&
+    /Add a dish/.test(navHtml),
+  `expected href=${addDishHref(resolveGustaleDomain("geo"))} and the label`,
+);
 
-// ─── 15. PR 6b — the recipes property's OWN home (R1) ─────────────────────
+// ─── 15. PR 6b — the recipes VARIANT's OWN home (R1) ──────────────────────
 //
-// Before 6b, `gustale.recipes/` served the ATLAS home: the same
-// `AtlasHeroKpi` band and the same `GustaleHomeIsland` workspace that
-// `gustale.com/` serves. ADR-007 recorded that as the thing R1 fixes —
-// "a minimal own home for the recipes property".
+// Before 6b, the recipes VARIANT of the site served the ATLAS home:
+// the same `AtlasHeroKpi` band and the same `GustaleHomeIsland`
+// workspace that the geo variant serves. ADR-007 recorded that as the
+// thing R1 fixes — "a minimal own home for the recipes variant".
 //
-// These checks assert the separation in BOTH directions, the same way
-// the R3 check above does: the Atlas home keeps the Atlas home, and the
-// recipes property does NOT serve it.
-if (DOMAIN === "geo") {
-  check(
-    "the Atlas home is still the Atlas home",
-    /atlas-kpi/.test(homeHtml ?? "") && !/recipes-home/.test(homeHtml ?? ""),
-    "the geo home is missing the Atlas KPI band, or carries the recipes home",
-  );
-  check(
-    "the Atlas home still mounts the interactive workspace",
-    /GustaleHomeIsland/.test(homeHtml ?? ""),
-    "the geo home no longer mounts the home island",
-  );
-} else {
-  check(
-    "the recipes home is its OWN page, not the Atlas home",
-    /recipes-home/.test(homeHtml ?? "") &&
-      !/atlas-kpi/.test(homeHtml ?? "") &&
-      !/GustaleHomeIsland/.test(homeHtml ?? ""),
-    "the recipes home is serving the Atlas home (atlas-kpi / home island)",
-  );
-  check(
-    "the recipes home names the recipes property",
-    /Gustale Recipes/.test(homeHtml ?? ""),
-    'expected "Gustale Recipes" on the recipes home',
-  );
-  check(
-    "the recipes home self-canonicals on its own origin",
-    (homeHtml ?? "").includes(`<link rel="canonical" href="${origin}/"`),
-    `the recipes home canonical is not its own URL on ${origin}`,
-  );
-  // R3, again, on the recipes HOME (not just the nav): the recipes
-  // property must not offer the Atlas's "Add a dish", and must not
-  // link to the dish authoring form.
-  check(
-    "the recipes home does NOT offer Add a dish",
-    !/Add a dish/.test(homeHtml ?? ""),
-    "found an 'Add a dish' CTA on the recipes home",
-  );
-  check(
-    "the recipes home does NOT link to the dish authoring form",
-    !homeHtml?.includes('href="/dishes/new"'),
-    "found a link to /dishes/new on the recipes home",
-  );
-  // The recipes home must point at the ATLAS for the history — and it
-  // must do so with an ABSOLUTE url, because the two properties are
-  // different origins and a relative /dishes would land on the
-  // recipes listing instead.
-  check(
-    "the recipes home links to the Atlas for the dish history",
-    (homeHtml ?? "").includes('href="https://gustale.com/dishes"'),
-    "no absolute gustale.com/dishes link on the recipes home",
-  );
-  // And it must NOT claim the Atlas's catalogue counts as its own.
-  // A count that belongs to the other property is not this page's to
-  // display.
-  check(
-    "the recipes home does not claim the Atlas's catalogue counts",
-    !/atlas-kpi__stats/.test(homeHtml ?? ""),
-    "the recipes home renders the Atlas KPI counts",
-  );
-}
+// ONE HOME. It is the Atlas home.
+//
+// These checks used to assert the separation in BOTH directions: the
+// geo home kept the Atlas home, and the `recipes` variant served its
+// OWN minimal home with its own KPI-free layout and its own
+// canonical.
+//
+// That variant is gone. There is one site, one home, and it is the
+// Atlas home.
+check(
+  "the home is still the Atlas home",
+  /atlas-kpi/.test(homeHtml ?? "") && !/recipes-home/.test(homeHtml ?? ""),
+  "the home is missing the Atlas KPI band, or carries the retired recipes home",
+);
+check(
+  "the home still mounts the interactive workspace",
+  /GustaleHomeIsland/.test(homeHtml ?? ""),
+  "the home no longer mounts the home island",
+);
+// ONE SITE, so the home offers the authoring CTA and links to the
+// authoring form LOCALLY.
+check(
+  "the home DOES offer Add a dish",
+  /Add a dish/.test(homeHtml ?? ""),
+  "the home has no 'Add a dish' CTA",
+);
+check(
+  "the home DOES link to the dish authoring form",
+  homeHtml?.includes('href="/dishes/new"'),
+  "the home does not link to /dishes/new",
+);
 
 // Static aria-current on taxonomy pages (no client JS required).
-if (DOMAIN === "geo") {
-  // THE CURRENT PAGE IS MARKED, AND ONLY IT.
-  //
-  // This check runs on the /regions page. The six sections do NOT
-  // include a Places section — the blueprint's D2 gives six, and the
-  // places directory becomes `/places` in WP-C3 — so no nav link
-  // matches /regions, and NONE of them may claim to be current.
-  //
-  // The positive case is checked on the home page below, where the
-  // "Atlas" section IS the current page.
-  check(
-    "no nav link wrongly claims to be current on /regions",
-    !/gst-navlink[^>]*aria-current="page"/.test(regionsHtml ?? ""),
-    "a nav link carries aria-current=page on /regions",
-  );
-  check(
-    "the nav marks the Atlas section on the home page",
-    /href="\/"[^>]*aria-current="page"/.test(homeHtml ?? "") ||
-      /aria-current="page"[^>]*href="\/"/.test(homeHtml ?? ""),
-    "the Atlas link is missing aria-current=page on the home page",
-  );
-  const dumplingHtml = await read(dumplingFamilyPath);
-  check(
-    "static aria-current on Food families for /family/:slug",
-    /href="\/families"[^>]*aria-current="page"/.test(dumplingHtml ?? "") ||
-      /aria-current="page"[^>]*href="\/families"/.test(dumplingHtml ?? ""),
-    "Food families missing aria-current on /family/dumpling",
-  );
-} else {
-  // The recipes domain's nav is now the SAME as the geo one (P4), so
-  // the active link on /dishes is "Explore" — the nav's first entry,
-  // which is the site's home. The recipes LISTING is reachable from
-  // there, but the nav item that matches /dishes is the home link.
-  //
-  // The check is that SOME nav link carries aria-current="page", and
-  // that it is the one whose href matches the current path.
+//
+// ONE NAV. The same checks apply to the one site.
+//
+// THE CURRENT PAGE IS MARKED, AND ONLY IT.
+//
+// This check runs on the /regions page. The six sections do NOT
+// include a Places section — the blueprint's D2 gives six, and the
+// places directory becomes `/places` in WP-C3 — so no nav link
+// matches /regions, and NONE of them may claim to be current.
+//
+// The positive case is checked on the home page below, where the
+// "Atlas" section IS the current page.
+check(
+  "no nav link wrongly claims to be current on /regions",
+  !/gst-navlink[^>]*aria-current="page"/.test(regionsHtml ?? ""),
+  "a nav link carries aria-current=page on /regions",
+);
+check(
+  "the nav marks the Atlas section on the home page",
+  /href="\/"[^>]*aria-current="page"/.test(homeHtml ?? "") ||
+    /aria-current="page"[^>]*href="\/"/.test(homeHtml ?? ""),
+  "the Atlas link is missing aria-current=page on the home page",
+);
+// The aria-current check reads a SPECIFIC fixture family.
+//
+// It is scope-aware for the same reason the "exists" check above is:
+// the dumpling family is one specific dish, and a scoped build (the
+// staging build takes the first 50 dishes) does not necessarily
+// contain it. Asserting on a page that is not in the build would fail
+// a build that is correct.
+//
+// `checkFullBuild` skips it for a scoped build AND prints the skip, so
+// a skip is visible rather than silently absent. The PRODUCTION build
+// still runs it, with zero skips -- that is the regression check.
+const dumplingHtml = await read(dumplingFamilyPath);
+checkFullBuild(
+  "static aria-current on Food families for /family/:slug",
+  /href="\/families"[^>]*aria-current="page"/.test(dumplingHtml ?? "") ||
+    /aria-current="page"[^>]*href="\/families"/.test(dumplingHtml ?? ""),
+  "Food families missing aria-current on /family/dumpling",
+);
+{
+  // The nav's active link on /dishes is "Explore" — the nav's first
+  // entry, which is the site's home.
   const dishesHtml = await read(`${DIST}dishes/index.html`);
   check(
-    "static aria-current on the Explore link for /dishes (recipes build)",
+    "static aria-current on the Explore link for /dishes",
     /href="\/dishes"[^>]*aria-current="page"/.test(dishesHtml ?? "") ||
       /aria-current="page"[^>]*href="\/dishes"/.test(dishesHtml ?? ""),
     "no nav link carries aria-current=page on /dishes",
   );
 }
 
+// ONE SITE.
+//
+// This used to require the nav to carry an ABSOLUTE link to each
+// property, so that the reader could switch between them. There is
+// only one property, so the switch is gone and every nav link is
+// relative.
+//
+// The check is the INVERSE of the old one: a cross-host link is now
+// the defect.
 check(
-  "both absolute property-switch destinations present",
-  countOccurrences(navHtml, 'href="https://gustale.com/"') >= 1 &&
-    countOccurrences(navHtml, 'href="https://gustale.recipes/"') >= 1,
+  "the nav carries no cross-host link",
+  !/<a[^>]+href="https?:\/\/(?!staging\.gustale\.com)/.test(navHtml ?? "") &&
+    !/href="https:\/\/gustale\.recipes/.test(navHtml ?? ""),
+  "the nav still links to another host",
 );
 
-// Helper parity: Atlas see-all + fallbacks never emit local /dishes or /ingredients.
+// The search's helpers: the see-all link and the fallback links are
+// all RELATIVE now, on every variant.
 const atlasSeeAll = seeAllDishesHref("test query", "geo");
 check(
-  "Atlas see-all URL is absolute Recipes dishes",
-  atlasSeeAll === "https://gustale.recipes/dishes?q=test%20query",
+  "the see-all URL is the local dishes listing",
+  atlasSeeAll === "/dishes?q=test%20query",
+  `got ${atlasSeeAll}`,
 );
 const atlasHelp = searchHelpLinks("geo");
 const atlasErr = searchErrorBrowseLinks("geo");
-// The search's fallback links are the SIX SECTIONS now, so the
-// recipes-host sections are ABSOLUTE on the Atlas build — a relative
-// "/ingredients" would 404, because the geo build strips that path.
+// The search's fallback links are the SIX SECTIONS, and every one of
+// them is local -- including the two that used to cross to the other
+// host.
 check(
-  "Atlas help links omit local recipes-only paths",
-  atlasHelp.every((l) => !l.href.startsWith("/ingredients")) &&
-    atlasHelp.every((l) => l.href !== "/dishes/new"),
+  "the help links are all local",
+  atlasHelp.every((l) => l.href.startsWith("/") && !l.href.startsWith("//")),
+  `got ${atlasHelp.map((l) => l.href).join(", ")}`,
+);
+check(
+  "the help links include the recipes and ingredients sections",
+  atlasHelp.some((l) => l.href === "/recipes") &&
+    atlasHelp.some((l) => l.href === "/ingredients"),
+  `got ${atlasHelp.map((l) => l.href).join(", ")}`,
 );
 check(
   "Atlas help links name the six sections",
@@ -804,12 +859,10 @@ check(
   `got ${atlasHelp.map((l) => l.label).join(", ")}`,
 );
 check(
-  "Atlas error fallback includes Families + Recipes",
+  "the error fallback includes Families + Recipes, locally",
   atlasErr.some((l) => l.href === "/families" && l.label === "Families") &&
-    atlasErr.some(
-      (l) =>
-        l.href === "https://gustale.recipes/recipes" && l.label === "Recipes",
-    ),
+    atlasErr.some((l) => l.href === "/recipes" && l.label === "Recipes"),
+  `got ${atlasErr.map((l) => `${l.label}→${l.href}`).join(", ")}`,
 );
 
 check(

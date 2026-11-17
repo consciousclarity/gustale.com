@@ -106,7 +106,7 @@ echo "── 5. every NEW row is draft ─────────────�
 # Gate B's "status='draft'" applies to the rows this backfill WRITES.
 # The four REUSED rows (eggplant, lamb-mince, tomato, bechamel) were
 # created 'published' by packages/db/seed-moussaka.sql and have live
-# pages (gustale.recipes/ingredients/<slug> -> HTTP 200). Stage B
+# pages (/ingredients/<slug> -> HTTP 200). Stage B
 # only fills in their `category`; it must NOT demote them, because
 # demoting published content is publication (Gate C), not a
 # backfill.

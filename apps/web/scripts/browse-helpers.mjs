@@ -3,8 +3,8 @@
  * Keep in sync with the TypeScript source.
  */
 
-export const ATLAS_ORIGIN = "https://gustale.com";
-export const RECIPES_ORIGIN = "https://gustale.recipes";
+// ONE SITE. The two origins are gone; see `src/lib/domain.ts`.
+export const SITE_ORIGIN = "https://gustale.com";
 export const BROWSE_PAGE_SIZE = 24;
 
 export const DEFAULT_BROWSE_STATE = {
@@ -425,31 +425,22 @@ export function applyLineageFilter(lineages, state) {
   return lineages.filter((l) => matchesLineageFilters(l, state));
 }
 
-export function recoveryLinks(domain) {
-  if (domain === "geo") {
-    return {
-      primary: [
-        { href: "/", label: "Globe" },
-        { href: "/regions", label: "Places" },
-        { href: "/families", label: "Food families" },
-        { href: "/lineages", label: "History & connections" },
-      ],
-      altBrowse: { href: `${RECIPES_ORIGIN}/dishes`, label: "Browse recipes" },
-    };
-  }
+export function recoveryLinks(_domain) {
   return {
     primary: [
-      { href: "/dishes", label: "Recipes" },
-      { href: "/ingredients", label: "Ingredients" },
+      { href: "/", label: "Atlas" },
+      { href: "/dishes", label: "Dishes" },
       { href: "/families", label: "Food families" },
+      { href: "/ingredients", label: "Ingredients" },
       { href: "/lineages", label: "History & connections" },
+      { href: "/recipes", label: "Recipes" },
     ],
-    altBrowse: { href: `${ATLAS_ORIGIN}/`, label: "Gustale Atlas" },
+    altBrowse: null,
   };
 }
 
-export function mapBrowseHref(domain) {
-  return domain === "geo" ? "/map" : `${ATLAS_ORIGIN}/map`;
+export function mapBrowseHref(_domain) {
+  return "/map";
 }
 
 export function safeQueryEncode(value, maxLen = 200) {
@@ -459,6 +450,5 @@ export function safeQueryEncode(value, maxLen = 200) {
 export function absoluteDishesIndexHref(domain, query = "") {
   const q = query.trim();
   const suffix = q ? `?q=${safeQueryEncode(q)}` : "";
-  if (domain === "geo") return `${RECIPES_ORIGIN}/dishes${suffix}`;
   return `/dishes${suffix}`;
 }

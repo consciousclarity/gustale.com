@@ -1,7 +1,7 @@
 /* ============================================================
-   GUSTALE.RECIPES — the recipes theme.
+   GUSTALE — the recipes theme.
 
-   The herb-green accent, applied to gustale.recipes ONLY.
+   The herb-green accent, applied to gustale.com (the single build).
 
    WHY THIS FILE EXISTS SEPARATELY
    -------------------------------
@@ -26,12 +26,14 @@
 
    THE SCOPE
    ---------
-   `body[data-domain="recipes"]` — NOT `.gst`. Both properties render
-   `<body class="gst">`, so a `.gst`-scoped override would tint the
-   ATLAS as well. The `data-domain` attribute is set by
-   `apps/web/src/layouts/Layout.astro`.
+   `body[data-domain="recipes"]` — NOT `.gst`. The site renders
+   `<body class="gst">`, so a `.gst`-scoped override would tint
+   everything, including the parts of the site that are not the
+   recipes theme. The `data-domain` attribute is set by
+   `apps/web/src/layouts/Layout.astro`, and the single build still
+   sets it to "recipes".
 
-   The Atlas keeps its terracotta, untouched.
+   The rest of the site keeps its terracotta, untouched.
 
    THE TOKENS
    ----------

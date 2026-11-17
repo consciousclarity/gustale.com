@@ -2,24 +2,25 @@
 /**
  * Post-build filter for Astro static output.
  *
- * The Astro build emits every page in src/pages/. We have two domains
- * that share most pages but differ on a few:
+ * The Astro build emits every page in src/pages/. There is ONE site,
+ * served from gustale.com, and it has two VARIANTS that share most
+ * pages but differ on a few:
  *
- *   - gustale.recipes (encyclopedia): keeps /dishes, /ingredients,
+ *   - the recipes VARIANT (encyclopedia): keeps /dishes, /ingredients,
  *     /dishes/new, /dishes/<slug>/edit. Drops /map.
- *   - gustale.com (geo/map): keeps /map, /dishes list. Drops /ingredients,
- *     /dishes/new, /dishes/<slug>/edit.
+ *   - the geo VARIANT (geo/map): keeps /map, /dishes list. Drops
+ *     /ingredients, /dishes/new, /dishes/<slug>/edit.
  *
- * Pages kept on BOTH domains:
+ * Pages kept in BOTH variants:
  *   - /, /about, /login, /register, /account
  *   - /dashboard          (contributor dashboard — contributor auth is
- *                         domain-agnostic: same roles exist on recipes
- *                         and geo, so the shell ships on both)
+ *                         domain-agnostic: the same roles exist in
+ *                         both variants, so the shell ships in both)
  *   - /dishes/<slug> (single dish view)
  *   - /404
  *
  * PUBLIC_DOMAIN env var picks which subset to keep. Defaults to
- * "recipes" (the encyclopedia domain) when unset, since that's the
+ * "recipes" (the encyclopedia variant) when unset, since that's the
  * more conservative choice.
  *
  * Run after `astro build`:
@@ -36,7 +37,7 @@
  *     that catches catastrophic partial builds (we saw 1 dish survive
  *     a flaky run) without false-positives on future schema changes.
  *   - Empty parent directories left behind after pruning are also
- *     removed, so requests to e.g. /dishes/new/ on the geo domain get
+ *     removed, so requests to e.g. /dishes/new/ in the geo variant get
  *     a clean 404 from nginx rather than a 403 from autoindex.
  */
 import {
@@ -149,9 +150,35 @@ const SCOPED_FLOOR =
 // experimentation. CI MUST NOT set this.
 const ALLOW_PARTIAL = process.env.ALLOW_PARTIAL === "1";
 
-// Routes that exist on ONE domain only. Each is a path relative to /.
-const GEO_ONLY = ["map/"];
-const RECIPES_ONLY = []; // All shared pages are now on both domains
+// ONE SITE.
+//
+// There is no per-domain route list any more. The filter used to be:
+//
+//     const GEO_ONLY = ["map/"];
+//     const RECIPES_ONLY = [];
+//     const drop = isGeoLike ? RECIPES_ONLY : GEO_ONLY;
+//
+// and then a geo-only block that removed /ingredients, /dishes/new
+// and every /dishes/<slug>/edit from the dist.
+//
+// All of that is gone, and that is the point of the cutover. The
+// filter existed because ONE BUILD SERVED TWO SITES, and a site that
+// links to /ingredients must have /ingredients: the geo build
+// stripped it and sent the reader to another host. Now gustale.com
+// serves everything, so nothing is stripped and every link is local.
+//
+// What SURVIVES is the completeness floor and the sitemap generation,
+// and both are load-bearing:
+//
+//   * the floor refuses to prune a partial build -- but there is
+//     nothing left to prune, so it now only guards the sitemap step's
+//     input;
+//   * the sitemap generation is a HARD FAILURE. A build that cannot
+//     produce the sitemaps does not produce an image.
+//
+// `DOMAIN` still selects the VARIANT of the one site (the /map page,
+// the home hero). It no longer selects a different site with
+// different pages.
 
 async function exists(path) {
   try {
@@ -256,112 +283,57 @@ if (dishDirs.length < effectiveFloor) {
   );
 }
 
-// ─── Per-domain pruning ────────────────────────────────────────────────────
+// ─── Nothing is stripped any more ──────────────────────────────────────────
 let removed = 0;
 
-// Always-on: drop pages only relevant to the OTHER domain.
-// Which paths to drop.
+// The geo build used to remove, from its own dist:
 //
-// The geo domain keeps /map and drops the recipes-only routes; the
-// recipes domain does the opposite.
+//   /dishes/new/                — the authoring form
+//   /dishes/<slug>/edit/        — the editing surface
+//   /ingredients/               — the ingredient pages
 //
-// The STAGING domain is the recipes site -- it is the same code, on
-// another host -- so it drops the GEO_ONLY paths exactly as the
-// recipes domain does. Without this, a staging build kept /map and
-// the validate-build check ("recipes removes /map") failed on a
-// build that was actually correct.
-const isGeoLike = DOMAIN === "geo";
-const drop = isGeoLike ? RECIPES_ONLY : GEO_ONLY;
-for (const target of drop) {
-  const full = join(DIST, target);
-  if (await rmIfExists(full)) {
-    console.log(`[post-build] removed ${target} (not in ${DOMAIN} domain)`);
-    removed++;
-  }
+// and then FLATTEN /dishes/<slug>/index.html to /dishes/<slug>.html,
+// so that nginx's two `location ~ ^/dishes/([^/.]+)` rewrite blocks
+// could serve the dish page from a flat file.
+//
+// All of it is gone.
+//
+// WHY THE STRIPPING IS GONE
+// -------------------------
+// The stripping existed because ONE BUILD SERVED TWO SITES. The geo
+// build could not serve /ingredients, because the recipes host
+// served it — so the geo build removed it and the link to it crossed
+// to another host. A build that removes content from the site it is
+// serving is a build that has to be replaced by a second build, and
+// the second build is a second thing to deploy, to keep in sync, and
+// to redirect.
+//
+// Now gustale.com serves everything, so the build keeps everything.
+//
+// WHY THE FLATTENING IS GONE
+// --------------------------
+// The flattening was the geo build's compensation for the stripping:
+// with /dishes/<slug>/edit/ removed from every dish directory, the
+// directory could be collapsed to a flat file. With nothing stripped,
+// the nested `dist/dishes/<slug>/index.html` layout is what Astro
+// emits, and it is what nginx's `try_files $uri $uri/index.html`
+// already serves.
+//
+// The nginx rewrite blocks in `apps/web/nginx.conf` go with it. They
+// exist only for the flat layout; leaving them would make nginx look
+// for a flat file that is not there, and fall through to the nested
+// one — which works, but only by accident, and it costs a regex match
+// on every dish request.
+//
+// The dishes are still counted, because the completeness floor reads
+// them.
+
+const dishDirsKept = dishDirs.length;
+if (dishDirsKept > 0) {
+  console.log(
+    `[post-build] kept ${dishDirsKept} dish pages, with their nested index.html`,
+  );
 }
-
-// Domain-specific: walk the dishes tree to keep <slug>/index.html
-// (single dish view, on both domains) but drop <slug>/edit/ and new/.
-if (DOMAIN === "geo") {
-  // Drop /dishes/<slug>/edit/ for every slug + /dishes/new/ entirely.
-  for (const slug of dishDirs) {
-    const editDir = join(DIST, "dishes", slug, "edit");
-    if (await rmIfExists(editDir)) {
-      console.log(`[post-build] removed dishes/${slug}/edit/`);
-      removed++;
-      await pruneEmptyParents(join(DIST, "dishes", slug), join(DIST, "dishes"));
-    }
-  }
-  const newDir = join(DIST, "dishes", "new");
-  if (await rmIfExists(newDir)) {
-    console.log(`[post-build] removed dishes/new/`);
-    removed++;
-  }
-
-  // Drop /ingredients/<slug>/ entirely (geo domain has no ingredient pages).
-  const ingDir = join(DIST, "ingredients");
-  if (await rmIfExists(ingDir)) {
-    console.log("[post-build] removed ingredients/");
-    removed++;
-  }
-
-  // Flatten /dishes/<slug>/index.html → /dishes/<slug>.html on the geo
-  // domain. The dist/dishes/ directory now contains both the list page
-  // (index.html) and flat <slug>.html files for each dish. This hybrid
-  // layout lets the geo domain serve both the /dishes/ list page and
-  // individual dish detail pages at /dishes/<slug>.
-  //
-  // nginx.conf has rewrite rules for `^/dishes/([^/]+)/?$` that map
-  // `/dishes/<slug>` to the flat `.html` file while /dishes/ (with
-  // trailing slash) resolves to index.html via the standard try_files.
-  // On gustale.recipes this transformation does NOT run, so the nested
-  // `dist/dishes/<slug>/index.html` structure is preserved and `/dishes/`
-  // continues to serve the list page from the directory index.
-  let flattened = 0;
-  for (const slug of dishDirs) {
-    const slugDir = join(DIST, "dishes", slug);
-    const indexFile = join(slugDir, "index.html");
-    if (await exists(indexFile)) {
-      // Read content, delete the directory, write the flat file.
-      const content = await readFile(indexFile);
-      // Move to a temp path outside `dishes/` first, then delete the
-      // directory, then move the temp file in.
-      const tempPath = join(DIST, `.dishes-${slug}.html.tmp`);
-      await writeFile(tempPath, content);
-      await rm(slugDir, { recursive: true, force: true });
-      const flatPath = join(DIST, "dishes", `${slug}.html`);
-      await rename(tempPath, flatPath);
-      flattened++;
-    } else {
-      // No index.html in this slug dir (shouldn't happen for valid slugs
-      // but be defensive). Just remove the empty dir.
-      await rm(slugDir, { recursive: true, force: true });
-    }
-  }
-
-  // Now dist/dishes/ is either empty (if all slugs had their own dir and
-  // we removed them) or contains only flat <slug>.html files. Either way
-  // we can remove the parent and recreate it fresh, OR just leave it.
-  // If we leave it, /dishes/ will still 404 because there's no index.html
-  // and nginx's `index` directive can't find one. If we remove it entirely,
-  // /dishes/ will 404 via the standard try_files chain (the dir doesn't
-  // exist as a file or dir).
-  //
-  // We prefer to leave the directory (with just flat files inside) so that
-  // nginx's rewrite rules still have a consistent `dist/dishes/` prefix to
-  // work with. The /dishes/ 404 happens via nginx's missing index.html →
-  // 404.html fallback.
-
-  if (flattened > 0) {
-    console.log(
-      `[post-build] flattened ${flattened} dish pages to flat /dishes/<slug>.html`,
-    );
-    removed += flattened;
-  }
-}
-
-// Recipes domain keeps dishes + ingredients, just drops /map.
-// (Already handled above via RECIPES_ONLY.)
 
 // ─── Final cleanup: prune empty parent dirs at dist root ──────────────────
 // Catches anything left over (e.g. dist/dishes/ if every slug had its

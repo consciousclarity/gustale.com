@@ -1,14 +1,11 @@
 ---
 import { GlobalSearch } from "../components/GlobalSearch";
 import Layout from "../layouts/Layout.astro";
-import { isGeoDomain, recipesUrl } from "../lib/domain";
-
-const isGeo = isGeoDomain();
 ---
 
 <Layout title="Page not found · Gustale">
   <div class="wrap not-found">
-    <p class="eyebrow">{isGeo ? 'Gustale Atlas' : 'Gustale Recipes'}</p>
+    <p class="eyebrow">Gustale</p>
     <h1>This page isn’t here</h1>
     <p class="lede">
       The link may be outdated, or the dish may have moved. Search the catalog, or jump back into exploration.
@@ -19,23 +16,10 @@ const isGeo = isGeoDomain();
     </div>
 
     <nav class="routes" aria-label="Helpful destinations">
-      {
-        isGeo ? (
-          <>
-            <a class="btn-accent" href="/">Return to the atlas</a>
-            <a class="btn-ghost" href="/regions">Explore places</a>
-            <a class="btn-ghost" href="/families">Explore food families</a>
-            <a class="btn-ghost" href={recipesUrl('/')}>Gustale Recipes</a>
-          </>
-        ) : (
-          <>
-            <a class="btn-accent" href="/">Recipes home</a>
-            <a class="btn-ghost" href="/dishes">Browse dishes</a>
-            <a class="btn-ghost" href="/families">Explore food families</a>
-            <a class="btn-ghost" href="https://gustale.com/">Gustale Atlas</a>
-          </>
-        )
-      }
+      <a class="btn-accent" href="/">Return to the atlas</a>
+      <a class="btn-ghost" href="/regions">Explore places</a>
+      <a class="btn-ghost" href="/families">Explore food families</a>
+      <a class="btn-ghost" href="/recipes">Recipes</a>
     </nav>
   </div>
 </Layout>

@@ -199,6 +199,57 @@ check-only (`docs/MIGRATION-GUARD-REFERENCE.md`).
 
 ---
 
+## Rule 12 — Single domain: `gustale.com` only. Internal links are relative.
+
+**Owner, 2026-11-16.**
+
+`gustale.com` is the **only** domain. `gustale.recipes` and
+`recipes.gustale.com` are **redirect-only**: they exist to answer an
+old link, and every path on them 301s to the same path on
+`gustale.com`.
+
+**Internal links are relative.** A link inside the site is a path
+(`/recipes`, `/dishes/<slug>`, `/ingredients/<slug>`), never an
+absolute URL to a host.
+
+**Why relative, and not absolute-to-`gustale.com`.** An absolute URL
+hard-codes the host into the markup. It is a claim about where the
+site lives, written into every page, that nothing checks. A relative
+link cannot be wrong about the host, because it never names it — and
+it cannot go stale when the host changes, because there is nothing to
+change.
+
+The absolute URLs are still required in exactly one place: the
+metadata a **crawler** reads from outside the site — the `canonical`,
+the `hreflang` alternates, `og:url` and the JSON-LD. A relative
+canonical is not a canonical. So the rule is:
+
+| context | form |
+|---|---|
+| a link a reader clicks | relative — `/recipes` |
+| a URL a crawler is told about | absolute — `https://gustale.com/recipes` |
+
+**What this replaces.** There was a host split: one build served
+`gustale.com` and another served `gustale.recipes`, and the geo build
+STRIPPED `/recipes` and `/ingredients` from its own output, so the
+links to them had to cross to another host. `authoringHref()` and
+`RECIPES_ORIGIN` existed for that, and they are gone.
+
+**The build guard.** `scripts/check-no-legacy-recipes-domain.py` fails
+the build if the retired host appears in `apps/` or `packages/`
+outside a documented allowlist. The allowlist covers the redirect
+configuration, the transition-only trusted-origins list, and the
+frozen historical migrations.
+
+**Corollary.** A second domain is not a cheap addition. Every one of
+them is a second build to deploy, a second set of canonicals to keep
+right, a second sitemap, a second place for a link to go stale, and a
+second thing for a crawler to be told about. The cost shows up in the
+build matrix and in the incident that a redirect table does not
+cover.
+
+---
+
 ## Where these rules live in the rest of the repo
 
 | rule | also documented in |
@@ -209,6 +260,7 @@ check-only (`docs/MIGRATION-GUARD-REFERENCE.md`).
 | Rule 5 | `docs/OPERATIONS-RUNBOOK.md` §12 |
 | Rule 6 | `docs/OPERATIONS-RUNBOOK.md` §16 |
 | Rule 11 | `docs/MIGRATION-GUARD-REFERENCE.md`, `docs/DATABASE-SAFETY.md` §1 |
+| Rule 12 | `docs/SINGLE-DOMAIN-AUDIT.md`, `scripts/check-no-legacy-recipes-domain.py` |
 
 `docs/OPERATIONS-RUNBOOK.md` §1a was written **before** Rule 2 was
 absolute. It says "never overwrite them" but still describes
