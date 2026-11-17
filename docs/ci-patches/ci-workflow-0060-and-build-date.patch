@@ -1,0 +1,80 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index da25906..7244091 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -412,6 +412,19 @@ jobs:
+         # is not silently dropped (a name blacklist would drop it).
+         run: node apps/web/scripts/test-sitemap-dish-slugs.mjs
+ 
++      - name: Test the sitemap's build date
++        # The sitemaps' <lastmod> is generated from the build date -- the
++        # commit date of the commit being built. It used to be a hardcoded
++        # constant in the index, and the locale sitemaps had no lastmod
++        # at all, so both said the content last changed on a day it did
++        # not.
++        #
++        # This test proves the generator REFUSES to write a sitemap
++        # without a date (rather than guessing one), that it refuses a
++        # malformed date, that every entry carries the date, and that
++        # every build site passes the date to the image.
++        run: bash scripts/test-sitemap-build-date.sh
++
+       - name: Validate BACKLOG.yaml (strict, rejects duplicate keys)
+         # The backlog lives on the private/state branch, NOT on main —
+         # .hermes/ was untracked from main on 2026-10-29 because it
+@@ -1306,6 +1319,25 @@ jobs:
+             -f db/migrations/0058_dish_families_listed.sql 2>&1 | tee /tmp/m0058.log
+           bash scripts/check-ci-markers.sh "the listed families and the Musakka variant" "0058: ok" /tmp/m0058.log
+ 
++      # ── 0060: the legacy associations, published as Unverified ───
++      #
++      # WP-B2. It publishes the 2,713 rows ADR-004's backfill (0037)
++      # created out of the legacy places & traditions fields, types them
++      # all `legacy_unreviewed` (no source supports them, so calling
++      # them an established tradition would assert a fact nothing backs),
++      # and adds the ONE function the public reads through -- the union
++      # of the reviewed rule and the legacy rule.
++      #
++      # It runs AFTER 0037 (which creates the rows) and after 238b
++      # (which tightens `published_associations_for_dish`), because it
++      # reads the function 238b replaces and re-creates it as part of
++      # the union.
++      - name: Apply the legacy associations, published as Unverified
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0060_legacy_associations_published.sql 2>&1 | tee /tmp/m0060.log
++          bash scripts/check-ci-markers.sh "the legacy associations, published as Unverified" "0060: ok" /tmp/m0060.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
+@@ -1526,6 +1558,20 @@ jobs:
+       - name: Set up Docker Buildx
+         uses: docker/setup-buildx-action@v3
+ 
++      # The build date -- the commit date of the commit being built.
++      #
++      # It becomes the sitemaps' <lastmod>, so it says when the CONTENT
++      # last changed, not when the image was assembled. The commit date
++      # is that truth: a wall clock would tell a search engine that every
++      # page changed every time the image was rebuilt, which would make
++      # the lastmod worth nothing.
++      #
++      # The build container has no git, so it cannot work this out for
++      # itself -- it has to be handed over.
++      - name: Read the commit date
++        id: commit-date
++        run: echo "date=$(git log -1 --date=short --format=%cd "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
++
+       - name: Log in to GitHub Container Registry
+         uses: docker/login-action@v3
+         with:
+@@ -1542,6 +1588,8 @@ jobs:
+             PUBLIC_DOMAIN=${{ matrix.domain }}
+             PUBLIC_API_BASE=https://api.gustale.com
+             PUBLIC_CARTO_API_KEY=${{ secrets.CARTO_BASEMAP_API_KEY }}
++            BUILD_SHA=${{ github.sha }}
++            BUILD_DATE=${{ steps.commit-date.outputs.date }}
+           tags: >-
+             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:latest,
+             ghcr.io/${{ github.repository }}/gustale-web-${{ matrix.image }}:${{ github.sha }}
