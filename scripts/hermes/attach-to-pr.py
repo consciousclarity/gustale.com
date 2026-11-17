@@ -23,6 +23,24 @@ FileNotFoundError on this box, which reads like "the App is broken" when
 the App is fine.
 
 The token is never printed and never written to a file.
+
+A NOTE ON THE UPLOAD HOST
+-------------------------
+The asset endpoint lives on `uploads.github.com`, NOT on
+`api.github.com`. `api()` prepends the API host to whatever path it is
+given, so passing a FULL upload URL to it produced the malformed
+`https://api.github.comhttps://uploads.github.com/...` -- which curl
+reports as "Could not resolve host: api.github.comhttps". That reads
+like broken DNS and is not. `api_upload()` is the fix: the same token
+and headers, the uploads host.
+
+AND THE ENDPOINT ITSELF
+-----------------------
+As of 2026-11-17 GitHub no longer serves this endpoint at all:
+`GET /repos/<owner>/<repo>/issues/<n>/assets` answers 404 for EVERY
+repository -- including `github/docs` -- and the upload host answers
+422 "Bad Size" for every multipart body, including a 5-byte one. The
+helper therefore reports that plainly instead of retrying forever.
 """
 from __future__ import annotations
 
@@ -33,7 +51,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from gh_app_auth import api, installation_token  # noqa: E402
+from gh_app_auth import api, api_upload, installation_token  # noqa: E402
 
 
 def main() -> int:
@@ -45,6 +63,26 @@ def main() -> int:
     files = sys.argv[3:]
 
     tok = installation_token()
+
+    # Is the asset endpoint alive at all? If it answers 404 for the
+    # listing, it is gone, and an upload will fail with a confusing
+    # "Bad Size" instead of a clear "this endpoint no longer exists".
+    listing = api(
+        tok, "GET",
+        f"/repos/consciousclarity/{repo}/issues/{number}/assets",
+    )
+    if isinstance(listing, dict) and listing.get("message") == "Not Found":
+        print(
+            "  the GitHub issue-asset endpoint is GONE: "
+            f"GET /repos/consciousclarity/{repo}/issues/{number}/assets -> 404"
+        )
+        print(
+            "  images cannot be uploaded to a PR comment by the App. "
+            "Commit them under docs/ and link raw.githubusercontent.com "
+            "instead (the repo already does this: docs/gus-238-screenshots/)."
+        )
+        return 3
+
     rc = 0
     for f in files:
         p = Path(f)
@@ -68,10 +106,9 @@ def main() -> int:
         tail = f"\r\n--{boundary}--\r\n".encode()
         body = head + data + tail
 
-        payload = api(
+        payload = api_upload(
             tok, "POST",
-            f"https://uploads.github.com/repos/consciousclarity/{repo}"
-            f"/issues/{number}/assets",
+            f"/repos/consciousclarity/{repo}/issues/{number}/assets",
             raw_body=body,
             content_type=f"multipart/form-data; boundary={boundary}",
         )

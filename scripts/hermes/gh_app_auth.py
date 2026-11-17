@@ -60,6 +60,23 @@ from cryptography.hazmat.primitives import serialization
 APP_ID = "5596451"
 INSTALL_ID = "178310866"
 API = "https://api.github.com"
+
+# The ASSET-UPLOAD host. It is a DIFFERENT host from `API`, and the
+# difference matters: the upload endpoint is
+# `https://uploads.github.com/repos/<owner>/<repo>/issues/<n>/assets`,
+# while every other call is `https://api.github.com/<path>`.
+#
+# `api()` prepends `API` to whatever path it is given, so passing a
+# FULL upload URL to it produces
+# `https://api.github.comhttps://uploads.github.com/...` -- which curl
+# then reads as the hostname `api.github.comhttps`. That is not a
+# network failure and not a permissions failure: it is a malformed URL,
+# and it presents as "Could not resolve host: api.github.comhttps",
+# which reads like DNS is broken.
+#
+# So `api_upload()` exists: the same token, the same headers, the same
+# body handling, but the uploads host.
+UPLOAD_API = "https://uploads.github.com"
 OWNER = "consciousclarity"
 
 # EVERY repository the App is installed on and that we need to act on.
@@ -200,6 +217,58 @@ def api(
     if raw_body is not None:
         cmd += ["-H", f"Content-Type: {content_type}", "--data-binary", "@-"]
     cmd.append(f"{API}{path}")
+    proc = subprocess.run(
+        cmd, capture_output=True,
+        input=raw_body if raw_body is not None else None,
+    )
+    text = proc.stdout.decode("utf-8", errors="replace")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {"raw": text, "stderr": proc.stderr.decode("utf-8", errors="replace")}
+
+
+def api_upload(
+    token: str,
+    method: str,
+    path: str,
+    body=None,
+    *,
+    raw_body: bytes | None = None,
+    content_type: str | None = None,
+):
+    """Call the ASSET-UPLOAD host, which is NOT `api.github.com`.
+
+    `path` is relative to `https://uploads.github.com` -- for an issue
+    asset that is `/repos/<owner>/<repo>/issues/<n>/assets`.
+
+    The difference from `api()` is the HOST, and it is the whole point
+    of this function: the asset endpoint is not served by
+    `api.github.com`, so a full upload URL passed to `api()` becomes
+    the malformed `https://api.github.comhttps://uploads.github.com/...`
+    and curl reports it as an unresolvable host.
+
+    `Content-Length` IS STATED EXPLICITLY. The upload endpoint
+    requires multipart form data with a known length: curl's `-F`
+    sends the body chunked, and GitHub answers "Bad Size". So the
+    length is computed here, where it is known, and passed as a
+    header. The bytes never touch argv.
+    """
+    cmd = ["curl", "-sS", "-X", method]
+    cmd += [
+        "-H", "Authorization: Bearer " + token,
+        "-H", "Accept: application/vnd.github+json",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+    ]
+    if body is not None:
+        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
+    if raw_body is not None:
+        cmd += [
+            "-H", f"Content-Type: {content_type}",
+            "-H", f"Content-Length: {len(raw_body)}",
+            "--data-binary", "@-",
+        ]
+    cmd.append(f"{UPLOAD_API}{path}")
     proc = subprocess.run(
         cmd, capture_output=True,
         input=raw_body if raw_body is not None else None,
