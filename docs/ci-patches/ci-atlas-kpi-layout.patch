@@ -1,0 +1,23 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index da25906..4248a2e 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1409,6 +1409,18 @@ jobs:
+       - name: Run the axe gate
+         run: pnpm run a11y:gate
+ 
++      # The homepage's KPI band states what each number MEANS, in a
++      # definition list under the numbers. A long label ("Published
++      # place associations") once squeezed its definition into a 69px
++      # ribbon while its siblings got 166-218px, and overflowed the
++      # column by 13px.
++      #
++      # The check renders the BUILT site at 1440px and 390px and
++      # measures the real geometry. A grep cannot tell whether a label
++      # is 205px or 44px, so the test measures.
++      - name: Check the KPI definition layout
++        run: node scripts/test-atlas-kpi-definitions-layout.mjs
++
+       # The gate writes a JSON report and a screenshot per page. They
+       # are uploaded whether the gate passed or failed: when it fails,
+       # the report is what tells you WHICH element broke.
