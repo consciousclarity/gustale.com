@@ -43,7 +43,9 @@ const path = require("node:path");
 
 const BASE = process.argv[2] || "https://staging.gustale.com";
 const OUT = process.env.SHOT_DIR || "/tmp/pr250-shots";
-const NETRC = process.env.GUSTALE_NETRC || "/home/alex/.hermes/secrets/staging-hermes.netrc";
+const NETRC =
+  process.env.GUSTALE_NETRC ||
+  "/home/alex/.hermes/secrets/staging-hermes.netrc";
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -106,9 +108,14 @@ async function probe(page) {
       canonical:
         document.querySelector('link[rel="canonical"]')?.getAttribute("href") ??
         null,
-      ogUrl: document.querySelector('meta[property="og:url"]')?.getAttribute("content") ?? null,
+      ogUrl:
+        document
+          .querySelector('meta[property="og:url"]')
+          ?.getAttribute("content") ?? null,
       robots:
-        document.querySelector('meta[name="robots"]')?.getAttribute("content") ?? null,
+        document
+          .querySelector('meta[name="robots"]')
+          ?.getAttribute("content") ?? null,
       // The retired hosts must not be LINKED to.
       retiredLinks: links.filter(
         (h) =>
@@ -117,9 +124,11 @@ async function probe(page) {
       ),
       // The retired hosts must not be CANONICALISED to.
       retiredCanonical: /gustale\.recipes|recipes\.gustale\.com/.test(
-        [document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? ""].join(
-          " ",
-        ),
+        [
+          document
+            .querySelector('link[rel="canonical"]')
+            ?.getAttribute("href") ?? "",
+        ].join(" "),
       ),
       // The nav must offer the sections.
       navLinks: links.filter((h) => h && h.startsWith("/")),
@@ -175,7 +184,10 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
     // render-blocking @import of an external CDN, so the load event
     // waits on a third party. Commit, then wait for the page's OWN
     // content.
-    const response = await page.goto(url, { waitUntil: "commit", timeout: 45000 });
+    const response = await page.goto(url, {
+      waitUntil: "commit",
+      timeout: 45000,
+    });
     status = response ? response.status() : null;
     await page.waitForSelector("body", { timeout: 30000 });
     await page.waitForTimeout(900);
@@ -395,7 +407,9 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
     console.log(`  the screenshots are in ${OUT}`);
     process.exit(0);
   } else {
-    console.log(`=== the single-domain walk: ${problems.length} PROBLEM(S) ===`);
+    console.log(
+      `=== the single-domain walk: ${problems.length} PROBLEM(S) ===`,
+    );
     for (const p of problems) console.log(`  - ${p}`);
     process.exit(1);
   }
