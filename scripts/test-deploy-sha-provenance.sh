@@ -230,10 +230,37 @@ if [ -n "${S:-}" ]; then
   # container. The staging API inherited production's BUILD_SHA, and
   # then reported production's SHA while serving the staging image --
   # the identity was inherited rather than proven.
-  if printf '%s' "$S" | grep -qE 'BUILD_SHA\|BUILD_TIME\|GIT_REF'; then
+  #
+  # The filter is one awk, so the check is on the awk body: the three
+  # build-identity variables must be skipped by it.
+  if printf '%s' "$S" | grep -qE '^\s*/\^BUILD_SHA=.*\{ next \}'; then
     ok "the script does not inherit the build identity from the production API"
   else
     bad "the script does not inherit the build identity from the production API"
+  fi
+
+  # The env filter must NOT be a chain of `grep -vE` pipes. `grep`
+  # exits early and closes the pipe, so `docker inspect` is killed by
+  # SIGPIPE (141); under `set -euo pipefail` the script exits there
+  # and leaves the env file EMPTY, and the staging API dies with
+  # "Invalid environment variables: SESSION_SECRET, MINIO_*".
+  # One `awk` reads all its input, so there is no early exit.
+  if printf '%s' "$S" | grep -qE '^\s*grep -vE .*BUILD_SHA'; then
+    bad "the env filter is not a chain of grep pipes (SIGPIPE)"
+  else
+    ok "the env filter is not a chain of grep pipes (SIGPIPE)"
+  fi
+  if printf '%s' "$S" | grep -qE 'awk -F='; then
+    ok "the env filter uses a single awk"
+  else
+    bad "the env filter uses a single awk"
+  fi
+
+  # An empty env file must be REFUSED, not silently deployed.
+  if printf '%s' "$S" | grep -q 'the inherited staging environment is EMPTY'; then
+    ok "an empty inherited environment is refused"
+  else
+    bad "an empty inherited environment is refused"
   fi
 fi
 

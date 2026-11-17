@@ -331,27 +331,59 @@ echo "--- 2. the staging API ---"
 # staging API came up healthy and answered requests from production
 # data, which is exactly the failure this environment must never
 # have. The filter is what makes the isolation real.
+# The staging API inherits the PRODUCTION API's environment -- except
+# for the values that must be the staging ones.
+#
+# WHY IT IS NOT A CHAIN OF `grep -vE` PIPES
+# -----------------------------------------
+# The obvious spelling is a pipeline of filters:
+#
+#     docker inspect ... | grep -vE "^(DATABASE_URL|...)=" \
+#                        | grep -vE "^(BUILD_SHA|...)=" > "$FILE"
+#
+# That FAILS, and fails silently in the worst way: `grep` exits as soon
+# as it has seen what it needs and closes the pipe, so `docker inspect`
+# is killed by SIGPIPE (exit 141). Under `set -euo pipefail` the whole
+# script then exits at that line, LEAVING THE ENV FILE EMPTY -- and the
+# staging API starts with none of the inherited variables, so it dies
+# with "Invalid environment variables: SESSION_SECRET, MINIO_*".
+#
+# So the filtering is done with ONE `awk`, which reads all of its input
+# and writes one line at a time. There is no early exit, so no SIGPIPE,
+# and the env file is always complete.
+#
+# The excluded names are: the values that must be the staging ones
+# (DATABASE_URL, the auth settings, CORS_ORIGIN, PORT, HOST) AND the
+# build identity (BUILD_SHA, BUILD_TIME, GIT_REF).
+#
+# The build identity must NOT be inherited. The staging API used to
+# inherit the PRODUCTION API's build identity and report production's
+# SHA in /health while serving the staging image. The identity was
+# INHERITED instead of coming from the thing that is actually serving;
+# the image's own ENV is now the only source.
 docker inspect gustale-api --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  grep -vE "^(DATABASE_URL|BETTER_AUTH_URL|BETTER_AUTH_SECRET|CORS_ORIGIN|BETTER_AUTH_TRUSTED_ORIGINS|PORT|HOST)=" |
-  grep -vE "^(BUILD_SHA|BUILD_TIME|GIT_REF)=" |
-  > "$STAGING_ENV_FILE"
+  awk -F= '
+    /^DATABASE_URL=/           { next }
+    /^BETTER_AUTH_URL=/        { next }
+    /^BETTER_AUTH_SECRET=/     { next }
+    /^CORS_ORIGIN=/            { next }
+    /^BETTER_AUTH_TRUSTED_ORIGINS=/ { next }
+    /^PORT=/                   { next }
+    /^HOST=/                   { next }
+    /^BUILD_SHA=/              { next }
+    /^BUILD_TIME=/             { next }
+    /^GIT_REF=/                { next }
+    { print }
+  ' > "$STAGING_ENV_FILE"
 
-# The BUILD IDENTITY MUST NOT BE INHERITED.
-#
-# The filter above excludes DATABASE_URL, the auth settings, PORT and
-# HOST -- the values that must be the staging ones. It did NOT exclude
-# BUILD_SHA / BUILD_TIME / GIT_REF, so the staging API inherited the
-# PRODUCTION API's build identity. The staging API then reported
-# production's SHA in /health while running the staging image.
-#
-# That is the same defect as the web side, one layer down: the identity
-# was INHERITED instead of coming from the thing that is actually
-# serving. The staging API's identity must be the IDENTITY OF ITS OWN
-# IMAGE -- which the Dockerfile baked in, and which the deploy verifies
-# below by reading it back out of the image.
-#
-# So the three build-identity variables are excluded here, and they are
-# NOT passed with `-e` either: the image's own ENV is the only source.
+# The env file must not be empty: an empty one means the inheritance
+# silently produced nothing, and the API would start without its
+# secrets. That failure mode is caught here, where the cause is
+# visible, instead of three steps later as "Invalid environment
+# variables".
+if [ ! -s "$STAGING_ENV_FILE" ]; then
+  refuse "the inherited staging environment is EMPTY -- the production API's environment could not be read"
+fi
 
 # The password, taken from the production container and never printed.
 #
