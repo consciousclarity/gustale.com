@@ -2,11 +2,33 @@
 
 **WP-B2. The legacy associations, published as Unverified.**
 
-**NOT YET APPLIED TO LIVE.** This receipt records the work, the
-measurements and the apply procedure. The apply happens only after this
-PR is merged, the workflow patch is applied by the owner, and a fresh
-backup is taken. The "APPLY" section below is written in the future
-tense for that reason — it is a procedure, not a report.
+**APPLIED TO LIVE — 2026-11-18 (WITA).** The migration was applied to
+the live production database (`gustale` on `shared-postgres`) **before**
+PR #259 was merged, because the PR's code calls the functions this
+migration creates. Applying it first is what makes the merge safe: the
+functions exist before the code that uses them is ever deployed.
+
+`PSQL_RC=0`, 0 error lines, `BEGIN` → `COMMIT`, and the migration's own
+in-transaction proof was emitted. The live counts, the backup, the
+idempotence proof and the post-apply endpoint checks are all below.
+
+**The order was the point.** `origin/main` (`674548b`) calls
+`published_associations_for_dish` — the reviewed-only function — while
+PR #259's routes call `visible_associations_for_dish` and
+`visible_place_associations_for_place`, which **do not exist until 0060
+runs**. Merging first would have deployed code calling missing functions
+and 500'd the atlas, the place pages, search and the counts. So:
+
+1. the migration went to live first, and
+2. the **existing** main-branch code was then verified to keep serving
+   correctly on the migrated database (it did — no 500s, no missing
+   function errors), and
+3. only then was the merge unblocked.
+
+Applying 0060 is **additive**: it creates five functions and publishes
+2,713 rows. The reviewed-only function `published_associations_for_dish`
+is untouched and still returns 0 rows for these associations, so the
+owner's rule of 2026-11-13 is not weakened by the merge that follows.
 
 ---
 
@@ -153,10 +175,13 @@ separate job.
 
 ## The measurements
 
-### The live baseline, taken 2026-11-18 (before any mutation)
+### The live baseline, taken 2026-11-18 (before the mutation)
 
 Read over SSH with the read-only `dbq.sh` guard. Live was **not**
 touched.
+
+> **Re-taken immediately before the apply and compared** — it was
+> identical to the numbers below. See the APPLY section, step 4.
 
 | | live, before |
 |---|---|
@@ -434,75 +459,232 @@ too.
 
 ---
 
-## The APPLY procedure (to run after the merge)
+## The APPLY — what was actually done, on live
 
-**Do not run any of this before the PR is merged and the workflow patch
-is applied.** The order matters and each step is a gate.
+Applied over SSH to `root@62.72.7.218`, by direct `psql` against
+`shared-postgres`, with `ON_ERROR_STOP=1`. **2026-11-18 07:46–07:48
+WITA** (the dump's own timestamp is `20261117T234602Z` — the container
+clock is UTC).
 
-### 1. Fresh backup, offsite copy
+### 1. The offsite backup service — SUCCESS
 
-By the method in `docs/AGENT-RUNBOOK.md` §3 — `docker cp`, not `cp`,
-because the host and the container do not share `/tmp`:
+`gustale-backup.service` was started and confirmed **`Result=success`,
+`ExecMainStatus=0`**, ending with:
 
 ```
-docker exec -u postgres shared-postgres pg_dump -U postgres -d gustale \
-  --format=custom --file=/tmp/pre-0060-$(date +%Y%m%d-%H%M%S).dump
-docker cp shared-postgres:/tmp/pre-0060-*.dump "$DUMP"
+SUCCESS: encrypted offsite backup complete: gustale_backup_20261117T233704Z.dump.gpg
 ```
 
-Confirm `gustale-backup.service` reports SUCCESS **before** continuing.
+### 2. A fresh, independent pre-0060 dump
 
-### 2. Re-take the live baseline
+Taken with `pg_dump --format=custom` **inside** the container and copied
+out with `docker cp` (a plain `cp` cannot cross the host/container
+boundary):
 
-The counts in the table above are from 2026-11-18. Re-take them
-immediately before the apply and **compare**. If live has moved, the
-migration's own assertions will refuse it — but a mismatch that is
-found *before* the apply is a non-event rather than a rollback.
-
-### 3. Apply
-
-Over SSH to `root@62.72.7.218`, by direct `psql`, with
-`ON_ERROR_STOP=1`. The migration is idempotent, so a re-run after a
-partial apply is safe.
-
-### 4. Verify, in this order
-
-| check | expected |
+| | |
 |---|---|
-| `SELECT count(*) FROM dish_place_associations WHERE publication_state='published'` | 2,713 |
-| `... WHERE relationship_type='legacy_unreviewed'` | 2,713 |
-| `... WHERE evidence_status='evidenced'` | **0** |
-| `... WHERE review_state='in_review'` | **50** |
-| `... WHERE review_state='rejected'` | **0** |
-| `SELECT count(*) FROM gus_migrations_applied WHERE name LIKE '0060%'` | 1 |
-| `GET /api/places` | 200, **180** places |
-| `GET /api/atlas/counts` | places **180**, communities **108** |
-| `GET /api/places/greece` | 200, *"Unverified associations"* |
-| the dish page | no **"Origin"** label |
+| path | `/home/gustale/backups/pre-0060-20261117T234602Z.dump` |
+| size | **4,519,105** bytes |
+| sha256 (host) | `c4d740f0b585b7a8b326eeea0210af99a354e1fe19572d4694275a06bf27b93d` |
+| sha256 (container) | **identical** — `c4d740f0…7b93d` |
 
-### 5. Then, and only then, rebuild the web
+The size matches the backup service's own upload (`raw=4519105`), so the
+dump and the offsite backup are the same data, captured independently.
 
-**Migrate the database FIRST, then rebuild the web.** The web build
-bakes the place pages from `/api/places`; a web build against the
-un-migrated API bakes zero place pages, which is the half-deploy shape
-of 2026-11-13. The API is not changed by this migration, so the API
-container does not need a rebuild — but it must be **running against
-the migrated database** before the web build starts.
+### 3. The backup was proven RESTORABLE, not merely present
+
+A dump that exists proves only that `pg_dump` exited 0. It was restored
+into a disposable database on the **test** Postgres — never the
+production cluster:
+
+- `pg_restore` exit code captured **without a pipe**: **RC=0**, **0**
+  error lines.
+- The restored copy carried the **pre-0060** shape: `2713 | 0 published |
+  1235 established | 50 in_review`, and **0** of the 0060 functions — so
+  it is demonstrably a pre-0060 backup.
+- The verify database was then dropped (`DROP_RC=0`, confirmed absent).
+
+### 4. The live baseline was re-taken and compared
+
+Read over SSH immediately before the apply:
+
+| | live, before | the receipt expected | |
+|---|---|---|---|
+| total rows | 2,713 | 2,713 | ✅ |
+| published | **0** | 0 | ✅ |
+| `legacy_unreviewed` | 1,478 | 1,478 | ✅ |
+| `established_tradition` | 1,235 | 1,235 | ✅ |
+| `unevidenced` | 2,713 | 2,713 | ✅ |
+| `evidenced` | 0 | 0 | ✅ |
+| `accepted` | 0 | 0 | ✅ |
+| `in_review` | **50** | 50 | ✅ |
+| `unreviewed` | 2,663 | 2,663 | ✅ |
+| `rejected` | 0 | 0 | ✅ |
+| ledger rows for 0060 | **0** | 0 | ✅ |
+| the 0060 functions on live | **0** | 0 | ✅ |
+
+Live had not moved since the receipt was written, so the migration's own
+assertions were applied to the shape they were written for.
+
+### 5. The apply
+
+```
+docker exec -u postgres shared-postgres psql -U postgres -d gustale \
+  -v ON_ERROR_STOP=1 -f /tmp/0060_legacy_associations_published.sql
+```
+
+**`PSQL_RC=0`, 0 error lines, `BEGIN` → `COMMIT`.** The migration's own
+proof, emitted from inside the transaction:
+
+```
+NOTICE: 0060: measured 2713 rows (1478 legacy, 1235 established, 50 in_review, 2663 unreviewed, 0 rejected)
+NOTICE: 0060: ok — 2713 legacy rows published (of 2713 rows in the table), 1477 visible for the busiest dish
+```
+
+> **A trap worth recording.** The first attempt failed with
+> `psql: error: … No such file or directory` — `RC=1`. The file had been
+> copied to the **host's** `/tmp`, but `psql -f` inside `docker exec`
+> reads the **container's** filesystem, and the two do not share `/tmp`.
+> Nothing was applied (the error came before the file was read) and live
+> was verified unchanged (`2713|0|1235|50`, ledger still 0) before the
+> file was copied **into** the container with `docker cp` and the apply
+> re-run. The migration's sha256 was checked on both sides:
+> `f7f2a30c650ca4700382c96e6a0a45284ec29d738d8c54389736c66f47866946`.
+
+### 6. The live post-state — measured independently
+
+| | expected | **live, after** | |
+|---|---|---|---|
+| total rows | 2,713 | 2,713 | ✅ |
+| published | 2,713 | **2,713** | ✅ |
+| `legacy_unreviewed` | 2,713 | **2,713** | ✅ |
+| `established_tradition` | 0 | **0** | ✅ |
+| `unevidenced` | 2,713 | 2,713 | ✅ |
+| evidenced | **0** | **0** | ✅ |
+| accepted | **0** | **0** | ✅ |
+| `in_review` (the #186 pilot) | **50** | **50** | ✅ |
+| `unreviewed` | 2,663 | 2,663 | ✅ |
+| rejected | **0** | **0** | ✅ |
+| ledger row for 0060 | 1 | **1** — `0060_legacy_associations_published`, `applied_by: Hermes` | ✅ |
+| `association_review_log` | 50 | **50** | ✅ |
+
+**Nothing was promoted, accepted or rejected.** The pilot's 50 rows kept
+their review state and their log rows.
+
+### 7. The functions, and the proof the reviewed rule is intact
+
+All five functions now exist on live (`association_is_legacy_row` ×2
+overloads, `association_is_visible` ×2, `published_legacy_associations_for_dish`,
+`visible_associations_for_dish`, `visible_place_associations_for_place`).
+
+The owner's rule of 2026-11-13 is **not** weakened, measured on live:
+
+| check | result |
+|---|---|
+| `published_associations_for_dish(<busiest dish>)` — the reviewed rule | **0** |
+| `visible_associations_for_dish(<the same dish>)` — the union | **3** |
+| rows visible through the legacy path that are `rejected` | **0** |
+
+### 8. Idempotence — the second run
+
+The migration was applied a **second** time on live:
+
+- `PSQL_RC=0`, 0 error lines, `BEGIN` → `COMMIT`.
+- The counts were **identical**: `2713 | 2713 published | 2713 legacy |
+  50 in_review | 0 rejected`.
+- The ledger's `applied_at` **did not move** —
+  `2026-11-17 00:00:00+00` before and after.
+- The second run's measurement correctly recognised the post-state:
+  `0060: measured 2713 rows (2713 legacy, 0 established, 50 in_review,
+  2663 unreviewed, 0 rejected)`.
+
+### 9. The MAIN-branch API still served correctly on the migrated database
+
+This is the gate that made the merge safe. The running API container was
+image `ghcr.io/…/gustale-api:674548b` — **exactly `origin/main`** — so
+the verification ran against the *old* code, not the PR's.
+
+| endpoint | result |
+|---|---|
+| `GET /api/dishes/moussaka/atlas` | **200** — full structure: `dish`, `placesAndTraditions`, `foodFamilies`, `historyAndConnections`, `legacy`, `counts`, `published` |
+| `GET /api/places` | **200** — **180** places (Greece, Acadia, Afghanistan, Albania, Algeria, Americas, Ancient Greece) |
+| `GET /api/places/greece` | **200** — 14 dishes, 1 group *"Unreviewed legacy association"* |
+| `GET /api/search?q=greek` | **200** — 18 dishes, **2 places** |
+| `GET /api/search?q=moussaka` | **200** — 8 dishes |
+| `GET /api/atlas/counts` | **200** — dishes 1,474, families 123, connections 82 |
+| `GET /api/dishes/moussaka` | **200** |
+| `GET https://gustale.com/` | **200** |
+| `GET https://gustale.com/dishes/moussaka` | **200** |
+| `GET https://api.gustale.com/health` | **200** |
+
+The API container logged **0** errors mentioning the 0060 functions and
+**0** 500s in the 30 minutes after the apply.
+
+**One honest asymmetry.** Main's `atlas-counts.ts` calls
+`published_associations_for_dish` — the reviewed-only function — so on
+main the counts still read `places: 0, communities: 0`, and the dish
+atlas's `placesAndTraditions` is empty. That is **correct**, not a
+break: main has no union function to call yet. The rows are published and
+the place route (which reads the table) already serves 180 of them. PR
+#259's routes call the union, so the counts become 180/108 on merge.
+
+The PR's own queries were then run **against the live migrated
+database** to prove they cannot fail for a missing function:
+
+```
+WITH visible AS (SELECT a.* FROM dishes d
+  CROSS JOIN LATERAL public.visible_associations_for_dish(d.id) a
+  WHERE d.status='published')
+SELECT count(DISTINCT …) FROM visible v;
+```
+
+→ returned **178** distinct geo entities with **no error**. (178 rather
+than 180: two of the 180 "places" are communities/traditions rather than
+`geo_entities`, which is exactly the places-vs-communities split — the
+receipt's 180 places / 108 communities.)
+
+### 10. The web build is still the PRE-0060 one — on purpose
+
+The web containers are `gustale-web-geo:live-data-674548b-geo`, built
+**before** 0060, when `/api/places` returned 0 places. So:
+
+- the served `/usr/share/nginx/html/place/` contains **0** pages (and
+  1,479 dish pages) — the place pages are prerendered from `/api/places`,
+  and that build had none to prerender, so `gustale.com/place/greece`
+  404s. **This 404 predates the migration** and is not caused by it.
+- the served homepage still shows the **3-KPI** shape — `1,474` dishes,
+  `123` food families, `82` connections, and "Published place
+  associations" appearing only as a *definition* with no number above it.
+  That asymmetry is the pre-0060 signature the receipt describes.
+
+The web rebuild belongs to the **post-merge deploy**, and the receipt's
+original rule still holds: **migrate the database first, then rebuild
+the web.** The database is migrated; the web rebuild follows the merge.
 
 ---
 
 ## What this receipt does NOT claim
 
-- **It is not applied.** Every "after" number is measured on a copy of
-  production's data, not on production.
-- **It is not verified on production.** The endpoint results are from a
-  local API against the live-shaped copy.
+- **It is applied** — to live, on 2026-11-18, before the merge. Every
+  "after" number in the APPLY section above is measured **on live**.
+- **The merge has not happened yet.** The migration is live; PR #259 is
+  still open. On main the atlas counts still read `places: 0` because
+  main calls the reviewed-only function — that changes on merge, not
+  before.
+- **The web has not been rebuilt.** The running web images are the
+  pre-0060 build, so the place pages are not prerendered and the
+  homepage still shows three KPIs. That is the post-merge deploy's job.
 - **It makes no claim about the 2,713 rows being TRUE.** They are
   published as Unverified because nothing supports them. Whether a
   given row is right is the review work, and it has not been done.
 - **It does not weaken the reviewed rule.** That rule is untouched and
-  still returns 0 rows for these associations — which is correct,
-  because none of them is evidenced or accepted.
+  still returns 0 rows for these associations — measured on live after
+  the apply — which is correct, because none of them is evidenced or
+  accepted.
+- **It does not claim the PR's own routes were exercised on live.** The
+  running API is main's code. The PR's queries were run directly against
+  the live database (no error, correct counts), but the PR's routes will
+  first run on live **after** the merge and deploy.
 
 ---
 
@@ -525,4 +707,4 @@ the migrated database** before the web build starts.
 | `scripts/repro-ci-db.sh` | 0060 added |
 | `scripts/repro-ci-test-job.sh` | 0060 added |
 | `docs/ci-patches/ci-workflow-0060-and-build-date.patch` | the workflow patch — **APPLIED** (commit `12453ef`), so the file is deleted |
-| `docs/MIGRATION-RECEIPT-0060.md` | this file |
+| `docs/MIGRATION-RECEIPT-0060.md` | this file — updated to APPLIED, with the live counts, the backup, the idempotence proof and the post-apply endpoint checks |
