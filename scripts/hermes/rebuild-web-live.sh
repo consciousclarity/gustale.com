@@ -576,6 +576,53 @@ if [ "$SHA_FAILED" = "1" ]; then
   exit 1
 fi
 
+# (1b) EVERY WEB IMAGE MUST PROVE ITS OWN PROVENANCE.
+#
+# The check above compares the container's image TAG with this run's
+# SHA. A TAG IS A NAME, NOT PROOF: it says what the image was called,
+# not what is inside it. On 2026-11-17 a staging deploy shipped an
+# image whose tag named one commit and whose content was another -- the
+# build had run against a different checkout -- and the tag check
+# passed, because the tag was the only identity available.
+#
+# So the commit is written INTO the image at build time (the
+# Dockerfile's BUILD_SHA ARG -> dist/.build-sha) and read back out of
+# the RUNNING container here. The value comes from the image's own
+# filesystem, so it cannot be inherited, mis-tagged or asserted.
+#
+# The full SHA is compared, not the short one: the short form is what
+# the tag carries, and comparing short forms would compare the very
+# thing that is being proven.
+log ""
+log "--- Checking that both web images prove their own provenance ---"
+for NAME in gustale-web-recipes gustale-web-geo; do
+  IMAGE_ID=$(docker inspect --format='{{.Image}}' "$NAME" 2>/dev/null || echo "")
+  if [ -z "$IMAGE_ID" ]; then
+    log "  ERROR: $NAME has no image"
+    SHA_FAILED=1
+    continue
+  fi
+  # Read it out of the image itself, not from a container that might
+  # be running something else.
+  IMAGE_SHA=$(docker run --rm --entrypoint sh "$IMAGE_ID" -c \
+    'cat /usr/share/nginx/html/.build-sha 2>/dev/null || true' | tr -d '\r\n ')
+  if [ -z "$IMAGE_SHA" ]; then
+    log "  ERROR: $NAME's image carries NO .build-sha -- it cannot prove its provenance"
+    log "         the image predates the BUILD_SHA build arg, or the build did not write it"
+    SHA_FAILED=1
+  elif [ "$IMAGE_SHA" != "$BUILD_SHA" ]; then
+    log "  ERROR: $NAME's image claims to be $IMAGE_SHA but $BUILD_SHA was deployed"
+    log "         the tag and the content disagree"
+    SHA_FAILED=1
+  else
+    log "  $NAME: the image proves $IMAGE_SHA  OK"
+  fi
+done
+if [ "$SHA_FAILED" = "1" ]; then
+  log "  aborting state-file update; a web image cannot prove its provenance"
+  exit 1
+fi
+
 # (2) THE API'S OWN BUILD IDENTITY.
 #
 # The API reports the build it was made from at /health (the `build`
