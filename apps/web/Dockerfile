@@ -132,6 +132,21 @@ ARG PUBLIC_BUILD_DISH_LIMIT=""
 ENV PUBLIC_BUILD_LOCALES=${PUBLIC_BUILD_LOCALES} \
     PUBLIC_BUILD_DISH_LIMIT=${PUBLIC_BUILD_DISH_LIMIT}
 
+# The commit this image is built from.
+#
+# The image has to be able to PROVE its own provenance. On 2026-11-17 a
+# staging deploy shipped an image built from a DIFFERENT commit than
+# the one its tag named, and every check passed, because nothing in the
+# image recorded which commit it came from. This ARG writes that commit
+# into the built site, so a deploy can read it back out of the image
+# and compare it with the commit it meant to deploy.
+#
+# It is deliberately a plain file in dist: the deploy script reads it
+# out of the final nginx image, so it has to survive the COPY into
+# /usr/share/nginx/html.
+ARG BUILD_SHA="unknown"
+ENV BUILD_SHA=${BUILD_SHA}
+
 # Now copy the rest of the source. This layer's cache key is the full
 # monorepo tree, so it (and everything below) invalidates on every commit.
 COPY . .
@@ -212,6 +227,19 @@ RUN if [ "$BUILD_DATA_SOURCE" = "live" ]; then \
         PUBLIC_API_BASE=http://127.0.0.1:8742 pnpm --filter @gustale/web run build:recipes; \
       fi; \
     fi
+
+# Record the commit in the built site.
+#
+# This runs AFTER the astro build, so it writes into the final dist,
+# and it is a separate layer so it does not invalidate the build layer
+# when only the SHA changes.
+#
+# The file lands in /usr/share/nginx/html/.build-sha in the runtime
+# image (the whole dist is COPYed there). The deploy script reads it
+# back out of the image and compares it with the commit it meant to
+# deploy -- which is the only way to catch an image whose tag names
+# one commit and whose content is another.
+RUN printf '%s' "$BUILD_SHA" > /app/apps/web/dist/.build-sha
 
 # ---------- Stage 2: runtime ----------
 FROM nginx:1.27-alpine

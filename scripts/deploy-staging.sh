@@ -151,6 +151,27 @@ if [ -z "$BRANCH" ]; then
 fi
 SHA="${2:-}"
 
+# The build directory is where the code that gets BUILT comes from, so
+# the SHA has to be resolved AND CHECKED OUT there -- not in whatever
+# directory the operator happened to be in when they typed the command.
+#
+# WHY THIS ORDER MATTERS: an earlier version resolved the SHA with
+# `git rev-parse origin/$BRANCH` in the CURRENT directory, then `cd`'d
+# into $REPO and built whatever was sitting there. $REPO defaults to
+# /home/deploy/gustale-build, which is a DIFFERENT checkout on a
+# DIFFERENT commit. The deploy then tagged the image
+# "staging-data-<resolved-sha>" and passed --build-arg
+# BUILD_SHA=<resolved-sha> while the image CONTENT was a completely
+# different tree. On 2026-11-17 that shipped an image whose dist was
+# from the pre-single-domain commit: no /recipes route, no /map route,
+# a 9-url sitemap, and the retired gustale.recipes host baked into the
+# HTML -- while every verification in the script reported success,
+# because the SHA it checked was the SHA it LIED about.
+#
+# So: resolve inside $REPO, check out inside $REPO, and verify inside
+# $REPO that the tree is the commit we are about to build.
+cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
+
 if [ -z "$SHA" ]; then
   git fetch origin "$BRANCH" >/dev/null 2>&1
   SHA="$(git rev-parse "origin/$BRANCH" 2>/dev/null)"
@@ -158,6 +179,23 @@ fi
 if [ -z "$SHA" ]; then
   refuse "could not resolve a SHA for '$BRANCH'"
 fi
+
+# Put the tree at exactly that commit. A detached checkout is
+# deliberate: the tree must not depend on which branch the build
+# directory happens to have checked out, and a later deploy of another
+# branch must not be silently blocked by a dirty tree.
+git checkout --detach --force "$SHA" >/dev/null 2>&1 ||
+  refuse "could not check out $SHA in $REPO"
+
+# The checkout is verified, not assumed. `git rev-parse HEAD` is the
+# commit the BUILD will contain; if it is not the commit we were asked
+# to deploy, the image tag would lie about its own contents -- which
+# is exactly the failure this guards.
+BUILT_SHA="$(git rev-parse HEAD 2>/dev/null)"
+if [ "$BUILT_SHA" != "$SHA" ]; then
+  refuse "the build tree is at $BUILT_SHA but $SHA was requested"
+fi
+
 SHORT_SHA="$(echo "$SHA" | cut -c1-7)"
 
 echo "=== staging deploy: $BRANCH @ $SHORT_SHA ==="
@@ -166,9 +204,8 @@ echo "  web port    $STAGING_WEB_PORT"
 echo "  api port    $STAGING_API_PORT"
 echo "  database    $STAGING_DB_NAME on $STAGING_DB_HOST:$STAGING_DB_PORT ($STAGING_PG_CONTAINER)"
 echo "  build scope $STAGING_BUILD_LOCALES / $STAGING_BUILD_DISH_LIMIT dishes"
+echo "  build tree  $REPO @ $SHORT_SHA (verified)"
 echo ""
-
-cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
 
 # ─── 1. The staging database ────────────────────────────────────────
 # The migrations run against the staging database, and the same
@@ -358,7 +395,15 @@ STAGING_WEB_IMAGE="$STAGING_IMAGE_REPO/gustale-web-geo:$STAGING_TAG"
 #
 # So: GUSTALE_BUILD_NO_CACHE=1 forces a clean rebuild, exactly as in
 # the production script. The default is to use the cache (fast).
-local -a cache_args=()
+#
+# `local` is NOT used here: this code is at the top level of the
+# script, not inside a function, so `local` prints
+# "local: can only be used in a function" and returns non-zero. The
+# script runs with `set -uo pipefail` and no `-e`, so the error was
+# cosmetic -- the array still ended up correct -- but a script that
+# prints an error on every deploy trains the reader to ignore its
+# output. A plain array is the correct construct here.
+cache_args=()
 if [ "${GUSTALE_BUILD_NO_CACHE:-0}" = "1" ]; then
   cache_args=(--no-cache --pull)
   echo "  the cache is OFF -- this build will re-run every step"
@@ -495,12 +540,60 @@ else
 fi
 
 # The SERVED build is the build that was deployed.
+#
+# NOTE what this does NOT prove: /health is the API's endpoint, so it
+# reports the SHA of the API IMAGE, not of the web image that was just
+# built. A deploy that shipped the wrong web tree passed this check
+# unchanged. The web image's own content is verified below, by reading
+# the image itself.
 SERVED_SHA=$(curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_API_PORT}/health" 2>/dev/null |
   sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{7,40\}\)".*/\1/p' | head -1)
 if [ "$SERVED_SHA" = "$SHA" ]; then
-  echo "  the served SHA matches the deployed SHA ($SHORT_SHA)"
+  echo "  the served API SHA matches the deployed SHA ($SHORT_SHA)"
 else
   echo "  ::warning::the API did not report the deployed SHA (served='${SERVED_SHA:-none}')"
+fi
+
+# THE WEB IMAGE'S OWN CONTENT IS VERIFIED.
+#
+# This is the check that would have caught the 2026-11-17 deployment
+# that shipped a 9-url, no-/recipes, gustale.recipes-baked image under
+# the tag staging-data-0583313. Every other check passed: the container
+# was healthy, the pages served, the API answered, and the SHA the
+# deploy reported was the SHA it had LIED about.
+#
+# So the image is inspected directly, and it must prove it came from
+# the commit being deployed -- by reading the BUILD_SHA that the build
+# baked into it, and by finding that commit's OWN marker in its
+# content.
+#
+# The marker is the site itself: the retired host must NOT be in the
+# HTML (the single-domain cutover removed it), and the routes the
+# commit added must BE there. A build of the wrong commit cannot
+# satisfy both.
+WEB_IMAGE_SHA=$(docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
+  'cat /usr/share/nginx/html/.build-sha 2>/dev/null' 2>/dev/null | tr -d '[:space:]')
+if [ -z "$WEB_IMAGE_SHA" ]; then
+  WEB_IMAGE_SHA=$(docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
+    'grep -rhoE "[0-9a-f]{40}" /usr/share/nginx/html/ 2>/dev/null | head -1' 2>/dev/null | tr -d '[:space:]')
+fi
+if [ "$WEB_IMAGE_SHA" = "$SHA" ]; then
+  echo "  the web image was built from the deployed SHA ($SHORT_SHA)"
+else
+  echo "  ::error::the web image was NOT built from $SHA (it reports '${WEB_IMAGE_SHA:-none}') -- the image tag would lie about its own contents"
+  FAILED=1
+fi
+
+# The retired host must not be in the built HTML. This is a property of
+# the COMMIT, not of a date: the single-domain cutover removed
+# gustale.recipes from the site, so a build of that commit cannot
+# contain it. Its presence means the wrong tree was built.
+if docker run --rm --entrypoint sh "$STAGING_WEB_IMAGE" -c \
+  'grep -rql "gustale\.recipes" /usr/share/nginx/html/ 2>/dev/null' 2>/dev/null; then
+  echo "  ::error::the web image contains the retired host gustale.recipes -- the wrong commit was built"
+  FAILED=1
+else
+  echo "  the web image has no reference to the retired host"
 fi
 
 # THE ISOLATION PROOF. This is the check that matters most, so it is
