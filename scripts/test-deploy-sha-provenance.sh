@@ -141,6 +141,23 @@ else
     ".build-sha" "$S"
   assert_contains "the script checks for the retired host" \
     'gustale\.recipes' "$S"
+  assert_contains "the script re-execs from the deployed tree" \
+    "GUSTALE_DEPLOY_REEXEC" "$S"
+  assert_contains "the script re-execs the tree's own script" \
+    'exec bash "$DEPLOY_SCRIPT"' "$S"
+
+  # The bootstrap must come BEFORE the SHA resolution, so that a driver
+  # script OLDER than the deployed commit still hands over to the
+  # deployed commit's rules. If the bootstrap came after, the old
+  # script's SHA handling would run first -- which is precisely the
+  # 2026-11-17 failure.
+  BOOTSTRAP_LINE=$(printf '%s' "$S" | grep -n 'GUSTALE_DEPLOY_REEXEC:-' | head -1 | cut -d: -f1)
+  CHECKOUT_LINE=$(printf '%s' "$S" | grep -n 'git checkout --detach' | head -1 | cut -d: -f1)
+  if [ -n "$BOOTSTRAP_LINE" ] && [ -n "$CHECKOUT_LINE" ] && [ "$BOOTSTRAP_LINE" -lt "$CHECKOUT_LINE" ]; then
+    ok "the bootstrap precedes the main checkout"
+  else
+    bad "the bootstrap precedes the main checkout (bootstrap=$BOOTSTRAP_LINE checkout=$CHECKOUT_LINE)"
+  fi
 
   # The `local` bug: `local` at the top level of a script is an error.
   # It was cosmetic, but a script that prints an error on every run

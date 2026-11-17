@@ -151,25 +151,87 @@ if [ -z "$BRANCH" ]; then
 fi
 SHA="${2:-}"
 
-# The build directory is where the code that gets BUILT comes from, so
-# the SHA has to be resolved AND CHECKED OUT there -- not in whatever
-# directory the operator happened to be in when they typed the command.
+# ─── The bootstrap: run the script FROM the tree being deployed ─────
 #
-# WHY THIS ORDER MATTERS: an earlier version resolved the SHA with
-# `git rev-parse origin/$BRANCH` in the CURRENT directory, then `cd`'d
-# into $REPO and built whatever was sitting there. $REPO defaults to
-# /home/deploy/gustale-build, which is a DIFFERENT checkout on a
-# DIFFERENT commit. The deploy then tagged the image
-# "staging-data-<resolved-sha>" and passed --build-arg
-# BUILD_SHA=<resolved-sha> while the image CONTENT was a completely
-# different tree. On 2026-11-17 that shipped an image whose dist was
-# from the pre-single-domain commit: no /recipes route, no /map route,
-# a 9-url sitemap, and the retired gustale.recipes host baked into the
-# HTML -- while every verification in the script reported success,
-# because the SHA it checked was the SHA it LIED about.
+# This is the FIRST thing that happens, before the SHA is even
+# resolved, and that ordering is the whole point.
 #
-# So: resolve inside $REPO, check out inside $REPO, and verify inside
-# $REPO that the tree is the commit we are about to build.
+# WHY: the build directory is a checkout, and a checkout can sit at
+# any commit. The deploy is invoked by a human, so the copy of
+# scripts/deploy-staging.sh that runs is whatever copy they happened
+# to invoke -- which may be OLDER than the commit being deployed. When
+# that happens, the guards that run are the OLD guards, and the
+# deployed commit's guards never run at all.
+#
+# On 2026-11-17 that is exactly what happened. The deploy was driven
+# from a build directory stuck at 53b30b5, whose script had NO SHA
+# checkout and NO provenance check. It deployed 0583313 by building
+# 53b30b5's tree, tagged it staging-data-0583313, and reported success
+# on every check -- because none of the checks that could have caught
+# it existed in the script that ran.
+#
+# So the tree becomes the authority. The script checks out the target
+# commit and then re-executes ITSELF from that tree. Every guard that
+# runs after that point is the guard the DEPLOYED COMMIT wrote, and
+# the build is of that same tree.
+#
+# The environment variable is the guard against an exec loop: it is
+# set only by the re-exec, so the second run knows it already
+# happened. And because this block runs BEFORE the SHA resolution, an
+# old driver script that predates this bootstrap still gets to it --
+# the OLD script's SHA handling is never reached.
+#
+# The checkout itself has to happen before the re-exec, because the
+# script to re-exec lives in the tree being deployed. So the order is:
+#
+#   1. resolve the SHA inside $REPO
+#   2. check out that SHA inside $REPO
+#   3. re-exec $REPO/scripts/deploy-staging.sh
+#   4. from there on, the deployed commit's rules are the rules
+#
+# With GUSTALE_DEPLOY_REEXEC already set, steps 1-3 are skipped and
+# this script -- the one from the deployed tree -- simply proceeds.
+if [ -z "${GUSTALE_DEPLOY_REEXEC:-}" ]; then
+  cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
+
+  if [ -z "$SHA" ]; then
+    git fetch origin "$BRANCH" >/dev/null 2>&1
+    SHA="$(git rev-parse "origin/$BRANCH" 2>/dev/null)"
+  fi
+  if [ -z "$SHA" ]; then
+    refuse "could not resolve a SHA for '$BRANCH'"
+  fi
+
+  # Put the tree at exactly that commit. A detached checkout is
+  # deliberate: the tree must not depend on which branch the build
+  # directory happens to have checked out, and a later deploy of
+  # another branch must not be silently blocked by a dirty tree.
+  git checkout --detach --force "$SHA" >/dev/null 2>&1 ||
+    refuse "could not check out $SHA in $REPO"
+
+  # The checkout is verified, not assumed. `git rev-parse HEAD` is the
+  # commit the BUILD will contain; if it is not the commit we were
+  # asked to deploy, the image tag would lie about its own contents --
+  # which is exactly the failure this guards.
+  BUILT_SHA="$(git rev-parse HEAD 2>/dev/null)"
+  if [ "$BUILT_SHA" != "$SHA" ]; then
+    refuse "the build tree is at $BUILT_SHA but $SHA was requested"
+  fi
+
+  DEPLOY_SCRIPT="$REPO/scripts/deploy-staging.sh"
+  if [ ! -f "$DEPLOY_SCRIPT" ]; then
+    refuse "the deploy script is not in the build tree ($DEPLOY_SCRIPT)"
+  fi
+
+  echo "  bootstrapping: re-executing the deploy script from the deployed tree"
+  export GUSTALE_DEPLOY_REEXEC=1
+  export GUSTALE_REPO="$REPO"
+  exec bash "$DEPLOY_SCRIPT" "$@"
+fi
+
+# ─── The build tree ─────────────────────────────────────────────────
+# From here on this IS the script from the deployed commit, and $REPO
+# is checked out at exactly that commit.
 cd "$REPO" 2>/dev/null || refuse "the build directory $REPO does not exist"
 
 if [ -z "$SHA" ]; then
