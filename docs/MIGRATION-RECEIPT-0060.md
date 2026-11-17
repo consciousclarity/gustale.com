@@ -359,6 +359,33 @@ material.
 The badge itself needed no new work — the existing `EvidenceLabel`
 mapping already renders `unevidenced` as **"Unverified"**.
 
+### The missing number on the homepage
+
+The home page's KPI block renders **four** statistics. It was showing
+**three**, and the one it dropped was **"Published place
+associations"** — the label was there in the definitions row, but
+**no number** appeared above it.
+
+That is not a layout bug. `AtlasHeroKpi.astro` filters zero values out
+of the stats row (`visibleStats`), while the definitions row renders the
+full list. Live `/api/atlas/counts` returns **`"places": 0`** and
+`"communities": 0` — because every association row is `draft` until this
+migration publishes it. So the filter hid a **true zero** and the KPI
+disappeared with it.
+
+**This is the user-visible payoff of WP-B2.** Measured on the live-shaped
+copy after the migration:
+
+| stat | live, before | after 0060 |
+|---|---|---|
+| dishes | 1,474 | 1,474 |
+| **Published place associations** | **0 (hidden)** | **180** |
+| food families | 123 | 123 |
+| connections | 82 | 82 |
+
+Post-migration all four render, and the stats row and the definitions
+row agree again.
+
 ---
 
 ## The CI workflow patch
