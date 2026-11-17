@@ -6,10 +6,11 @@
  *
  * Writes PNGs into the given directory.
  */
-import { chromium } from "playwright";
+
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..");

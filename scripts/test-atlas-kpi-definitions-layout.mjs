@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 /**
  * scripts/test-atlas-kpi-definitions-layout.mjs
  *
@@ -52,9 +55,6 @@
  * cannot tell whether a label is 205px or 44px.
  */
 import { chromium } from "playwright";
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..");
