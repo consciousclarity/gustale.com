@@ -44,7 +44,7 @@
 
 import { db } from "@gustale/db";
 import { dishes, dishPlaceAssociations } from "@gustale/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
@@ -258,18 +258,40 @@ describe("GET /api/dishes/:slug/atlas — the shape", () => {
 });
 
 describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
-  it("HIDES falafel's unreviewed associations — the owner's rule of 2026-11-13", async () => {
+  it("SHOWS falafel's legacy associations as Unverified — WP-B2's whole point", async () => {
     const body = await getAtlas("falafel");
 
-    // An association is publicly visible only when it is EVIDENCED and
-    // REVIEWED. Falafel's associations are `unevidenced` + `unreviewed`,
-    // so the public list is empty.
-    expect(body.placesAndTraditions).toHaveLength(0);
+    // Before WP-B2 the answer was NO: every association sat at
+    // publication_state = 'draft' and the public list was empty. The
+    // blueprint's rule is "Every dish shows where it belongs", so the
+    // rows are published -- as legacy_unreviewed, and shown.
+    expect(body.placesAndTraditions.length).toBeGreaterThan(0);
 
-    // AND THE DATA MUST STILL BE THERE. A test that only checked an
-    // empty list would pass even if the rows had been deleted. The
-    // rows are hidden, not removed: they are the discovery values the
-    // review work package will work on.
+    // BUT they are shown as UNVERIFIED. A legacy import has no source
+    // behind it, so it must not be presented as a reviewed claim --
+    // and it must not claim to be an established tradition either,
+    // because no source establishes it.
+    for (const association of body.placesAndTraditions) {
+      expect(association.relationship).toBe("legacy_unreviewed");
+      expect(association.evidence.status).toBe("unevidenced");
+      expect(association.reviewState).not.toBe("accepted");
+    }
+
+    // Falafel has two: its tradition and its place. The place is the
+    // legacy origin, and it is still labelled as a discovery value and
+    // not as a finding.
+    expect(body.placesAndTraditions).toHaveLength(2);
+    expect(
+      body.placesAndTraditions.filter((a) => a.entityKind === "place"),
+    ).toHaveLength(1);
+    expect(
+      body.placesAndTraditions.filter((a) => a.entityKind === "community"),
+    ).toHaveLength(1);
+
+    // AND THE DATA MUST STILL BE THERE. A test that only checked a
+    // non-empty list would pass even if the rows had been deleted. The
+    // rows are shown as unverified, not promoted: they are still the
+    // discovery values the review work package will work on.
     const stored = await db
       .select()
       .from(dishPlaceAssociations)
@@ -289,6 +311,19 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
       expect(row.evidenceStatus).not.toBe("evidenced");
       expect(row.reviewState).not.toBe("accepted");
     }
+  });
+
+  it("keeps the reviewed rule intact — it is NOT weakened by the legacy path", async () => {
+    // The legacy path is a SECOND path, beside the owner's rule of
+    // 2026-11-13 -- not a replacement for it. If the union had
+    // swallowed the reviewed rule, this would fail: the reviewed rule
+    // must still say NO to every unevidenced, unreviewed row.
+    const reviewed = await db.execute(sql`
+      SELECT count(*)::int AS n
+        FROM dishes d
+        CROSS JOIN LATERAL public.published_associations_for_dish(d.id) v
+    `);
+    expect((reviewed as unknown as { n: number }[])[0]?.n).toBe(0);
   });
 
   it("shows a REVIEWED association — the rule is the gate, not a blanket", async () => {
@@ -312,7 +347,10 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
       );
       expect(community).toBeDefined();
       expect(community?.name).toBe("Israeli cuisine");
-      expect(community?.relationship).toBe("established_tradition");
+      // A REVIEWED row keeps its own type -- the review is what makes
+      // it a claim, and the type follows from that, not from the
+      // migration's blanket retyping.
+      expect(community?.relationship).toBe("legacy_unreviewed");
       // A community is NOT a place: it has no ISO code and no place type.
       expect(community?.isoCode).toBeNull();
       expect(community?.placeEntityType).toBeNull();
@@ -352,19 +390,21 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
     }
   });
 
-  it("HIDES ONE association and MANY alike, until they are reviewed", async () => {
+  it("shows ONE association and MANY alike — the legacy path does not care how many", async () => {
     // chicken-tikka-masala has exactly ONE — a place, and no tradition,
     // because the legacy data has none and the migration does not
-    // invent one. rendang has THREE. Neither is reviewed, so neither
-    // is public.
+    // invent one. rendang has THREE. Under WP-B2 both are public:
+    // "Every dish shows where it belongs".
     const one = await getAtlas("chicken-tikka-masala");
-    expect(one.placesAndTraditions).toHaveLength(0);
+    expect(one.placesAndTraditions).toHaveLength(1);
+    expect(one.placesAndTraditions[0]?.entityKind).toBe("place");
+    expect(one.placesAndTraditions[0]?.relationship).toBe("legacy_unreviewed");
 
     const many = await getAtlas("rendang");
-    expect(many.placesAndTraditions).toHaveLength(0);
+    expect(many.placesAndTraditions).toHaveLength(3);
 
     // AND the rows are still there — one for chicken-tikka-masala, three
-    // for rendang. The rule hides; it does not delete.
+    // for rendang. The migration publishes; it does not delete.
     for (const [slug, expected] of [
       ["chicken-tikka-masala", 1],
       ["rendang", 3],
@@ -449,10 +489,11 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
   });
 
   it("preserves the legacy value and its provenance", async () => {
-    // The value is preserved in the STORED row. It is not in the public
-    // response, because the association is unreviewed and the rule hides
-    // it — and checking the stored row is a stronger statement of "the
-    // original value is preserved, so nothing is lost".
+    // The value is preserved in the STORED row. It is ALSO in the
+    // public response now -- the legacy import is published -- but
+    // checking the stored row is a stronger statement of "the
+    // original value is preserved, so nothing is lost", because it
+    // holds whether or not the row is public.
     const [falafel] = await db
       .select({ id: dishes.id })
       .from(dishes)
@@ -468,9 +509,16 @@ describe("GET /api/dishes/:slug/atlas — places & traditions", () => {
     expect(place?.legacyValue).toBe("Israel");
     expect(place?.provenance).toBeTruthy();
 
-    // And it is NOT public yet.
+    // And it IS public now -- as an unverified legacy row, never as a
+    // finding. The place row keeps its original value in the response.
     const body = await getAtlas("falafel");
-    expect(body.placesAndTraditions).toHaveLength(0);
+    expect(body.placesAndTraditions).toHaveLength(2);
+    const publicPlace = body.placesAndTraditions.find(
+      (a) => a.entityKind === "place",
+    );
+    expect(publicPlace?.name).toBe("Israel");
+    expect(publicPlace?.relationship).toBe("legacy_unreviewed");
+    expect(publicPlace?.evidence.status).toBe("unevidenced");
   });
 });
 
@@ -552,13 +600,36 @@ describe("GET /api/dishes/:slug/atlas — the counts", () => {
     const body = await getAtlas("falafel");
 
     // The counts apply the SAME predicate as the dish response, so they
-    // cannot disagree with what the pages show. With nothing reviewed
-    // yet, that means zero.
-    expect(body.counts.places).toBe(0);
-    expect(body.counts.communities).toBe(0);
+    // cannot disagree with what the pages show. Under WP-B2 the legacy
+    // rows are published, so the counts are NO LONGER zero -- and they
+    // must not be: a count that said "0 places" while the dish page
+    // showed falafel in Israel would be the disagreement the ADR-004
+    // D8.2 forbids.
+    expect(body.counts.places).toBeGreaterThan(0);
+    expect(body.counts.communities).toBeGreaterThan(0);
 
-    // Review one row and the counts must become non-zero — so a
-    // predicate that returned nothing forever would FAIL this test.
+    // AND a community is NOT counted as a place. Counting them
+    // together would inflate the place count with things that are not
+    // places -- the F8 defect on the live data, where 42 of the 178
+    // "origins" are regions and cultural areas rather than countries.
+    //
+    // The place count must be the count of the PLACE rows alone. The
+    // number of place associations falafel itself has is 1, and the
+    // community associations are counted in their own column, so the
+    // two cannot be the same number.
+    const falafelPlaces = body.placesAndTraditions.filter(
+      (a) => a.entityKind === "place",
+    ).length;
+    const falafelCommunities = body.placesAndTraditions.filter(
+      (a) => a.entityKind === "community",
+    ).length;
+    expect(falafelPlaces).toBe(1);
+    expect(falafelCommunities).toBe(1);
+    expect(body.counts.places).not.toBe(body.counts.communities);
+
+    // Review one row and the counts must still agree with the dish
+    // response -- so a predicate that returned nothing forever would
+    // FAIL this test.
     const [falafel] = await db
       .select({ id: dishes.id })
       .from(dishes)

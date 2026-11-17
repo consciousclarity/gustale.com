@@ -406,21 +406,31 @@ present, and the long label fully readable, not clipped.
 
 ---
 
-## The CI workflow patch
+## The CI workflow patch — APPLIED
 
 The GitHub App has **no `workflows` scope**, so `.github/workflows/ci.yml`
-cannot be pushed by the agent. The change ships as a patch file:
+cannot be pushed by the agent. The change shipped as a patch file, and
+the owner **APPLIED** it:
 
-**`docs/ci-patches/ci-legacy-associations-0060.patch`**
+**`docs/ci-patches/ci-workflow-0060-and-build-date.patch`** (and its two
+components, `ci-sitemap-build-date.patch` and
+`ci-legacy-associations-0060.patch`)
 
-It adds `0060_legacy_associations_published.sql` to the workflow's
-migration chain. It was verified to apply cleanly (`git apply --check`,
-RC=0, no fuzz and no rejects) against a fresh checkout of `origin/main`.
+It added `0060_legacy_associations_published.sql` to the workflow's
+migration chain, plus the sitemap build-date steps. It was verified to
+apply cleanly (`git apply --check`, RC=0, no fuzz and no rejects)
+against a fresh checkout of `origin/main`.
 
-**The owner applies it.** Until it is applied, CI will not run 0060 —
-the local chain scripts (`scripts/ci-migration-chain.sh`,
-`scripts/repro-ci-db.sh`, `scripts/repro-ci-test-job.sh`) **do** include
-it, so the local reproduction of the CI job exercises it.
+**It has been applied** — the workflow change is in commit `12453ef`
+("ci: the 0060 migration and the sitemap build date"), on the
+`feat/wp-b2-legacy-associations` branch. The patch files are therefore
+**deleted**: a spent patch is worse than no patch, because it looks
+like the change is still queued, and it is not. CI now runs 0060.
+
+The local chain scripts (`scripts/ci-migration-chain.sh`,
+`scripts/repro-ci-db.sh`, `scripts/repro-ci-test-job.sh`) included it
+from the start, so the local reproduction of the CI job exercised it
+too.
 
 ---
 
@@ -514,5 +524,5 @@ the migrated database** before the web build starts.
 | `scripts/ci-migration-chain.sh` | 0060 added |
 | `scripts/repro-ci-db.sh` | 0060 added |
 | `scripts/repro-ci-test-job.sh` | 0060 added |
-| `docs/ci-patches/ci-legacy-associations-0060.patch` | the workflow patch, for the owner to apply |
+| `docs/ci-patches/ci-workflow-0060-and-build-date.patch` | the workflow patch — **APPLIED** (commit `12453ef`), so the file is deleted |
 | `docs/MIGRATION-RECEIPT-0060.md` | this file |

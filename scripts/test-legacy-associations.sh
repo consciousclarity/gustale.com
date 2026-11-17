@@ -53,6 +53,30 @@ fi
 # container this project may touch (RULE 3).
 CONTAINER="${GUSTALE_TEST_PG_CONTAINER:-gustale-test-postgres}"
 
+# THE TARGET IS RESOLVED THROUGH THE REPO'S GUARD.
+#
+# This script DROPs the database it is about to restore into, so it
+# must never be able to name the live one. The guard refuses the live
+# NAME unconditionally -- there is no environment variable that turns
+# it off -- and the check that enforces that this script uses the
+# guard is scripts/check-no-live-db-defaults.py.
+#
+# The name the caller passes is a REQUEST, not a decision: the guard
+# resolves it, and an explicit live name is refused rather than
+# honoured. With no name at all, the guard hands back the scratch
+# database (GUSTALE_SCRATCH_DB, default 'gustale_dev').
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
+  echo "FAIL: no python3 on PATH; cannot vet the target database."
+  exit 2
+}
+GUSTALE_SCRATCH_DB="${GUSTALE_SCRATCH_DB:-gustale_dev}"
+RESOLVED_DB="$("$PYTHON_BIN" "$REPO/scripts/lib/db_guard.py" test-legacy-associations.sh "$DB_NAME" 2>&1)" || {
+  echo "FAIL: $RESOLVED_DB"
+  exit 2
+}
+DB_NAME="$RESOLVED_DB"
+
 pass=0
 fail=0
 ok()   { echo "  ok   $1"; pass=$((pass+1)); }
