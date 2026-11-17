@@ -516,12 +516,15 @@ deploy_container() {
 
 # ONE WEB CONTAINER.
 #
-# The gustale-web-recipes container is NOT redeployed and NOT stopped
-# here. It keeps serving the old host until the owner removes it, and
-# the owner removes it AFTER the redirects are live -- see
-# docs/CUTOVER-recipes-gustale-com.md section 2. Stopping it here would
-# take the old host down before its redirects were in place, and a
-# retired host with no redirect is a 404 on every old URL.
+# The gustale-web-recipes container is GONE. It was removed by the owner
+# on 2026-11-17, after the 301 redirects were live and verified -- see
+# docs/CUTOVER-recipes-gustale-com.md section 2 and
+# scripts/verify-live-redirects.sh.
+#
+# It is not redeployed and not stopped here, because it does not exist.
+# Stopping it here would take the old host down before its redirects
+# were in place, and a retired host with no redirect is a 404 on every
+# old URL.
 deploy_container "gustale-web-geo" "$IMAGE_GEO" 4002 4001
 
 # --- Step 7: healthcheck + prune old live-data images ---
@@ -597,8 +600,8 @@ fi
 # the tag carries, and comparing short forms would compare the very
 # thing that is being proven.
 log ""
-log "--- Checking that both web images prove their own provenance ---"
-for NAME in gustale-web-recipes gustale-web-geo; do
+log "--- Checking that the web image proves its own provenance ---"
+for NAME in gustale-web-geo; do
   IMAGE_ID=$(docker inspect --format='{{.Image}}' "$NAME" 2>/dev/null || echo "")
   if [ -z "$IMAGE_ID" ]; then
     log "  ERROR: $NAME has no image"
@@ -669,14 +672,31 @@ fi
 #
 # The containers can be healthy while the SITE behind them is not. The
 # sitemap check below covers the content; this covers the fact that
-# both public hostnames answer at all.
+# the public hostname answers at all.
+#
+# gustale.com is the ONLY site now. The retired hosts answer 301, and
+# a 301 IS the correct answer for them -- the old check wanted a 200
+# from gustale.recipes, which stopped being true the moment the
+# redirects went live.
 log ""
-log "--- Checking that both public sites answer ---"
-for URL in "https://gustale.com/" "https://gustale.recipes/"; do
+log "--- Checking that the public site answers ---"
+for URL in "https://gustale.com/"; do
   CODE=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$URL" 2>&1 || echo "000")
   log "  $CODE  $URL"
   if [ "$CODE" != "200" ]; then
     log "  ERROR: $URL did not return 200"
+    SHA_FAILED=1
+  fi
+done
+
+# The retired hosts must REDIRECT, not 404 and not 502. A retired host
+# with no redirect is a 404 on every old URL, which is worse than the
+# site it used to be.
+for URL in "https://gustale.recipes/" "https://recipes.gustale.com/"; do
+  CODE=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$URL" 2>&1 || echo "000")
+  log "  $CODE  $URL  (301 is the correct answer)"
+  if [ "$CODE" != "301" ]; then
+    log "  ERROR: $URL returned $CODE -- the retired host must 301 to gustale.com"
     SHA_FAILED=1
   fi
 done
@@ -690,14 +710,18 @@ log "--- Pruning old live-data images, keeping newest 3 ---"
 # Get all live-data-* images sorted by creation time (newest first),
 # skip the first 3 (keep), and remove the rest. Don't touch images
 # that are currently in use by the running containers.
-# BOTH containers are inspected, not just the one this script deploys.
 #
-# The gustale-web-recipes container is still running its image, and that
-# image must not be pruned out from under it -- a pruned image leaves
-# the container running with no image behind it, and a restart then
-# fails. The recipes container is removed by the owner AFTER the
-# redirects are live; until then its image is still in use.
-IN_USE=$(docker inspect --format='{{.Image}}' gustale-web-recipes gustale-web-geo 2>/dev/null | sort -u)
+# The gustale-web-recipes container was REMOVED on 2026-11-17, after
+# the redirects went live. Its image is no longer in use by anything,
+# so it is now a candidate for pruning like any other old image.
+#
+# The in-use list is built from the containers that EXIST, not from a
+# hard-coded name: `docker inspect` on a missing container writes to
+# stderr and returns nothing, so naming a container that is gone would
+# put a non-empty error in the list and make the grep match nothing.
+IN_USE=$(docker ps --format '{{.Names}}' 2>/dev/null \
+  | while read -r c; do docker inspect --format='{{.Image}}' "$c" 2>/dev/null; done \
+  | sort -u)
 PRUNE_LIST=$(docker images --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' \
   | (grep -E 'live-data-[0-9a-f]{7,}$' || true) \
   | sort -k2,3 -r \
