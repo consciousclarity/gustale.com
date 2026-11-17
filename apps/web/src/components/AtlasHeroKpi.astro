@@ -239,23 +239,44 @@ const visibleStats = STATS.filter((stat) => {
   }
   .atlas-kpi--degraded .atlas-kpi__stats b { color: var(--sub, #6b6052); }
   /* The definitions. A count nobody can interpret is the defect the ADR
-     recorded, so the page says what each number means. */
+     recorded, so the page says what each number means.
+
+     THE TERM AND ITS DEFINITION STACK, they do not sit side by side.
+
+     They used to: each grid cell was a flex ROW, with the <dt> on the
+     left and the <dd> on the right. That works for a short label
+     ("dishes", 44px) and falls apart for a long one. "Published place
+     associations" is 205px of nowrap monospace, so it left the
+     definition 69px inside a 269px column -- against 166-218px for
+     every sibling, and overflowing the column by 13px. On a 390px
+     screen the definition got 130px where its siblings got 240-291px,
+     so its prose wrapped into a two-word ribbon while the others read
+     as sentences.
+
+     The label and the prose are different kinds of thing: one is a
+     name, the other is a sentence. Stacking them gives the prose the
+     WHOLE column, and the label the whole width it needs (the
+     nowrap goes, so a long label wraps rather than overflowing). */
   .atlas-kpi__definitions {
     margin: 22px 0 0;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 10px 26px;
+    gap: 14px 26px;
     font-size: 12.5px;
     line-height: 1.45;
     color: var(--sub, #6b6052);
   }
-  .atlas-kpi__definitions > div { display: flex; gap: 7px; }
+  .atlas-kpi__definitions > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
   .atlas-kpi__definitions dt {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 11px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    white-space: nowrap;
     color: var(--sub, #6b6052);
   }
   .atlas-kpi__definitions dd { margin: 0; }
@@ -268,5 +289,12 @@ const visibleStats = STATS.filter((stat) => {
   @media (max-width: 640px) {
     .atlas-kpi__stats { gap: 20px; }
     .atlas-kpi__stats b { font-size: 22px; }
+    /* The definitions go to ONE column on a phone -- the grid's
+       auto-fit already does that at 342px -- but the gap between a
+       label and its prose has to grow a little, because at that
+       width the two are no longer distinguished by their position
+       but only by their type. */
+    .atlas-kpi__definitions { gap: 16px; }
+    .atlas-kpi__definitions > div { gap: 2px; }
   }
 </style>
