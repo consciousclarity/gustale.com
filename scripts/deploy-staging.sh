@@ -360,38 +360,57 @@ test_pg_psql postgres -q -c \
   refuse "could not align the staging role's password"
 echo "  the staging role's password is aligned with the production one"
 
-# The API IMAGE. By default it is the image for the SHA being
-# deployed -- but that image only exists if CI has built it, and a
-# BRANCH that has never been through CI has no image.
+# The API IMAGE. It is the image for the SHA being deployed -- and it
+# is BUILT here, from the tree that is being deployed, when it is not
+# already on the box.
 #
-# So the image is RESOLVED, not assumed:
+# WHY IT IS BUILT HERE
+# --------------------
+# The staging API used to FALL BACK to the newest gustale-api image on
+# the box when the branch's image was absent. That fallback is what
+# left staging serving an API from a DIFFERENT commit than the web --
+# and because the deploy passed `-e BUILD_SHA=$SHA` at RUNTIME, the
+# fallback image's /health reported the REQUESTED sha, not its own.
+# The identity was asserted rather than proven.
 #
-#   1. the image for the SHA, if it is present locally or in the
-#      registry
-#   2. otherwise the newest gustale-api image already on the box
+# So the API image is now built from the deployed tree, and its
+# BAKE-IN BUILD_SHA (the image's own ENV, not a runtime override) is
+# what the deploy verifies. A fallback is no longer possible.
 #
-# The second case is the honest one for a first staging deploy of a
-# branch: the STAGING API is the same API code as production, and the
-# thing being tested on staging is the WEB change. When the branch has
-# been through CI, the first case applies and the API is exactly the
-# branch's.
+# The image's own identity is checked with:
 #
-# The image actually used is recorded in the state file, so "what is
-# staging running?" has an answer.
+#   docker run --rm --entrypoint sh <image> -c 'echo $BUILD_SHA'
+#
+# which reads the ENV the Dockerfile baked in -- NOT the one the
+# container was given.
 docker rm -f "$STAGING_API_CONTAINER" >/dev/null 2>&1
 STAGING_API_IMAGE="${STAGING_IMAGE_REPO}/gustale-api:${SHA}"
+
 if ! docker image inspect "$STAGING_API_IMAGE" >/dev/null 2>&1; then
-  FALLBACK_IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' |
-    grep "^${STAGING_IMAGE_REPO}/gustale-api:" |
-    grep -v ":latest$" |
-    head -1)
-  if [ -z "$FALLBACK_IMAGE" ]; then
-    refuse "there is no gustale-api image on this box for $SHA, and no older one to fall back to"
+  echo "  the API image for $SHORT_SHA is not on the box -- building it from the deployed tree"
+  API_BUILD_ARGS=()
+  if [ "${GUSTALE_BUILD_NO_CACHE:-0}" = "1" ]; then
+    API_BUILD_ARGS=(--no-cache)
   fi
-  echo "  the image for $SHORT_SHA has not been built yet; using $FALLBACK_IMAGE"
-  echo "  (the web change is what staging is for; the API is production's)"
-  STAGING_API_IMAGE="$FALLBACK_IMAGE"
+  ( cd "$REPO" && docker build "${API_BUILD_ARGS[@]}" \
+      --build-arg "BUILD_SHA=$SHA" \
+      --build-arg "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --build-arg "GIT_REF=refs/heads/$BRANCH" \
+      -f apps/api/Dockerfile \
+      -t "$STAGING_API_IMAGE" . ) \
+    || refuse "the API image build for $SHORT_SHA failed"
+  echo "  the API image $STAGING_API_IMAGE is built"
 fi
+
+# The image's OWN build identity. This is the ENV the Dockerfile baked
+# in. If it is not the SHA we are deploying, the image is not the
+# commit we think it is -- and no runtime environment variable can
+# change what this reads.
+API_IMAGE_SHA=$(docker run --rm --entrypoint sh "$STAGING_API_IMAGE" -c 'echo "$BUILD_SHA"' 2>/dev/null | tr -d '\r\n ')
+if [ "$API_IMAGE_SHA" != "$SHA" ]; then
+  refuse "the API image $STAGING_API_IMAGE carries BUILD_SHA='$API_IMAGE_SHA', but $SHA was requested"
+fi
+echo "  the API image carries BUILD_SHA $API_IMAGE_SHA (verified from the image itself)"
 
 docker run -d --name "$STAGING_API_CONTAINER" \
   --network host --restart unless-stopped \
@@ -404,7 +423,6 @@ docker run -d --name "$STAGING_API_CONTAINER" \
   -e "BETTER_AUTH_SECRET=${STAGING_BETTER_AUTH_SECRET}" \
   -e "CORS_ORIGIN=https://${STAGING_HOST}" \
   -e "BETTER_AUTH_TRUSTED_ORIGINS=https://${STAGING_HOST}" \
-  -e "BUILD_SHA=$SHA" \
   "$STAGING_API_IMAGE" >/dev/null 2>&1 ||
   refuse "could not start the staging API container"
 
@@ -608,12 +626,19 @@ fi
 # built. A deploy that shipped the wrong web tree passed this check
 # unchanged. The web image's own content is verified below, by reading
 # the image itself.
+#
+# This check used to be a WARNING. It is now an ERROR, because the API
+# image's own BUILD_SHA was already verified against the image above --
+# so if /health disagrees, something is actively wrong (a runtime
+# override, a stale container, a proxy) and the deploy must not claim
+# success.
 SERVED_SHA=$(curl -fsS --max-time 10 "http://127.0.0.1:${STAGING_API_PORT}/health" 2>/dev/null |
   sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{7,40\}\)".*/\1/p' | head -1)
 if [ "$SERVED_SHA" = "$SHA" ]; then
   echo "  the served API SHA matches the deployed SHA ($SHORT_SHA)"
 else
-  echo "  ::warning::the API did not report the deployed SHA (served='${SERVED_SHA:-none}')"
+  echo "  ::error::the API reports SHA '${SERVED_SHA:-none}' but $SHA was deployed -- the image's own BUILD_SHA was verified, so the running container is not the verified image"
+  FAILED=1
 fi
 
 # THE WEB IMAGE'S OWN CONTENT IS VERIFIED.

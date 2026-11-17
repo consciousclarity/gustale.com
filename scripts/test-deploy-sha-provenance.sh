@@ -181,6 +181,52 @@ else
     ".build-sha" "$D"
 fi
 
+# ── 7. the API image's provenance is proven, not asserted ──
+#
+# The API half of the same defect: the staging deploy used to fall
+# back to an OLD gustale-api image and then pass `-e BUILD_SHA=$SHA`
+# at RUNTIME. /health then reported the REQUESTED sha, so the deploy
+# looked correct while serving a different commit's API.
+#
+# Three things must hold:
+#   1. the image's OWN baked-in BUILD_SHA is read from the image and
+#      compared with the requested SHA;
+#   2. there is NO runtime BUILD_SHA override -- an override would mask
+#      a mismatched image;
+#   3. the served-SHA mismatch is an ERROR, not a warning.
+if [ -n "${S:-}" ]; then
+  assert_contains "the script reads the API image's own BUILD_SHA" \
+    "API_IMAGE_SHA" "$S"
+  assert_contains "the script verifies the API image's BUILD_SHA" \
+    'carries BUILD_SHA=' "$S"
+  assert_contains "the script builds the API image from the deployed tree" \
+    "apps/api/Dockerfile" "$S"
+
+  # The runtime override must be GONE. `-e BUILD_SHA=$SHA` would make
+  # /health report the requested sha regardless of the image.
+  if printf '%s' "$S" | grep -qE '^\s*-e\s+"?BUILD_SHA='; then
+    bad "the script does not override BUILD_SHA at runtime"
+  else
+    ok "the script does not override BUILD_SHA at runtime"
+  fi
+
+  # The served-SHA mismatch must fail the deploy, not warn.
+  SERVED_BLOCK="$(printf '%s' "$S" | sed -n '/SERVED_SHA=/,/^fi$/p')"
+  if printf '%s' "$SERVED_BLOCK" | grep -q '::error::'; then
+    ok "a served-SHA mismatch is an error"
+  else
+    bad "a served-SHA mismatch is an error"
+  fi
+
+  # The fallback to an older API image must be GONE -- it is the
+  # mechanism that shipped a different commit's API.
+  if printf '%s' "$S" | grep -q 'FALLBACK_IMAGE'; then
+    bad "the script has no fallback to an older API image"
+  else
+    ok "the script has no fallback to an older API image"
+  fi
+fi
+
 echo ""
 echo "=== $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1
