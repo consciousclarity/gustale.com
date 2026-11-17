@@ -1,0 +1,30 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index da25906..e6ade36 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1306,6 +1306,25 @@ jobs:
+             -f db/migrations/0058_dish_families_listed.sql 2>&1 | tee /tmp/m0058.log
+           bash scripts/check-ci-markers.sh "the listed families and the Musakka variant" "0058: ok" /tmp/m0058.log
+ 
++      # ── 0060: the legacy associations, published as Unverified ───
++      #
++      # WP-B2. It publishes the 2,713 rows ADR-004's backfill (0037)
++      # created out of the legacy places & traditions fields, types them
++      # all `legacy_unreviewed` (no source supports them, so calling
++      # them an established tradition would assert a fact nothing backs),
++      # and adds the ONE function the public reads through -- the union
++      # of the reviewed rule and the legacy rule.
++      #
++      # It runs AFTER 0037 (which creates the rows) and after 238b
++      # (which tightens `published_associations_for_dish`), because it
++      # reads the function 238b replaces and re-creates it as part of
++      # the union.
++      - name: Apply the legacy associations, published as Unverified
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0060_legacy_associations_published.sql 2>&1 | tee /tmp/m0060.log
++          bash scripts/check-ci-markers.sh "the legacy associations, published as Unverified" "0060: ok" /tmp/m0060.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.

@@ -89,19 +89,25 @@ BEGIN
   FOR r IN
     SELECT * FROM (VALUES
       -- rendang: two legacy traditions and one legacy origin.
-      ('rendang',               'established_tradition', 'community', 'Minangkabau',       ARRAY['legacy_dish_traditions','atlas_fixture']),
-      ('rendang',               'established_tradition', 'community', 'Indonesian cuisine',ARRAY['legacy_dish_cuisines','atlas_fixture']),
+      --
+      -- WP-B2: every one of these rows is typed 'legacy_unreviewed'
+      -- after migration 0060, because no source supports calling a
+      -- legacy cuisine an established tradition. The association itself
+      -- — the dish, the entity and the kind — is unchanged, and that is
+      -- what this guard is about.
+      ('rendang',               'legacy_unreviewed',     'community', 'Minangkabau',       ARRAY['legacy_dish_traditions','atlas_fixture']),
+      ('rendang',               'legacy_unreviewed',     'community', 'Indonesian cuisine',ARRAY['legacy_dish_cuisines','atlas_fixture']),
       ('rendang',               'legacy_unreviewed',     'place',     'Indonesia',         ARRAY['legacy_origin_geo_id','atlas_fixture']),
       -- chicken-tikka-masala: NO legacy tradition and NO legacy cuisine,
       -- so exactly ONE association — the origin. This is the case that
       -- proves the backfill does not invent a tradition.
       ('chicken-tikka-masala',  'legacy_unreviewed',     'place',     'United Kingdom',    ARRAY['legacy_origin_geo_id','atlas_fixture']),
       -- tacos-al-pastor: one legacy cuisine and one legacy origin.
-      ('tacos-al-pastor',       'established_tradition', 'community', 'Mexican cuisine',   ARRAY['legacy_dish_cuisines','atlas_fixture']),
+      ('tacos-al-pastor',       'legacy_unreviewed',     'community', 'Mexican cuisine',   ARRAY['legacy_dish_cuisines','atlas_fixture']),
       ('tacos-al-pastor',       'legacy_unreviewed',     'place',     'Mexico',            ARRAY['legacy_origin_geo_id','atlas_fixture']),
       -- falafel: the brief's §12 acceptance case. One legacy cuisine
       -- and one legacy origin.
-      ('falafel',               'established_tradition', 'community', 'Israeli cuisine',   ARRAY['legacy_dish_cuisines','atlas_fixture']),
+      ('falafel',               'legacy_unreviewed',     'community', 'Israeli cuisine',   ARRAY['legacy_dish_cuisines','atlas_fixture']),
       ('falafel',               'legacy_unreviewed',     'place',     'Israel',            ARRAY['legacy_origin_geo_id','atlas_fixture'])
     ) AS t(slug, relationship_type, entity_kind, entity_name, provenance)
   LOOP
@@ -335,22 +341,33 @@ BEGIN
   --
   -- So the counts are the same before and after 0040, and the two
   -- sides of the comparison cannot drift.
+  --
+  -- WP-B2: these counts used to be selected BY `relationship_type`
+  -- ('established_tradition' for the tradition rows,
+  -- 'legacy_unreviewed' for the place rows). Migration 0060 retypes
+  -- every established tradition to 'legacy_unreviewed', so selecting
+  -- BY the relationship type no longer tells the two apart — and a
+  -- guard that measures the wrong rows is worse than no guard.
+  --
+  -- The rows are now told apart by the QUALIFIERS, which the backfill
+  -- set and 0060 does not touch: a row is a tradition row when it has
+  -- no 'legacyCuisine' and no 'legacyOriginGeoId' qualifier, a
+  -- cuisine-as-tradition row when it has 'legacyCuisine', and a place
+  -- row when it is of kind 'place'. The provenance says where the row
+  -- came from; the relationship type says what the site currently
+  -- calls it. The guard is about the former.
   SELECT count(*) INTO v_traditions FROM dish_place_associations
-   WHERE relationship_type = 'established_tradition'
-     AND entity_kind = 'community'
+   WHERE entity_kind = 'community'
      AND NOT (qualifiers ? 'legacyCuisine')
      AND NOT (qualifiers ? 'legacyOriginGeoId');
   SELECT count(*) INTO v_cuisines_tr FROM dish_place_associations
-   WHERE relationship_type = 'established_tradition'
-     AND entity_kind = 'community'
+   WHERE entity_kind = 'community'
      AND qualifiers ? 'legacyCuisine';
   SELECT count(*) INTO v_cuisines_pl FROM dish_place_associations
-   WHERE relationship_type = 'legacy_unreviewed'
-     AND entity_kind = 'place'
+   WHERE entity_kind = 'place'
      AND NOT (qualifiers ? 'legacyOriginGeoId');
   SELECT count(*) INTO v_origins FROM dish_place_associations
-   WHERE relationship_type = 'legacy_unreviewed'
-     AND entity_kind = 'place'
+   WHERE entity_kind = 'place'
      AND qualifiers ? 'legacyOriginGeoId';
   SELECT count(*) INTO v_total FROM dish_place_associations;
 

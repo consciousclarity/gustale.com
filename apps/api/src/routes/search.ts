@@ -560,12 +560,8 @@ async function searchPlaces(q: string, limit: number): Promise<SearchGroup> {
       COUNT(*) OVER ()::int AS total
     FROM geo_entities g
     WHERE EXISTS (
-      SELECT 1 FROM dish_place_associations a
-        JOIN dishes d ON d.id = a.dish_id
-       WHERE a.entity_id = g.id
-         AND a.entity_kind = 'place'
-         AND a.publication_state = 'published'
-         AND d.status = 'published'
+      SELECT 1 FROM public.visible_place_associations_for_place(g.id) a
+        JOIN dishes d ON d.id = a.dish_id AND d.status = 'published'
     )
       AND g.status = 'active'
       AND (

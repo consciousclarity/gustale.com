@@ -286,6 +286,11 @@ MIGRATION_0059=db/migrations/0059_dish_families_descriptions.sql
 # vocabulary. Two migrations must never share a number.
 MIGRATION_0058=db/migrations/0058_dish_families_listed.sql
 
+# 0060 is WP-B2: it publishes the legacy associations as Unverified. It
+# MUST run after 0037 (which creates the rows) and after 238b (which
+# tightens the publication predicate it builds the union on).
+MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -878,6 +883,23 @@ echo "--- the listed families and the Musakka variant"
 run_pg -f - < "$MIGRATION_0058" >/tmp/m0058.log 2>&1 || { echo "FAILED: 0058"; grep -E 'ERROR|NOTICE' /tmp/m0058.log | tail -14; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E '0058: ok' /tmp/m0058.log | tail -1 || true
+
+# The legacy associations, published as Unverified.
+#
+# 0060 is WP-B2. It publishes the 2,713 rows ADR-004's backfill (0037)
+# created out of the legacy places & traditions fields, types them all
+# `legacy_unreviewed` (no source supports them, so calling them an
+# established tradition would assert a fact nothing backs), and adds the
+# ONE function the public reads through -- the union of the reviewed rule
+# and the legacy rule.
+#
+# It MUST run after 0037 (which creates the rows) and after 238b (which
+# tightens `published_associations_for_dish`), because it reads the
+# function 238b replaces and re-creates it as part of the union.
+echo "--- the legacy associations, published as Unverified"
+run_pg -f - < "$MIGRATION_0060" >/tmp/m0060.log 2>&1 || { echo "FAILED: 0060"; grep -E 'ERROR|NOTICE' /tmp/m0060.log | tail -14; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0060: ok' /tmp/m0060.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

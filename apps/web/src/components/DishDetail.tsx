@@ -121,7 +121,13 @@ export function DishDetail({
         {/* ─── Title block (text only — cover is full-bleed above) ──────── */}
         <header className="rec-hero rec-hero--text">
           <div className="rec-eyebrow">
-            {origin?.name ?? "Origin unrecorded"}
+            {/* WP-B2. "Origin unrecorded" is gone — the same blueprint
+                rule as the meta cell: no dish has an "Origin" field in
+                the UI. When there is no associated place there is
+                simply no eyebrow place line; the eyebrow keeps the
+                first-attested dates, which ARE a documented record and
+                are labelled as such. */}
+            {origin?.name}
             {dish.originDateEarliest && (
               <span className="coord">
                 first attested {dish.originDateEarliest}
@@ -186,12 +192,25 @@ export function DishDetail({
           </div>
 
           <div className="rec-meta">
-            <div className="cell">
-              <div className="k">Origin</div>
-              <div className="v" style={{ fontSize: 19 }}>
-                {origin?.name ?? "—"}
-              </div>
-            </div>
+            {/* WP-B2. THE "Origin" CELL IS GONE.
+                The blueprint's rule is explicit: "No dish has an
+                'Origin' field in the UI. Origin claims are claims.
+                Shared heritage is several associations; none is marked
+                primary unless sourced."
+
+                This cell printed the dish's legacy `origin_geo_id` as
+                "Origin" — a settled claim, asserted next to a journey
+                that often says the origin is contested. The associations
+                section below now carries the same information, as
+                several separate associations, each labelled with what
+                is known about it. So the cell is removed rather than
+                relabelled: a cell that said "Associated with" would
+                still be one place asserting one answer.
+
+                The reader loses nothing. The associations section lists
+                the place (and the tradition), says "Unverified" where
+                that is the truth, and keeps the raw legacy value under
+                its own heading. */}
             {/* A meta cell is shown only when it says something. "Variants
                 0" and "Contributors 0" are not information — they are
                 counters with nothing behind them, and they make the

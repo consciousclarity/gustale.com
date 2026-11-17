@@ -35,7 +35,7 @@
  * THE PUBLICATION RULE
  *
  * Every count here is over PUBLISHED dishes only, and it uses the SAME
- * predicates as the atlas route — `published_associations_for_dish`
+ * predicates as the atlas route — `visible_associations_for_dish`
  * and `published_claims_for_dish` — so a count cannot disagree with
  * what the API serves. A count that said "180 places" while the API
  * served 179 would be worse than no count.
@@ -77,14 +77,14 @@ export function registerAtlasCountRoutes(app: FastifyInstance): void {
         -- are regions and cultural areas rather than countries.
         (SELECT count(DISTINCT a.entity_id)::int
            FROM dishes d
-           CROSS JOIN LATERAL public.published_associations_for_dish(d.id) a
+           CROSS JOIN LATERAL public.visible_associations_for_dish(d.id) a
           WHERE a.entity_kind = 'place')
           AS places,
 
         -- THE COMMUNITIES. The distinct traditions and peoples.
         (SELECT count(DISTINCT a.entity_id)::int
            FROM dishes d
-           CROSS JOIN LATERAL public.published_associations_for_dish(d.id) a
+           CROSS JOIN LATERAL public.visible_associations_for_dish(d.id) a
           WHERE a.entity_kind = 'community')
           AS communities,
 

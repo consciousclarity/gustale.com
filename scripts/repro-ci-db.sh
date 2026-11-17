@@ -554,6 +554,17 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0058_dish_families_listed.sql" >
   || { echo "  FAILED: 0058"; grep -E 'ERROR' /tmp/repro_0058.log | head -8; fail=1; }
 grep -E '0058: ok' /tmp/repro_0058.log | tail -1 || true
 
+# The legacy associations, published as Unverified.
+#
+# 0060 is WP-B2. It publishes the 2,713 rows ADR-004's backfill (0037)
+# created out of the legacy places & traditions fields, types them all
+# `legacy_unreviewed`, and adds the ONE function the public reads
+# through. It MUST run after 0037 and after 238b.
+step "the legacy associations, published as Unverified"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0060_legacy_associations_published.sql" > /tmp/repro_0060.log 2>&1 \
+  || { echo "  FAILED: 0060"; grep -E 'ERROR' /tmp/repro_0060.log | head -8; fail=1; }
+grep -E '0060: ok' /tmp/repro_0060.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.

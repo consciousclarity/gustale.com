@@ -183,6 +183,11 @@ tail_chain=(
     db/migrations/0050_association_review_ledger.sql
     db/migrations/0051_family_classification.sql
     db/migrations/0052_recipes_schema.sql
+    # WP-B2: 0060 publishes the legacy associations as Unverified. It
+    # MUST run after 0037 (which creates the rows) and after 238b (which
+    # tightens the predicate it builds the union on), so it goes at the
+    # END of the chain, not in the early list.
+    db/migrations/0060_legacy_associations_published.sql
 )
 for f in "${tail_chain[@]}"; do apply_sql "$f"; done
 

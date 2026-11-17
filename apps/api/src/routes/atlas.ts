@@ -35,6 +35,16 @@ import { slugParamSchema } from "../schemas/common.js";
  * The association rows have their own `publication_state`, and the same
  * rule applies to them.
  *
+ * There are now TWO rules that make an association visible, and ONE
+ * function that is their union: `visible_associations_for_dish`. The
+ * reviewed rule (published AND evidenced AND accepted) is the owner's
+ * rule of 2026-11-13 and it is unchanged. The legacy rule (published
+ * AND legacy_unreviewed AND unevidenced AND not rejected) carries the
+ * ADR-004 backfill's legacy import, which the 2026-11-15 blueprint
+ * asks to be published as Unverified. The two sets are disjoint, and
+ * every public read path goes through the union, so a dish page and a
+ * place page cannot disagree about what exists (ADR-004 D8.2).
+ *
  * The legacy `origin` is still returned, under `legacy`, clearly marked.
  * It is not renamed to "origin" in the public presentation — that is the
  * wording change, and it is P4's work; this route makes the truth
@@ -94,7 +104,7 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
         COALESCE(place.name, community.name) AS entity_name,
         place.iso_code     AS entity_iso_code,
         place.entity_type  AS place_entity_type
-      FROM public.published_associations_for_dish(${dish.id}) a
+      FROM public.visible_associations_for_dish(${dish.id}) a
       LEFT JOIN geo_entities place
         ON a.entity_kind = 'place' AND place.id = a.entity_id
       LEFT JOIN dish_traditions community
@@ -478,13 +488,13 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
         -- uses, so the two cannot disagree.
         (SELECT count(DISTINCT a.entity_id)::int
            FROM dishes d
-           CROSS JOIN LATERAL public.published_associations_for_dish(d.id) a
+           CROSS JOIN LATERAL public.visible_associations_for_dish(d.id) a
           WHERE a.entity_kind = 'place')
           AS places,
         -- The COMMUNITY count, kept separate for the same reason.
         (SELECT count(DISTINCT a.entity_id)::int
            FROM dishes d
-           CROSS JOIN LATERAL public.published_associations_for_dish(d.id) a
+           CROSS JOIN LATERAL public.visible_associations_for_dish(d.id) a
           WHERE a.entity_kind = 'community')
           AS communities,
         -- Active canonical families used by published dishes, as in the list.
