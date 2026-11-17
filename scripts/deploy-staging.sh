@@ -332,8 +332,26 @@ echo "--- 2. the staging API ---"
 # data, which is exactly the failure this environment must never
 # have. The filter is what makes the isolation real.
 docker inspect gustale-api --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  grep -vE "^(DATABASE_URL|BETTER_AUTH_URL|BETTER_AUTH_SECRET|CORS_ORIGIN|BETTER_AUTH_TRUSTED_ORIGINS|PORT|HOST)=" \
+  grep -vE "^(DATABASE_URL|BETTER_AUTH_URL|BETTER_AUTH_SECRET|CORS_ORIGIN|BETTER_AUTH_TRUSTED_ORIGINS|PORT|HOST)=" |
+  grep -vE "^(BUILD_SHA|BUILD_TIME|GIT_REF)=" |
   > "$STAGING_ENV_FILE"
+
+# The BUILD IDENTITY MUST NOT BE INHERITED.
+#
+# The filter above excludes DATABASE_URL, the auth settings, PORT and
+# HOST -- the values that must be the staging ones. It did NOT exclude
+# BUILD_SHA / BUILD_TIME / GIT_REF, so the staging API inherited the
+# PRODUCTION API's build identity. The staging API then reported
+# production's SHA in /health while running the staging image.
+#
+# That is the same defect as the web side, one layer down: the identity
+# was INHERITED instead of coming from the thing that is actually
+# serving. The staging API's identity must be the IDENTITY OF ITS OWN
+# IMAGE -- which the Dockerfile baked in, and which the deploy verifies
+# below by reading it back out of the image.
+#
+# So the three build-identity variables are excluded here, and they are
+# NOT passed with `-e` either: the image's own ENV is the only source.
 
 # The password, taken from the production container and never printed.
 #

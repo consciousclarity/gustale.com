@@ -225,6 +225,16 @@ if [ -n "${S:-}" ]; then
   else
     ok "the script has no fallback to an older API image"
   fi
+
+  # The build identity must NOT be inherited from the production API
+  # container. The staging API inherited production's BUILD_SHA, and
+  # then reported production's SHA while serving the staging image --
+  # the identity was inherited rather than proven.
+  if printf '%s' "$S" | grep -qE 'BUILD_SHA\|BUILD_TIME\|GIT_REF'; then
+    ok "the script does not inherit the build identity from the production API"
+  else
+    bad "the script does not inherit the build identity from the production API"
+  fi
 fi
 
 echo ""
