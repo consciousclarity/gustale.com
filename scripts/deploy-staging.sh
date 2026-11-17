@@ -260,6 +260,20 @@ fi
 
 SHORT_SHA="$(echo "$SHA" | cut -c1-7)"
 
+# The BUILD DATE -- the commit date of the commit being deployed.
+#
+# It becomes the sitemaps' <lastmod>, so it says when the CONTENT last
+# changed. The commit date is that truth; the wall clock is not.
+#
+# It is read here, AFTER the checkout was verified to be at exactly
+# $SHA, so the date belongs to the content that is about to be built
+# and not to whatever the tree happened to hold before.
+BUILD_DATE="$(git log -1 --date=short --format=%cd "$SHA" 2>/dev/null || true)"
+if ! printf '%s' "$BUILD_DATE" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+  refuse "could not read the commit date of $SHA (got '${BUILD_DATE:-}') -- the sitemaps' lastmod is generated from it"
+fi
+echo "  build date  $BUILD_DATE (the commit date of $SHORT_SHA)"
+
 echo "=== staging deploy: $BRANCH @ $SHORT_SHA ==="
 echo "  host        $STAGING_HOST"
 echo "  web port    $STAGING_WEB_PORT"
@@ -548,6 +562,7 @@ docker build \
   --build-arg "PUBLIC_BUILD_LOCALES=$STAGING_BUILD_LOCALES" \
   --build-arg "PUBLIC_BUILD_DISH_LIMIT=$STAGING_BUILD_DISH_LIMIT" \
   --build-arg "BUILD_SHA=$SHA" \
+  --build-arg "BUILD_DATE=$BUILD_DATE" \
   -f apps/web/Dockerfile \
   -t "$STAGING_WEB_IMAGE" \
   . 2>&1 | tail -6

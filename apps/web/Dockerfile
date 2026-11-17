@@ -147,6 +147,24 @@ ENV PUBLIC_BUILD_LOCALES=${PUBLIC_BUILD_LOCALES} \
 ARG BUILD_SHA="unknown"
 ENV BUILD_SHA=${BUILD_SHA}
 
+# The build date -- the COMMIT DATE of the commit being built.
+#
+# It is written into the sitemaps' <lastmod>, so it says when the
+# CONTENT last changed, not when the image was assembled. The two
+# differ, and the difference matters: the rebuild timer rebuilds the
+# same commit repeatedly, and a wall-clock lastmod would tell a search
+# engine that every page changed every time the timer fired.
+#
+# The build container has no git, so the date cannot be worked out
+# there. It arrives from whoever ran the build (build-web-live.sh, and
+# the CI workflow), which does have git.
+#
+# The sitemap generator REFUSES to write a sitemap without it, rather
+# than falling back to today's date or to a hardcoded one -- both would
+# be a claim about the content that is not true.
+ARG BUILD_DATE="unknown"
+ENV BUILD_DATE=${BUILD_DATE}
+
 # Now copy the rest of the source. This layer's cache key is the full
 # monorepo tree, so it (and everything below) invalidates on every commit.
 COPY . .

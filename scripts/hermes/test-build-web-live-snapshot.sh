@@ -60,6 +60,10 @@ EOF
 chmod +x "$TMP/bin/curl"
 
 SHA="0123456789abcdef0123456789abcdef01234567"
+# The build date. The SHA above is not in any checkout, so it cannot be
+# read from git -- which is exactly the case GUSTALE_BUILD_DATE exists
+# for. The sitemaps' lastmod is generated from it.
+BUILD_DATE="2026-11-17"
 
 run_build() {
   # run_build <extra env assignments...>
@@ -69,6 +73,7 @@ run_build() {
     GITHUB_REPOSITORY="consciousclarity/gustale.com" \
     GUSTALE_NO_PUSH=1 \
     GUSTALE_WEB_LIVE_TAG_FILE="$TMP/tag.env" \
+    GUSTALE_BUILD_DATE="$BUILD_DATE" \
     "$@" \
     bash "$SCRIPT" "$SHA" ) > "$TMP/out.log" 2>&1
   echo $?

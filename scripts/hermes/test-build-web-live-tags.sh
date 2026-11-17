@@ -75,6 +75,10 @@ chmod +x "$SHIM/curl"
 
 SHA="0123456789abcdef0123456789abcdef01234567"
 SHORT="0123456"
+# The build date. The SHA above is not in any checkout, so it cannot be
+# read from git -- which is exactly the case GUSTALE_BUILD_DATE exists
+# for. The sitemaps' lastmod is generated from it.
+BUILD_DATE="2026-11-17"
 REG="ghcr.io/consciousclarity/gustale.com"
 TAG_FILE="$TMP/tag.env"
 export DOCKER_BUILT="$TMP/built.txt"
@@ -91,6 +95,7 @@ echo "=== build-web-live.sh image tags ==="
   GUSTALE_NO_PUSH=1 \
   GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
   GUSTALE_SKIP_SNAPSHOT=1 \
+  GUSTALE_BUILD_DATE="$BUILD_DATE" \
   bash "$SCRIPT" "$SHA" ) > "$TMP/out.log" 2>&1
 rc=$?
 
@@ -171,6 +176,7 @@ rm -f "$TAG_FILE"
   GUSTALE_NO_PUSH=1 \
   GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
   GUSTALE_SKIP_SNAPSHOT=1 \
+  GUSTALE_BUILD_DATE="$BUILD_DATE" \
   bash "$SCRIPT" "$SHA" ) > "$TMP/out-lie.log" 2>&1
 rc=$?
 

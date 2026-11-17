@@ -82,11 +82,16 @@ mkdir -p "$FAKE_REPO/apps/web"
 cp "$REPO_ROOT/scripts/hermes/build-web-live.sh" "$FAKE_REPO/build-web-live.sh"
 
 SHA="abc1234def5678"
+# The build date. The SHA above is not in any checkout, so it cannot be
+# read from git -- which is exactly the case GUSTALE_BUILD_DATE exists
+# for. The sitemaps' lastmod is generated from it.
+BUILD_DATE="2026-11-17"
 (
   cd "$FAKE_REPO" || exit 1
   PATH="$STUB_BIN:$PATH" \
   GUSTALE_NO_PUSH=1 \
   GUSTALE_WEB_LIVE_TAG_FILE="$TAG_FILE" \
+  GUSTALE_BUILD_DATE="$BUILD_DATE" \
   GITHUB_REPOSITORY="consciousclarity/gustale.com" \
   bash ./build-web-live.sh "$SHA"
 ) >"$WORK/build.out" 2>&1
