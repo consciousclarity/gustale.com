@@ -386,6 +386,24 @@ copy after the migration:
 Post-migration all four render, and the stats row and the definitions
 row agree again.
 
+**The proof is the built HTML, not an inference.** A full `astro build`
+against the migrated local database (30 min, 16,781 pages) produced
+`dist/index.html` whose stats row carries all four:
+
+```
+1,474 | dishes
+  180 | Published place associations
+  123 | food families
+   82 | connections
+```
+
+and a definitions row of the same four terms. The live page right now
+carries **three** stats and **four** definitions — the asymmetry is
+visible in the live DOM. The screenshot
+`docs/evidence/wp-b2/kpi-post-0060-desktop.png` is the built page's
+stats block rendered in the production CSS at 2048 px: all four
+present, and the long label fully readable, not clipped.
+
 ---
 
 ## The CI workflow patch
