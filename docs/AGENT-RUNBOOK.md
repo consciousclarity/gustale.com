@@ -95,6 +95,24 @@ migration number**.
 | `0052` recipes schema | 2026-11-07 | `docs/MIGRATION-RECEIPT-0052.md` |
 | `0053` recipes_published_view | 2026-11-09 | `docs/MIGRATION-RECEIPT-0053.md` |
 | `0054` ingredients_category_fk | 2026-11-10 13:01:41 WITA | `docs/MIGRATION-RECEIPT-0054.md` |
+| `0055` sourcing_availability | 2026-11-10 19:03:58 WITA | `docs/MIGRATION-RECEIPT-0055.md` |
+| `0059` family descriptions + `0058` families listed | 2026-11-16 17:38 WITA | `docs/MIGRATION-RECEIPT-0059-0058.md` |
+
+**`0059` runs BEFORE `0058`.** `listed` is *defined* as
+`(family_class = 'FORM' AND the family has a description)`, so the
+descriptions must be in place before the backfill reads them. The
+reverse order marks the 56 unlisted and leaves them that way.
+
+**A migration that was applied with a file that was later CORRECTED is
+still applied.** `0058` and `0059` were applied on 2026-11-16 with the
+files as they stood at the time; CI then found two defects and commit
+`348af03` fixed them. Both fixed files are **no-ops on live**, proven
+by re-running them against the live database, so live's state and the
+current files' output are identical. The receipt records this. The
+lesson: a guard that asks "is the DATABASE in the right shape?" is not
+the same as one that asks "is the DATA this migration acts on
+present?" — the first makes a data migration FAIL on a smaller seed
+instead of skipping it.
 
 `0050` has **no transaction wrapper** — its two `BEGIN`s are PL/pgSQL
 blocks, so it ran in AUTOCOMMIT. Live is consistent.
@@ -216,7 +234,9 @@ The **payload reads B**; the **hero KPI reads C**. `content_type` is
 * All **1,354** statements are `research_pending`, so the `verified`
   gate is **UNREACHABLE**.
 * `publish_credential` is **EMPTY**.
-* `ingredients`: **5 rows**, all published.
+* `ingredients`: **45 rows** — **5 published**, 40 draft. (The "5"
+  that matters is the published count: the Atlas only shows published
+  ingredients.)
 
 **Consequence: no recipe can reach HIGH, and nothing auto-publishes
 until real S1–S5 sources arrive.** Gate D is blocked on evidence, not

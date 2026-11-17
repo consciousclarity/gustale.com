@@ -531,6 +531,29 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0055_sourcing_availability.sql" 
   || { echo "  FAILED: 0055"; grep -E 'ERROR' /tmp/repro_0055.log | head -6; fail=1; }
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/repro_0055.log | tail -1 || true
 
+# The family descriptions.
+#
+# 0059 sets a one-line description on the 56 FORM families that carry a
+# published dish and have none. It MUST run before 0058: 0058 computes
+# `listed` from the description, so the descriptions have to be in place
+# first, or those 56 families would be marked unlisted and every dish
+# using them would lose its family.
+step "the family descriptions"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0059_dish_families_descriptions.sql" > /tmp/repro_0059.log 2>&1 \
+  || { echo "  FAILED: 0059"; grep -E 'ERROR' /tmp/repro_0059.log | head -8; fail=1; }
+grep -E '0059: ok' /tmp/repro_0059.log | tail -1 || true
+
+# The listed families and the Musakka variant.
+#
+# 0058 adds `dish_families.listed` -- which families are part of the
+# PUBLISHED vocabulary -- and deletes the one Musakka `dish_variants`
+# row whose slug collides with a published dish. Its own assertions
+# run inside its transaction, so a failed proof rolls it back.
+step "the listed families and the Musakka variant"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0058_dish_families_listed.sql" > /tmp/repro_0058.log 2>&1 \
+  || { echo "  FAILED: 0058"; grep -E 'ERROR' /tmp/repro_0058.log | head -8; fail=1; }
+grep -E '0058: ok' /tmp/repro_0058.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.

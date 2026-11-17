@@ -376,6 +376,18 @@ async function searchFamilies(q: string, limit: number): Promise<SearchGroup> {
              AND d.status = 'published'
         ) AS has_dishes
       FROM dish_families c
+      -- ONLY THE LISTED FAMILIES (migration 0058).
+      --
+      -- Without this, the search offers "Dish", "Food", "Human Food"
+      -- and the other placeholders, and the COURSE and CUISINE and
+      -- CONTENT TYPE rows, as things a reader can search for. Those are
+      -- not published families. The listed ones are the FORM families
+      -- with a description -- the shapes a dish can have.
+      --
+      -- The unlisted families are still REACHABLE by URL, so nothing
+      -- that was linked becomes unreachable; they are simply not
+      -- offered as search results.
+      WHERE c.listed
 
       UNION ALL
 

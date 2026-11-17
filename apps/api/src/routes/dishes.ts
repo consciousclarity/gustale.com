@@ -310,10 +310,59 @@ export function registerDishRoutes(app: FastifyInstance): void {
         JOIN dish_families f ON f.id = df.value_id
         WHERE df.dish_id = d.id
           AND df.status = 'active'
-        -- A stable tie-break. Without it, a dish with two active
-        -- families of equal is_primary would get an ARBITRARY one, and
-        -- the list, the search and the detail page could disagree
-        -- between runs. The name then the id is stable and total.
+        -- ONLY A LISTED FAMILY IS RETURNED.
+        --
+        -- dish_families.listed (migration 0058) marks the families
+        -- that are part of the PUBLISHED vocabulary: the FORM families
+        -- that have a description. Everything else -- the placeholders
+        -- like "Dish" and "Food", the COURSE and CUISINE and CONTENT
+        -- TYPE rows, and the FORM families with no description -- is
+        -- not listed.
+        --
+        -- WHY THE FILTER AND NOT A PREFERENCE
+        -- ---------------------------------
+        -- The first version of this ordered by f.listed DESC first,
+        -- which PREFERRED a listed family but still fell back to an
+        -- unlisted one. Measured on the live-shape copy, that changed
+        -- NOTHING: 0 of 1,474 published dishes got a different family,
+        -- because a dish that carries "dish" carries nothing else. The
+        -- fallback is what put the placeholder back.
+        --
+        -- So the filter is a WHERE clause: a dish either has a listed
+        -- family or it has NO family on this dimension. That is the
+        -- honest answer. "Family: Dish" is not a shape, and the
+        -- families directory is built from these families -- with the
+        -- fallback it showed 123 entries, of which 96 were
+        -- placeholders or description-less forms. With the filter it
+        -- shows only the families that are really in the vocabulary.
+        --
+        -- 849 published dishes end up with no listed family: 820 carry
+        -- only an unlisted one and 29 carry no family row at all. They
+        -- are not left with a placeholder; they have no family, and the
+        -- dish page says so rather than claiming a shape it does not
+        -- have. Classifying them is editorial work (WP-R), not a
+        -- migration's job.
+        --
+        -- MEASURED ON LIVE, 2026-11-16, after 0059 and 0058:
+        --
+        --   published dishes                        1474
+        --   with a LISTED family                     625
+        --   with only an unlisted family             820
+        --   with no family row                        29
+        --
+        -- The 1,105 that appears elsewhere in this PR's prose is the
+        -- count BEFORE 0059 -- when 106 families were listed. 0059
+        -- gives 56 more families a description, and every one of them
+        -- moves its dishes back into the "has a family" column. That
+        -- is why the two numbers differ, and 849 is the one that
+        -- describes the live database now.
+        --
+        -- The stable tie-break comes after the filter: without it, a
+        -- dish with two active listed families of equal is_primary
+        -- would get an ARBITRARY one, and the list, the search and the
+        -- detail page could disagree between runs. The name then the
+        -- id is stable and total.
+        AND f.listed
         ORDER BY df.is_primary DESC, f.slug, f.id
         LIMIT 1
       ) fam ON true
@@ -1173,7 +1222,12 @@ export function registerDishRoutes(app: FastifyInstance): void {
       FROM dishes d
       JOIN geo_entities g ON g.id = d.origin_geo_id
       JOIN dish_dish_families j ON j.dish_id = d.id AND j.status = 'active'
-      JOIN dish_families f ON f.id = j.value_id
+      -- ONLY A LISTED FAMILY (migration 0058), the same rule the list
+      -- route's lateral uses. The two must agree: a featured card
+      -- shows a family, and the same dish in the list shows the same
+      -- one. If this join kept an unlisted family, a dish could carry
+      -- "Dish" on its featured card and a real family in the list.
+      JOIN dish_families f ON f.id = j.value_id AND f.listed
       LEFT JOIN LATERAL (
         -- The cover row, chosen by what it can actually SERVE: a
         -- public storage key with known dimensions. The same rule the
