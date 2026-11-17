@@ -47,21 +47,73 @@ const NETRC =
   process.env.GUSTALE_NETRC ||
   "/home/alex/.hermes/secrets/staging-hermes.netrc";
 
+/**
+ * Production needs NO basic auth -- it is a public site. The credential
+ * is only required for a site that sits behind it.
+ *
+ * So the netrc is OPTIONAL: it is read when it is there (and the walk
+ * then carries it), and skipped when it is not. The value is never
+ * printed either way.
+ */
+const NEEDS_AUTH = process.env.GUSTALE_WALK_NO_AUTH !== "1";
+
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },
 ];
 
-/** The pages the walk visits. */
+/**
+ * The pages the walk visits.
+ *
+ * The RECIPE page is DISCOVERED, not hardcoded.
+ *
+ * The staging database has one pilot recipe
+ * (`moussaka-pilot-recipe`), and the walk used to name it directly.
+ * But the PRODUCTION database has an EMPTY `recipes` table -- zero
+ * published recipes -- so `gustale.com/recipes` correctly renders
+ * "No recipes published yet" and there is no recipe page to walk.
+ *
+ * A hardcoded slug would therefore make the walk fail on production
+ * for a reason that is not a defect: it would be asserting that a
+ * page exists which the content does not have yet.
+ *
+ * So the walk discovers one: it asks the site's own /recipes index for
+ * a recipe link, and if there is none it records that the section is
+ * empty and does not assert a recipe page. The section index itself
+ * is still walked and must still serve 200.
+ */
 const PAGES = [
   { path: "/", label: "home" },
   { path: "/dishes", label: "dishes" },
   { path: "/recipes", label: "recipes" },
   { path: "/map", label: "map" },
   { path: "/ingredients/eggplant", label: "ingredient" },
-  { path: "/recipes/moussaka-pilot-recipe", label: "recipe" },
   { path: "/admin", label: "admin" },
 ];
+
+/**
+ * Find a recipe page on this site, or null when there is none.
+ *
+ * It reads the /recipes index and takes the first recipe link from it.
+ * The API is not consulted: the index is what a crawler sees, so if
+ * the index links no recipe, there is no recipe page to prove.
+ */
+async function discoverRecipePage(browser, base, auth) {
+  const ctx = await browser.newContext({
+    ...(auth
+      ? { httpCredentials: { username: auth.user, password: auth.pass } }
+      : {}),
+  });
+  try {
+    const res = await ctx.request.get(`${base}/recipes`, { timeout: 30000 });
+    if (res.status() !== 200) return null;
+    const body = await res.text();
+    const m = body.match(/href="(\/recipes\/[a-z0-9-]+)"/);
+    return m ? m[1] : null;
+  } finally {
+    await ctx.close();
+  }
+}
 
 /**
  * The basic-auth credential, read from the netrc.
@@ -71,6 +123,7 @@ const PAGES = [
  * with an opaque 401.
  */
 function readNetrc() {
+  if (!NEEDS_AUTH) return null;
   if (!fs.existsSync(NETRC)) {
     throw new Error(
       `no netrc at ${NETRC} — the staging credential is required for the walk`,
@@ -146,10 +199,10 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
   const ctx = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 2,
-    httpCredentials: {
-      username: auth.user,
-      password: auth.pass,
-    },
+    // A public site needs no credential; a site behind basic auth does.
+    ...(auth
+      ? { httpCredentials: { username: auth.user, password: auth.pass } }
+      : {}),
   });
   const page = await ctx.newPage();
 
@@ -209,9 +262,24 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
   const browser = await chromium.launch();
   const results = {};
 
+  // The recipe page, if this site has one.
+  const recipePath = await discoverRecipePage(browser, BASE, auth);
+  const pages = recipePath
+    ? [...PAGES, { path: recipePath, label: "recipe" }]
+    : PAGES;
+  console.log("=== the pages this walk visits ===");
+  for (const p of pages) console.log(`   ${p.path}`);
+  if (!recipePath) {
+    console.log(
+      "  NOTE: this site publishes NO recipe yet, so there is no recipe",
+    );
+    console.log("        page to walk. The /recipes index is still walked.");
+  }
+  console.log("");
+
   for (const v of VIEWPORTS) {
     console.log(`=== the ${v.name} walk (${v.width}x${v.height}) ===`);
-    for (const p of PAGES) {
+    for (const p of pages) {
       const key = `${p.label}-${v.name}`;
       results[key] = await shoot(browser, {
         url: `${BASE}${p.path}`,
@@ -248,14 +316,14 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
     console.log("");
     console.log(`--- ${v.name} ---`);
 
-    for (const p of PAGES) {
+    for (const p of pages) {
       const r = results[`${p.label}-${v.name}`];
       check(r?.status === 200, `${p.path} serves 200 (got ${r?.status})`);
     }
 
     // The canonical must be on THIS origin, and never on a retired
     // host.
-    for (const p of PAGES) {
+    for (const p of pages) {
       const r = results[`${p.label}-${v.name}`];
       const c = r?.canonical ?? "";
       // /admin is a noindex shell: it must NOT carry a canonical at
@@ -314,7 +382,7 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
     // on purpose: it is proving the shell leaks no data, and the
     // signed-in lifecycle is proven separately by
     // scripts/verify-staging-admin-lifecycle.sh.
-    for (const p of PAGES) {
+    for (const p of pages) {
       const r = results[`${p.label}-${v.name}`];
       const isAdmin = p.path === "/admin";
       const realConsoleErrors = (r?.consoleErrors ?? []).filter(
@@ -349,7 +417,7 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
     }
 
     // The layout must not overflow horizontally.
-    for (const p of PAGES) {
+    for (const p of pages) {
       const r = results[`${p.label}-${v.name}`];
       const overflow =
         r?.scrollWidth !== undefined && r?.clientWidth !== undefined
@@ -374,7 +442,9 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
   for (const v of VIEWPORTS) {
     const ctx = await browser.newContext({
       viewport: { width: v.width, height: v.height },
-      httpCredentials: { username: auth.user, password: auth.pass },
+      ...(auth
+        ? { httpCredentials: { username: auth.user, password: auth.pass } }
+        : {}),
     });
     for (const p of ["/dishes/", "/recipes/"]) {
       const response = await ctx.request.get(`${BASE}${p}`, {
