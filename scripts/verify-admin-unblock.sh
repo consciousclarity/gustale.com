@@ -91,15 +91,31 @@ ADMIN_ROUTES=(
   "/api/admin/dishes?limit=5"
   "/api/admin/dishes/moussaka-greek"
   "/api/admin/dishes/moussaka-greek/sources"
-  "/api/admin/dishes/moussaka-greek/sources/00000000-0000-0000-0000-000000000000"
   "/api/admin/translations/review-queue"
   "/api/admin/translations/stale-queue"
   "/api/admin/translations/proposals"
   "/api/admin/translations/summary"
-  "/api/admin/translations/00000000-0000-0000-0000-000000000000/propose"
-  "/api/admin/translations/00000000-0000-0000-0000-000000000000/resolve"
-  "/api/admin/translations/00000000-0000-0000-0000-000000000000/review"
 )
+
+# NOTE: the list above holds ONLY the routes that exist as GET.
+#
+# Three admin paths exist ONLY as write routes -- there is no GET for
+# them:
+#
+#   PATCH|DELETE /api/admin/dishes/:slug/sources/:citationId
+#   POST        /api/admin/translations/:id/propose
+#   POST        /api/admin/translations/:id/resolve
+#   POST        /api/admin/translations/:id/review
+#
+# A GET on one of those answers 404, which is the CORRECT answer: the
+# method does not exist on that path. Probing them with GET and then
+# reading the 404 as "the admin gate is missing" is backwards -- it
+# tests a route that was never there and then blames the auth layer.
+# The write-method list below proves those four paths properly.
+#
+# The 404-vs-401 distinction that DOES matter is kept: a GET on a
+# route that exists as a GET must answer 401/403, and a 404 there
+# means the route is genuinely gone.
 
 for p in "${ADMIN_ROUTES[@]}"; do
   code=$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$ORIGIN$p" 2>/dev/null || echo 000)
@@ -109,7 +125,6 @@ for p in "${ADMIN_ROUTES[@]}"; do
     *)       bad "GET  $p -> $code (MUST be 401 or 403)" ;;
   esac
 done
-
 # The WRITE routes, with the methods they use.
 for spec in \
   "POST|/api/admin/dishes/moussaka-greek/sources" \

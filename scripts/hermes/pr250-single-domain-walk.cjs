@@ -47,6 +47,16 @@ const NETRC =
   process.env.GUSTALE_NETRC ||
   "/home/alex/.hermes/secrets/staging-hermes.netrc";
 
+/**
+ * Production needs NO basic auth -- it is a public site. The credential
+ * is only required for a site that sits behind it.
+ *
+ * So the netrc is OPTIONAL: it is read when it is there (and the walk
+ * then carries it), and skipped when it is not. The value is never
+ * printed either way.
+ */
+const NEEDS_AUTH = process.env.GUSTALE_WALK_NO_AUTH !== "1";
+
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },
@@ -71,6 +81,7 @@ const PAGES = [
  * with an opaque 401.
  */
 function readNetrc() {
+  if (!NEEDS_AUTH) return null;
   if (!fs.existsSync(NETRC)) {
     throw new Error(
       `no netrc at ${NETRC} — the staging credential is required for the walk`,
@@ -146,10 +157,10 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
   const ctx = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 2,
-    httpCredentials: {
-      username: auth.user,
-      password: auth.pass,
-    },
+    // A public site needs no credential; a site behind basic auth does.
+    ...(auth
+      ? { httpCredentials: { username: auth.user, password: auth.pass } }
+      : {}),
   });
   const page = await ctx.newPage();
 
@@ -374,7 +385,9 @@ async function shoot(browser, { url, file, viewport, label, auth }) {
   for (const v of VIEWPORTS) {
     const ctx = await browser.newContext({
       viewport: { width: v.width, height: v.height },
-      httpCredentials: { username: auth.user, password: auth.pass },
+      ...(auth
+        ? { httpCredentials: { username: auth.user, password: auth.pass } }
+        : {}),
     });
     for (const p of ["/dishes/", "/recipes/"]) {
       const response = await ctx.request.get(`${BASE}${p}`, {

@@ -65,9 +65,28 @@ grep -n -A4 '^gustale\.com,$' "$CADDYFILE" | head -10
 cp -a "$CADDYFILE" "$BACKUP"
 echo "the Caddyfile is backed up at $BACKUP"
 
-# ─── 2. install the vhost file ───────────────────────────────────────────
-install -m 644 "$VHOST" "$VHOST"
-echo "the vhost file is in place at $VHOST"
+# ─── 2. the vhost file must be in place ─────────────────────────────────
+#
+# The vhost is INSTALLED by the caller (from the repo's reviewed copy)
+# BEFORE this script runs. This script does NOT copy it, because
+# `install SRC DST` where SRC and DST are the same file is an ERROR
+# ("are the same file") -- which would abort the script right here,
+# before the Caddyfile was touched, so the Caddyfile would be left
+# unmodified but the script would report a failure.
+#
+# So this step is a CHECK, not a copy: the file must exist, and it must
+# be the reviewed one. The check compares it against the repo copy when
+# one is supplied via GUSTALE_VHOST_SHA, which is how the operator
+# proves the installed file is the reviewed file.
+if [ -n "${GUSTALE_VHOST_SHA:-}" ]; then
+  got=$(sha256sum "$VHOST" | cut -d' ' -f1)
+  if [ "$got" != "$GUSTALE_VHOST_SHA" ]; then
+    fail "the vhost at $VHOST has sha $got, expected $GUSTALE_VHOST_SHA"
+  fi
+  echo "the vhost file matches the reviewed copy (sha $got)"
+else
+  echo "the vhost file is in place at $VHOST"
+fi
 
 # ─── 3. replace the inline block with an import ──────────────────────────
 #
