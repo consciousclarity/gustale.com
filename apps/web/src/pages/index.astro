@@ -48,6 +48,7 @@ import Layout from "../layouts/Layout.astro";
 import {
   ApiError,
   getAtlasCounts,
+  getDishJourney,
   getFamilyTaxonomy,
   getFeaturedDishes,
   getIngredient,
@@ -56,6 +57,11 @@ import {
   listLineages,
   type MapDish,
 } from "../lib/api";
+import {
+  routeCaption,
+  routeFromChapters,
+  type RouteChapter,
+} from "../lib/public-relationship";
 import type { FeaturedDish } from "../types/dish";
 import type { LineageSummary } from "../types/lineage";
 
@@ -427,9 +433,7 @@ const mapThread = threads[0] ?? null;
 //
 // The markers are the PLACES the thread's dishes belong to, each
 // carrying the number of the thread's dishes there — the mockup's
-// numbered clusters. The route line runs through them in the order the
-// lineage lists the dishes, because a line whose order is arbitrary
-// claims a journey the data does not support.
+// numbered clusters.
 //
 // The thread's dishes come from the lineage detail; their coordinates
 // come from the map endpoint. A dish with no usable coordinate is
@@ -460,15 +464,130 @@ const mapData = await (async () => {
   const bySlug = new Map<string, MapDish>();
   for (const dish of map.value.dishes ?? []) bySlug.set(dish.slug, dish);
 
-  // The places, in the order the dishes first reach them.
-  const places: {
+  // ── The thread's SOURCED CHAPTERS ────────────────────────────────────
+  //
+  // A route is a claim about TRANSMISSION — "the idea went from here to
+  // there" — so it may only contain INFLUENCE, and only an influence
+  // that CARRIES A SOURCE. The blueprint says an influence "needs a
+  // source that states the transmission", and `journey.ts` already
+  // applies the same rule to a journey's movements.
+  //
+  // The sourced transmission is recorded in the dish's JOURNEY: a
+  // chapter (a beat) with a `source` is the dish in that place, with a
+  // citation behind it. A chapter WITHOUT a source is an unsourced
+  // chapter — it is shown on the dish page as such, and it is NOT a
+  // stop on the route.
+  //
+  // WHY THIS MATTERS: the route used to be built from each dish's
+  // ORIGIN PLACE. Every dish in the thread contributed its origin,
+  // including the thread's COUSINS — Goulash (Hungary), Tagine
+  // (Morocco), Kimchi Jjigae (South Korea), which are in the curry
+  // thread as `parallel_evolution`, a pure RESEMBLANCE. So the caption
+  // read "India to Indonesia to United Kingdom to Hungary to Morocco to
+  // South Korea": three places that have nothing to do with how the
+  // idea travelled, presented as if they did.
+  //
+  // A dish with no journey at all contributes NOTHING to the route. It
+  // still gets a marker on the map — a marker is a position, not a
+  // claim — but it is not a stop.
+  //
+  // The dish's ROLE in the thread is read from the journey's own
+  // lineage entry: `regional_variant` for a local variant of the core
+  // idea, `cousin` for "same logic, possibly separate origin",
+  // `parallel_evolution` for "same logic, separate origin". Only the
+  // first is a transmission, so only the first may be a stop — see
+  // `lib/public-relationship.ts`.
+  const chapters: RouteChapter[] = [];
+  for (const dish of ordered) {
+    const journey = await load(() => getDishJourney(dish.slug));
+    if (!journey.ok) continue;
+
+    // The dish's role in THIS thread — the one the map is showing.
+    const lineageRole =
+      journey.value.lineages?.find((l) => l.slug === mapThread.slug)?.role ??
+      null;
+
+    for (const beat of journey.value.beats ?? []) {
+      if (!beat.placeName) continue;
+      chapters.push({
+        dishSlug: dish.slug,
+        sequence: beat.sequence,
+        placeName: beat.placeName,
+        lineageRole,
+        lat: beat.lat,
+        lng: beat.lng,
+        source: beat.source
+          ? {
+              id: beat.source.id,
+              citationText: beat.source.citationText,
+              title: beat.source.title,
+              url: beat.source.url,
+            }
+          : null,
+      });
+    }
+  }
+
+  const route = routeFromChapters(chapters, {
+    dishOrder: ordered.map((d) => d.slug),
+  });
+
+  // ── THE MAP'S MARKERS ───────────────────────────────────────────────
+  //
+  // TWO KINDS OF MARKER, AND THEY MUST NOT BE MIXED
+  //
+  // A STOP — a place the sourced transmission passed through. These
+  // carry the route's own coordinates, taken from the journey chapter
+  // that put them on the route, so the line is drawn through the
+  // places the caption names. Portugal and Goa, not "India".
+  //
+  // A PLACE — a place one of the thread's dishes BELONGS to. These are
+  // the dish's origin region, from the map endpoint. They are shown so
+  // the reader can see where the thread's dishes come from, and they
+  // are deliberately quieter than the stops.
+  //
+  // The two sets are kept apart, and a place that is also a stop is
+  // shown ONCE, as a stop. A marker is a position, not a claim; only a
+  // stop is a claim about how the idea travelled.
+  const dishNamesBySlug = new Map(ordered.map((d) => [d.slug, d.name]));
+
+  const stops: {
     name: string;
     lat: number;
     lng: number;
     count: number;
     dishNames: string[];
   }[] = [];
-  const byPlace = new Map<string, (typeof places)[number]>();
+  const stopByName = new Map<string, (typeof stops)[number]>();
+
+  for (const stop of route) {
+    if (stop.lat === null || stop.lng === null) continue;
+    const entry = {
+      name: stop.name,
+      lat: stop.lat,
+      lng: stop.lng,
+      count: stop.dishSlugs.length,
+      dishNames: stop.dishSlugs
+        .map((slug) => dishNamesBySlug.get(slug))
+        .filter((n): n is string => Boolean(n)),
+    };
+    stopByName.set(stop.name, entry);
+    stops.push(entry);
+  }
+
+  // The thread's places — every dish's origin region. A place that is
+  // already a stop is not repeated.
+  //
+  // AND: a place that lands on the SAME SPOT as a stop is not drawn at
+  // all. Glasgow and "United Kingdom" are the same pixel on this map,
+  // and Goa and "India" are one pixel apart — the region's centroid
+  // and the journey's city. Drawing both puts two discs on top of each
+  // other, and the reader sees one place with a contradictory number
+  // on it. When a stop and a place coincide, the STOP wins: it is the
+  // one that carries the claim.
+  const places: (typeof stops)[] = [...stops];
+  const byPlace = new Map<string, (typeof stops)[number]>();
+  for (const entry of stops) byPlace.set(entry.name, entry);
 
   for (const dish of ordered) {
     const plotted = bySlug.get(dish.slug);
@@ -483,6 +602,22 @@ const mapData = await (async () => {
       existing.dishNames.push(dish.name);
       continue;
     }
+
+    // Is this the same spot as a stop? Skip it — the stop already
+    // stands there.
+    //
+    // The threshold is in DEGREES, chosen to match the map's pixel
+    // scale: the map is 1000px wide over 360 degrees, so 0.5 degrees
+    // is about 1.4px — tight enough to catch Glasgow/"United
+    // Kingdom" (identical) and Goa/"India" (1px apart), loose enough
+    // that two genuinely different cities stay apart.
+    const overlapping = stops.find((stop) => {
+      const dx = stop.lng - plotted.lng!;
+      const dy = stop.lat - plotted.lat!;
+      return Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5;
+    });
+    if (overlapping) continue;
+
     const entry = {
       name: placeName,
       lat: plotted.lat,
@@ -494,64 +629,27 @@ const mapData = await (async () => {
     places.push(entry);
   }
 
-  if (places.length === 0) return null;
-
-  return { places };
+  return {
+    places,
+    route,
+  };
 })();
 
 // The route, as the places it passes through.
 //
-// THE ROUTE IS THE PLACES, IN THE THREAD'S ORDER
-// The mockup's route runs "India to Indonesia and Britain" — the
-// thread's ORIGIN first, then the places the idea reached. So the
-// route is ordered by where the thread starts, not by the order the
-// dishes happen to be listed in.
+// THE ROUTE IS THE SOURCED INFLUENCES, IN THE JOURNEY'S ORDER
 //
-// The thread's origin regions are the classification ("Indian
-// subcontinent"); the places are the concrete ones ("India"). They do
-// not always match word for word, so the match is on the region's
-// DISTINCTIVE words — the part that names a place — and not on the
-// whole string. "Indian subcontinent" and "India" share "India";
-// "Mediterranean basin" and "Italy" share nothing, and then the
-// thread's origin place simply is not among its dishes.
-const mapRoute: string[] = mapData
-  ? (() => {
-      const places = mapData.places;
-      const origin = mapThread?.originRegions ?? [];
+// It is NOT the thread's dish origins. A route is a claim about
+// transmission, so it may contain only an influence that carries a
+// source — see `lib/public-relationship.ts`, which owns that rule and
+// the test that a resemblance can never reach a caption.
+//
+// The caption and the map's route line come from the SAME stops, so the
+// two can never disagree.
+const mapRoute: string[] = mapData ? mapData.route.map((s) => s.name) : [];
 
-      // The distinctive word of a region: the word that names a place.
-      // "Indian subcontinent" → "indian"; "East Asia" → "asia".
-      //
-      // The adjective form is matched by STEM, so "indian" matches the
-      // place "india" — the stem of each word is compared rather than the
-      // whole word.
-      const originStems = origin
-        .flatMap((region) => region.split(/[\s,]+/))
-        .filter((word) => word.length >= 4)
-        .map((word) => word.toLowerCase().replace(/[^a-z]/g, ""));
-
-      const originIndex = places.findIndex((p) => {
-        const name = p.name.toLowerCase().replace(/[^a-z]/g, "");
-        if (!name) return false;
-        return originStems.some((stem) => {
-          // The stem matches when one contains the other, and the shorter
-          // of the two is at least four characters — so "india" matches
-          // "indian", but "iran" does not match "indian".
-          const shorter = stem.length <= name.length ? stem : name;
-          const longer = stem.length <= name.length ? name : stem;
-          return shorter.length >= 4 && longer.includes(shorter);
-        });
-      });
-
-      if (originIndex <= 0) return places.map((p) => p.name);
-
-      // The origin place first, then the rest in their own order.
-      return [
-        places[originIndex].name,
-        ...places.filter((_, i) => i !== originIndex).map((p) => p.name),
-      ];
-    })()
-  : [];
+// The caption's text — the same stops, joined with " to ".
+const mapRouteCaption: string = mapData ? routeCaption(mapData.route) : "";
 
 // ─── The evidence legend ───────────────────────────────────────────────
 //
@@ -614,7 +712,7 @@ const LEGEND_KINDS = ["associated", "resembles", "influenced"] as const;
             <figcaption class="home__map-caption">
               <strong>{HERO_MAP_LABEL}</strong>{" "}
               {mapThread.name.toLowerCase()}
-              {mapRoute.length > 1 ? `, ${mapRoute.join(" to ")}` : ""}.{" "}
+              {mapRouteCaption ? `, ${mapRouteCaption}` : ""}.{" "}
               <a href={`/lineages/${mapThread.slug}`}>Read the thread</a>
             </figcaption>
           </figure>

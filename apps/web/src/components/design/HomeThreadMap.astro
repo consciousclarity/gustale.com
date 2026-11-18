@@ -53,12 +53,21 @@ export interface Props {
   /**
    * The route, as an ordered list of place names.
    *
-   * The route order is the THREAD'S order — the origin place first —
-   * not the order the dishes happen to be listed in. When the route
-   * names every place, the line follows it. When it does not, the
-   * markers' own order is used, because a line through a subset in a
-   * stated order is still a claim, and the subset is the claim the
-   * caption makes.
+   * The route is the SOURCED INFLUENCES the thread's transmission
+   * actually passed through — see `lib/public-relationship.ts`. It is
+   * NOT every place the thread's dishes belong to: a dish that is a
+   * cousin, or that has no sourced chapter, contributes a MARKER but
+   * not a STOP.
+   *
+   * The line follows the route EXACTLY. A line that visits a subset of
+   * the markers in a stated order is a claim about a journey, and the
+   * claim has to be the same one the caption makes — so the two come
+   * from the same stops, and the line is drawn through those and only
+   * those.
+   *
+   * When the route is empty there is no journey to draw, and no line is
+   * drawn at all. Drawing a line through the markers' own order would
+   * claim a journey the data does not support.
    */
   route?: string[];
 }
@@ -87,19 +96,82 @@ const markers = places
 
 // The route order, applied to the markers.
 //
-// The route names places; the markers are places. So the route's order
-// becomes the markers' order — and only when the route names every
-// marker, because a line that visits some of its stops and skips
-// others draws a journey the caption does not describe.
-const orderedMarkers =
-  route.length === markers.length && route.length > 0
-    ? route
-        .map((name) => markers.find((m) => m.name === name))
-        .filter((m): m is (typeof markers)[number] => m !== undefined)
-    : markers;
+// THE LINE FOLLOWS THE ROUTE EXACTLY
+// ----------------------------------
+// The markers are the thread's PLACES — every dish's origin, including
+// the cousins'. The route is the journey the sourced transmission
+// actually took, and it is usually SHORTER.
+//
+// So a marker can be one of two things:
+//
+//   a STOP — its place is named in the route. The line passes through
+//            it, in the route's order.
+//   a MARKER ONLY — the place is not on the route. It is still shown,
+//            because a marker is a position and not a claim, but the
+//            line does NOT pass through it.
+//
+// The old code fell back to "the markers' own order" when the route
+// did not name every marker. That fallback drew a line through the
+// cousins' origins — Hungary, Morocco, South Korea — and so the map
+// asserted the same wrong journey the caption did. The fallback is
+// gone: a line is a claim, and a claim has to be the sourced one.
+//
+// A route place with no marker (no usable coordinate) is skipped: the
+// line connects the places it CAN draw, and the caption names all of
+// them. The caption is the precise claim; the line is the drawing of
+// it.
+const routeStops = route
+  .map((name) => markers.find((m) => m.name === name))
+  .filter((m): m is (typeof markers)[number] => m !== undefined);
 
-// The route line, through the markers in order.
-const routePoints = orderedMarkers.map((m) => `${m.x},${m.y}`).join(" ");
+const onRoute = new Set(routeStops.map((m) => m.name));
+
+// The line's points, in the route's order.
+const routePoints = routeStops.map((m) => `${m.x},${m.y}`).join(" ");
+
+// ─── DE-COLLISION ──────────────────────────────────────────────────────
+//
+// Two markers can be close enough to touch: Portugal (a stop) and
+// Morocco (a place) are 15px apart on this map, and a marker is 22px
+// wide, so their discs overlap and the reader sees one blob instead of
+// two places.
+//
+// The offset is a DRAWING fix, not a data fix. The place's real
+// coordinates stay in the data; only the drawn position moves, by a
+// few pixels, and only far enough to clear the marker it collides
+// with.
+//
+// A STOP IS NEVER MOVED. The stop is the claim — its position is where
+// the sourced transmission happened, and the line points at it. So
+// when a place collides with a stop, the PLACE is the thing that
+// yields.
+//
+// The nudge is small and in one direction: down and to the right,
+// away from the stop. That keeps the change legible as "these two are
+// neighbours" rather than "these two are the same place".
+const MARKER_R = 11;
+const MIN_GAP = MARKER_R * 2 + 3;
+
+const drawn = markers.map((m) => ({ ...m }));
+
+for (const stop of routeStops) {
+  for (const m of drawn) {
+    if (m.name === stop.name) continue;
+    if (onRoute.has(m.name)) continue;
+    const dx = m.x - stop.x;
+    const dy = m.y - stop.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= MIN_GAP) continue;
+
+    // Push it out along the line from the stop to the place. If the
+    // place is exactly on the stop, push it down-right — there is no
+    // direction to prefer.
+    const unitX = distance < 0.01 ? 0.7 : dx / distance;
+    const unitY = distance < 0.01 ? 0.7 : dy / distance;
+    m.x = stop.x + unitX * MIN_GAP;
+    m.y = stop.y + unitY * MIN_GAP;
+  }
+}
 
 const label = `A world map showing ${markers.length} places on a thread's route, with the number of dishes at each.`;
 ---
@@ -116,12 +188,17 @@ const label = `A world map showing ${markers.length} places on a thread's route,
       >
         <use href="/hero-world-land.svg#land" class="home-map__land" />
 
-        {markers.length > 1 ? (
+        {routeStops.length > 1 ? (
           <polyline points={routePoints} class="home-map__route" fill="none" />
         ) : null}
 
-        {markers.map((m) => (
-          <g class="home-map__marker">
+        {drawn.map((m) => (
+          <g
+            class:list={[
+              "home-map__marker",
+              onRoute.has(m.name) ? "home-map__marker--stop" : "home-map__marker--place",
+            ]}
+          >
             <circle cx={m.x} cy={m.y} r="11" class="home-map__marker-disc" />
             <text x={m.x} y={m.y} class="home-map__marker-count">
               {m.count}
@@ -172,6 +249,22 @@ const label = `A world map showing ${markers.length} places on a thread's route,
     fill: var(--association, #1f5c5a);
     stroke: var(--card, #fbf8f1);
     stroke-width: 2;
+  }
+
+  /* A STOP — a place the sourced transmission passed through. It is
+     filled with the influence colour, so it reads as part of the route
+     line. */
+  .home-map__marker--stop .home-map__marker-disc {
+    fill: var(--influence, #94391e);
+  }
+
+  /* A PLACE ONLY — a dish belongs here, but the route does not pass
+     through here. It is shown in the association colour and is
+     deliberately quieter, so the reader can see the thread's places
+     without the map asserting a journey through them. */
+  .home-map__marker--place .home-map__marker-disc {
+    fill: var(--association, #1f5c5a);
+    opacity: 0.62;
   }
 
   .home-map__marker-count {
