@@ -40,9 +40,14 @@ from pathlib import Path
 
 import requests
 
-ENV_FILE = Path("/home/hermes/.hermes/.env")
-ORIGIN = "https://gustale.com"
-PUBLIC_BASE = "https://api.gustale.recipes"
+# The env file and the API base are overridable so the same client works
+# from the VPS (where the defaults are correct) and from a workstation.
+# GUSTALE_ENV_FILE   -> path to the .env holding GUSTALE_API_EMAIL/PASSWORD
+# GUSTALE_PUBLIC_BASE -> the API origin to talk to
+# GUSTALE_ORIGIN      -> the site origin sent as the sign-in Origin header
+ENV_FILE = Path(os.environ.get("GUSTALE_ENV_FILE", "/home/hermes/.hermes/.env"))
+ORIGIN = os.environ.get("GUSTALE_ORIGIN", "https://gustale.com")
+PUBLIC_BASE = os.environ.get("GUSTALE_PUBLIC_BASE", "https://api.gustale.recipes")
 
 # Module-level state (per-process; restart process to force re-signin).
 _session: requests.Session | None = None
