@@ -83,58 +83,80 @@ describe("pilot fixtures — review material, never live content", () => {
 });
 
 describe("section nav — every link reaches real content", () => {
-  it("puts Journey first", () => {
+  // WP-C2 changed the nav's contract. It used to be "Journey first",
+  // because the journey was the first substantive section. The
+  // blueprint's dish page puts the nav in a fixed order:
+  //
+  //   Overview · Where · History · Connections · Variants ·
+  //   Ingredients · Recipes · Sources
+  //
+  // and "Overview" is always present. So the order is a property of
+  // the registry, not of the data.
+
+  it("puts Overview first", () => {
     const links = buildSectionLinks({
-      hasJourney: true,
-      hasIngredients: true,
+      hasWhere: true,
+      hasHistory: true,
+      hasConnections: true,
       hasVariants: true,
-      hasPreparation: true,
+      hasIngredients: true,
+      hasRecipes: true,
       hasSources: true,
     });
-    assert.equal(links[0]?.id, DISH_SECTION_IDS.journey);
-    assert.equal(links[0]?.label, "Journey");
+    assert.equal(links[0]?.id, DISH_SECTION_IDS.overview);
+    assert.equal(links[0]?.label, "Overview");
   });
 
-  it("omits a section that is not on the page", () => {
+  it("keeps the blueprint's order", () => {
     const links = buildSectionLinks({
-      hasJourney: true,
-      hasIngredients: false,
-      hasVariants: false,
-      hasPreparation: false,
+      hasWhere: true,
+      hasHistory: true,
+      hasConnections: true,
+      hasVariants: true,
+      hasIngredients: true,
+      hasRecipes: true,
       hasSources: true,
     });
     assert.deepEqual(
       links.map((l) => l.id),
       [
-        DISH_SECTION_IDS.journey,
+        DISH_SECTION_IDS.overview,
+        DISH_SECTION_IDS.where,
+        DISH_SECTION_IDS.history,
+        DISH_SECTION_IDS.connections,
+        DISH_SECTION_IDS.variants,
+        DISH_SECTION_IDS.ingredients,
+        DISH_SECTION_IDS.recipes,
         DISH_SECTION_IDS.sources,
-        // The places & traditions section is on every dish page, so it
-        // is always in the nav.
-        DISH_SECTION_IDS.places,
       ],
     );
   });
 
-  it("always reaches the places & traditions section", () => {
+  it("omits a section that is not on the page", () => {
     const links = buildSectionLinks({
-      hasJourney: true,
-      hasIngredients: false,
+      hasWhere: false,
+      hasHistory: false,
+      hasConnections: false,
       hasVariants: false,
-      hasPreparation: false,
-      hasSources: false,
+      hasIngredients: false,
+      hasRecipes: false,
+      hasSources: true,
     });
-    const places = links.find((l) => l.id === DISH_SECTION_IDS.places);
-    assert.ok(places, "the nav has no link to the places & traditions section");
-    assert.equal(places.label, "Places & traditions");
+    assert.deepEqual(
+      links.map((l) => l.id),
+      [DISH_SECTION_IDS.overview, DISH_SECTION_IDS.sources],
+    );
   });
 
   it("never links to an anchor that does not exist", () => {
     const ids = new Set<string>(Object.values(DISH_SECTION_IDS));
     const links = buildSectionLinks({
-      hasJourney: true,
-      hasIngredients: true,
+      hasWhere: true,
+      hasHistory: true,
+      hasConnections: true,
       hasVariants: true,
-      hasPreparation: true,
+      hasIngredients: true,
+      hasRecipes: true,
       hasSources: true,
     });
     for (const l of links) {
@@ -142,16 +164,17 @@ describe("section nav — every link reaches real content", () => {
     }
   });
 
-  it("still includes Journey when nothing else is on the page", () => {
+  it("always has Overview, even when nothing else is on the page", () => {
     const links = buildSectionLinks({
-      hasJourney: true,
-      hasIngredients: false,
+      hasWhere: false,
+      hasHistory: false,
+      hasConnections: false,
       hasVariants: false,
-      hasPreparation: false,
+      hasIngredients: false,
+      hasRecipes: false,
       hasSources: false,
     });
-    assert.equal(links.length, 2);
-    assert.equal(links[0]?.id, DISH_SECTION_IDS.journey);
-    assert.equal(links[1]?.id, DISH_SECTION_IDS.places);
+    assert.equal(links.length, 1);
+    assert.equal(links[0]?.id, DISH_SECTION_IDS.overview);
   });
 });

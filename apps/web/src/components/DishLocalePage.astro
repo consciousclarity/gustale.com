@@ -1,11 +1,18 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { getDishDetail, getDishJourney } from "../lib/api";
+import {
+  getDishDetail,
+  getDishJourney,
+  getDishRelations,
+  type RelatedDish,
+} from "../lib/api";
 import { buildLocales } from "../lib/buildScope";
 import { getFilterPageIndex, pathPageSlugs } from "../lib/filterPages";
 import { type CoreLocale, dishUrl, hreflangAlternates } from "../lib/locales";
 import type { DishDetailResponse } from "../types/dish";
+import { DishContentSections } from "./DishContentSections";
 import { DishDetail } from "./DishDetail";
+import type { JourneyBeat } from "./DishJourney";
 import { EditDishButton } from "./EditDishButton";
 import { RelatedDishes } from "./RelatedDishes";
 
@@ -43,15 +50,11 @@ if (notFound) {
 }
 
 // ── The journey beats ──────────────────────────────────────────────────
-let journeyBeats: DishDetailResponse extends never ? never : any[] = [];
-let journeyLineages: any[] = [];
-let journeyMovements: any[] = [];
+let journeyBeats: JourneyBeat[] = [];
 let journeyStatus: "history" | "gap" | "unavailable" = "gap";
 try {
   const j = await getDishJourney(slug);
   journeyBeats = (j as any)?.beats ?? [];
-  journeyLineages = (j as any)?.lineages ?? [];
-  journeyMovements = (j as any)?.movements ?? [];
   // A dish with no chapters is a research gap; a failed fetch is an
   // operational failure. The page must not confuse the two.
   journeyStatus = (j as any)?.status === "history" ? "history" : "gap";
@@ -59,6 +62,18 @@ try {
   // The journey is optional — a dish without one still renders. But a
   // failed fetch is NOT a research gap.
   journeyStatus = "unavailable";
+}
+
+// ── The relations, for the Connections block ───────────────────────────
+//
+// `null` means "not fetched", which is DIFFERENT from `[]` — an empty
+// array claims the dish has no relations, and that is a claim.
+let relations: RelatedDish[] | null = null;
+try {
+  const r = await getDishRelations(slug);
+  relations = r.related ?? null;
+} catch {
+  relations = null;
 }
 
 // ── The locales this dish actually has content in ─────────────────────
@@ -117,21 +132,41 @@ const localeUrls = Object.fromEntries(
       <DishDetail
         dish={data.dish}
         origin={data.origin}
-        variants={data.variants}
-        ingredients={data.ingredients}
         categories={data.categories}
         tags={data.tags}
-        preparations={data.preparations}
-        sources={data.sources}
         media={data.media}
         unevidenced={data.unevidenced}
-        journeyBeats={journeyBeats}
-        journeyLineages={journeyLineages}
-        journeyMovements={journeyMovements}
-        journeyStatus={journeyStatus}
+        dimensions={data.dimensions}
+        names={data.names}
+        places={[]}
+        hasWhere={data.origin !== null}
+        hasHistory={true}
+        hasConnections={relations !== null && relations.length > 0}
+        hasVariants={data.variants.length > 0}
+        hasIngredients={data.ingredients.length > 0}
+        hasRecipes={true}
+        hasSources={data.sources.length > 0}
         pathPages={pathPages}
         client:load
       />
+
+      {/* THE CONTENT SECTIONS (WP-C2) — the same sections the default
+      locale's dish page renders, in the same order, so a localised page
+      is not a different page. */}
+      <div class="wrap">
+        <DishContentSections
+          dish={data.dish}
+          relations={relations}
+          variants={data.variants}
+          ingredients={data.ingredients}
+          preparations={data.preparations}
+          sources={data.sources}
+          recipes={[]}
+          journeyBeats={journeyBeats}
+          journeyStatus={journeyStatus}
+          unevidenced={data.unevidenced}
+        />
+      </div>
 
       <RelatedDishes slug={data.dish.slug} client:visible />
 

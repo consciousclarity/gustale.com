@@ -626,6 +626,70 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/dishes/:slug/relations — the relations of one dish, grouped
+  // by relation type.
+  //
+  // The dish page's Connections block reads this. It is registered
+  // before the dish route below, because that route matches
+  // /api/dishes/<slug> EXACTLY and would otherwise shadow it.
+  //
+  // The mock derives the relations from the ATLAS fixture, which is
+  // where the connection records live. A dish with no connections gets
+  // an empty grouping — which is what the API says for such a dish,
+  // and NOT an error: "no relations" is a fact, not a failure.
+  const relationsMatch = url.pathname.match(
+    /^\/api\/dishes\/([^/]+)\/relations$/,
+  );
+  if (relationsMatch) {
+    const slug = decodeURIComponent(relationsMatch[1]);
+    const atlas = ATLAS[slug];
+    const relationsByType = {};
+
+    // The captured fixture lists each connection TWICE — once per
+    // direction of the pair — so the same relation id appears twice for
+    // the same other-dish. The API returns each relation once. Dedupe
+    // by the relation id, so the mock matches the API's shape; without
+    // this the Connections block would show "Levantine Moussaka" twice
+    // under Resembles.
+    const seenRelationIds = new Set();
+
+    for (const conn of atlas?.historyAndConnections?.connections ?? []) {
+      const type = conn.relationship;
+      if (!type) continue;
+      const relationId = conn.id ?? "";
+      if (relationId && seenRelationIds.has(relationId)) continue;
+      if (relationId) seenRelationIds.add(relationId);
+      const list = relationsByType[type] ?? [];
+      list.push({
+        slug: conn.other?.slug ?? "",
+        name: conn.other?.name ?? "",
+        shortDescription: null,
+        cuisineSlug: null,
+        cuisineName: null,
+        countryName: null,
+        isoCode: null,
+        relationId,
+        relationType: type,
+        reason: conn.reason ?? null,
+        strength: 1,
+      });
+      relationsByType[type] = list;
+    }
+
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        sourceSlug: slug,
+        totalRelations: Object.values(relationsByType).reduce(
+          (n, list) => n + list.length,
+          0,
+        ),
+        relationsByType,
+      }),
+    );
+    return;
+  }
+
   // GET /api/atlas/connections — the edges between dishes, with both
   // endpoints' coordinates. The map draws these, so a mock without
   // them would bake a map with no connections at all.

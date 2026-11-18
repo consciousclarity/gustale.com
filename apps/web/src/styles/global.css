@@ -2544,11 +2544,13 @@ h4 {
   margin: 0;
   max-width: 380px;
 }
-.dish-page .world-list {
+.dish-page .world-list,
+.dish-content__section .world-list {
   display: flex;
   flex-direction: column;
 }
-.dish-page .world-item {
+.dish-page .world-item,
+.dish-content__section .world-item {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -2559,7 +2561,8 @@ h4 {
 .dish-page .world-item:last-child {
   border-bottom: none;
 }
-.dish-page .world-item:hover .wnm {
+.dish-page .world-item:hover .wnm,
+.dish-content__section .world-item:hover .wnm {
   color: var(--accent);
 }
 .dish-page .world-item .pin {
@@ -2570,14 +2573,16 @@ h4 {
   flex: 0 0 auto;
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
-.dish-page .world-item .wnm {
+.dish-page .world-item .wnm,
+.dish-content__section .world-item .wnm {
   font-family: var(--display);
   font-size: 20px;
   flex: 1;
   color: var(--ink);
   transition: color 0.14s;
 }
-.dish-page .world-item .wrg {
+.dish-page .world-item .wrg,
+.dish-content__section .world-item .wrg {
   font-size: 13px;
   color: var(--sub);
 }
@@ -2593,7 +2598,8 @@ h4 {
   position: sticky;
   top: 24px;
 }
-.dish-page .col-h {
+.dish-page .col-h,
+.dish-content__section .col-h {
   font-family: var(--display);
   font-size: 28px;
   font-weight: 400;
@@ -2607,11 +2613,13 @@ h4 {
   letter-spacing: 0.5px;
   margin-bottom: 18px;
 }
-.dish-page .ing-list {
+.dish-page .ing-list,
+.dish-content__section .ing-list {
   display: flex;
   flex-direction: column;
 }
-.dish-page .ing {
+.dish-page .ing,
+.dish-content__section .ing {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -2621,7 +2629,8 @@ h4 {
 .dish-page .ing:last-child {
   border-bottom: none;
 }
-.dish-page .ing .qty {
+.dish-page .ing .qty,
+.dish-content__section .ing .qty {
   font-family: var(--mono);
   font-size: 13px;
   color: var(--accent);
@@ -5609,6 +5618,503 @@ body.nav-panel-open {
     overflow-x: visible;
     scroll-snap-type: none;
   }
+}
+
+/* ─── WP-C2 — the dish page, in the blueprint's order ───────────────────
+ *
+ * The mockup's page is a TABLE of facts and a SET OF EVIDENCE, not a
+ * story. The rules below follow the mockup literally:
+ *
+ *   · the facts table has NO outer border, NO vertical rules, and a
+ *     thin horizontal rule under each row;
+ *   · the connections columns have NO vertical rules between them;
+ *   · "Same family" is QUIETER than the other two column headings,
+ *     because it is a classification and not a relationship;
+ *   · the relationship marks are RED — a dotted line for a resemblance
+ *     and an arrow for an influence — and the classification has NONE.
+ *
+ * Every block below is rendered server-side (no client: directive), so
+ * the CSS has to survive without hydration. It is plain CSS for that
+ * reason, not Tailwind.
+ */
+
+/* ── The section shell ─────────────────────────────────────────────────── */
+
+.dish-content__section {
+  margin: var(--space-7) 0;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line);
+}
+
+.dish-content__section > h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.dish-content__section > h2 + p {
+  margin: 0 0 var(--space-5);
+  color: var(--sub);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 46rem;
+}
+
+/* "Where it belongs" — in the Astro page, above the map. */
+.dish-where {
+  margin: var(--space-7) 0;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line);
+}
+
+.dish-where > h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.dish-where__lede {
+  margin: 0 0 var(--space-5);
+  max-width: 46rem;
+  line-height: 1.55;
+}
+
+/* ── 1. The facts table ────────────────────────────────────────────────── */
+
+.dish-facts {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: var(--space-4) 0 var(--space-6);
+}
+
+.dish-facts th,
+.dish-facts td {
+  padding: 9px 0;
+  /* The rule is BETWEEN rows: the last row has no rule under it. */
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.dish-facts tr:last-child th,
+.dish-facts tr:last-child td {
+  border-bottom: 0;
+}
+
+.dish-facts__label {
+  /* The label column is narrow and the value column wide. */
+  width: 30%;
+  padding-right: 18px;
+  color: var(--sub);
+}
+
+.dish-facts__value {
+  color: var(--ink);
+}
+
+.dish-facts__link {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The note under a value — "form, not ancestry", "not the same dish
+   as Musakka". It is a CAUTION, so it is quieter than the value and
+   never a link. */
+.dish-facts__note {
+  color: var(--sub);
+  font-style: italic;
+}
+
+/* The "UNVERIFIED" badge: a tiny outlined label, uppercase, mono. */
+.dish-facts__evidence {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sub);
+  vertical-align: 1px;
+}
+
+/* ── 2. The history claim rows ─────────────────────────────────────────── */
+
+.dish-history__lede {
+  margin: 0 0 var(--space-5);
+  color: var(--sub);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 46rem;
+}
+
+.dish-history__claims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.dish-history__claim {
+  display: grid;
+  grid-template-columns: minmax(8rem, 15rem) 1fr;
+  gap: 4px var(--space-5);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* The claim's subject: the place and the date. */
+.dish-history__claimlabel {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--sub);
+  padding-top: 2px;
+}
+
+.dish-history__claimbody {
+  min-width: 0;
+}
+
+.dish-history__claimtext {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.dish-history__claimmeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.dish-history__sourcenote {
+  min-width: 0;
+}
+
+/* The empty state: a dish with no evidenced history says so. */
+.dish-history__empty {
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.dish-history__empty p {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.dish-history__emptynote {
+  color: var(--sub) !important;
+  font-size: 0.85rem !important;
+}
+
+/* ── 3. The connections — three columns, NO vertical rules ────────────── */
+
+.dish-connections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.dish-connections__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The red mark that says "this is a RELATIONSHIP":
+   a dotted line for a resemblance, an arrow for an influence. */
+.dish-connections__mark {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.05em;
+}
+
+/* "Same family" is a CLASSIFICATION, not a relationship. So it gets
+   NO mark, and a quieter heading than the other two columns. That is
+   the A2 rule made visible — a reader must not mistake a family for
+   an ancestor or a cousin. */
+.dish-connections__heading--caps {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sub);
+}
+
+.dish-connections__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dish-connections__entry {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 14px 16px;
+}
+
+.dish-connections__entry + .dish-connections__entry {
+  margin-top: 10px;
+}
+
+.dish-connections__name {
+  display: block;
+  font-size: 1.02rem;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.dish-connections__name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dish-connections__place {
+  display: block;
+  margin: 3px 0 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sub);
+}
+
+.dish-connections__reason,
+.dish-connections__description {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--sub);
+}
+
+.dish-connections__description + .dish-connections__description {
+  margin-top: 6px;
+}
+
+/* ── 4. Ingredients and recipes, side by side ──────────────────────────── */
+
+.dish-content__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.dish-content__pair > * {
+  min-width: 0;
+}
+
+/* The pair's sections carry their own top rule, like every other
+   section — the grid is a LAYOUT, not a card. */
+.dish-content__pair > .dish-content__section {
+  margin-top: var(--space-7);
+}
+
+/* ── 5. The recipes block ──────────────────────────────────────────────── */
+
+.dish-recipes__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dish-recipes__card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  background: var(--card);
+}
+
+.dish-recipes__title {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.dish-recipes__title:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dish-recipes__timing {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--sub);
+}
+
+.dish-recipes__empty {
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.dish-recipes__emptytitle {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.dish-recipes__emptybody {
+  margin: 0;
+  color: var(--sub);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* ── 6. The sources list ───────────────────────────────────────────────── */
+
+.dish-sources-block__note {
+  margin: var(--space-4) 0 0;
+  color: var(--sub);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* ── Narrow screens: the columns stack, in the SAME ORDER ─────────────── */
+
+@media (max-width: 860px) {
+  .dish-connections,
+  .dish-content__pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+@media (max-width: 620px) {
+  .dish-facts__label {
+    width: 38%;
+  }
+
+  .dish-history__claim {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .dish-history__claimlabel {
+    order: -1;
+  }
+}
+
+/* ── The sources list (WP-C2) ──────────────────────────────────────────── */
+
+.dish-content__section .src-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: dish-source;
+}
+
+.dish-content__section .src {
+  counter-increment: dish-source;
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 4px var(--space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.dish-content__section .src:last-child {
+  border-bottom: 0;
+}
+
+.dish-content__section .src::before {
+  content: counter(dish-source);
+  grid-row: span 2;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--sub);
+  padding-top: 2px;
+}
+
+.dish-content__section .src__title {
+  color: var(--ink);
+}
+
+.dish-content__section .src__link {
+  grid-column: 2;
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+  font-size: 0.82rem;
+}
+
+.dish-content__section .src__note {
+  grid-column: 2;
+  color: var(--sub);
+  font-size: 0.82rem;
+}
+
+/* The pin beside a variant name. */
+.dish-content__section .world-item .pin {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* The section ledes, which the shared `h2 + p` rule does not reach
+   because the lede is not always the h2's next sibling. */
+.dish-connections-block__lede,
+.dish-variants-block__lede {
+  margin: 0 0 var(--space-5);
+  color: var(--sub);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 46rem;
+}
+
+/* The column wrapper: a heading and a list, nothing else. */
+.dish-connections__column {
+  min-width: 0;
+}
+
+/* A sub-heading INSIDE a section — smaller than the section's own h2,
+   so the two levels do not compete. */
+.dish-content__section .col-h--sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin: var(--space-5) 0 4px;
 }
 
 /* ─── WorldMap frame ───────────────────────────────────────────────────
