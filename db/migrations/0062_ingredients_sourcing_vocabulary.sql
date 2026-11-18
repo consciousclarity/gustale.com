@@ -1,4 +1,4 @@
--- 0057_ingredients_sourcing_vocabulary.sql
+-- 0062_ingredients_sourcing_vocabulary.sql
 -- GUS-1108 -- the ingredient vocabulary the sourcing research attaches to.
 --
 -- WHAT THIS MIGRATION DOES
@@ -77,7 +77,7 @@
 -- not set `ubiquitous`, because none of these twenty-one is a staple
 -- that every recipe needs; that is a separate judgement.
 --
--- Rule 11: this is a NEW number. 0052-0056 are frozen.
+-- Rule 11: this is a NEW number. 0052-0061 are frozen.
 
 BEGIN;
 
@@ -291,7 +291,7 @@ BEGIN
     RAISE EXCEPTION 'PROOF 6 FAILED: % slugs have more than one row', v_count;
   END IF;
 
-  RAISE NOTICE '0057: all 6 proofs passed';
+  RAISE NOTICE '0062: all 6 proofs passed';
 END $$;
 
 COMMIT;

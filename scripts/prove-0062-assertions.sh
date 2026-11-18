@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# prove-0057.sh -- the proof-mutant test for migration 0057.
+# prove-0062.sh -- the proof-mutant test for migration 0062.
 #
 # It restores an explicitly supplied plain-SQL snapshot on the
 # DEDICATED TEST postgres, applies
-# 0057, then applies MUTANTS of it and asserts that each mutant is
+# 0062, then applies MUTANTS of it and asserts that each mutant is
 # REFUSED by its own proofs.
 #
 # A proof that never fails is not a proof. Each mutant below breaks
 # one thing the migration claims, and the mutation must be caught.
 set -uo pipefail
 
-SNAPSHOT="${1:?usage: prove-0057-assertions.sh <plain-sql-snapshot>}"
+SNAPSHOT="${1:?usage: prove-0062-assertions.sh <plain-sql-snapshot>}"
 if [ ! -r "$SNAPSHOT" ]; then
   echo "FAILED: the snapshot is not readable: $SNAPSHOT" >&2
   exit 1
@@ -19,8 +19,8 @@ fi
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$REPO/scripts/lib/test_pg.sh"
 
-DB=gustale_0057_mutants
-MIG=$REPO/db/migrations/0057_ingredients_sourcing_vocabulary.sql
+DB=gustale_0062_mutants
+MIG=$REPO/db/migrations/0062_ingredients_sourcing_vocabulary.sql
 export MIG
 
 echo "=== 0. the test Postgres ==="
@@ -31,10 +31,10 @@ test_pg_create "$DB" >/dev/null
 test_pg_run "$DB" < "$SNAPSHOT" >/dev/null 2>&1 || { echo "FAILED: snapshot restore"; exit 1; }
 echo "   the copy is made"
 
-echo "=== 2. the baseline: 0057 applies and proves ==="
-test_pg_run "$DB" -f - < "$MIG" >/tmp/m57_base.log 2>&1
-if ! grep -q "0057: all 6 proofs passed" /tmp/m57_base.log; then
-  echo "FAILED: the baseline did not pass"; tail -6 /tmp/m57_base.log; exit 1
+echo "=== 2. the baseline: 0062 applies and proves ==="
+test_pg_run "$DB" -f - < "$MIG" >/tmp/m62_base.log 2>&1
+if ! grep -q "0062: all 6 proofs passed" /tmp/m62_base.log; then
+  echo "FAILED: the baseline did not pass"; tail -6 /tmp/m62_base.log; exit 1
 fi
 echo "   the baseline passes"
 

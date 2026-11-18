@@ -64,7 +64,7 @@
 -- ---------------------
 -- It does not change which family a dish belongs to. It does not
 -- delete a family. It does not publish anything. It does not touch the
--- ingredient aliases (PR #219's 0056/0057) or the Musakka variant
+-- ingredient aliases (PR #219's 0061/0062) or the Musakka variant
 -- (this migration's second part).
 --
 -- THE TWO PARTS OF WP-B1

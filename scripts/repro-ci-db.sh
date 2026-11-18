@@ -579,7 +579,7 @@ grep -E '0060: ok' /tmp/repro_0060.log | tail -1 || true
 
 # The INGREDIENT ALIASES table (migration 0061).
 #
-# It was 0056 when this branch was opened, but 0056 sorts BEFORE the
+# It was 0061 when this branch was opened, but 0061 sorts BEFORE the
 # migrations that main has already applied to live (0058, 0059, 0060),
 # and a migration that has been applied is frozen. Renumbered to 0061
 # so it sorts after everything that is live. It depends on nothing
@@ -589,12 +589,12 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0061_ingredient_aliases.sql" > /
   || { echo "  FAILED: 0061"; grep -E 'ERROR' /tmp/repro_0061.log | head -6; fail=1; }
 grep -E 'INGREDIENT_ALIASES_OK' /tmp/repro_0061.log | tail -1 || true
 
-# 0057 — the INGREDIENT SOURCING VOCABULARY (migration 0057, GUS-1108):
+# 0062 — the INGREDIENT SOURCING VOCABULARY (migration 0062, GUS-1108):
 # the 21 reviewed ingredient rows the sourcing availability rows attach
 # to. Additive; publishes nothing.
-run_pg -f - < "$(dirname "$0")/../db/migrations/0057_ingredients_sourcing_vocabulary.sql" > /tmp/repro_0057.log 2>&1 \
-  || { echo "  FAILED: 0057"; grep -E 'ERROR' /tmp/repro_0057.log | head -6; fail=1; }
-grep -E '0057: all 6 proofs passed' /tmp/repro_0057.log | tail -1 || true
+run_pg -f - < "$(dirname "$0")/../db/migrations/0062_ingredients_sourcing_vocabulary.sql" > /tmp/repro_0062.log 2>&1 \
+  || { echo "  FAILED: 0062"; grep -E 'ERROR' /tmp/repro_0062.log | head -6; fail=1; }
+grep -E '0062: all 6 proofs passed' /tmp/repro_0062.log | tail -1 || true
 
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND

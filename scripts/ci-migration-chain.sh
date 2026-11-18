@@ -258,17 +258,17 @@ MIGRATION_0054=db/migrations/0054_ingredient_category_fk.sql
 # references recipe_ingredients.
 MIGRATION_0055=db/migrations/0055_sourcing_availability.sql
 
-# 0056 is the INGREDIENT ALIASES table (migration 0056). It is the
+# 0061 is the INGREDIENT ALIASES table (migration 0061). It is the
 # mechanism behind the béchamel merge: a retired slug that must keep
 # resolving because it has a live public URL.
-MIGRATION_0056=db/migrations/0056_ingredient_aliases.sql
+MIGRATION_0061=db/migrations/0061_ingredient_aliases.sql
 
-# 0057 is the INGREDIENT SOURCING VOCABULARY (GUS-1108): the 21
+# 0062 is the INGREDIENT SOURCING VOCABULARY (GUS-1108): the 21
 # reviewed ingredient rows the sourcing research attaches to. It is
 # additive -- it writes 21 rows into `ingredients` and touches
 # nothing else -- and it comes after 0055, because the availability
 # rows it exists for live in the tables 0055 creates.
-MIGRATION_0057=db/migrations/0057_ingredients_sourcing_vocabulary.sql
+MIGRATION_0062=db/migrations/0062_ingredients_sourcing_vocabulary.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -293,8 +293,8 @@ MIGRATION_0059=db/migrations/0059_dish_families_descriptions.sql
 # writes CONTENT rows (the backfill) and deletes one row, so it runs in
 # the chain and not in the fixture seed.
 #
-# It is numbered 0058 rather than 0056 because PR #219 already claims
-# 0056 and 0057 for the ingredient alias table and the sourcing
+# It is numbered 0058 rather than 0061 because PR #219 already claims
+# 0061 and 0062 for the ingredient alias table and the sourcing
 # vocabulary. Two migrations must never share a number.
 MIGRATION_0058=db/migrations/0058_dish_families_listed.sql
 
@@ -870,16 +870,8 @@ grep -E 'INGREDIENT_CATEGORY_FK_OK' /tmp/m0054.log | tail -1 || true
 # proof rolls it back and leaves no trace.
 echo "--- the sourcing availability tables"
 run_pg -f - < "$MIGRATION_0055" >/tmp/m0055.log 2>&1 || { echo "FAILED: 0055"; grep -E 'ERROR|NOTICE' /tmp/m0055.log | tail -12; fail=1; }
-
-# ── 0056: the ingredient aliases table ──────────────────────────────
-run_pg -f - < "$MIGRATION_0056" >/tmp/m0056.log 2>&1 || { echo "FAILED: 0056"; grep -E 'ERROR|NOTICE' /tmp/m0056.log | tail -12; fail=1; }
-
-# ── 0057: the ingredient sourcing vocabulary ─────────────────────────
-run_pg -f - < "$MIGRATION_0057" >/tmp/m0057.log 2>&1 || { echo "FAILED: 0057"; grep -E 'ERROR|NOTICE' /tmp/m0057.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
-grep -E '0057: all 6 proofs passed' /tmp/m0057.log | tail -1 || true
 grep -E 'INGREDIENT_SOURCING_AVAILABILITY_OK' /tmp/m0055.log | tail -1 || true
-grep -E 'INGREDIENT_ALIASES_OK' /tmp/m0056.log | tail -1 || true
 
 # The family descriptions.
 #
@@ -920,6 +912,34 @@ echo "--- the legacy associations, published as Unverified"
 run_pg -f - < "$MIGRATION_0060" >/tmp/m0060.log 2>&1 || { echo "FAILED: 0060"; grep -E 'ERROR|NOTICE' /tmp/m0060.log | tail -14; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E '0060: ok' /tmp/m0060.log | tail -1 || true
+
+# ── 0061: the ingredient aliases table ──────────────────────────────
+#
+# The alias mechanism behind the béchamel merge: a retired slug keeps
+# resolving, because it has a live public URL. Strictly additive -- one
+# new table and at most one alias row.
+#
+# It was 0056 when PR #219 was opened. Renumbered to 0061 so it sorts
+# AFTER the migrations main has already applied to live (0058, 0059,
+# 0060): an applied migration is frozen, so its number cannot be
+# reused by a migration that has not run yet.
+#
+# It depends on nothing except `ingredients`, so it can run at the end
+# of the chain.
+echo "--- the ingredient aliases table"
+run_pg -f - < "$MIGRATION_0061" >/tmp/m0061.log 2>&1 || { echo "FAILED: 0061"; grep -E 'ERROR|NOTICE' /tmp/m0061.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'INGREDIENT_ALIASES_OK' /tmp/m0061.log | tail -1 || true
+
+# ── 0062: the ingredient sourcing vocabulary ─────────────────────────
+#
+# The 21 reviewed ingredient rows (GUS-1108), all `draft`. It was 0057
+# when PR #219 was opened; renumbered to 0062 for the same reason as
+# 0061 above.
+echo "--- the ingredient sourcing vocabulary"
+run_pg -f - < "$MIGRATION_0062" >/tmp/m0062.log 2>&1 || { echo "FAILED: 0062"; grep -E 'ERROR|NOTICE' /tmp/m0062.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0062: all 6 proofs passed' /tmp/m0062.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

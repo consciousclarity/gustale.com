@@ -1,5 +1,5 @@
 /**
- * Integration test for the INGREDIENT ALIAS resolution (migration 0056).
+ * Integration test for the INGREDIENT ALIAS resolution (migration 0061).
  *
  * WHAT IS COVERED
  *
@@ -60,7 +60,7 @@ const SLUG_DRAFT_ALIAS = "test-alias-draft-alias";
 
 async function cleanFixtures() {
   // The alias table may not exist at all -- on a CI database built
-  // before migration 0056 lands. The cleanup must not fail on that: a
+  // before migration 0061 lands. The cleanup must not fail on that: a
   // missing table means there is nothing to clean. The REQUIREMENT is
   // enforced in beforeAll, where it can fail with the actionable
   // message.
@@ -150,7 +150,7 @@ async function makeFixtures() {
 }
 
 /**
- * Whether the alias table (migration 0056) exists in this database.
+ * Whether the alias table (migration 0061) exists in this database.
  *
  * `db.execute` returns the ROWS as an ARRAY -- not a single row. The
  * first version of this read `{ n }` straight off the result, which is
@@ -190,11 +190,11 @@ beforeAll(async () => {
         "  SKIPPED: the `ingredient_aliases` table does not exist in this",
         "  database, so the alias resolution is not exercised here.",
         "",
-        "  It is migration 0056. The CI workflow applies the migration",
-        "  chain from its own list of steps, and 0056 is in that list",
+        "  It is migration 0061. The CI workflow applies the migration",
+        "  chain from its own list of steps, and 0061 is in that list",
         "  only after the owner applies:",
         "",
-        "      git apply docs/ci-ingredient-aliases-0056.patch",
+        "      git apply docs/ci-ingredient-aliases-0061-0062.patch",
         "",
         "  The API is NOT broken by this: the route degrades to the",
         "  pre-alias behaviour and serves the ingredient by its own slug.",
@@ -219,7 +219,7 @@ afterAll(async () => {
   await app.close();
 });
 
-describe("ingredient aliases (migration 0056)", () => {
+describe("ingredient aliases (migration 0061)", () => {
   // The skip is decided at RUNTIME, inside the test body.
   //
   // Both `describe.skipIf(...)` and `it.skipIf(...)` are evaluated
@@ -230,7 +230,7 @@ describe("ingredient aliases (migration 0056)", () => {
   const requireAliasTable = (ctx: { skip: (note?: string) => void }) => {
     if (!aliasTablePresent) {
       ctx.skip(
-        "the `ingredient_aliases` table (migration 0056) is not in this database",
+        "the `ingredient_aliases` table (migration 0061) is not in this database",
       );
     }
   };

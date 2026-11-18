@@ -1,9 +1,9 @@
-# Evidence: the 0056/0057 workflow patch makes the chain validator pass
+# Evidence: the 0061/0062 workflow patch makes the chain validator pass
 
-PR #219 carries two new migrations — `0056_ingredient_aliases.sql` and
-`0057_ingredients_sourcing_vocabulary.sql` — and the App that pushes the
+PR #219 carries two new migrations — `0061_ingredient_aliases.sql` and
+`0062_ingredients_sourcing_vocabulary.sql` — and the App that pushes the
 branch cannot change `.github/workflows/`. So the two migration steps ship
-as a patch, `docs/ci-ingredient-aliases-0056-0057.patch`.
+as a patch, `docs/ci-ingredient-aliases-0061-0062.patch`.
 
 This file records the evidence that applying the patch makes the failing
 step pass, so the owner is not asked to take it on faith.
@@ -26,18 +26,18 @@ migrations:
 | `scripts/ci-migration-chain.sh` | the Nightly database |
 | `scripts/repro-ci-db.sh` | the local reproduction |
 
-The chain script and the repro script already carry 0056 and 0057 —
+The chain script and the repro script already carry 0061 and 0062 —
 they were written in this branch. The workflow file cannot be, because
 the App has no workflow scope. So without the patch the validator fails:
 
 ```
 CI migration chain MISMATCH:
   in scripts/ci-migration-chain.sh but NOT in .github/workflows/ci.yml:
-    db/migrations/0056_ingredient_aliases.sql
-    db/migrations/0057_ingredients_sourcing_vocabulary.sql
+    db/migrations/0061_ingredient_aliases.sql
+    db/migrations/0062_ingredients_sourcing_vocabulary.sql
   in scripts/repro-ci-db.sh but NOT in .github/workflows/ci.yml:
-    db/migrations/0056_ingredient_aliases.sql
-    db/migrations/0057_ingredients_sourcing_vocabulary.sql
+    db/migrations/0061_ingredient_aliases.sql
+    db/migrations/0062_ingredients_sourcing_vocabulary.sql
 ```
 
 **That is the guard working correctly.** A migration applied in one list
@@ -57,10 +57,10 @@ The patch is generated against `main` at `094eff35` (the merge of PR
 #235, Astro 7.4.7).
 
 ```
-$ git apply --check docs/ci-ingredient-aliases-0056-0057.patch
+$ git apply --check docs/ci-ingredient-aliases-0061-0062.patch
 STILL APPLIES CLEANLY
 
-$ git apply docs/ci-ingredient-aliases-0056-0057.patch
+$ git apply docs/ci-ingredient-aliases-0061-0062.patch
 APPLIED
 ```
 
@@ -92,7 +92,7 @@ FULL_CI_CHAIN_OK=1
 and both new markers are present in the log:
 
 ```
-psql:<stdin>:295: NOTICE:  0057: all 6 proofs passed
+psql:<stdin>:295: NOTICE:  0062: all 6 proofs passed
 psql:<stdin>:333: NOTICE:  INGREDIENT_ALIASES_OK=1
 ```
 
@@ -154,7 +154,7 @@ So the CI step fails before the patch and passes after it.
 ## What the owner does
 
 ```
-git apply docs/ci-ingredient-aliases-0056-0057.patch
+git apply docs/ci-ingredient-aliases-0061-0062.patch
 ```
 
 That is the whole change. It adds two steps to the "Apply the database
@@ -165,7 +165,7 @@ this repository has shipped.
 
 | patch | state |
 | --- | --- |
-| `docs/ci-ingredient-aliases-0056.patch` | still applies, but the combined patch covers it |
+| `docs/ci-ingredient-aliases-0061-0062.patch` | still applies, but the combined patch covers it |
 | `docs/ci-0057-migration.patch` | **no longer applies** — it was generated against an older `main` |
 
 Both were removed in favour of the combined patch. **Use the combined

@@ -1307,8 +1307,8 @@ jobs:
       # `listed` is defined in terms of `family_class` and the
       # description.
       #
-      # It is numbered 0058 rather than 0056 because PR #219 already
-      # claims 0056 and 0057. Two migrations must never share a number.
+      # It is numbered 0058 rather than 0061 because PR #219 already
+      # claims 0061 and 0062. Two migrations must never share a number.
       #
       # It WRITES content rows (the backfill) and deletes one row, and
       # its proof runs inside its own transaction, so a failed proof
@@ -1340,9 +1340,6 @@ jobs:
       # ── 0061: the ingredient aliases table ───────────────────────────
       #
       # Migration 0061 creates ingredient_aliases -- the mechanism
-      # ── 0061: the ingredient aliases table ───────────────────────────
-      #
-      # Migration 0056 creates ingredient_aliases -- the mechanism
       # behind the béchamel merge. A retired slug keeps resolving,
       # because it has a live public URL.
       #
@@ -1357,22 +1354,17 @@ jobs:
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
             -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
           bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
-      - name: Apply the ingredient aliases table
-        run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
-            -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
-          bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
 
       # ── 0062: the ingredient sourcing vocabulary ───────────────────────
       #
-      # Migration 0057 adds the 21 reviewed ingredient rows (GUS-1108) --
+      # Migration 0062 adds the 21 reviewed ingredient rows (GUS-1108) --
       # the vocabulary the sourcing availability rows attach to. It is
       # additive and publishes nothing.
       - name: Apply the ingredient sourcing vocabulary
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
             -f db/migrations/0062_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0062.log
-          bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0057: all 6 proofs passed" /tmp/m0062.log
+          bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0062: all 6 proofs passed" /tmp/m0062.log
 
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'

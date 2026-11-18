@@ -1,6 +1,6 @@
-# LIVE-APPLY-0057 — GUS-1108, the ingredient sourcing vocabulary
+# LIVE-APPLY-0062 — GUS-1108, the ingredient sourcing vocabulary
 
-**Owner:** Alejandro · **Migration:** `db/migrations/0057_ingredients_sourcing_vocabulary.sql`
+**Owner:** Alejandro · **Migration:** `db/migrations/0062_ingredients_sourcing_vocabulary.sql`
 **What it does:** adds 21 rows to `ingredients` — the reviewed 20-ingredient
 list, plus one, because the spec's "Parmigiano Reggiano and Pecorino" is
 two ingredients here.
@@ -17,7 +17,7 @@ migration.
 | the gate | the result |
 |---|---|
 | the full 57-migration chain, on a fresh database | `FULL_CI_CHAIN_OK=1` |
-| 0057's own 6 proofs, inside the chain | `0057: all 6 proofs passed` |
+| 0057's own 6 proofs, inside the chain | `0062: all 6 proofs passed` |
 | the dry run against an **exact copy of live** | `DRYRUN_OK=1` |
 | idempotence — applied twice | `IDEMPOTENT: the second application succeeded` |
 | the proof mutants | `ALL_MUTANTS_CAUGHT=1` (5/5) |
@@ -47,10 +47,10 @@ systemctl status gustale-backup.service --no-pager
 ```
 
 **The owner has NOT applied `approved-live` to PR #219.** That label is
-for migration `0056` (the ingredient aliases). **0057 is a separate
-migration and does not need it** — 0057 writes to `ingredients`, and
-0056 writes to `ingredient_aliases`; they do not overlap. If the owner
-prefers to land 0056 first (the béchamel merge), say so, because the
+for migration `0056` (the ingredient aliases). **0062 is a separate
+migration and does not need it** — 0062 writes to `ingredients`, and
+0061 writes to `ingredient_aliases`; they do not overlap. If the owner
+prefers to land 0061 first (the béchamel merge), say so, because the
 order matters for the receipt.
 
 ---
@@ -72,11 +72,11 @@ Then the dry run, which restores the copy on the dedicated test postgres
 
 ```bash
 bash scripts/dryrun-migration.sh \
-  db/migrations/0057_ingredients_sourcing_vocabulary.sql \
+  db/migrations/0062_ingredients_sourcing_vocabulary.sql \
   gustale_0057_dryrun
 ```
 
-**Expected:** `DRYRUN_OK=1`, `0057: all 6 proofs passed`, and
+**Expected:** `DRYRUN_OK=1`, `0062: all 6 proofs passed`, and
 `IDEMPOTENT: the second application succeeded`.
 
 **If the dry run fails, stop.** Do not apply.
@@ -85,10 +85,10 @@ Then the apply itself:
 
 ```bash
 docker exec -i shared-postgres psql -U postgres -d gustale -v ON_ERROR_STOP=1 \
-  < db/migrations/0057_ingredients_sourcing_vocabulary.sql
+  < db/migrations/0062_ingredients_sourcing_vocabulary.sql
 ```
 
-**Expected:** `NOTICE: 0057: all 6 proofs passed`, and **no ERROR**.
+**Expected:** `NOTICE: 0062: all 6 proofs passed`, and **no ERROR**.
 
 ---
 
@@ -160,7 +160,7 @@ docker exec -i shared-postgres psql -U postgres -d gustale -c \
 
 ## 5. The receipt
 
-After the verification passes, write `docs/MIGRATION-RECEIPT-0057.md`
+After the verification passes, write `docs/MIGRATION-RECEIPT-0062.md`
 with: the migration's SHA-256, the timestamp of the apply, the backup
 path and its restore proof, the six proofs' output, the four independent
 counts, and the before/after baseline.
@@ -198,5 +198,5 @@ The migration is purely additive, so the rollback is a DELETE of the 21
 slugs — shown in §4. There is nothing else to undo: no column was
 added, no table was created, and no existing row was modified.
 
-**Rule 11:** `0052`–`0056` are frozen. If a correction to 0057 is ever
+**Rule 11:** `0052`–`0056` are frozen. If a correction to 0062 is ever
 needed, it is a NEW migration number, never an edit to this file.

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0056_ingredient_aliases.sql
+-- 0061_ingredient_aliases.sql
 --
 -- The ingredient ALIAS table, and the first alias: the bechamel duplicate.
 --

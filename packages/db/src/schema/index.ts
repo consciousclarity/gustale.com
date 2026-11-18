@@ -850,7 +850,7 @@ export const ingredients = pgTable("ingredients", {
 });
 
 // ───────────────────────────────────────────────────────────────────────────
-// ingredient_aliases -- migration 0056
+// ingredient_aliases -- migration 0061
 //
 // A RETIRED ingredient slug that must keep resolving, mapped to the
 // canonical ingredient. It is the mechanism behind the béchamel merge:

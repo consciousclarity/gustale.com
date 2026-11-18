@@ -1,11 +1,11 @@
-# MIGRATION RECEIPT — `0057_ingredients_sourcing_vocabulary.sql`
+# MIGRATION RECEIPT — `0062_ingredients_sourcing_vocabulary.sql`
 
 **Applied to live on 2026-11-11 at 09:31:55 WITA.**
 
-**`APPLY_EXIT=0`. `0057: all 6 proofs passed`.**
+**`APPLY_EXIT=0`. `0062: all 6 proofs passed`.**
 
 > **The full receipt is in the private state repository**, at
-> `.hermes/MIGRATION-RECEIPT-0057.md`. It carries the evidence
+> `.hermes/MIGRATION-RECEIPT-0062.md`. It carries the evidence
 > directory's paths, the backup's digest and the server-side command
 > details, which do not belong in a public repository. This file
 > records what is already visible in the migration and in the counts.
@@ -34,7 +34,7 @@ What is now on live:
 
 ## The migration
 
-`db/migrations/0057_ingredients_sourcing_vocabulary.sql`, applied by
+`db/migrations/0062_ingredients_sourcing_vocabulary.sql`, applied by
 direct `psql` with the **`postgres` role** and **`ON_ERROR_STOP=1`**.
 
 The file was **byte-identical to the reviewed one**. The digest was
@@ -73,7 +73,7 @@ pre-migration state.
 BEGIN
 INSERT 0 21
 DO
-NOTICE:  0057: all 6 proofs passed
+NOTICE:  0062: all 6 proofs passed
 COMMIT
 ```
 
@@ -83,7 +83,7 @@ and the **second** application, for idempotence:
 BEGIN
 INSERT 0 0
 DO
-NOTICE:  0057: all 6 proofs passed
+NOTICE:  0062: all 6 proofs passed
 COMMIT
 ```
 
@@ -99,7 +99,7 @@ All six ran **inside the migration's own transaction**, so a failure
 would have rolled the whole migration back.
 
 ```
-NOTICE:  0057: all 6 proofs passed
+NOTICE:  0062: all 6 proofs passed
 ```
 
 **Errors in the apply log: 0.**
@@ -116,7 +116,7 @@ the migration claims, and each must be caught: a row published
 instead of draft, a category that does not exist, a missing row, an
 `is_key` leak onto the ingredient row, and a duplicate.
 
-**A fix was needed here.** `scripts/prove-0057-assertions.sh` had a
+**A fix was needed here.** `scripts/prove-0062-assertions.sh` had a
 hard-coded path and **silently fell back to a live `pg_dump` when its
 snapshot was missing** — so the test could pass against the wrong
 database, or against production. Commit `eb2772e` made it require an

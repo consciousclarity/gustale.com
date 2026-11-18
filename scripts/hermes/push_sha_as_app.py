@@ -40,54 +40,6 @@ from gh_app_auth import (  # noqa: E402
     push_with_token,
     scrub,
 )
-"""
-from __future__ import annotations
-
-import json
-import os
-import subprocess
-import sys
-import time
-from pathlib import Path
-
-import jwt
-from cryptography.hazmat.primitives import serialization
-
-APP_ID = "5596451"
-INSTALL_ID = "178310866"
-KEY_PATH = Path(
-    os.environ.get("GUSTALE_APP_KEY_PATH")
-    or "/home/alex/.hermes/github-app/gustale-bot.pem"
-)
-REPO = "consciousclarity/gustale.com"
-
-
-def _app_jwt() -> str:
-    with KEY_PATH.open("rb") as fh:
-        key = serialization.load_pem_private_key(fh.read(), password=None)
-    now = int(time.time())
-    return jwt.encode(
-        {"iat": now - 60, "exp": now + 540, "iss": APP_ID}, key, algorithm="RS256"
-    )
-
-
-def _installation_token() -> str:
-    out = subprocess.run(
-        [
-            "curl", "-sS", "-X", "POST",
-            "-H", f"Authorization: Bearer {_app_jwt()}",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
-            "-H", "Content-Type: application/json",
-            "-d", json.dumps({"repositories": ["gustale.com"]}),
-            f"https://api.github.com/app/installations/{INSTALL_ID}/access_tokens",
-        ],
-        capture_output=True, text=True, check=True,
-    )
-    payload = json.loads(out.stdout)
-    if "token" not in payload:
-        raise SystemExit(f"could not mint an installation token: {payload}")
-    return payload["token"]
 
 
 def git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
@@ -138,7 +90,6 @@ def main(argv: list[str]) -> int:
         )
         print(scrub(ls.stderr or "", token))
         return 1
-    ls = git("ls-remote", remote, f"refs/heads/{branch}")
     actual_remote_sha = ""
     for line in ls.stdout.splitlines():
         parts = line.split()
@@ -166,12 +117,6 @@ def main(argv: list[str]) -> int:
                 "Fetch, reconcile, and re-run. NEVER overwrite."
             )
             return 1
-        print(
-            "::error::remote moved: expected "
-            f"{expected_remote_sha}, found {actual_remote_sha}. "
-            "Fetch, reconcile, and re-run. NEVER overwrite."
-        )
-        return 1
 
     # 3. The push must be a fast-forward: the remote sha must be an
     #    ancestor of the sha we are pushing. Never force.
@@ -194,15 +139,6 @@ def main(argv: list[str]) -> int:
     )
     # Scrub the token from anything we print.
     out = scrub((push.stdout or "") + (push.stderr or ""), token)
-    token = _installation_token()
-    url = f"https://x-access-token:{token}@github.com/{REPO}.git"
-    push = subprocess.run(
-        ["git", "push", url, f"{sha}:refs/heads/{branch}"],
-        capture_output=True, text=True,
-    )
-    # Scrub the token from anything we print.
-    out = (push.stdout or "") + (push.stderr or "")
-    out = out.replace(token, "***").replace(url, "***")
     sys.stdout.write(out)
     if push.returncode != 0:
         print("::error::push failed")
