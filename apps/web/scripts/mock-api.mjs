@@ -132,7 +132,21 @@ function mockContentType(d) {
   return MOCK_DRINKS.has(d.slug) ? "drink" : "dish";
 }
 
-const MAP = DATA.map ?? [];
+// The MAP data — the plotted dishes.
+//
+// TWO SHAPES, ONE SOURCE
+// The committed CI capture stores `map` as a flat ARRAY of dishes. The
+// LIVE SNAPSHOT stores it as the API's own envelope: `{ dishes, count }`.
+// The mock serves the live shape at the route, so the array must be
+// unwrapped here — otherwise `MAP` is an object, the route returns
+// `{ dishes: { dishes: [...] } }`, and every consumer that does
+// `for (const d of response.dishes)` throws "object is not iterable".
+//
+// The snapshot's shape is the API's shape, so the API's shape wins; the
+// committed capture's flat array is the legacy shape and is normalised
+// into it.
+const MAP_RAW = DATA.map ?? [];
+const MAP = Array.isArray(MAP_RAW) ? MAP_RAW : (MAP_RAW.dishes ?? []);
 const DETAILS = DATA.details ?? {};
 // The ATLAS data — the three concepts per dish (ADR-004), captured
 // alongside the dish details. The atlas route is a DIFFERENT path from
@@ -325,6 +339,61 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/taxonomy/family/:slug — a family's taxonomy.
+  //
+  // Mirrors apps/api/src/routes/taxonomy-family.ts. The mock resolves the
+  // slug against the family dimension only (the capture's `familySlug`),
+  // so the dimension is always "family"; the other four dimensions are
+  // not carried in the capture.
+  //
+  // The response shape MUST match the real API exactly, because the
+  // home page reads `family.name` and `counts.dishes` from it.
+  const taxonomyFamilyMatch = url.pathname.match(
+    /^\/api\/taxonomy\/family\/([^/]+)$/,
+  );
+  if (taxonomyFamilyMatch && req.method === "GET") {
+    const slug = decodeURIComponent(taxonomyFamilyMatch[1]);
+    const category = CATEGORIES.find((c) => c.slug === slug);
+    if (!category) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({ error: "not_found", message: "Family not found" }),
+      );
+      return;
+    }
+    const dishes = LIST.filter((d) => d.familySlug === slug)
+      .map((d) => ({
+        slug: d.slug,
+        canonicalName: d.canonicalName,
+        shortDescription: d.shortDescription ?? null,
+      }))
+      .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName))
+      .slice(0, 200);
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        family: {
+          slug: category.slug,
+          name: category.name,
+          dimension: "family",
+          dimensionLabel: "Food family",
+          dimensionExplanation:
+            "A food family classifies dishes by form, course, content type, or cuisine within the family hierarchy.",
+          definition: category.description ?? null,
+        },
+        inclusion: {
+          criteria: null,
+          hasCriteria: false,
+        },
+        notAncestry:
+          "Classification is not ancestry. Two dishes in the same group were not necessarily invented from one another, and sharing a group says nothing about where either came from.",
+        counts: { dishes: dishes.length },
+        dishes,
+      }),
+    );
+    return;
+  }
+
   // GET /api/ingredients — flat list (powers /ingredients index)
   if (url.pathname === "/api/ingredients" && req.method === "GET") {
     res.setHeader("Content-Type", "application/json");
@@ -353,6 +422,25 @@ const server = http.createServer((req, res) => {
       );
       return;
     }
+    // THE DISHES THAT USE IT.
+    //
+    // The real API returns the dishes an ingredient appears in, as
+    // { dishSlug, dishName, isOptional, position }. The home page reads
+    // `dishName`, so the mock must return the same shape — otherwise the
+    // ingredient card builds in CI with no names in it, and the build
+    // cannot catch a broken shape.
+    const dishes = [];
+    for (const dish of LIST) {
+      const list = DETAILS[dish.slug]?.ingredients ?? [];
+      const position = list.findIndex((i) => i?.slug === ing.slug);
+      if (position < 0) continue;
+      dishes.push({
+        dishSlug: dish.slug,
+        dishName: dish.canonicalName,
+        isOptional: list[position]?.isOptional ?? false,
+        position,
+      });
+    }
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
@@ -364,7 +452,7 @@ const server = http.createServer((req, res) => {
           shortDescription: null,
           longDescription: null,
         },
-        dishes: [],
+        dishes,
       }),
     );
     return;

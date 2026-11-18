@@ -34,7 +34,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from gh_app_auth import installation_token, push_with_token, scrub  # noqa: E402
+from gh_app_auth import (  # noqa: E402
+    installation_token,
+    ls_remote_with_token,
+    push_with_token,
+    scrub,
+)
 
 
 def git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
@@ -59,7 +64,32 @@ def main(argv: list[str]) -> int:
         return 1
 
     # 2. The remote's current head must be exactly what the caller expects.
-    ls = git("ls-remote", remote, f"refs/heads/{branch}")
+    #
+    # The ls-remote is AUTHENTICATED. A plain `git ls-remote` against a
+    # private repo cannot authenticate -- there is no PAT, and the App
+    # token only reaches git through the askpass helper -- so the plain
+    # call fails and returns nothing. The caller then read that empty
+    # result as "the remote ref is empty", which is indistinguishable
+    # from "the branch does not exist", and the guard compared the
+    # expected SHA against nothing:
+    #
+    #     ::error::remote moved: expected f0c3f30, found .
+    #
+    # The guard still REFUSED to push, so nothing unsafe happened -- but
+    # the message was wrong, and "found ." is not a fact about the
+    # remote. It is the absence of one.
+    #
+    # The token is minted before the ls-remote so the remote's TRUE head
+    # is what the guard compares against. It is still never printed.
+    token = installation_token()
+    ls = ls_remote_with_token(token, ".", remote, f"refs/heads/{branch}")
+    if ls.returncode != 0:
+        print(
+            "::error::could not read the remote ref "
+            f"refs/heads/{branch}: the authenticated ls-remote failed."
+        )
+        print(scrub(ls.stderr or "", token))
+        return 1
     actual_remote_sha = ""
     for line in ls.stdout.splitlines():
         parts = line.split()
@@ -70,12 +100,23 @@ def main(argv: list[str]) -> int:
             print(f"::error::branch exists at {actual_remote_sha}, expected it to be new")
             return 1
     elif actual_remote_sha != expected_remote_sha:
-        print(
-            "::error::remote moved: expected "
-            f"{expected_remote_sha}, found {actual_remote_sha}. "
-            "Fetch, reconcile, and re-run. NEVER overwrite."
-        )
-        return 1
+        # Compare COMMIT IDENTITY, not strings. `expected_remote_sha` is
+        # usually typed as a short SHA (what a human reads off
+        # `git log --oneline`), while the remote reports a full one.
+        # A string comparison said "the remote moved" when nothing had
+        # moved -- the same SHA in two lengths.
+        same_commit = False
+        if actual_remote_sha:
+            probe = git("rev-parse", f"{expected_remote_sha}^{{commit}}")
+            if probe.returncode == 0:
+                same_commit = probe.stdout.strip() == actual_remote_sha
+        if not same_commit:
+            print(
+                "::error::remote moved: expected "
+                f"{expected_remote_sha}, found {actual_remote_sha}. "
+                "Fetch, reconcile, and re-run. NEVER overwrite."
+            )
+            return 1
 
     # 3. The push must be a fast-forward: the remote sha must be an
     #    ancestor of the sha we are pushing. Never force.
@@ -89,7 +130,7 @@ def main(argv: list[str]) -> int:
             )
             return 1
 
-    token = installation_token()
+    # The token was minted above, for the authenticated ls-remote.
     push = push_with_token(
         token,
         repo_dir=".",

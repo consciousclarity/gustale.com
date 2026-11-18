@@ -718,7 +718,7 @@ check(
   `expected href=${addDishHref(resolveGustaleDomain("geo"))} and the label`,
 );
 
-// ─── 15. PR 6b — the recipes VARIANT's OWN home (R1) ──────────────────────
+// ─── 15. THE ONE HOME ───────────────────────────────────────────────────
 //
 // Before 6b, the recipes VARIANT of the site served the ATLAS home:
 // the same `AtlasHeroKpi` band and the same `GustaleHomeIsland`
@@ -734,15 +734,66 @@ check(
 //
 // That variant is gone. There is one site, one home, and it is the
 // Atlas home.
+//
+// WP-C1 CHANGED WHAT THE HOME IS, NOT THAT IT IS THE ONLY ONE.
+//
+// The blueprint's WP-C1 is "Home as in the mockup", and its acceptance
+// criteria are explicit: server-render the home from the build
+// snapshot, and REMOVE the full list and the KPI definitions.
+//
+// So the two checks below used to assert the home's OLD shape:
+//
+//   - it carried the `atlas-kpi` band (the KPI definitions WP-C1
+//     removes), and
+//   - it mounted the interactive `GustaleHomeIsland` workspace, which
+//     fetched the whole catalogue on the client.
+//
+// Both assertions are now INVERTED, because both are the defect
+// WP-C1 fixes. The home must NOT carry the retired KPI band and must
+// NOT mount the catalogue workspace — and it must carry the
+// server-rendered content instead, so a reader with no JavaScript
+// still sees the page.
+//
+// The checks that remain: the home is still the Atlas home (it is not
+// the retired recipes home), it still offers the authoring CTA, and
+// the nav still marks the Atlas section as current.
 check(
   "the home is still the Atlas home",
-  /atlas-kpi/.test(homeHtml ?? "") && !/recipes-home/.test(homeHtml ?? ""),
-  "the home is missing the Atlas KPI band, or carries the retired recipes home",
+  !/recipes-home/.test(homeHtml ?? ""),
+  "the home carries the retired recipes home",
+);
+// WP-C1 REMOVES the KPI definitions from the home. The band is still
+// a component — the map page and the recipe pages use it — but the
+// home no longer leads with it.
+check(
+  "the home does NOT carry the retired KPI band",
+  !/atlas-kpi/.test(homeHtml ?? ""),
+  "the home still carries the atlas-kpi band; WP-C1 removes the KPI definitions from the home",
+);
+// WP-C1 SERVER-RENDERS the home. The catalogue workspace is gone: it
+// fetched every published dish on the client to populate its filters,
+// which is the thing WP-C1 removes ("remove the full list").
+check(
+  "the home does NOT mount the catalogue workspace",
+  !/GustaleHomeIsland/.test(homeHtml ?? ""),
+  "the home still mounts GustaleHomeIsland; WP-C1 replaces it with the server-rendered home",
+);
+// AND THE SERVER-RENDERED CONTENT IS THERE. Without JavaScript, the
+// home still has its four dish cards, its threads, and its families.
+check(
+  "the home server-renders its dish cards",
+  /home__dish-card/.test(homeHtml ?? ""),
+  "the home has no server-rendered dish cards",
 );
 check(
-  "the home still mounts the interactive workspace",
-  /GustaleHomeIsland/.test(homeHtml ?? ""),
-  "the home no longer mounts the home island",
+  "the home server-renders its thread cards",
+  /home__thread-card/.test(homeHtml ?? ""),
+  "the home has no server-rendered thread cards",
+);
+check(
+  "the home server-renders its family chips",
+  /home__chip/.test(homeHtml ?? ""),
+  "the home has no server-rendered family chips",
 );
 // ONE SITE, so the home offers the authoring CTA and links to the
 // authoring form LOCALLY.

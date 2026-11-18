@@ -333,6 +333,34 @@ textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
+
+/* EVERY input draws its own ring.
+   The blanket `input:focus { outline: none; border-color: ... }`
+   above opts every control out of the outline and leaves a
+   border-colour change instead. For a control whose border IS the
+   visible edge, that reads as a focus cue. For an input whose chrome
+   sits on a wrapper, it does not -- and the ring is simply absent.
+
+   The consequence was that a keyboard user tabbing through a page
+   could land on a search box and see no focus indicator at all. The
+   axe gate caught it on the home page's search input (serious,
+   [focus-visible]).
+
+   THIS RULE MUST COME AFTER THE ONE ABOVE.
+   `:focus` and `:focus-visible` are both a single pseudo-class, so
+   they have the SAME specificity -- and an element that matches both
+   takes the later rule. The blanket opt-out is written first, so the
+   ring has to be written second or it loses.
+
+   The border-colour change is kept as well: the ring is an addition
+   to the existing cue, not a replacement of it. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 input::placeholder {
   color: var(--sub);
 }

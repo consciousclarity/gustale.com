@@ -1,0 +1,198 @@
+---
+/**
+ * THE HOME MAP — one thread, on a world map.
+ *
+ * WHAT IT IS
+ * ----------
+ * The mockup's hero shows a muted world map with a thread's route drawn
+ * across it — not the whole atlas. A home page that opens with every
+ * pin on earth opens with nothing; one thread's route says what the
+ * site is FOR and asks the reader to follow it.
+ *
+ * WHY IT IS AN ASTRO COMPONENT AND NOT AN ISLAND
+ * -----------------------------------------------
+ * The old home page's map was MapLibre — a WebGL globe with a worker
+ * and tile requests. That is a heavy thing to load on the most-visited
+ * page, and the mockup does not want interactivity in the hero: it
+ * wants a quiet picture of a route.
+ *
+ * So this is a STATIC SVG, rendered at build time from the same
+ * projection and the same Natural Earth asset the site's existing
+ * `HeroDensityMap` uses (`/hero-world-land.svg#land`). It costs one
+ * inline `<svg>`, no worker, no tiles, and it is in the HTML before
+ * any JavaScript runs.
+ *
+ * THE MARKERS
+ * -----------
+ * The mockup's markers are NUMBERED CLUSTERS: one marker per place,
+ * carrying the number of the thread's dishes there. That is the honest
+ * rendering — the thread has a handful of dishes and a handful of
+ * places, and plotting one dot per dish would show the same place
+ * twice and imply two separate findings.
+ *
+ * THE ROUTE
+ * ---------
+ * The route line runs through the markers in the order the thread's
+ * dishes reach them — the order the lineage lists them. A line whose
+ * order is arbitrary claims a journey the data does not support.
+ */
+
+export interface MapPlace {
+  /** The place's name — "Indonesia", "United Kingdom". */
+  name: string;
+  lat: number;
+  lng: number;
+  /** How many of the thread's dishes belong here. */
+  count: number;
+  /** The dishes, for the marker's tooltip. */
+  dishNames: string[];
+}
+
+export interface Props {
+  places: MapPlace[];
+  /**
+   * The route, as an ordered list of place names.
+   *
+   * The route order is the THREAD'S order — the origin place first —
+   * not the order the dishes happen to be listed in. When the route
+   * names every place, the line follows it. When it does not, the
+   * markers' own order is used, because a line through a subset in a
+   * stated order is still a claim, and the subset is the claim the
+   * caption makes.
+   */
+  route?: string[];
+}
+
+const { places, route = [] } = Astro.props;
+
+// The projection. The SAME frame as `/hero-world-land.svg`, so the
+// coastline and the markers agree.
+const W = 1000;
+const LAT_TOP = 84;
+const LAT_BOTTOM = -56;
+const H = (W * (LAT_TOP - LAT_BOTTOM)) / 360;
+
+function project(lon: number, lat: number): { x: number; y: number } {
+  return {
+    x: ((lon + 180) / 360) * W,
+    y: ((LAT_TOP - lat) / (LAT_TOP - LAT_BOTTOM)) * H,
+  };
+}
+
+// The markers. A place outside the frame's latitude band is dropped
+// rather than plotted at a guessed position.
+const markers = places
+  .filter((p) => p.lat >= LAT_BOTTOM && p.lat <= LAT_TOP)
+  .map((p) => ({ ...p, ...project(p.lng, p.lat) }));
+
+// The route order, applied to the markers.
+//
+// The route names places; the markers are places. So the route's order
+// becomes the markers' order — and only when the route names every
+// marker, because a line that visits some of its stops and skips
+// others draws a journey the caption does not describe.
+const orderedMarkers =
+  route.length === markers.length && route.length > 0
+    ? route
+        .map((name) => markers.find((m) => m.name === name))
+        .filter((m): m is (typeof markers)[number] => m !== undefined)
+    : markers;
+
+// The route line, through the markers in order.
+const routePoints = orderedMarkers.map((m) => `${m.x},${m.y}`).join(" ");
+
+const label = `A world map showing ${markers.length} places on a thread's route, with the number of dishes at each.`;
+---
+
+{
+  markers.length > 0 ? (
+    <figure class="home-map">
+      <svg
+        class="home-map__svg"
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label={label}
+      >
+        <use href="/hero-world-land.svg#land" class="home-map__land" />
+
+        {markers.length > 1 ? (
+          <polyline points={routePoints} class="home-map__route" fill="none" />
+        ) : null}
+
+        {markers.map((m) => (
+          <g class="home-map__marker">
+            <circle cx={m.x} cy={m.y} r="11" class="home-map__marker-disc" />
+            <text x={m.x} y={m.y} class="home-map__marker-count">
+              {m.count}
+            </text>
+            <title>{`${m.name} — ${m.dishNames.join(", ")}`}</title>
+          </g>
+        ))}
+      </svg>
+      <figcaption class="home-map__credit">
+        Mockup basemap: Natural Earth
+      </figcaption>
+    </figure>
+  ) : null
+}
+
+<style>
+  /* The map's colours are the site's: --water and --land are defined in
+     global.css for exactly this asset, and --association is the colour
+     the site already uses for "a place a dish is connected to". */
+  .home-map {
+    margin: 0;
+  }
+
+  .home-map__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: var(--water, #efe7d5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .home-map__land {
+    fill: var(--land, #e2d2b4);
+    stroke: var(--landstroke, rgba(33, 28, 22, 0.16));
+    stroke-width: 0.8;
+  }
+
+  .home-map__route {
+    stroke: var(--influence, #94391e);
+    stroke-width: 1.8;
+    stroke-dasharray: 6 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .home-map__marker-disc {
+    fill: var(--association, #1f5c5a);
+    stroke: var(--card, #fbf8f1);
+    stroke-width: 2;
+  }
+
+  .home-map__marker-count {
+    fill: var(--card, #fbf8f1);
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+
+  .home-map__credit {
+    margin-top: 6px;
+    font-size: 12px;
+    /* CONTRAST, NOT FADING.
+       The credit was 11px of --sub at 0.8 opacity, which fell under
+       the contrast threshold and failed the axe gate. The credit is
+       small print about where the basemap came from -- it should be
+       quiet, not unreadable. --sub at full strength on --paper is
+       the quietest colour that still passes. */
+    color: var(--sub);
+  }
+</style>

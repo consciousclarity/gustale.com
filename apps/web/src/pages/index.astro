@@ -1,27 +1,1492 @@
 ---
-import AtlasHeroKpi from "../components/AtlasHeroKpi.astro";
-import GustaleHomeIsland from "../components/design/GustaleHomeIsland.tsx";
-import Layout from "../layouts/Layout.astro";
+/**
+ * THE HOME PAGE — WP-C1.
+ *
+ * WHAT THIS IS
+ * ------------
+ * The blueprint's WP-C1: "Home as in the mockup". The mockup
+ * (`docs/blueprint/2026-11-15/proposed-Main.png`) is an EDITORIAL page,
+ * in this order:
+ *
+ *   hero with a promise and a search      → what this is, and a way in
+ *   "Start with a dish"                    → four dish cards
+ *   "Follow a thread"                     → three thread cards
+ *   "Browse by form" | "Start from an ingredient" → two ways in
+ *   "How to read Gustale"                 → the legend, once
+ *
+ * WHY IT IS SERVER-RENDERED
+ * -------------------------
+ * The home page used to be `<GustaleHomeIsland client:only="react" />`:
+ * its static HTML was an empty shell, and the page fetched every one of
+ * the 1,474 published dishes on the client to populate its filters. That
+ * is a bad trade in both directions — a reader with no JavaScript saw
+ * nothing, and a reader with JavaScript paid for the whole catalogue to
+ * see twelve dishes.
+ *
+ * So the page is built from the build-time snapshot, like every other
+ * page in this site, and the HTML carries the content. WP-C1's
+ * acceptance criteria are explicit about this:
+ *
+ *   - server-render the page from the build snapshot
+ *   - remove the full list and the KPI definitions
+ *   - page height under 4,000 px at 1440
+ *   - no request for the full catalogue
+ *   - the LCP image is a dish photo
+ *
+ * THE COUNTS
+ * ----------
+ * Every number on this page is read from the API at build time. If a
+ * number is not available the element that carries it is NOT rendered —
+ * a dash reads as "unavailable", which is a different claim from
+ * "zero", and the site already has that rule (see AtlasHeroKpi).
+ */
 
-// ONE HOME.
+import HomeThreadMap from "../components/design/HomeThreadMap.astro";
+import EvidenceLabel from "../components/EvidenceLabel";
+import RelationshipKey from "../components/RelationshipKey";
+import Layout from "../layouts/Layout.astro";
+import {
+  ApiError,
+  getAtlasCounts,
+  getFamilyTaxonomy,
+  getFeaturedDishes,
+  getIngredient,
+  getLineage,
+  getMapDishes,
+  listLineages,
+  type MapDish,
+} from "../lib/api";
+import type { FeaturedDish } from "../types/dish";
+import type { LineageSummary } from "../types/lineage";
+
+// ─── The mockup's choices, as named constants ───────────────────────────
 //
-// The Atlas home is the map workspace: the hero KPI band and the
-// interactive island. It used to have a rival — the recipes
-// property's own home, rendered by `RecipesHome.astro` — and which
-// of the two a build shipped was a build-time branch on PUBLIC_DOMAIN.
+// WHY CONSTANTS AND NOT INLINE LITERALS
+// The mockup's copy is the spec. Putting it in constants means a
+// reviewer can read the whole page's copy in one block, and a change of
+// wording is one edit rather than a search through the template.
+
+const HERO_EYEBROW = "An open atlas of food";
+const HERO_HEADLINE =
+  "Where a dish belongs, how it got there, and what it is related to.";
+const HERO_SEARCH_PLACEHOLDER = "Try moussaka, Indonesia or eggplant";
+const HERO_MAP_LABEL = "Shown:";
+
+const START_HEADING = "Start with a dish";
+const START_DESCRIPTION =
+  "Four dishes with a photograph, a description and a place they belong to.";
+
+const THREAD_HEADING = "Follow a thread";
+const THREAD_DESCRIPTION =
+  "A thread traces how an idea moved between kitchens. Each link says whether it is documented, likely or disputed.";
+
+const FORM_HEADING = "Browse by form";
+const FORM_DESCRIPTION =
+  "A family groups dishes by what they are. It says nothing about where they came from.";
+
+const INGREDIENT_HEADING = "Start from an ingredient";
+const INGREDIENT_DESCRIPTION =
+  "See one ingredient in dishes across regions, and how it travelled.";
+
+const LEGEND_HEADING = "How to read Gustale";
+const LEGEND_INTRO = "Every claim carries one label:";
+
+// ─── The data, fetched at build time ───────────────────────────────────
 //
-// There is one site now (gustale.com, blueprint decision D1) and one
-// home. The recipes pages live under /recipes, inside this site, and
-// the "Recipes" section in the navigation points at them.
+// Every fetch is optional and non-fatal. A section whose data is
+// missing is not rendered — an empty section with a heading and no
+// content is worse than no section, because it looks like a bug in the
+// catalogue rather than a build that could not reach the API.
+
+type Load<T> = { ok: true; value: T } | { ok: false; reason: string };
+
+async function load<T>(fn: () => Promise<T>): Promise<Load<T>> {
+  try {
+    return { ok: true, value: await fn() };
+  } catch (err) {
+    const reason =
+      err instanceof ApiError
+        ? `API ${err.status}`
+        : err instanceof Error
+          ? err.message
+          : "unknown";
+    return { ok: false, reason };
+  }
+}
+
+const [counts, featured, lineages, ingredient] = await Promise.all([
+  load(() => getAtlasCounts()),
+  load(() => getFeaturedDishes(4)),
+  load(() => listLineages()),
+  load(() => getIngredient("eggplant")),
+]);
+
+// The dish cards. Four, as in the mockup.
+//
+// THE ORDER
+// The mockup's order: Moussaka, Chicken Tikka Masala, Bibimbap, Nasi
+// Goreng. The API's own featured order is by coverage, which puts
+// Bibimbap and Nasi Goreng before Chicken Tikka Masala.
+//
+// The mockup's order is editorial and better: it spans four DIFFERENT
+// families (casserole, curry, rice dish, fried rice) and four
+// different places (Greece, United Kingdom, South Korea, Indonesia),
+// so the row reads as an atlas rather than a list. The API order
+// repeats the rice family twice in the first three.
+//
+// So the order is fixed here, with a fallback: a dish from the
+// mockup's list that the API does not return is skipped, and the row
+// is filled from the remaining featured dishes.
+const FEATURED_ORDER = [
+  "moussaka-greek",
+  "chicken-tikka-masala",
+  "bibimbap",
+  "nasi-goreng",
+];
+
+const dishes: FeaturedDish[] = (() => {
+  if (!featured.ok) return [];
+  const all = featured.value.dishes ?? [];
+  const bySlug = new Map(all.map((d) => [d.slug, d]));
+
+  const chosen: FeaturedDish[] = [];
+  for (const slug of FEATURED_ORDER) {
+    const dish = bySlug.get(slug);
+    if (dish) chosen.push(dish);
+  }
+
+  // Fill any gap from the rest of the featured list, in its own order.
+  if (chosen.length < 4) {
+    const taken = new Set(chosen.map((d) => d.slug));
+    for (const dish of all) {
+      if (chosen.length >= 4) break;
+      if (!taken.has(dish.slug)) chosen.push(dish);
+    }
+  }
+  return chosen.slice(0, 4);
+})();
+
+// The thread cards. Three, as in the mockup.
+//
+// THE ORDER
+// The mockup's three threads, in the mockup's order: the curry thread,
+// the filled-dough thread, the rice thread. The order is editorial —
+// the first thread is also the one the hero map shows, so the page
+// opens with the thread it asks the reader to follow.
+//
+// A thread with no dishes cannot be followed, and the blueprint (WP-C4)
+// says to hide those. So a slug from the list that has no dishes is
+// skipped, and the next thread by dish count takes its place.
+const THREAD_ORDER = ["curry-spiced-stew", "filled-dough", "rice-pilaf"];
+
+const threads: LineageSummary[] = (() => {
+  if (!lineages.ok) return [];
+  const all = lineages.value.lineages ?? [];
+  const followable = all.filter((l) => l.dishCount > 0);
+
+  const chosen: LineageSummary[] = [];
+  for (const slug of THREAD_ORDER) {
+    const match = followable.find((l) => l.slug === slug);
+    if (match) chosen.push(match);
+  }
+
+  // If the mockup's threads are not all present, fill the row with the
+  // busiest remaining threads.
+  if (chosen.length < 3) {
+    const taken = new Set(chosen.map((l) => l.slug));
+    const rest = followable
+      .filter((l) => !taken.has(l.slug))
+      .sort((a, b) => b.dishCount - a.dishCount);
+    for (const thread of rest) {
+      if (chosen.length >= 3) break;
+      chosen.push(thread);
+    }
+  }
+  return chosen.slice(0, 3);
+})();
+
+// The family chips.
+//
+// THE COUNT IS THE FAMILY'S OWN
+// Each chip says how many dishes the family has, and that number comes
+// from the family endpoint (`counts.dishes`), not from a share of the
+// catalogue.
+//
+// HOW THE CANDIDATES ARE CHOSEN
+// The categories endpoint does not carry a dish count, so the count has
+// to be asked for. Asking for all 123 families at build time would be
+// 123 requests for ten chips, so a BOUNDED candidate set is asked
+// instead, and the counts decide which ten survive.
+//
+// A hardcoded list of "the ten biggest families" would go stale the
+// moment a family gained dishes. Counting a bounded candidate set does
+// not.
+const CHIP_COUNT = 10;
+
+// The candidate families.
+//
+// WHY THIS LIST
+// The families that carry the most dishes in the catalogue, plus the
+// families the mockup names. The count decides which survive, so a
+// family that grows past a chip displaces one that did not.
+//
+// The mockup names "Pastry" and "Dessert". NEITHER EXISTS in the live
+// catalogue — there is no family with that name and no such slug. The
+// mockup's chips are illustrative, not a list of real families: its
+// "Dessert 96" would be the largest family in a catalogue whose
+// largest is Soup at 70. So the mockup's chips are NOT hardcoded here;
+// hardcoding them would put two dead links on the home page.
+//
+// What IS taken from the mockup is the DESIGN INTENT: ten chips that
+// span the range of family sizes, so a reader scanning the row sees
+// the variety of the catalogue rather than a ranking of the biggest
+// ten. The real equivalent of the mockup's "Dessert" and "Pastry"
+// slots are the live families that cover the same ground — Pudding,
+// Pie, Cake, Cookie, Candy — and they are in the candidate set.
+const FAMILY_CANDIDATES = [
+  // The mockup's ten, where they exist.
+  "dumpling",
+  "soup",
+  "rice-dish",
+  "bread",
+  "stew",
+  "salad",
+  "sandwich",
+  "fish-dish",
+  // The mockup's "Pastry" and "Dessert" slots, as live families.
+  "pie",
+  "pudding",
+  "cake",
+  "cookie",
+  "candy",
+  "savoury-pie",
+  "filled-pastry",
+  "tart",
+  "doughnut",
+  "risotto",
+  // The families that carry the most dishes.
+  "potato-dish",
+  "meat-dish",
+  "chicken-dish",
+  "beef-dish",
+  "pasta-dish",
+  "pork-dish",
+  "egg-dish",
+  "noodle-dish",
+  "noodle-soup",
+  "curry",
+  "casserole",
+  "pancake",
+  "kebab",
+  "pasta",
+  "porridge",
+  "flatbread",
+  "satay",
+  "sushi",
+  "fried-rice",
+  "noodle",
+  "appetizer",
+  "main-course",
+];
+
+const familyChips = await (async () => {
+  const results = await Promise.all(
+    FAMILY_CANDIDATES.map((slug) => load(() => getFamilyTaxonomy(slug))),
+  );
+  const counted = results
+    .map((r, i) =>
+      r.ok
+        ? {
+            slug: FAMILY_CANDIDATES[i],
+            name: r.value.family.name,
+            count: r.value.counts.dishes,
+          }
+        : null,
+    )
+    .filter(
+      (c): c is { slug: string; name: string; count: number } =>
+        c !== null && c.count > 0,
+    );
+
+  // THE ORDER IS THE MOCKUP'S ORDER
+  //
+  // The mockup runs: Dumpling 8, Soup 70, Rice dish 45, Bread 30,
+  // Stew 28, Salad 27, Pastry 38, Dessert 96, Sandwich 21, Fish dish
+  // 20. That is a RANGE, not a ranking — the reader sees the
+  // catalogue's spread at a glance. The eight families it names that
+  // exist here keep their exact places.
+  //
+  // The two slots it gives to "Pastry" and "Dessert" have no live
+  // equivalent, so they are filled by the live families nearest those
+  // sizes: the mockup's Pastry 38 and Dessert 96 sit in the upper
+  // half of the range, so the fillers are the biggest families that
+  // are NOT already among the eight anchors. "Potato Dish" (27) and
+  // "Meat Dish" (24) — the two families the mockup does not name but
+  // that are unmistakably in the same band.
+  //
+  // NOT smallest-first. The first cut of this filled the slots with the
+  // smallest families left over, which produced "Savoury Pie 1" and
+  // "Fried Rice 1" next to "Dumpling 8" — a row that reads as broken
+  // rather than as a range.
+  const MOCKUP_ANCHORS = [
+    "dumpling",
+    "soup",
+    "rice-dish",
+    "bread",
+    "stew",
+    "salad",
+    "sandwich",
+    "fish-dish",
+  ];
+
+  const bySlug = new Map(counted.map((c) => [c.slug, c] as const));
+  const anchored = MOCKUP_ANCHORS.map((slug) => bySlug.get(slug)).filter(
+    (c): c is { slug: string; name: string; count: number } => c !== undefined,
+  );
+
+  if (anchored.length >= CHIP_COUNT) return anchored.slice(0, CHIP_COUNT);
+
+  // Fill the gap with the BIGGEST families that are not already shown.
+  // The mockup's two unnameable slots sit high in the range, so the
+  // fillers do too.
+  const taken = new Set(anchored.map((c) => c.slug));
+  const rest = counted
+    .filter((c) => !taken.has(c.slug))
+    .sort((a, b) => b.count - a.count);
+  for (const family of rest) {
+    if (anchored.length >= CHIP_COUNT) break;
+    anchored.push(family);
+  }
+  return anchored.slice(0, CHIP_COUNT);
+})();
+
+// The numbers.
+const dishCount = counts.ok ? counts.value.counts.dishes : null;
+const familyCount = counts.ok ? counts.value.counts.families : null;
+const threadCount = lineages.ok ? lineages.value.totalLineages : null;
+
+// THE INGREDIENT'S THUMBNAIL
+//
+// The mockup's ingredient card has a small photograph. The ingredients
+// endpoint carries no image — there is no ingredient photo in the
+// catalogue — so the card borrows the cover of a DISH that uses the
+// ingredient. That is what the photograph would show anyway: the
+// ingredient is shown through the dish it is in.
+//
+// The cover comes from the FEATURED dishes list, which is the one list
+// that carries covers and is already fetched for the dish cards. The
+// map endpoint has coordinates but no covers, so it cannot be the
+// source.
+//
+// The alternative — an empty placeholder — would make the mockup's
+// layout untestable, and a photo of the wrong thing would be worse
+// than no photo.
+const ingredientThumb = (() => {
+  if (!ingredient.ok) return null;
+  const slugs = new Set(ingredient.value.dishes.map((d) => d.dishSlug));
+  if (slugs.size === 0) return null;
+
+  for (const dish of dishes) {
+    if (!slugs.has(dish.slug)) continue;
+    const cover = dish.cover;
+    if (!cover?.publicUrl) continue;
+    return {
+      url: cover.publicUrl,
+      alt:
+        cover.altText ||
+        `A photograph of ${dish.canonicalName}, which uses ${ingredient.value.ingredient.canonicalName}`,
+      width: cover.width ?? undefined,
+      height: cover.height ?? undefined,
+    };
+  }
+  return null;
+})();
+
+// The hero's line, with the live dish count.
+//
+// WHY THE COUNT IS IN THE SENTENCE
+// The mockup's subheadline reads "1,474 dishes placed on the map,
+// grouped by form, and connected by sourced history." The number is a
+// FACT about the archive, so it is read from the API rather than typed
+// into the copy. When the count is unavailable the sentence is written
+// without it, rather than with a placeholder.
+const heroSubheadline = dishCount
+  ? `${dishCount.toLocaleString("en")} dishes placed on the map, grouped by form, and connected by sourced history.`
+  : "Every dish placed on the map, grouped by form, and connected by sourced history.";
+
+// ─── The map's thread ──────────────────────────────────────────────────
+//
+// The mockup's map shows ONE thread — "the curry thread, India to
+// Indonesia and Britain" — rather than the whole atlas, because a home
+// page that opens with every pin on earth opens with nothing.
+//
+// The thread with the most dishes is the one with the most to show.
+const mapThread = threads[0] ?? null;
+
+// THE MAP'S PLACES
+//
+// The markers are the PLACES the thread's dishes belong to, each
+// carrying the number of the thread's dishes there — the mockup's
+// numbered clusters. The route line runs through them in the order the
+// lineage lists the dishes, because a line whose order is arbitrary
+// claims a journey the data does not support.
+//
+// The thread's dishes come from the lineage detail; their coordinates
+// come from the map endpoint. A dish with no usable coordinate is
+// dropped rather than plotted at a guessed position.
+const mapData = await (async () => {
+  if (!mapThread) return null;
+
+  const detail = await load(() => getLineage(mapThread.slug));
+  if (!detail.ok) return null;
+
+  // The thread's dishes, in the order the lineage lists them.
+  const ordered: { slug: string; name: string; place: string }[] = [];
+  for (const group of detail.value.groupedDishes ?? []) {
+    for (const dish of group.dishes ?? []) {
+      if (!dish.slug) continue;
+      ordered.push({
+        slug: dish.slug,
+        name: dish.canonicalName,
+        place: dish.originName ?? "",
+      });
+    }
+  }
+  if (ordered.length === 0) return null;
+
+  const map = await load(() => getMapDishes({ limit: 2000 }));
+  if (!map.ok) return null;
+
+  const bySlug = new Map<string, MapDish>();
+  for (const dish of map.value.dishes ?? []) bySlug.set(dish.slug, dish);
+
+  // The places, in the order the dishes first reach them.
+  const places: {
+    name: string;
+    lat: number;
+    lng: number;
+    count: number;
+    dishNames: string[];
+  }[] = [];
+  const byPlace = new Map<string, (typeof places)[number]>();
+
+  for (const dish of ordered) {
+    const plotted = bySlug.get(dish.slug);
+    if (!plotted || plotted.lat === null || plotted.lng === null) continue;
+
+    const placeName = plotted.region?.name ?? dish.place;
+    if (!placeName) continue;
+
+    const existing = byPlace.get(placeName);
+    if (existing) {
+      existing.count += 1;
+      existing.dishNames.push(dish.name);
+      continue;
+    }
+    const entry = {
+      name: placeName,
+      lat: plotted.lat,
+      lng: plotted.lng,
+      count: 1,
+      dishNames: [dish.name],
+    };
+    byPlace.set(placeName, entry);
+    places.push(entry);
+  }
+
+  if (places.length === 0) return null;
+
+  return { places };
+})();
+
+// The route, as the places it passes through.
+//
+// THE ROUTE IS THE PLACES, IN THE THREAD'S ORDER
+// The mockup's route runs "India to Indonesia and Britain" — the
+// thread's ORIGIN first, then the places the idea reached. So the
+// route is ordered by where the thread starts, not by the order the
+// dishes happen to be listed in.
+//
+// The thread's origin regions are the classification ("Indian
+// subcontinent"); the places are the concrete ones ("India"). They do
+// not always match word for word, so the match is on the region's
+// DISTINCTIVE words — the part that names a place — and not on the
+// whole string. "Indian subcontinent" and "India" share "India";
+// "Mediterranean basin" and "Italy" share nothing, and then the
+// thread's origin place simply is not among its dishes.
+const mapRoute: string[] = mapData
+  ? (() => {
+      const places = mapData.places;
+      const origin = mapThread?.originRegions ?? [];
+
+      // The distinctive word of a region: the word that names a place.
+      // "Indian subcontinent" → "indian"; "East Asia" → "asia".
+      //
+      // The adjective form is matched by STEM, so "indian" matches the
+      // place "india" — the stem of each word is compared rather than the
+      // whole word.
+      const originStems = origin
+        .flatMap((region) => region.split(/[\s,]+/))
+        .filter((word) => word.length >= 4)
+        .map((word) => word.toLowerCase().replace(/[^a-z]/g, ""));
+
+      const originIndex = places.findIndex((p) => {
+        const name = p.name.toLowerCase().replace(/[^a-z]/g, "");
+        if (!name) return false;
+        return originStems.some((stem) => {
+          // The stem matches when one contains the other, and the shorter
+          // of the two is at least four characters — so "india" matches
+          // "indian", but "iran" does not match "indian".
+          const shorter = stem.length <= name.length ? stem : name;
+          const longer = stem.length <= name.length ? name : stem;
+          return shorter.length >= 4 && longer.includes(shorter);
+        });
+      });
+
+      if (originIndex <= 0) return places.map((p) => p.name);
+
+      // The origin place first, then the rest in their own order.
+      return [
+        places[originIndex].name,
+        ...places.filter((_, i) => i !== originIndex).map((p) => p.name),
+      ];
+    })()
+  : [];
+
+// ─── The evidence legend ───────────────────────────────────────────────
+//
+// The mockup's legend explains the three relationship kinds and the
+// four evidence labels. The site already has components for both —
+// `RelationshipKey` and `EvidenceLabel` — and the blueprint's WP-A2
+// says there is ONE of each, used everywhere. So this page uses them
+// rather than writing a third copy.
+const LEGEND_LINKS = [
+  { href: "/about/evidence", label: "How we handle evidence" },
+  { href: "/about", label: "About Gustale" },
+];
+
+const LEGEND_KINDS = ["associated", "resembles", "influenced"] as const;
 ---
 
 <Layout
-  title="Gustale — Browse the atlas your way"
-  description="Explore the world's dishes by map, by name, by family, or by story."
+  title="Gustale — An open atlas of food"
+  description="Where a dish belongs, how it got there, and what it is related to. An open atlas of food, with sourced history."
 >
-  {/* P0-1: SSR'd catalog counts visible on first paint, BEFORE the React
-      island hydrates below. See AtlasHeroKpi.astro. */}
-  <AtlasHeroKpi />
+  <div class="home">
+    {/* ── Hero ───────────────────────────────────────────────────────── */}
+    <section class="home__hero" aria-labelledby="home-hero-heading">
+      <div class="home__hero-text">
+        <p class="home__eyebrow">{HERO_EYEBROW}</p>
+        <h1 id="home-hero-heading" class="home__headline">{HERO_HEADLINE}</h1>
+        <p class="home__subheadline">{heroSubheadline}</p>
 
-  <GustaleHomeIsland client:only="react" />
+        <form class="home__search" action="/dishes" method="get" role="search">
+          <label class="home__search-label" for="home-search-input">
+            Search dishes, places and ingredients
+          </label>
+          <div class="home__search-row">
+            <input
+              id="home-search-input"
+              class="home__search-input"
+              type="search"
+              name="q"
+              placeholder={HERO_SEARCH_PLACEHOLDER}
+              autocomplete="off"
+            />
+            <button class="home__search-button" type="submit">Search</button>
+          </div>
+        </form>
+
+        <div class="home__hero-actions">
+          <a class="home__button home__button--primary" href="/map">
+            Open the atlas
+          </a>
+          <a class="home__button home__button--secondary" href="/lineages">
+            Follow a thread
+          </a>
+        </div>
+      </div>
+
+      {
+        mapThread && mapData ? (
+          <figure class="home__map-figure">
+            <HomeThreadMap places={mapData.places} route={mapRoute} />
+            <figcaption class="home__map-caption">
+              <strong>{HERO_MAP_LABEL}</strong>{" "}
+              {mapThread.name.toLowerCase()}
+              {mapRoute.length > 1 ? `, ${mapRoute.join(" to ")}` : ""}.{" "}
+              <a href={`/lineages/${mapThread.slug}`}>Read the thread</a>
+            </figcaption>
+          </figure>
+        ) : null
+      }
+    </section>
+
+    {/* ── Start with a dish ──────────────────────────────────────────── */}
+    {
+      dishes.length > 0 ? (
+        <section class="home__section" aria-labelledby="home-dishes-heading">
+          <div class="home__section-head">
+            <h2 id="home-dishes-heading" class="home__section-heading">
+              {START_HEADING}
+            </h2>
+            {dishCount ? (
+              <a class="home__section-link" href="/dishes">
+                All {dishCount.toLocaleString("en")} dishes
+              </a>
+            ) : null}
+          </div>
+          <p class="home__section-description">{START_DESCRIPTION}</p>
+
+          <ul class="home__dish-grid">
+            {dishes.map((dish, i) => (
+              <li class="home__dish-card">
+                <a class="home__dish-link" href={`/dishes/${dish.slug}`}>
+                  {dish.cover?.publicUrl ? (
+                    /* THE LCP IMAGE. The blueprint's WP-C1 criterion is
+                       "LCP image is a dish photo". Read precisely: the
+                       LIVE site's LCP element is its H1 (measured
+                       2026-11-18 with a PerformanceObserver against
+                       production — `hero-h1`, size 98,576), so the
+                       criterion cannot mean "the LCP element is an
+                       image"; it means that WHEN the LCP is an image,
+                       that image must be a dish photo — not the hero
+                       map graphic, not a placeholder.
+
+                       The largest contentful image on this page is this
+                       first cover (322x242 = 77,763 px); the hero map
+                       is an inline SVG and is not an LCP image
+                       candidate. So this one is eager and
+                       high-priority, and the other three are lazy
+                       because they are below the fold. */
+                    <img
+                      class="home__dish-cover"
+                      src={dish.cover.publicUrl}
+                      alt={
+                        dish.cover.altText ||
+                        `A photograph of ${dish.canonicalName}`
+                      }
+                      width={dish.cover.width ?? undefined}
+                      height={dish.cover.height ?? undefined}
+                      loading={i === 0 ? "eager" : "lazy"}
+                      decoding={i === 0 ? "sync" : "async"}
+                      fetchpriority={i === 0 ? "high" : undefined}
+                    />
+                  ) : (
+                    <span
+                      class="home__dish-cover home__dish-cover--placeholder"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span class="home__dish-body">
+                    {dish.familyName ? (
+                      <span class="home__dish-family">{dish.familyName}</span>
+                    ) : null}
+                    <span class="home__dish-name">{dish.canonicalName}</span>
+                    {dish.originName ? (
+                      <span class="home__dish-place">
+                        <span class="home__place-dot" aria-hidden="true" />
+                        Associated with {dish.originName}
+                      </span>
+                    ) : null}
+                    {dish.shortDescription ? (
+                      <span class="home__dish-description">
+                        {dish.shortDescription}
+                      </span>
+                    ) : null}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null
+    }
+
+    {/* ── Follow a thread ────────────────────────────────────────────── */}
+    {
+      threads.length > 0 ? (
+        <section class="home__section" aria-labelledby="home-threads-heading">
+          <div class="home__section-head">
+            <h2 id="home-threads-heading" class="home__section-heading">
+              {THREAD_HEADING}
+            </h2>
+            {threadCount ? (
+              <a class="home__section-link" href="/lineages">
+                All {threadCount} threads
+              </a>
+            ) : null}
+          </div>
+          <p class="home__section-description">{THREAD_DESCRIPTION}</p>
+
+          <ul class="home__thread-grid">
+            {threads.map((thread) => {
+              const route: string[] = [];
+              for (const r of [
+                ...(thread.originRegions ?? []),
+                ...(thread.relatedRegions ?? []),
+              ]) {
+                if (!route.includes(r)) route.push(r);
+              }
+              const shown = route.slice(0, 4);
+              return (
+                <li class="home__thread-card">
+                  <div class="home__thread-top">
+                    <p class="home__thread-eyebrow">
+                      Thread · {thread.dishCount} dishes
+                    </p>
+                    <EvidenceLabel
+                      confidenceLevel={thread.confidenceLevel}
+                      subject="thread"
+                    />
+                  </div>
+                  <h3 class="home__thread-title">
+                    <a href={`/lineages/${thread.slug}`}>{thread.name}</a>
+                  </h3>
+                  {thread.conceptSummary ? (
+                    <p class="home__thread-description">
+                      {thread.conceptSummary}
+                    </p>
+                  ) : null}
+                  {shown.length > 1 ? (
+                    <p class="home__thread-route">
+                      {shown.join(" → ")}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null
+    }
+
+    {/* ── Browse by form | Start from an ingredient ───────────────────── */}
+    {
+      familyChips.length > 0 || ingredient.ok ? (
+        <section class="home__section home__section--split">
+          {familyChips.length > 0 ? (
+            <div class="home__split-col">
+              <h2 class="home__section-heading">{FORM_HEADING}</h2>
+              <p class="home__section-description">{FORM_DESCRIPTION}</p>
+              <ul class="home__family-chips">
+                {familyChips.map((family) => (
+                  <li>
+                    <a class="home__chip" href={`/family/${family.slug}`}>
+                      <span class="home__chip-name">{family.name}</span>
+                      <span class="home__chip-count">{family.count}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              {familyCount ? (
+                <a class="home__button home__button--dashed" href="/families">
+                  All {familyCount} families
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+
+          {ingredient.ok ? (
+            <div class="home__split-col">
+              <h2 class="home__section-heading">{INGREDIENT_HEADING}</h2>
+              <p class="home__section-description">
+                {INGREDIENT_DESCRIPTION}
+              </p>
+              <a
+                class="home__ingredient-card"
+                href={`/ingredients/${ingredient.value.ingredient.slug}`}
+              >
+                {ingredientThumb ? (
+                  <img
+                    class="home__ingredient-image"
+                    src={ingredientThumb.url}
+                    alt={ingredientThumb.alt}
+                    width={ingredientThumb.width ?? undefined}
+                    height={ingredientThumb.height ?? undefined}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span
+                    class="home__ingredient-image home__ingredient-image--placeholder"
+                    aria-hidden="true"
+                  />
+                )}
+                <span class="home__ingredient-body">
+                  <span class="home__dish-family">Ingredient</span>
+                  <span class="home__ingredient-name">
+                    {ingredient.value.ingredient.canonicalName}
+                  </span>
+                  {ingredient.value.dishes.length > 0 ? (
+                    <span class="home__ingredient-dishes">
+                      {ingredient.value.dishes
+                        .map((d) => d.dishName)
+                        .join(" · ")}
+                    </span>
+                  ) : null}
+                </span>
+              </a>
+            </div>
+          ) : null}
+        </section>
+      ) : null
+    }
+
+    {/* ── How to read Gustale ────────────────────────────────────────── */}
+    <section class="home__section" aria-labelledby="home-legend-heading">
+      <h2 id="home-legend-heading" class="home__section-heading">
+        {LEGEND_HEADING}
+      </h2>
+
+      <div class="home__legend">
+        <RelationshipKey kinds={LEGEND_KINDS} />
+      </div>
+
+      <p class="home__legend-intro">{LEGEND_INTRO}</p>
+      <ul class="home__legend-labels">
+        <li>
+          <EvidenceLabel
+            evidenceStatus="evidenced"
+            hasSource
+            subject="claim"
+          />
+        </li>
+        <li>
+          <EvidenceLabel
+            evidenceStatus="provisional"
+            hasSource
+            subject="claim"
+          />
+        </li>
+        <li>
+          <EvidenceLabel
+            evidenceStatus="provisional"
+            disputeState="disputed"
+            hasSource
+            subject="claim"
+          />
+        </li>
+        <li>
+          <EvidenceLabel
+            evidenceStatus="research_pending"
+            subject="claim"
+          />
+        </li>
+      </ul>
+
+      <p class="home__legend-links">
+        {LEGEND_LINKS.map((link, i) => (
+          <>
+            {i > 0 ? " · " : null}
+            <a href={link.href}>{link.label}</a>
+          </>
+        ))}
+      </p>
+    </section>
+
+    {/* ── Know a dish we don't? ─────────────────────────────────────── */}
+    {/*
+      THE AUTHORING CTA
+
+      The old home ended with this band, and it is kept: the site is
+      built by people who add dishes, and the blueprint's D6 says the
+      one site authors. WP-C1 replaces the catalogue workspace, not the
+      site's invitation to contribute.
+
+      It is a plain link, not a button with a click handler, so it
+      works before — and without — JavaScript.
+    */}
+    <section class="home__section home__cta" aria-labelledby="home-cta-heading">
+      <div class="home__cta-text">
+        <h2 id="home-cta-heading" class="home__cta-heading">
+          Know a dish we don't?
+        </h2>
+        <p class="home__cta-description">
+          Gustale is built by people who cook, eat, and document. Every dish
+          you add makes the atlas richer.
+        </p>
+      </div>
+      <div class="home__cta-action">
+        <a class="home__button home__button--primary" href="/dishes/new">
+          Add a dish →
+        </a>
+        <p class="home__cta-note">Free forever. No account required to browse.</p>
+      </div>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  /* The home page's own styles.
+   *
+   * The COLOURS are the site's: --bg, --card, --ink, --sub, --line,
+   * --accent, --association and the four evidence colours all come from
+   * global.css, so the home page cannot drift from the rest of the
+   * site. The mockup's palette IS this palette — it was read off this
+   * site. */
+
+  .home {
+    padding-bottom: var(--space-9);
+  }
+
+  /* ── Hero ────────────────────────────────────────────────────────── */
+
+  .home__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: var(--space-8);
+    align-items: center;
+    padding: var(--space-9) var(--page-pad-x) var(--space-8);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .home__eyebrow {
+    margin: 0 0 var(--space-3);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sub);
+  }
+
+  .home__headline {
+    margin: 0 0 var(--space-4);
+    font-family: var(--display);
+    font-size: clamp(32px, 4.4vw, 54px);
+    line-height: 1.08;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .home__subheadline {
+    margin: 0 0 var(--space-6);
+    max-width: 46ch;
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--sub);
+  }
+
+  /* The search. */
+  .home__search {
+    margin: 0 0 var(--space-5);
+    max-width: 520px;
+  }
+
+  .home__search-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sub);
+  }
+
+  .home__search-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .home__search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: var(--target-min);
+    padding: 10px 14px;
+    font: inherit;
+    font-size: 15px;
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+  }
+
+  .home__search-input::placeholder {
+    color: var(--sub);
+    opacity: 0.85;
+  }
+
+  .home__search-button {
+    min-height: var(--target-min);
+    padding: 10px 18px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .home__search-button:hover {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+  }
+
+  .home__hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .home__button {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--target-min);
+    padding: 9px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+  }
+
+  .home__button--primary {
+    color: var(--accent-ink);
+    background: var(--accent);
+  }
+
+  .home__button--primary:hover {
+    background: var(--accent-dark);
+  }
+
+  .home__button--secondary {
+    color: var(--ink);
+    background: transparent;
+    border-color: var(--line-strong);
+  }
+
+  .home__button--secondary:hover {
+    border-color: var(--ink);
+  }
+
+  .home__button--dashed {
+    margin-top: var(--space-4);
+    color: var(--ink);
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--line-strong);
+  }
+
+  /* The map. */
+  .home__map-figure {
+    margin: 0;
+  }
+
+  .home__map-caption {
+    margin-top: var(--space-3);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--sub);
+  }
+
+  /* ── Sections ────────────────────────────────────────────────────── */
+
+  .home__section {
+    padding: var(--space-8) var(--page-pad-x);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .home__section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .home__section-heading {
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(24px, 2.6vw, 32px);
+    font-weight: 400;
+    color: var(--ink);
+  }
+
+  .home__section-link {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .home__section-description {
+    margin: var(--space-2) 0 var(--space-6);
+    max-width: 62ch;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--sub);
+  }
+
+  /* ── Dish cards ──────────────────────────────────────────────────── */
+
+  .home__dish-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .home__dish-card {
+    margin: 0;
+  }
+
+  .home__dish-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .home__dish-cover {
+    display: block;
+    width: 100%;
+    /* `height: auto` is REQUIRED, not cosmetic. The `width`/`height`
+       attributes on the element are presentational hints that set a
+       fixed used height (the source's 1152 px), which beats
+       `aspect-ratio` on its own. With `height: auto` the aspect-ratio
+       rule governs and the cover is the mockup's 4:3 box. */
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .home__dish-cover--placeholder {
+    background: linear-gradient(135deg, var(--card), #efe7d5);
+  }
+
+  .home__dish-body {
+    display: block;
+    padding-top: var(--space-3);
+  }
+
+  .home__dish-family {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sub);
+  }
+
+  .home__dish-name {
+    display: block;
+    font-family: var(--display);
+    font-size: 21px;
+    line-height: 1.2;
+    color: var(--ink);
+  }
+
+  .home__dish-link:hover .home__dish-name {
+    color: var(--accent);
+  }
+
+  .home__dish-place {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--association);
+  }
+
+  .home__place-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--association);
+  }
+
+  /* THREE LINES, as in the mockup. The live descriptions are longer
+     than the mockup's three-line samples, so without a clamp one card
+     sets the height of all four and the section grows past the
+     blueprint's 4,000 px budget. The clamp keeps the grid even; the
+     full text is on the dish's own page, and the card's link carries
+     the name and the description's beginning. */
+  .home__dish-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: var(--space-2);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--sub);
+  }
+
+  /* ── Thread cards ────────────────────────────────────────────────── */
+
+  .home__thread-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .home__thread-card {
+    margin: 0;
+    padding: var(--space-5);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .home__thread-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  .home__thread-eyebrow {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sub);
+  }
+
+  .home__thread-title {
+    margin: 0 0 var(--space-2);
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.22;
+  }
+
+  .home__thread-title a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .home__thread-title a:hover {
+    color: var(--accent);
+  }
+
+  .home__thread-description {
+    margin: 0 0 var(--space-3);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--sub);
+  }
+
+  .home__thread-route {
+    margin: 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--association);
+  }
+
+  /* ── The split section ───────────────────────────────────────────── */
+
+  .home__section--split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  .home__split-col {
+    min-width: 0;
+  }
+
+  .home__family-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .home__chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 14px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+
+  .home__chip:hover {
+    border-color: var(--ink);
+  }
+
+  .home__chip-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sub);
+  }
+
+  .home__ingredient-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    text-decoration: none;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+  }
+
+  .home__ingredient-card:hover {
+    border-color: var(--ink);
+  }
+
+  .home__ingredient-image {
+    display: block;
+    width: 72px;
+    height: 72px;
+    flex: none;
+    object-fit: cover;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .home__ingredient-image--placeholder {
+    background: linear-gradient(135deg, var(--card), #efe7d5);
+  }
+
+  .home__ingredient-body {
+    display: block;
+    min-width: 0;
+  }
+
+  .home__ingredient-name {
+    display: block;
+    margin: 4px 0 var(--space-1);
+    font-family: var(--display);
+    font-size: 24px;
+    color: var(--ink);
+  }
+
+  .home__ingredient-dishes {
+    display: block;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--sub);
+  }
+
+  /* ── The legend ──────────────────────────────────────────────────── */
+
+  .home__legend {
+    margin-top: var(--space-5);
+  }
+
+  .home__legend-intro {
+    margin: var(--space-6) 0 var(--space-3);
+    font-size: 15px;
+    color: var(--ink);
+  }
+
+  .home__legend-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .home__legend-links {
+    margin: var(--space-6) 0 0;
+    font-size: 14px;
+  }
+
+  .home__legend-links a {
+    color: var(--accent);
+  }
+
+  /* ── The authoring CTA ──────────────────────────────────────────── */
+
+  .home__cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6);
+  }
+
+  .home__cta-heading {
+    margin: 0 0 var(--space-2);
+    font-family: var(--display);
+    font-size: clamp(22px, 2.4vw, 28px);
+    font-weight: 400;
+    color: var(--ink);
+  }
+
+  .home__cta-description {
+    margin: 0;
+    max-width: 52ch;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--sub);
+  }
+
+  .home__cta-action {
+    text-align: right;
+  }
+
+  .home__cta-note {
+    margin: var(--space-2) 0 0;
+    font-size: 12px;
+    color: var(--sub);
+  }
+
+  /* ── Narrow screens ──────────────────────────────────────────────── */
+
+  @media (max-width: 1000px) {
+    .home__hero {
+      grid-template-columns: 1fr;
+      gap: var(--space-6);
+    }
+
+    .home__dish-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .home__thread-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .home__section--split {
+      grid-template-columns: 1fr;
+      gap: var(--space-7);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .home__dish-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .home__search-row {
+      flex-wrap: wrap;
+    }
+
+    .home__search-input {
+      flex-basis: 100%;
+    }
+  }
+</style>
