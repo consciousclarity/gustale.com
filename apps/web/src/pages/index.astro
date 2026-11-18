@@ -293,22 +293,20 @@ const familyChips = await (async () => {
   const results = await Promise.all(
     FAMILY_CANDIDATES.map((slug) => load(() => getFamilyTaxonomy(slug))),
   );
-  const counted = (
-    results
-      .map((r, i) =>
-        r.ok
-          ? {
-              slug: FAMILY_CANDIDATES[i],
-              name: r.value.family.name,
-              count: r.value.counts.dishes,
-            }
-          : null,
-      )
-      .filter(
-        (c): c is { slug: string; name: string; count: number } =>
-          c !== null && c.count > 0,
-      )
-  );
+  const counted = results
+    .map((r, i) =>
+      r.ok
+        ? {
+            slug: FAMILY_CANDIDATES[i],
+            name: r.value.family.name,
+            count: r.value.counts.dishes,
+          }
+        : null,
+    )
+    .filter(
+      (c): c is { slug: string; name: string; count: number } =>
+        c !== null && c.count > 0,
+    );
 
   // THE ORDER IS THE MOCKUP'S ORDER
   //
@@ -341,9 +339,7 @@ const familyChips = await (async () => {
     "fish-dish",
   ];
 
-  const bySlug = new Map(
-    counted.map((c) => [c.slug, c] as const),
-  );
+  const bySlug = new Map(counted.map((c) => [c.slug, c] as const));
   const anchored = MOCKUP_ANCHORS.map((slug) => bySlug.get(slug)).filter(
     (c): c is { slug: string; name: string; count: number } => c !== undefined,
   );
