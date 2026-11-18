@@ -186,8 +186,13 @@ const label = `A world map showing ${markers.length} places on a thread's route,
 
   .home-map__credit {
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 12px;
+    /* CONTRAST, NOT FADING.
+       The credit was 11px of --sub at 0.8 opacity, which fell under
+       the contrast threshold and failed the axe gate. The credit is
+       small print about where the basemap came from -- it should be
+       quiet, not unreadable. --sub at full strength on --paper is
+       the quietest colour that still passes. */
     color: var(--sub);
-    opacity: 0.8;
   }
 </style>
