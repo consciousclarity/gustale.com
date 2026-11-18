@@ -10,7 +10,12 @@ import { EditDishButton } from "../../components/EditDishButton";
 import RecipeHub from "../../components/RecipeHub.astro";
 import { RelatedDishes } from "../../components/RelatedDishes";
 import Layout from "../../layouts/Layout.astro";
-import { getDishDetail, getDishJourney } from "../../lib/api";
+import {
+  type AtlasResponse,
+  getDishAtlas,
+  getDishDetail,
+  getDishJourney,
+} from "../../lib/api";
 import { isGeoDomain } from "../../lib/domain";
 import {
   dishUrl,
@@ -192,6 +197,7 @@ if (!isGeo) {
 // (ADR-007-A1 §5.1: "No history, places, or families copied from the
 // Atlas").
 let data: DishDetailResponse | null = null;
+let atlasData: AtlasResponse | null = null;
 let notFound = false;
 let fetchError: string | null = null;
 let journeyBeats: JourneyBeat[] = [];
@@ -217,14 +223,15 @@ if (isGeo) {
   }
 
   if (data) {
-    try {
-      const journey = await getDishJourney(slug as string);
-      journeyBeats = journey.beats ?? [];
-      journeyLineages = journey.lineages ?? [];
-    } catch {
-      // Journey is optional — never fail the dish page if the sub-resource errs.
-      journeyBeats = [];
-      journeyLineages = [];
+    // Fetch the optional sections together so associations are readable before hydration.
+    const [atlas, journey] = await Promise.allSettled([
+      getDishAtlas(data.dish.slug),
+      getDishJourney(slug as string),
+    ]);
+    if (atlas.status === "fulfilled") atlasData = atlas.value;
+    if (journey.status === "fulfilled") {
+      journeyBeats = journey.value?.beats ?? [];
+      journeyLineages = journey.value?.lineages ?? [];
     }
   }
 
@@ -359,12 +366,13 @@ const servedEnglish =
           the legacy value appears under its own heading, marked as
           discovery data.
 
-          It is an island, so the page stays static and the associations
-          load when the section approaches the viewport. */}
+          The island hydrates near the viewport and can retry when the
+          build could not fetch associations. */}
           <div class="wrap">
             <AtlasPlaces
               slug={data.dish.slug}
               dishName={data.dish.name}
+              initialData={atlasData}
               client:visible
             />
           </div>

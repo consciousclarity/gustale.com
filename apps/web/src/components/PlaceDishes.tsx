@@ -44,12 +44,22 @@ function EvidenceBadge({ status }: { status: string }) {
   return <EvidenceLabel evidenceStatus={status} subject="association" />;
 }
 
-export default function PlaceDishes({ slug }: { slug: string }) {
-  const [data, setData] = useState<PlaceResponse | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+export default function PlaceDishes({
+  slug,
+  initialData,
+}: {
+  slug: string;
+  initialData?: PlaceResponse | null;
+}) {
+  const [data, setData] = useState<PlaceResponse | null>(initialData ?? null);
+  const [state, setState] = useState<"loading" | "ready" | "error">(
+    initialData ? "ready" : "loading",
+  );
   const [reason, setReason] = useState("");
 
   useEffect(() => {
+    if (initialData) return;
+
     let cancelled = false;
     setState("loading");
 
@@ -74,7 +84,7 @@ export default function PlaceDishes({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, initialData]);
 
   if (state === "loading") {
     return (

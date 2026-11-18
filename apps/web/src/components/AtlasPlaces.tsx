@@ -319,15 +319,21 @@ function AtlasPlacesStyles() {
 export default function AtlasPlaces({
   slug,
   dishName,
+  initialData,
 }: {
   slug: string;
   dishName: string;
+  initialData?: AtlasResponse | null;
 }) {
-  const [data, setData] = useState<AtlasResponse | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [data, setData] = useState<AtlasResponse | null>(initialData ?? null);
+  const [state, setState] = useState<"loading" | "ready" | "error">(
+    initialData ? "ready" : "loading",
+  );
   const [reason, setReason] = useState<string>("");
 
   useEffect(() => {
+    if (initialData) return;
+
     let cancelled = false;
     setState("loading");
 
@@ -378,7 +384,7 @@ export default function AtlasPlaces({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [slug]);
+  }, [slug, initialData]);
 
   if (state === "loading") {
     return (
