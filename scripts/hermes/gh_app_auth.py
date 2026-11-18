@@ -319,6 +319,49 @@ def installation_repositories(token: str) -> list[dict]:
 ASKPASS_PATH = Path(__file__).resolve().parent / ".gh-app-askpass.sh"
 
 
+def ls_remote_with_token(
+    token: str,
+    repo_dir: str,
+    remote: str,
+    ref: str,
+    *,
+    timeout: int = 60,
+) -> subprocess.CompletedProcess:
+    """`git ls-remote` with the installation token, via an askpass helper.
+
+    WHY THIS EXISTS
+    A plain `git ls-remote` against a private repository cannot
+    authenticate: there is no PAT, and the App token only reaches git
+    through the askpass helper. The plain call fails, returns nothing,
+    and the caller reads that as "the remote ref is empty" -- which is
+    indistinguishable from "the branch does not exist".
+
+    That is how the fast-forward guard in `push_sha_as_app.py` came to
+    report "remote moved: expected <sha>, found ." -- an empty SHA --
+    instead of the true remote head. The guard still refused to push,
+    so nothing unsafe happened, but the message was wrong and the
+    guard was comparing against nothing.
+
+    Same askpass mechanism as `push_with_token`, for the same reason:
+    the token never appears in argv, in a log, or in the remote URL.
+    """
+    if not ASKPASS_PATH.exists():
+        raise SystemExit(f"::error::the askpass helper is missing: {ASKPASS_PATH}")
+    mode = ASKPASS_PATH.stat().st_mode
+    ASKPASS_PATH.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    env = dict(os.environ)
+    env["GIT_ASKPASS"] = str(ASKPASS_PATH)
+    env["GITHUB_APP_TOKEN"] = token
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        cmd = ["git", "-C", repo_dir, "ls-remote", remote, ref]
+        return subprocess.run(
+            cmd, env=env, capture_output=True, text=True, timeout=timeout,
+        )
+    finally:
+        ASKPASS_PATH.chmod(mode)
+
+
 def push_with_token(
     token: str,
     repo_dir: str,
