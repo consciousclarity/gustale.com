@@ -22,8 +22,8 @@
  * the same endpoints, served from an inlined JSON file. So the data is
  * already available in a form that needs no network at all.
  *
- * THIS SCRIPT IS THE BRIDGE. It fetches the live data ONCE, in a few
- * dozen requests, and writes it in the shape the mock already reads. The
+ * THIS SCRIPT IS THE BRIDGE. It fetches the live data once before the
+ * build and writes it in the shape the mock already reads. The
  * build then runs the mock against that snapshot: same code path as CI,
  * live data, and the API-call phase drops from ~11 minutes to <1 second.
  *
@@ -40,11 +40,11 @@
  *   GET /api/ingredients                  the ingredients
  *   GET /api/dishes/<slug>                every dish detail
  *   GET /api/dishes/<slug>/journey        every dish's journey
+ *   GET /api/dishes/<slug>/atlas          every dish's associations
  *
  * The per-dish fetches are the only remaining fan-out. They run with a
  * bounded concurrency so they finish in seconds instead of minutes, and
- * they are CACHED: a dish whose `updatedAt` has not changed is not
- * re-fetched.
+ * detail and journey responses are cached against the dish's `updatedAt`.
  *
  * USAGE
  * -----
@@ -243,15 +243,31 @@ await pool(targets, CONCURRENCY, async (slug) => {
 
 log(`  ${Object.keys(details).length} details`);
 
-// ── 4. write it in the mock's shape ────────────────────────────────────────
+// ── 5. the per-dish atlas ─────────────────────────────────────────────────
+// Association reviews can change independently of the dish's updatedAt.
+// Capture them afresh so the static pages reflect the latest evidence labels.
+log(`fetching ${targets.length} dish atlases (concurrency ${CONCURRENCY})`);
+const atlasRows = await pool(targets, CONCURRENCY, async (slug) => {
+  try {
+    return await get(`/api/dishes/${encodeURIComponent(slug)}/atlas`);
+  } catch {
+    return null;
+  }
+});
+const atlas = Object.fromEntries(
+  targets.map((slug, i) => [slug, atlasRows[i]]).filter(([, row]) => row),
+);
+log(`  ${Object.keys(atlas).length} atlases captured out of ${targets.length}`);
+
+// ── 6. write it in the mock's shape ────────────────────────────────────────
 const snapshot = {
   generatedFrom: `${API} (live snapshot, ${list.length} published dishes, captured ${new Date().toISOString()})`,
   list,
   map: blobs.map ?? { dishes: [], count: 0 },
   details,
-  atlas: blobs.counts ?? {},
+  atlas,
   counts: blobs.counts ?? {},
-  places: blobs.places ?? { list: null, details: {} },
+  places: blobs.places ?? { places: [], count: 0 },
   connections: blobs.connections ?? { list: null, details: {} },
   categories: blobs.categories ?? { categories: [] },
   lineages: blobs.lineages ?? { list: null, details: {} },

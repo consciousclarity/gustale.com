@@ -68,14 +68,14 @@ export async function getStaticPaths() {
 
 const { slug } = Astro.params;
 
-let place: PlaceResponse["place"] | null = null;
+let placeData: PlaceResponse | null = null;
 let loadFailed = false;
 let failureReason = "";
 
 if (slug) {
   try {
-    const res = await getPlace(slug);
-    place = res.place;
+    // Reuse the build response so the dish list is readable before hydration.
+    placeData = await getPlace(slug);
   } catch (err) {
     loadFailed = true;
     failureReason =
@@ -86,6 +86,8 @@ if (slug) {
           : "unknown";
   }
 }
+
+const place = placeData?.place ?? null;
 ---
 
 <Layout
@@ -139,10 +141,10 @@ if (slug) {
   }
 
   {
-    place ? (
+    slug ? (
       <div class="wrap">
         <ErrorBoundary name="Place dishes">
-          <PlaceDishes slug={slug!} client:visible />
+          <PlaceDishes slug={slug} initialData={placeData} client:visible />
         </ErrorBoundary>
       </div>
     ) : null

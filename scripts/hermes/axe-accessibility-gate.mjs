@@ -70,6 +70,9 @@ const PATHS = [
   { path: "/regions", slug: "regions" },
   { path: "/lineages", slug: "lineages" },
   { path: "/dishes/empanada", slug: "dish" },
+  // The place page server-renders its dish list, so its markup is real
+  // HTML now and worth gating.
+  { path: "/place/greece", slug: "place" },
 ];
 
 /**
