@@ -12,93 +12,50 @@
 #
 #   git apply docs/ci-ingredient-aliases-0061-0062.patch
 #
-# Generated against main at 4e10b10 (the merge of PR #261, the
-# server-rendered dish page). The patch applies cleanly to that tree.
+# WHY IT IS NEEDED: the migration-chain validator compares three lists --
+# .github/workflows/ci.yml (the CI database), scripts/ci-migration-chain.sh
+# (the Nightly database) and scripts/repro-ci-db.sh (the LOCAL
+# reproduction). PR #263 added 0061 and 0062 to the two scripts. The
+# workflow is the third list, and it cannot be pushed by the App, so it
+# has to be patched. Without it the validator fails with:
 #
-# WITH IT APPLIED
-# ---------------
-# .github/workflows/ci.yml applies the SAME 62 migrations as
-# scripts/ci-migration-chain.sh and scripts/repro-ci-db.sh.
-# scripts/validate-ci-migration-chain.py is what checks the three lists
-# agree -- and it passes on the branch this patch was generated from:
+#   CI migration chain MISMATCH:
+#   in scripts/ci-migration-chain.sh but NOT in .github/workflows/ci.yml:
+#   db/migrations/0061_ingredient_aliases.sql
+#   db/migrations/0062_ingredients_sourcing_vocabulary.sql
 #
-#   CI migration chain OK (62 migrations, all three lists agree)
+# A migration that is not applied is a schema that does not exist, and the
+# route that reads it returns 500. The local reproduction drifting from
+# CI is how a developer ends up debugging a failure that the CI database
+# does not have.
 #
-# WHAT IT ADDS
-# ------------
-#   0061_ingredient_aliases.sql
-#     Creates public.ingredient_aliases and the first alias row: the
-#     béchamel duplicate. `bechamel-sauce` keeps resolving because it has
-#     a live public URL -- the alias redirects it to the canonical
-#     ingredient instead of deleting the row and breaking the page.
-#     Strictly additive: one new table, at most one alias row.
+# WHERE IT GOES: the two steps run immediately after 0060 (the legacy
+# associations, published as Unverified) and before the PER-DISH backfill
+# assertions, which must stay LAST because they assert the state the
+# whole chain produces.
 #
-#   0062_ingredients_sourcing_vocabulary.sql
-#     Adds the 21 reviewed ingredient rows (GUS-1108) -- the vocabulary the
-#     sourcing availability rows attach to. Additive; publishes nothing.
+# Generated against main at 7c0c53c (the merge of PR #262, WP-C1).
+# The patch applies cleanly to that tree.
 #
-# WHY 0061 AND 0062, AND NOT 0056 AND 0057
-# ---------------------------------------
-# PR #219 opened with 0056 and 0057. Main then merged 0058, 0059 and
-# 0060, and ALL THREE are already applied to the LIVE database. An
-# applied migration is frozen: its number cannot be reused, and a new
-# migration that sorts BEFORE an applied one cannot be applied to live
-# at all -- the chain runs in filename order.
-#
-# So both migrations were renumbered: 0056 -> 0061, 0057 -> 0062. They
-# depend on nothing except `ingredients` and `ingredient_categories`, so
-# running them at the end of the chain is safe.
-#
-# WHERE THEY RUN
-# --------------
-# After 0060, in all three lists. 0061 and 0062 are at the end of the
-# migration sequence in ci.yml, scripts/ci-migration-chain.sh and
-# scripts/repro-ci-db.sh, so the three agree.
-#
-# WHY IT MATTERS
-# --------------
-# The migration list lives in three files -- the CI workflow, the Nightly
-# chain script and the local reproduction -- and all three must apply the
-# SAME migrations. A migration applied in one and not the others is a
-# schema that exists in one environment and not the others, and the route
-# that reads it returns 500 where it is missing. That is exactly what
-# happened to GET /api/dishes when categories.kind was in the live
-# database and in no committed migration.
-#
-# This patch REPLACES two earlier ones:
-#   docs/ci-ingredient-aliases-0056-0057.patch
-#   docs/ci-ingredient-aliases-0056.patch
-# Both name migration numbers that no longer exist.
-#
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 7244091..fbec8e5 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -1307,8 +1307,8 @@
-       # `listed` is defined in terms of `family_class` and the
-       # description.
-       #
--      # It is numbered 0058 rather than 0056 because PR #219 already
--      # claims 0056 and 0057. Two migrations must never share a number.
-+      # It is numbered 0058 rather than 0061 because PR #219 already
-+      # claims 0061 and 0062. Two migrations must never share a number.
-       #
-       # It WRITES content rows (the backfill) and deletes one row, and
-       # its proof runs inside its own transaction, so a failed proof
-@@ -1337,6 +1337,34 @@
-           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+@@ -1338,6 +1338,34 @@ jobs:
              -f db/migrations/0060_legacy_associations_published.sql 2>&1 | tee /tmp/m0060.log
            bash scripts/check-ci-markers.sh "the legacy associations, published as Unverified" "0060: ok" /tmp/m0060.log
-+      # ── 0061: the ingredient aliases table ───────────────────────────
+ 
++      # ── 0061: the ingredient aliases table ────────────────────────────
 +      #
-+      # Migration 0061 creates ingredient_aliases -- the mechanism
-+      # behind the béchamel merge. A retired slug keeps resolving,
-+      # because it has a live public URL.
++      # PR #219's ingredient alias table. It was 0056 when that PR was
++      # opened, then 0061, and it is 0061 here: a migration that has been
++      # APPLIED is frozen, so its number cannot be reused, and the new
++      # numbers must sort AFTER the ones live already has (0058, 0059,
++      # 0060).
 +      #
-+      # It is strictly additive: one new table, and at most one alias
-+      # row (none at all on a database without the orphan).
-+      #
-+      # It was 0056 when this branch was opened. Renumbered to 0061 so
-+      # it sorts after the migrations main has already applied to live
-+      # (0058, 0059, 0060) -- an applied migration is frozen.
++      # It is additive: a table of alternative names for an ingredient, so
++      # a search for "scallion" also finds "spring onion". It publishes
++      # nothing.
 +      - name: Apply the ingredient aliases table
 +        run: |
 +          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
@@ -115,6 +72,7 @@
 +          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
 +            -f db/migrations/0062_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0062.log
 +          bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0062: all 6 proofs passed" /tmp/m0062.log
- 
++
        # The PER-DISH backfill assertions. LAST, because they assert the
        # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
