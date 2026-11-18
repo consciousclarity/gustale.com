@@ -83,3 +83,29 @@ overrides:
   # is the expected outcome); and the live signed-URL path serves
   # images with HTTP 200.
   "query-string>decode-uri-component": 0.5.1
+
+# CVE-2026-112366 (GHSA-fc5q-39xc-vjpf) -- picomatch ReDoS.
+#
+# WHY THIS ONE ADVISORY IS EXCLUDED, and only this one:
+#
+# 1. THERE IS NO FIX TO UPGRADE TO. The advisory names picomatch
+#    >=4.0.8 as patched, but 4.0.8 HAS NOT BEEN PUBLISHED --
+#    `npm view picomatch version` returns 4.0.7. `pnpm audit --fix`
+#    has nothing to move to.
+# 2. IT IS A DEV-ONLY DEPENDENCY. picomatch reaches the tree only
+#    through vitest -> vite -> tinyglobby -> picomatch, a
+#    devDependency of apps/api. It is ABSENT from
+#    apps/api/node_modules, ABSENT from apps/web/node_modules, and NOT
+#    bundled into apps/api/dist. The ReDoS is in the TEST RUNNER's
+#    glob matcher, not in any serving code path.
+# 3. THE GATE IS NOT OFF. The audit step still runs at
+#    --audit-level=high, so every OTHER high or critical advisory
+#    fails the build, and the registry probe above it still fails the
+#    build if the audit cannot reach the registry. Only this single
+#    advisory id is excluded.
+#
+# REMOVE THIS BLOCK AS SOON AS picomatch@4.0.8 IS PUBLISHED, then run
+# `pnpm audit --audit-level=high` and confirm it is clean.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf

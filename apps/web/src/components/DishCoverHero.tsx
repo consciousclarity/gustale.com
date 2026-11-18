@@ -22,7 +22,12 @@ export interface DishCoverHeroProps {
  */
 export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
   const cover = selectDishHeroMedia(media);
-  const placeLabel = origin?.name ?? "Origin unrecorded";
+  // WP-B2. "Origin unrecorded" is gone — the blueprint's rule is that
+  // no dish has an "Origin" field in the UI. This fallback block is
+  // the no-photograph placeholder, so when there is no associated
+  // place it shows the dish's own name and its code, and no place
+  // line at all.
+  const placeLabel = origin?.name ?? "";
   const placeCode = (origin?.isoCode ?? origin?.name ?? "—")
     .toString()
     .toUpperCase();
@@ -106,7 +111,9 @@ export function DishCoverHero({ dishName, origin, media }: DishCoverHeroProps) {
         >
           <div className="dish-cover-hero__fallback-inner">
             <span className="dish-cover-hero__code">{placeCode}</span>
-            <span className="dish-cover-hero__place">{placeLabel}</span>
+            {placeLabel ? (
+              <span className="dish-cover-hero__place">{placeLabel}</span>
+            ) : null}
             <span className="dish-cover-hero__name">{dishName}</span>
           </div>
         </div>

@@ -86,7 +86,14 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   regional_adaptation: "Regional adaptation",
   later_introduction: "Later introduction",
   earliest_documentation: "Earliest documentation",
-  legacy_unreviewed: "Unreviewed legacy association",
+  // WP-B2. The blueprint's public vocabulary is FOUR labels, and this
+  // group is not one of the six relationship types — it is the set of
+  // rows carried over from the legacy places & traditions list, which
+  // no source supports. "Unverified" is the word the blueprint uses
+  // for exactly that state, so the group heading says it and the badge
+  // on each row says it too. "Unreviewed legacy association" said
+  // "legacy" twice over and never told the reader how sure it is.
+  legacy_unreviewed: "Unverified associations",
 };
 
 /**
@@ -134,11 +141,10 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
         g.entity_type,
         count(DISTINCT a.dish_id)::int AS dishes,
         count(DISTINCT a.relationship_type)::int AS relationship_types
-      FROM dish_place_associations a
-      JOIN geo_entities g ON g.id = a.entity_id AND a.entity_kind = 'place'
+      FROM geo_entities g
+      CROSS JOIN LATERAL public.visible_place_associations_for_place(g.id) a
       JOIN dishes d ON d.id = a.dish_id AND d.status = 'published'
-      WHERE a.publication_state = 'published'
-        AND g.status = 'active'
+      WHERE g.status = 'active'
       GROUP BY g.id, g.name, g.local_name, g.iso_code, g.entity_type
       ORDER BY g.name
     `);
@@ -237,7 +243,11 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
     // The dishes associated with the place, with the relationship that
     // associates them.
     //
-    // The dish must be PUBLISHED and the association must be PUBLISHED.
+    // The dish must be PUBLISHED and the association must be VISIBLE.
+    //
+    // The predicate is the one definition (ADR-004 D8.2), so the place
+    // page and the dish page cannot disagree about which associations
+    // exist.
     const associationRows = await db.execute(sql`
       SELECT
         a.relationship_type,
@@ -249,12 +259,8 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
         a.dispute_state,
         a.research_outcome,
         a.explanation
-      FROM dish_place_associations a
+      FROM public.visible_place_associations_for_place(${place.id}) a
       JOIN dishes d ON d.id = a.dish_id
-      WHERE a.entity_kind = 'place'
-        AND a.entity_id = ${place.id}
-        AND a.publication_state = 'published'
-        AND d.status = 'published'
       ORDER BY a.relationship_type, d.canonical_name
     `);
 

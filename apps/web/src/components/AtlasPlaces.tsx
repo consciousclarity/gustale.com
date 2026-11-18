@@ -107,6 +107,25 @@ const GROUPS: Group[] = [
     types: ["regional_adaptation", "later_introduction"],
     note: "Where the dish travelled to, and how it changed there.",
   },
+  {
+    // WP-B2. The legacy import gets its OWN group, with its own
+    // heading, instead of falling into "Other associations".
+    //
+    // "Other" is a vague word for a specific thing, and the thing here
+    // is specific: these rows came from the legacy places & traditions
+    // fields, no source supports them, and the 2026-11-15 blueprint
+    // asks for them to be published with the label UNVERIFIED. So the
+    // heading says what they are.
+    //
+    // It comes LAST on purpose. It is the least evidenced group, and
+    // the order is presentation metadata — but a reader who meets
+    // "Unverified associations" before "Historical emergence" would
+    // reasonably read the page as being about unverified material.
+    id: "legacy",
+    label: "Unverified associations",
+    types: ["legacy_unreviewed"],
+    note: "Carried over from the old places and traditions list. No source supports them yet, so they are a starting point rather than a finding.",
+  },
 ];
 
 // The association's evidence badge.

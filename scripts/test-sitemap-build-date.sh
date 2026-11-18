@@ -40,13 +40,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
 GEN="scripts/generate_sitemaps.mjs"
-# The CI workflow patch. The GitHub App has no `workflows` scope, so
-# the workflow change ships as a file the owner applies.
-#
-# ABSOLUTE: the patch check runs `git apply` inside a scratch copy of
-# the workflow's directory, and a relative path would not resolve
-# from there.
-PATCH_FILE="$REPO_ROOT/docs/ci-patches/ci-sitemap-build-date.patch"
 DOCKERFILE="apps/web/Dockerfile"
 
 PASS=0
@@ -271,46 +264,20 @@ done
 
 # The CI workflow builds the web image too.
 #
-# The GitHub App that pushes this repo has NO `workflows` scope, so a
-# change to .github/workflows/ci.yml CANNOT be pushed by a machine --
-# it ships as a patch file that the owner applies. Until the patch is
-# applied, the CI build has no date, and its web image's sitemap
-# carries no <lastmod> -- which is valid, but not what this change is
-# for.
+# It USED to ship as a patch file the owner applied: the GitHub App
+# that pushes this repo has NO `workflows` scope, so a machine could
+# not modify .github/workflows/ci.yml itself. The patch has been
+# APPLIED -- the workflow change is in the branch -- so the workflow
+# is now checked directly.
 #
-# So the check accepts EITHER: the workflow already passing the date,
-# or a patch file that will make it. A patch that no longer applies
-# is a failure in its own right, and is checked below.
+# There is no patch file to fall back on any more, and no patch to go
+# stale: one deliverable, delivered. A check that accepts a patch
+# which no longer applies is a check that cannot fail, so the
+# assertion is on the workflow itself.
 if grep -q "BUILD_DATE=" .github/workflows/ci.yml; then
   ok "ci.yml passes BUILD_DATE"
-elif [ -f "$PATCH_FILE" ] && grep -q "BUILD_DATE" "$PATCH_FILE"; then
-  ok "ci.yml passes BUILD_DATE via the patch file (the App has no workflows scope)"
 else
-  bad "ci.yml does NOT pass BUILD_DATE, and there is no patch file that would"
-fi
-
-# The patch must still apply to the base it was generated against --
-# origin/main, which is what the PR merges onto. A patch that has gone
-# stale is worse than no patch: it looks like the change is queued, and
-# it is not.
-#
-# It is checked against the BASE BRANCH, not against HEAD and not
-# against the working tree. HEAD already carries the workflow's
-# changes (this branch is the change), and the working tree may carry
-# them too, so checking against either would report a conflict that
-# does not exist.
-if [ -f "$PATCH_FILE" ]; then
-  # `git apply --check` needs the patch's paths to line up with the tree
-  # it is checked against, so the check runs in a scratch copy of the
-  # workflow's directory.
-  if git show origin/main:.github/workflows/ci.yml > "$TMP/ci-base.yml" 2>/dev/null &&
-    mkdir -p "$TMP/patchcheck/.github/workflows" &&
-    cp "$TMP/ci-base.yml" "$TMP/patchcheck/.github/workflows/ci.yml" &&
-    ( cd "$TMP/patchcheck" && git init -q . && git apply --check "$PATCH_FILE" ) >/dev/null 2>&1; then
-    ok "the patch file still applies to origin/main's ci.yml"
-  else
-    bad "the patch file does NOT apply to origin/main's ci.yml -- it has gone stale"
-  fi
+  bad "ci.yml does NOT pass BUILD_DATE -- its build would fail the generator's refusal"
 fi
 
 # ── the summary ──────────────────────────────────────────────────
