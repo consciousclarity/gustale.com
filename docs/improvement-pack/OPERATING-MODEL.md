@@ -33,7 +33,7 @@
 - Changes to the server, firewall, CI secrets or DNS
 - Product decisions listed in `ROADMAP.md` (D1–D6)
 - Publishing new content (dishes, lineages, pages) and any public-facing text about policy or licence
-- Anything touching another project (Marena, bali.business and others) or another Hermes profile
+- Anything touching another project or another Hermes profile — those are outside this project's scope, and their names, content and state do not belong in this repository or in this project's reports
 
 ## Guardrails
 
