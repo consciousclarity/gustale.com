@@ -1,39 +1,27 @@
-import type { DishJourneyLineage, DishJourneyMovement } from "../lib/api";
+import { buildDishFacts, type DishPlaceAssociation } from "../lib/dishFacts";
 import { selectDishHeroMedia } from "../lib/dishMedia";
-import { buildSectionLinks } from "../lib/dishSections";
+import { buildSectionLinks, DISH_SECTION_IDS } from "../lib/dishSections";
 import { filterHref, type PathPageSlugs } from "../lib/filterPages";
 import type {
   DishCategory,
-  DishCitation,
   DishDetailCore,
-  DishIngredient,
+  DishDimension,
   DishMediaAttachment,
+  DishName,
   DishOrigin,
-  DishPreparation,
   DishTag,
-  DishVariant,
 } from "../types/dish";
-import { AlsoExplore } from "./AlsoExplore";
 import { DishCoverHero } from "./DishCoverHero";
+import { DishFactsTable } from "./DishFactsTable";
 import { DishGallery } from "./DishGallery";
-import { DishJourney, type JourneyBeat } from "./DishJourney";
-import {
-  PilotIngredientOverview,
-  PilotSectionNav,
-} from "./DishJourneyPilotLazy";
+import { DishSectionNav } from "./DishSectionNav";
 import { EvidenceLabel } from "./EvidenceLabel";
 
 export interface DishDetailProps {
   dish: DishDetailCore;
   origin: DishOrigin | null;
-  variants: DishVariant[];
-  ingredients: DishIngredient[];
-  /** The ingredient section's heading, which names the dish's form. */
-  ingredientHeading?: string;
   categories: DishCategory[];
   tags: DishTag[];
-  preparations: DishPreparation[];
-  sources: DishCitation[];
   media: DishMediaAttachment[];
   /** Filtered lists that have a static path page (no-JS links). */
   pathPages?: PathPageSlugs | null;
@@ -43,32 +31,67 @@ export interface DishDetailProps {
    */
   unevidenced?: boolean;
   /**
-   * P1-1 journey beats; omit or [] hides the Journey section.
+   * The journey's state.
    *
-   * `journeyStatus` distinguishes the three states the brief requires:
-   * a dish with a verified chronology, a dish with no verified
+   * It distinguishes the three states the brief requires: a dish with
+   * a verified chronology ("history"), a dish with no verified
    * chronology (a RESEARCH GAP), and a journey that could not be
    * fetched (an OPERATIONAL failure). They are not the same thing and
    * the page must not present them as the same thing.
-   */
-  journeyBeats?: JourneyBeat[];
-  /**
-   * The lineage records for this dish.
    *
-   * The legacy P1-1 presentation needs only `{slug, name}`; the GUS-238
-   * presentation needs the full editorial record (role, explanation,
-   * changed elements, confidence, related dishes). The API returns the
-   * full shape, so one type covers both and the legacy view simply
-   * reads the two fields it uses.
+   * The overview island only needs it to decide whether the nav offers
+   * a link to the History section, which is rendered further down the
+   * page by DishContentSections.
    */
-  journeyLineages?: DishJourneyLineage[];
-  journeyStatus?: "history" | "gap" | "unavailable";
-  journeyMovements?: DishJourneyMovement[];
+
+  // ── WP-C2: the mockup's page ──────────────────────────────────────────
+
   /**
-   * The new journey presentation (separate map cards, lineage section)
-   * is behind an off-by-default switch. See lib/dishJourneyPilot.
+   * The dish's vocabulary dimensions, for the facts table.
    */
-  journeyPresentation?: boolean;
+  dimensions?: DishDimension[];
+  /**
+   * The dish's names, for the facts table's "also called" row.
+   */
+  names?: DishName[];
+  /**
+   * The dish's place associations, for the facts table's "associated
+   * with" row.
+   */
+  places?: DishPlaceAssociation[];
+
+  // ── The nav's flags ────────────────────────────────────────────────
+  //
+  // One boolean per section the nav can link to. They describe the
+  // WHOLE PAGE, not just this island: the sections below the map are
+  // rendered by `DishContentSections`, and the map is an island of its
+  // own.
+  //
+  // They are booleans rather than the data itself because the overview
+  // does not render those sections — it would have to receive data it
+  // does not use, only to answer a question the page already knows.
+
+  /** Whether the page renders the "Where it belongs" section. */
+  hasWhere?: boolean;
+  /** Whether the page renders the History section. */
+  hasHistory?: boolean;
+  /**
+   * Whether the page renders a Connections section.
+   *
+   * The overview island does not render it — the section belongs to
+   * `DishContentSections`, below the map — but the NAV lives here and
+   * must know about it, or it would omit a link to a section that is
+   * on the page.
+   */
+  hasConnections?: boolean;
+  /** Whether the page renders the Variants section. */
+  hasVariants?: boolean;
+  /** Whether the page renders the Ingredients section. */
+  hasIngredients?: boolean;
+  /** Whether the page renders a Recipes section. Same reason. */
+  hasRecipes?: boolean;
+  /** Whether the page renders the Sources section. */
+  hasSources?: boolean;
 }
 
 /**
@@ -78,28 +101,62 @@ export interface DishDetailProps {
 export function DishDetail({
   dish,
   origin,
-  variants,
-  ingredients,
-  ingredientHeading,
   categories,
   tags,
-  preparations,
-  sources,
   media,
   pathPages = null,
   unevidenced = false,
-  journeyBeats = [],
-  journeyLineages = [],
-  journeyStatus = "gap",
-  journeyMovements = [],
-  journeyPresentation = false,
+  dimensions = [],
+  names = [],
+  places = [],
+  hasWhere = false,
+  hasHistory = false,
+  hasConnections = false,
+  hasVariants = false,
+  hasIngredients = false,
+  hasRecipes = false,
+  hasSources = false,
 }: DishDetailProps) {
   const primaryCategory =
     categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
   const heroMedia = selectDishHeroMedia(media);
 
+  // ── WP-C2: the facts table and the connections ─────────────────────────
+  //
+  // The facts table is built from what the API returned and NOTHING
+  // else. A row that has no value says "No evidence", which is a
+  // statement about the record rather than about the dish.
+  const facts = buildDishFacts({
+    canonicalName: dish.name,
+    dimensions,
+    names,
+    places,
+    unevidenced,
+  });
+
+  // The in-page nav. The ORDER is the mockup's; the MEMBERSHIP is data —
+  // a section the page does not render gets no link, so the nav can
+  // never point at an anchor that is not on the page.
+  //
+  // The flags describe the WHOLE page, not just this island: the
+  // sections below the map are rendered by DishContentSections, and
+  // the map itself is an island of its own.
+  const sectionLinks = buildSectionLinks({
+    hasWhere,
+    hasHistory,
+    hasConnections,
+    hasVariants,
+    hasIngredients,
+    hasRecipes,
+    hasSources,
+  });
+
   return (
-    <article className="dish-page">
+    <article
+      id={DISH_SECTION_IDS.overview}
+      className="dish-page"
+      aria-labelledby={DISH_SECTION_IDS.overviewTitle}
+    >
       <DishCoverHero dishName={dish.name} origin={origin} media={media} />
 
       <div className="dish-page-inner">
@@ -139,7 +196,9 @@ export function DishDetail({
             )}
           </div>
 
-          <h1 className="rec-title">{dish.name}</h1>
+          <h1 className="rec-title" id={DISH_SECTION_IDS.overviewTitle}>
+            {dish.name}
+          </h1>
 
           {dish.description && <p className="rec-intro">{dish.description}</p>}
 
@@ -191,59 +250,18 @@ export function DishDetail({
             </span>
           </div>
 
-          <div className="rec-meta">
-            {/* WP-B2. THE "Origin" CELL IS GONE.
-                The blueprint's rule is explicit: "No dish has an
-                'Origin' field in the UI. Origin claims are claims.
-                Shared heritage is several associations; none is marked
-                primary unless sourced."
+          {/* ─── The facts table (WP-C2) ──────────────────────────────── */}
+          {/* The mockup puts a label/value table directly under the
+              introduction. It replaces the old meta grid: the grid was a
+              row of counters ("Variants 3", "Contributors 2") and one
+              value, and the counters were the part that told a reader
+              nothing.
 
-                This cell printed the dish's legacy `origin_geo_id` as
-                "Origin" — a settled claim, asserted next to a journey
-                that often says the origin is contested. The associations
-                section below now carries the same information, as
-                several separate associations, each labelled with what
-                is known about it. So the cell is removed rather than
-                relabelled: a cell that said "Associated with" would
-                still be one place asserting one answer.
-
-                The reader loses nothing. The associations section lists
-                the place (and the tradition), says "Unverified" where
-                that is the truth, and keeps the raw legacy value under
-                its own heading. */}
-            {/* A meta cell is shown only when it says something. "Variants
-                0" and "Contributors 0" are not information — they are
-                counters with nothing behind them, and they make the
-                page look like a thing that failed to load. The 2026-11-15
-                blueprint recorded it as "Published place associations
-                label with no value", the same defect in a different
-                place: a zero that is printed rather than a zero that is
-                absent.
-
-                A dish with no variants and no contributors now simply has
-                fewer cells. Nothing is lost: the reader learns the same
-                thing from the absence, and the page stops asserting a
-                number it has no reason to assert. */}
-            {variants.length > 0 && (
-              <div className="cell">
-                <div className="k">Variants</div>
-                <div className="v">{variants.length}</div>
-              </div>
-            )}
-            <div className="cell">
-              <div className="k">Category</div>
-              <div className="v" style={{ fontSize: 19 }}>
-                {primaryCategory?.name ?? "—"}
-              </div>
-            </div>
-            {dish.contributorCount > 0 && (
-              <div className="cell">
-                <div className="k">Contributors</div>
-                <div className="v">{dish.contributorCount}</div>
-              </div>
-            )}
-          </div>
-
+              The table says the same things and one more — WHERE the dish
+              belongs — and every row that has no value says "No
+              evidence", which is a statement about the record rather than
+              about the dish. */}
+          <DishFactsTable rows={facts} dishName={dish.name} />
           {tags.length > 0 && (
             <div className="rec-tags">
               {tags.map((t) => (
@@ -255,270 +273,17 @@ export function DishDetail({
           )}
         </header>
 
-        {/* ─── Sticky section nav (GUS-238) ───────────────────────────── */}
-        {journeyPresentation && (
-          <PilotSectionNav
-            dishName={dish.name}
-            links={buildSectionLinks({
-              hasJourney: true,
-              hasIngredients: ingredients.length > 0,
-              hasVariants: variants.length > 0,
-              hasPreparation: preparations.length > 0,
-              hasSources: sources.length > 0,
-            })}
-          />
-        )}
+        {/* ─── The in-page nav (WP-C2) ─────────────────────────────────── */}
+        {/* The mockup's nav: Overview · Where · History · Connections ·
+            Variants · Ingredients · Recipes · Sources.
 
-        {/* ─── Visible ingredient overview (GUS-238) ───────────────────── */}
-        {/* The reference puts the dish's representative ingredients near
-            the introduction, visible without hover or a hotspot hunt. This
-            is the SAME ingredient data the detailed list below uses —
-            a presentation, not a second content model. */}
-        {journeyPresentation && (
-          <PilotIngredientOverview
-            dishName={dish.name}
-            ingredients={ingredients}
-            ingredientHeading={ingredientHeading}
-            explorerId="ingredients-heading"
-          />
-        )}
+            The ORDER is fixed by the mockup. The MEMBERSHIP is data: a
+            section the page does not render gets no link, so the nav can
+            never point at an anchor that is not on the page.
 
-        {/* ─── Regional variants band ───────────────────────────────────── */}
-        {variants.length > 0 && (
-          <section className="world" aria-labelledby="variants-heading">
-            <div>
-              <div className="tag">The same dish, localized</div>
-              <h2 id="variants-heading">Regional variants</h2>
-              <p>
-                {variants.length} variant{variants.length === 1 ? "" : "s"} of{" "}
-                {dish.name} told differently across regions and traditions.
-              </p>
-            </div>
-            <div className="world-list">
-              {variants.map((v) => (
-                <a key={v.id} href={`/dishes/${v.slug}`} className="world-item">
-                  <span className="pin" />
-                  <span className="wnm">{v.name}</span>
-                  <span className="wrg">
-                    {v.creatorName ?? v.description ?? ""}
-                  </span>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ─── Journey (GUS-238) — FIRST substantive section ─────────── */}
-        {journeyPresentation ? (
-          <DishJourney
-            dishName={dish.name}
-            status={journeyStatus ?? "gap"}
-            beats={journeyBeats}
-            movements={journeyMovements ?? []}
-            lineages={journeyLineages ?? []}
-            presentation={journeyPresentation}
-          />
-        ) : (
-          /* The existing P1-1 presentation, unchanged. */
-          <DishJourney
-            dishName={dish.name}
-            status={journeyStatus ?? "gap"}
-            beats={journeyBeats}
-            lineages={journeyLineages}
-          />
-        )}
-
-        {/* ─── Body: ingredients + preparation ──────────────────────────── */}
-        <div className="rec-body">
-          {ingredients.length > 0 && (
-            /* PR 2 — ONE COMPLEMENTARY LANDMARK.
-               This was an <aside className="ing-col"> nested inside
-               <div className="rec-body">, so it was NOT a top-level
-               complementary landmark and axe flagged it:
-                 landmark-complementary-is-top-level (moderate)
-               It is a labelled section of the page (ingredients), not a
-               tangential aside, so it becomes a <section> with the
-               same aria-labelledby. The class is unchanged, so the
-               two-column layout is untouched. */
-            <section className="ing-col" aria-labelledby="ingredients-heading">
-              <h2 id="ingredients-heading" className="col-h">
-                Ingredients
-              </h2>
-              <div className="col-sub">
-                {ingredients.length} ITEM{ingredients.length === 1 ? "" : "S"}
-              </div>
-              <div className="ing-list">
-                {ingredients.map((ing) => (
-                  <div className="ing" key={ing.ingredientId}>
-                    <span className="qty">
-                      {ing.quantity ?? ""}
-                      {ing.quantity && ing.unit
-                        ? ` ${ing.unit}`
-                        : (ing.unit ?? "")}
-                    </span>
-                    <span className="nm">
-                      <a href={`/ingredients/${ing.slug}`}>{ing.name}</a>
-                      {ing.isOptional && <small> optional</small>}
-                      {ing.preparationNote && (
-                        <small>{ing.preparationNote}</small>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {preparations.length > 0 && (
-            <section aria-labelledby="preparation-heading">
-              <h2 id="preparation-heading" className="col-h">
-                Preparation
-              </h2>
-              <div className="col-sub">
-                {preparations.length} METHOD
-                {preparations.length === 1 ? "" : "S"}
-              </div>
-              <div className="method-list">
-                {preparations.map((prep, idx) => (
-                  <div className="step" key={prep.id}>
-                    <div className="marker disp">
-                      {String(idx + 1).padStart(2, "0")}
-                    </div>
-                    <div>
-                      <div
-                        className="stxt"
-                        style={{ fontWeight: 600, marginBottom: 6 }}
-                      >
-                        {prep.methodName}
-                      </div>
-                      <p className="stxt">
-                        {prep.steps ?? "No detailed steps recorded yet."}
-                      </p>
-                      {(prep.durationMinutes != null || prep.difficulty) && (
-                        <span className="stime">
-                          {prep.durationMinutes != null && (
-                            <>
-                              ⏱ <b>{prep.durationMinutes}</b> min
-                            </>
-                          )}
-                          {prep.durationMinutes != null &&
-                            prep.difficulty &&
-                            " · "}
-                          {prep.difficulty}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* ─── "You may also explore" ──────────────────────────────────── */}
-        {(categories.length > 0 || preparations.length > 0 || origin) && (
-          /* PR 2 — UNIQUE LANDMARK.
-             The wrapper <section aria-label="You may also explore">
-             and the <section className="also-explore" aria-label="You
-             may also explore"> inside it carried the SAME accessible
-             name, so they were two landmarks with an identical
-             role/label pair — axe:
-               landmark-unique (moderate)
-             The wrapper keeps the accessible name; the inner element
-             becomes a plain <div>, which is what it was before it was
-             given a landmark role. */
-          <section className="section" aria-label="You may also explore">
-            <div className="sec-rule">
-              <h2>You may also explore</h2>
-            </div>
-            <AlsoExplore
-              categories={categories}
-              preparations={preparations}
-              originName={origin?.name ?? null}
-              pathPages={pathPages}
-            />
-          </section>
-        )}
-
-        {/* ─── Sources / Citations ───────────────────────────────────────── */}
-        {sources.length > 0 && (
-          <section className="section" aria-labelledby="sources-heading">
-            <div className="sec-rule">
-              <h2 id="sources-heading">Sources</h2>
-            </div>
-            <ol className="source-list">
-              {sources.map((cite) => (
-                <li key={cite.id} className="source-card">
-                  {cite.claimText && (
-                    <p>
-                      <span style={{ fontWeight: 600, color: "var(--ink)" }}>
-                        Claim:
-                      </span>{" "}
-                      {cite.claimText}
-                    </p>
-                  )}
-                  <p className="source-card__cite">
-                    {cite.citationText ? (
-                      // The citation text is PLAIN TEXT from the API, not
-                      // HTML — the Wikipedia citation is "Wikipedia.
-                      // (2026). Chicken Tikka Masala. Retrieved from
-                      // https://en.wikipedia.org/wiki/...". It was
-                      // rendered with `dangerouslySetInnerHTML`, which
-                      // was both unnecessary (there is no markup in it)
-                      // and the cause of the mobile overflow: the raw
-                      // URL was printed in full, and an unbroken URL at
-                      // 390px pushed the page sideways.
-                      //
-                      // Now the URL is a link whose TEXT is the URL —
-                      // the source is still one click away, and the
-                      // `overflow-wrap` on this class lets it break
-                      // rather than widen the page.
-                      <span>
-                        {cite.citationText
-                          .split(/(https?:\/\/\S+)/)
-                          .map((part, i) =>
-                            part.startsWith("http") ? (
-                              <a
-                                key={`${cite.id}-u-${i}`}
-                                href={part}
-                                target="_blank"
-                                rel="noreferrer noopener"
-                              >
-                                {part}
-                              </a>
-                            ) : (
-                              <span key={`${cite.id}-t-${i}`}>{part}</span>
-                            ),
-                          )}
-                      </span>
-                    ) : (
-                      <>
-                        {cite.title ?? cite.sourceType}
-                        {cite.authors && ` — ${cite.authors}`}
-                        {cite.year && ` (${cite.year})`}
-                        {cite.publisher && `, ${cite.publisher}`}
-                      </>
-                    )}
-                  </p>
-                  {cite.url && (
-                    <a
-                      href={cite.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="source-url"
-                    >
-                      {cite.url}
-                    </a>
-                  )}
-                  {cite.reliability && (
-                    <span className="reliability-pill">{cite.reliability}</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-
+            It is rendered on the server, inside the overview island, so
+            it costs no extra JavaScript. */}
+        <DishSectionNav dishName={dish.name} links={sectionLinks} />
         {/* ─── Full description ──────────────────────────────────────────── */}
         {dish.longDescription && (
           <section

@@ -1,5 +1,6 @@
 ---
 import AtlasPlaces from "../../components/AtlasPlaces";
+import { DishContentSections } from "../../components/DishContentSections";
 import { DishDetail } from "../../components/DishDetail";
 import type {
   JourneyBeat,
@@ -15,6 +16,8 @@ import {
   getDishAtlas,
   getDishDetail,
   getDishJourney,
+  getDishRelations,
+  type RelatedDish,
 } from "../../lib/api";
 import { isGeoDomain } from "../../lib/domain";
 import {
@@ -24,6 +27,7 @@ import {
   siteOrigin as siteOriginFor,
 } from "../../lib/locales";
 import { getHubDishSummaries, getHubRecipes } from "../../lib/recipeHubData";
+import type { RecipeSummary } from "../../lib/recipes";
 import type { DishDetailResponse } from "../../types/dish";
 
 // MapLibre control + popup CSS — required by <DishMap> and journey path map.
@@ -202,6 +206,21 @@ let notFound = false;
 let fetchError: string | null = null;
 let journeyBeats: JourneyBeat[] = [];
 let journeyLineages: JourneyLineageLink[] = [];
+// The relations, for the Connections block. `null` means "not fetched",
+// which is DIFFERENT from `[]` — an empty array claims the dish has no
+// relations, and that is a claim.
+let relations: RelatedDish[] | null = null;
+// The journey's state: `history`, `gap` or `unavailable`. The History
+// section reads it, because "no journey records" and "the journey could
+// not be fetched" are different statements.
+let journeyStatus: "history" | "gap" | "unavailable" = "gap";
+// The published recipes for this dish, for the Recipes block.
+//
+// The recipe FEED is fetched once for the whole build and grouped by
+// dish (lib/recipeHubData.ts), so this costs one request for the build
+// rather than one per page. There are zero published recipes today, so
+// the list is empty and the block renders its empty state.
+let hubRecipesForThisDish: RecipeSummary[] = [];
 
 if (isGeo) {
   try {
@@ -224,14 +243,40 @@ if (isGeo) {
 
   if (data) {
     // Fetch the optional sections together so associations are readable before hydration.
-    const [atlas, journey] = await Promise.allSettled([
+    const [atlas, journey, rel] = await Promise.allSettled([
       getDishAtlas(data.dish.slug),
       getDishJourney(slug as string),
+      getDishRelations(data.dish.slug),
     ]);
     if (atlas.status === "fulfilled") atlasData = atlas.value;
     if (journey.status === "fulfilled") {
       journeyBeats = journey.value?.beats ?? [];
       journeyLineages = journey.value?.lineages ?? [];
+      journeyStatus = journey.value?.status ?? "gap";
+    }
+    // A failed relations fetch leaves `relations` null, and the
+    // Connections block is then not rendered at all. An empty page is
+    // better than a page that says "this dish is not related to
+    // anything" because the request failed.
+    if (rel.status === "fulfilled") {
+      // The API groups the relations by type; the page wants one flat
+      // list, and the grouping is re-derived on the client from the
+      // relation type itself. Grouping twice would let the two disagree.
+      relations = Object.values(rel.value?.relationsByType ?? {}).flat();
+    }
+
+    // The recipes for the Recipes block. The feed is memoised for the
+    // whole build, so this does not add a request per page.
+    try {
+      const byDish = await getHubRecipes(apiBase);
+      hubRecipesForThisDish = byDish.get(data.dish.slug) ?? [];
+    } catch (err) {
+      // A failed fetch must not fail the build. The Recipes block then
+      // renders its empty state, which is where it starts anyway.
+      console.error(
+        "[dishes/:slug] the recipe feed fetch failed — the Recipes block will show its empty state:",
+        err,
+      );
     }
   }
 
@@ -251,6 +296,25 @@ const hubNotFound = !isGeo && hubDish === null;
 if (hubNotFound) {
   Astro.response.status = 404;
 }
+
+/**
+ * The place associations, in the shape the facts table reads.
+ *
+ * The facts table wants a place's NAME, the kind of association and the
+ * evidence state. The atlas gives the relationship, the name and the
+ * evidence status — so this is a rename, not a new claim.
+ *
+ * Only PLACE entities are used. A community or a practice is not a
+ * place, and the row is labelled "Associated with", which means a
+ * place.
+ */
+const atlasPlaces = (atlasData?.placesAndTraditions ?? [])
+  .filter((a) => a.entityKind === "place" && a.name)
+  .map((a) => ({
+    name: a.name as string,
+    relationship: a.relationship,
+    status: a.evidence?.status,
+  }));
 
 const seoTitle = isGeo
   ? data?.dish
@@ -343,16 +407,20 @@ const servedEnglish =
           <DishDetail
             dish={data.dish}
             origin={data.origin}
-            variants={data.variants}
-            ingredients={data.ingredients}
             categories={data.categories}
             tags={data.tags}
-            preparations={data.preparations}
-            sources={data.sources}
             media={data.media}
             unevidenced={data.unevidenced}
-            journeyBeats={journeyBeats}
-            journeyLineages={journeyLineages}
+                        dimensions={data.dimensions}
+            names={data.names}
+            places={atlasPlaces}
+            hasWhere={atlasPlaces.length > 0 || data.origin !== null}
+            hasHistory={true}
+            hasConnections={relations !== null && relations.length > 0}
+            hasVariants={data.variants.length > 0}
+            hasIngredients={data.ingredients.length > 0}
+            hasRecipes={true}
+            hasSources={data.sources.length > 0}
             client:load
           />
 
@@ -369,12 +437,29 @@ const servedEnglish =
           The island hydrates near the viewport and can retry when the
           build could not fetch associations. */}
           <div class="wrap">
-            <AtlasPlaces
-              slug={data.dish.slug}
-              dishName={data.dish.name}
-              initialData={atlasData}
-              client:visible
-            />
+            {/* ─── Where it belongs (WP-C2) ──────────────────────────────
+
+            The mockup's second section. It groups the two blocks that
+            are ABOUT GEOGRAPHY under one heading: the typed place
+            associations and the map of the associated place.
+
+            The heading carries the anchor the nav links to
+            ("where-heading"). The two blocks keep their own anchors
+            for their deep links — the nav does not list them, because
+            it would then offer two ways to reach the same geography. */}
+            <section aria-labelledby="where-heading" class="dish-where">
+              <h2 id="where-heading">Where it belongs</h2>
+              <p class="sub dish-where__lede">
+                The places this dish is associated with, and what kind of
+                association each one is.
+              </p>
+              <AtlasPlaces
+                slug={data.dish.slug}
+                dishName={data.dish.name}
+                initialData={atlasData}
+                client:visible
+              />
+            </section>
           </div>
 
           {/* The map stays — but it is the MAP OF THE ASSOCIATED PLACE, not a
@@ -422,6 +507,33 @@ const servedEnglish =
               />
             </section>
           )}
+
+          {/* THE CONTENT SECTIONS (WP-C2) — History, Connections, Variants,
+          Ingredients + Recipes, Sources. In the blueprint's order.
+
+          They render to STATIC HTML: no `client:` directive, so this
+          section ships no JavaScript at all. That is deliberate — a
+          section that makes claims about a dish should be the same for
+          every reader, and a section that needs no JavaScript cannot be
+          half-loaded when a reader arrives.
+
+          The order is the mockup's: Where it belongs (the map above) →
+          History → Connections → Variants → Ingredients + Recipes →
+          Sources. */}
+          <div class="wrap">
+            <DishContentSections
+              dish={data.dish}
+              relations={relations}
+              variants={data.variants}
+              ingredients={data.ingredients}
+              preparations={data.preparations}
+              sources={data.sources}
+              recipes={hubRecipesForThisDish}
+              journeyBeats={journeyBeats}
+              journeyStatus={journeyStatus}
+              unevidenced={data.unevidenced}
+            />
+          </div>
 
           {/* Related dishes — the food-genealogy network. Mounted as its own
           island so the SSR-rendered dish body stays fast and the relations
