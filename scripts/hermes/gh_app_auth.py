@@ -187,6 +187,33 @@ def scrub(text: str, token: str) -> str:
     return (text or "").replace(token, "***")
 
 
+def _endpoint(host: str, path: str) -> str:
+    """Join a host and a REST path into a URL.
+
+    THE LEADING SLASH IS NOT OPTIONAL TO THE CALLER
+    ------------------------------------------------
+    This function exists because a path without its leading slash
+    produced a malformed URL that reads like a DNS failure:
+
+        API + "repos/OWNER/REPO"  ->  "https://api.github.comrepos/OWNER/REPO"
+
+    curl then reports "Could not resolve host: api.github.comrepos",
+    which looks exactly like broken DNS and has nothing to do with
+    DNS. It is a missing separator.
+
+    `app_api.py`'s own USAGE line documents the slash-less form, so
+    the bug was reachable from the documented example. Normalising
+    HERE fixes every caller at once -- `api()`, `api_upload()` and
+    `api_bytes()` -- instead of each call site having to remember.
+
+    A full URL is also accepted and passed through unchanged, so a
+    caller that already built one does not get a double prefix.
+    """
+    if path.startswith(("http://", "https://")):
+        return path
+    return host + "/" + path.lstrip("/")
+
+
 def api(
     token: str,
     method: str,
@@ -213,10 +240,50 @@ def api(
         "-H", "X-GitHub-Api-Version: 2022-11-28",
     ]
     if body is not None:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
+        # THE BODY MAY BE A JSON *STRING* OR AN ALREADY-PARSED OBJECT
+        # -------------------------------------------------------
+        # `gh-app.sh api <METHOD> <path> <json-body>` takes the body as
+        # one shell argument, so it arrives here as a STRING. Calling
+        # `json.dumps()` on that string double-encodes it:
+        #
+        #     json.dumps('{"body":"x"}')  ->  a JSON *string* holding
+        #     the JSON text, not a JSON object.
+        #
+        # GitHub then receives a JSON *string* where it expects a JSON
+        # *object*, and answers 422 "body was not a valid JSON object".
+        # It reads like a permissions problem and is not.
+        #
+        # So: a string that parses as a JSON object or array is sent
+        # verbatim. A dict or list is dumped as-is. Anything else is
+        # rejected loudly rather than silently mangled.
+        if isinstance(body, str):
+            try:
+                parsed = json.loads(body)
+            except json.JSONDecodeError:
+                raise SystemExit(
+                    "::error::the request body is a string that is not valid "
+                    "JSON. Pass a JSON object/array, or a dict/list directly."
+                )
+            if not isinstance(parsed, (dict, list)):
+                raise SystemExit(
+                    "::error::the request body must be a JSON object or array, "
+                    f"not {type(parsed).__name__}."
+                )
+            raw_body_text = body
+        elif isinstance(body, (dict, list)):
+            raw_body_text = json.dumps(body)
+        else:
+            raise SystemExit(
+                "::error::the request body must be a JSON string, dict or list, "
+                f"not {type(body).__name__}."
+            )
+        cmd += [
+            "-H", "Content-Type: application/json",
+            "--data-binary", raw_body_text,
+        ]
     if raw_body is not None:
         cmd += ["-H", f"Content-Type: {content_type}", "--data-binary", "@-"]
-    cmd.append(f"{API}{path}")
+    cmd.append(_endpoint(API, path))
     proc = subprocess.run(
         cmd, capture_output=True,
         input=raw_body if raw_body is not None else None,
@@ -268,7 +335,7 @@ def api_upload(
             "-H", f"Content-Length: {len(raw_body)}",
             "--data-binary", "@-",
         ]
-    cmd.append(f"{UPLOAD_API}{path}")
+    cmd.append(_endpoint(UPLOAD_API, path))
     proc = subprocess.run(
         cmd, capture_output=True,
         input=raw_body if raw_body is not None else None,
@@ -289,7 +356,7 @@ def api_bytes(token: str, path: str, *, follow_redirects: bool = False) -> tuple
         "-H", "Authorization: Bearer " + token,
         "-H", "Accept: application/vnd.github+json",
         "-H", "X-GitHub-Api-Version: 2022-11-28",
-        f"{API}{path}",
+        _endpoint(API, path),
     ]
     proc = subprocess.run(cmd, capture_output=True)
     out = proc.stdout
