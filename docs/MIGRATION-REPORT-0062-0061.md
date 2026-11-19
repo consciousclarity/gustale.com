@@ -10,7 +10,7 @@ checked independently, the command is given.
 
 ---
 
-## 1. Who applied 0057
+## 1. Who applied 0062
 
 **Alejandro applied it himself, using Codex, on the VPS, over SSH to
 `root@62.72.7.218`, by direct `psql`.**
@@ -30,7 +30,7 @@ itself was the owner's action, which is what RULES.md requires.
 
 ```bash
 docker exec -u postgres -i shared-postgres psql -U postgres -d gustale \
-  -v ON_ERROR_STOP=1 -f - < "$GUS57_MIG"
+  -v ON_ERROR_STOP=1 -f - < "$GUS62_MIG"
 ```
 
 - The **`postgres` role**, because the tables are owned by `postgres`.
@@ -57,6 +57,11 @@ docker exec -u postgres -i shared-postgres psql -U postgres -d gustale \
 | TOC entries | 1,672 |
 | sha256 | `2157daa77eba1d7d48e6208b19466b036b4caddca0cc249f905ccb835a347fcd` |
 
+> The `gus0057` in that path is the **evidence directory's name on the
+> VPS**. It was created when this migration was still numbered `0057`,
+> before it was renumbered to `0062`. The path is literal — do not
+> "correct" it to `0062`.
+
 And it was **verified restorable, not merely listable** — restored into a
 throwaway database on the **dedicated test postgres** (never on the
 production cluster): `MY_RESTORE_EXIT=0`, `MY_RESTORE_ERRORS=0`,
@@ -64,7 +69,7 @@ production cluster): `MY_RESTORE_EXIT=0`, `MY_RESTORE_ERRORS=0`,
 
 ---
 
-## 2. Does 0062 depend on 0056?
+## 2. Does 0062 depend on 0061?
 
 **No. They are independent, and 0062 does not need 0061 to have run.**
 
@@ -89,9 +94,9 @@ on the `ingredients` table and on `ingredient_categories` (for the
 **not** depend on 0061.
 
 **So the two can be applied in either order.** 0061 is not a prerequisite
-of 0062, and 0057's success on live did not and could not have depended
+of 0062, and 0062's success on live did not and could not have depended
 on 0061 having run. The receipt states the same conclusion from the other
-direction: *"`0056` creates `ingredient_aliases`; `0057` writes
+direction: *"`0061` creates `ingredient_aliases`; `0062` writes
 `ingredients` — they do not overlap."*
 
 ---
@@ -170,7 +175,7 @@ too. **The live objects are the record**, not the ledger.
 
 ### Rule 11: 0062 is frozen
 
-`0057` has run on live. Its file is **immutable**. A correction to it
+`0062` has run on live. Its file is **immutable**. A correction to it
 requires a **new migration number**, and the **apply line** is
 authoritative, not the commit.
 
@@ -209,7 +214,7 @@ implication, not just a schema one.
 | 0061 applied | **no** — and it does not need to be, for 0062 to be correct |
 | 0061 ↔ 0062 dependency | **none** — 0062 is additive and self-contained |
 | backup before the apply | **yes**, `gustale-backup.service` success, restore verified |
-| 0057's file in the public repo | **yes**, byte-identical to what was applied |
+| 0062's file in the public repo | **yes**, byte-identical to what was applied |
 
 ---
 
