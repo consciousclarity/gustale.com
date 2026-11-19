@@ -262,6 +262,13 @@ MIGRATION_0055=db/migrations/0055_sourcing_availability.sql
 # mechanism behind the béchamel merge: a retired slug that must keep
 # resolving because it has a live public URL.
 MIGRATION_0061=db/migrations/0061_ingredient_aliases.sql
+
+# 0062 is the INGREDIENT SOURCING VOCABULARY (GUS-1108): the 21
+# reviewed ingredient rows the sourcing research attaches to. It is
+# additive -- it writes 21 rows into `ingredients` and touches
+# nothing else -- and it comes after 0055, because the availability
+# rows it exists for live in the tables 0055 creates.
+MIGRATION_0062=db/migrations/0062_ingredients_sourcing_vocabulary.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -922,6 +929,17 @@ echo "--- the ingredient aliases table"
 run_pg -f - < "$MIGRATION_0061" >/tmp/m0061.log 2>&1 || { echo "FAILED: 0061"; grep -E 'ERROR|NOTICE' /tmp/m0061.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'INGREDIENT_ALIASES_OK' /tmp/m0061.log | tail -1 || true
+
+# ── 0062: the ingredient sourcing vocabulary ─────────────────────────
+#
+# The 21 reviewed ingredient rows (GUS-1108), all `draft`. It is
+# additive -- it writes 21 rows into `ingredients` and touches nothing
+# else -- and it comes after 0055, because the availability rows it
+# exists for live in the tables 0055 creates.
+echo "--- the ingredient sourcing vocabulary"
+run_pg -f - < "$MIGRATION_0062" >/tmp/m0062.log 2>&1 || { echo "FAILED: 0062"; grep -E 'ERROR|NOTICE' /tmp/m0062.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E '0062: all 6 proofs passed' /tmp/m0062.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #
