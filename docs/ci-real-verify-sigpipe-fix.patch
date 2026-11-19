@@ -1,0 +1,121 @@
+# CI: fix the flaky Real verify phrase check (SIGPIPE under pipefail).
+#
+# THE FAILURE
+# -----------
+# Run 44546772543 (SHA 02d0b4a), 2026-11-19, failed its Real verify
+# step with:
+#
+#     ##[error]gustale.com/dishes/bakso/ does not contain 'Indonesian
+#     meatball' (live data not on the page)
+#     ##[error]Real verify FAILED for run 44546772543 at SHA 02d0b4a
+#
+# It was NOT a content bug. The deployed artifact and the live page
+# both contained the phrase three times:
+#
+#     $ md5sum  (bakso HTML from the 02d0b4a image)
+#     6baedb2edaeb2ab59d9377fe7f6c2216   52250 bytes
+#     $ grep -c "Indonesian meatball" ...
+#     3
+#
+# The 02d0b4a and 663f05b artifacts are byte-identical (same size, same
+# MD5), so no content change was involved. The next deploy, 663f05b
+# (run 44588963284), passed the same check.
+#
+# THE CAUSE
+# ---------
+# The step runs under `set -euo pipefail` (ci.yml line 2125). The check
+# was:
+#
+#     if [ -n "${PAGE:-}" ] && echo "$PAGE" | grep -qF "$PHRASE"; then
+#
+# `grep -q` exits the moment it finds the match. `echo` is still
+# writing the 52 KB body, gets SIGPIPE, and dies with 141. With
+# `pipefail`, the PIPELINE's status is then 141 -- non-zero -- so the
+# `if` takes the ELSE branch and reports the phrase as missing, even
+# though grep matched it and the page contains it.
+#
+# It is a RACE, not a deterministic fault, which is why it hit one
+# deploy and not the next.
+#
+# MEASURED ON THE DEPLOY HOST (62.72.7.218), 2026-11-20
+# -------------------------------------------------------
+# The OLD form, 600 iterations per body size:
+#
+#     CURRENT (echo | grep -q) full       : fails=2/600  (rc=141 in 2)
+#     CURRENT (echo | grep -q) truncated  : fails=4/600  (rc=141 in 4)
+#     CURRENT (echo | grep -q) small      : fails=3/600  (rc=141 in 3)
+#
+# 9 false failures in 1800 iterations, EVERY one of them rc=141.
+#
+# The NEW form, same host, same iteration count:
+#
+#     FIXED (case pattern)      full       : fails=0/600
+#     FIXED (case pattern)      truncated  : fails=0/600
+#     FIXED (case pattern)      small      : fails=0/600
+#
+# THE FIX
+# -------
+# The bash `case`/parameter-expansion form has NO pipeline and NO
+# SIGPIPE, so it cannot race:
+#
+#     if [ -n "${PAGE:-}" ] && [[ "$PAGE" == *"$PHRASE"* ]]; then
+#
+# The check still fails for a genuinely wrong page -- a missing phrase
+# is still a missing phrase. It only removes the false negative.
+#
+# HOW TO APPLY IT
+# ---------------
+# The GitHub App (`gustale-bot`) has NO `workflows` scope, so a workflow
+# change cannot be pushed. Apply this patch:
+#
+#     git checkout main && git pull
+#     git apply docs/ci-real-verify-sigpipe-fix.patch
+#     git commit -m "ci: fix the flaky Real verify phrase check"
+#     git push
+#
+# VERIFICATION
+# ------------
+#     python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))"
+#
+# The patched `ci.yml` parses, `bash -n` is clean on the patched
+# snippet, and the patched check passes against the live page:
+#
+#     gustale.com/dishes/bakso/ contains 'Indonesian meatball'  OK
+#
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 573c315..416356b 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -2263,13 +2263,31 @@ jobs:
+               echo "--- Check 3: live page phrase ---"
+               PHRASE="Indonesian meatball"  # from the bakso longDescription
+               PAGE=$(curl -fsS --max-time 10 "https://gustale.com/dishes/bakso/" 2>&1) || {
+                 echo "::error::curl https://gustale.com/dishes/bakso/ failed"
+                 FAILED=1
+               }
+-              if [ -n "${PAGE:-}" ] && echo "$PAGE" | grep -qF "$PHRASE"; then
++              # NOT `echo "$PAGE" | grep -qF "$PHRASE"`.
++              #
++              # This step runs under `set -euo pipefail`. `grep -q` exits
++              # the moment it matches, so `echo` is killed by SIGPIPE
++              # (141) while it is still writing the 52 KB body. With
++              # pipefail the PIPELINE's status is then 141 -- non-zero --
++              # and the `if` takes the else branch, reporting the phrase
++              # as MISSING even though grep matched it and the page
++              # contains it.
++              #
++              # That is exactly what happened on run 44546772543
++              # (SHA 02d0b4a) on 2026-11-19: the deployed artifact and
++              # the live page both contained the phrase three times,
++              # and the check still failed. The bash `case` form below
++              # has no pipeline and no SIGPIPE, so it cannot race:
++              # measured on the deploy host, the old form failed
++              # 9 times in 1800 iterations (every one rc=141) and this
++              # form failed 0 times in 1800.
++              if [ -n "${PAGE:-}" ] && [[ "$PAGE" == *"$PHRASE"* ]]; then
+                 echo "  gustale.com/dishes/bakso/ contains '$PHRASE'  OK"
+               else
+                 echo "::error::gustale.com/dishes/bakso/ does not contain '$PHRASE' (live data not on the page)"
+                 FAILED=1
+               fi
+ 

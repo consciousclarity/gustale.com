@@ -1,0 +1,92 @@
+# CI: apply 0062 (the ingredient sourcing vocabulary) in the CI database.
+#
+# WHY THIS PATCH EXISTS
+# --------------------
+# Migration `0062_ingredients_sourcing_vocabulary.sql` writes 21 reviewed
+# ingredient rows (GUS-1108), all `draft`, and touches nothing else. It
+# is ALREADY APPLIED TO LIVE (2026-11-11).
+#
+# A migration that is not in the CI chain is a migration that is never
+# applied in CI, in the Nightly, or in the local reproduction -- and a
+# schema that does not exist. 0062 is already added to TWO of the three
+# lists in this PR:
+#
+#     scripts/ci-migration-chain.sh   (the Nightly database)
+#     scripts/repro-ci-db.sh          (the LOCAL reproduction)
+#
+# This patch adds it to the THIRD list, `.github/workflows/ci.yml`,
+# which is the CI database.
+#
+# WHY IT IS A PATCH AND NOT A PUSH
+# --------------------------------
+# The GitHub App (`gustale-bot`) has NO `workflows` scope. GitHub
+# refuses to let it create or update a file under `.github/workflows/`:
+#
+#     ! [remote rejected] ... (refusing to allow a GitHub App to create
+#       or update workflow `.github/workflows/ci.yml` without
+#       `workflows` permission)
+#
+# The PAT is revoked and the SSH deploy key is rejected, so there is no
+# other machine identity that can push a workflow change. This patch is
+# therefore a FILE that the owner applies, exactly like the other
+# `docs/ci-*.patch` files in this repository.
+#
+# HOW TO APPLY IT -- AND WHEN
+# ---------------------------
+# Apply this patch FIRST. The sibling PR
+# (`db/0063-record-0061-in-the-ledger`) ships a second hunk that adds
+# 0063 to the same place in `ci.yml`, and that hunk is anchored on the
+# 0062 step this patch adds. So the order is:
+#
+#     git checkout main && git pull
+#     git apply docs/ci-0062-sourcing-vocabulary.patch   # this file
+#     git apply docs/ci-0063-migration-chain.patch       # from the sibling PR
+#     git commit -m "ci: apply 0062 and 0063 to the chain"
+#     git push
+#
+# If you prefer one command, the sibling PR ships the SAME combined
+# patch under the name `docs/ci-0063-migration-chain.patch`; that one
+# applies to a pristine `main` and carries BOTH steps. Use it if you
+# have not applied anything yet.
+#
+# VERIFYING IT AFTER IT LANDS
+# ---------------------------
+#     python3 scripts/validate-ci-migration-chain.py
+#
+# should report that all three lists agree. The count goes from 61
+# migrations to 63 -- 0062 and 0063 are the two that are added.
+#
+# NOTE ON THE ANCHOR
+# ------------------
+# The hunk below is anchored AFTER the 0061 step (`INGREDIENT_ALIASES_OK`)
+# and BEFORE "The PER-DISH backfill assertions". It used to be anchored
+# after 0060, which was correct while 0061 lived in the unmerged PR
+# #266. PR #266 is now merged, so 0061 is in `ci.yml` and the old
+# anchor no longer matches. Regenerate this patch if `ci.yml` moves
+# again:
+#
+#     git diff --no-color .github/workflows/ci.yml > docs/ci-0062-sourcing-vocabulary.patch
+#
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 573c315..d44c4a4 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1352,6 +1352,18 @@ jobs:
+             -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
+           bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
+ 
++      # ── 0062: the ingredient sourcing vocabulary ─────────────────────────
++      #
++      # The 21 reviewed ingredient rows (GUS-1108), all `draft`. It is
++      # additive -- it writes 21 rows into `ingredients` and touches
++      # nothing else -- and it comes after 0055, because the availability
++      # rows it exists for live in the tables 0055 creates.
++      - name: Apply the ingredient sourcing vocabulary
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0062_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0062.log
++          bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0062: all 6 proofs passed" /tmp/m0062.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
