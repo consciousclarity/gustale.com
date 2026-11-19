@@ -100,20 +100,56 @@ def q(db, sql):
 # REUSES. The `new` rows are the ten the owner is being asked to
 # approve.
 APPROVED_SET = {
-    # slug: (status, category, needed_by)
-    "long-grain-rice": ("new", "rice", "nasi-goreng"),
-    "cooking-oil": ("new", "oil", "nasi-goreng"),
-    "margarine": ("new", "oil", "nasi-goreng"),
-    "sweet-soy-sauce": ("new", "savoury-sauces", "nasi-goreng"),
-    "shallot": ("new", "onions-and-similar", "nasi-goreng"),
-    "shrimp-paste": ("new", "paste", "nasi-goreng"),
-    "tamarind": ("new", "fruit", "nasi-goreng"),
-    "chilli": ("new", "fruit-spices", "nasi-goreng"),
-    "chicken": ("new", "chicken", "nasi-goreng"),
-    "prawn": ("new", "shrimps-and-prawns", "nasi-goreng"),
-    "garlic": ("exists", "garlic-and-similar", "moussaka-greek"),
-    "whole-egg": ("exists", "whole-eggs", "moussaka-greek"),
+    # slug: (status, category, needed_by, hint, cost_weight)
+    #
+    # The last two columns are the OWNER'S Gate A decisions of
+    # 2026-11-10, and they are enforced here so a later edit cannot
+    # quietly reverse one:
+    #
+    #   - `shrimp-paste` hint=yes. It is what distinguishes nasi
+    #     goreng from Chinese fried rice.
+    #   - `tamarind` and `chilli` and `shallot` and `garlic` are
+    #     cost_weight=minor -- a cap on the price score, so a dear
+    #     spice cannot make a dish Hard.
+    #   - `cooking-oil` and `margarine` are the TWO FORMS of ONE
+    #     required line, and both are hint=no.
+    #   - `vegetables` is the one generic line: no category, no
+    #     source, optional.
+    "long-grain-rice": ("new", "rice", "nasi-goreng", "yes", "major"),
+    "cooking-oil": ("new", "oil", "nasi-goreng", "no", "major"),
+    "margarine": ("new", "oil", "nasi-goreng", "no", "major"),
+    "sweet-soy-sauce": ("new", "savoury-sauces", "nasi-goreng", "yes", "major"),
+    "shallot": ("new", "onions-and-similar", "nasi-goreng", "no", "minor"),
+    "shrimp-paste": ("new", "paste", "nasi-goreng", "yes", "major"),
+    "tamarind": ("new", "fruit", "nasi-goreng", "no", "minor"),
+    "chilli": ("new", "fruit-spices", "nasi-goreng", "no", "minor"),
+    "chicken": ("new", "chicken", "nasi-goreng", "no", "major"),
+    "prawn": ("new", "shrimps-and-prawns", "nasi-goreng", "no", "major"),
+    "garlic": ("exists", "garlic-and-similar", "moussaka-greek", "no", "minor"),
+    "whole-egg": ("exists", "whole-eggs", "moussaka-greek", "no", "major"),
+    # The generic line. No category, no source -- so it is EXEMPT from
+    # the category and source rules, and the rules below say so
+    # explicitly rather than by accident.
+    "vegetables": ("new", "", "nasi-goreng", "no", "minor"),
 }
+
+# The rows that have NO category and NO source, by the owner's decision
+# of 2026-11-10: "vegetables" is one optional line, accepted. It is
+# the ONLY such row, and naming it here is what makes that a rule
+# rather than an accident.
+NO_CATEGORY_NO_SOURCE = {"vegetables"}
+
+# The owner decided (2026-11-10): the oil/margarine line is REQUIRED --
+# one line, two forms -- not optional. The contradiction between the
+# old section 1.2 and section 2.2 is resolved in favour of REQUIRED,
+# and this is the rule that enforces it.
+OIL_MARGARINE_FORMS = {"cooking-oil", "margarine"}
+OIL_MARGARINE_IS_REQUIRED = True
+
+# The owner decided (2026-11-10): both recipes stay DRAFT until each
+# has 2 INDEPENDENT sources. Wikipedia alone is not enough.
+RECIPE_STATUS = "draft"
+RECIPE_MIN_INDEPENDENT_SOURCES = 2
 
 
 def main():
@@ -149,17 +185,35 @@ def main():
         if slugs.count(s) > 1:
             failures.append(f"slug '{s}' appears more than once")
 
-    # (2) every category is a member of the 435
+    # (2) every category is a member of the 435 -- except the rows the
+    # owner explicitly accepted with NO category.
     for r in rows:
+        slug = r["slug"].strip()
         c = r["category"].strip()
+        if slug in NO_CATEGORY_NO_SOURCE:
+            if c:
+                failures.append(
+                    f"'{slug}': is a no-category row, but it names the "
+                    f"category '{c}'")
+            continue
         if c not in categories:
             failures.append(
-                f"'{r['slug']}': category '{c}' is not in the vocabulary")
+                f"'{slug}': category '{c}' is not in the vocabulary")
 
-    # (4) every row cites a source
+    # (4) every row cites a source -- except the rows the owner
+    # explicitly accepted with NO source. A row with no source is not
+    # an error if the owner named it; it is an error if it is merely
+    # forgotten, which is why the exemption is a named set.
     for r in rows:
+        slug = r["slug"].strip()
+        if slug in NO_CATEGORY_NO_SOURCE:
+            if r["source"].strip():
+                failures.append(
+                    f"'{slug}': is a no-source row, but it names the "
+                    f"source '{r['source'].strip()}'")
+            continue
         if not r["source"].strip():
-            failures.append(f"'{r['slug']}': no source")
+            failures.append(f"'{slug}': no source")
 
     # (5) the `exists` / `new` label must match reality
     for r in rows:
@@ -179,6 +233,8 @@ def main():
     for r in rows:
         s = r["slug"].strip()
         c = r["category"].strip()
+        if s in NO_CATEGORY_NO_SOURCE:
+            continue
         if s in DECLARED_GENERIC:
             if c != DECLARED_GENERIC[s]:
                 failures.append(
@@ -203,6 +259,79 @@ def main():
                 f"'{s}': must be reused from {dish}, but no ingredient row "
                 f"exists for it")
 
+    # (8) the owner's Gate A decisions: is_key and cost_weight must
+    # match the approved values exactly. These are the decisions the
+    # owner made on 2026-11-10, and a later edit must not be able to
+    # reverse one silently.
+    for r in rows:
+        slug = r["slug"].strip()
+        if slug not in APPROVED_SET:
+            continue
+        _, _, _, is_key, cost_weight = APPROVED_SET[slug]
+        # The column is named for what it IS: a recipe-line hint.
+        # `is_key` belongs to recipe_ingredients and is never stored on
+        # an ingredient, so the ingredient-shaped list must not carry
+        # that name -- it invites exactly the wrong write.
+        if "is_key" in r:
+            failures.append(
+                f"'{slug}': the column 'is_key' is present -- is_key is a "
+                f"RECIPE-LINE property (recipe_ingredients.is_key), never "
+                f"an ingredient one; the column is named "
+                f"'typically_defines_the_dish_hint'")
+        got_key = r.get("typically_defines_the_dish_hint", "").strip()
+        got_weight = r.get("cost_weight", "").strip()
+        if got_key != is_key:
+            failures.append(
+                f"'{slug}': is_key is '{got_key}', the owner's decision "
+                f"is '{is_key}'")
+        if got_weight != cost_weight:
+            failures.append(
+                f"'{slug}': cost_weight is '{got_weight}', the owner's "
+                f"decision is '{cost_weight}'")
+        if got_key not in ("yes", "no"):
+            failures.append(
+                f"'{slug}': is_key '{got_key}' is not 'yes' or 'no'")
+        if got_weight not in ("major", "minor"):
+            failures.append(
+                f"'{slug}': cost_weight '{got_weight}' is not 'major' or "
+                f"'minor'")
+
+    # (9) the oil/margarine line is REQUIRED -- one line, two forms.
+    # The old document contradicted itself: section 1.2 called it
+    # optional, section 2.2 called it required. The owner resolved it
+    # as REQUIRED, and this is the rule that holds that resolution.
+    if OIL_MARGARINE_IS_REQUIRED:
+        all_slugs = {r["slug"].strip() for r in rows}
+        present = OIL_MARGARINE_FORMS & all_slugs
+        if present != OIL_MARGARINE_FORMS:
+            missing = OIL_MARGARINE_FORMS - present
+            failures.append(
+                f"the oil/margarine line: both forms must be present as "
+                f"the forms of ONE required line, missing {sorted(missing)}")
+        # And neither form may stand alone: the owner decided ONE
+        # line with two forms, and a row that carries no form of its
+        # own is a row the rating cannot place.
+        for slug in OIL_MARGARINE_FORMS:
+            for r in rows:
+                if r["slug"].strip() != slug:
+                    continue
+                forms = r.get("forms", "").strip()
+                if not forms:
+                    failures.append(
+                        f"'{slug}': is a form of the oil/margarine line, "
+                        f"so it must name its form")
+
+    # (10) the generic line is optional, and must not be a key
+    # ingredient -- it is not a single ingredient at all.
+    for r in rows:
+        slug = r["slug"].strip()
+        if slug not in NO_CATEGORY_NO_SOURCE:
+            continue
+        if r.get("typically_defines_the_dish_hint", "").strip() == "yes":
+            failures.append(
+                f"'{slug}': is a generic line, so it cannot be a key "
+                f"ingredient")
+
     # (3) the list is EXACTLY the approved list -- closed in both
     # directions. A row may not be added to it and a row may not be
     # dropped from it. The moussaka checker's first version only
@@ -220,7 +349,7 @@ def main():
                 f"'{s}': NOT in the approved list -- a row may not be "
                 f"added to the list without the owner's review")
 
-    for s, (status, category, dish) in sorted(APPROVED_SET.items()):
+    for s, (status, category, dish, is_key, cost_weight) in sorted(APPROVED_SET.items()):
         if s not in seen:
             failures.append(
                 f"'{s}': MISSING from the list -- the approved list is "
@@ -231,7 +360,7 @@ def main():
         s = r["slug"].strip()
         if s not in APPROVED_SET:
             continue
-        status, category, dish = APPROVED_SET[s]
+        status, category, dish, _, _ = APPROVED_SET[s]
         if r["category"].strip() != category:
             failures.append(
                 f"'{s}': category is '{r['category'].strip()}', the "

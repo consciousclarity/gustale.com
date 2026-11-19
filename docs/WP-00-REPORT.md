@@ -441,13 +441,17 @@ The first branch I pushed (`wp/00-baseline`, PR #221) was created from
 arrived. **CI's live-approval gate rejected it, and it was right to.**
 
 The diff against `main` carried the entire sourcing-dataset history,
-including `db/migrations/0056_ingredient_aliases.sql` and
-`db/migrations/0057_ingredients_sourcing_vocabulary.sql`. And the two are in
-different states:
+including `db/migrations/0061_ingredient_aliases.sql` and
+`db/migrations/0062_ingredients_sourcing_vocabulary.sql`. (They were
+0056 and 0057 when the PR opened; they are 0061 and 0062 now, because
+main merged 0058, 0059 and 0060 and an applied migration is frozen.)
+And the two are in different states:
 
-- **`0057` is ALREADY APPLIED TO LIVE** — 2026-11-11 09:31:55 WITA, per
-  `docs/MIGRATION-RECEIPT-0057.md`.
-- **`0056` is NOT applied** — the same receipt says so explicitly.
+- **`0062` is ALREADY APPLIED TO LIVE** — 2026-11-11 09:31:55 WITA, per
+  `docs/MIGRATION-RECEIPT-0062.md`. Verified on live 2026-11-18: all 21
+  ingredient rows are present, all `status = 'draft'`.
+- **`0061` is NOT applied** — `ingredient_aliases` does not exist on live,
+  verified the same day. The béchamel duplicate is still two rows.
 
 So the PR proposed to merge one migration that live already has and one it
 does not, inside a package that is supposed to touch no schema at all. Under
