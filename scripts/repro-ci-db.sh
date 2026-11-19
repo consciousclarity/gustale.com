@@ -586,6 +586,14 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0061_ingredient_aliases.sql" > /
   || { echo "  FAILED: 0061"; grep -E 'ERROR' /tmp/repro_0061.log | head -6; fail=1; }
 grep -E 'INGREDIENT_ALIASES_OK' /tmp/repro_0061.log | tail -1 || true
 
+# The INGREDIENT SOURCING VOCABULARY (migration 0062).
+#
+# The 21 reviewed ingredient rows (GUS-1108), all `draft`. Additive --
+# it writes 21 rows into `ingredients` and touches nothing else.
+run_pg -f - < "$(dirname "$0")/../db/migrations/0062_ingredients_sourcing_vocabulary.sql" > /tmp/repro_0062.log 2>&1 \
+  || { echo "  FAILED: 0062"; grep -E 'ERROR' /tmp/repro_0062.log | head -6; fail=1; }
+grep -E '0062: all 6 proofs passed' /tmp/repro_0062.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
