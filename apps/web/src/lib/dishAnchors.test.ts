@@ -41,6 +41,7 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const COMPONENTS = join(HERE, "..", "components");
 const PAGES = join(HERE, "..", "pages", "dishes");
+const LIB = HERE;
 
 function read(...parts: string[]): string {
   return readFileSync(join(...parts), "utf-8");
@@ -298,7 +299,6 @@ test("the overview island does not receive the data of sections it does not rend
   for (const prop of [
     "variants=",
     "ingredients=",
-    "preparations=",
     "sources=",
     "journeyBeats=",
   ]) {
@@ -307,4 +307,46 @@ test("the overview island does not receive the data of sections it does not rend
       `the overview island receives ${prop} but does not render that section`,
     );
   }
+
+  // `preparations=` IS passed, and it is the one exception.
+  //
+  // The overview island renders the FACTS TABLE, and the Technique row
+  // of the facts table carries the preparation METHOD -- "Fried &
+  // topped". The method used to live only in the "Prepared components"
+  // list, which is the wrong place for it: a method is a technique,
+  // and a component is an ingredient.
+  //
+  // So the overview needs the preparation rows for the Technique row,
+  // and it needs them for that reason only. The test below asserts the
+  // method actually reaches the facts table, so this cannot rot into a
+  // silent "the data is passed but unused".
+  assert.ok(
+    island.includes("preparations="),
+    "the overview island does not receive preparations, so the Technique row cannot carry the method",
+  );
+});
+
+test("the Technique row carries the preparation method", () => {
+  const source = read(PAGES, "[slug].astro");
+
+  // The technique is built from the atlas dimensions AND the
+  // preparation rows.
+  const dishFacts = read(LIB, "dishFacts.ts");
+  assert.match(
+    dishFacts,
+    /preparations/,
+    "the facts builder does not read the preparation rows at all",
+  );
+  assert.match(
+    dishFacts,
+    /methodName/,
+    "the facts builder does not use the preparation method's name",
+  );
+
+  // And the page passes the preparations to it.
+  assert.match(
+    source,
+    /preparations=\{[^}]*\}/,
+    "the page does not pass the preparations to the overview island",
+  );
 });

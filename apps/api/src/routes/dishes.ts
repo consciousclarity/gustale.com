@@ -645,6 +645,19 @@ export function registerDishRoutes(app: FastifyInstance): void {
         preparationNote: dishIngredients.preparationNote,
         name: ingredients.canonicalName,
         slug: ingredients.slug,
+        // The ingredient's category from the taxonomy.
+        //
+        // The dish page needs it to tell a PREPARED COMPONENT from a
+        // raw ingredient: "Béchamel sauce" is a component the dish is
+        // built FROM, and it is not the same kind of thing as "Eggplant"
+        // or "Milk". The category is what says so -- "savoury-sauces"
+        // for the béchamel, "solanacea" for the eggplant.
+        //
+        // Without it the page had no way to fill the "Prepared
+        // components" list, and it filled it with the preparation
+        // METHOD instead ("Fried & topped"), which is a different kind
+        // of thing entirely.
+        category: ingredients.category,
       })
       .from(dishIngredients)
       .innerJoin(ingredients, eq(dishIngredients.ingredientId, ingredients.id))

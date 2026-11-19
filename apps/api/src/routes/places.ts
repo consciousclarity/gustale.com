@@ -257,8 +257,7 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
         d.view_count,
         a.evidence_status,
         a.dispute_state,
-        a.research_outcome,
-        a.explanation
+        a.research_outcome
       FROM public.visible_place_associations_for_place(${place.id}) a
       JOIN dishes d ON d.id = a.dish_id
       ORDER BY a.relationship_type, d.canonical_name
@@ -273,7 +272,6 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
       evidence_status: string;
       dispute_state: string | null;
       research_outcome: string | null;
-      explanation: string | null;
     }[];
 
     // Group by relationship type, in the presentation order.
@@ -290,7 +288,6 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
           dispute: string | null;
           research: string | null;
         };
-        explanation: string | null;
       }[];
     }[] = [];
 
@@ -314,7 +311,6 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
             dispute: a.dispute_state,
             research: a.research_outcome,
           },
-          explanation: a.explanation,
         }));
       if (dishes.length === 0) continue;
       groups.push({

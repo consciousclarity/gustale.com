@@ -26,6 +26,28 @@ export interface Props {
   title: string;
   description?: string;
   /**
+   * The ACCENT THEME for this page.
+   *
+   * "atlas" (the default) is the terracotta the Atlas has always used.
+   * "recipes" is the herb green, and it belongs to the RECIPE pages
+   * only.
+   *
+   * WHY THIS IS A PER-PAGE FLAG AND NOT A PER-SITE ONE
+   *
+   * The site is one build now: there is no separate recipes property
+   * and no separate geo property. `data-domain="recipes"` used to mean
+   * "this is the recipes site", and it was set on every page, which
+   * tinted the whole site herb green -- including the dish pages, where
+   * the "Add a dish" button is terracotta on every other page and was
+   * green here.
+   *
+   * The design decision is that the herb green is the RECIPES theme:
+   * it marks the recipe pages and nothing else. So the attribute now
+   * says what the page IS, and the pages that are not recipes keep the
+   * terracotta.
+   */
+  theme?: "atlas" | "recipes";
+  /**
    * The locale of this page. It sets `lang` and `dir` on the <html>
    * element, and picks the right Noto font stack.
    */
@@ -86,6 +108,7 @@ const {
   localeUrls = {},
   canonicalUrl: canonicalProp,
   noindex = false,
+  theme = "atlas",
 } = Astro.props;
 const isGeo = isGeoDomain();
 
@@ -308,24 +331,23 @@ const jsonLd = [
     }
   </head>
   {/*
-   * `data-domain="recipes"`, ALWAYS.
+   * `data-domain` FOLLOWS THE PAGE'S THEME.
    *
-   * It used to be `isGeo ? "geo" : "recipes"`, because the two
-   * builds were two properties with two themes: the Atlas carried the
+   * It used to be `isGeo ? "geo" : "recipes"`, because the two builds
+   * were two properties with two themes: the Atlas carried the
    * terracotta and the Recipes site the herb-green.
    *
-   * There is one site now, and the herb-green is its theme. The
-   * `recipes-theme.css` token overrides and the `recipe-hub.css`
-   * styles are both scoped to `body[data-domain="recipes"]`, so this
-   * attribute is what applies them. Setting it to "geo" on the geo
-   * variant would leave the whole site terracotta with an unstyled
-   * recipe hub on it.
+   * There is one site now, so the property is no longer what decides
+   * the accent. The PAGE does. The herb green is the recipes theme and
+   * it is applied to the recipe pages; every other page -- the dish
+   * pages, the Atlas, the families, the ingredient pages -- keeps the
+   * terracotta it has always had.
    *
-   * The attribute keeps its name because renaming it would touch every
-   * selector in two stylesheets for no gain; what it now means is "the
-   * site", not "the recipes property".
+   * `recipes-theme.css` and `recipe-hub.css` are both scoped to
+   * `body[data-domain="recipes"]`, so this attribute is what applies
+   * them, and it is now set per page rather than site-wide.
    */}
-  <body class="gst" data-domain="recipes">
+  <body class="gst" data-domain={theme}>
     <Nav />
 
     {

@@ -1,0 +1,65 @@
+# Nightly: the service database name does not match the one the job uses.
+#
+# WHY THIS PATCH EXISTS
+# --------------------
+# The Nightly job on main FAILED on 2026-11-18 (run 44404490001, SHA
+# 7c0c53ce). The failing step was the "Nightly reset" job, and the
+# error was:
+#
+#     FATAL:  database "gustale_ci" does not exist
+#
+# THE CAUSE
+# ----------
+# The service container was told to create a database called
+# `gustale_ci_ci`:
+#
+#     .github/workflows/nightly.yml:49
+#       POSTGRES_DB: gustale_ci_ci
+#
+# but the job connects to `gustale_ci` in two places:
+#
+#     .github/workflows/nightly.yml:14
+#       DATABASE_URL: postgres://gustale:...@127.0.0.1:5432/gustale_ci
+#     .github/workflows/nightly.yml:105
+#       PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci ...
+#
+# So the container created one database and the job asked for another.
+# The `_ci` suffix looks like a copy/paste slip: `ci.yml` runs its own
+# service with `POSTGRES_DB: gustale_ci`, and the Nightly was given
+# the name with `_ci` appended.
+#
+# WHY IT IS A PATCH AND NOT A COMMIT
+# ----------------------------------
+# The GitHub App this repository is pushed with has NO `workflows`
+# scope, so it cannot push a change to `.github/workflows/*.yml` at
+# all -- GitHub rejects the token with 422. The owner has to apply
+# this by hand.
+#
+# HOW TO APPLY
+# ------------
+#     git checkout main
+#     git apply docs/ci-nightly-postgres-db.patch
+#     git commit -m "ci: the nightly service database is gustale_ci"
+#     git push
+#
+# After it lands, the Nightly's own service container will create
+# `gustale_ci`, which is the database both the reset step and the
+# migration chain already use.
+#
+# THE ONE-LINE FIX
+# ----------------
+#     -          POSTGRES_DB: gustale_ci_ci
+#     +          POSTGRES_DB: gustale_ci
+#
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+--- a/.github/workflows/nightly.yml
++++ b/.github/workflows/nightly.yml
+@@ -46,7 +46,7 @@
+           # the chain applies the migrations.
+           POSTGRES_USER: postgres
+           POSTGRES_PASSWORD: gustale
+-          POSTGRES_DB: gustale_ci_ci
++          POSTGRES_DB: gustale_ci
+         ports:
+           - 5432:5432
+         options: >-

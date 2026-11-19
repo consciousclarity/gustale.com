@@ -47,7 +47,6 @@ test("association islands render their initial data without an API request", asy
             shortDescription: null,
             viewCount: 0,
             evidence: greece.evidence,
-            explanation: null,
           },
         ],
       },

@@ -84,6 +84,25 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
     // how a row is read: a 'place' is a geographic entity, a 'community'
     // is a tradition (a people or a practice).
     //
+    // THE INTERNAL COLUMNS ARE NOT SELECTED.
+    //
+    // `explanation`, `legacy_value` and `provenance` are the DATABASE'S
+    // notes about how the row got here — for the legacy import they read
+    // "Migrated from the legacy origin_geo_id ... DISCOVERY DATA ...
+    // preserved in legacy_value", and the cuisine rows even carry the
+    // literal unfilled placeholders "<cuisine>" and "<tradition>".
+    //
+    // Those are sentences about a MIGRATION, written for whoever
+    // maintains the table. They are not a finding about the dish, and a
+    // reader has no way to know that. They were in the public payload
+    // and the page rendered them verbatim, so the dish page printed
+    // "Migrated from the legacy origin_geo_id" to every visitor.
+    //
+    // The data is NOT lost: it stays in the table, and `places.ts` and
+    // the admin surfaces can still read it. What changes is that the
+    // PUBLIC payload does not carry it. The web renders the
+    // relationship label, the evidence label and one public sentence.
+    //
     // The two are joined separately and merged here, because the
     // response needs one list with a label and a name per row.
     const associationRows = await db.execute(sql`
@@ -92,10 +111,7 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
         a.relationship_type,
         a.entity_kind,
         a.entity_id,
-        a.explanation,
         a.qualifiers,
-        a.provenance,
-        a.legacy_value,
         a.evidence_status,
         a.dispute_state,
         a.research_outcome,
@@ -130,10 +146,7 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
         relationship_type: string;
         entity_kind: string;
         entity_id: string;
-        explanation: string | null;
         qualifiers: Record<string, unknown>;
-        provenance: string;
-        legacy_value: string | null;
         evidence_status: string;
         dispute_state: string | null;
         research_outcome: string | null;
@@ -159,7 +172,6 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
       // or a cross-border area. The client uses this to avoid labelling
       // every geographic entity "country".
       placeEntityType: row.place_entity_type,
-      explanation: row.explanation,
       qualifiers: row.qualifiers,
       // The evidence, in plain words. The client renders the badge from
       // these three, and never shows a numerical confidence score.
@@ -169,11 +181,6 @@ export function registerAtlasRoutes(app: FastifyInstance): void {
         research: row.research_outcome,
       },
       reviewState: row.review_state,
-      // The legacy value this row came from, and where it came from. It
-      // is preserved so the original is never lost, and it is NOT shown
-      // to the public as if it were a finding.
-      legacyValue: row.legacy_value,
-      provenance: row.provenance,
     }));
 
     // ── 2. FOOD FAMILIES ────────────────────────────────────────────

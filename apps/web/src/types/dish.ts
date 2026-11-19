@@ -206,6 +206,19 @@ export interface DishIngredient {
   preparationNote: string | null;
   name: string;
   slug: string;
+  /**
+   * The ingredient's taxonomy category ("savoury-sauces",
+   * "solanacea", …).
+   *
+   * It is what tells a PREPARED COMPONENT from a raw ingredient, and
+   * the "Prepared components" list is built from it.
+   *
+   * It is OPTIONAL because it was added to the payload after the
+   * ingredient list already existed: a payload without it is not an
+   * error, it is a dish whose ingredients carry no category, and such
+   * a dish simply has no prepared components.
+   */
+  category?: string | null;
 }
 
 export interface DishCategory {

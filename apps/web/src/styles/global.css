@@ -2223,163 +2223,137 @@ h4 {
   border-bottom-color: var(--ink);
 }
 
-/* Full-bleed cover — always finished; never a spinner */
-.dish-cover-hero {
+/* THE COVER — a 4:3 photograph beside the dish's title.
+ *
+ * It replaced a full-bleed 720px hero that sat in a dark frame until
+ * the page's JavaScript had run. Measured cold on 2026-11-19: the
+ * dark frame was on screen for 1.25s at 1440px and 2.5s at 390px.
+ *
+ * There is no dark frame here, so there is nothing to wait for. The
+ * image is visible as soon as it is painted, and `sizes` describes the
+ * box it actually occupies, so a phone asks for the 800w file instead
+ * of the 1536w one. */
+.dish-cover {
   margin: 0;
-  width: 100%;
+  align-self: start;
 }
-.dish-cover-hero__frame {
+.dish-cover__frame {
   position: relative;
   width: 100%;
-  min-height: min(72vh, 720px);
-  height: clamp(420px, 62vw, 720px);
-  /* `clip` and not `hidden`: `hidden` makes this box a SCROLL
-     CONTAINER, and a scroll container still contributes its content's
-     width to the document's scroll width. The cover image carries a
-     1.02 scale, so at a 390px viewport the scaled image was 397.8px
-     wide and the page scrolled sideways by 4px. `overflow: clip` does
-     the same clipping with no scroll container and no scroll width. */
+  aspect-ratio: 4 / 3;
   overflow: clip;
-  background: #2a221c;
+  background: var(--paper-2, #f1ece4);
+  border: 1px solid var(--line, rgba(33, 28, 22, 0.12));
+  border-radius: 4px;
 }
-.dish-cover-hero__fallback {
+/* The <picture> wrapper must not become a box of its own: the frame
+   owns the 4:3 ratio, and the picture fills it. Without this the
+   <picture> is an inline box and the image escapes the frame. */
+.dish-cover__frame > picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dish-cover__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* No opacity gate and no scale transition. A photograph that fades
+     in reads as broken, and the dark frame it replaced was worse. */
+  opacity: 1;
+}
+
+/* The place mark, for a dish with no photograph. It is on paper, not
+   on a dark block: it is a placeholder, not a hero. */
+.dish-cover__mark {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(
-      120% 80% at 70% 20%,
-      rgba(176, 78, 41, 0.28),
-      transparent 55%
-    ),
-    linear-gradient(160deg, #3a2e24 0%, #1f1814 55%, #2c211a 100%);
-}
-.dish-cover-hero__fallback-inner {
-  position: absolute;
-  left: var(--page-pad-x);
-  right: var(--page-pad-x);
-  bottom: var(--space-8);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  max-width: 720px;
-  color: var(--accent-ink);
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--paper-2, #f1ece4);
+  color: var(--ink, #211c16);
 }
-.dish-cover-hero__code {
+.dish-cover__code {
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  opacity: 0.72;
+  opacity: 0.6;
 }
-.dish-cover-hero__place {
+.dish-cover__place {
   font-family: var(--mono);
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.85;
+  opacity: 0.75;
 }
-.dish-cover-hero__name {
+.dish-cover__name {
   font-family: var(--display);
-  font-size: clamp(40px, 7vw, 84px);
-  line-height: 0.95;
+  font-size: clamp(28px, 3.4vw, 44px);
+  line-height: 0.98;
   letter-spacing: -0.02em;
 }
-/* THE COVER IMAGE IS VISIBLE BY DEFAULT.
- *
- * It used to start at `opacity: 0` and wait for an `is-ready` class that
- * NOTHING EVER ADDED -- the component is server-rendered, and no script
- * set the class. So the photograph loaded, the browser had it decoded,
- * and the reader still saw a 720px dark block. That is the defect the
- * 2026-11-15 blueprint recorded as "the cover photo stays invisible,
- * leaving a 720 px dark block".
- *
- * The rule now: the image is visible as soon as it is painted, and the
- * fade is an ENHANCEMENT -- `.is-ready` is added by the small inline
- * script in DishCoverHero once the image has decoded, and the class only
- * changes the transform, never the visibility. If the script never runs
- * (no JS, a blocked script, a slow parser) the photograph is STILL
- * there.
- *
- * The transform is kept because a 1.02 scale settling to 1.0 is a
- * pleasant, non-essential flourish that costs nothing when it does not
- * happen. */
-.dish-cover-hero__img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 1;
-  transform: scale(1.02);
-  transition: transform 1.1s ease;
-}
-.dish-cover-hero__img.is-ready {
-  opacity: 1;
-  transform: scale(1);
-}
-/* Before the image has decoded, the typographic fallback sits UNDER it
- * and the photograph is not yet painted. The fallback is the placeholder;
- * once the photograph is there, it covers the placeholder by itself. */
-.dish-cover-hero__fallback {
-  /* the fallback is visible until the photograph paints over it */
-  transition: opacity 0.5s ease;
-}
-.dish-cover-hero__veil {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to top,
-    rgba(33, 28, 22, 0.45) 0%,
-    rgba(33, 28, 22, 0.08) 42%,
-    transparent 70%
-  );
-}
-.dish-cover-hero__cap {
+
+.dish-cover__cap {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--space-5);
-  flex-wrap: wrap;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: var(--space-4) var(--page-pad-x) 0;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-2);
   font-family: var(--mono);
-  font-size: 12px;
-  color: var(--sub);
-  line-height: 1.5;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--sub, #6b6052);
 }
-.dish-cover-hero__cap-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  /* The credit is free text and can be long. Without this, one
-     unbreakable run of it -- a URL, a long name -- makes the caption
-     wider than the viewport and the whole page scrolls sideways. The
-     `anywhere` value breaks a long token even when there is no space
-     in it, which is the case that actually overflowed. */
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+.dish-cover__cap-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
 }
-.dish-cover-hero__cap > span {
-  /* Same reason: the alt text is free text too. */
-  min-width: 0;
+.dish-cover__cap > span {
   overflow-wrap: anywhere;
 }
-.dish-cover-hero__cap-meta em {
-  font-style: italic;
-  font-family: var(--body);
-  min-width: 0;
-  overflow-wrap: anywhere;
+.dish-cover__cap-meta em {
+  font-style: normal;
 }
-.dish-cover-hero__license {
+.dish-cover__license {
+  font-family: var(--mono);
   letter-spacing: 0.04em;
-  /* No opacity. The caption is --sub on the page background, and at
-     0.85 the licence line fell to about 4.0:1 — under the 4.5
-     threshold for 12px text. --sub at full strength is 5.5-6.1:1.
-     The licence is already separated from the credit by the mono
-     face and the letter-spacing. */
+  /* NO opacity here.
+   *
+   * The licence tag is 10.5px, so it needs a 4.5:1 contrast ratio. The
+   * caption colour (--sub, #6b6052) on the paper gives 5.22:1 at full
+   * strength; `opacity: 0.85` blended it to #7f7568 and 3.84:1, which
+   * fails. The axe gate caught it on /dishes/empanada on 2026-11-19.
+   *
+   * The mono face already reads as a quiet tag on its own, so it does
+   * not need to be faded to stay quiet. */
+}
+
+/* THE OVERVIEW HEAD — title block and cover, side by side.
+ *
+ * On a wide screen the title sits left and the 4:3 photograph sits
+ * right. On a narrow screen the photograph comes first and the title
+ * follows it, because the photograph is what the reader came for. */
+.dish-overview-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  gap: var(--space-8);
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .dish-overview-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+  /* The photograph first on a narrow screen. */
+  .dish-overview-head .dish-cover {
+    order: -1;
+  }
 }
 
 .dish-origin-band {
@@ -2968,18 +2942,8 @@ h4 {
   .dish-page-inner {
     padding: var(--space-5) var(--page-pad-x-sm) 0;
   }
-  .dish-cover-hero__fallback-inner,
-  .dish-cover-hero__cap {
-    padding-left: var(--page-pad-x-sm);
-    padding-right: var(--page-pad-x-sm);
-  }
-  .dish-cover-hero__fallback-inner {
-    left: var(--page-pad-x-sm);
-    right: var(--page-pad-x-sm);
-  }
-  .dish-cover-hero__frame {
-    min-height: 56vh;
-    height: clamp(360px, 88vw, 560px);
+  .dish-cover__mark {
+    padding: var(--space-4);
   }
   .dish-page .rec-meta {
     flex-wrap: wrap;

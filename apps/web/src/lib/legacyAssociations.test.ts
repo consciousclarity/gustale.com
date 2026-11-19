@@ -330,11 +330,11 @@ describe("WP-B2 — no dish has an 'Origin' field in the UI", () => {
   });
 
   it("the cover fallback has no 'Origin unrecorded'", () => {
-    const source = code("apps/web/src/components/DishCoverHero.tsx");
+    const source = code("apps/web/src/components/DishCover.tsx");
     for (const pattern of RENDERED_ORIGIN) {
       assert.ok(
         !pattern.test(source),
-        `DishCoverHero.tsx still renders "Origin" (${pattern})`,
+        `DishCover.tsx still renders "Origin" (${pattern})`,
       );
     }
   });
@@ -344,7 +344,7 @@ describe("WP-B2 — no dish has an 'Origin' field in the UI", () => {
     // carry a place label, checked together.
     for (const file of [
       "apps/web/src/components/DishDetail.tsx",
-      "apps/web/src/components/DishCoverHero.tsx",
+      "apps/web/src/components/DishCover.tsx",
     ]) {
       const source = code(file);
       for (const pattern of RENDERED_ORIGIN) {
