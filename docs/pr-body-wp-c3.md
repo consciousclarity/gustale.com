@@ -157,6 +157,8 @@ They are linked rather than attached: GitHub removed the issue-asset upload endp
 | cover paint time | 454 ms desktop / 467 ms mobile (was 1687 / 3498) |
 | mobile cover file | `cover-800w.webp` at 1x, 2x and 3x |
 | forbidden strings in the built page | **0 occurrences of each** |
+| axe gate | **0 violations**, 7 pages x 2 viewports |
+| CI on the PR | **all jobs green** |
 
 ### Two pre-existing failures I fixed along the way
 
@@ -164,6 +166,17 @@ Both were in `apps/api/test/atlas.test.ts`, and both were **asserting the leak**
 
 - *"exposes NO draft association"* asserted `association.provenance === "atlas_fixture"` — i.e. it asserted the internal field **was present**. It now asserts the internal fields are **absent** and the public identifiers are still there.
 - *"does not expose a reviewer's notes or the queue's reasons"* failed on `main` too, because it did a blanket `expect(json).not.toContain("reason")` and the payload legitimately contains `"reason":"Both core Levantine street foods..."` — a **public, human-written** connection sentence. It now targets the reviewer's reason field specifically.
+
+### The axe gate caught one of mine, and it was fixed
+
+The first CI run failed on `/dishes/empanada`:
+
+```
+VIOLATION desktop /dishes/empanada [color-contrast] (serious) x1
+    target: [".dish-cover__license"]
+```
+
+The licence tag is 10.5px, so it needs a 4.5:1 contrast ratio. My `opacity: 0.85` blended the caption colour `--sub` (#6b6052) to #7f7568 and **3.84:1**. The colour already passes at full strength (5.22:1), so the opacity was doing nothing except failing — it is gone. The axe gate now passes 0 violations across 7 pages x 2 viewports.
 
 ### Not fixed here, on purpose
 
