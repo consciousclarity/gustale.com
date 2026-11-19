@@ -53,46 +53,52 @@
 # therefore a FILE that the owner applies, exactly like the other
 # `docs/ci-*.patch` files in this repository.
 #
-# HOW TO APPLY IT
-# ---------------
+# HOW TO APPLY IT -- AND WHEN
+# ---------------------------
+# Apply the 0062 patch FIRST, then this one. Both land in `ci.yml` at
+# the same place, so this patch is anchored on the 0062 step and will
+# NOT apply to a pristine `main`:
+#
 #     git checkout main && git pull
-#     git apply docs/ci-0063-migration-chain.patch
-#     git commit -m "ci: apply 0063 (record 0061 in the ledger)"
+#     git apply docs/ci-0062-sourcing-vocabulary.patch   # from the sibling PR
+#     git apply docs/ci-0063-migration-chain.patch       # this file
+#     git commit -m "ci: apply 0062 and 0063 to the chain"
 #     git push
 #
-# Or, from the PR branch, on top of the migration:
-#
-#     git apply docs/ci-0063-migration-chain.patch
+# If you prefer one command, the sibling PR ships the SAME combined
+# patch under the name `docs/ci-0062-sourcing-vocabulary.patch`; that
+# one applies to a pristine `main` and carries BOTH steps. Use it if
+# you have not applied anything yet.
 #
 # VERIFYING IT AFTER IT LANDS
 # ---------------------------
 #     python3 scripts/validate-ci-migration-chain.py
 #
 # should report that all three lists agree. The count goes from 61
-# migrations to 62 -- 0063 is the one that is added.
+# migrations to 63 -- 0062 and 0063 are the two that are added.
 #
-# The chain validator is what proves the three lists stay in step. It
-# already passes with the two lists this PR can change; this patch
-# makes it three.
+# The chain order matters: the validator reads the three lists as a
+# sequence, and 0063 records 0061 in the ledger, so it must come after
+# 0061 has created the alias table its P4 proof inspects.
 #
 # NOTE ON THE ANCHOR
 # ------------------
-# The hunk below is anchored AFTER the 0061 step (`INGREDIENT_ALIASES_OK`)
-# and BEFORE "The PER-DISH backfill assertions". It used to be anchored
-# after 0060, which was correct while 0061 lived in the unmerged PR
-# #266. PR #266 is now merged, so 0061 is in `ci.yml` and the old
-# anchor no longer matches. Regenerate this patch if `ci.yml` moves
-# again:
+# The hunk below is anchored AFTER the 0062 step ("0062: all 6 proofs
+# passed") and BEFORE "The PER-DISH backfill assertions". It used to be
+# anchored after 0060, which was correct while 0061 lived in the
+# unmerged PR #266. PR #266 is now merged, so 0061 is in `ci.yml` and
+# the old anchor no longer matches. Regenerate this patch if `ci.yml`
+# moves again:
 #
 #     git diff --no-color .github/workflows/ci.yml > docs/ci-0063-migration-chain.patch
 #
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index 573c315..e465a20 100644
+index d44c4a4..beb7304 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -1352,6 +1352,22 @@ jobs:
-             -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
-           bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
+@@ -1364,6 +1364,22 @@ jobs:
+             -f db/migrations/0062_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0062.log
+           bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0062: all 6 proofs passed" /tmp/m0062.log
  
 +      # ── 0063: record 0061 in the ledger ───────────────────────────
 +      #
