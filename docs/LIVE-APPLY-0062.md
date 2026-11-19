@@ -16,8 +16,8 @@ migration.
 
 | the gate | the result |
 |---|---|
-| the full 57-migration chain, on a fresh database | `FULL_CI_CHAIN_OK=1` |
-| 0057's own 6 proofs, inside the chain | `0062: all 6 proofs passed` |
+| the full 62-migration chain, on a fresh database | `FULL_CI_CHAIN_OK=1` |
+| 0062's own 6 proofs, inside the chain | `0062: all 6 proofs passed` |
 | the dry run against an **exact copy of live** | `DRYRUN_OK=1` |
 | idempotence — applied twice | `IDEMPOTENT: the second application succeeded` |
 | the proof mutants | `ALL_MUTANTS_CAUGHT=1` (5/5) |
@@ -46,12 +46,18 @@ errors, and matching counts.
 systemctl status gustale-backup.service --no-pager
 ```
 
-**The owner has NOT applied `approved-live` to PR #219.** That label is
-for migration `0056` (the ingredient aliases). **0062 is a separate
+**The owner has NOT applied `approved-live` to PR #266.** That label is
+for migration `0061` (the ingredient aliases). **0062 is a separate
 migration and does not need it** — 0062 writes to `ingredients`, and
 0061 writes to `ingredient_aliases`; they do not overlap. If the owner
 prefers to land 0061 first (the béchamel merge), say so, because the
 order matters for the receipt.
+
+> PR **#219** was the earlier, closed-and-unmerged attempt at the alias
+> table. Its migration was renumbered to `0061` and re-shipped as
+> **#266**. The `approved-live` label still sitting on the closed PR
+> #219 is **stale** and does not approve anything — only the owner
+> applies labels.
 
 ---
 
@@ -73,7 +79,7 @@ Then the dry run, which restores the copy on the dedicated test postgres
 ```bash
 bash scripts/dryrun-migration.sh \
   db/migrations/0062_ingredients_sourcing_vocabulary.sql \
-  gustale_0057_dryrun
+  gustale_0062_dryrun
 ```
 
 **Expected:** `DRYRUN_OK=1`, `0062: all 6 proofs passed`, and
@@ -198,5 +204,5 @@ The migration is purely additive, so the rollback is a DELETE of the 21
 slugs — shown in §4. There is nothing else to undo: no column was
 added, no table was created, and no existing row was modified.
 
-**Rule 11:** `0052`–`0056` are frozen. If a correction to 0062 is ever
+**Rule 11:** `0052`–`0062` are frozen. If a correction to 0062 is ever
 needed, it is a NEW migration number, never an edit to this file.

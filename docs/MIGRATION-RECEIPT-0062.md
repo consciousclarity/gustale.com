@@ -14,7 +14,7 @@
 
 ## Rule 11 — this migration is now frozen
 
-`0057` has run on live. It is **immutable**.
+`0062` has run on live. It is **immutable**.
 
 - A correction to it requires a **new** migration number.
 - The **apply line** is authoritative, not the commit.
@@ -127,7 +127,7 @@ The test now fails loudly rather than testing something else.
 
 ## The before/after comparison
 
-`0057` is **strictly additive** and writes **no published content
+`0062` is **strictly additive** and writes **no published content
 rows**, so every count of user data must be identical before and
 after except `ingredients` itself.
 
@@ -177,7 +177,7 @@ is a different vocabulary).
 
 ## The rollback
 
-`0057` is purely additive, so the rollback is a `DELETE` of the 21
+`0062` is purely additive, so the rollback is a `DELETE` of the 21
 slugs. It publishes nothing, so nothing that was visible before the
 apply is visible after it.
 
@@ -197,14 +197,19 @@ The full-dump fallback is the pre-migration backup.
 
 ## What is still open
 
-- **`0056` — the ingredient alias table — is NOT applied.** The label
-  `approved-live` is on PR #219 and the live-approval gate passes,
-  but the alias table does not exist on live. It is a **separate
-  migration** with its own backup, dry run and receipt. **The two do
-  not overlap**: `0056` creates `ingredient_aliases`; `0057` writes
-  `ingredients` rows.
-- **The sourcing data has not been loaded.** `0057` creates the
+- **`0061` — the ingredient alias table — is NOT applied.** The alias
+  table does not exist on live. It is a **separate migration** with its
+  own backup, dry run and receipt, and it ships as its own PR (**#266**).
+  **The two do not overlap**: `0061` creates `ingredient_aliases`; `0062`
+  writes `ingredients` rows.
+- **The sourcing data has not been loaded.** `0062` creates the
   *vocabulary* the availability rows attach to. The availability rows
   themselves — the research — are GUS-1106 and GUS-1107.
 - **Nothing on `ingredients` is published.** 40 of the 45 rows are
   draft, including all 21 new ones.
+
+> **Note on `approved-live`:** PR **#219** carried that label but was
+> **closed unmerged** — its migration was renumbered and re-shipped as
+> **#266**, which carries no label. The label on the closed PR #219 is
+> stale and says nothing about the state of `0061`. Only the owner
+> applies or removes labels.
