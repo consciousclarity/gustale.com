@@ -2323,7 +2323,15 @@ h4 {
 .dish-cover__license {
   font-family: var(--mono);
   letter-spacing: 0.04em;
-  opacity: 0.85;
+  /* NO opacity here.
+   *
+   * The licence tag is 10.5px, so it needs a 4.5:1 contrast ratio. The
+   * caption colour (--sub, #6b6052) on the paper gives 5.22:1 at full
+   * strength; `opacity: 0.85` blended it to #7f7568 and 3.84:1, which
+   * fails. The axe gate caught it on /dishes/empanada on 2026-11-19.
+   *
+   * The mono face already reads as a quiet tag on its own, so it does
+   * not need to be faded to stay quiet. */
 }
 
 /* THE OVERVIEW HEAD — title block and cover, side by side.
