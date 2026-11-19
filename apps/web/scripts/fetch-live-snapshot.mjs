@@ -105,6 +105,8 @@ async function get(path, tries = 3) {
 }
 
 // ── the cache: a dish is re-fetched only when its updatedAt moved ──────────
+//
+// ...OR WHEN THE API'S RESPONSE SHAPE MOVED. See §4.
 let cache = { dishes: {} };
 if (existsSync(CACHE)) {
   try {
@@ -208,26 +210,147 @@ if (blobs.lineages) {
 }
 
 // ── 4. the per-dish details and journeys, with a cache ─────────────────────
+//
+// THE SHAPE OF THE API'S RESPONSE.
+//
+// The cache decides whether a dish needs re-fetching by comparing the
+// dish's `updatedAt` against the stamp it cached with. That is enough
+// for a change to the DISH. It is not enough for a change to the API's
+// RESPONSE SHAPE: a new field can appear on every dish without a single
+// dish's `updatedAt` moving.
+//
+// So the shape is part of the stamp. It is computed from ONE dish -- the
+// response has the same shape for every dish -- and it is the list of
+// keys the API returns, at every level of the payload.
+//
+// The shape is computed from a PROBE fetch, before the pool, so that
+// every dish in this run is compared against the same shape. A probe
+// that fails must not silently mean "no shape" (which would make every
+// cache entry miss every time): it falls back to the shape recorded in
+// the cache, and if there is none, the whole run re-fetches.
+//
+// WHY THIS MATTERS, CONCRETELY
+// -----------------------------
+// On 2026-11-19 the API gained `ingredients[].category` -- the field the
+// dish page needs to fill its "Prepared components" list. The build
+// directory on the VPS is PERSISTENT and the snapshot cache is
+// gitignored, so `git checkout --force` never cleared it, and the
+// cache's stamp (the dish's `updatedAt`, 2026-10-26) never moved.
+// Result: every dish was served from the cache, with `category: null`,
+// and the live moussaka page printed no prepared components at all --
+// while the API, queried directly, returned the category correctly.
+//
+// One full re-fetch when the API's shape changes is the right cost.
+// The alternative is a page that silently loses a field.
+//
+// The probe fetches ONE dish -- the FIRST target -- and that same
+// response is reused for the dish's own entry below, so the probe
+// costs nothing extra on a run that fetches everything.
+let probeDetail = null;
+async function computeShape() {
+  if (!targets.length) return null;
+  const probeSlug = targets[0];
+  try {
+    probeDetail = await get(`/api/dishes/${encodeURIComponent(probeSlug)}`);
+    return shapeOf(probeDetail);
+  } catch (err) {
+    log(`  WARN the shape probe for "${probeSlug}" failed: ${err.message}`);
+    return cache.shape ?? null;
+  }
+}
+
+/**
+ * The shape of an API response: the set of keys at every level.
+ *
+ * Arrays are described by their ELEMENT's shape, not by their length --
+ * a dish with 23 ingredients and a dish with 4 have the same shape, and
+ * the count must not invalidate the cache. A key that is present but
+ * null is still part of the shape: the field exists in the API, and
+ * that is what the build cares about.
+ */
+function shapeOf(value, depth = 0) {
+  if (value === null || typeof value !== "object") {
+    return typeof value;
+  }
+  if (Array.isArray(value)) {
+    // The union of the element shapes, so a field that appears on SOME
+    // ingredients (and is null on others) is still part of the shape.
+    const parts = value.map((v) => shapeOf(v, depth + 1));
+    return `array<${[...new Set(parts)].sort().join("|")}>`;
+  }
+  const keys = Object.keys(value).sort();
+  if (depth > 6) return `{${keys.join(",")}}`;
+  const inner = keys
+    .map((k) => `${k}:${shapeOf(value[k], depth + 1)}`)
+    .join(",");
+  return `{${inner}}`;
+}
+
 log(
   `fetching ${targets.length} dish details + journeys (concurrency ${CONCURRENCY})`,
 );
 const details = {};
-const nextCache = { dishes: {} };
+
+const shape = await computeShape();
+log(`  shape: ${shape ? shape.length : 0} chars`);
+
+// The cache carries the shape it was written with, so the NEXT run can
+// tell whether the API's response has changed shape since.
+const nextCache = { dishes: {}, shape };
 
 await pool(targets, CONCURRENCY, async (slug) => {
   const cached = cache.dishes[slug];
   // The list row carries the dish's updatedAt. If it is unchanged, the
   // cached detail is still correct.
+  //
+  // AND THE SHAPE MUST MATCH. A dish's `updatedAt` says nothing about
+  // the API's RESPONSE SHAPE. When the API starts sending a field the
+  // cache has never seen -- `ingredients[].category`, for instance --
+  // every dish's `updatedAt` is unchanged, so the cache would serve
+  // every stale detail and the new field would never appear in the
+  // built pages.
+  //
+  // That is not hypothetical: on 2026-11-19 the API gained
+  // `ingredients[].category` (the "Prepared components" list needs it),
+  // and the build served a snapshot in which all 23 ingredients of a
+  // moussaka had `category: null`, so the page printed no prepared
+  // components at all. The cache is keyed on the dish's `updatedAt`
+  // (2026-10-26, never touched again) and it lives in a PERSISTENT
+  // build directory, so the stale entry survived every rebuild.
+  //
+  // The shape is taken from ONE dish's detail -- the response is the
+  // same shape for every dish -- and it is part of the cache's stamp.
+  // When the API's shape changes, the stamp changes, and every dish is
+  // re-fetched. That is the correct cost: one full fetch when the API
+  // changes shape, and no fetch at all when it does not.
   const row = list.find((d) => d.slug === slug);
   const stamp = row?.updatedAt ?? null;
+  // The shape of the API's response as it is NOW (computed by the probe
+  // above), against the shape the cached detail was stored with. They
+  // must be the same, or the cached detail is missing a field the API
+  // now sends.
+  const cachedShape = cached?.shape ?? null;
 
-  if (cached && stamp && cached.stamp === stamp && cached.detail) {
+  if (
+    cached &&
+    stamp &&
+    cached.stamp === stamp &&
+    cached.detail &&
+    shape &&
+    cachedShape === shape
+  ) {
     details[slug] = cached.detail;
     nextCache.dishes[slug] = cached;
     return;
   }
 
-  const detail = await get(`/api/dishes/${encodeURIComponent(slug)}`);
+  // The probe above already fetched the FIRST target's detail. Reuse it
+  // rather than asking for it again -- the probe is not free, and a
+  // second request for the same dish would be waste.
+  const detail =
+    probeDetail && slug === targets[0]
+      ? probeDetail
+      : await get(`/api/dishes/${encodeURIComponent(slug)}`);
   let journey = null;
   try {
     journey = await get(`/api/dishes/${encodeURIComponent(slug)}/journey`);
@@ -238,7 +361,7 @@ await pool(targets, CONCURRENCY, async (slug) => {
   // it at its own URL. Store it where the mock expects it.
   const merged = journey ? { ...detail, journey } : detail;
   details[slug] = merged;
-  nextCache.dishes[slug] = { stamp, detail: merged };
+  nextCache.dishes[slug] = { stamp, shape, detail: merged };
 });
 
 log(`  ${Object.keys(details).length} details`);
