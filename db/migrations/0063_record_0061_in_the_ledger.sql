@@ -1,7 +1,32 @@
 -- ============================================================================
--- 0062_record_0061_in_the_ledger.sql
+-- 0063_record_0061_in_the_ledger.sql
 --
 -- Record 0061 in the GUS ledger. Nothing else.
+--
+-- WHY THE NUMBER IS 0063 AND NOT 0062
+-- -----------------------------------
+-- This migration was APPLIED TO LIVE on 2026-11-19 as
+-- `0062_record_0061_in_the_ledger.sql` (PSQL_RC=0, checksum
+-- 498ab199069c49452d2b3cb1219cc483968292b6cbf1368baaf537a02532f0d7).
+--
+-- It was then RENUMBERED to 0063, because 0062 was already taken:
+-- `0062_ingredients_sourcing_vocabulary.sql` (applied to live on
+-- 2026-11-11) claims the number 0062. Two migrations must never share
+-- a number -- the chain validator reads the three lists as a sequence,
+-- and a duplicate number makes the order ambiguous.
+--
+-- The RENUMBERING IS A RENAME PLUS PROSE. It changes no behaviour:
+--   - this migration still writes exactly ONE row, the ledger entry for
+--     0061, and touches no other table;
+--   - the row it writes is keyed `0061_ingredient_aliases`, NOT by its
+--     own number, so the ledger on live is unaffected by the rename;
+--   - the SQL body is byte-identical to the file that ran on live apart
+--     from this header comment and the note string, and the note string
+--     is only written when the row is INSERTed -- on live it already
+--     exists, so `ON CONFLICT (name) DO NOTHING` leaves it exactly as
+--     it is. The live row keeps its original note.
+--
+-- The receipt is docs/MIGRATION-RECEIPT-0063.md.
 --
 -- WHY THIS MIGRATION EXISTS
 -- -------------------------
@@ -20,7 +45,7 @@
 -- 0061 simply omitted that INSERT. The omission was found AFTER 0061
 -- had been applied to live, and Rule 11 says an applied migration's
 -- file is IMMUTABLE -- a fix goes into a NEW number. So the gap is
--- closed here, in 0062, rather than by editing 0061.
+-- closed here, in 0063, rather than by editing 0061.
 --
 -- WHAT THIS MIGRATION DOES
 -- ------------------------
@@ -91,7 +116,7 @@ VALUES (
   'Hermes',
   'd09d86a9b225035517d9430d2ca07b72bc9d0b31b348df726cbfb2d9f17ec85a',
   'applied by direct psql on 2026-11-19; the migration omitted its own ledger row, '
-  'and 0062 records it. receipt docs/MIGRATION-RECEIPT-0061.md'
+  'and 0063 records it. receipt docs/MIGRATION-RECEIPT-0061.md'
 )
 ON CONFLICT (name) DO NOTHING;
 
