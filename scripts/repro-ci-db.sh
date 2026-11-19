@@ -593,6 +593,21 @@ grep -E 'INGREDIENT_ALIASES_OK' /tmp/repro_0061.log | tail -1 || true
 run_pg -f - < "$(dirname "$0")/../db/migrations/0062_ingredients_sourcing_vocabulary.sql" > /tmp/repro_0062.log 2>&1 \
   || { echo "  FAILED: 0062"; grep -E 'ERROR' /tmp/repro_0062.log | head -6; fail=1; }
 grep -E '0062: all 6 proofs passed' /tmp/repro_0062.log | tail -1 || true
+# Record 0061 in the ledger.
+#
+# 0061 was applied to live on 2026-11-19 without writing its own ledger
+# row. An applied migration is frozen (Rule 11), so the gap is closed in
+# a NEW number rather than by editing 0061. It writes ONE row and
+# nothing else.
+#
+# The number is 0063, not 0062: this migration was applied to live as
+# `0062_record_0061_in_the_ledger.sql` and then RENUMBERED, because 0062
+# was already taken by `0062_ingredients_sourcing_vocabulary.sql`
+# (applied to live on 2026-11-11).
+step "record 0061 in the ledger"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0063_record_0061_in_the_ledger.sql" > /tmp/repro_0063.log 2>&1 \
+  || { echo "  FAILED: 0063"; grep -E 'ERROR' /tmp/repro_0063.log | head -8; fail=1; }
+grep -E 'GUS_LEDGER_0061_OK' /tmp/repro_0063.log | tail -1 || true
 
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
