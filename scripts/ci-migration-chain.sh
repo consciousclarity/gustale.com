@@ -257,6 +257,11 @@ MIGRATION_0054=db/migrations/0054_ingredient_category_fk.sql
 # (the recipes schema), because recipe_ingredient_substitutes
 # references recipe_ingredients.
 MIGRATION_0055=db/migrations/0055_sourcing_availability.sql
+
+# 0061 is the INGREDIENT ALIASES table (migration 0061). It is the
+# mechanism behind the béchamel merge: a retired slug that must keep
+# resolving because it has a live public URL.
+MIGRATION_0061=db/migrations/0061_ingredient_aliases.sql
 MIGRATION_0041=db/migrations/0041_credential_role_separation.sql
 # 0049 adds `dishes.content_type` -- an EXPLICIT EDITORIAL field, with
 # no sync trigger (Alejandro's decision), and a verified backfill of the
@@ -900,6 +905,23 @@ echo "--- the legacy associations, published as Unverified"
 run_pg -f - < "$MIGRATION_0060" >/tmp/m0060.log 2>&1 || { echo "FAILED: 0060"; grep -E 'ERROR|NOTICE' /tmp/m0060.log | tail -14; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E '0060: ok' /tmp/m0060.log | tail -1 || true
+
+# ── 0061: the ingredient aliases table ──────────────────────────────
+#
+# The alias mechanism behind the béchamel merge: a retired slug keeps
+# resolving, because it has a live public URL. Strictly additive -- one
+# new table and at most one alias row.
+#
+# It is numbered 0061 so it sorts AFTER the migrations live has already
+# applied (0058, 0059, 0060): an applied migration is frozen, so its
+# number cannot be reused by a migration that has not run yet.
+#
+# It depends on nothing except `ingredients`, so it can run at the end
+# of the chain.
+echo "--- the ingredient aliases table"
+run_pg -f - < "$MIGRATION_0061" >/tmp/m0061.log 2>&1 || { echo "FAILED: 0061"; grep -E 'ERROR|NOTICE' /tmp/m0061.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'INGREDIENT_ALIASES_OK' /tmp/m0061.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #
