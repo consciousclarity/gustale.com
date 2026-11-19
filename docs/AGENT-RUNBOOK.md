@@ -399,3 +399,93 @@ trap 'rc=$?; ...; exit "${_DEPLOY_EXIT}"' EXIT
 # and assert with a real command:
 test -n "$VAR" || { echo "VAR is empty"; exit 1; }
 ```
+
+## 14. The cache that outlived the API (2026-11-19)
+
+**The symptom.** The live moussaka page had 23 ingredients and **0
+categories**, and printed no "Prepared components" section, while the
+API — queried directly — returned `category` correctly on all 23.
+
+**The cause.** `apps/web/scripts/fetch-live-snapshot.mjs` decided
+whether to re-fetch a dish by comparing the dish's `updatedAt` against
+its cached stamp. That detects a change to the **DISH**. It cannot
+detect a change to the API's **RESPONSE SHAPE**: a new field can
+appear on every dish without one dish's `updatedAt` moving. The API
+gained `ingredients[].category` on 2026-11-19 (PR #271, commit
+`4ae18c5`) and every cached detail kept `category: null`.
+
+Three things had to line up: the build directory is **persistent**,
+the cache is **gitignored** (so `git checkout --force` never cleared
+it), and the dish's `updatedAt` never moved.
+
+**The fix (PR #274, merged as `02d0b4a`).** The response's shape is
+part of the cache's stamp: the set of keys at every level of the
+payload, computed from ONE dish and compared against the shape the
+cached detail was stored with. Arrays are described by their ELEMENT's
+shape, so the ingredient COUNT does not invalidate the cache. A key
+present but `null` is still part of the shape.
+
+**WHERE THE CACHE ACTUALLY LIVES.** This is the trap. There is no
+`.live-snapshot-cache.json` under `/home/deploy/gustale-build/`. The
+rebuild service runs with
+`WorkingDirectory=/home/gustale/gustale-rebuild-checkout`, so the
+real paths are:
+
+```
+/home/gustale/gustale-rebuild-checkout/apps/web/scripts/live-snapshot.json
+/home/gustale/gustale-rebuild-checkout/apps/web/scripts/.live-snapshot-cache.json
+```
+
+`build-web-live.sh` passes `--cache "apps/web/scripts/.live-snapshot-cache.json"`
+— a path **relative to the working directory**. Looking in
+`/home/deploy/gustale-build/` finds nothing and looks like "there is
+no cache", which inverts the diagnosis.
+
+**THE REBUILD EARLY-EXITS.** `rebuild-web-live.sh` compares the
+fetched sha and the snapshot's content stamp, and exits without
+rebuilding when **neither** changed. A code change alone is enough to
+trigger a rebuild; a content change alone is too. It also does
+`git fetch origin main && git checkout --force origin/main` itself, so
+a merged fix reaches the VPS without a separate deploy — trigger it
+with `systemctl start gustale-rebuild-web.service` rather than waiting
+for the 30-minute timer.
+
+**PROOF THE FIX WORKS ON PRODUCTION.** After the rebuild: 23/23
+ingredients with a category, bechamel → `savoury-sauces`, and the
+cache gained a top-level `shape` key of 2,590 chars (it had only
+`['dishes']` before).
+
+## 15. The App cannot push a workflow file — and a patch is the answer
+
+The `gustale-bot` App has NO `workflows` scope. GitHub refuses:
+
+```
+! [remote rejected] ... (refusing to allow a GitHub App to create
+  or update workflow `.github/workflows/ci.yml` without `workflows`
+  permission)
+```
+
+The PAT is revoked and the SSH deploy key is rejected, so **no machine
+identity can push a workflow change**. A PR that touches
+`.github/workflows/**` therefore CANNOT go green on its own: the chain
+validator (`scripts/validate-ci-migration-chain.py`) runs in CI and
+compares all three migration lists, so a migration added to
+`scripts/ci-migration-chain.sh` and `scripts/repro-ci-db.sh` but not
+to `ci.yml` fails "Lint + typecheck".
+
+**The pattern that works.** Ship the migration, the scripts, and a
+**patch file** `docs/ci-<name>.patch` that adds the workflow step.
+The owner applies it. This is not a workaround — it is the only path,
+and the repo already uses it (`docs/ci-nightly-postgres-db.patch`).
+
+**VERIFY THE PATCH APPLIES TO THE PR BRANCH**, not just to `main`:
+
+```bash
+git clone --branch <pr-branch> https://github.com/consciousclarity/gustale.com.git /tmp/prtest
+cd /tmp/prtest && git apply --check docs/ci-<name>.patch && git apply docs/ci-<name>.patch
+python3 scripts/validate-ci-migration-chain.py   # must say the lists agree
+```
+
+**Counts:** `main` carried 60 migrations; adding 0062 makes it **61**
+with all three lists agreeing.
+
