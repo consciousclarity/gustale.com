@@ -1,0 +1,66 @@
+# The 0061 migration step for .github/workflows/ci.yml
+#
+# WHY THIS IS A PATCH AND NOT A COMMIT: the GitHub App has NO workflow
+# scope, and GitHub refuses the push outright:
+#
+#   "refusing to allow a GitHub App to create or update workflow
+#    .github/workflows/ci.yml without `workflows` permission"
+#
+# This is the standing rule -- the owner applies workflow changes.
+#
+# APPLY IT WITH:
+#
+#   git apply docs/ci-ingredient-aliases-0061.patch
+#
+# WHY IT IS NEEDED: the migration-chain validator compares three lists --
+# .github/workflows/ci.yml (the CI database), scripts/ci-migration-chain.sh
+# (the Nightly database) and scripts/repro-ci-db.sh (the LOCAL
+# reproduction). This PR added 0061 to the two scripts. The workflow is
+# the third list, and it cannot be pushed by the App, so it has to be
+# patched. Without it the validator fails with:
+#
+#   CI migration chain MISMATCH:
+#   in scripts/ci-migration-chain.sh but NOT in .github/workflows/ci.yml:
+#   db/migrations/0061_ingredient_aliases.sql
+#
+# A migration that is not applied is a schema that does not exist, and the
+# route that reads it returns 500. The local reproduction drifting from
+# CI is how a developer ends up debugging a failure that the CI database
+# does not have.
+#
+# WHERE IT GOES: the step runs immediately after 0060 (the legacy
+# associations, published as Unverified) and before the PER-DISH backfill
+# assertions, which must stay LAST because they assert the state the
+# whole chain produces.
+#
+# SCOPE: this patch carries ONLY 0061. The sourcing vocabulary (0062) is
+# a separate PR, and its workflow step ships with it.
+#
+# Generated against main at 7c0c53c (the merge of PR #262, WP-C1).
+# The patch applies cleanly to that tree.
+#
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 7244091..573c315 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1338,6 +1338,20 @@ jobs:
+             -f db/migrations/0060_legacy_associations_published.sql 2>&1 | tee /tmp/m0060.log
+           bash scripts/check-ci-markers.sh "the legacy associations, published as Unverified" "0060: ok" /tmp/m0060.log
+ 
++      # ── 0061: the ingredient aliases table ────────────────────────────
++      #
++      # The ingredient alias table. A RETIRED ingredient slug that must
++      # keep resolving, mapped to the canonical ingredient -- so a merge
++      # of two duplicates does not break the retired URL.
++      #
++      # It is additive: a table of alternative names for an ingredient. It
++      # publishes nothing.
++      - name: Apply the ingredient aliases table
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
++          bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
