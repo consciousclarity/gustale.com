@@ -1338,6 +1338,20 @@ jobs:
             -f db/migrations/0060_legacy_associations_published.sql 2>&1 | tee /tmp/m0060.log
           bash scripts/check-ci-markers.sh "the legacy associations, published as Unverified" "0060: ok" /tmp/m0060.log
 
+      # ── 0061: the ingredient aliases table ────────────────────────────
+      #
+      # The ingredient alias table. A RETIRED ingredient slug that must
+      # keep resolving, mapped to the canonical ingredient -- so a merge
+      # of two duplicates does not break the retired URL.
+      #
+      # It is additive: a table of alternative names for an ingredient. It
+      # publishes nothing.
+      - name: Apply the ingredient aliases table
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0061_ingredient_aliases.sql 2>&1 | tee /tmp/m0061.log
+          bash scripts/check-ci-markers.sh "the ingredient aliases table" "INGREDIENT_ALIASES_OK" /tmp/m0061.log
+
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.
