@@ -2175,6 +2175,54 @@ h4 {
   padding: var(--space-7) var(--page-pad-x) 0;
 }
 
+/* ─── The in-page section nav (WP-C2) ─────────────────────────────
+   The nav's links are short labels in a small sans face, so their
+   text box is well under the 24x24 CSS px minimum of WCAG 2.2
+   SC 2.5.8 (Target Size, Minimum). axe-core measured them at
+   43x16 and reported "Target has insufficient size" on
+   /dishes/empanada.
+
+   The component itself has carried no stylesheet until now: it was
+   behind the GUS-238 pilot flag and never rendered, so nothing
+   revealed the defect. WP-C2 renders it, so WP-C2 owns the fix.
+
+   The fix is the repo's own --target-min token, applied as an
+   INLINE-BLOCK box with vertical padding — the same shape as the
+   .gst-locales__link fix above. The label's own size is unchanged;
+   only the hit area grows to meet the minimum. */
+.dsn {
+  margin: 0 0 var(--space-6);
+}
+.dsn__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dsn__link {
+  display: inline-block;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  line-height: var(--target-min);
+  color: var(--sub);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.dsn__link:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+/* The current section is marked with aria-current AND a rule, so the
+   state is not carried by colour alone. */
+.dsn__link[aria-current="true"] {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--ink);
+}
+
 /* Full-bleed cover — always finished; never a spinner */
 .dish-cover-hero {
   margin: 0;
