@@ -46,7 +46,7 @@ jobs:
           # the chain applies the migrations.
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: gustale
-          POSTGRES_DB: gustale_ci_ci
+          POSTGRES_DB: gustale_ci
         ports:
           - 5432:5432
         options: >-
