@@ -116,7 +116,7 @@ const RELATIONSHIP_LABELS: Record<string, string> = {
   legacy_unreviewed: "Unverified association",
 };
 
-function relationshipLabel(relationship?: string): string | undefined {
+export function relationshipLabel(relationship?: string): string | undefined {
   if (!relationship) return undefined;
   const known = RELATIONSHIP_LABELS[relationship];
   if (known) return known;
@@ -179,6 +179,15 @@ export function buildDishFacts(input: {
   places: DishPlaceAssociation[];
   /** The evidence status of the whole dish, when it is unevidenced. */
   unevidenced?: boolean;
+  /**
+   * The preparation METHODS of the dish ("Fried & topped").
+   *
+   * A method is a TECHNIQUE, and the Technique row is where a technique
+   * belongs. It used to be printed under the heading "Prepared
+   * components", which promised something else entirely -- and the
+   * components (the béchamel) were nowhere to be seen.
+   */
+  preparations?: { methodName: string }[];
 }): DishFactRow[] {
   const rows: DishFactRow[] = [];
 
@@ -221,6 +230,38 @@ export function buildDishFacts(input: {
 
     const vocabulary = FACT_VOCABULARY[key];
     if (!vocabulary) continue;
+
+    // The technique row can carry TWO facts: the dimension's technique
+    // ("Frying") and the preparation method ("Fried & topped"). They
+    // are the same kind of thing -- both say how the dish is cooked --
+    // so they belong in one row, and both are named.
+    //
+    // A dimension with no method, or a method with no dimension, still
+    // produces a row: a missing fact and a fact that was checked and
+    // found unset are different things to a reader.
+    if (key === "technique") {
+      const dimension = primaryDimension(input.dimensions, vocabulary);
+      const methods = (input.preparations ?? [])
+        .map((p) => p.methodName?.trim())
+        .filter((n): n is string => Boolean(n));
+      const parts: string[] = [];
+      if (dimension) parts.push(dimension.name);
+      for (const method of methods) {
+        if (!parts.includes(method)) parts.push(method);
+      }
+      if (parts.length === 0) {
+        rows.push({ key, label, value: DISH_FACT_MISSING });
+        continue;
+      }
+      rows.push({
+        key,
+        label,
+        value: parts.join(", "),
+        href: dimension ? dimensionHref(key, dimension) : undefined,
+      });
+      continue;
+    }
+
     const dimension = primaryDimension(input.dimensions, vocabulary);
     if (!dimension) {
       rows.push({ key, label, value: DISH_FACT_MISSING });

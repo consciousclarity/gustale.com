@@ -684,10 +684,39 @@ describe("GET /api/dishes/:slug/atlas — draft privacy", () => {
     // Every association returned is published. The route reads them
     // through published_associations_for_dish(), which is the ONE
     // definition of what the public may see (ADR-004 D8.2).
+    //
+    // The route no longer publishes `provenance`, so the check cannot
+    // read it from the payload. Instead it asserts the SHAPE: every
+    // association carries the public fields, and carries NONE of the
+    // internal ones.
     for (const association of body.placesAndTraditions) {
-      // The fixture rows are the published ones. A draft row would
-      // carry a legacy provenance and not be in this list at all.
-      expect(association.provenance).toBe("atlas_fixture");
+      expect(association.entityKind).toBeTruthy();
+      expect(association.entityId).toBeTruthy();
+      expect(association.relationship).toBeTruthy();
+      expect(association.reviewState).toBeTruthy();
+      // The evidence axes the page renders next to the name.
+      expect(association.evidence?.status).toBeTruthy();
+    }
+  });
+
+  it("publishes NO internal association field", async () => {
+    const body = await getAtlas("falafel");
+
+    // The database's own notes about a row are NOT public.
+    //
+    // `explanation` held the migration prose -- "Migrated from the
+    // legacy origin_geo_id ... DISCOVERY DATA ... historical_emergence
+    // ... legacy_value" -- and it was rendered on the dish page
+    // verbatim. `provenance` and `legacy_value` are the same kind of
+    // thing: the database talking to itself in public.
+    //
+    // They are ABSENT, not null. A null would still put the field
+    // name in the contract, and the next contributor would fill it.
+    for (const association of body.placesAndTraditions) {
+      expect(association).not.toHaveProperty("explanation");
+      expect(association).not.toHaveProperty("provenance");
+      expect(association).not.toHaveProperty("legacyValue");
+      expect(association).not.toHaveProperty("legacy_value");
     }
   });
 
@@ -732,7 +761,32 @@ describe("GET /api/dishes/:slug/atlas — draft privacy", () => {
     const serialised = JSON.stringify(body);
 
     expect(serialised).not.toContain("reviewed_by");
-    expect(serialised).not.toContain("reason");
+
+    // NOT a bare "reason" check.
+    //
+    // A CONNECTION carries a public, human-written `reason` -- "Both
+    // core Levantine street foods, often eaten in the same meal" --
+    // and that IS public. What must not be public is the EDITORIAL
+    // QUEUE's reason: why a row is in the queue, and who queued it.
+    // Those are the editorial workflow's private business.
+    //
+    // The old assertion was `not.toContain("reason")`, which failed
+    // against the public connection reasons. It was asserting the
+    // absence of a word, not the absence of a field, so it could only
+    // ever pass if the connections had no explanations either.
+    //
+    // The check is now on the FIELD: nothing in the payload carries a
+    // queue reason, and the connections keep theirs.
+    expect(serialised).not.toContain("reviewedBy");
+    expect(serialised).not.toContain("reviewed_by");
+    expect(serialised).not.toContain("queueReason");
+    expect(serialised).not.toContain("queue_reason");
+    expect(serialised).not.toContain("editorialReason");
+
+    // The public connection reason is still there.
+    for (const connection of body.historyAndConnections.connections) {
+      expect(typeof connection.reason).toBe("string");
+    }
   });
 });
 

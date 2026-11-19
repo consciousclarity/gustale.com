@@ -47,6 +47,8 @@
 import { useEffect, useState } from "react";
 import type { AtlasAssociation, AtlasResponse } from "../lib/api";
 import { ApiError, getDishAtlas } from "../lib/api";
+import { relationshipLabel } from "../lib/dishFacts";
+import { publicSentence } from "../lib/publicAssociationSentence";
 import { EvidenceLabel } from "./EvidenceLabel";
 
 /**
@@ -186,13 +188,32 @@ function AssociationRow({ association }: { association: AtlasAssociation }) {
             {association.placeEntityType}
           </span>
         ) : null}
+        <span className="atlas-association__relationship">
+          {relationshipLabel(association.relationship)}
+        </span>
       </div>
       <EvidenceBadge association={association} />
-      {association.explanation ? (
-        <p className="atlas-association__explanation">
-          {association.explanation}
-        </p>
-      ) : null}
+      {/*
+        THE ONE PUBLIC SENTENCE.
+
+        This row used to print the association's `explanation` field
+        verbatim. That field is the DATABASE'S note about how the row
+        got here, not a finding about the dish: the legacy import wrote
+        "Migrated from the legacy origin_geo_id. This is the Wikidata
+        'country of origin' value -- DISCOVERY DATA, not a reviewed
+        historical claim ... preserved in legacy_value." and the cuisine
+        row wrote "The cuisine '<cuisine>' has a matching tradition row
+        '<tradition>'".
+
+        A reader has no way to know that. It read as if the site were
+        unsure what it was talking about, and it printed the
+        unfilled placeholder tokens literally. The API no longer ships
+        the field, and the page builds its own sentence from the
+        relationship and the entity instead.
+      */}
+      <p className="atlas-association__sentence">
+        {publicSentence(association)}
+      </p>
     </li>
   );
 }
@@ -257,7 +278,21 @@ const styles = `
   border-radius: 3px;
   padding: 1px 5px;
 }
-.atlas-association__explanation {
+/* The relationship label: what KIND of claim this row is. It sits with
+   the name, because a name on its own does not say whether the row is
+   a claim about the dish's origin or a carried-over association. */
+.atlas-association__relationship {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--sub, #6b6052);
+  border-left: 1px solid var(--line, rgba(33, 28, 22, 0.18));
+  padding-left: 8px;
+}
+
+/* The ONE public sentence. It replaced the association's explanation
+   field, which held the database's migration notes and printed them
+   verbatim to readers. */
+.atlas-association__sentence {
   grid-column: 1 / -1;
   margin: 2px 0 0;
   font-size: 13px;
@@ -448,6 +483,30 @@ export default function AtlasPlaces({
 
   const hasNothing = grouped.length === 0 && other.length === 0;
 
+  // GREECE IS SHOWN ONCE.
+  //
+  // The legacy origin block and the association list are the SAME fact
+  // for a dish whose legacy origin was migrated into the atlas: the
+  // migration wrote the legacy `origin_geo_id` into an association row
+  // AND left the legacy block in place. The page then printed "Greece"
+  // in the list and, again, in a separate "Associated with Greece" box
+  // underneath it.
+  //
+  // The list wins, because it is the one that carries the relationship
+  // and the evidence label. The legacy block is only worth its space
+  // when the list does NOT already name the place -- which is the case
+  // for a dish with no associations at all.
+  const legacyAlreadyShown =
+    legacy !== null &&
+    associations.some(
+      (a) =>
+        a.entityKind === "place" &&
+        (a.name === legacy.name ||
+          (legacy.isoCode !== null &&
+            a.isoCode !== null &&
+            a.isoCode.toUpperCase() === legacy.isoCode.toUpperCase())),
+    );
+
   return (
     <section
       className="section atlas-places"
@@ -473,7 +532,7 @@ export default function AtlasPlaces({
               ? `No reviewed place associations yet. Commonly associated with ${legacy.name}, not yet verified.`
               : "No reviewed place associations yet."}
           </p>
-          {legacy ? (
+          {legacy && !legacyAlreadyShown ? (
             <div className="atlas-legacy">
               <p className="atlas-legacy__label">
                 Associated with {legacy.name}
@@ -522,7 +581,7 @@ export default function AtlasPlaces({
         </>
       )}
 
-      {legacy && !hasNothing ? (
+      {legacy && !hasNothing && !legacyAlreadyShown ? (
         <div className="atlas-legacy">
           <p className="atlas-legacy__label">
             Associated with {legacy.name}

@@ -17,7 +17,7 @@
  *
  * Run:  PUBLIC_DOMAIN=geo node scripts/validate-build.mjs
  */
-import { access, readFile, stat } from "node:fs/promises";
+import { access, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -426,14 +426,40 @@ const navHtml = homeHtml ?? regionsHtml ?? "";
 //
 // There is one build now, and it identifies as the Atlas.
 //
-// `data-domain` stays "recipes" in the markup: the recipe THEME's CSS
-// is scoped to it, and the theme is a theme, not a site. The wordmark
-// is what names the site.
+// `data-domain` on the BODY used to be "recipes" on every page,
+// because the herb green was the SITE's theme. It is now the PAGE's
+// theme: the recipe pages carry the herb green and every other page
+// carries the terracotta. So the assertion below is that the home
+// page -- which is not a recipe page -- carries the Atlas theme.
+const homeBodyTag = homeHtml?.match(/<body[^>]*>/)?.[0] ?? "";
 check(
   "the build identifies as Atlas",
-  />Atlas</.test(navHtml) && /data-domain="recipes"/.test(navHtml),
-  'expected the Atlas wordmark + data-domain="recipes"',
+  />Atlas</.test(navHtml) && /data-domain="atlas"/.test(homeBodyTag),
+  'expected the Atlas wordmark + data-domain="atlas" on the body',
 );
+// THE ACCENT THEME FOLLOWS THE PAGE.
+//
+// The herb green is the RECIPES theme and it belongs to the recipe
+// pages. Every other page -- the Atlas, the dishes, the families --
+// keeps the terracotta. This asserts both halves: the recipe hub
+// carries the green, and the home page does not.
+//
+// It matters because the header's "Add a dish" button is the most
+// visible element on every page. If the theme leaks, that button
+// changes colour site-wide, which is exactly what happened.
+const recipesHtml = await read(`${DIST}recipes/index.html`);
+const recipesBodyTag = recipesHtml?.match(/<body[^>]*>/)?.[0] ?? "";
+check(
+  "the recipe pages carry the herb-green theme",
+  /data-domain="recipes"/.test(recipesBodyTag),
+  `expected data-domain="recipes" on the recipe hub's body, got: ${recipesBodyTag}`,
+);
+check(
+  "the non-recipe pages carry the terracotta theme",
+  /data-domain="atlas"/.test(homeBodyTag),
+  `expected data-domain="atlas" on the home page's body, got: ${homeBodyTag}`,
+);
+
 // The 404 page identifies as Gustale, and its help links are LOCAL.
 //
 // It used to assert the literal string "Gustale Atlas" on the 404 --
@@ -987,6 +1013,288 @@ check(
   "the sitemap index exists",
   await exists(sitemapIndexPath),
   sitemapIndexPath,
+);
+
+// ─── NO INTERNAL METADATA IN THE OUTPUT ────────────────────────────────────
+//
+// WHY THIS CHECK EXISTS
+//
+// The dish page's "Places & traditions" section printed the
+// ASSOCIATION'S INTERNAL EXPLANATION FIELD to the reader. That field
+// holds the database's own migration notes:
+//
+//   "Migrated from the legacy origin_geo_id. This is the Wikidata
+//    'country of origin' value — DISCOVERY DATA, not a reviewed
+//    historical claim. It is not promoted to historical_emergence
+//    because no qualifying source supports that specific claim. The
+//    original value is preserved in legacy_value."
+//
+// It also printed the unfilled placeholders the migration left behind:
+// "<cuisine>" and "<tradition>".
+//
+// Those are the DATABASE'S NOTES, not the ARCHIVE'S PROSE. They must
+// never reach a reader. They are also the kind of leak that comes
+// back the moment somebody adds a field to a query, so the guard
+// belongs in the build, not in a review.
+//
+// WHAT IS CHECKED
+//
+// EVERY built HTML page, for:
+//
+//   1. the internal column names and prose fragments, and
+//   2. angle-bracket placeholders of the shape <word> -- which is what
+//      an unfilled migration placeholder looks like.
+//
+// The placeholder check is deliberately narrow: it looks for a
+// lowercase angle-bracket word, not for ANY "<" followed by a letter.
+// HTML tags in the output are lower-case too, so a naive version of
+// this check would fire on every page. The check therefore only
+// fires on a tag-shaped token that is NOT a known HTML tag -- which
+// is what a placeholder is.
+const FORBIDDEN_INTERNAL_TERMS = [
+  "origin_geo_id",
+  "historical_emergence",
+  "legacy_value",
+  "dish_cuisines",
+  "DISCOVERY DATA",
+  "legacy_origin_geo_id",
+  "legacy_dish_cuisines",
+];
+
+// The tags a real page is allowed to contain. Anything else in
+// <angle-brackets> is a placeholder that was never filled in.
+const KNOWN_HTML_TAGS = new Set([
+  "a",
+  "abbr",
+  "address",
+  "area",
+  "article",
+  "aside",
+  "audio",
+  "b",
+  "base",
+  "bdi",
+  "bdo",
+  "blockquote",
+  "body",
+  "br",
+  "button",
+  "canvas",
+  "caption",
+  "cite",
+  "code",
+  "col",
+  "colgroup",
+  "data",
+  "datalist",
+  "dd",
+  "del",
+  "details",
+  "dfn",
+  "dialog",
+  "div",
+  "dl",
+  "dt",
+  "em",
+  "embed",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "i",
+  "iframe",
+  "img",
+  "input",
+  "ins",
+  "kbd",
+  "label",
+  "legend",
+  "li",
+  "link",
+  "main",
+  "map",
+  "mark",
+  "menu",
+  "meta",
+  "meter",
+  "nav",
+  "noscript",
+  "object",
+  "ol",
+  "optgroup",
+  "option",
+  "output",
+  "p",
+  "param",
+  "picture",
+  "pre",
+  "progress",
+  "q",
+  "rp",
+  "rt",
+  "ruby",
+  "s",
+  "samp",
+  "script",
+  "section",
+  "select",
+  "slot",
+  "small",
+  "source",
+  "span",
+  "strong",
+  "style",
+  "sub",
+  "summary",
+  "sup",
+  "svg",
+  "table",
+  "tbody",
+  "td",
+  "template",
+  "textarea",
+  "tfoot",
+  "th",
+  "thead",
+  "time",
+  "title",
+  "tr",
+  "track",
+  "u",
+  "ul",
+  "var",
+  "video",
+  "wbr",
+  // Custom elements the framework and the maps emit. These are
+  // elements, not placeholders.
+  "astro-island",
+  "astro-slot",
+  "astro-static-slot",
+  "path",
+  "circle",
+  "rect",
+  "line",
+  "polyline",
+  "polygon",
+  "g",
+  "defs",
+  "use",
+  "symbol",
+  "text",
+  "tspan",
+  "ellipse",
+  "marker",
+  "clippath",
+  "mask",
+  "pattern",
+  "lineargradient",
+  "radialgradient",
+  "stop",
+]);
+
+// A tag-shaped token that is not a known tag: "<cuisine>", "<tradition>".
+const PLACEHOLDER_RE = /<\/?([a-z][a-z0-9_-]*)>/g;
+
+/**
+ * The placeholder tokens in one page's HTML, excluding real tags.
+ *
+ * The text is stripped of the tags FIRST, so a tag never counts as a
+ * placeholder; only a leftover "<word>" in the TEXT does.
+ */
+function placeholdersIn(html) {
+  const text = html
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ");
+  const found = new Set();
+  for (const m of text.matchAll(/<\/?([a-z][a-z0-9_-]*)>/gi)) {
+    const tag = m[1].toLowerCase();
+    if (!KNOWN_HTML_TAGS.has(tag)) found.add(tag);
+  }
+  return [...found];
+}
+
+/**
+ * Every built HTML page, as a list of { path, html }.
+ *
+ * The dist tree is walked recursively. A scoped build still walks
+ * everything it produced -- the guard is about WHAT IS IN THE OUTPUT,
+ * not about how much of it there is.
+ */
+async function allHtmlPages(dir) {
+  const out = [];
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...(await allHtmlPages(full)));
+    } else if (entry.isFile() && entry.name.endsWith(".html")) {
+      const html = await read(full);
+      if (html) out.push({ path: full, html });
+    }
+  }
+  return out;
+}
+
+const allPages = await allHtmlPages(DIST);
+const internalLeaks = [];
+const placeholderLeaks = [];
+for (const page of allPages) {
+  for (const term of FORBIDDEN_INTERNAL_TERMS) {
+    if (page.html.includes(term)) {
+      internalLeaks.push(
+        `${page.path.replace(DIST, "dist/")} contains "${term}"`,
+      );
+      break;
+    }
+  }
+  const placeholders = placeholdersIn(page.html);
+  if (placeholders.length > 0) {
+    placeholderLeaks.push(
+      `${page.path.replace(DIST, "dist/")} contains the placeholder(s) ` +
+        placeholders.map((t) => `<${t}>`).join(", "),
+    );
+  }
+}
+
+check(
+  "no page contains the association's internal explanation field",
+  internalLeaks.length === 0,
+  internalLeaks.length === 0
+    ? ""
+    : `${internalLeaks.length} page(s):\n      ${internalLeaks
+        .slice(0, 10)
+        .join(
+          "\n      ",
+        )}${internalLeaks.length > 10 ? `\n      …and ${internalLeaks.length - 10} more` : ""}`,
+);
+check(
+  "no page contains an unfilled angle-bracket placeholder",
+  placeholderLeaks.length === 0,
+  placeholderLeaks.length === 0
+    ? ""
+    : `${placeholderLeaks.length} page(s):\n      ${placeholderLeaks
+        .slice(0, 10)
+        .join(
+          "\n      ",
+        )}${placeholderLeaks.length > 10 ? `\n      …and ${placeholderLeaks.length - 10} more` : ""}`,
 );
 
 // ─── Report ─────────────────────────────────────────────────────────────────

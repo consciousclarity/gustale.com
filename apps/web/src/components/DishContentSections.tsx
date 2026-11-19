@@ -39,13 +39,13 @@ import {
   populatedColumns,
 } from "../lib/dishConnections";
 import { DISH_SECTION_IDS } from "../lib/dishSections";
+import { preparedComponents } from "../lib/preparedComponents";
 import type { RecipeSummary } from "../lib/recipes";
 import type {
   DishCategory,
   DishCitation,
   DishDetailCore,
   DishIngredient,
-  DishPreparation,
   DishVariant,
 } from "../types/dish";
 import { DishConnections } from "./DishConnections";
@@ -57,7 +57,6 @@ export interface DishContentSectionsProps {
   /** The dish's relations, grouped by kind. */
   relations?: RelationLike[] | null;
   variants?: DishVariant[];
-  preparations?: DishPreparation[];
   ingredients?: DishIngredient[];
   sources?: DishCitation[];
   categories?: DishCategory[];
@@ -74,7 +73,6 @@ export function DishContentSections({
   dish,
   relations = null,
   variants = [],
-  preparations = [],
   ingredients = [],
   sources = [],
   recipes = [],
@@ -100,6 +98,11 @@ export function DishContentSections({
 
   // ── Ingredients + Recipes ───────────────────────────────────────────────
   const hasIngredients = ingredients.length > 0;
+
+  // The PREPARED COMPONENTS: the ingredients that are themselves made.
+  // See lib/preparedComponents.ts for why this is not the preparation
+  // method.
+  const components = preparedComponents(ingredients);
 
   // ── Sources ─────────────────────────────────────────────────────────────
   const hasSources = sources.length > 0;
@@ -179,13 +182,32 @@ export function DishContentSections({
               ))}
             </div>
 
-            {preparations.length > 0 && (
+            {/*
+                PREPARED COMPONENTS, NOT THE PREPARATION METHOD.
+
+                This list used to be fed the preparation rows, so it
+                printed the METHOD -- "Fried & topped" -- under a
+                heading that promises components. A method is how the
+                dish is cooked; a component is something the dish is
+                built FROM that is itself made. The béchamel in a
+                moussaka is a component; it was in the ingredient list
+                and nowhere else, and the component list was showing
+                the wrong kind of thing entirely.
+
+                The METHOD now goes into the Technique row of the facts
+                table, which is where a technique belongs.
+            */}
+            {components.length > 0 && (
               <>
                 <h3 className="col-h col-h--sub">Prepared components</h3>
                 <div className="ing-list">
-                  {preparations.map((p) => (
-                    <div className="ing" key={p.id}>
-                      <span className="qty">{p.methodName}</span>
+                  {components.map((c) => (
+                    <div className="ing" key={c.ingredientId}>
+                      <span className="qty">
+                        {c.quantity ?? ""}
+                        {c.quantity ? " " : ""}
+                        {c.name}
+                      </span>
                     </div>
                   ))}
                 </div>

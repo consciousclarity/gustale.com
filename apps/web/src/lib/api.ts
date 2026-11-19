@@ -709,7 +709,6 @@ export interface AtlasAssociation {
   isoCode: string | null;
   /** 'country' | 'region' | … — for a place, so no client labels every entity a country. */
   placeEntityType: string | null;
-  explanation: string | null;
   qualifiers: Record<string, unknown>;
   evidence: {
     status: string;
@@ -717,8 +716,16 @@ export interface AtlasAssociation {
     research: string | null;
   };
   reviewState: string;
-  legacyValue: string | null;
-  provenance: string;
+  /**
+   * The database's own notes about the row are NOT in this payload.
+   *
+   * `explanation`, `legacyValue` and `provenance` are migration notes
+   * ("Migrated from the legacy origin_geo_id ... DISCOVERY DATA"), and
+   * the legacy cuisine rows even carried the literal placeholders
+   * "<cuisine>" and "<tradition>". They are sentences for whoever
+   * maintains the table, not findings about the dish, so the API does
+   * not ship them and the page cannot render them.
+   */
 }
 
 export interface AtlasClaim {
@@ -908,7 +915,6 @@ export interface PlaceDish {
     dispute: string | null;
     research: string | null;
   };
-  explanation: string | null;
 }
 
 export interface PlaceGroup {

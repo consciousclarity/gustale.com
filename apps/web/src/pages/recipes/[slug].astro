@@ -141,7 +141,12 @@ const seoDescription = recipe
 
 {
   recipe ? (
-    <Layout title={seoTitle} description={seoDescription} locale="en">
+    <Layout
+      title={seoTitle}
+      description={seoDescription}
+      locale="en"
+      theme="recipes"
+    >
       <RecipePage
         slug={recipe.slug}
         title={recipe.title}
@@ -157,7 +162,13 @@ const seoDescription = recipe
       />
     </Layout>
   ) : (
-    <Layout title={seoTitle} description={seoDescription} locale="en" noindex>
+    <Layout
+      title={seoTitle}
+      description={seoDescription}
+      locale="en"
+      noindex
+      theme="recipes"
+    >
       <section class="wrap text-center" style="padding: var(--space-9) 0;">
         <h1 class="page-header">Recipe not found</h1>
         <p class="sub">
