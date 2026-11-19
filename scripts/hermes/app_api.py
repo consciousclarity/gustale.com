@@ -6,7 +6,14 @@ suffix but is Python, so it needs an explicit SourceFileLoader.
 
 USAGE:
     python3 scripts/hermes/app_api.py GET repos/consciousclarity/gustale.com/pulls/199
+    python3 scripts/hermes/app_api.py GET /repos/consciousclarity/gustale.com/pulls/199
     python3 scripts/hermes/app_api.py POST repos/.../labels '{"labels":["approved-live"]}'
+
+The leading slash on the path is OPTIONAL. `gh_app_auth._endpoint()`
+normalises it, so both forms above work. (Without that normalisation
+the slash-less form produced "api.github.comrepos/...", which curl
+reports as an unresolvable host -- it reads like broken DNS and is
+not.)
 """
 from __future__ import annotations
 
