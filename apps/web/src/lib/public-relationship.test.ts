@@ -25,17 +25,17 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   FAMILY_RELATION_TYPES,
-  INFLUENCE_RELATION_TYPES,
-  RESEMBLANCE_RELATION_TYPES,
   hasReadableSource,
+  INFLUENCE_RELATION_TYPES,
   isInfluence,
   isResemblance,
   isRouteLineageRole,
   mayJoinRoute,
   publicRelationshipKind,
+  RESEMBLANCE_RELATION_TYPES,
+  type RouteChapter,
   routeCaption,
   routeFromChapters,
-  type RouteChapter,
 } from "./public-relationship.ts";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────
@@ -104,8 +104,14 @@ describe("a resemblance can never appear in a route caption", () => {
     const caption = routeCaption(stops);
 
     // The three places that were wrongly in the live caption.
-    assert.ok(!caption.includes("Hungary"), "Hungary must not be in the caption");
-    assert.ok(!caption.includes("Morocco"), "Morocco must not be in the caption");
+    assert.ok(
+      !caption.includes("Hungary"),
+      "Hungary must not be in the caption",
+    );
+    assert.ok(
+      !caption.includes("Morocco"),
+      "Morocco must not be in the caption",
+    );
     assert.ok(
       !caption.includes("South Korea"),
       "South Korea must not be in the caption",
@@ -138,7 +144,11 @@ describe("a resemblance can never appear in a route caption", () => {
 
   it("rejects a cousin and a parallel evolution by role", () => {
     for (const role of ["cousin", "parallel_evolution"]) {
-      assert.equal(isRouteLineageRole(role), false, `${role} is not a route role`);
+      assert.equal(
+        isRouteLineageRole(role),
+        false,
+        `${role} is not a route role`,
+      );
       assert.equal(
         mayJoinRoute(chapter("tagine-moroccan", 1, "Morocco", SOURCE, role)),
         false,
@@ -150,9 +160,7 @@ describe("a resemblance can never appear in a route caption", () => {
   it("accepts a regional variant", () => {
     assert.equal(isRouteLineageRole("regional_variant"), true);
     assert.equal(
-      mayJoinRoute(
-        chapter("vindaloo", 1, "Goa", SOURCE, "regional_variant"),
-      ),
+      mayJoinRoute(chapter("vindaloo", 1, "Goa", SOURCE, "regional_variant")),
       true,
     );
   });
@@ -214,7 +222,10 @@ describe("an influence without a source is not in the route", () => {
 
   it("accepts a chapter with a readable source", () => {
     assert.equal(mayJoinRoute(chapter("vindaloo", 1, "Goa", SOURCE)), true);
-    assert.equal(mayJoinRoute(chapter("vindaloo", 1, "Goa", { id: "x" })), true);
+    assert.equal(
+      mayJoinRoute(chapter("vindaloo", 1, "Goa", { id: "x" })),
+      true,
+    );
     assert.equal(
       mayJoinRoute(chapter("vindaloo", 1, "Goa", { citationText: "A book" })),
       true,
@@ -287,10 +298,7 @@ describe("the route is ordered by the journey, not by the listing", () => {
     );
     assert.equal(stops.length, 1);
     assert.equal(stops[0]?.name, "Goa");
-    assert.deepEqual(stops[0]?.dishSlugs, [
-      "vindaloo",
-      "chicken-tikka-masala",
-    ]);
+    assert.deepEqual(stops[0]?.dishSlugs, ["vindaloo", "chicken-tikka-masala"]);
   });
 
   it("is empty when nothing is sourced", () => {
