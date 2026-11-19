@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 /**
  * A rendered check of the dish page's in-page section nav.
  *
@@ -31,8 +33,6 @@
  *   OUTPUT_DIR=/tmp/navcheck node scripts/hermes/dish-nav-render-check.mjs
  */
 import { createServer } from "node:http";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -73,7 +73,7 @@ function serve(dir) {
     const server = createServer(async (req, res) => {
       try {
         const url = new URL(req.url, "http://localhost");
-        let p = decodeURIComponent(url.pathname);
+        const p = decodeURIComponent(url.pathname);
         let file = join(dir, p);
         if (!existsSync(file) || (await stat(file)).isDirectory()) {
           file = join(file, "index.html");
@@ -194,7 +194,9 @@ async function main() {
           problems.push(`zero-size box (${l.w}x${l.h})`);
         }
         if (l.visibility === "hidden" || l.display === "none") {
-          problems.push(`not rendered (visibility=${l.visibility} display=${l.display})`);
+          problems.push(
+            `not rendered (visibility=${l.visibility} display=${l.display})`,
+          );
         }
         if (Number(l.opacity) === 0) {
           problems.push("opacity 0");
@@ -239,7 +241,11 @@ async function main() {
             let node = el;
             while (node && node !== document.documentElement) {
               const c = getComputedStyle(node).backgroundColor;
-              if (c && !/rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(c) && c !== "transparent") {
+              if (
+                c &&
+                !/rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(c) &&
+                c !== "transparent"
+              ) {
                 return c;
               }
               node = node.parentElement;
@@ -294,7 +300,10 @@ async function main() {
     failures,
     passed: failures.length === 0,
   };
-  await writeFile(join(OUTPUT_DIR, "report.json"), JSON.stringify(report, null, 2));
+  await writeFile(
+    join(OUTPUT_DIR, "report.json"),
+    JSON.stringify(report, null, 2),
+  );
 
   console.log(`dish-nav-render-check: ${base}${PATH}`);
   console.log(lines.join("\n"));
@@ -308,7 +317,9 @@ async function main() {
     console.log(`  screenshots: ${OUTPUT_DIR}`);
     process.exit(0);
   }
-  console.log(`dish-nav-render-check: FAILED -- ${failures.length} problem(s):`);
+  console.log(
+    `dish-nav-render-check: FAILED -- ${failures.length} problem(s):`,
+  );
   for (const f of failures) console.log(`  - ${f}`);
   process.exit(1);
 }
