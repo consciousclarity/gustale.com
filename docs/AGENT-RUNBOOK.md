@@ -308,3 +308,86 @@ The standing rules live in the repository: `docs/RULES.md`. It has
   `gustale-test-postgres` container and the documented build/deploy
   scripts.
 * **Rule 11** — an applied migration is immutable.
+
+---
+
+## 12. The three migration lists, and the CHECK that cannot be compared
+
+### 12.1 The three lists must agree
+
+Every migration has to be applied by **three** places, and the repo
+carries a validator that compares them:
+
+| file | the database it builds |
+|---|---|
+| `.github/workflows/ci.yml` | the CI database |
+| `scripts/ci-migration-chain.sh` | the Nightly database |
+| `scripts/repro-ci-db.sh` | the LOCAL reproduction |
+
+`bash scripts/ci-migration-chain.sh` prints `FULL_CI_CHAIN_OK=1` when
+they agree, and a `CI migration chain MISMATCH:` block naming the
+files when they do not. A migration that is not applied is a schema
+that does not exist, and the route that reads it returns 500.
+
+**The GitHub App has no workflow scope**, so `.github/workflows/ci.yml`
+can only be changed by the owner applying a patch file. The patch
+lives in the PR at `docs/ci-*.patch`. Always verify it before handing
+it over:
+
+```bash
+git apply --check docs/ci-<name>.patch   # must be clean against main
+git apply docs/ci-<name>.patch
+bash scripts/ci-migration-chain.sh        # must print FULL_CI_CHAIN_OK=1
+```
+
+### 12.2 Placement inside the list is not free
+
+`gus-238b` / `gus-238c` must run **after** `0040`, never in the early
+`gus_files` list: `238b` replaces the function `0040` creates and
+references the table `0036` creates, so in the early list it dies with
+`type dish_place_associations does not exist`. The same placement is
+needed in all four lists — `ci.yml`, `ci-migration-chain.sh`,
+`repro-ci-db.sh` and `repro-ci-test-job.sh` (which has **two** lists
+of its own).
+
+### 12.3 A CHECK definition cannot be compared as text
+
+`pg_get_constraintdef` renders every array element with its own
+`::text` cast, so two semantically identical CHECKs can differ as
+strings. Compare **semantics**, not text: probe with one row the
+constraint must ACCEPT and one it must REFUSE, each inside a
+rolled-back subtransaction (a `plpgsql BEGIN ... EXCEPTION` block *is*
+a subtransaction). For existence, check `conname` and `conrelid` in
+`pg_constraint`.
+
+---
+
+## 13. The deploy that reported success and did not
+
+On 2026-11-13 (PR #234) the deploy log held only
+`DEPLOY_EXIT_CODE=0` for a **half-deployed 23 hours**. Two bugs, and
+**both** had to be fixed.
+
+**(1) The tag file was written after the builds.** `build-web-live.sh`
+wrote the tag file *after* both builds, so a failed build left a
+**zero-byte** file behind. `source` on an empty file succeeds and
+exports nothing. The tag file is now written **before** the builds.
+
+**(2) A parameter expansion is not a command.** The caller asserted
+with `: "${VAR:?msg}"`. That is a **parameter expansion**, not a
+command: the `ERR` trap does not fire on it, it sets no exit status,
+and the script *continues* and exits 0.
+
+And the exit code was then destroyed twice over: the `EXIT` trap did
+`exit "$_DEPLOY_EXIT"`, where `_DEPLOY_EXIT` is only ever set by the
+`ERR` trap — and the `ERR` trap does **not** fire on an explicit
+`exit 1`. So the trap **replaced** the exit code with 0 and
+neutralised every `exit 1` in the script.
+
+The working shape:
+
+```bash
+trap 'rc=$?; ...; exit "${_DEPLOY_EXIT}"' EXIT
+# and assert with a real command:
+test -n "$VAR" || { echo "VAR is empty"; exit 1; }
+```
