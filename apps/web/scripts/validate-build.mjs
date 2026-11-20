@@ -939,17 +939,29 @@ check(
 );
 // AND THE SERVER-RENDERED CONTENT IS THERE. Without JavaScript, the
 // home still has its four dish cards, its threads, and its families.
-check(
+//
+// These three are CONTENT checks, not count checks: the home renders a
+// dish card for every published dish, a thread card for every lineage,
+// and a chip for every family. The staging database holds the 7-dish
+// CI seed, which has NO families and NO lineages, so the home renders
+// none of the three and the checks fail -- not because the home is
+// broken, but because the scoped build's data cannot satisfy them.
+//
+// That is exactly the case checkFullBuild exists for: a scoped build
+// SKIPS them, visibly, and the production build keeps every one at
+// full strength. Using plain check() here made every staging deploy
+// fail from WP-C1 (2db1291) onwards.
+checkFullBuild(
   "the home server-renders its dish cards",
   /home__dish-card/.test(homeHtml ?? ""),
   "the home has no server-rendered dish cards",
 );
-check(
+checkFullBuild(
   "the home server-renders its thread cards",
   /home__thread-card/.test(homeHtml ?? ""),
   "the home has no server-rendered thread cards",
 );
-check(
+checkFullBuild(
   "the home server-renders its family chips",
   /home__chip/.test(homeHtml ?? ""),
   "the home has no server-rendered family chips",
