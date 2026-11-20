@@ -609,6 +609,13 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0063_record_0061_in_the_ledger.s
   || { echo "  FAILED: 0063"; grep -E 'ERROR' /tmp/repro_0063.log | head -8; fail=1; }
 grep -E 'GUS_LEDGER_0061_OK' /tmp/repro_0063.log | tail -1 || true
 
+# The ledger reconciliation: the rows for 0062 and 0063, the 0054
+# rename, and the blank checksums.
+step "reconcile the ledger"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0064_reconcile_the_ledger.sql" > /tmp/repro_0064.log 2>&1 \
+  || { echo "  FAILED: 0064"; grep -E 'ERROR' /tmp/repro_0064.log | head -8; fail=1; }
+grep -E 'GUS_LEDGER_0064_OK' /tmp/repro_0064.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.

@@ -322,6 +322,14 @@ MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
 # self-contained).
 MIGRATION_0063=db/migrations/0063_record_0061_in_the_ledger.sql
 
+# 0064 reconciles the ledger itself: it writes the rows for 0062 and
+# 0063 that the chain did not write, renames the 0054 row to its file's
+# name, and fills in the checksums that were left blank.
+#
+# It MUST run after 0063, because it records 0063 -- and a ledger row
+# for a migration that has not run yet would be a lie.
+MIGRATION_0064=db/migrations/0064_reconcile_the_ledger.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -978,6 +986,14 @@ echo "--- record 0061 in the ledger"
 run_pg -f - < "$MIGRATION_0063" >/tmp/m0063.log 2>&1 || { echo "FAILED: 0063"; grep -E 'ERROR|NOTICE' /tmp/m0063.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'GUS_LEDGER_0061_OK' /tmp/m0063.log | tail -1 || true
+
+# The ledger reconciliation. It writes the ledger rows for 0062 and
+# 0063, which the chain did not write -- 0062 ran before the ledger
+# table existed, and 0063 records 0061 rather than itself.
+echo "--- reconcile the ledger"
+run_pg -f - < "$MIGRATION_0064" >/tmp/m0064.log 2>&1 || { echo "FAILED: 0064"; grep -E 'ERROR|NOTICE' /tmp/m0064.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'GUS_LEDGER_0064_OK' /tmp/m0064.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #
