@@ -369,7 +369,8 @@ volume differs, and the comparison above is what proves the path is right.
 ## Screenshots
 
 Twenty screenshots, taken in a real browser (Chromium) against the
-live-data build, committed under `docs/screenshots/` and linked below.
+live-data build, committed under `docs/screenshots/`. They are embedded
+below so they render inline.
 
 **The map, with the filter card and the connection legend.** The legend is
 the visual form of the proof above — "Same family: **0** connections" sits
@@ -377,37 +378,42 @@ next to "Resemblance: **35** connections".
 
 | 1440 | 390 |
 |---|---|
-| [map](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-map-1440.png) | [map](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-map-390.png) |
+| ![the atlas map at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-map-1440.png) | ![the atlas map at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-map-390.png) |
 
 **The place panel, with a place selected** (Puerto Rico → Tostones at
-1440; United Kingdom → Chicken Tikka Masala at 390):
+1440; United Kingdom → Chicken Tikka Masala at 390). The panel opens from a
+dish marker on the map and carries the Dishes / Regions / Threads tabs.
 
 | 1440 | 390 |
 |---|---|
-| [place panel](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-place-panel-1440.png) | [place panel](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-place-panel-390.png) |
+| ![the place panel at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-place-panel-1440.png) | ![the place panel at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-place-panel-390.png) |
 
-**The list view** — 180 places, 1,477 associations:
+**The list view** — 180 places, 1,477 associations. The list view and
+`/places` are the *same page* (the list toggle on the atlas lands on the
+places index), so their two screenshots are byte-identical; only one of
+each pair is shown.
 
 | 1440 | 390 |
 |---|---|
-| [list](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-list-1440.png) | [list](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-list-390.png) |
+| ![the list view at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-list-1440.png) | ![the list view at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-list-390.png) |
 
 **Each filter**, and the relationship-kind filter:
 
 | filter | 1440 | 390 |
 |---|---|---|
-| family | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-family-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-family-390.png) |
-| technique | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-technique-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-technique-390.png) |
-| course | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-course-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-course-390.png) |
-| kinds | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-kinds-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-kinds-390.png) |
+| family | ![family filter at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-family-1440.png) | ![family filter at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-family-390.png) |
+| technique | ![technique filter at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-technique-1440.png) | ![technique filter at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-technique-390.png) |
+| course | ![course filter at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-course-1440.png) | ![course filter at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-course-390.png) |
+| kinds | ![kinds filter at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-kinds-1440.png) | ![kinds filter at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-kinds-390.png) |
 
-**The place pages**:
+**The place pages** — `/places`, and the two place pages compared against
+live:
 
 | page | 1440 | 390 |
 |---|---|---|
-| `/places` | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-index-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-index-390.png) |
-| `/places/greece` | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-greece-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-greece-390.png) |
-| `/places/indonesia` | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-indonesia-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-indonesia-390.png) |
+| `/places` | ![the places index at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-index-1440.png) | ![the places index at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-index-390.png) |
+| `/places/greece` | ![the greece place page at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-greece-1440.png) | ![the greece place page at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-greece-390.png) |
+| `/places/indonesia` | ![the indonesia place page at 1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-indonesia-1440.png) | ![the indonesia place page at 390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-indonesia-390.png) |
 
 ### The filter vocabulary, stated exactly
 
