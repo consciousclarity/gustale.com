@@ -16,7 +16,10 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   ATLAS_FILTER_PARAMS,
   NEVER_DRAWN,
@@ -26,6 +29,13 @@ import {
   RELATIONSHIP_KINDS,
   relationshipKindFor,
 } from "./relationship-grammar.ts";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const COMPONENTS = join(HERE, "..", "components");
+
+function readComponent(name: string): string {
+  return readFileSync(join(COMPONENTS, name), "utf-8");
+}
 
 describe("the atlas — `family` is never drawn", () => {
   it("names `family` as the one kind the atlas refuses to draw", () => {
@@ -69,6 +79,47 @@ describe("the atlas — `family` is never drawn", () => {
         `${k} is ${k === NEVER_DRAWN ? "not" : ""} drawn by default`,
       );
     }
+  });
+});
+
+describe("the atlas — the map's own default excludes `family` too", () => {
+  it("does not seed the map's internal kind set with every kind", () => {
+    // The map can be rendered without the atlas island's `enabledKinds`
+    // prop -- and then its OWN default is what draws. If that default
+    // includes `family`, a retired relationship type comes back just
+    // because a caller forgot a prop. The rule belongs to every path
+    // into the state, so the map's default must exclude it too.
+    const src = readComponent("WorldMap.tsx");
+    // The seeding of the internal set: it must FILTER `family` out.
+    // The seed is matched by its own shape rather than by a loose
+    // bracket count -- `new Set(RELATIONSHIP_KINDS.filter((k) => ...))`
+    // has a `)` inside the filter callback, so a naive `[^)]*` stops
+    // in the middle of it.
+    const seeding = src.match(
+      /useState<Set<RelationshipKind>>\(\s*\(\)\s*=>\s*new Set\(([\s\S]{0,200}?)\)\s*,/,
+    );
+    assert.ok(seeding, "the internal kind set is seeded in one place");
+    assert.match(
+      seeding[1],
+      /NEVER_DRAWN/,
+      "the internal kind set filters the kind the atlas never draws",
+    );
+    assert.doesNotMatch(
+      seeding[1],
+      /new Set\(RELATIONSHIP_KINDS\)\s*,/,
+      "the internal kind set must not be seeded with EVERY kind",
+    );
+  });
+
+  it("does not let the legend's toggle switch `family` back on", () => {
+    const src = readComponent("WorldMap.tsx");
+    // The legend's toggle is a path into the state as well: it must
+    // refuse the kind it is asked to add.
+    assert.match(
+      src,
+      /kind === NEVER_DRAWN/,
+      "the toggle refuses to add the kind the atlas never draws",
+    );
   });
 });
 

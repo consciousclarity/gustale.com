@@ -25,6 +25,7 @@ import {
   type MapConnection,
   type MapDish,
 } from "../lib/api";
+import { NEVER_DRAWN } from "../lib/atlas-filters";
 import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
@@ -209,8 +210,17 @@ export function WorldMap({
   const [byRelationship, setByRelationship] = useState<Record<string, number>>(
     {},
   );
+  // THE MAP'S OWN KIND SET NEVER CARRIES `family`.
+  //
+  // The atlas island owns the filter and always passes
+  // `enabledKinds`, so this fallback is not what the atlas draws. It
+  // is what the map draws when it is rendered on its own -- and a
+  // retired relationship type must not come back just because a
+  // caller forgot a prop. `family` is excluded here for the same
+  // reason `lib/atlas-filters.ts` excludes it from the URL and the
+  // default: the rule belongs to every path into the state.
   const [internalKinds, setInternalKinds] = useState<Set<RelationshipKind>>(
-    () => new Set(RELATIONSHIP_KINDS),
+    () => new Set(RELATIONSHIP_KINDS.filter((k) => k !== NEVER_DRAWN)),
   );
   const [showAllConnections, setShowAllConnections] = useState(false);
   const [connectionsError, setConnectionsError] = useState<string | null>(null);
@@ -885,6 +895,9 @@ export function WorldMap({
         if (next.has(kind)) {
           next.delete(kind);
         } else {
+          // A kind the atlas never draws stays never drawn -- the
+          // legend's toggle is a path into the state too.
+          if (kind === NEVER_DRAWN) return next;
           next.add(kind);
         }
         return next;
