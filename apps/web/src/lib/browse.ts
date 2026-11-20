@@ -832,9 +832,13 @@ export function recoveryLinks(_domain: GustaleDomain): RecoveryLinks {
  * It used to be an ABSOLUTE url to `https://gustale.com/map` on the
  * recipes build, because the map page was stripped from that build.
  * The map is on this site now, so the link is relative.
+ *
+ * WP-C3 RENAMED THE PATH. The map is now `/atlas`, and `/map` is a
+ * 301 to it. The link points at the new path directly: a redirect on
+ * every click is a hop the reader should not have to make.
  */
 export function mapBrowseHref(_domain: GustaleDomain): string {
-  return "/map";
+  return "/atlas";
 }
 
 export function safeQueryEncode(value: string, maxLen = 200): string {
