@@ -177,6 +177,60 @@ The other lint findings CI reported are in files this branch did **not** touch
 `docs/improvement-pack/scripts/gustale-smoke.mjs`, …) and are **pre-existing
 on `main`**. I left them alone — they are not this branch's work.
 
+### The map's OWN default must exclude `family` too (`9bb32d9`)
+
+The rail's `family` exclusion was applied to the options the rail BUILDS, but
+not to the state the map's OWN default filter is seeded from. The map could
+therefore still be seeded with a `family` relation — the one relation the
+whole page exists to stop drawing. `atlas-filters.ts` now excludes `family`
+from **every** path into the filter state, all five of them, and the two
+new tests are proven to FAIL without the fix (reverting the fix fails
+exactly those two, 343/345).
+
+### The atlas's counts are derived, not copied (`7fbe2e2`)
+
+The capture carried a hand-maintained `counts` block, and it had gone stale:
+the capture's OWN data said **180 places** and **108 communities**, while the
+copied block still said **0** and **0**.
+
+A copied number can disagree with the data it describes; a derived number
+cannot. The mock now computes the counts from the capture with the SAME
+semantics the live route uses (`apps/api/src/routes/atlas-counts.ts`):
+
+| metric | how it is derived |
+|---|---|
+| `places` | `count(DISTINCT entity_id)` where kind = `place` |
+| `communities` | `count(DISTINCT entity_id)` where kind = `community` |
+| `connections` | the distinct **undirected** pairs, normalised `LEAST`/`GREATEST` the way the route normalises them |
+
+Two details the test pins, because both are easy to get subtly wrong:
+
+- **ENTITY IDENTITY, NOT NAMES.** The live route counts `entity_id`. Two
+  distinct entities share a NAME — the catalogue has two "China" and two
+  "Luxembourg" — so counting NAMES reports 178 places where the live API
+  reports 180.
+- **THE RELATIONSHIP IS PART OF THE KEY.** The route groups by
+  `(a, b, relation_type)`, so two relations between the same two dishes are
+  two connections: **82 connections over 78 distinct dish pairs**.
+
+**WHAT IT COST, HONESTLY.** No page shipped a wrong number. The two live
+consumers of these counts read only `dishes` and `families`, which were never
+stale, and `AtlasHeroKpi.astro` turns out not to be mounted anywhere. So the
+defect was a **trap**, not a visible outage.
+
+But a stale ZERO is the worst kind of stale. `AtlasHeroKpi.astro` renders a
+metric only when its value is non-zero, so a zero **silently drops** the
+metric instead of printing a wrong one. The moment anyone mounts that band
+or adds a place/community figure, the zeroes would have swallowed two real
+numbers the catalogue has — with nothing on the page saying why.
+
+The mock now serves all nine counts **identically** to the live API:
+`dishes 1474, places 180, communities 108, families 123, techniques 16,
+courses 3, contexts 4, connections 82, claims 0`.
+
+The ten new tests are proven to FAIL without the fix: with the capture stale
+again **one** fails, and with the mock serving the copy again **two** fail.
+
 ### Not built here, on purpose
 
 - **Timeline** is WP-C4's work. The switcher control is present; the view is
@@ -204,5 +258,5 @@ the Map/List/Timeline labels; and the `family` exclusion is in the bundle.
 ## Revert
 
 ```
-git revert 34ddb68 50656ce 6147a1a a5241ec 0ce044f
+git revert 34ddb68 50656ce 6147a1a a5241ec 0ce044f 9bb32d9 7fbe2e2
 ```
