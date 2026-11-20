@@ -528,6 +528,22 @@ export interface MapDishRegion {
   entityType: string | null;
 }
 
+/**
+ * The taxonomy a dish carries on the map.
+ *
+ * The values are SLUGS; the labels for those slugs are in the
+ * `facets` map of the same response. A dish carries no repeated label
+ * text — 121 dishes would otherwise repeat "Curry" thirty times.
+ */
+export interface MapDishFacets {
+  /** The dish's family — e.g. "curry". */
+  family: string[];
+  /** The technique the dish is made with — e.g. "frying". */
+  technique: string[];
+  /** The course the dish belongs to — e.g. "main-course". */
+  course: string[];
+}
+
 export interface MapDish {
   slug: string;
   canonicalName: string;
@@ -536,11 +552,42 @@ export interface MapDish {
   lat: number;
   lng: number;
   region: MapDishRegion;
+  /** The taxonomy this dish carries. Present on the atlas's response. */
+  facets?: MapDishFacets;
+}
+
+/** One dropdown option: the slug, and the label to show for it. */
+export interface FacetOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * The facet vocabulary, one list per dropdown.
+ */
+export interface MapFacets {
+  family: FacetOption[];
+  technique: FacetOption[];
+  course: FacetOption[];
 }
 
 export interface MapDishesResponse {
   dishes: MapDish[];
+  /** How many dishes are ON the map. */
   count: number;
+  /**
+   * How many dishes the site has in all, mapped or not.
+   *
+   * The atlas's heading says "121 of 1,474 dishes have map
+   * coordinates so far" -- both numbers are needed for that sentence,
+   * because "121 dishes" on its own reads as though the site has 121
+   * dishes in all.
+   */
+  totalPublished?: number;
+  /** How many distinct places the mapped dishes sit in. */
+  places?: number;
+  /** The dropdown vocabulary. Present on the atlas's response. */
+  facets?: MapFacets;
 }
 
 export interface MapDishesParams {
@@ -923,6 +970,13 @@ export interface PlaceGroup {
   dishes: PlaceDish[];
 }
 
+export interface PlaceThread {
+  slug: string;
+  name: string;
+  /** How many of the place's dishes belong to this thread. */
+  dishes: number;
+}
+
 export interface PlaceResponse {
   place: {
     slug: string;
@@ -935,9 +989,12 @@ export interface PlaceResponse {
     lng: number | null;
   };
   groups: PlaceGroup[];
+  /** The threads (what the data calls lineages) passing through here. */
+  threads: PlaceThread[];
   counts: {
     dishes: number;
     groups: number;
+    threads: number;
   };
 }
 

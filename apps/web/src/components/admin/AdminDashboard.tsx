@@ -441,7 +441,7 @@ export function AdminDashboard() {
               desc="Preparation methods and how dish ideas travel and evolve."
             />
             <HubTile
-              href="/regions"
+              href="/places"
               icon="regions"
               title="Regions"
               count={stats.taxonomy.regions}

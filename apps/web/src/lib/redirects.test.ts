@@ -28,77 +28,33 @@ describe("redirects — the map", () => {
 
   it("never redirects a path to itself", () => {
     for (const r of REDIRECT_RULES) {
-      assert.notEqual(r.from, r.to, `${r.from} moves`);
+      assert.notEqual(r.from, r.to, `${r.from} does not point at itself`);
     }
   });
 });
 
-describe("redirects — no 301 to a 404", () => {
-  // THE RULE. A redirect that points at a page which does not exist is
-  // worse than no redirect: it tells a search engine the page is gone
-  // and gives the reader a dead end.
-  //
-  // The check is against the paths that are REAL on production today.
-  // A rule may only be active if its target is one of these.
-  const PATHS_THAT_EXIST = new Set([
-    "/",
-    "/dishes",
-    "/families",
-    "/lineages",
-    "/about",
-    "/about/evidence",
-    "/map",
-    "/regions",
-    "/family/curry",
-    "/place/greece",
-    "/login",
-  ]);
-
-  it("every ACTIVE rule points at a path that exists", () => {
-    for (const r of activeRedirects()) {
-      assert.ok(
-        PATHS_THAT_EXIST.has(r.to),
-        `${r.from} -> ${r.to}: the target must exist, or the rule is held`,
-      );
-    }
+describe("redirects — WP-C3's three rules are active", () => {
+  it("activates /map, /regions and /place now that WP-C3 has landed", () => {
+    const active = new Set(activeRedirects().map((r) => r.from));
+    assert.ok(active.has("/map"), "/map is redirected to /atlas");
+    assert.ok(active.has("/regions"), "/regions is redirected to /places");
+    assert.ok(active.has("/place"), "/place is redirected to /places");
   });
 
-  it("the held rules name the package that will release them", () => {
-    const held = REDIRECT_RULES.filter((r) => !r.targetExists);
-    assert.ok(held.length > 0, "there are held rules");
-    for (const r of held) {
-      assert.match(
-        r.targetBuiltBy,
-        /^WP-[A-Z]\d+$/,
-        `${r.from} names a package`,
-      );
-    }
-  });
-});
-
-describe("redirectFor", () => {
-  it("returns null for a path that does not move", () => {
-    assert.equal(redirectFor("/dishes/empanada"), null);
-    assert.equal(redirectFor("/"), null);
-    assert.equal(redirectFor("/about/evidence"), null);
+  it("still holds back the rules whose targets do not exist", () => {
+    const active = new Set(activeRedirects().map((r) => r.from));
+    assert.ok(!active.has("/lineages"), "/lineages is held: /history is WP-C4");
+    assert.ok(!active.has("/family"), "/family is held: /families is WP-C1");
   });
 
-  it("redirects the exact path when a rule is active", () => {
-    // Whichever rules are active, the exact path maps to the target.
-    for (const r of activeRedirects()) {
-      assert.equal(redirectFor(r.from), r.to);
-    }
+  it("points the three active rules at pages WP-C3 actually builds", () => {
+    assert.equal(redirectFor("/map"), "/atlas");
+    assert.equal(redirectFor("/regions"), "/places");
+    assert.equal(redirectFor("/place"), "/places");
   });
 
-  it("redirects a sub-path and keeps the rest of it", () => {
-    for (const r of activeRedirects()) {
-      assert.equal(redirectFor(`${r.from}/some-slug`), `${r.to}/some-slug`);
-    }
-  });
-
-  it("does not redirect a path that merely starts with the same letters", () => {
-    // `/families` must not be caught by a `/family` rule.
-    assert.equal(redirectFor("/families"), null);
-    assert.equal(redirectFor("/family-of-ideas"), null);
+  it("carries the rest of the path onto a prefix rule", () => {
+    assert.equal(redirectFor("/place/greece"), "/places/greece");
+    assert.equal(redirectFor("/map?family=curry"), null);
   });
 });

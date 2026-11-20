@@ -18,7 +18,7 @@ export interface FamilyDirectoryProps {
 
 export function FamilyDirectory({
   dishes,
-  countriesHref = "/regions",
+  countriesHref = "/places",
 }: FamilyDirectoryProps) {
   const domain = currentDomain();
   const all = useMemo(() => buildFamilyDirectory(dishes), [dishes]);

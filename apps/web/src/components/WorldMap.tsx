@@ -25,6 +25,7 @@ import {
   type MapConnection,
   type MapDish,
 } from "../lib/api";
+import { NEVER_DRAWN } from "../lib/atlas-filters";
 import {
   basemapTransformRequest,
   CARTO_VECTOR_STYLE_URL,
@@ -53,6 +54,67 @@ export interface WorldMapProps {
    * with the connections on" gets that map.
    */
   showConnections?: boolean;
+  /**
+   * The connections to draw, when the caller already has them.
+   *
+   * THE ATLAS OWNS THE FILTER. The atlas island holds the connection
+   * filter (which kinds, which places), so it fetches the connections
+   * and hands over the ones that survived. When this prop is given, the
+   * map does NOT fetch them itself — it draws exactly what it is given.
+   *
+   * When it is NOT given, the map fetches its own and filters by kind
+   * alone, which is the older behaviour and is still what a map on a
+   * page of its own does.
+   */
+  connections?: MapConnection[];
+  /**
+   * The relationship kinds to draw.
+   *
+   * Given by the caller when the caller owns the filter. When it is
+   * NOT given, the map uses its own default — all four kinds — so a
+   * standalone map still shows everything it used to.
+   */
+  enabledKinds?: Set<RelationshipKind>;
+  /**
+   * Called when the reader picks a place off the map.
+   *
+   * The atlas uses this to open the place panel on the right. A click
+   * on a dot or a cluster reports the place the dishes belong to; a
+   * click on empty map reports null, which closes the panel.
+   */
+  onSelectPlace?: (place: string | null) => void;
+  /**
+   * The place that is currently selected.
+   *
+   * The map marks it so the reader can see which place the panel is
+   * about.
+   */
+  selectedPlace?: string | null;
+  /**
+   * Called when the reader toggles a relationship kind in the legend.
+   *
+   * Given by the caller when the caller owns the kind filter, so the
+   * legend and the map never disagree about which kinds are on.
+   */
+  onToggleKind?: (kinds: Set<RelationshipKind>) => void;
+}
+
+/**
+ * Count the connections by relation type.
+ *
+ * The API returns these counts, but when the CALLER supplies the
+ * connections — the atlas does, because it filters them — the counts
+ * have to be derived from the supplied set, or the legend would report
+ * the API's numbers for a set the map is not drawing.
+ */
+function countByRelationship(
+  connections: MapConnection[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const c of connections) {
+    counts[c.relationship] = (counts[c.relationship] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /**
@@ -98,13 +160,29 @@ const HIT_LAYERS = [
  */
 const CLUSTER_MAX_ZOOM = 11;
 
-export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
+export function WorldMap({
+  dishes,
+  showConnections = true,
+  connections: connectionsProp,
+  enabledKinds: enabledKindsProp,
+  onSelectPlace,
+  selectedPlace = null,
+  onToggleKind: onToggleKindProp,
+}: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const popupListRef = useRef<HTMLUListElement | null>(null);
   const stackPopupRef = useRef<HTMLDivElement | null>(null);
   const popupId = useId();
-  const [view, setView] = useState<View>("globe");
+  // THE DEFAULT VIEW IS THE FLAT MAP.
+  //
+  // The blueprint's WP-C3 says "Flat map default". A globe is a good
+  // thing to have — it is one click away — but it is the wrong FIRST
+  // view for a reader who came to find a place: the globe hides most of
+  // the world's dishes behind its curvature, and a reader looking for
+  // "where is this dish from" wants a map they can read at a glance.
+  // The globe stays available in the toggle.
+  const [view, setView] = useState<View>("flat");
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [stackPopup, setStackPopup] = useState<StackPopupState | null>(null);
   const [mapReady, setMapReady] = useState<boolean>(false);
@@ -118,15 +196,44 @@ export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
   // Fetched once, on the client. The map is an interactive island, so
   // the connections are fetched with it rather than server-rendered —
   // a static build cannot know which edges a reader will scroll to.
-  const [connections, setConnections] = useState<MapConnection[]>([]);
+  //
+  // WHEN THE CALLER SUPPLIES THEM, THE MAP DOES NOT FETCH.
+  //
+  // The atlas island owns the connection filter, so it fetches the
+  // connections and hands over the ones that survived its filter. The
+  // map then draws exactly what it was given. This is what keeps the
+  // rail, the map and the panel telling the same story: there is one
+  // list of connections in the atlas, and it is filtered once.
+  const [fetchedConnections, setFetchedConnections] = useState<MapConnection[]>(
+    [],
+  );
   const [byRelationship, setByRelationship] = useState<Record<string, number>>(
     {},
   );
-  const [enabledKinds, setEnabledKinds] = useState<Set<RelationshipKind>>(
-    () => new Set(RELATIONSHIP_KINDS),
+  // THE MAP'S OWN KIND SET NEVER CARRIES `family`.
+  //
+  // The atlas island owns the filter and always passes
+  // `enabledKinds`, so this fallback is not what the atlas draws. It
+  // is what the map draws when it is rendered on its own -- and a
+  // retired relationship type must not come back just because a
+  // caller forgot a prop. `family` is excluded here for the same
+  // reason `lib/atlas-filters.ts` excludes it from the URL and the
+  // default: the rule belongs to every path into the state.
+  const [internalKinds, setInternalKinds] = useState<Set<RelationshipKind>>(
+    () => new Set(RELATIONSHIP_KINDS.filter((k) => k !== NEVER_DRAWN)),
   );
   const [showAllConnections, setShowAllConnections] = useState(false);
   const [connectionsError, setConnectionsError] = useState<string | null>(null);
+
+  // The connections actually in play: the caller's when given, the
+  // map's own fetch otherwise.
+  const connections = connectionsProp ?? fetchedConnections;
+
+  // The kinds in play: the caller's when given, the map's own toggle
+  // otherwise. The legend's toggle calls `toggleKind`, which writes to
+  // the internal set — so when the caller owns the filter, the legend
+  // must not own it. `toggleKind` below routes to the caller instead.
+  const enabledKinds = enabledKindsProp ?? internalKinds;
 
   const detectWebGL = (): boolean => {
     if (typeof document === "undefined") return false;
@@ -292,12 +399,15 @@ export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
         // can click it.
 
         mapInstance.on("style.load", () => {
-          // Promote the basemap to a 3D globe. MapLibre 6 rejects
-          // setProjection() before the style has finished loading, so
-          // this has to run from `style.load` — calling it earlier
-          // throws "Style is not done loading" and the map ends up
-          // rendering as a flat Mercator basemap.
-          mapInstance.setProjection({ type: "globe" });
+          // The basemap boots as a FLAT MAP, which is the atlas's default
+          // view (WP-C3: "Flat map default"). The globe is one click
+          // away in the toggle below.
+          //
+          // MapLibre 6 rejects setProjection() before the style has
+          // finished loading, so this has to run from `style.load` —
+          // calling it earlier throws "Style is not done loading" and
+          // the map ends up rendering as a flat Mercator basemap.
+          mapInstance.setProjection({ type: "flat" });
 
           // Set the sky. Only valid MapLibre 6 sky properties are used:
           // `sky-color`, `sky-horizon-blend`, `horizon-fog-blend`,
@@ -649,6 +759,27 @@ export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
 
             const hitDishes = dishesFromFeatures(features);
             if (hitDishes.length === 0) return;
+
+            // IN THE ATLAS, A CLICK SELECTS THE PLACE.
+            //
+            // The atlas's panel is the reader's next step: pick a place,
+            // see its dishes and its threads. So when the caller asked
+            // for the selection, a click reports the place and does NOT
+            // navigate. On a standalone map — with no `onSelectPlace` —
+            // the click navigates to the dish, as it always has.
+            if (onSelectPlace) {
+              const place = hitDishes[0]?.region?.name ?? null;
+              onSelectPlace(place);
+              if (hitDishes.length === 1) return;
+              setTooltip(null);
+              setStackPopup({
+                x: e.point.x,
+                y: e.point.y,
+                dishes: hitDishes,
+              });
+              return;
+            }
+
             if (hitDishes.length === 1) {
               const only = hitDishes[0];
               if (only) window.location.href = `/dishes/${only.slug}/`;
@@ -713,13 +844,25 @@ export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
   // The map is the only consumer, and it is an island, so the fetch
   // happens on the client. A failure is NOT fatal: the map still shows
   // the dishes, and the legend says why the connections are missing.
+  //
+  // WHEN THE CALLER SUPPLIES THE CONNECTIONS, THE MAP DOES NOT FETCH.
+  // The atlas owns the filter, so it fetched them already; fetching
+  // them here too would be a second, unfiltered copy — and the legend's
+  // counts would then describe a different set from the one drawn.
   useEffect(() => {
     if (!showConnections) return;
+    if (connectionsProp) {
+      // The caller owns the connections. The legend's counts are
+      // derived from what the caller passed, so the legend and the
+      // edges agree.
+      setByRelationship(countByRelationship(connectionsProp));
+      return;
+    }
     let cancelled = false;
     getAtlasConnections()
       .then((res) => {
         if (cancelled) return;
-        setConnections(res.connections);
+        setFetchedConnections(res.connections);
         setByRelationship(res.byRelationship);
       })
       .catch((err: unknown) => {
@@ -733,19 +876,35 @@ export function WorldMap({ dishes, showConnections = true }: WorldMapProps) {
     return () => {
       cancelled = true;
     };
-  }, [showConnections]);
+  }, [showConnections, connectionsProp]);
 
-  const toggleKind = useCallback((kind: RelationshipKind) => {
-    setEnabledKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) {
-        next.delete(kind);
-      } else {
-        next.add(kind);
+  const toggleKind = useCallback(
+    (kind: RelationshipKind) => {
+      // When the caller owns the kind filter, the legend's toggle must
+      // not write to the map's own set — the two would disagree and the
+      // legend would show a filter the map is not applying.
+      if (enabledKindsProp) {
+        const next = new Set(enabledKindsProp);
+        if (next.has(kind)) next.delete(kind);
+        else next.add(kind);
+        onToggleKindProp?.(next);
+        return;
       }
-      return next;
-    });
-  }, []);
+      setInternalKinds((prev: Set<RelationshipKind>) => {
+        const next = new Set(prev);
+        if (next.has(kind)) {
+          next.delete(kind);
+        } else {
+          // A kind the atlas never draws stays never drawn -- the
+          // legend's toggle is a path into the state too.
+          if (kind === NEVER_DRAWN) return next;
+          next.add(kind);
+        }
+        return next;
+      });
+    },
+    [enabledKindsProp, onToggleKindProp],
+  );
 
   const stackHeading =
     stackPopup &&

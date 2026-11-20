@@ -1,0 +1,91 @@
+---
+import { AtlasIsland } from "../components/AtlasIsland";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import ErrorBoundary from "../components/ErrorBoundary";
+import Layout from "../layouts/Layout.astro";
+import type { MapDish } from "../lib/api";
+import { ApiError, getMapDishes } from "../lib/api";
+
+// MapLibre control + popup CSS — required by <WorldMap> and not loaded
+// globally (see global.css). Imported here (not via JS) so it ships with
+// the static HTML for the /atlas route; the bundle's <link rel="stylesheet">
+// bypasses any FOUC-on-hydration window. Pinned to match the running JS
+// package (5.24.0 in apps/web/package.json). P2-7.
+import "maplibre-gl/dist/maplibre-gl.css";
+
+// Server-render the FIRST PAINT with real dish coordinates, so the map
+// has dots from the moment it appears.
+//
+// The atlas's island fetches the dishes itself on hydration, because the
+// FILTER is the point of the page and a filter over a baked-in list
+// would be a filter over a stale copy. But a first paint with no dots at
+// all is a bad first paint, so the build bakes the dishes in as the
+// island's initial value.
+//
+// If the fetch fails, the page still ships: the island loads the map
+// live on hydration, so a reader never sees an empty atlas because the
+// build could not reach the API.
+let initialDishes: MapDish[] = [];
+let serverError: string | null = null;
+// The counts the heading needs: how many dishes are on the map, and how
+// many the site has in all.
+let mappedCount = 0;
+let totalPublished = 0;
+let placeCount = 0;
+
+try {
+  const response = await getMapDishes({ limit: 2000 });
+  initialDishes = response.dishes;
+  mappedCount = response.count;
+  totalPublished = response.totalPublished ?? response.dishes.length;
+  placeCount = response.places ?? 0;
+} catch (err: unknown) {
+  if (err instanceof ApiError) {
+    serverError = `API ${err.status} — gustale-api was unreachable during build; the map will load live data on hydration.`;
+  } else if (err instanceof Error) {
+    serverError = err.message;
+  } else {
+    serverError = "Unknown error";
+  }
+}
+---
+
+<Layout
+  title="Atlas — Gustale"
+  description="Gustale's atlas: dishes on a map by place, with filters for family, technique and course."
+>
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { href: '/atlas', label: 'Atlas' }]} />
+
+  <section class="atlas-page wrap">
+    <header class="atlas-page__header">
+      <h1 class="atlas-page__h1">
+        Atlas
+      </h1>
+      <p class="sub">
+        {
+          mappedCount
+            ? `${mappedCount.toLocaleString("en")} of ${totalPublished.toLocaleString("en")} dishes have map coordinates so far`
+            : "Dishes with map coordinates"
+        }
+        {
+          placeCount
+            ? `, across ${placeCount} place${placeCount === 1 ? "" : "s"}`
+            : ""
+        }.
+        {" "}
+        <a href="/places">See all places as a list</a>.
+      </p>
+    </header>
+
+    {serverError && (
+      <div class="alert alert-warning wrap">
+        <strong>Heads up:</strong> the gustale-api could not be reached at build
+        time ({serverError}). The map will load live data on hydration.
+      </div>
+    )}
+
+    <ErrorBoundary name="Atlas">
+      <AtlasIsland initialDishes={initialDishes} client:only="react" />
+    </ErrorBoundary>
+  </section>
+</Layout>

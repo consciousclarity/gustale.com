@@ -68,7 +68,17 @@ export type SectionLabel = (typeof SECTION_LABELS)[number];
  * false — see `SectionLink.external`.
  */
 export const SECTION_PATHS: Record<SectionLabel, string> = {
-  Atlas: "/",
+  // THE ATLAS IS THE MAP.
+  //
+  // WP-C3 moved the map from `/map` to `/atlas` and gave the atlas a
+  // filter rail, a place panel and a list view. The Atlas section
+  // therefore points at `/atlas`, not at the home page: the home page
+  // is the site's front door, and a section that pointed there would be
+  // a link that goes nowhere new.
+  //
+  // `/map` 301s to `/atlas`, so a reader who has the old bookmark
+  // arrives where the navigation sends them.
+  Atlas: "/atlas",
   Dishes: "/dishes",
   Families: "/families",
   Ingredients: "/ingredients",
@@ -143,7 +153,11 @@ export function isSectionActive(path: string, pathname: string): boolean {
       ? pathname.slice(0, -1)
       : pathname;
 
+  // The Atlas section points at /atlas, so the HOME PAGE is not the
+  // Atlas. The home page has no section of its own — it is the front
+  // door, and no nav item lights up when a reader is standing on it.
   if (path === "/") return p === "/" || p === "";
+  if (path === "/atlas") return p === "/atlas" || p.startsWith("/atlas/");
   if (path === "/dishes") return p === "/dishes" || p.startsWith("/dishes/");
   if (path === "/families") {
     return (

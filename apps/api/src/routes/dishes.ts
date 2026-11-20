@@ -118,6 +118,33 @@ function bumpViewCount(dishId: string): void {
     });
 }
 
+/**
+ * Build one facet kind's dropdown options.
+ *
+ * The options are the SLUGS that are actually in use, with their
+ * labels and how many of the map's dishes carry each. A facet that no
+ * dish carries is not offered — an option that filters everything out
+ * is a control that lies about what it can do.
+ *
+ * The labels live in a flat `kind__slug` map, because the three kinds
+ * are collected separately and their slugs could otherwise collide
+ * (a family and a technique could share a slug).
+ */
+function buildFacetOptions(
+  labels: Map<string, string>,
+  kind: "family" | "technique" | "course",
+): { value: string; label: string }[] {
+  const seen = new Map<string, string>();
+  for (const [key, name] of labels) {
+    if (!key.startsWith(`${kind}__`)) continue;
+    const slug = key.slice(kind.length + 2);
+    if (!seen.has(slug)) seen.set(slug, name);
+  }
+  return [...seen.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 export function registerDishRoutes(app: FastifyInstance): void {
   // List dishes
   app.get("/api/dishes", async (request, reply) => {
@@ -554,22 +581,203 @@ export function registerDishRoutes(app: FastifyInstance): void {
       region_entity_type: string | null;
     }>;
 
+    // THE ATLAS FACETS.
+    //
+    // The atlas's filter rail drops three dropdowns over the map's
+    // dishes. They are read from the taxonomy tables the dishes
+    // actually carry, and each one is a LIST — the dish's own
+    // vocabulary, not a global list joined in afterwards:
+    //
+    //   family     dish_dish_families -> dish_families (the LISTED ones)
+    //   technique  dish_dish_techniques -> dish_techniques
+    //   course     dish_dish_courses -> dish_courses
+    //
+    // The three are collected in ONE query, because three round trips
+    // to build a filter rail is three round trips too many. The rows
+    // are then grouped in JS and attached to each dish.
+    //
+    // WHY NOT "INGREDIENT" AND WHY NOT "PERIOD"
+    //
+    // The mockup's third dropdown says "Period". There is no period
+    // vocabulary in the data: a dish carries an origin DATE RANGE
+    // (`origin_date_earliest`/`latest`), and only 8 published dishes
+    // have one. A dropdown of eight values, six of them empty, would be
+    // a filter that cannot filter. The third dropdown is therefore the
+    // dish's COURSE — the nearest thing the data actually has, with
+    // 116 of the 121 map dishes carrying one.
+    //
+    // An ingredient dropdown IS possible, but only 1 of the 121 map
+    // dishes has an ingredient recorded, so it would be a dropdown
+    // offering one option. It is left out rather than shipped as a
+    // control that cannot do anything.
+    //
+    // The facet rows are joined on the DISH's own published status, so
+    // an unpublished dish's taxonomy never leaks into a filter.
+    // The three facet kinds are told apart by their TABLE, so each
+    // table's contribution is queried separately and the kind is
+    // carried alongside. The map's dishes are few (121), so three
+    // cheap queries beat one clever UNION that loses the kind.
+    const FACET_KINDS = ["family", "technique", "course"] as const;
+    const [familyRows, techniqueRows, courseRows, totalRows, placeRows] =
+      await Promise.all([
+        db.execute(sql`
+        SELECT d.slug AS dish_slug, f.slug AS facet_slug, f.name AS facet_name
+        FROM dishes d
+        JOIN dish_dish_families l ON l.dish_id = d.id AND l.status = 'active'
+        JOIN dish_families f ON f.id = l.value_id AND f.listed
+        WHERE d.status = 'published' AND d.origin_location IS NOT NULL
+      `),
+        db.execute(sql`
+        SELECT d.slug AS dish_slug, t.slug AS facet_slug, t.name AS facet_name
+        FROM dishes d
+        JOIN dish_dish_techniques dt ON dt.dish_id = d.id AND dt.status = 'active'
+        JOIN dish_techniques t ON t.id = dt.value_id
+        WHERE d.status = 'published' AND d.origin_location IS NOT NULL
+      `),
+        db.execute(sql`
+        SELECT d.slug AS dish_slug, c.slug AS facet_slug, c.name AS facet_name
+        FROM dishes d
+        JOIN dish_dish_courses dc ON dc.dish_id = d.id AND dc.status = 'active'
+        JOIN dish_courses c ON c.id = dc.value_id
+        WHERE d.status = 'published' AND d.origin_location IS NOT NULL
+      `),
+        // THE DENOMINATOR: every published dish, mapped or not.
+        //
+        // The atlas's heading needs it. "121 dishes on the map" reads as
+        // though the site has 121 dishes; "121 of 1,474" reads as what it
+        // is -- a map that is still being filled in.
+        db.execute(sql`
+        SELECT count(*)::int AS total_published
+        FROM dishes
+        WHERE status = 'published'
+      `),
+        // THE PLACES THE MAPPED DISHES SIT IN.
+        //
+        // The count is of DISTINCT PLACES, taken from the dish's own
+        // origin entity -- the same join the map itself uses, so the
+        // number cannot disagree with the map's own labels.
+        //
+        // It is NOT a count of distinct coordinates: the dishes of one
+        // country sit at many different points (a dish is located where
+        // it was made), so counting points would report 69 places for
+        // what is really 36.
+        db.execute(sql`
+        SELECT count(DISTINCT d.origin_geo_id)::int AS place_count
+        FROM dishes d
+        WHERE d.status = 'published'
+          AND d.origin_location IS NOT NULL
+          AND d.origin_geo_id IS NOT NULL
+      `),
+      ]);
+
+    const totalPublished = Number(
+      (totalRows as unknown as { total_published: number }[])[0]
+        ?.total_published ?? 0,
+    );
+    const placeCount = Number(
+      (placeRows as unknown as { place_count: number }[])[0]?.place_count ?? 0,
+    );
+
+    const facetsByDish = new Map<
+      string,
+      { family: string[]; technique: string[]; course: string[] }
+    >();
+
+    // The label for each facet slug, keyed `kind__slug` so a family and
+    // a technique that share a slug do not collide.
+    const facetLabels = new Map<string, string>();
+
+    const addFacet = (
+      dishSlug: string,
+      kind: (typeof FACET_KINDS)[number],
+      slug: string,
+      name: string,
+    ) => {
+      let entry = facetsByDish.get(dishSlug);
+      if (!entry) {
+        entry = { family: [], technique: [], course: [] };
+        facetsByDish.set(dishSlug, entry);
+      }
+      if (!entry[kind].includes(slug)) {
+        entry[kind].push(slug);
+      }
+      // The name is carried along so the rail can label the option
+      // without a second lookup.
+      const labelKey = `${kind}__${slug}`;
+      facetLabels.set(labelKey, name);
+    };
+
+    for (const r of familyRows as unknown as {
+      dish_slug: string;
+      facet_slug: string;
+      facet_name: string;
+    }[]) {
+      addFacet(r.dish_slug, "family", r.facet_slug, r.facet_name);
+    }
+    for (const r of techniqueRows as unknown as {
+      dish_slug: string;
+      facet_slug: string;
+      facet_name: string;
+    }[]) {
+      addFacet(r.dish_slug, "technique", r.facet_slug, r.facet_name);
+    }
+    for (const r of courseRows as unknown as {
+      dish_slug: string;
+      facet_slug: string;
+      facet_name: string;
+    }[]) {
+      addFacet(r.dish_slug, "course", r.facet_slug, r.facet_name);
+    }
+
     return {
-      dishes: rows.map((r) => ({
-        slug: r.slug,
-        canonicalName: r.canonical_name,
-        shortDescription: r.short_description,
-        viewCount: r.view_count,
-        lat: r.lat,
-        lng: r.lng,
-        region: {
-          name: r.region_name ?? "",
-          localName: r.region_local_name,
-          isoCode: r.region_iso_code,
-          entityType: r.region_entity_type,
-        },
-      })),
+      dishes: rows.map((r) => {
+        const facets = facetsByDish.get(r.slug);
+        return {
+          slug: r.slug,
+          canonicalName: r.canonical_name,
+          shortDescription: r.short_description,
+          viewCount: r.view_count,
+          lat: r.lat,
+          lng: r.lng,
+          region: {
+            name: r.region_name ?? "",
+            localName: r.region_local_name,
+            isoCode: r.region_iso_code,
+            entityType: r.region_entity_type,
+          },
+          // The facets, as SLUGS. The label for each slug is in the
+          // `facets` map below, so a dish carries no repeated label
+          // text — 121 dishes would otherwise repeat "Curry" 30 times.
+          facets: {
+            family: facets?.family ?? [],
+            technique: facets?.technique ?? [],
+            course: facets?.course ?? [],
+          },
+        };
+      }),
+      // The facet vocabulary, with its labels, so the rail can build
+      // its dropdowns from ONE map instead of three round trips.
+      facets: {
+        family: buildFacetOptions(facetLabels, "family"),
+        technique: buildFacetOptions(facetLabels, "technique"),
+        course: buildFacetOptions(facetLabels, "course"),
+      },
       count: rows.length,
+      // HOW MANY DISHES THE SITE HAS, AND HOW MANY OF THEM ARE MAPPED.
+      //
+      // The atlas's heading says "121 of 1,474 dishes have map
+      // coordinates so far". Both numbers are needed for that sentence,
+      // and they answer different questions:
+      //
+      //   totalPublished  every published dish, mapped or not
+      //   count           the dishes ON the map
+      //
+      // A reader who sees only the mapped count cannot tell whether
+      // the map is complete, and the site is far from complete -- so
+      // the honest sentence needs the denominator.
+      totalPublished,
+      // How many distinct places the mapped dishes sit in.
+      places: placeCount,
     };
   });
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 /**
  * Build-output validation for the taxonomy pages.
  *
@@ -160,20 +161,92 @@ function countOccurrences(html, needle) {
 }
 
 // ─── Load the three taxonomy pages ──────────────────────────────────────────
-const regionsPath = `${DIST}regions/index.html`;
+// WP-C3 REPLACED /regions WITH /places.
+//
+// The list view is now /places, and the atlas -- the map, the filter
+// rail and the place panel -- is /atlas. The nav checks below need A
+// page to look at, and they use /places: it is the list view, so it
+// carries the nav and the site chrome like any other page.
+//
+// The old /regions route is not built any more. It is REDIRECTED to
+// /places by the redirect map, so a reader who has the old link gets
+// the new page rather than a 404.
+const placesPath = `${DIST}places/index.html`;
+const atlasPath = `${DIST}atlas/index.html`;
 const familiesPath = `${DIST}families/index.html`;
 const lineagesPath = `${DIST}lineages/index.html`;
 
-const [regionsHtml, familiesHtml, lineagesHtml] = await Promise.all([
-  read(regionsPath),
+const [placesHtml, atlasHtml, familiesHtml, lineagesHtml] = await Promise.all([
+  read(placesPath),
+  read(atlasPath),
   read(familiesPath),
   read(lineagesPath),
 ]);
 
 // ─── 1. Pages exist ─────────────────────────────────────────────────────────
-check("/regions page exists", await exists(regionsPath), regionsPath);
+check("/places page exists", await exists(placesPath), placesPath);
+check("/atlas page exists", await exists(atlasPath), atlasPath);
 check("/families page exists", await exists(familiesPath), familiesPath);
 check("/lineages page exists", await exists(lineagesPath), lineagesPath);
+
+// The retired routes are NOT built. If they are, the redirect map is
+// not what the reader gets, and there are two pages claiming the same
+// content.
+check(
+  "/regions is no longer built",
+  !(await exists(`${DIST}regions/index.html`)),
+  "regions/index.html still exists",
+);
+check(
+  "/map is no longer built",
+  !(await exists(`${DIST}map/index.html`)),
+  "map/index.html still exists",
+);
+
+// ─── 1b. The redirect map is what nginx will actually serve ───────────────
+//
+// The redirect map in apps/web/src/lib/redirects.ts is the source of
+// truth, and the nginx block is GENERATED from it. This check proves
+// the two still agree: if someone edits the map and forgets to
+// regenerate, the site would 301 to a page that does not exist, and
+// the only place that shows it is here.
+//
+// The generator's own --check mode is the authority; this runs it and
+// reports its verdict.
+const redirectCheck = spawnSync(
+  process.execPath,
+  [
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "generate-redirect-rules.mjs",
+    ),
+    "--check",
+  ],
+  { encoding: "utf8" },
+);
+check(
+  "nginx carries every active redirect from the map",
+  redirectCheck.status === 0,
+  redirectCheck.stdout?.trim() ||
+    redirectCheck.stderr?.trim() ||
+    "the check did not run",
+);
+
+// Every retired route must have a redirect that points at a page THIS
+// build actually produced. A redirect to a 404 is worse than no
+// redirect at all.
+const retiredRoutes = [
+  { from: "/map", to: "/atlas" },
+  { from: "/regions", to: "/places" },
+];
+for (const r of retiredRoutes) {
+  const target = `${DIST}${r.to.replace(/^\//, "")}/index.html`;
+  check(
+    `${r.from} redirects to ${r.to}, which is built`,
+    await exists(target),
+    `${target} is missing -- the redirect would 301 to a 404`,
+  );
+}
 
 // ─── 2. The primary navigation ──────────────────────────────────────────────
 // ONE SITE.
@@ -196,7 +269,7 @@ const RETIRED_HOST_PATTERN = new RegExp(
 );
 check(
   "nav carries no link to the retired recipes host",
-  !RETIRED_HOST_PATTERN.test(regionsHtml ?? ""),
+  !RETIRED_HOST_PATTERN.test(placesHtml ?? ""),
   "the nav still links to the retired host",
 );
 // ONLY <a href> LINKS ARE CHECKED.
@@ -211,14 +284,14 @@ check(
 // whether any of them leaves the site.
 check(
   "no link in the page leaves the site",
-  !/<a[^>]+href="https?:\/\/(?!staging\.gustale\.com)/.test(regionsHtml ?? ""),
+  !/<a[^>]+href="https?:\/\/(?!staging\.gustale\.com)/.test(placesHtml ?? ""),
   "a link points at another host",
 );
 check(
   "nav links to the six sections RELATIVELY",
-  countOccurrences(regionsHtml, 'href="/dishes"') >= 1 &&
-    countOccurrences(regionsHtml, 'href="/ingredients"') >= 1 &&
-    countOccurrences(regionsHtml, 'href="/recipes"') >= 1,
+  countOccurrences(placesHtml, 'href="/dishes"') >= 1 &&
+    countOccurrences(placesHtml, 'href="/ingredients"') >= 1 &&
+    countOccurrences(placesHtml, 'href="/recipes"') >= 1,
   "a section is missing from the nav, or its href is not relative",
 );
 
@@ -244,30 +317,30 @@ for (const label of [
 ]) {
   check(
     `main navigation contains ${label}`,
-    countOccurrences(regionsHtml, `>s*${label}s*<`) >= 1 ||
-      countOccurrences(regionsHtml, `>${label}<`) >= 1,
+    countOccurrences(placesHtml, `>s*${label}s*<`) >= 1 ||
+      countOccurrences(placesHtml, `>${label}<`) >= 1,
     `no "${label}" link in nav`,
   );
 }
 check(
   "the nav carries no host switch",
-  !/property-switch/.test(regionsHtml ?? ""),
+  !/property-switch/.test(placesHtml ?? ""),
   "the property switch is still in the nav",
 );
 check(
   "nav identifies Atlas property in text",
-  /Gustale[\s\S]*?Atlas/.test(regionsHtml ?? "") ||
-    /Current property: Atlas/.test(regionsHtml ?? ""),
+  /Gustale[\s\S]*?Atlas/.test(placesHtml ?? "") ||
+    /Current property: Atlas/.test(placesHtml ?? ""),
   "Atlas property label missing from nav",
 );
 check(
   "nav links locally to /ingredients",
-  /href="\/ingredients"/.test(regionsHtml ?? ""),
+  /href="\/ingredients"/.test(placesHtml ?? ""),
   "the nav has no local /ingredients link",
 );
 check(
   "nav Add a dish points at the local authoring form",
-  /href="\/dishes\/new"/.test(regionsHtml ?? ""),
+  /href="\/dishes\/new"/.test(placesHtml ?? ""),
   "missing local Add a dish CTA",
 );
 
@@ -276,36 +349,47 @@ check(
 // What is asserted here is that the six are present AND that the
 // retired entries are gone. A nav that quietly grew a seventh entry
 // would still pass a "the six are present" check.
+// WP-C3 moved the Atlas section from the home page to /atlas.
+//
+// The nav's "Atlas" entry used to be the home link. The atlas is now a
+// page of its own -- the map, the filter rail and the place panel --
+// so the section points there.
 check(
-  "nav includes Atlas → /",
-  countOccurrences(regionsHtml, 'href="/"') >= 1,
-  "missing the home link in the nav",
+  "nav includes Atlas → /atlas",
+  countOccurrences(placesHtml, 'href="/atlas"') >= 1,
+  "missing /atlas in the nav",
 );
 check(
   "nav includes Dishes → /dishes",
-  countOccurrences(regionsHtml, 'href="/dishes"') >= 1,
+  countOccurrences(placesHtml, 'href="/dishes"') >= 1,
   "missing /dishes in the nav",
 );
 check(
   "nav includes Families → /families",
-  countOccurrences(regionsHtml, 'href="/families"') >= 1,
+  countOccurrences(placesHtml, 'href="/families"') >= 1,
   "missing /families in the nav",
 );
 check(
   "nav includes Ingredients → /ingredients",
-  countOccurrences(regionsHtml, 'href="/ingredients"') >= 1,
+  countOccurrences(placesHtml, 'href="/ingredients"') >= 1,
   "missing /ingredients in the nav",
 );
 check(
   "nav includes History → /lineages",
-  countOccurrences(regionsHtml, 'href="/lineages"') >= 1,
+  countOccurrences(placesHtml, 'href="/lineages"') >= 1,
   "missing /lineages in the nav",
 );
-// The retired entry: "Dish origins → /regions" was never a section.
+// The retired entry: "Dish origins → /regions" was never a section, and
+// WP-C3 retired the route itself. The list view is /places.
 check(
   "nav no longer lists Dish origins → /regions",
-  countOccurrences(regionsHtml, 'href="/regions"') === 0,
+  countOccurrences(placesHtml, 'href="/regions"') === 0,
   "/regions is still in the nav",
+);
+check(
+  "nav does not link to the retired /map",
+  countOccurrences(placesHtml, 'href="/map"') === 0,
+  "/map is still in the nav",
 );
 // The dist ships the ingredients pages — they are reachable from the
 // dish pages and they are a nav section.
@@ -315,31 +399,73 @@ check(
   "ingredients/index.html missing",
 );
 
-// ─── 3. /regions presented as Dish origins (U0-C directory, not chip wall) ───
+// ─── 3. /places is the LIST VIEW (WP-C3 replaced /regions) ──────────────────
+//
+// The list view is a list of PLACES, each with its dish count, and each
+// linking to its own page at /places/:slug.
+//
+// It is NOT the old "Dish origins" directory: that page presented a
+// country directory with a dish-count tile wall. The blueprint's list
+// view is the atlas's second view -- the same places the atlas's map
+// shows, in a form a reader can scan and sort.
 check(
-  "/regions H1 presents Dish origins",
-  /<h1[^>]*>[\s\S]*?Dish origins[\s\S]*?<\/h1>/.test(regionsHtml ?? ""),
-  "expected Dish origins in page H1",
+  "/places lists places",
+  /<h1[^>]*>[\s\S]*?[Pp]laces[\s\S]*?<\/h1>/.test(placesHtml ?? ""),
+  "expected Places in page H1",
 );
 check(
-  "/regions has no dead /regions/:slug links",
-  !/href="\/regions\/[^"]+"/.test(regionsHtml ?? ""),
+  "/places links to /places/:slug detail",
+  /href="\/places\/[^"]+"/.test(placesHtml ?? ""),
+  "missing /places/:slug links",
+);
+check(
+  "/places has no dead /regions/:slug links",
+  !/href="\/regions\/[^"]+"/.test(placesHtml ?? ""),
   "found /regions/:slug href",
 );
-const countryDirCards = countOccurrences(regionsHtml, "browse-dir-card");
+// The place cards each carry their dish count, so a reader can see how
+// much a place holds before opening it.
+const placeDirCards = countOccurrences(placesHtml, "place-dir-card");
 check(
-  "/regions country directory renders entries",
-  countryDirCards >= MIN_DISTINCT_FILTERS,
-  `only ${countryDirCards} directory cards`,
+  "/places directory renders entries",
+  placeDirCards >= MIN_DISTINCT_FILTERS,
+  `only ${placeDirCards} directory cards`,
 );
 // Keep a dish-density floor via baked dish name links or counts.
-const regionDishHints =
-  countOccurrences(regionsHtml, " dishes") +
-  countOccurrences(regionsHtml, "/dishes/");
+const placeDishHints =
+  countOccurrences(placesHtml, " dishes") +
+  countOccurrences(placesHtml, "/dishes/");
 checkFullBuild(
-  "/regions still surfaces dish context",
-  regionDishHints >= MIN_REGION_TILES,
-  `weak dish context signals: ${regionDishHints}`,
+  "/places still surfaces dish context",
+  placeDishHints >= MIN_REGION_TILES,
+  `weak dish context signals: ${placeDishHints}`,
+);
+
+// ─── 3b. /atlas is the ATLAS (WP-C3) ────────────────────────────────────────
+//
+// The atlas is the map, the filter rail and the place panel, in one
+// page. Its three parts are a client island, so the STATIC HTML cannot
+// contain them -- what the static HTML CAN be asked to prove is that
+// the page exists, that it identifies itself, and that it carries the
+// island that renders the atlas.
+//
+// What the island renders is checked by the browser, not by this file.
+check(
+  "/atlas ships the atlas island",
+  /AtlasIsland|atlas__grid/.test(atlasHtml ?? ""),
+  "the atlas island is not in the /atlas page",
+);
+check(
+  "/atlas H1 presents the Atlas",
+  /<h1[^>]*>[\s\S]*?Atlas[\s\S]*?<\/h1>/.test(atlasHtml ?? ""),
+  "expected Atlas in page H1",
+);
+// The atlas is the map. The old /map page carried a maplibre bundle;
+// the atlas carries it too.
+check(
+  "/atlas loads the map stylesheet",
+  /maplibre-gl/.test(atlasHtml ?? ""),
+  "the map stylesheet is not linked from /atlas",
 );
 
 // ─── 5. /families is a directory (no first-viewport chip wall) ─────────────
@@ -388,7 +514,7 @@ check(
 );
 check(
   "/regions does not use family/lineage filter state",
-  !/data-family=|data-lineage=/.test(regionsHtml ?? ""),
+  !/data-family=|data-lineage=/.test(placesHtml ?? ""),
   "regions page references another taxonomy's data-* filter",
 );
 
@@ -416,7 +542,7 @@ if (SKIP_MOCK_FIXTURES) {
 // ─── 10. Domain identity baked at Astro render (PUBLIC_DOMAIN) ─────────────
 const homeHtml = await read(`${DIST}index.html`);
 const notFoundHtml = await read(`${DIST}404.html`);
-const navHtml = homeHtml ?? regionsHtml ?? "";
+const navHtml = homeHtml ?? placesHtml ?? "";
 // ONE SITE, ONE IDENTITY.
 //
 // There used to be a branch here: the `geo` build identified as the
@@ -502,8 +628,15 @@ const newDishExists =
   (await exists(`${DIST}dishes/new/index.html`)) ||
   (await exists(`${DIST}dishes/new.html`));
 const ingredientsExists = await exists(`${DIST}ingredients`);
+// WP-C3 MOVED THE MAP TO /atlas.
+//
+// The map used to be a page of its own at /map. It is now part of the
+// atlas, which is /atlas -- the map, the filter rail and the place
+// panel in one page. The check below therefore asks for /atlas, and
+// the retired /map is checked as ABSENT a few lines down.
 const mapExists =
-  (await exists(`${DIST}map/index.html`)) || (await exists(`${DIST}map.html`));
+  (await exists(`${DIST}atlas/index.html`)) ||
+  (await exists(`${DIST}atlas.html`));
 
 // ONE BUILD SERVES EVERYTHING.
 //
@@ -529,8 +662,8 @@ check(
 // There used to be a check that the `recipes` variant did NOT carry
 // /map -- the map belonged to the Atlas and the recipes variant was a
 // different site without one. There is one site now, and it has the
-// map.
-check("the dist has /map", mapExists, "map/ missing from the dist");
+// map -- at /atlas, where WP-C3 put it.
+check("the dist has /atlas", mapExists, "atlas/ missing from the dist");
 
 // ─── 12. The authoring links are LOCAL ─────────────────────────────────────
 //
@@ -806,17 +939,29 @@ check(
 );
 // AND THE SERVER-RENDERED CONTENT IS THERE. Without JavaScript, the
 // home still has its four dish cards, its threads, and its families.
-check(
+//
+// These three are CONTENT checks, not count checks: the home renders a
+// dish card for every published dish, a thread card for every lineage,
+// and a chip for every family. The staging database holds the 7-dish
+// CI seed, which has NO families and NO lineages, so the home renders
+// none of the three and the checks fail -- not because the home is
+// broken, but because the scoped build's data cannot satisfy them.
+//
+// That is exactly the case checkFullBuild exists for: a scoped build
+// SKIPS them, visibly, and the production build keeps every one at
+// full strength. Using plain check() here made every staging deploy
+// fail from WP-C1 (2db1291) onwards.
+checkFullBuild(
   "the home server-renders its dish cards",
   /home__dish-card/.test(homeHtml ?? ""),
   "the home has no server-rendered dish cards",
 );
-check(
+checkFullBuild(
   "the home server-renders its thread cards",
   /home__thread-card/.test(homeHtml ?? ""),
   "the home has no server-rendered thread cards",
 );
-check(
+checkFullBuild(
   "the home server-renders its family chips",
   /home__chip/.test(homeHtml ?? ""),
   "the home has no server-rendered family chips",
@@ -849,14 +994,29 @@ check(
 // "Atlas" section IS the current page.
 check(
   "no nav link wrongly claims to be current on /regions",
-  !/gst-navlink[^>]*aria-current="page"/.test(regionsHtml ?? ""),
+  !/gst-navlink[^>]*aria-current="page"/.test(placesHtml ?? ""),
   "a nav link carries aria-current=page on /regions",
 );
+// The Atlas is NO LONGER THE HOME PAGE.
+//
+// WP-C3 gave the atlas its own page at /atlas. The home page is the
+// site's front door, and no nav item lights up when a reader is
+// standing on it -- so the home page must NOT claim the Atlas as its
+// current section, and the ATLAS page must claim the Atlas.
+//
+// This is the check that would fail if a nav link went back to
+// pointing the Atlas at "/".
 check(
-  "the nav marks the Atlas section on the home page",
-  /href="\/"[^>]*aria-current="page"/.test(homeHtml ?? "") ||
-    /aria-current="page"[^>]*href="\/"/.test(homeHtml ?? ""),
-  "the Atlas link is missing aria-current=page on the home page",
+  "no nav link claims the Atlas is current on the home page",
+  !/href="\/atlas"[^>]*aria-current="page"/.test(homeHtml ?? "") &&
+    !/aria-current="page"[^>]*href="\/atlas"/.test(homeHtml ?? ""),
+  "a nav link carries aria-current=page for the Atlas on the home page",
+);
+check(
+  "the nav marks the Atlas section on the atlas page",
+  /href="\/atlas"[^>]*aria-current="page"/.test(atlasHtml ?? "") ||
+    /aria-current="page"[^>]*href="\/atlas"/.test(atlasHtml ?? ""),
+  "the Atlas link is missing aria-current=page on /atlas",
 );
 // The aria-current check reads a SPECIFIC fixture family.
 //

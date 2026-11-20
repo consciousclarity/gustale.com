@@ -58,8 +58,28 @@ const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
  * the collection is empty, and the sitemap and the page agree -- a
  * page that says "do not index me" is not listed once it has content
  * either, until the build that has content says otherwise.)
+ *
+ * WP-C3 ADDED TWO PAGES HERE.
+ *
+ * `/atlas` is the map, the filter rail and the place panel -- the page
+ * the whole Atlas section points at. `/places` is its list view.
+ *
+ * Both are listed because both are pages the site serves and a reader
+ * reaches from the navigation. A page the site serves but does not
+ * list in the sitemap is a page the crawler has to find by accident.
+ *
+ * The RETIRED routes are not listed: `/map` and `/regions` are
+ * redirects now, and a sitemap that lists a redirected URL points a
+ * crawler at the redirect instead of at the page.
  */
-const SHARED_PAGES = ["", "dishes", "recipes", "ingredients"];
+const SHARED_PAGES = [
+  "",
+  "dishes",
+  "recipes",
+  "ingredients",
+  "atlas",
+  "places",
+];
 
 /**
  * The origin the sitemap's URLs are built on.
@@ -427,6 +447,19 @@ async function main() {
   const ingredients = await collectContentBearingSlugs(dist, "ingredients");
   const recipes = await collectContentBearingSlugs(dist, "recipes");
 
+  // THE PLACES (WP-C3).
+  //
+  // The place pages moved from /place/:slug to /places/:slug when the
+  // atlas grew, and they are listed like the other content-bearing
+  // pages: a place page that links to at least one dish is listed, and
+  // one without is omitted (and is marked noindex by the build).
+  //
+  // A place with no dishes has no page at all -- the build does not
+  // generate it -- so the sitemap cannot list a place page that does
+  // not exist. The collection rule below and the page generation are
+  // the same rule.
+  const places = await collectContentBearingSlugs(dist, "places");
+
   // The locale pages are only built for the geo domain for now, and
   // the sitemap must not list URLs that 404.
   const locales = domain === "geo" ? requested : ["en"];
@@ -448,6 +481,10 @@ async function main() {
   console.log(
     `[sitemap] recipes: ${recipes.withDishes.length} with dishes, ` +
       `${recipes.withoutDishes.length} without (omitted)`,
+  );
+  console.log(
+    `[sitemap] places: ${places.withDishes.length} with dishes, ` +
+      `${places.withoutDishes.length} without (omitted)`,
   );
 
   for (const locale of locales) {
@@ -530,6 +567,7 @@ async function main() {
     for (const [section, group] of [
       ["ingredients", ingredients],
       ["recipes", recipes],
+      ["places", places],
     ]) {
       for (const slug of group.withDishes) {
         const links = [];

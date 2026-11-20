@@ -324,6 +324,46 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
     // relationship types appears in both groups but counts once.
     const distinctDishes = new Set(associations.map((a) => a.slug)).size;
 
+    // THE THREADS THROUGH THIS PLACE.
+    //
+    // A thread (the blueprint's word for what the data calls a lineage)
+    // passes through a place when a dish associated with that place
+    // belongs to the thread. The count is of DISTINCT threads, not of
+    // dishes: three stuffed-leaf dishes from three different places are
+    // three dishes on the map but ONE thread, and a reader asking "how
+    // much food history passes through here?" wants the answer "one
+    // thread", not "three dishes".
+    //
+    // The link is `dish_lineages` — the dish→thread table — joined to
+    // the place's own associations. `lineages` is a curated taxonomy
+    // table with no status column: every thread in it is published by
+    // definition. Only the DISH's status matters, and it is applied
+    // here.
+    const threadRows = await db.execute(sql`
+      SELECT
+        l.slug,
+        l.name,
+        count(DISTINCT a.dish_id)::int AS dishes
+      FROM public.visible_place_associations_for_place(${place.id}) a
+      JOIN dishes d ON d.id = a.dish_id AND d.status = 'published'
+      JOIN dish_lineages dl ON dl.dish_id = d.id
+      JOIN lineages l ON l.id = dl.lineage_id
+      GROUP BY l.slug, l.name
+      ORDER BY count(DISTINCT a.dish_id) DESC, l.name
+    `);
+
+    const threads = (
+      threadRows as unknown as {
+        slug: string;
+        name: string;
+        dishes: number;
+      }[]
+    ).map((row) => ({
+      slug: row.slug,
+      name: row.name,
+      dishes: row.dishes,
+    }));
+
     return {
       place: {
         slug: slugifyPlace(place.name),
@@ -336,9 +376,11 @@ export function registerPlaceRoutes(app: FastifyInstance): void {
         lng: place.has_geometry ? place.lng : null,
       },
       groups,
+      threads,
       counts: {
         dishes: distinctDishes,
         groups: groups.length,
+        threads: threads.length,
       },
     };
   });
