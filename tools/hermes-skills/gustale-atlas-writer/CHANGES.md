@@ -139,3 +139,45 @@ These are enforced by the skill's schema, not by the database: the `lineages` an
 tables have **no writer path** ("none: review only"), so there was no database vocabulary to read
 and nothing to reconcile against. The section exists so the next writer knows the values are
 fixed and cannot be invented.
+
+### The write-path table was wrong about `dish_names`
+
+The table said `PATCH /api/dishes/:slug` — the names branch. **There is no names branch.**
+`patchDishSchema` (`apps/api/src/routes/dishes-write.ts` ~L66) accepts `canonicalName`,
+`shortDescription`, `longDescription`, `status`, `origin`, `originDateEarliest`,
+`originDateLatest`, `categories`, `tagIds` and `comment`, and nothing else. Nothing in
+`apps/api` writes `dish_names` — only the data migrations (0024, 0033) do.
+
+Found by the pilot's write stage, and confirmed by reading the route myself. The row now
+says **none: review only**, like the identities and relations rows beside it. A proposed name
+row needs a migration or an owner-applied statement, not an API call.
+
+### A repo-level contradiction the pilot surfaced — NOT changed here
+
+Migration 0023 (ADR-003 layer 2) defines the name kinds:
+
+```
+'endonym'       - the name in the language it belongs to
+'exonym'       - the name in another language
+```
+
+Migration 0033 (`0033_gus239_english_names.sql`) then inserts, for **every** dish with a
+`canonical_name`, a row with `kind = 'endonym'` — and its own comment says why:
+
+> The `kind` is 'endonym' for a name that is the dish's own name in English, and 'exonym' is
+> deliberately NOT used: an exonym is a name a language gives to something from elsewhere, and
+> this is the dish's name in the language the catalogue is written in.
+
+For an English dish the two agree. For a **Greek** dish they do not: the English "Moussaka" is
+a name in another language, which 0023 calls an exonym, and 0033 calls an endonym. The pilot's
+dish record follows 0023 and marks it an exonym; the live row says endonym.
+
+**This is an owner decision and it is not a skill bug.** The vocabulary snapshot records the
+0023 definition because that is the definition of the CHECK-constrained values, and the pilot
+followed it. Changing the skill to match 0033 instead would flip every non-English dish's
+name kind. Both readings are recorded; the conflict is raised, not resolved.
+
+The same mismatch is why the pilot records all 12 of the dish's other-language names as
+exonyms and corrects the Arabic-script `مسقعة` from `ar`/`endonym`/primary to
+`tr`/`exonym`: the form is Ottoman Turkish, and a Turkish-language name cannot be the primary
+name for a Greek dish.
