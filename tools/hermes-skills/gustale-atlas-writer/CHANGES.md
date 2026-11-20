@@ -246,3 +246,29 @@ record have no route to live either.
 
 **Not fixed here.** Deploying the API is the owner's call and outside this job's scope. Recorded
 so the next writer does not plan around a route that is not there.
+
+### The skill deleted the evidence it needed to re-verify the record
+
+Stage 3 step 5 said, unconditionally: **"Delete the `sources/` folder."** But step 7 asks the worker
+to **re-run steps 2–4** if changes come back from review — and step 2 is the checker run with
+`--sources-dir sources/`, which is the **originality check**. Deleting the captures therefore made
+the record impossible to re-verify, by the skill's own rules.
+
+The pilot paid this immediately. The lineage record `layered-baked-casserole` went to review at
+MEDIUM, and the `sources/` folder was deleted with it. `.work/` is git-excluded, so there is no
+second copy. Re-running the checker now reports:
+
+```
+WARN  originality: no .txt source texts in sources/; originality not checked
+PASS: 0 error(s), 1 warning(s), lineage 'layered-baked-casserole', confidence proposed MEDIUM
+```
+
+The PASS is **weaker than it looks**: the originality check did not run. The record's wording was
+corrected once before the folder went (the verify stage fixed an originality violation in
+`cultural_practice_note`, which had copied "moussaka or pastitsio is usually called a brick" from
+Grigoriadou), but nothing can now re-prove it.
+
+**Fixed.** Step 5 now reads: delete `sources/` **only once the record is actually applied**. If the
+record stops at review — MEDIUM, LOW, a removed or contradicted live claim, the first-five gate, or
+no write path — keep the captures, because the skill's own step 7 needs them. The captures are never
+published; they go when the record is applied.

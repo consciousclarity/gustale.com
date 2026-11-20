@@ -114,7 +114,12 @@ the `recipe_published` view (migration 0053) admits it — not when a row's `sta
 2. Run the checker again with `--sources-dir sources/`. It must report PASS.
 3. Set `agent.confidence` by RECIPE-STYLE.md §6.
 4. Write `verify-report.md`: what you checked, what you changed, the confidence, and why.
-5. Delete the `sources/` folder.
+5. Delete the `sources/` folder — **but only once the recipe is actually published.** If the record stops at
+   review (MEDIUM, LOW, a gap that blocks HIGH, D4 not yet on `main`, or auto-publish off), **keep** `sources/`:
+   the gate below asks you to re-run the checks if changes come back, and the originality check needs the captured
+   texts. The captures are never published; they go when the recipe is finally published.
+   *Corrected 2026-11-21 — see CHANGES.md. The skill's own step 7 required the captures to re-verify, so
+   deleting them unconditionally made the record unverifiable.*
 6. Until the D4 migration — `db/migrations/0065_recipe_layout_and_sentence_fields.sql`, widening
    `recipe_sentences.field` to nine values and adding `recipes.recipe_layout` — is applied on `main`
    (it needs the `approved-live` label and the owner's merge), **write nothing to the database at all** —

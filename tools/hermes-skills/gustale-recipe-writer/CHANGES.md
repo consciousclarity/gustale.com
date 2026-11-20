@@ -219,3 +219,18 @@ the CHECK cannot drift.
 - `apps/api/src/routes/recipes.ts` reads `recipe_sentences` with **no `field` filter**, so the six
   new field values flow through the read route with no API change. ✓
 - Both `pnpm --filter @gustale/db run typecheck` and `--filter @gustale/api run typecheck` pass. ✓
+
+### The same contradiction existed here, and it was live in the pilot
+
+Stage 3 step 5 said, unconditionally: **"Delete the `sources/` folder."** Step 7 asks the worker to
+re-run the checks if changes come back, and the checker run in step 2 includes the originality check.
+Deleting the captures therefore made the record impossible to re-verify.
+
+Both pilot recipes stopped at review at MEDIUM, so **both kept their captures** — the workers
+applied the rule from the *review* branch rather than the letter of step 5, which is the right
+behaviour but was not what the skill said. The Atlas worker followed step 5 literally, and the
+captures are gone.
+
+**Fixed.** Step 5 now reads: delete `sources/` **only once the recipe is actually published.** A
+record that stops at review — MEDIUM, LOW, a gap that blocks HIGH, D4 not yet on `main`, or
+auto-publish off — keeps its captures. RECIPE-STYLE.md §"the stages" says the same.

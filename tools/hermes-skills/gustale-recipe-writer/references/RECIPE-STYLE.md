@@ -326,7 +326,9 @@ all three for a dish; setup and commands are in the skill's `SETUP.md`.
 2. **Write → JSON record.** Works from the source sheet only and does no browsing. The prompt is in §7. It
    runs `check_recipe.py --sources-dir sources/` until the result is PASS.
 3. **Verify.** Checks every number, sign, failure and substitute against the sheet, runs the checker again,
-   sets the final confidence, writes `verify-report.md`, deletes `sources/`, and then acts on the gate below.
+   sets the final confidence, writes `verify-report.md`, deletes `sources/` **only if the recipe is actually
+   published** (a record that stops at review keeps its captures, because the gate below asks for a re-check),
+   and then acts on the gate below.
 
 **Never blend sources.** Quantities, times and temperatures come from the base source. The other sources
 confirm the base and add signs, failures and substitutions. Where they differ, the difference goes into

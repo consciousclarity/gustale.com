@@ -96,7 +96,12 @@ edit history.
    live claim that the record would remove or contradict.
 4. Set `agent.confidence` by ATLAS-STYLE.md §6. Write `verify-report.md`: what you checked, what you changed, the
    diff summary, and the confidence with the reason.
-5. Delete the `sources/` folder.
+5. Delete the `sources/` folder — **but only once the record is actually applied.** If the record stops at
+   review (MEDIUM, LOW, a removed or contradicted live claim, the first-five gate, or no write path), **keep**
+   `sources/`: step 7 below asks you to re-run steps 2–4 if changes come back, and the originality check in
+   step 2 needs the captured texts. The captures are never published; they go when the record is applied.
+   *Corrected 2026-11-21 — see CHANGES.md. The pilot deleted the captures on a record that went to review, and
+   the originality check could then no longer be re-run.*
 6. **Write only through the existing write paths:**
    - statements through `statement_set_status()`
    - sentences through the path that keeps edit history
