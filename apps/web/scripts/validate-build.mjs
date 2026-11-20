@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 /**
  * Build-output validation for the taxonomy pages.
  *
@@ -18,7 +19,6 @@
  * Run:  PUBLIC_DOMAIN=geo node scripts/validate-build.mjs
  */
 import { access, readdir, readFile, stat } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -215,13 +215,21 @@ check(
 // reports its verdict.
 const redirectCheck = spawnSync(
   process.execPath,
-  [join(dirname(fileURLToPath(import.meta.url)), "generate-redirect-rules.mjs"), "--check"],
+  [
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "generate-redirect-rules.mjs",
+    ),
+    "--check",
+  ],
   { encoding: "utf8" },
 );
 check(
   "nginx carries every active redirect from the map",
   redirectCheck.status === 0,
-  redirectCheck.stdout?.trim() || redirectCheck.stderr?.trim() || "the check did not run",
+  redirectCheck.stdout?.trim() ||
+    redirectCheck.stderr?.trim() ||
+    "the check did not run",
 );
 
 // Every retired route must have a redirect that points at a page THIS
@@ -627,7 +635,8 @@ const ingredientsExists = await exists(`${DIST}ingredients`);
 // panel in one page. The check below therefore asks for /atlas, and
 // the retired /map is checked as ABSENT a few lines down.
 const mapExists =
-  (await exists(`${DIST}atlas/index.html`)) || (await exists(`${DIST}atlas.html`));
+  (await exists(`${DIST}atlas/index.html`)) ||
+  (await exists(`${DIST}atlas.html`));
 
 // ONE BUILD SERVES EVERYTHING.
 //

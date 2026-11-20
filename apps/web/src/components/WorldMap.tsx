@@ -203,9 +203,9 @@ export function WorldMap({
   // map then draws exactly what it was given. This is what keeps the
   // rail, the map and the panel telling the same story: there is one
   // list of connections in the atlas, and it is filtered once.
-  const [fetchedConnections, setFetchedConnections] = useState<
-    MapConnection[]
-  >([]);
+  const [fetchedConnections, setFetchedConnections] = useState<MapConnection[]>(
+    [],
+  );
   const [byRelationship, setByRelationship] = useState<Record<string, number>>(
     {},
   );

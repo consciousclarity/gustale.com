@@ -168,7 +168,10 @@ describe("WP-B2 — the API reads through the ONE predicate", () => {
     // assertion is on the bypass, not on the number.
     assert.match(places, /visible_place_associations_for_place/);
     const uses = places.match(/visible_place_associations_for_place/g) ?? [];
-    assert.ok(uses.length >= 2, "the place index and the place detail read the union");
+    assert.ok(
+      uses.length >= 2,
+      "the place index and the place detail read the union",
+    );
     assert.ok(
       !/FROM dish_place_associations a/.test(places),
       "no path reads the table directly and bypasses the predicate",

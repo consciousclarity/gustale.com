@@ -142,7 +142,7 @@ export function PlacePanel({ place, dishes, totalDishes }: PlacePanelProps) {
           place, and it is what the reader is about to open. The map's
           count is what the list below shows.
         */}
-        {(data?.counts.dishes ?? dishes.length)} dish
+        {data?.counts.dishes ?? dishes.length} dish
         {(data?.counts.dishes ?? dishes.length) === 1 ? "" : "es"} associated
         {threadCount > 0 && (
           <>
@@ -152,7 +152,11 @@ export function PlacePanel({ place, dishes, totalDishes }: PlacePanelProps) {
         )}
       </p>
 
-      <div className="place-panel__tabs" role="tablist" aria-label="Place detail">
+      <div
+        className="place-panel__tabs"
+        role="tablist"
+        aria-label="Place detail"
+      >
         <button
           type="button"
           role="tab"
@@ -195,7 +199,9 @@ export function PlacePanel({ place, dishes, totalDishes }: PlacePanelProps) {
                 {d.canonicalName}
               </a>
               {d.region?.name && (
-                <span className="place-panel__dish-region">{d.region.name}</span>
+                <span className="place-panel__dish-region">
+                  {d.region.name}
+                </span>
               )}
               {d.shortDescription && (
                 <p className="place-panel__dish-desc">{d.shortDescription}</p>
@@ -224,7 +230,10 @@ export function PlacePanel({ place, dishes, totalDishes }: PlacePanelProps) {
           )}
           {(data?.threads ?? []).map((t) => (
             <li key={t.slug} className="place-panel__thread">
-              <a className="place-panel__thread-name" href={`/lineages/${t.slug}`}>
+              <a
+                className="place-panel__thread-name"
+                href={`/lineages/${t.slug}`}
+              >
                 {t.name}
               </a>
               <span className="place-panel__dish-region">

@@ -72,7 +72,14 @@ const LOCALES = ["en", "es", "de", "fr", "pt", "id", "zh", "ja", "ar", "hi"];
  * redirects now, and a sitemap that lists a redirected URL points a
  * crawler at the redirect instead of at the page.
  */
-const SHARED_PAGES = ["", "dishes", "recipes", "ingredients", "atlas", "places"];
+const SHARED_PAGES = [
+  "",
+  "dishes",
+  "recipes",
+  "ingredients",
+  "atlas",
+  "places",
+];
 
 /**
  * The origin the sitemap's URLs are built on.

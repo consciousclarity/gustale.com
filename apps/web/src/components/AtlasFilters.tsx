@@ -58,8 +58,8 @@
  */
 
 import type { FacetOption, MapDish } from "../lib/api";
-import type { RelationshipKind } from "../lib/relationship-grammar";
 import type { AtlasFilterState } from "../lib/atlas-filters";
+import type { RelationshipKind } from "../lib/relationship-grammar";
 
 export interface AtlasFiltersProps {
   filters: AtlasFilterState;
@@ -258,7 +258,11 @@ export function AtlasFilters({
       </fieldset>
 
       {isDirty && (
-        <button type="button" className="atlas-filters__reset" onClick={onReset}>
+        <button
+          type="button"
+          className="atlas-filters__reset"
+          onClick={onReset}
+        >
           Reset filters
         </button>
       )}

@@ -618,62 +618,57 @@ export function registerDishRoutes(app: FastifyInstance): void {
     // carried alongside. The map's dishes are few (121), so three
     // cheap queries beat one clever UNION that loses the kind.
     const FACET_KINDS = ["family", "technique", "course"] as const;
-    const [
-      familyRows,
-      techniqueRows,
-      courseRows,
-      totalRows,
-      placeRows,
-    ] = await Promise.all([
-      db.execute(sql`
+    const [familyRows, techniqueRows, courseRows, totalRows, placeRows] =
+      await Promise.all([
+        db.execute(sql`
         SELECT d.slug AS dish_slug, f.slug AS facet_slug, f.name AS facet_name
         FROM dishes d
         JOIN dish_dish_families l ON l.dish_id = d.id AND l.status = 'active'
         JOIN dish_families f ON f.id = l.value_id AND f.listed
         WHERE d.status = 'published' AND d.origin_location IS NOT NULL
       `),
-      db.execute(sql`
+        db.execute(sql`
         SELECT d.slug AS dish_slug, t.slug AS facet_slug, t.name AS facet_name
         FROM dishes d
         JOIN dish_dish_techniques dt ON dt.dish_id = d.id AND dt.status = 'active'
         JOIN dish_techniques t ON t.id = dt.value_id
         WHERE d.status = 'published' AND d.origin_location IS NOT NULL
       `),
-      db.execute(sql`
+        db.execute(sql`
         SELECT d.slug AS dish_slug, c.slug AS facet_slug, c.name AS facet_name
         FROM dishes d
         JOIN dish_dish_courses dc ON dc.dish_id = d.id AND dc.status = 'active'
         JOIN dish_courses c ON c.id = dc.value_id
         WHERE d.status = 'published' AND d.origin_location IS NOT NULL
       `),
-      // THE DENOMINATOR: every published dish, mapped or not.
-      //
-      // The atlas's heading needs it. "121 dishes on the map" reads as
-      // though the site has 121 dishes; "121 of 1,474" reads as what it
-      // is -- a map that is still being filled in.
-      db.execute(sql`
+        // THE DENOMINATOR: every published dish, mapped or not.
+        //
+        // The atlas's heading needs it. "121 dishes on the map" reads as
+        // though the site has 121 dishes; "121 of 1,474" reads as what it
+        // is -- a map that is still being filled in.
+        db.execute(sql`
         SELECT count(*)::int AS total_published
         FROM dishes
         WHERE status = 'published'
       `),
-      // THE PLACES THE MAPPED DISHES SIT IN.
-      //
-      // The count is of DISTINCT PLACES, taken from the dish's own
-      // origin entity -- the same join the map itself uses, so the
-      // number cannot disagree with the map's own labels.
-      //
-      // It is NOT a count of distinct coordinates: the dishes of one
-      // country sit at many different points (a dish is located where
-      // it was made), so counting points would report 69 places for
-      // what is really 36.
-      db.execute(sql`
+        // THE PLACES THE MAPPED DISHES SIT IN.
+        //
+        // The count is of DISTINCT PLACES, taken from the dish's own
+        // origin entity -- the same join the map itself uses, so the
+        // number cannot disagree with the map's own labels.
+        //
+        // It is NOT a count of distinct coordinates: the dishes of one
+        // country sit at many different points (a dish is located where
+        // it was made), so counting points would report 69 places for
+        // what is really 36.
+        db.execute(sql`
         SELECT count(DISTINCT d.origin_geo_id)::int AS place_count
         FROM dishes d
         WHERE d.status = 'published'
           AND d.origin_location IS NOT NULL
           AND d.origin_geo_id IS NOT NULL
       `),
-    ]);
+      ]);
 
     const totalPublished = Number(
       (totalRows as unknown as { total_published: number }[])[0]

@@ -18,10 +18,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  ATLAS_FILTER_PARAMS,
+  NEVER_DRAWN,
+  readAtlasFilters,
+} from "./atlas-filters.ts";
+import {
   RELATIONSHIP_KINDS,
   relationshipKindFor,
 } from "./relationship-grammar.ts";
-import { ATLAS_FILTER_PARAMS, NEVER_DRAWN, readAtlasFilters } from "./atlas-filters.ts";
 
 describe("the atlas — `family` is never drawn", () => {
   it("names `family` as the one kind the atlas refuses to draw", () => {
@@ -72,15 +76,14 @@ describe("the atlas — the filter is in the URL", () => {
   it("names every parameter the filter uses", () => {
     const declared: readonly string[] = ATLAS_FILTER_PARAMS;
     for (const p of ["q", "family", "technique", "course", "kinds"]) {
-      assert.ok(
-        declared.includes(p),
-        `${p} is a filter parameter`,
-      );
+      assert.ok(declared.includes(p), `${p} is a filter parameter`);
     }
   });
 
   it("reads a query string into the filter", () => {
-    const filters = readAtlasFilters("?q=indonesia&family=curry&technique=frying");
+    const filters = readAtlasFilters(
+      "?q=indonesia&family=curry&technique=frying",
+    );
     assert.equal(filters.q, "indonesia");
     assert.equal(filters.family, "curry");
     assert.equal(filters.technique, "frying");

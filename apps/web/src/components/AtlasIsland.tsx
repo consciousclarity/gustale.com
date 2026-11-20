@@ -41,25 +41,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  type FacetOption,
   getAtlasConnections,
   getMapDishes,
-  type FacetOption,
   type MapConnection,
   type MapDish,
 } from "../lib/api";
 import {
-  RELATIONSHIP_KINDS,
-  relationshipKindFor,
-  type RelationshipKind,
-} from "../lib/relationship-grammar";
-import {
+  type AtlasFilterState,
   DEFAULT_KINDS,
-  NEVER_DRAWN,
   drawableKinds,
+  NEVER_DRAWN,
   readAtlasFilters,
   writeAtlasFilters,
-  type AtlasFilterState,
 } from "../lib/atlas-filters";
+import {
+  RELATIONSHIP_KINDS,
+  type RelationshipKind,
+  relationshipKindFor,
+} from "../lib/relationship-grammar";
 import { AtlasFilters } from "./AtlasFilters";
 import { PlacePanel } from "./PlacePanel";
 import { WorldMap } from "./WorldMap";
@@ -107,7 +107,9 @@ export interface AtlasIslandProps {
 
 export function AtlasIsland({ initialDishes = [] }: AtlasIslandProps = {}) {
   const [filters, setFilters] = useState<AtlasFilterState>(() =>
-    readAtlasFilters(typeof window === "undefined" ? "" : window.location.search),
+    readAtlasFilters(
+      typeof window === "undefined" ? "" : window.location.search,
+    ),
   );
   const [dishes, setDishes] = useState<MapDish[]>(initialDishes);
   const [facets, setFacets] = useState(EMPTY_FACETS);
@@ -154,7 +156,9 @@ export function AtlasIsland({ initialDishes = [] }: AtlasIslandProps = {}) {
         // dishes; only the edges are missing. Saying so is better than
         // showing an empty map as though the data were empty.
         setConnectionError(
-          err instanceof Error ? err.message : "the connections could not be loaded",
+          err instanceof Error
+            ? err.message
+            : "the connections could not be loaded",
         );
       });
 
@@ -193,27 +197,28 @@ export function AtlasIsland({ initialDishes = [] }: AtlasIslandProps = {}) {
       kinds: new Set(DEFAULT_KINDS),
     });
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", writeAtlasFilters(readAtlasFilters("")));
+      window.history.replaceState(
+        null,
+        "",
+        writeAtlasFilters(readAtlasFilters("")),
+      );
     }
   }, []);
 
-  const toggleKind = useCallback(
-    (kind: RelationshipKind) => {
-      // `family` is never drawn, so it is never toggled on.
-      if (kind === NEVER_DRAWN) return;
-      setFilters((prev) => {
-        const kinds = new Set(prev.kinds);
-        if (kinds.has(kind)) kinds.delete(kind);
-        else kinds.add(kind);
-        const next = { ...prev, kinds };
-        if (typeof window !== "undefined") {
-          window.history.replaceState(null, "", writeAtlasFilters(next));
-        }
-        return next;
-      });
-    },
-    [],
-  );
+  const toggleKind = useCallback((kind: RelationshipKind) => {
+    // `family` is never drawn, so it is never toggled on.
+    if (kind === NEVER_DRAWN) return;
+    setFilters((prev) => {
+      const kinds = new Set(prev.kinds);
+      if (kinds.has(kind)) kinds.delete(kind);
+      else kinds.add(kind);
+      const next = { ...prev, kinds };
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", writeAtlasFilters(next));
+      }
+      return next;
+    });
+  }, []);
 
   // ─── The filtered dishes ───
   //
@@ -223,7 +228,10 @@ export function AtlasIsland({ initialDishes = [] }: AtlasIslandProps = {}) {
   const visibleDishes = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     return dishes.filter((d) => {
-      if (filters.family && !(d.facets?.family ?? []).includes(filters.family)) {
+      if (
+        filters.family &&
+        !(d.facets?.family ?? []).includes(filters.family)
+      ) {
         return false;
       }
       if (
@@ -232,7 +240,10 @@ export function AtlasIsland({ initialDishes = [] }: AtlasIslandProps = {}) {
       ) {
         return false;
       }
-      if (filters.course && !(d.facets?.course ?? []).includes(filters.course)) {
+      if (
+        filters.course &&
+        !(d.facets?.course ?? []).includes(filters.course)
+      ) {
         return false;
       }
       if (!q) return true;
@@ -278,9 +289,7 @@ export function AtlasIsland({ initialDishes = [] }: AtlasIslandProps = {}) {
   if (error) {
     return (
       <div className="atlas__error">
-        <p>
-          The atlas could not be loaded: {error}
-        </p>
+        <p>The atlas could not be loaded: {error}</p>
       </div>
     );
   }

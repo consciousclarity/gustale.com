@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  activeRedirects,
-  REDIRECT_RULES,
-  redirectFor,
-} from "./redirects.ts";
+import { activeRedirects, REDIRECT_RULES, redirectFor } from "./redirects.ts";
 
 describe("redirects — the map", () => {
   it("names every old path the blueprint's redirect map requires", () => {
