@@ -181,3 +181,39 @@ The same mismatch is why the pilot records all 12 of the dish's other-language n
 exonyms and corrects the Arabic-script `مسقعة` from `ar`/`endonym`/primary to
 `tr`/`exonym`: the form is Ottoman Turkish, and a Turkish-language name cannot be the primary
 name for a Greek dish.
+
+### Two more write-path rows were wrong — the same class of error
+
+The pilot's verify stage checked the write-path table against the repo and the live server and
+found it wrong for **three** rows, not one. I checked each one myself.
+
+**`description_sentences`.** The table said `PATCH /api/dishes/:slug` writes the sentences "and
+inserts the `edit_history` row, in ONE transaction. That is the history-keeping path."
+
+The route writes the **`dishes.long_description` / `dishes.short_description` columns** and the
+`edit_history` row. It contains **no reference to `description_sentences`**, and nothing in
+`apps/api` inserts that table — only the API's own tests do.
+
+The sentences are written by a **different path**: `scripts/populate_description_sentences.py`.
+It reads the columns, splits them with `scripts/split_sentences.py` (the ONE splitter), asserts
+the concatenation equals the source byte-for-byte **before** writing, writes through a temporary
+table in a single statement, and sets `dishes.sentence_managed = true`. After that the
+`description_sentences_guard_short_description_trg` trigger **rejects** a direct
+`short_description` write that does not match the rendered sentences, so the column can no
+longer be edited freely. It needs `--apply` and the live opt-in.
+
+It is a **batch** path: it re-derives every published dish, not one. The row now says so.
+
+**`dish_place_associations`.** The table named "the association write branch (~L338 onward)" in
+`dishes-write.ts`. There is no such branch: that file contains no reference to the table, and
+nothing in `apps/api` writes it. The row now says **none: review only**.
+
+**The rows that are RIGHT, checked the same way.** `statement_set_status` — the signature in
+migration 0047 is `(p_statement_id uuid, p_to verification_state, p_session_token text)`, the
+session-token form the row claims. `POST /api/dishes` at L205, `PATCH` at L292, `publish` at
+L438, the three variant routes at L542 / L619 / L696 — every line reference in the table matches
+the file. `scripts/translate_sentences.py` exists.
+
+**What this means for the pilot.** The dish record could not be applied even with approval:
+there is no path to write the prose, the names or the associations. That is an API change, not a
+skill fix, so it is raised for Alejandro and not fixed here.
