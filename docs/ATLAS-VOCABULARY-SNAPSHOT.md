@@ -160,24 +160,205 @@ CHECK constraint `dish_identities_identity_kind_check`
 
 ## 6. Families (`dish_families`)
 
-**28 slugs.** A family is a **classification** (by form, course, cuisine or content type, as approved
-in migration 0051), **not ancestry**. `name`, `class` and `parent` are approved editorial decisions —
-the writer never changes them.
+**123 families carry a published dish** — this is the set the Atlas writer may
+use, and the set the reviewer should expect to see in a record.
 
-| Slug | Slug | Slug |
-|---|---|---|
-| `bread` | `fried-rice` | `salad` |
-| `breaded-cutlet` | `fritter` | `sandwich` |
-| `casserole` | `kebab` | `sauce` |
-| `curry` | `moussaka` | `side-dish` |
-| `dessert` | `noodle-soup` | `soup` |
-| `dumpling` | `pancake` | `stew` |
-| `egg-dish` | `pasta` | `stiff-porridge` |
-| `fermented-dish` | `porridge` | `street-snack` |
-| `filled-pastry` | `rice-dish` | `stuffed-vegetable` |
-| | | `taco` |
+Source: **`docs/FAMILY-TAXONOMY-REVIEW.md`** L125-256 (the table *The 123 families*), which
+Alejandro **approved on 2026-11-06** ("I approve the 5 approvals") and which was applied by
+`db/migrations/0051_family_classification.sql`. The class split below is transcribed from that
+document and matches the migration's ledger.
 
----
+**Class split (123):** FORM 83 · COURSE 21 · CUISINE 4 · CONTENT TYPE 15.
+
+**A family is a CLASSIFICATION, not ancestry.** `family_class` is one of exactly four values,
+enforced by the database (`0051` L86, L113):
+
+```
+CHECK (family_class IN ('FORM', 'COURSE', 'CUISINE', 'CONTENT TYPE'))
+```
+
+> **Correction.** An earlier draft of this snapshot listed a hand-picked set of 28 slugs as
+> "the listed families" and gave no class and no parent. That set was neither the 123 that
+> carry a published dish nor the 162 that are `listed` — it was the 28 *pre-1f root* families
+> named in `db/migrations/0018_gus242_vocab_1f.sql` L19 ("restore the 28 families' parent_id
+> to NULL"). The real table is below.
+
+### `parent_id` — the hierarchy column
+
+`dish_families.parent_id uuid REFERENCES dish_families(id)` was added in
+`db/migrations/gus-242-schema-prep.sql` L84, with an index and an acyclicity guard
+(`0036_atlas_schema.sql` L538-571: a family may not be its own parent and the hierarchy must
+be acyclic, because a descendant walk would loop forever).
+
+The `path` column of the source table gives the chain; the **Parent** column below is the
+immediate parent. **26 of the 123 are roots** (parent NULL); 97 have one.
+
+| Slug | Class | Parent | Dishes |
+|---|---|---|---:|
+| `dish` | CONTENT TYPE | *root* | 397 |
+| `dessert` | COURSE | *root* | 96 |
+| `soup` | FORM | *root* | 70 |
+| `food` | CONTENT TYPE | `dish` | 55 |
+| `rice-dish` | FORM | *root* | 45 |
+| `pastry` | COURSE | `dessert` | 38 |
+| `confectionery` | COURSE | `dessert` | 37 |
+| `bread` | FORM | *root* | 30 |
+| `human-food` | CONTENT TYPE | `dish` | 28 |
+| `stew` | FORM | *root* | 28 |
+| `potato-dish` | FORM | `dish` | 27 |
+| `salad` | FORM | *root* | 27 |
+| `meat-dish` | FORM | *root* | 24 |
+| `baked-good` | COURSE | `dessert` | 22 |
+| `sandwich` | FORM | *root* | 21 |
+| `fish-dish` | FORM | *root* | 20 |
+| `jajan-pasar` | CUISINE | `dish` | 18 |
+| `chicken-dish` | FORM | `meat-dish` | 18 |
+| `candy` | FORM | `confection` | 15 |
+| `beef-dish` | FORM | `meat-dish` | 15 |
+| `kebab` | FORM | *root* | 14 |
+| `pasta-dish` | FORM | *root* | 14 |
+| `pork-dish` | FORM | `meat-dish` | 12 |
+| `snack` | COURSE | `dish` | 11 |
+| `cookie` | FORM | `confection` | 10 |
+| `egg-dish` | FORM | *root* | 10 |
+| `cake` | FORM | `dessert` | 9 |
+| `kue` | CUISINE | `dessert` | 9 |
+| `sweet-dish` | COURSE | `dessert` | 9 |
+| `lamb-dish` | FORM | `meat-dish` | 9 |
+| `noodle-dish` | FORM | `noodle-soup` | 9 |
+| `pancake` | FORM | *root* | 9 |
+| `flatbread` | FORM | `bread` | 8 |
+| `casserole` | FORM | *root* | 8 |
+| `pudding` | FORM | `dessert` | 8 |
+| `seafood-dish` | FORM | `dish` | 8 |
+| `dumpling` | FORM | *root* | 8 |
+| `pie` | FORM | `filled-pastry` | 8 |
+| `goat-meat-dish` | FORM | `meat-dish` | 8 |
+| `drink` | CONTENT TYPE | `beverage` | 8 |
+| `curry` | FORM | *root* | 7 |
+| `appetizer` | COURSE | `dish` | 7 |
+| `finger-food` | COURSE | `appetizer` | 7 |
+| `noodle-soup` | FORM | *root* | 7 |
+| `sweet-bread` | FORM | `bread` | 6 |
+| `doughnut` | COURSE | `dessert` | 6 |
+| `sweetmeat` | COURSE | `dessert` | 6 |
+| `national-dish` | FORM | `dish` | 6 |
+| `street-food` | CONTENT TYPE | `dish` | 6 |
+| `traditional-food` | CONTENT TYPE | `dish` | 6 |
+| `vegetable-dish` | FORM | `dish` | 6 |
+| `pasta` | FORM | *root* | 6 |
+| `fish-soup` | FORM | `soup` | 6 |
+| `chewing-gum` | COURSE | `confection` | 5 |
+| `cuisine` | CONTENT TYPE | `dish` | 5 |
+| `culinary-speciality` | CONTENT TYPE | `dish` | 5 |
+| `fritter` | FORM | *root* | 5 |
+| `offal-dish` | FORM | `meat-dish` | 5 |
+| `stuffed-pasta` | FORM | `pasta-dish` | 5 |
+| `meze` | COURSE | `side-dish` | 5 |
+| `mithai` | CUISINE | `confection` | 4 |
+| `shrimp-dish` | FORM | `seafood-dish` | 4 |
+| `sauce` | FORM | *root* | 4 |
+| `bacon-wrapped-food` | CONTENT TYPE | `dish` | 3 |
+| `fast-food` | CONTENT TYPE | `dish` | 3 |
+| `food-brand` | CONTENT TYPE | `dish` | 3 |
+| `clam-dish` | FORM | `seafood-dish` | 3 |
+| `spread` | FORM | `dish` | 3 |
+| `tuna-dish` | FORM | `fish-dish` | 3 |
+| `veal-dish` | FORM | `meat-dish` | 3 |
+| `bibimbap` | FORM | `rice-dish` | 3 |
+| `rice` | FORM | `rice-dish` | 3 |
+| `bun` | FORM | `bread` | 2 |
+| `torte` | FORM | `cake` | 2 |
+| `chocolate-bar` | COURSE | `dessert` | 2 |
+| `frozen-dessert` | COURSE | `dessert` | 2 |
+| `ice-cream-flavour` | COURSE | `dessert` | 2 |
+| `wafer` | COURSE | `dessert` | 2 |
+| `wagashi` | COURSE | `dessert` | 2 |
+| `brand` | CONTENT TYPE | `dish` | 2 |
+| `cooked-grain` | FORM | `dish` | 2 |
+| `holiday-dish` | FORM | `dish` | 2 |
+| `christmas-food` | FORM | `holiday-dish` | 2 |
+| `meal` | CONTENT TYPE | `dish` | 2 |
+| `live-seafood` | FORM | `seafood-dish` | 2 |
+| `surimi` | FORM | `seafood-dish` | 2 |
+| `filled-pastry` | FORM | *root* | 2 |
+| `meatball` | FORM | `kebab` | 2 |
+| `instant-noodles` | FORM | `noodle-dish` | 2 |
+| `porridge` | FORM | *root* | 2 |
+| `brioche` | FORM | `bread` | 1 |
+| `leavened-bread` | FORM | `bread` | 1 |
+| `white-bread` | FORM | `bread` | 1 |
+| `breaded-cutlet` | FORM | *root* | 1 |
+| `cotoletta` | FORM | `breaded-cutlet` | 1 |
+| `apple-turnover` | FORM | `dessert` | 1 |
+| `ame` | FORM | `confection` | 1 |
+| `brittle` | FORM | `candy` | 1 |
+| `chocolate-egg` | FORM | `chocolate` | 1 |
+| `honey` | FORM | `confection` | 1 |
+| `western-confection` | FORM | `confection` | 1 |
+| `cruller` | COURSE | `dessert` | 1 |
+| `mousse` | COURSE | `dessert` | 1 |
+| `hedgehog-slice` | FORM | `pastry` | 1 |
+| `shaved-ice` | COURSE | `dessert` | 1 |
+| `shiroi-koibito` | COURSE | `dessert` | 1 |
+| `chadian-cuisine` | CUISINE | `dish` | 1 |
+| `cold-dish` | CONTENT TYPE | `dish` | 1 |
+| `course` | CONTENT TYPE | `dish` | 1 |
+| `sweet-potato-dish` | FORM | `dish` | 1 |
+| `scrambled-eggs` | FORM | `egg-dish` | 1 |
+| `fermented-bean-paste` | FORM | `fermented-soy` | 1 |
+| `savoury-pie` | FORM | `pie` | 1 |
+| `fried-rice` | FORM | *root* | 1 |
+| `cold-noodle` | FORM | `noodle-dish` | 1 |
+| `buckwheat-pancake` | FORM | `pancake` | 1 |
+| `idli` | FORM | `rice-dish` | 1 |
+| `patty` | FORM | `burger` | 1 |
+| `fish-sauce` | FORM | `sauce` | 1 |
+| `tripe-soup` | FORM | `soup` | 1 |
+| `goulash` | FORM | `stew` | 1 |
+| `stuffed-pepper` | FORM | `stuffed-vegetable` | 1 |
+| `taco` | FORM | *root* | 1 |
+
+> **A parent may sit outside the 123.** Seven families that carry published dishes have a
+> parent that carries none: `beverage`, `burger`, `chocolate`, `confection`, `fermented-soy`,
+> `side-dish`, `stuffed-vegetable`. All seven are real families in the 306 (each is classified
+> in the `0051` ledger). A parent that carries no published dish is still a valid parent — the
+> hierarchy is a taxonomy, and a branch can be described before anything in it is published.
+
+### What "listed" means — and why it is NOT the same set
+
+`dish_families.listed boolean NOT NULL DEFAULT true` was added in `0058` L114, with the
+column comment (L116-120):
+
+> "Whether this family is part of the published family vocabulary. FALSE for non-FORM classes
+> (COURSE, CUISINE, CONTENT TYPE) and for FORM families with no description. The API prefers a
+> LISTED family when it picks a dish's primary family."
+
+So `listed` is a **derived flag**, not a static list: a family is listed when it is a FORM
+family **and** it has a non-empty description. The migration measured 306 rows
+(2026-11-16): FORM 172 / COURSE 59 / CUISINE 5 / CONTENT TYPE 70, **162 listed** after
+`0059` filled in descriptions.
+
+**Three different sets, and the difference matters:**
+
+| Set | Count | What it means |
+|---|---:|---|
+| Families in the database | 306 | Every `dish_families` row |
+| **Carry a published dish** | **123** | The set above — what the writer uses |
+| `listed = true` | 162 | FORM **and** has a description — what the API prefers as a dish's primary family |
+
+A family can be `listed` yet carry no published dish (a FORM family with a description and no
+dishes yet), and a family can carry published dishes yet not be `listed` (any COURSE, CUISINE
+or CONTENT TYPE family). **The Atlas writer should target the 123.**
+
+> **NOT reconstructible from the repo alone.** The per-family `listed` flag and the dish counts
+> above were measured against the live database on 2026-11-16 and transcribed into the
+> migration's comments. The full 306-row slug/class/parent table is **not** in any committed
+> migration — only the 306-row classification ledger is
+> (`0051` L116-431, which does carry `family_class` for all 306). The 306 `parent_id` values
+> are not in the repo either: no migration ever *sets* a family's `parent_id`, only the column,
+> the index and the guard exist. The parent chains above come from the approved review
+> document's `path` column.
 
 ## 7. Courses (`dish_courses`) — the "Served as" facet
 
@@ -242,6 +423,52 @@ constraint. The values in use in the repo are:
 > already uses before the first pilot — otherwise the citation rows are orphaned in practice.
 
 ---
+
+
+### The evidence link — `claim_citations` (the real citation mechanism)
+
+`citations.target_type` above is a **plain-text column on the `citations` table**, and it is
+**free text with no seed rows** for families or lineages. It is **not** how the Atlas evidence
+model works. The mechanism that *is* constrained is a different table.
+
+`db/migrations/0027_adr002_claims_model.sql` L333-367:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | `uuid_generate_v4()` |
+| `statement_id` | `uuid NOT NULL` | → `statements(id)` `ON DELETE CASCADE` |
+| `source_id` | `uuid NOT NULL` | → `sources(id)` |
+| `stance` | `citation_stance NOT NULL` | **ENUM** — see below |
+| `locator` | `text` | WHERE in the source the passage sits |
+| `excerpt` | `text` | **The EXACT text, quoted verbatim** |
+| `revision_id` | `text` | The retrieval anchor — which VERSION of the document was read |
+| `retrieved_at` | `timestamptz NOT NULL` | WHEN the passage was read |
+| `excerpt_validated` | `boolean NOT NULL DEFAULT false` | Was this excerpt validated against the stated revision? |
+
+**`citation_stance` ENUM (L328) — exactly three values:**
+
+| Value | Meaning |
+|---|---|
+| `supports` | The passage supports the statement |
+| `refutes` | The passage refutes the statement |
+| `context` | **Counts as NEITHER support nor refutation** (Amendment 3) |
+
+Uniqueness key (L365): `UNIQUE NULLS NOT DISTINCT (statement_id, source_id, revision_id, locator)`.
+Multiple passages from one source on one revision are distinct rows; the same passage re-read on
+a different revision is a **new** row, and the history is kept.
+
+**Why this matters to the writer.** `citations.target_type` is the *recipe-side* convention. The
+Atlas evidence model hangs citations off a **statement**, not off a target type. A family or a
+lineage that wants a machine-checkable citation therefore needs a `statement` row and a
+`claim_citations` row — not a `citations` row with `target_type = 'family'`. The `citations`
+target-type string is a convention with no enforcement behind it, and **no family or lineage
+target type is seeded anywhere**.
+
+> **Open question for Alejandro.** `citations.target_type` has no constraint and no seeded
+> family/lineage values. If the Atlas writer is to cite a family or a lineage, the mechanism to
+> use is `claim_citations` (statement-keyed), and the `citations` target string needs confirming
+> against live before anything relies on it.
+
 
 ## 12. The lineage record's own vocabularies
 

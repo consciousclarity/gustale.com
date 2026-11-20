@@ -272,3 +272,48 @@ Grigoriadou), but nothing can now re-prove it.
 record stops at review — MEDIUM, LOW, a removed or contradicted live claim, the first-five gate, or
 no write path — keep the captures, because the skill's own step 7 needs them. The captures are never
 published; they go when the record is applied.
+
+### The snapshot listed 28 families and gave no class and no parent — the real set is 123
+
+**Found:** 2026-11-21, when a late background subagent's vocabulary extraction was read
+against the shipped snapshot.
+
+`references/vocabulary-snapshot.md` §6 claimed **"28 slugs"** for the listed families, with
+**no `class` and no `parent`** for any of them. Both halves were wrong.
+
+- **The count.** The 28 were not the listed families. They are the 28 *pre-1f root* families
+  named in `db/migrations/0018_gus242_vocab_1f.sql` L19 — "(restore the 28 families'
+  parent_id to NULL)". The real set the writer may use is the **123 families that carry a
+  published dish** (`docs/FAMILY-TAXONOMY-REVIEW.md` L125-256, approved by Alejandro on
+  2026-11-06).
+- **The missing columns.** `family_class` has been a real column since `0051` L73, enforced by
+  `CHECK (family_class IN ('FORM','COURSE','CUISINE','CONTENT TYPE'))` (L86, L113), and filled in
+  for all 306 families. `parent_id` has been a real column since `gus-242-schema-prep.sql` L84.
+  Both were reported as if they did not exist.
+
+**The 123 are now listed in full with class, parent and dish count**, sourced from the
+approved review document and cross-checked against the `0051` ledger. The class split parsed
+from that document is **FORM 83 · COURSE 21 · CUISINE 4 · CONTENT TYPE 15** — exactly the
+split the document itself prints, which is the independent check that the parse is right.
+
+Three sets are now named explicitly, because they are easy to confuse and the writer needs the
+middle one:
+
+| Set | Count | Use |
+|---|---:|---|
+| Families in the database | 306 | — |
+| **Carry a published dish** | **123** | **what the writer uses** |
+| `listed = true` | 162 | FORM **and** has a description — what the API prefers as a dish's primary family |
+
+**Why this mattered.** A family record's `family_class` is the thing that decides whether it is
+a classification (FORM) or a course (COURSE). Getting that wrong puts a family in the wrong
+bucket of the whole taxonomy, and the snapshot was the file a writer was told to trust
+absolutely ("The Atlas writer may use only these values").
+
+**Also fixed in the same pass:** `citations.target_type` was documented, but the mechanism
+that *is* constrained — **`claim_citations`** (`0027` L333-367), the statement-keyed evidence
+link with `stance` ENUM `supports | refutes | context` — was missing. It is now documented, with
+the note that `context` counts as **neither** support nor refutation.
+
+No voice, evidence, originality or budget rule changed, so this needed no approval. All three
+Atlas examples still pass, and all six pilot records still pass with 0 errors.

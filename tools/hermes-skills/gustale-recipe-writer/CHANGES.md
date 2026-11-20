@@ -259,3 +259,32 @@ and then the same stage deleted the folder, making the enlarged capture unre-che
 **This is a factual fix to an internal contradiction**, not a change of voice, evidence rule,
 originality rule or budget — so it needed no approval. RECIPE-STYLE.md §3's matching line was
 rewritten the same way. The example recipe still passes.
+
+### The evidence-link mechanism was not documented at all: `claim_citations`
+
+**Found:** 2026-11-21, while cross-checking the Atlas vocabulary snapshot against the
+migrations.
+
+A recipe's evidence travels through **`claim_citations`** (`db/migrations/0027_adr002_claims_model.sql`
+L333-367), not through the `citations` table's `target_type` string:
+
+| Column | Notes |
+|---|---|
+| `statement_id` | → `statements(id)`, `ON DELETE CASCADE` |
+| `source_id` | → `sources(id)` |
+| `stance` | **ENUM `supports` / `refutes` / `context`** (L328) |
+| `locator` | where in the source the passage sits |
+| `excerpt` | **the exact text, quoted verbatim** |
+| `revision_id` | the retrieval anchor — which version of the document was read |
+| `retrieved_at` | when the passage was read |
+| `excerpt_validated` | was the excerpt validated against the stated revision? |
+
+`context` counts as **neither support nor refutation** (Amendment 3) — a passage can be
+relevant without bearing on the claim.
+
+This matters for the writer because it is the **only** evidence link that is constrained by the
+database. `citations.target_type` is plain text with no CHECK and no seeded family or lineage
+values, so a record that cites by target type is relying on a convention, while a record that
+cites by statement is relying on a foreign key.
+
+Documented in the Atlas skill's `references/vocabulary-snapshot.md` §11.
