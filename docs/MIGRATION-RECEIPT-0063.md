@@ -190,13 +190,21 @@ $ ssh root@<vps> 'sha256sum /tmp/0062.sql'
 
 > **A note on this checksum.** The first version of 0062 was applied and
 > then **changed**: its proof P4 asserted that the alias table exists,
-> and the CI gate caught that as a real failure — the CI chain does not
-> apply 0061 (it lives in the unmerged PR #266), so the table is
-> legitimately absent there. P4 now checks the table only when it
-> exists, and says so plainly when it does not. The checksum above is
-> the **final** file. The earlier version's behaviour on live was
-> identical in every respect except that it failed on a database where
-> 0061 had not been applied.
+> and the CI gate caught that as a real failure — the CI chain did not
+> apply 0061 (it lived in the unmerged PR #266), so the table was
+> legitimately absent there. P4 was made conditional on the table
+> existing. The checksum above is the file that was applied to live on
+> 2026-11-19 and re-applied for the idempotence proof.
+>
+> **P4 was revised again on 2026-11-20**, after PR #266 merged and 0061
+> entered the CI chain — see "THE P4 REVISION" below. That revision
+> changes the **proof**, not the data: the file's INSERT, the ledger row
+> it writes, and everything it writes to live are unchanged. The live
+> proof is strictly **stronger** after the revision, not weaker. The
+> checksum in this section remains the record of the file that ran on
+> live on 2026-11-19; the revision of 2026-11-20 was made in the
+> repository, and live has not been re-applied since — live still holds
+> the row and the one alias row, both unchanged.
 
 ---
 
@@ -252,24 +260,85 @@ the transaction:
 | **P2** | that row carries the checksum of the applied file | CONFIRMED |
 | **P3** | the ledger holds its 0061 row and is otherwise unchanged | CONFIRMED (11 rows) |
 | **P4** | the alias table still holds exactly one alias — **checked only when the table exists** | CONFIRMED |
+| **P4a** | the alias row count is **unchanged** by this migration (added 2026-11-20) | CONFIRMED |
+| **P4b** | where the orphan `bechamel-sauce` exists, the alias table holds exactly one row **and it resolves to `bechamel`** (added 2026-11-20) | CONFIRMED |
 
 P4 is the important one for a ledger-only migration: it proves the
 data 0061 wrote was **not** disturbed by this one.
 
-**P4 is conditional on purpose.** The alias table is created by 0061.
-In the CI chain 0061 is **not** applied before this migration — it
-lives in PR #266, which is not merged — so the table is legitimately
-absent there. The first version of the migration asserted the table
-exists, and the CI gate caught that as a real failure:
+**P4 was conditional on purpose — and then it was revised.** The alias
+table is created by 0061. At the time of the live apply, 0061 was **not**
+applied before this migration in the CI chain (it lived in PR #266, which
+was not merged), so the table was legitimately absent there. The first
+version of the migration asserted the table exists, and the CI gate caught
+that as a real failure:
 
 ```
 FAILED: 0062
 psql:<stdin>:160: ERROR:  P4 FAILED: the alias table is missing
 ```
 
-P4 now checks the table only when it exists, and prints a plain note
-when it does not. On live, where 0061 **has** been applied, the check
-is the real one and it passed.
+P4 was then made conditional on the table existing, and printed a plain
+note when it did not. On live, where 0061 **has** been applied, the check
+was the real one and it passed.
+
+**That conditional version was STILL wrong, and CI caught it again on
+2026-11-20.** PR #266 has since been merged, so 0061 **is** now in the CI
+chain — the table now EXISTS on CI. But 0061 creates the table and writes
+the alias row only where the retired orphan ingredient `bechamel-sauce`
+exists, and that orphan lives on **live** only (it is the duplicate that
+GUS-092 later deletes). On a chain-built database the orphan is absent, so
+0061 skips the insert and leaves the table **empty**. The conditional P4
+therefore took the "table exists" branch and asserted the LIVE count:
+
+```
+FAILED: 0063
+psql:<stdin>:197: NOTICE:  CONFIRMED: the ledger holds 7 rows, including 0061
+psql:<stdin>:197: ERROR:  P4 FAILED: the alias table holds 0 rows, expected exactly 1
+```
+
+**The revision — P4a and P4b (2026-11-20).** P4 now asserts the
+invariant that is true on **every** shape and is what the proof was for:
+
+| | proof | live | chain-built |
+|---|---|---|---|
+| **P4a** | the alias row count is **unchanged** by this migration (captured before the ledger INSERT, compared after) | 1 → 1 | 0 → 0 |
+| **P4b** | where the orphan `bechamel-sauce` exists, the alias table holds **exactly one** row, and it resolves to the canonical `bechamel` ingredient | asserted | skipped, with a plain note |
+
+**Nothing on live is weakened.** Live holds one alias row; P4b asserts one
+alias row, exactly as before, and now *additionally* asserts that the row
+resolves to the canonical ingredient — so the live proof is **strictly
+stronger** than the version that ran on live. P4a is a new proof that
+holds on both shapes and proves the ledger-only migration disturbed
+nothing.
+
+**The negative tests.** The revised P4 was checked against a deliberately
+broken live-shaped database, so the gate is known to have teeth:
+
+| the database was broken like this | the migration did this |
+|---|---|
+| the alias row deleted | `ERROR: P4 FAILED: the alias table holds 0 rows, expected exactly 1` |
+| the alias resolving to the wrong ingredient | `ERROR: P4 FAILED: the bechamel-sauce alias is missing or does not resolve to the bechamel ingredient` |
+| an extra alias row present | `ERROR: P4 FAILED: the alias table holds 2 rows, expected exactly 1` |
+
+**The full chain passes with the revision.** The local reproduction of the
+exact CI chain (`scripts/ci-migration-chain.sh`) was run twice — once with
+the pre-revision file and once with the revised one — and produced:
+
+```
+# with the pre-revision file
+FAILED: 0063
+psql:<stdin>:197: ERROR:  P4 FAILED: the alias table holds 0 rows, expected exactly 1
+
+# with the revised file
+psql:<stdin>:324: NOTICE:  GUS_LEDGER_0061_OK=1
+...
+FULL_CI_CHAIN_OK=1
+```
+
+The chain-built database ends with `ledger = 7 rows`, `ingredient_aliases
+= 0 rows`, and no `bechamel-sauce` ingredient — which is exactly the shape
+that broke the previous version.
 
 **P3 is a floor, not an equality.** This migration runs in two
 databases — the CI chain (7 ledger rows) and live (11) — whose ledgers

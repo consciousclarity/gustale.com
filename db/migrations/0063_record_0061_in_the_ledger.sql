@@ -15,19 +15,75 @@
 -- a number -- the chain validator reads the three lists as a sequence,
 -- and a duplicate number makes the order ambiguous.
 --
--- The RENUMBERING IS A RENAME PLUS PROSE. It changes no behaviour:
+-- The RENUMBERING CHANGED NO BEHAVIOUR:
 --   - this migration still writes exactly ONE row, the ledger entry for
 --     0061, and touches no other table;
 --   - the row it writes is keyed `0061_ingredient_aliases`, NOT by its
 --     own number, so the ledger on live is unaffected by the rename;
---   - the SQL body is byte-identical to the file that ran on live apart
---     from this header comment and the note string, and the note string
---     is only written when the row is INSERTed -- on live it already
---     exists, so `ON CONFLICT (name) DO NOTHING` leaves it exactly as
---     it is. The live row keeps its original note.
+--   - the note string is only written when the row is INSERTed -- on
+--     live it already exists, so `ON CONFLICT (name) DO NOTHING` leaves
+--     it exactly as it is. The live row keeps its original note.
+--
+-- ONE PROOF WAS REVISED AFTER THE LIVE APPLY -- P4. See "THE P4 REVISION"
+-- below. It changes no DATA on live: the live alias table holds exactly
+-- one row, and the revised P4 asserts exactly that.
 --
 -- The receipt is docs/MIGRATION-RECEIPT-0063.md.
 --
+-- THE P4 REVISION (2026-11-20)
+-- ----------------------------
+-- The proof P4 was revised AFTER the live apply, because the CI gate
+-- caught a real failure that the live apply could not have caught.
+--
+-- WHAT THE CI GATE REPORTED:
+--
+--     ERROR:  P4 FAILED: the alias table holds 0 rows, expected exactly 1
+--
+-- WHY: 0061 CREATES the `ingredient_aliases` table, but the alias ROW
+-- it writes exists only where the retired orphan ingredient
+-- `bechamel-sauce` exists. That orphan row lives on LIVE only -- it is
+-- the duplicate that GUS-092 later deletes. On a chain-built database
+-- (CI, the Nightly, a fresh local repro) the orphan is absent, so 0061
+-- SKIPS the insert and leaves the table EMPTY. 0061's own P8 accepts
+-- that ("at most one alias row").
+--
+-- So there are two legitimate shapes:
+--
+--   LIVE           the table exists and holds exactly 1 row
+--   CHAIN-BUILT    the table exists and holds 0 rows
+--
+-- The original P4 asserted the LIVE shape unconditionally. It was
+-- written when 0061 was NOT yet in the CI chain (it lived in an unmerged
+-- PR), so on CI the table did not exist at all and the proof was
+-- skipped entirely. Once 0061 WAS added to the CI chain -- which it now
+-- is -- the table exists but is empty, and the unconditional assertion
+-- failed.
+--
+-- The revised P4 asserts the invariant that is TRUE ON BOTH SHAPES AND
+-- IS WHAT THE PROOF WAS FOR: this is a LEDGER-ONLY migration, so it
+-- must not have disturbed the data 0061 wrote.
+--
+--   P4a: the alias row count is UNCHANGED by this migration. The count
+--        is captured BEFORE the ledger INSERT and compared AFTER. This
+--        is STRONGER than the original absolute check: it proves the
+--        migration disturbed nothing on EVERY shape, and it cannot be
+--        satisfied by a table that was empty to begin with and empty
+--        again for the wrong reason.
+--
+--   P4b: when the retired orphan ingredient `bechamel-sauce` exists --
+--        the LIVE shape -- the alias table must hold exactly one row,
+--        and it must be the `bechamel-sauce` alias resolving to the
+--        `bechamel` ingredient. This is the original live assertion,
+--        kept at full strength. On a chain-built database the orphan is
+--        absent, the table is legitimately empty, and the proof says so
+--        plainly instead of asserting a row that was never written.
+--
+-- The live outcome is UNCHANGED: live holds one alias row, P4b asserts
+-- one alias row, and P4a asserts the count did not move. Nothing on live
+-- is weakened -- the live proof is strictly stronger than before,
+-- because it now ALSO proves the row resolves to the canonical
+-- ingredient and that the count did not move.
+
 -- WHY THIS MIGRATION EXISTS
 -- -------------------------
 -- 0061 (`0061_ingredient_aliases.sql`) was applied to live on
@@ -109,6 +165,27 @@ COMMENT ON TABLE public.gus_migrations_applied IS
 -- existing row is left exactly as it is. This migration never edits a
 -- ledger row it did not create.
 -- ────────────────────────────────────────────────────────────────────────────
+--
+-- The alias row count is captured HERE, BEFORE the ledger INSERT, so
+-- that P4a can prove this migration did not disturb it. It is stashed in
+-- a transaction-local setting (`set_config(..., true)`), so it is
+-- restored on COMMIT and cannot leak into another run.
+--
+-- -1 means "there is no alias table here", which is the shape of a
+-- database where 0061 has not been applied.
+DO $$
+DECLARE
+  before_rows integer;
+BEGIN
+  IF to_regclass('public.ingredient_aliases') IS NOT NULL THEN
+    SELECT count(*) INTO before_rows FROM public.ingredient_aliases;
+  ELSE
+    before_rows := -1;
+  END IF;
+  PERFORM set_config('gustale.ledger_0063_alias_rows_before', before_rows::text, true);
+END;
+$$;
+
 INSERT INTO public.gus_migrations_applied (name, applied_at, applied_by, sha256, note)
 VALUES (
   '0061_ingredient_aliases',
@@ -131,14 +208,17 @@ ON CONFLICT (name) DO NOTHING;
 -- P3: this migration wrote NOTHING else. The ledger must hold exactly
 --     the rows it held before, plus the one row for 0061.
 --
--- P4: the alias table and its one row are still there. This migration
---     is a ledger-only migration; it must not have disturbed the data
---     0061 wrote.
+-- P4: the data 0061 wrote is untouched. This migration is a ledger-only
+--     migration, so it must not have disturbed the data 0061 wrote:
+--     P4a asserts the alias row count did not move, and P4b asserts that
+--     on the live shape the one alias row is still there and still
+--     resolves to the canonical ingredient.
 -- ────────────────────────────────────────────────────────────────────────────
 DO $$
 DECLARE
   ledger_rows integer;
   alias_rows  integer;
+  before_rows integer;
 BEGIN
   -- P1: the ledger row is there.
   IF NOT EXISTS (
@@ -173,23 +253,61 @@ BEGIN
   END IF;
   RAISE NOTICE 'CONFIRMED: the ledger holds % rows, including 0061', ledger_rows;
 
-  -- P4: the data 0061 wrote is untouched -- IF 0061 has been applied.
+  -- P4: the data 0061 wrote is untouched. This migration is a
+  -- LEDGER-ONLY migration, so it must not have disturbed the data 0061
+  -- wrote. See "THE P4 REVISION" in the header for why the original
+  -- absolute assertion was wrong on a chain-built database.
   --
-  -- The alias table is created by 0061. In the CI chain 0061 is NOT
-  -- applied before this migration (it lives in PR #266, which is not
-  -- merged), so the table may legitimately not exist here. This proof
-  -- therefore checks the table ONLY when it exists, and says so
-  -- plainly when it does not.
+  -- P4a: the alias row count is UNCHANGED by this migration. The count
+  --      was captured before the ledger INSERT and is compared now.
+  --      This holds on EVERY shape -- live, chain-built, and a database
+  --      where 0061 was never applied -- and it is what a ledger-only
+  --      migration has to prove.
   --
-  -- On LIVE, where 0061 HAS been applied, the table exists and the
-  -- check is the real one: a ledger-only migration must not have
-  -- disturbed the data 0061 wrote.
+  -- P4b: on the LIVE shape -- the retired orphan ingredient
+  --      `bechamel-sauce` exists -- the alias table must hold exactly
+  --      one row, and it must be the `bechamel-sauce` alias resolving to
+  --      the canonical `bechamel` ingredient. The original live
+  --      assertion, kept at full strength and tightened.
+  --
+  -- On a chain-built database the orphan is absent, 0061 skipped the
+  -- insert, and the table is legitimately EMPTY. The proof says so
+  -- plainly instead of asserting a row that was never written.
   IF to_regclass('public.ingredient_aliases') IS NOT NULL THEN
     SELECT count(*) INTO alias_rows FROM public.ingredient_aliases;
-    IF alias_rows <> 1 THEN
-      RAISE EXCEPTION 'P4 FAILED: the alias table holds % rows, expected exactly 1', alias_rows;
+
+    -- P4a: the count did not move.
+    before_rows := COALESCE(
+      NULLIF(current_setting('gustale.ledger_0063_alias_rows_before', true), '')::integer,
+      -1
+    );
+    IF alias_rows <> before_rows THEN
+      RAISE EXCEPTION
+        'P4 FAILED: the alias table held % rows before this migration and holds % after -- a ledger-only migration must not change it',
+        before_rows, alias_rows;
     END IF;
-    RAISE NOTICE 'CONFIRMED: the alias table still holds exactly one alias';
+
+    -- P4b: the LIVE shape -- the orphan exists, so the alias exists.
+    IF EXISTS (SELECT 1 FROM public.ingredients WHERE slug = 'bechamel-sauce') THEN
+      IF alias_rows <> 1 THEN
+        RAISE EXCEPTION 'P4 FAILED: the alias table holds % rows, expected exactly 1', alias_rows;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1
+        FROM public.ingredient_aliases a
+        JOIN public.ingredients c ON c.id = a.ingredient_id
+        WHERE a.alias_slug = 'bechamel-sauce'
+          AND c.slug = 'bechamel'
+      ) THEN
+        RAISE EXCEPTION
+          'P4 FAILED: the bechamel-sauce alias is missing or does not resolve to the bechamel ingredient';
+      END IF;
+      RAISE NOTICE 'CONFIRMED: the alias table still holds exactly one alias, and it resolves to the bechamel ingredient';
+    ELSE
+      RAISE NOTICE
+        'NOTE: there is no bechamel-sauce ingredient on this database, so 0061 wrote no alias row here; the alias table holds % rows, unchanged by this migration',
+        alias_rows;
+    END IF;
   ELSE
     RAISE NOTICE 'NOTE: 0061 has not been applied on this database, so there is no alias table to check';
   END IF;
