@@ -241,22 +241,194 @@ again **one** fails, and with the mock serving the copy again **two** fail.
 
 ---
 
+## Staging verification
+
+Deployed to staging from this branch. The image-SHA check passes on both
+tiers, read from the running containers on the VPS:
+
+```
+gustale-web-staging   ghcr.io/.../gustale-web-geo:staging-data-eb0114c
+gustale-api-staging   ghcr.io/.../gustale-api:eb0114ced95c722704de8878b570dfa34c763637
+
+docker exec gustale-web-staging cat /usr/share/nginx/html/.build-sha
+  eb0114ced95c722704de8878b570dfa34c763637
+docker exec gustale-api-staging cat /app/.build-sha
+  eb0114ced95c722704de8878b570dfa34c763637
+```
+
+### The old paths: one 301 hop, then a 200
+
+Measured on staging, one hop at a time, with the query string carried
+through:
+
+| old path | hop 1 | lands on | hop 2 |
+|---|---|---|---|
+| `/map` | 301 | `/atlas` | 200 |
+| `/map?x=1&y=2` | 301 | `/atlas?x=1&y=2` | 200 |
+| `/regions` | 301 | `/places` | 200 |
+| `/regions?a=b` | 301 | `/places?a=b` | 200 |
+| `/place/greece` | 301 | `/places/greece` | 200 |
+| `/place/greece?tab=dishes` | 301 | `/places/greece?tab=dishes` | 200 |
+
+and the new paths answer directly, with no redirect at all:
+`/atlas` 200, `/places` 200, `/places/greece` 200, `/places/indonesia` 200.
+
+**Two bugs had to be fixed to get here**, both introduced by `34ddb68`:
+the generated rule was `location ^~ /place { return 301 /places…; }`, which
+(a) drops the slug — `/place/greece` became `/places` — and (b) is a PREFIX
+match, so `^~ /place` also matched `/places` and the page redirected to
+itself. The generator now emits boundary-anchored regex locations with a
+`rewrite … permanent`, which preserves the suffix, keeps the 301 and cannot
+swallow `/places` or `/places/*`. Six regression tests live in
+`apps/web/src/lib/redirect-rules.test.ts`; each of the four mutations
+(original rule, dropped suffix, wrong status code, swallowed `/places`)
+fails them.
+
+### The sitemap and the dish pages
+
+`/sitemap.xml` is an index pointing at `/sitemap-en.xml`, which carries **24
+entries**: `/atlas`, `/places`, and eight `/places/<place>` URLs. There are
+**zero** entries matching `/map`, `/regions` or `/place/`.
+
+The dish pages carry the new paths: `/dishes/moussaka-greek/` and
+`/dishes/rendang/` each link `/atlas`, and neither carries an old
+`/map`, `/regions` or `/place/` link.
+
+Four in-site links still pointed at the old `/map` — the home page's
+"Open the atlas" CTA, the About page's world-map link, the family detail
+page's related card, and the shared CTA in `apps/web/src/lib/browse.ts`.
+They now point at `/atlas` (`eb0114c`).
+
+### The live relationship vocabulary, and the atlas hiding `family`
+
+**The live API still returns `family` connections.** From
+`https://api.gustale.com/api/atlas/connections`:
+
+```
+82 connections
+byRelationship: { family: 47, shared-ingredient: 2, similar-serving: 7,
+                   similar_form: 14, similar_technique: 12 }
+```
+
+So the vocabulary is intact — the family relations are in the data, not
+retired.
+
+**The atlas hides them.** This was measured in a real browser (Chromium
+1440×900), against the live-data build, reading MapLibre's own
+`queryRenderedFeatures` — the map's post-filter truth — rather than
+grepping the HTML, because `/atlas` is client-hydrated and the HTML
+ships no connections at all:
+
+```
+the API delivered 82 connections, 47 of them family
+
+connections-family      0 rendered features
+connections-likeness   29 rendered features
+connections-descent     0 rendered features
+connections-migration   0 rendered features
+TOTAL RENDERED: 29
+
+the map's "connections" source holds 35 features: { likeness: 35 }
+```
+
+The source the layer is given contains **35 `likeness` features and not one
+`family` feature** — the exclusion happens at the data boundary, before
+anything is drawn. The proof is non-vacuous: 29 connection features really
+were rendered.
+
+The URL cannot bring them back either:
+
+| URL | family rendered | total rendered |
+|---|---|---|
+| `/atlas` | 0 | 29 |
+| `/atlas?kinds=family` | 0 | 0 |
+| `/atlas?kinds=family,likeness` | 0 | 29 |
+| `/atlas?kinds=likeness` | 0 | 29 |
+| `/atlas?kinds=bogus` | 0 | 0 |
+
+### The place pages, against live
+
+The place pages are server-rendered from the API, so the built page and the
+live API can be compared exactly:
+
+| place | live `/api/places/<slug>` | the built page | identical |
+|---|---|---|---|
+| `greece` | 14 dishes | 14 dishes | **yes** — no missing, no extra |
+| `indonesia` | 193 dishes | 193 dishes | **yes** — no missing, no extra |
+
+**Staging itself cannot show this**, and the reason is worth stating
+plainly: the staging database holds the **7-dish CI seed**
+(`packages/db/seed-moussaka.sql` and the atlas fixtures — 0 families, 0
+lineages, 0 connections), so staging's `/places/greece` lists one dish
+(`moussaka-greek`) and `/places/indonesia` lists one (`rendang`), while live
+lists 14 and 193. The rendering path is the same code; only the data
+volume differs, and the comparison above is what proves the path is right.
+
+---
+
 ## Screenshots
 
-Not captured here: the browser in this environment cannot reach the local
-build, and the App cannot upload images to a PR comment (the issue-asset
-endpoint was removed on 2026-11-17). The files would be committed under
-`docs/screenshots/` and linked from `raw.githubusercontent.com`.
+Twenty screenshots, taken in a real browser (Chromium) against the
+live-data build, committed under `docs/screenshots/` and linked below.
 
-**What stands in for them**, and is verified above: the SSR heading is exactly
-`121 of 1,474 dishes have map coordinates so far, across 36 places.`; the
-built island bundle carries the rail's four checkboxes, the three dropdowns and
-the Map/List/Timeline labels; and the `family` exclusion is in the bundle.
+**The map, with the filter card and the connection legend.** The legend is
+the visual form of the proof above — "Same family: **0** connections" sits
+next to "Resemblance: **35** connections".
+
+| 1440 | 390 |
+|---|---|
+| [map](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-map-1440.png) | [map](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-map-390.png) |
+
+**The place panel, with a place selected** (Puerto Rico → Tostones at
+1440; United Kingdom → Chicken Tikka Masala at 390):
+
+| 1440 | 390 |
+|---|---|
+| [place panel](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-place-panel-1440.png) | [place panel](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-place-panel-390.png) |
+
+**The list view** — 180 places, 1,477 associations:
+
+| 1440 | 390 |
+|---|---|
+| [list](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-list-1440.png) | [list](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-list-390.png) |
+
+**Each filter**, and the relationship-kind filter:
+
+| filter | 1440 | 390 |
+|---|---|---|
+| family | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-family-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-family-390.png) |
+| technique | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-technique-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-technique-390.png) |
+| course | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-course-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-course-390.png) |
+| kinds | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-kinds-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-filter-kinds-390.png) |
+
+**The place pages**:
+
+| page | 1440 | 390 |
+|---|---|---|
+| `/places` | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-index-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-index-390.png) |
+| `/places/greece` | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-greece-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-greece-390.png) |
+| `/places/indonesia` | [1440](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-indonesia-1440.png) | [390](https://raw.githubusercontent.com/consciousclarity/gustale.com/feature/wp-c3-atlas/docs/screenshots/wp-c3-atlas-places-indonesia-390.png) |
+
+### The filter vocabulary, stated exactly
+
+The five names in the request do not all exist as filters. The live API's
+facet vocabulary is:
+
+```
+dishes, places, communities, families, techniques, courses, contexts,
+connections, claims
+```
+
+so the atlas's filters are **family**, **technique**, **course** and the
+relationship-kind filter (`kinds`), which are the four in the screenshots.
+"served as" is the `course` facet; "ingredient" is not a facet of its own —
+ingredients appear through the `shared-ingredient` relationship, whose
+kind is `likeness`; "period" is not implemented as a filter.
 
 ---
 
 ## Revert
 
 ```
-git revert 34ddb68 50656ce 6147a1a a5241ec 0ce044f 9bb32d9 7fbe2e2
+git revert 34ddb68 50656ce 6147a1a a5241ec 0ce044f 9bb32d9 7fbe2e2 9202a71 c655b68 eb0114c
 ```
