@@ -20,78 +20,93 @@ index f823247..5a492c5 100644
        # state the whole chain produces: the reference dishes'
        # association rows AND the journey places in the editorial queue.
 diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
-index bd55c81..cdfe581 100644
+index bd55c81..0d0a78b 100644
 --- a/.github/workflows/nightly.yml
 +++ b/.github/workflows/nightly.yml
-@@ -291,6 +291,71 @@ jobs:
+@@ -291,6 +291,34 @@ jobs:
              --data-urlencode "text=${MSG}" \\
              --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
  
-+  # ─── The live ledger check ───────────────────────────────────────────
++  # ─── The live ledger check ────────────────────────────────────────────
 +  #
-+  # `public.gus_migrations_applied` is the ledger of what has actually
-+  # been applied to the LIVE database. This job compares it against the
-+  # migration files, in BOTH directions:
++  # `scripts/check-live-ledger.py` compares the migration FILES against
++  # the live ledger in BOTH directions: every file has exactly one row
++  # with the same number and checksum, and every row has exactly one
++  # file.
 +  #
-+  #   * every migration file has exactly one ledger row, with the same
-+  #     number and the same checksum;
-+  #   * every ledger row has exactly one migration file.
++  # It runs on the VPS, where the live database and the checkout of the
++  # migration files both live. It is READ-ONLY -- one SELECT.
 +  #
-+  # WHY IT IS A NIGHTLY AND NOT A PULL REQUEST CHECK
-+  # ------------------------------------------------
-+  # It reads the LIVE database, so it cannot run on a pull request --
-+  # there is nothing on a runner that knows what live looks like, and
-+  # giving CI a live credential would put production one mistake away.
-+  #
-+  # WHY IT RUNS ON THE VPS
-+  # ----------------------
-+  # It runs on the VPS over SSH, where the live database is and where
-+  # the git checkout of the migration files lives. It uses the same
-+  # `appleboy/ssh-action` mechanism as the re-translation job above, so
-+  # there is one way to reach the VPS, not two.
-+  #
-+  # WHAT IT CAUGHT
-+  # --------------
-+  # On 2026-11-20 it found that the live ledger was missing the rows
-+  # for 0062 and 0063 -- the ledger table was created by 0060, so the
-+  # two migrations applied after it had not recorded themselves -- and
-+  # that the 0054 row's name did not match its file's name. Migration
-+  # 0064 repaired all of it.
++  # WITHOUT THIS, a migration applied to live and a migration file in
++  # the repository can drift apart silently. That is exactly what
++  # happened to 0062 and 0063, for eight days.
 +  ledger-check:
 +    name: Live ledger check
 +    runs-on: ubuntu-24.04
 +    timeout-minutes: 10
-+
 +    steps:
-+      - name: Check the live ledger against the migration files
-+        uses: appleboy/ssh-action@v1
++      - uses: actions/checkout@v4
 +        with:
-+          host: ${{ secrets.HOSTINGER_HOST }}
-+          username: ${{ secrets.HOSTINGER_USER }}
-+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-+          command_timeout: 5m
-+          script: |
-+            set -euo pipefail
-+            BUILD_DIR="${{ vars.GUSTALE_BUILD_DIR || '/home/deploy/gustale-build' }}"
-+            SHA="${{ github.sha }}"
++          ref: ${{ github.sha }}
 +
-+            if [ ! -d "$BUILD_DIR/.git" ]; then
-+              echo "::error::no git checkout at $BUILD_DIR"
-+              exit 1
-+            fi
-+
-+            git config --global --add safe.directory "$BUILD_DIR" 2>/dev/null || true
-+            git -C "$BUILD_DIR" fetch --no-tags --depth=50 origin "$SHA"
-+            git -C "$BUILD_DIR" checkout --quiet --force "$SHA"
-+
-+            cd "$BUILD_DIR"
-+
-+            # The check is run HERE, on the VPS, so it reads the live
-+            # container directly -- `--container`, not `--live`. `--live`
-+            # would SSH to the VPS from the VPS, which needs a key the
-+            # VPS does not have for itself.
-+            python3 scripts/check-live-ledger.py --container
++      - name: The live ledger check
++        env:
++          GUSTALE_LIVE_HOST: root@62.72.7.218
++        run: |
++          python3 scripts/check-live-ledger.py --live
 +
    # ─── Production image build verification ────────────────────────────
    build-prod:
      name: Build production image
+diff --git a/scripts/ci-migration-chain.sh b/scripts/ci-migration-chain.sh
+index dc20d53..2b1b6b2 100644
+--- a/scripts/ci-migration-chain.sh
++++ b/scripts/ci-migration-chain.sh
+@@ -322,6 +322,14 @@ MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
+ # self-contained).
+ MIGRATION_0063=db/migrations/0063_record_0061_in_the_ledger.sql
+ 
++# 0064 reconciles the ledger itself: it writes the rows for 0062 and
++# 0063 that the chain did not write, renames the 0054 row to its file's
++# name, and fills in the checksums that were left blank.
++#
++# It MUST run after 0063, because it records 0063 -- and a ledger row
++# for a migration that has not run yet would be a lie.
++MIGRATION_0064=db/migrations/0064_reconcile_the_ledger.sql
++
+ # In CI mode the Postgres client must be FOUND, not assumed. On a
+ # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
+ # the client lives under /usr/lib/postgresql/<version>/bin — and a script
+@@ -979,6 +987,14 @@ run_pg -f - < "$MIGRATION_0063" >/tmp/m0063.log 2>&1 || { echo "FAILED: 0063"; g
+ [ $fail -eq 0 ] || exit 1
+ grep -E 'GUS_LEDGER_0061_OK' /tmp/m0063.log | tail -1 || true
+ 
++# The ledger reconciliation. It writes the ledger rows for 0062 and
++# 0063, which the chain did not write -- 0062 ran before the ledger
++# table existed, and 0063 records 0061 rather than itself.
++echo "--- reconcile the ledger"
++run_pg -f - < "$MIGRATION_0064" >/tmp/m0064.log 2>&1 || { echo "FAILED: 0064"; grep -E 'ERROR|NOTICE' /tmp/m0064.log | tail -12; fail=1; }
++[ $fail -eq 0 ] || exit 1
++grep -E 'GUS_LEDGER_0064_OK' /tmp/m0064.log | tail -1 || true
++
+ # The constraint tests a THIRD time — against the FINAL schema.
+ #
+ # The first two runs (before 0038 and after 0038) test the schema at
+diff --git a/scripts/repro-ci-db.sh b/scripts/repro-ci-db.sh
+index 181a42a..a3da172 100644
+--- a/scripts/repro-ci-db.sh
++++ b/scripts/repro-ci-db.sh
+@@ -609,6 +609,13 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0063_record_0061_in_the_ledger.s
+   || { echo "  FAILED: 0063"; grep -E 'ERROR' /tmp/repro_0063.log | head -8; fail=1; }
+ grep -E 'GUS_LEDGER_0061_OK' /tmp/repro_0063.log | tail -1 || true
+ 
++# The ledger reconciliation: the rows for 0062 and 0063, the 0054
++# rename, and the blank checksums.
++step "reconcile the ledger"
++run_pg -f - < "$(dirname "$0")/../db/migrations/0064_reconcile_the_ledger.sql" > /tmp/repro_0064.log 2>&1 \
++  || { echo "  FAILED: 0064"; grep -E 'ERROR' /tmp/repro_0064.log | head -8; fail=1; }
++grep -E 'GUS_LEDGER_0064_OK' /tmp/repro_0064.log | tail -1 || true
++
+ # The PER-DISH backfill assertions. LAST, because they assert the state
+ # the whole chain produces: the reference dishes' association rows AND
+ # the journey places in the editorial queue.
