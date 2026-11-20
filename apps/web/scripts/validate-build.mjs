@@ -976,11 +976,26 @@ check(
   !/gst-navlink[^>]*aria-current="page"/.test(placesHtml ?? ""),
   "a nav link carries aria-current=page on /regions",
 );
+// The Atlas is NO LONGER THE HOME PAGE.
+//
+// WP-C3 gave the atlas its own page at /atlas. The home page is the
+// site's front door, and no nav item lights up when a reader is
+// standing on it -- so the home page must NOT claim the Atlas as its
+// current section, and the ATLAS page must claim the Atlas.
+//
+// This is the check that would fail if a nav link went back to
+// pointing the Atlas at "/".
 check(
-  "the nav marks the Atlas section on the home page",
-  /href="\/"[^>]*aria-current="page"/.test(homeHtml ?? "") ||
-    /aria-current="page"[^>]*href="\/"/.test(homeHtml ?? ""),
-  "the Atlas link is missing aria-current=page on the home page",
+  "no nav link claims the Atlas is current on the home page",
+  !/href="\/atlas"[^>]*aria-current="page"/.test(homeHtml ?? "") &&
+    !/aria-current="page"[^>]*href="\/atlas"/.test(homeHtml ?? ""),
+  "a nav link carries aria-current=page for the Atlas on the home page",
+);
+check(
+  "the nav marks the Atlas section on the atlas page",
+  /href="\/atlas"[^>]*aria-current="page"/.test(atlasHtml ?? "") ||
+    /aria-current="page"[^>]*href="\/atlas"/.test(atlasHtml ?? ""),
+  "the Atlas link is missing aria-current=page on /atlas",
 );
 // The aria-current check reads a SPECIFIC fixture family.
 //
