@@ -125,11 +125,13 @@ place pages, and **no** retired route.
 
 | check | result |
 |---|---|
+| **CI on this PR** | **all jobs green** — Lint + typecheck, Tests (vitest + postgis), Accessibility gate (axe), Docker build (api), Docker build (web-geo) |
 | web unit tests | **343 / 343 pass** |
 | geo build + `validate-build.mjs` | **102 passed, 0 failed** |
 | recipes build + `validate-build.mjs` | **102 passed, 0 failed** |
 | typecheck (api + db) | **0 errors** |
 | web typecheck | **79 errors — identical to `main`**, no new ones |
+| lint (repo-wide) | **0 errors** |
 | repo gates (5 scripts) | **all pass** |
 | built `dist/` | `/atlas` and `/places` present; `/regions`, `/map`, `/place` **absent** |
 | place pages built | **178** — exactly the API's places-with-dishes set |
@@ -159,8 +161,21 @@ cause is this machine's MinIO: CI points at
 local port and the failures did not change, so the cause is the **test
 container's** state, not this branch.
 
-**Not verifiable here:** the API suite in the real CI environment. CI is the
-authority for it and this branch's CI run is the record.
+**In CI it passes** — this PR's `Tests (vitest + postgis)` job is green, which
+is the authority that matters.
+
+### The lint gate caught 14 of mine, and they are fixed
+
+CI's `Lint + typecheck` failed on the first push. All 14 error-level findings
+were in files this branch touched, and every one was **format or import
+order** — no rule was broken, the files were simply not in the shape Biome
+wants. `biome check --write` fixed all of them; the diff is indentation and
+import order only.
+
+The other lint findings CI reported are in files this branch did **not** touch
+(`scripts/hermes/pr4-plural-selftest.cjs`, `apps/api/src/routes/search.ts`,
+`docs/improvement-pack/scripts/gustale-smoke.mjs`, …) and are **pre-existing
+on `main`**. I left them alone — they are not this branch's work.
 
 ### Not built here, on purpose
 
@@ -189,5 +204,5 @@ the Map/List/Timeline labels; and the `family` exclusion is in the bundle.
 ## Revert
 
 ```
-git revert 34ddb68 50656ce 6147a1a
+git revert 34ddb68 50656ce 6147a1a a5241ec 0ce044f
 ```
