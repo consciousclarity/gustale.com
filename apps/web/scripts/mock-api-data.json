@@ -35641,6 +35641,15 @@
     "localName": null,
     "isoCode": "GR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "casserole"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -35655,6 +35664,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -35669,6 +35687,15 @@
     "localName": null,
     "isoCode": "GB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "curry"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -35683,6 +35710,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -35697,6 +35733,15 @@
     "localName": null,
     "isoCode": "CA",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -35711,6 +35756,15 @@
     "localName": null,
     "isoCode": "IT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "pasta"
+    ],
+    "technique": [
+     "pasta"
+    ],
+    "course": []
    }
   },
   {
@@ -35725,6 +35779,15 @@
     "localName": null,
     "isoCode": "IL",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -35739,6 +35802,15 @@
     "localName": null,
     "isoCode": "IT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "bread"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -35753,6 +35825,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "boiled-and-cured"
+    ],
+    "course": []
    }
   },
   {
@@ -35767,6 +35848,15 @@
     "localName": null,
     "isoCode": "AT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -35781,6 +35871,15 @@
     "localName": null,
     "isoCode": "BR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -35795,6 +35894,15 @@
     "localName": null,
     "isoCode": "HU",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -35809,6 +35917,15 @@
     "localName": null,
     "isoCode": "KR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -35823,6 +35940,15 @@
     "localName": null,
     "isoCode": "FR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -35837,6 +35963,15 @@
     "localName": null,
     "isoCode": "PE",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "boiled-and-cured"
+    ],
+    "course": []
    }
   },
   {
@@ -35851,6 +35986,15 @@
     "localName": null,
     "isoCode": "US",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sandwich"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -35865,6 +36009,15 @@
     "localName": null,
     "isoCode": "NG",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -35879,6 +36032,15 @@
     "localName": null,
     "isoCode": "VN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sandwich"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -35893,6 +36055,15 @@
     "localName": null,
     "isoCode": "ES",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -35907,6 +36078,15 @@
     "localName": null,
     "isoCode": "SG",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -35921,6 +36101,15 @@
     "localName": null,
     "isoCode": "PL",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dumpling"
+    ],
+    "technique": [
+     "dumpling"
+    ],
+    "course": []
    }
   },
   {
@@ -35935,6 +36124,15 @@
     "localName": null,
     "isoCode": "MA",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -35949,6 +36147,15 @@
     "localName": null,
     "isoCode": "IL",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sauce"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -35963,6 +36170,15 @@
     "localName": null,
     "isoCode": "KR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -35977,6 +36193,15 @@
     "localName": null,
     "isoCode": "VN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -35991,6 +36216,15 @@
     "localName": null,
     "isoCode": "TH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36005,6 +36239,15 @@
     "localName": null,
     "isoCode": "ES",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36019,6 +36262,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36033,6 +36285,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sandwich"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36047,6 +36308,15 @@
     "localName": null,
     "isoCode": "FR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dessert"
+    ],
+    "technique": [
+     "dessert"
+    ],
+    "course": []
    }
   },
   {
@@ -36061,6 +36331,15 @@
     "localName": null,
     "isoCode": "TH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36075,6 +36354,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36089,6 +36377,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -36103,6 +36400,15 @@
     "localName": null,
     "isoCode": "PR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36117,6 +36423,15 @@
     "localName": null,
     "isoCode": "BR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36131,6 +36446,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -36145,6 +36469,15 @@
     "localName": null,
     "isoCode": "PT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36159,6 +36492,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "kebab"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36173,6 +36515,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "curry"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36187,6 +36538,15 @@
     "localName": null,
     "isoCode": "UA",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36201,6 +36561,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "salad"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -36215,6 +36584,15 @@
     "localName": null,
     "isoCode": "MX",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36229,6 +36607,15 @@
     "localName": null,
     "isoCode": "TN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -36243,6 +36630,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "pancake"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36257,6 +36653,15 @@
     "localName": null,
     "isoCode": "AR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36271,6 +36676,15 @@
     "localName": null,
     "isoCode": "TH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36285,6 +36699,15 @@
     "localName": null,
     "isoCode": "JO",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36299,6 +36722,15 @@
     "localName": null,
     "isoCode": "NP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dumpling"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -36313,6 +36745,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "kebab"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36327,6 +36768,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36341,6 +36791,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36355,6 +36814,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36369,6 +36837,15 @@
     "localName": null,
     "isoCode": "KR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36383,6 +36860,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dumpling"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -36397,6 +36883,15 @@
     "localName": null,
     "isoCode": "SG",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36411,6 +36906,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stew"
+    ],
+    "technique": [
+     "poached-in-sauce"
+    ],
+    "course": []
    }
   },
   {
@@ -36425,6 +36929,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36439,6 +36952,15 @@
     "localName": null,
     "isoCode": "IT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36453,6 +36975,15 @@
     "localName": null,
     "isoCode": "IL",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "poached-in-sauce"
+    ],
+    "course": []
    }
   },
   {
@@ -36467,6 +36998,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36481,6 +37021,15 @@
     "localName": null,
     "isoCode": "MX",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -36495,6 +37044,15 @@
     "localName": null,
     "isoCode": "IT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dessert"
+    ],
+    "technique": [
+     "dessert"
+    ],
+    "course": []
    }
   },
   {
@@ -36509,6 +37067,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36523,6 +37090,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "curry"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -36537,6 +37113,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36551,6 +37136,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "pancake"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -36565,6 +37159,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "curry"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -36579,6 +37182,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "curry"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -36593,6 +37205,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "pancake"
+    ],
+    "technique": [
+     "pancake"
+    ],
+    "course": []
    }
   },
   {
@@ -36607,6 +37228,15 @@
     "localName": null,
     "isoCode": "IN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "curry"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -36621,6 +37251,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36635,6 +37274,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36649,6 +37297,15 @@
     "localName": null,
     "isoCode": "AR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36663,6 +37320,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "soup"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36677,6 +37343,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36691,6 +37366,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dumpling"
+    ],
+    "technique": [
+     "dumpling"
+    ],
+    "course": []
    }
   },
   {
@@ -36705,6 +37389,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36719,6 +37412,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "pancake"
+    ],
+    "technique": [
+     "pancake"
+    ],
+    "course": []
    }
   },
   {
@@ -36733,6 +37435,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36747,6 +37458,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36761,6 +37481,15 @@
     "localName": null,
     "isoCode": "PE",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "kebab"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36775,6 +37504,15 @@
     "localName": null,
     "isoCode": "CO",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "colombian-cuisine"
+    ],
+    "technique": [
+     "pancake"
+    ],
+    "course": []
    }
   },
   {
@@ -36789,6 +37527,15 @@
     "localName": null,
     "isoCode": "PE",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36803,6 +37550,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sauce"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -36817,6 +37573,15 @@
     "localName": null,
     "isoCode": "CO",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "colombian-cuisine"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36831,6 +37596,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "rice-dish"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36845,6 +37619,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -36859,6 +37642,15 @@
     "localName": null,
     "isoCode": "MX",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36873,6 +37665,15 @@
     "localName": null,
     "isoCode": "AR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sandwich"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -36887,6 +37688,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stir-fry"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -36901,6 +37711,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -36915,6 +37734,15 @@
     "localName": null,
     "isoCode": "ET",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "ethiopian-cuisine"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36929,6 +37757,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -36943,6 +37780,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "salad"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -36957,6 +37803,15 @@
     "localName": null,
     "isoCode": "PH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "filipino-cuisine"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -36971,6 +37826,15 @@
     "localName": null,
     "isoCode": "IT",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "bread"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -36985,6 +37849,15 @@
     "localName": null,
     "isoCode": "PH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "filipino-cuisine"
+    ],
+    "technique": [
+     "dessert"
+    ],
+    "course": []
    }
   },
   {
@@ -36999,6 +37872,15 @@
     "localName": null,
     "isoCode": "AR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -37013,6 +37895,15 @@
     "localName": null,
     "isoCode": "ET",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "ethiopian-cuisine"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -37027,6 +37918,15 @@
     "localName": null,
     "isoCode": "PH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "filipino-cuisine"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -37041,6 +37941,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "appetizer"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -37055,6 +37964,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "kebab"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -37069,6 +37987,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stir-fry"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -37083,6 +38010,15 @@
     "localName": null,
     "isoCode": "PH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "filipino-cuisine"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -37097,6 +38033,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "casserole"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -37111,6 +38056,15 @@
     "localName": null,
     "isoCode": "PE",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "stir-fry"
+    ],
+    "technique": [
+     "fried-rice"
+    ],
+    "course": []
    }
   },
   {
@@ -37125,6 +38079,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "dumpling"
+    ],
+    "course": []
    }
   },
   {
@@ -37139,6 +38102,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "poached-in-sauce"
+    ],
+    "course": []
    }
   },
   {
@@ -37153,6 +38125,15 @@
     "localName": null,
     "isoCode": "MX",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sauce"
+    ],
+    "technique": [
+     "curry"
+    ],
+    "course": []
    }
   },
   {
@@ -37167,6 +38148,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "pancake"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -37181,6 +38171,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "main-course"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   },
   {
@@ -37195,6 +38194,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "bread"
+    ],
+    "course": []
    }
   },
   {
@@ -37209,6 +38217,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "sauce"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -37223,6 +38240,15 @@
     "localName": null,
     "isoCode": "ID",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "kebab"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -37237,6 +38263,15 @@
     "localName": null,
     "isoCode": "PH",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "filipino-cuisine"
+    ],
+    "technique": [
+     "stew"
+    ],
+    "course": []
    }
   },
   {
@@ -37251,6 +38286,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "noodle-soup"
+    ],
+    "technique": [
+     "noodle-soup"
+    ],
+    "course": []
    }
   },
   {
@@ -37265,6 +38309,15 @@
     "localName": null,
     "isoCode": "LB",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "salad"
+    ],
+    "technique": [
+     "salad"
+    ],
+    "course": []
    }
   },
   {
@@ -37279,6 +38332,15 @@
     "localName": null,
     "isoCode": "CN",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "dumpling"
+    ],
+    "technique": [
+     "steamed-and-custard"
+    ],
+    "course": []
    }
   },
   {
@@ -37293,6 +38355,15 @@
     "localName": null,
     "isoCode": "JP",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "kebab"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -37307,6 +38378,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "kebab"
+    ],
+    "course": []
    }
   },
   {
@@ -37321,6 +38401,15 @@
     "localName": null,
     "isoCode": "TR",
     "entityType": "country"
+   },
+   "facets": {
+    "family": [
+     "turkish-cuisine"
+    ],
+    "technique": [
+     "fried-and-topped"
+    ],
+    "course": []
    }
   }
  ],
@@ -385197,6 +386286,202 @@
    "similar-serving": 7,
    "similar_form": 14,
    "similar_technique": 12
+  }
+ },
+ "mapMeta": {
+  "totalPublished": 1474,
+  "places": 36,
+  "facets": {
+   "family": [
+    {
+     "slug": "appetizer",
+     "name": "Appetizer",
+     "count": 13
+    },
+    {
+     "slug": "bread",
+     "name": "Bread",
+     "count": 2
+    },
+    {
+     "slug": "casserole",
+     "name": "Casserole",
+     "count": 2
+    },
+    {
+     "slug": "colombian-cuisine",
+     "name": "Colombian cuisine",
+     "count": 2
+    },
+    {
+     "slug": "curry",
+     "name": "Curry",
+     "count": 6
+    },
+    {
+     "slug": "dessert",
+     "name": "Dessert",
+     "count": 2
+    },
+    {
+     "slug": "dumpling",
+     "name": "Dumpling",
+     "count": 5
+    },
+    {
+     "slug": "ethiopian-cuisine",
+     "name": "Ethiopian cuisine",
+     "count": 2
+    },
+    {
+     "slug": "filipino-cuisine",
+     "name": "Filipino cuisine",
+     "count": 5
+    },
+    {
+     "slug": "kebab",
+     "name": "Kebab",
+     "count": 6
+    },
+    {
+     "slug": "main-course",
+     "name": "Main course",
+     "count": 13
+    },
+    {
+     "slug": "noodle-soup",
+     "name": "Noodle soup",
+     "count": 9
+    },
+    {
+     "slug": "pancake",
+     "name": "Pancake",
+     "count": 5
+    },
+    {
+     "slug": "pasta",
+     "name": "Pasta",
+     "count": 1
+    },
+    {
+     "slug": "rice-dish",
+     "name": "Rice dish",
+     "count": 10
+    },
+    {
+     "slug": "salad",
+     "name": "Salad",
+     "count": 3
+    },
+    {
+     "slug": "sandwich",
+     "name": "Sandwich",
+     "count": 4
+    },
+    {
+     "slug": "sauce",
+     "name": "Sauce",
+     "count": 4
+    },
+    {
+     "slug": "soup",
+     "name": "Soup",
+     "count": 8
+    },
+    {
+     "slug": "stew",
+     "name": "Stew",
+     "count": 9
+    },
+    {
+     "slug": "stir-fry",
+     "name": "Stir-fry",
+     "count": 3
+    },
+    {
+     "slug": "turkish-cuisine",
+     "name": "Turkish cuisine",
+     "count": 7
+    }
+   ],
+   "technique": [
+    {
+     "slug": "boiled-and-cured",
+     "name": "Boiled & cured",
+     "count": 2
+    },
+    {
+     "slug": "bread",
+     "name": "Bread & dough",
+     "count": 7
+    },
+    {
+     "slug": "curry",
+     "name": "Curry",
+     "count": 7
+    },
+    {
+     "slug": "dessert",
+     "name": "Sweets & custard",
+     "count": 3
+    },
+    {
+     "slug": "dumpling",
+     "name": "Dumpling",
+     "count": 3
+    },
+    {
+     "slug": "fried-and-topped",
+     "name": "Fried & topped",
+     "count": 21
+    },
+    {
+     "slug": "fried-rice",
+     "name": "Rice bowl",
+     "count": 16
+    },
+    {
+     "slug": "kebab",
+     "name": "Grilled & skewered",
+     "count": 13
+    },
+    {
+     "slug": "noodle-soup",
+     "name": "Noodle soup",
+     "count": 9
+    },
+    {
+     "slug": "pancake",
+     "name": "Flatbread",
+     "count": 3
+    },
+    {
+     "slug": "pasta",
+     "name": "Pasta",
+     "count": 1
+    },
+    {
+     "slug": "poached-in-sauce",
+     "name": "Poached in sauce",
+     "count": 3
+    },
+    {
+     "slug": "salad",
+     "name": "Small plates & preserves",
+     "count": 9
+    },
+    {
+     "slug": "steamed-and-custard",
+     "name": "Steamed & custard",
+     "count": 7
+    },
+    {
+     "slug": "stew",
+     "name": "Stew & braise",
+     "count": 17
+    }
+   ],
+   "course": []
   }
  }
 }

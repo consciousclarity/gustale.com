@@ -1,0 +1,88 @@
+---
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import BrowseHeader from "../../components/BrowseHeader.astro";
+import ErrorBoundary from "../../components/ErrorBoundary.tsx";
+import Layout from "../../layouts/Layout.astro";
+import type { PlaceListItem } from "../../lib/api";
+import { listPlaces } from "../../lib/api";
+
+// THE PLACES DIRECTORY — the atlas's LIST view.
+//
+// The blueprint's WP-C3 says "list view replaces /regions". The old
+// /regions page was a directory built from the dishes' ORIGIN fields:
+// it listed every place a dish claims to come from, including places
+// with no published association at all. On the live data that is 180
+// places, most of them carrying a single dish and no evidence.
+//
+// This page is the atlas's list view, so it lists the places that
+// actually have PUBLISHED ASSOCIATIONS — the same list /api/places
+// serves, and the same list the place pages are generated from. Every
+// row here has a place page behind it; nothing here is a dead end.
+//
+// The data comes from the API at BUILD time. If the fetch fails the
+// page still ships, with a notice — a build that cannot reach the API
+// must not produce a 500 for every reader.
+let places: PlaceListItem[] = [];
+let loadFailed = false;
+
+try {
+  const res = await listPlaces();
+  places = res.places;
+} catch {
+  loadFailed = true;
+}
+
+const totalDishes = places.reduce((n, p) => n + p.dishes, 0);
+---
+
+<Layout
+  title="Places — Gustale"
+  description="Browse the places in Gustale's atlas, and the dishes associated with each."
+>
+  <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { href: '/atlas', label: 'Atlas' }, { label: 'Places' }]} />
+
+  <BrowseHeader
+    eyebrow="Browse the atlas"
+    title="Places"
+    subtitle="Every place in the atlas, with the dishes associated with it. Pick a place to read what passes through it."
+    countLabel={`${places.length} places`}
+    showToolbar={false}
+    showFilters={false}
+  />
+
+  <section class="wrap browse-page">
+    {loadFailed && (
+      <div class="alert alert-warning">
+        <strong>Heads up:</strong> the place directory could not be loaded from
+        the API at build time. The atlas map still works.
+      </div>
+    )}
+
+    {!loadFailed && places.length === 0 && (
+      <p class="sub">No places have published associations yet.</p>
+    )}
+
+    {places.length > 0 && (
+      <>
+        <p class="sub">
+          {places.length} places, {totalDishes} associations between them.
+        </p>
+
+        <ErrorBoundary name="Place directory">
+          <ul class="places-list">
+            {places.map((p) => (
+              <li class="places-list__item place-dir-card">
+                <a class="places-list__name" href={`/places/${p.slug}`}>
+                  {p.name}
+                </a>
+                <span class="places-list__count">
+                  {p.dishes} dish{p.dishes === 1 ? "" : "es"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </ErrorBoundary>
+      </>
+    )}
+  </section>
+</Layout>

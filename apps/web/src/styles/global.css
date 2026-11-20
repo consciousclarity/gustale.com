@@ -949,6 +949,329 @@ h4 {
 }
 
 /* ============================================================
+   THE ATLAS — the filter rail, the map, the place panel
+   ============================================================
+
+   The atlas is a three-column layout: the rail on the left, the map
+   in the middle, the place panel on the right. Below 1080px the panel
+   moves under the map; below 860px the rail moves above it. The
+   columns are CSS grid, not flex, so the map can take the space
+   that is left over whatever the rail and the panel need.
+
+   The heights are EXPLICIT, not `h-full`: Tailwind is registered as a
+   Vite plugin without its CSS ever being imported, so no utility
+   class is emitted at all. (The same trap is documented on
+   .dish-map-frame below.) */
+
+.atlas-page {
+  padding: 32px 0 80px;
+}
+/* The page's own heading. The island below it is the interactive part;
+   this is the title a reader (and a crawler) sees first. */
+.atlas-page__header {
+  max-width: 760px;
+  margin: 0 0 20px;
+}
+.atlas-page__h1 {
+  margin: 0 0 6px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+.atlas {
+  padding: 0 24px;
+}
+.atlas__grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .atlas__grid {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+  .atlas__panel {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 860px) {
+  .atlas__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .atlas__rail,
+  .atlas__panel {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The map's own footnote. It sits UNDER the map, in the map's column,
+   so it reads as a caption on the map rather than as page furniture. */
+.atlas__map-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sub);
+}
+.atlas__loading {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--sub);
+}
+.atlas__error {
+  padding: 24px 0;
+  color: var(--sub);
+}
+
+/* ─── The view switcher (Map | List | Timeline) ─── */
+
+.atlas__views {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  justify-content: flex-end;
+}
+.atlas__view {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--sub);
+  background: var(--card);
+  text-decoration: none;
+}
+.atlas__view.is-current {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--card);
+}
+.atlas__view.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.atlas__view:hover:not(.is-current):not(.is-disabled) {
+  border-color: var(--ink);
+}
+
+/* ─── The filter rail ─── */
+
+.atlas-filters {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 20px;
+}
+.atlas-filters__title {
+  font-family: var(--display);
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+.atlas-filters__field {
+  margin-bottom: 14px;
+}
+.atlas-filters__label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sub);
+  margin-bottom: 5px;
+}
+.atlas-filters__input,
+.atlas-filters__select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+.atlas-filters__group {
+  border: 0;
+  padding: 0;
+  margin: 18px 0 0;
+}
+.atlas-filters__legend {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sub);
+  padding: 0;
+  margin-bottom: 8px;
+}
+.atlas-filters__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+  font-size: 14px;
+}
+.atlas-filters__count {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--sub);
+}
+.atlas-filters__reset {
+  margin-top: 14px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ─── The place panel ─── */
+
+.place-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 20px;
+}
+.place-panel--empty {
+  color: var(--sub);
+  font-size: 14px;
+}
+.place-panel__hint {
+  margin: 0 0 10px;
+}
+.place-panel__title {
+  font-family: var(--display);
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+.place-panel__kind {
+  display: block;
+  font-family: var(--body);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sub);
+  font-weight: 600;
+}
+.place-panel__name {
+  display: block;
+}
+.place-panel__counts {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--sub);
+}
+.place-panel__tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.place-panel__tabs button {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--sub);
+  cursor: pointer;
+}
+.place-panel__tabs button.is-current {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  font-weight: 600;
+}
+.place-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.place-panel__dish,
+.place-panel__thread {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.place-panel__dish:last-child,
+.place-panel__thread:last-child {
+  border-bottom: 0;
+}
+.place-panel__dish-name,
+.place-panel__thread-name {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.place-panel__dish-name:hover,
+.place-panel__thread-name:hover {
+  text-decoration: underline;
+}
+.place-panel__dish-region {
+  display: block;
+  font-size: 12px;
+  color: var(--sub);
+}
+.place-panel__dish-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--sub);
+  line-height: 1.45;
+}
+.place-panel__empty {
+  font-size: 13px;
+  color: var(--sub);
+  line-height: 1.5;
+  padding: 6px 0;
+}
+.place-panel__open {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 9px 16px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--card);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ─── The places directory (the atlas's list view) ─── */
+
+.places-list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.places-list__item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--card);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.places-list__name {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.places-list__name:hover {
+  text-decoration: underline;
+}
+.places-list__count {
+  font-size: 13px;
+  color: var(--sub);
+  white-space: nowrap;
+}
+
+/* ============================================================
    PAGE-SPECIFIC — ABOUT
    ============================================================ */
 

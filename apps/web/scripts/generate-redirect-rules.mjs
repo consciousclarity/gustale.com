@@ -22,10 +22,11 @@
  *
  * Usage:
  *   node apps/web/scripts/generate-redirect-rules.mjs          # print the block
- *   node apps/web/scripts/generate-redirect-rules.mjs --check  # verify nginx.conf
+ *   node apps/web/scripts/generate-redirect-rules.mjs --write   # write it into nginx.conf
+ *   node apps/web/scripts/generate-redirect-rules.mjs --check   # verify nginx.conf
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -116,7 +117,39 @@ if (isMain) {
   const rules = readRedirectRules();
   const block = nginxRedirectBlock(rules);
 
-  if (process.argv.includes("--check")) {
+  if (process.argv.includes("--write")) {
+    // WRITE THE BLOCK INTO nginx.conf.
+    //
+    // The block is bounded by two stable markers: the header comment
+    // that says the map generated it, and the first thing after it that
+    // is not part of it. Replacing exactly that region -- and nothing
+    // else -- is what keeps the rest of the file (the cache headers,
+    // the try_files, the rewrites) untouched.
+    const NGINX_PATH = join(REPO, "apps", "web", "nginx.conf");
+    const nginx = readFileSync(NGINX_PATH, "utf8");
+
+    const START = "    # ─── THE OLD-TO-NEW PATHS";
+    const END = "    # HTML pages — never cache";
+
+    const startAt = nginx.indexOf(START);
+    const endAt = nginx.indexOf(END);
+    if (startAt === -1 || endAt === -1 || endAt < startAt) {
+      console.error(
+        "nginx.conf does not carry the redirect block's markers; refusing to guess where it ends.",
+      );
+      process.exit(1);
+    }
+
+    const next = nginx.slice(0, startAt) + block + "\n" + nginx.slice(endAt);
+    if (next === nginx) {
+      console.log("nginx.conf already carries this block. Nothing to do.");
+    } else {
+      writeFileSync(NGINX_PATH, next);
+      console.log(
+        `nginx.conf updated: ${rules.filter((r) => r.targetExists).length} active redirect(s), ${rules.filter((r) => !r.targetExists).length} held back.`,
+      );
+    }
+  } else if (process.argv.includes("--check")) {
     const nginx = readFileSync(join(REPO, "apps", "web", "nginx.conf"), "utf8");
     const missing = rules
       .filter((r) => r.targetExists)

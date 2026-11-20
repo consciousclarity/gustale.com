@@ -44,7 +44,8 @@ describe("siteSections — the six sections", () => {
 describe("siteSections — the single build", () => {
   it("points every section at this host", () => {
     const by = Object.fromEntries(siteSections().map((s) => [s.label, s]));
-    assert.equal(by["Atlas"].path, "/");
+    // WP-C3 gave the Atlas its own page at /atlas.
+    assert.equal(by["Atlas"].path, "/atlas");
     assert.equal(by["Dishes"].path, "/dishes");
     assert.equal(by["Families"].path, "/families");
     assert.equal(by["Ingredients"].path, "/ingredients");
@@ -74,14 +75,20 @@ describe("SECTION_PATHS", () => {
     // The History section's PATH stays "/lineages" even though the
     // public WORD is now "History" -- the path moves in WP-E1.
     assert.equal(SECTION_PATHS["History"], "/lineages");
-    assert.equal(SECTION_PATHS["Atlas"], "/");
+    // WP-C3 gave the Atlas its own page: the map, the filter rail and
+    // the place panel live at /atlas, and "/" is the home page again.
+    assert.equal(SECTION_PATHS["Atlas"], "/atlas");
   });
 });
 
 describe("isSectionActive", () => {
   const cases: Array<[string, string, boolean, string]> = [
-    ["/", "/", true, "the Atlas home"],
-    ["/", "/dishes/empanada", false, "a dish page is not the Atlas home"],
+    ["/", "/", true, "the home page"],
+    ["/", "/dishes/empanada", false, "a dish page is not the home page"],
+    ["/atlas", "/atlas", true, "the atlas"],
+    ["/atlas", "/atlas/", true, "the atlas with a trailing slash"],
+    ["/atlas", "/", false, "the home page is not the atlas"],
+    ["/atlas", "/places/greece", false, "a place page is not the atlas"],
     ["/dishes", "/dishes", true, "the dish index"],
     ["/dishes", "/dishes/empanada", true, "a dish page"],
     ["/dishes", "/dishes/", true, "the dish index with a trailing slash"],

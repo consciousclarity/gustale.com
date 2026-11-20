@@ -34,6 +34,15 @@
  * still the pages the site actually serves. Their new homes are part
  * of the WP-C1 home rebuild and the WP-C3 atlas rebuild, so they are
  * declared here and turned on when those land.
+ *
+ * WP-C3 HAS NOW LANDED.
+ *
+ * The three rules whose target is WP-C3's work are switched on:
+ * `/map` → `/atlas`, `/regions` → `/places` and `/place/*` →
+ * `/places/*`. The two that are not — `/lineages` → `/history` and
+ * `/family/*` → `/families/*` — are still HELD, because their targets
+ * do not exist yet. A redirect to a page that is not there is the one
+ * outcome this file exists to prevent.
  */
 
 /** A path that has moved, and where it went. */
@@ -95,7 +104,7 @@ export const REDIRECT_RULES: readonly RedirectRule[] = [
     to: "/places",
     reason: "The place pages join the places index.",
     targetBuiltBy: "WP-C3",
-    targetExists: false,
+    targetExists: true,
   },
   {
     from: "/regions",
@@ -103,14 +112,14 @@ export const REDIRECT_RULES: readonly RedirectRule[] = [
     reason:
       "'Regions' became 'Places' when the country directory became a place directory.",
     targetBuiltBy: "WP-C3",
-    targetExists: false,
+    targetExists: true,
   },
   {
     from: "/map",
     to: "/atlas",
     reason: "The map is part of the Atlas, not a page of its own.",
-    targetBuiltBy: "WP-C1",
-    targetExists: false,
+    targetBuiltBy: "WP-C3",
+    targetExists: true,
   },
 ];
 

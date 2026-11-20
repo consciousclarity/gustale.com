@@ -168,7 +168,7 @@ export function isPrimaryNavActive(
       : pathname;
 
   if (href === "/") return p === "/" || p === "";
-  if (href === "/regions") return p === "/regions" || p.startsWith("/regions/");
+  if (href === "/places") return p === "/places" || p.startsWith("/places/");
   if (href === "/dishes") {
     return p === "/dishes" || p.startsWith("/dishes/");
   }

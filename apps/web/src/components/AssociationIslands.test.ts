@@ -51,7 +51,8 @@ test("association islands render their initial data without an API request", asy
         ],
       },
     ],
-    counts: { dishes: 1, groups: 1 },
+    counts: { dishes: 1, groups: 1, threads: 0 },
+    threads: [],
   };
 
   const [{ default: PlaceDishes }, { default: AtlasPlaces }] =

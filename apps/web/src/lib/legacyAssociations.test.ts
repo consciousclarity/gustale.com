@@ -153,13 +153,22 @@ describe("WP-B2 — the API reads through the ONE predicate", () => {
     );
   });
 
-  it("places.ts reads the union on both of its paths", () => {
+  it("places.ts reads the union on every path that reads associations", () => {
     const places = read("apps/api/src/routes/places.ts");
-    // Both of the place route's paths — the place index and the one
-    // place's dishes — go through the place-scoped union.
+    // Every path of the place route that reads associations goes
+    // through the place-scoped union. There are THREE of them now:
+    //
+    //   1. the place index          — how many dishes a place has;
+    //   2. the one place's dishes    — the place's dish list;
+    //   3. the one place's threads   — the threads that pass through it.
+    //
+    // The count is not the point; the point is that there is no path
+    // that reads the table DIRECTLY and bypasses the predicate. A
+    // fourth path added later must come through the union too, so the
+    // assertion is on the bypass, not on the number.
     assert.match(places, /visible_place_associations_for_place/);
     const uses = places.match(/visible_place_associations_for_place/g) ?? [];
-    assert.equal(uses.length, 2, "both paths read the union");
+    assert.ok(uses.length >= 2, "the place index and the place detail read the union");
     assert.ok(
       !/FROM dish_place_associations a/.test(places),
       "no path reads the table directly and bypasses the predicate",

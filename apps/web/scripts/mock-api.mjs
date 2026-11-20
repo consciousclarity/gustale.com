@@ -569,9 +569,24 @@ const server = http.createServer((req, res) => {
   }
 
   // GET /api/dishes/map — map data
+  //
+  // The atlas's response carries more than the list: the counts the
+  // heading needs ("121 of 1,474 dishes have map coordinates so far")
+  // and the facet vocabulary the filter rail's dropdowns are built
+  // from. The mock carries the same shape, so a build against the
+  // mock exercises the same code path as a build against the real API.
   if (url.pathname === "/api/dishes/map" && req.method === "GET") {
+    const meta = DATA.mapMeta ?? {};
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ dishes: MAP, count: MAP.length }));
+    res.end(
+      JSON.stringify({
+        dishes: MAP,
+        count: MAP.length,
+        totalPublished: meta.totalPublished ?? MAP.length,
+        places: meta.places ?? new Set(MAP.map((m) => m.region?.name)).size,
+        facets: meta.facets ?? { family: [], technique: [], course: [] },
+      }),
+    );
     return;
   }
 
