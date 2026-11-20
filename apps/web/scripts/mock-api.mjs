@@ -153,7 +153,55 @@ const DETAILS = DATA.details ?? {};
 // the dish detail, so it needs its own capture and its own store.
 const ATLAS = DATA.atlas ?? {};
 // The DEFINED COUNTS — the site-wide numbers, each with its definition.
-const COUNTS = DATA.counts ?? null;
+//
+// THE COUNTS ARE DERIVED, NOT COPIED.
+//
+// The capture used to carry a hand-maintained `counts` block. It went
+// stale the moment the capture was refreshed: the capture's own data
+// said 180 places and 108 communities, while the copied block still
+// said 0 and 0.
+//
+// WHY A STALE ZERO IS WORSE THAN A STALE NUMBER. A stale non-zero
+// prints a wrong figure. A stale ZERO does not print at all —
+// `AtlasHeroKpi.astro` renders a metric only when its value is
+// non-zero, so a zero SILENTLY DROPS the metric instead of showing a
+// wrong one. The failure is invisible.
+//
+// WHAT IT COST, HONESTLY. As shipped, the two live consumers of these
+// counts read only `dishes` and `families`, which were never stale, so
+// no page shipped a wrong number and no metric was actually dropped:
+// `AtlasHeroKpi.astro` is not mounted anywhere, and the homepage reads
+// `counts.dishes` and `counts.families` only. The defect was a trap,
+// not a visible outage — the moment anyone mounts the KPI band or adds
+// a place/community figure, the zeroes would have silently swallowed
+// two real numbers (180 and 108) that the catalogue has.
+//
+// A copied number can disagree with the data it describes. A derived
+// number cannot. So the counts below are computed from the capture
+// with the SAME semantics the live route uses
+// (`apps/api/src/routes/atlas-counts.ts`):
+//
+//   * places      = count(DISTINCT entity_id) where kind = 'place'
+//   * communities = count(DISTINCT entity_id) where kind = 'community'
+//   * connections = the distinct UNDIRECTED pairs, normalised the way
+//                   the route normalises them (LEAST/GREATEST), so a
+//                   symmetric pair counts once, not twice.
+//
+// ENTITY IDENTITY, NOT NAMES. The live route counts `entity_id`. Two
+// distinct entities may share a NAME — the catalogue has two "China"
+// and two "Luxembourg" — so counting names would report 178 places
+// where the live API reports 180.
+//
+// The captured `counts` block is kept as a FALLBACK for the metrics
+// the capture cannot reproduce (the dimension-table counts: families,
+// techniques, courses, contexts, and the published claims). It is
+// never allowed to OVERRIDE a derived number.
+//
+// THE ASSIGNMENT IS BELOW, AFTER `CONNECTIONS`. The derivation reads
+// `CONNECTIONS`, and a `const` cannot be read before its declaration
+// is evaluated — calling `deriveCounts()` here would throw
+// "Cannot access 'CONNECTIONS' before initialization".
+
 // The PLACES — the places with published associations. The place page's
 // static paths come from this list, so without it the build produces no
 // /place/* pages at all.
@@ -162,6 +210,93 @@ const PLACES = DATA.places ?? null;
 // The map's connections. Without them the mock's map would draw no
 // edges at all, and the SSG build would bake an empty map.
 const CONNECTIONS = DATA.connections ?? null;
+
+// THE DERIVED COUNTS.
+//
+// The live route (`apps/api/src/routes/atlas-counts.ts`) computes every
+// count with SQL over the PUBLISHED dishes and the same predicates the
+// atlas route serves with. The mock cannot run SQL, but the capture
+// already holds the result of those predicates: the `atlas` block is
+// the per-dish VISIBLE associations, and the `connections` block is
+// the active relation pairs.
+//
+// So the mock reproduces the route's semantics over that capture:
+//
+//   places      = DISTINCT entity_id where entity_kind = 'place'
+//   communities = DISTINCT entity_id where entity_kind = 'community'
+//   connections = DISTINCT UNDIRECTED pairs
+//
+// THE CONNECTIONS NORMALISATION. The live route counts a pair once,
+// normalising with LEAST/GREATEST, because a symmetric relation stored
+// in both directions is ONE connection, not two. The capture's
+// `connections` block carries a `byRelationship` histogram but the
+// pairs themselves are what matter, so the pairs are normalised here
+// the same way.
+//
+// THE DISH COUNT. The route counts published dishes. The capture's
+// `list` holds the published dishes, so the count is its length —
+// but only if the list is the whole catalogue, which `mapMeta` records.
+function deriveCounts() {
+  const captured = DATA.counts ?? null;
+  if (!captured) return null;
+
+  const counts = { ...(captured.counts ?? {}) };
+  const definitions = captured.definitions ?? {};
+
+  // The distinct entities, by identity rather than by name.
+  const placeIds = new Set();
+  const communityIds = new Set();
+  for (const entry of Object.values(ATLAS)) {
+    for (const assoc of entry?.placesAndTraditions ?? []) {
+      const id = assoc?.entityId;
+      if (!id) continue;
+      if (assoc?.entityKind === "place") placeIds.add(id);
+      else if (assoc?.entityKind === "community") communityIds.add(id);
+    }
+  }
+
+  // A derived number always wins over a copied one: the copied one is
+  // the thing that went stale.
+  if (placeIds.size > 0) counts.places = placeIds.size;
+  if (communityIds.size > 0) counts.communities = communityIds.size;
+
+  // The dish count, when the capture says how many there are.
+  const published = DATA.mapMeta?.totalPublished;
+  if (typeof published === "number" && published > 0) counts.dishes = published;
+
+  // The distinct undirected pairs.
+  //
+  // THE ENDPOINT KEY. The capture identifies an endpoint by its dish
+  // SLUG (`from.slug` / `to.slug`), not by a uuid — the capture is
+  // built for the web, which addresses dishes by slug. The `id` is
+  // tried first so a capture that does carry uuids still works.
+  //
+  // THE RELATIONSHIP IS PART OF THE KEY. The live route groups by
+  // `(a, b, relation_type)`, so two relations between the same two
+  // dishes are TWO connections. The capture agrees: 82 connections
+  // over 78 distinct dish pairs, because four pairs are connected
+  // twice under different relationship types.
+  const pairs = new Set();
+  const connList = Array.isArray(CONNECTIONS)
+    ? CONNECTIONS
+    : (CONNECTIONS?.connections ?? []);
+  for (const conn of connList) {
+    const from = conn?.from?.id ?? conn?.from?.slug ?? conn?.fromDishId;
+    const to = conn?.to?.id ?? conn?.to?.slug ?? conn?.toDishId;
+    const type =
+      conn?.relationship ?? conn?.relationType ?? conn?.relation_type;
+    if (!from || !to) continue;
+    const [a, b] = String(from) < String(to) ? [from, to] : [to, from];
+    pairs.add(`${a}|${b}|${type ?? ""}`);
+  }
+  if (pairs.size > 0) counts.connections = pairs.size;
+
+  return { counts, definitions };
+}
+
+// The derived counts, assigned HERE — after `CONNECTIONS` is initialised.
+// See the note above the declaration.
+const COUNTS = deriveCounts();
 
 // Ingredient encyclopedia stubs derived from dish detail payloads so
 // /ingredients and /ingredients/:slug SSG work offline in CI.
