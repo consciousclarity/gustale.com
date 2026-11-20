@@ -109,3 +109,33 @@ lineage-filled-dough.json  PASS: 0 error(s), 3 warning(s)
 
 (The warnings are the expected "originality: run with --sources-dir" notice, plus the
 confidence-is-proposed warning. The examples ship without their sources folder.)
+
+---
+
+## Round 3 — the pilot entities (2026-11-21)
+
+### The lineage slug `fried-rice` collided with the family slug
+
+Nasi goreng's family is **`fried-rice`** (class `FORM`, migration 0051 L231) and there is no
+`nasi-goreng` family row. The Atlas trio for nasi goreng is therefore the dish `nasi-goreng`, the
+family `fried-rice`, and a lineage.
+
+The lineage was first queued as **`fried-rice`** too. That is a **different entity kind** — the
+`lineages` table has its own `slug` column, unique within `lineages`, so there is no database
+collision — but a family and a lineage that share a slug read as the same thing on two pages,
+and the style file is explicit that a lineage "names the idea, not a nation" while a family is
+"a classification". Two different things, one slug, is a trap for the next writer.
+
+Re-queued as **`fried-rice-spread`** (cards `t_6aceaef2` / `t_693bf002` / `t_44df13d5`); the
+first trio was archived.
+
+### The vocabulary snapshot gained a lineage section
+
+The snapshot had no section for the lineage record's own vocabularies — `confidence_level`,
+`historical_forces`, `members[].role` and `changedElement`. It now has **§12**, which records
+all four, plus the `family_class` values.
+
+These are enforced by the skill's schema, not by the database: the `lineages` and `dish_lineages`
+tables have **no writer path** ("none: review only"), so there was no database vocabulary to read
+and nothing to reconcile against. The section exists so the next writer knows the values are
+fixed and cannot be invented.

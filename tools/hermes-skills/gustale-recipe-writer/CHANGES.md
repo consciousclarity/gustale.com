@@ -133,3 +133,89 @@ the exact queue command with the recipe slug passed explicitly.
   warnings elsewhere — untouched.
 - **D1–D6** — unchanged, including the decision list's existing order (D1, D2, D3, D4, D6, D5).
   The order is odd, but it is the skill's own list and reordering it is not a factual fix.
+
+---
+
+## Round 2 — the D4 mapping (2026-11-20)
+
+Added after migration `0065_recipe_layout_and_sentence_fields.sql` was written, so the skill
+describes where each block of the record lands **after** D4 rather than "no column yet".
+
+### 10. §5 "Where it goes" was rewritten as a per-block mapping
+
+The old table had one row for `timeline, sections, key-moment flags, cue, dispute, cue_missing,
+images` reading **"no column yet (D4)"**. That is now a row per block, each naming its real home.
+
+**Facts about the repo that the new table is built on** (each checked against the record schema
+and the migrations, not assumed):
+
+- `recipe_sentences` holds the PROSE; `recipes.recipe_layout` holds the SHAPE. The split is
+  deliberate: a sentence is a row because that is what the language-first rule and the
+  translation pipeline need, and what the claims model anchors to; the layout is one jsonb
+  document because it is written once and never translated.
+- `yield` in the record is an `anyOf`: `servings` OR `pieces`. There is no `recipes.pieces`
+  column, so a recipe measured in pieces puts the count in the layout (`yield_pieces`).
+- `times` carries `active_min` and `total_min` (required) and `cook_min` (optional).
+  `total_min` includes rests, which `prep_minutes + cook_minutes` do not — so it goes in the
+  layout, not in a column.
+- `variations[]` has a `kind`: `variation`, `dispute`, `filed_separately`, `none_recorded`.
+  **Only the first two are prose.** `filed_separately` carries a `recipe_slug` (the other recipe
+  is a separate record) and `none_recorded` means there is nothing to write. The old table did
+  not distinguish them.
+- `storage` is `{source_ids}` only — **no prose field**. The "keeping" sentence is something the
+  writer writes from those sources, not a copy of a field. The old table implied a copy.
+- `equipment[]` is `{key, size?}` and `size` is language-neutral ("24 cm"), so it stays in the
+  layout rather than becoming a translated sentence.
+- `images[]` is `{key, role: hero|step, step?, kind: photo|diagram, reuse_atlas_image, prompt}`.
+  `prompt` is null **only** when `reuse_atlas_image` is true.
+- The step object has **no** `precondition` key and no `cue` key. `cue_missing` is a boolean on
+  the step; the precondition is stated in the step's prose and split out by the verifier. The
+  table now says so, so no writer goes looking for a field that is not there.
+
+### 11. The layout document is now specified exactly
+
+§5 carries the full `recipe_layout` shape as a `jsonc` block, with a comment on each key. It was
+not enough to say "the timeline, the sections, the flags" — the writer needs to know that
+`dispute` is a map of step key → variation key, and that `cue_missing` is an array of step keys.
+
+Every key in the document is the record's own `key`, so the document and the record cannot drift
+apart: the writer builds both from one set of keys and `check_recipe.py` compares them.
+
+### 12. The write-path table gained the layout column
+
+`SKILL.md` now names `public.recipes.recipe_layout` as a write path, with the note that it stays
+NULL for every recipe written before D4 — **no backfill**, because a recipe with no layout is
+still rendered from the scalar columns alone.
+
+### 13. Step 6 now names the migration
+
+The "stop until D4" rule pointed at "RECIPE-STYLE.md §10", which is a decision list, not a
+migration. It now names `db/migrations/0065_recipe_layout_and_sentence_fields.sql` and says the
+gate is the `approved-live` label plus the owner's merge.
+
+**This rule is NOT removed yet.** Phase 4 of the work order removes it only *after* D4 is applied
+on `main`, which needs the owner's label and merge. It stays until then.
+
+### 14. `db/schema.sql` does not exist
+
+The work order asked to update "both `packages/db/src/schema/index.ts` and `db/schema.sql`".
+**`db/schema.sql` has never existed in this repository** — not on any branch, not in the history
+(`git log --all -- db/schema.sql` is empty). The canonical schema is the Drizzle file
+`packages/db/src/schema/index.ts`, and the migrations are the other half.
+
+So the schema change went into `packages/db/src/schema/index.ts` (the `recipeLayout` column and
+the widened `recipeSentenceField` array), and **no `db/schema.sql` was created** — inventing a
+second schema file that no tool reads would be a new source of truth, not a fix. Both changes are
+in the same commit as the migration, so the vocabulary in the Drizzle array and the vocabulary in
+the CHECK cannot drift.
+
+### 15. Checked and left alone
+
+- The recipe example still passes `check_recipe.py --only-locale en` with **0 errors**. ✓
+- `recipe_sentences.field` in the DATABASE is still `('step','note','intro')` — migration 0065
+  widens it, and until it is applied on `main` the old vocabulary is the live one. ✓
+- The Drizzle `recipeSentenceField` array is used in exactly ONE place (the column's `$type`).
+  There is no exhaustive switch over it anywhere, so widening it breaks no caller. ✓
+- `apps/api/src/routes/recipes.ts` reads `recipe_sentences` with **no `field` filter**, so the six
+  new field values flow through the read route with no API change. ✓
+- Both `pnpm --filter @gustale/db run typecheck` and `--filter @gustale/api run typecheck` pass. ✓

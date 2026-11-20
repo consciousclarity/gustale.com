@@ -243,7 +243,60 @@ constraint. The values in use in the repo are:
 
 ---
 
-## 12. What this snapshot changed
+## 12. The lineage record's own vocabularies
+
+**These are enforced — but by the skill's schema, not by the database.** The `lineages` and
+`dish_lineages` tables have **no writer path** (see `SKILL.md` → Write paths: "none: review
+only"), so there is no database vocabulary to read. The values below are the ones the skill's
+`atlas-record.schema.json` accepts, and they are what `check_atlas.py` validates against.
+
+### `lineage.confidence_level`
+
+`documented` · `likely` · `probable` · `possible` · `uncertain` · `parallel_evolution`
+
+**`documented` needs at least one S1 or S2 source** — the checker raises an ERROR otherwise.
+**`parallel_evolution` with `documented`** raises a WARNING: parallel evolution is a claim
+against a single origin, so the two together need a second look at the wording.
+
+### `lineage.historical_forces`
+
+Fourteen values, all of them the name of a *force* that moved an idea, not a place:
+
+`migration` · `trade_route` · `empire` · `colonization` · `diaspora` · `religious_exchange` ·
+`port_city_exchange` · `agricultural_spread` · `technological_change` · `local_adaptation` ·
+`parallel_evolution` · `cultural_exchange` · `nomadic_pastoral` · `war_and_displacement`
+
+### `members[].role` (the `dish_lineages` roles)
+
+Fourteen values, split by what they assert:
+
+| Class | Roles |
+|---|---|
+| **Transmission** — these claim history and need a source | `ancestor`, `descendant`, `adaptation`, `fusion`, `diaspora_adaptation`, `trade_route_spread`, `colonial_spread` |
+| **Resemblance** — these claim only a likeness and carry no history wording | `cousin`, `technique_relative`, `ingredient_relative`, `parallel_evolution` |
+| **Uncertain** — possible influence and uncertain never carry `documented` or `likely` confidence | `possible_influence`, `uncertain` |
+| **Variant** | `regional_variant` |
+
+### `changedElement`
+
+The fourteen elements a member may be said to have changed:
+
+`ingredient` · `spice_profile` · `cooking_method` · `shape` · `filling` · `dough` · `grain` ·
+`preservation_method` · `serving_context` · `religious_rule` · `local_availability` ·
+`cooking_fat` · `wrapper` · `fermentation_time`
+
+### `family.family_class`
+
+`FORM` · `COURSE` · `CUISINE` · `CONTENT TYPE`
+
+> **Note the space.** `CONTENT TYPE` has a space in it, and the moussaka family is
+> `('moussaka', 'CONTENT TYPE', 'Moussaka')` — migration `0051_family_classification.sql` L260.
+> A family is a **classification**, never an ancestry: the checker raises an ERROR for history
+> wording on a family ("a family is a classification, not ancestry").
+
+---
+
+## 13. What this snapshot changed
 
 See `CHANGES.md` in this skill for the full log. The substantive corrections are:
 

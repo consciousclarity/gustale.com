@@ -194,22 +194,107 @@ only warnings in other languages, because word counts run differently in languag
 **Steps** carry `key_moment`, `cue_missing`, an optional `image`, and an optional `dispute` (the key of a
 `dispute` variation).
 
-**Where it goes** (checked against `main` @ `cd46976`; ADR-007 and migration 0052 already built most of it)
+**Where it goes** (checked against `main` @ `6e851eb`; ADR-007 and migration 0052 built most of it,
+and **migration 0065** is D4 — the content model)
 
-| Record field | Table on `main` | Note |
+| Record block | Where it lands after D4 | Note |
 |---|---|---|
-| `recipe_slug`, `yield.servings`, `times`, `difficulty` | `recipes` (`slug`, `servings`, `prep_minutes` = active, `cook_minutes`, `difficulty` integer) | The record's `difficulty` is a string (`simple` / `moderate` / `demanding`); the column is an integer and **the skill's own D6** stores them as 1 / 2 / 3. The column has **no CHECK constraint** — the scale is a skill decision, not a database fact (ADR-007 declares `difficulty integer` and nothing else). Pieces and total time including rests have no column yet (D4). |
+| `recipe_slug` | `recipes.slug` | |
+| `yield.servings` | `recipes.servings` | |
+| `yield.pieces` | **`recipes.recipe_layout` → `yield_pieces`** | there is no `recipes.pieces` column; `yield` in the record is EITHER `servings` OR `pieces` (`anyOf`), so a recipe measured in pieces has to put the count somewhere. `pieces_approx` rides with it. |
+| `times.active_min` | `recipes.prep_minutes` | active only — the record's `active_min` is the hands-on time |
+| `times.cook_min` | `recipes.cook_minutes` | |
+| `times.total_min` | **`recipes.recipe_layout` → `total_min`** | no column before D4; the total includes rests, which prep + cook do not |
+| `difficulty` | `recipes.difficulty` (integer) | The record's is a string (`simple` / `moderate` / `demanding`); the column is an integer and **the skill's own D6** stores them as 1 / 2 / 3. The column has **no CHECK constraint** — the scale is a skill decision, not a database fact (ADR-007 declares `difficulty integer` and nothing else). |
 | `title`, `summary` per locale | `recipe_translations` (`title`, `description`, `is_original`) | `is_original` marks the dish's own language |
 | `ingredients[]` | `recipe_ingredients` (`ingredient_id`, `quantity`, `unit`, `preparation_note`, `position`, `is_optional`, `is_key`, `accepted_forms`, `cost_weight`) | `quantity` and `unit` are **TEXT by design** (ADR-007 Decision 5) — "2½" and "a handful" are real quantities. `section` has no column (D4). |
 | `substitutes[]` | `recipe_ingredient_substitutes` | `suitable` / `approximate` / `not_suitable` are shown as holds / changes it / doesn't work |
 | `record` | `recipe_sentences` (field `intro`) | one row per sentence |
 | `steps[]` | `recipe_sentences` (field `step`) | the sign phrase and the failure clause stay inside the step text |
-| preconditions, key moments, failures, variations, keeping, evidence note | `recipe_sentences` (field `note`) today | **Too coarse** to render separate blocks (D4) |
+| `steps[].key_moment` (true) | **`recipe_sentences` (field `key_moment`)** | a new field value, not a flag on the step row |
+| `steps[].cue_missing` (true) | **`recipe_sentences` (field `evidence`)** + the layout's `cue_missing` | the flag says the step needs a cue and no source gives one |
+| a precondition on a step | **`recipe_sentences` (field `precondition`)** | "the sauce has cooled" — its own row, its own position. The record's step object has no `precondition` key; the writer states the precondition in the step's prose and the verifier splits it out. |
+| `failures[]` | **`recipe_sentences` (field `failure`)** | one row per failure, per locale. The record's failure object is `{key, step?, source_ids}` — the prose is in the locale blocks. |
+| `variations[]` with `kind: "variation"` | **`recipe_sentences` (field `variation`)** | one row per variation, per locale |
+| `variations[]` with `kind: "dispute"` | **`recipe_sentences` (field `variation`)** + the layout's `dispute` map | the page shows an "Accounts differ" marker linking to it |
+| `variations[]` with `kind: "filed_separately"` | **no prose** — the layout's `dispute` map only | it carries `recipe_slug`, not a sentence: the other recipe is a separate record |
+| `variations[]` with `kind: "none_recorded"` | **no prose** | the record says there is no variation; there is nothing to write |
+| `storage` | **`recipe_sentences` (field `keeping`)** | the record's `storage` object is `{source_ids}` only — the prose is written by the writer from those sources, so the "keeping" sentence is a writer's output, not a copy of a field |
+| `timeline[]` | **`recipes.recipe_layout` → `timeline`** | ordered `{key, minutes, mode}`; `mode` is `active` or `waiting` |
+| `sections[]` | **`recipes.recipe_layout` → `sections`** | ordered `{key, optional}`; the `key` is what a step's `section` points at |
+| `steps[].section` | **`recipes.recipe_layout` → `sections[].key`** | the grouping is a layout fact, not a column |
+| `steps[].time_min`, `steps[].time_max` | **`recipes.recipe_layout` → `steps`** | the range rides with the step in the document; there is no per-step time column |
+| `images[]` (the briefs) | **`recipes.recipe_layout` → `images`** | `{key, role: hero\|step, step?, kind: photo\|diagram, reuse_atlas_image, prompt}` — `prompt` is null only when `reuse_atlas_image` is true, and `step` names the step an image belongs to |
+| `equipment[]` | **`recipes.recipe_layout` → `equipment`** | `{key, size?}` — `size` is language-neutral ("24 cm"), so it stays in the document rather than in a translated sentence |
+| `steps[].dispute` (the step's link to a disputed account) | **`recipes.recipe_layout` → `dispute`** | the key of the `dispute` variation this step is subject to |
+| the "cue" a step needs but no source gives | **`recipes.recipe_layout` → `cue_missing`** | the keys of the steps that need a cue and have none |
 | other locales | `recipe_sentences` in that locale, `source_sentence_id` → the original | language-first is enforced by a trigger |
 | `sources[]`, `source_ids` | `sources`, `statements` (subject `recipe`), `claim_citations`, `recipe_claims` | sentences are anchored to claims, as on the Atlas |
 | `agent.confidence` | `recipe_confidence` (`level`, `conditions_met`, `independent_sources`, `source_count`) | **The record writes `HIGH` / `MEDIUM` / `LOW`; the column stores `high` / `medium` / `low`** — `recipe_confidence.level` has `CHECK (level IN ('high','medium','low'))` (0052 L784-785). Lower-case the value on write, or the insert is refused. **There is no standalone writer**: `recipe_compute_confidence()` only RETURNS a jsonb, and the only code that writes `recipe_confidence` is `recipe_auto_publish()`. A recipe that never auto-publishes has no `recipe_confidence` row — the proposed level lives in the record only. |
 | auto-publish | `recipe_settings` (off by default, daily cap 20), `recipe_publish_log` | |
-| `timeline`, `sections`, key-moment flags, `cue`, `dispute`, `cue_missing`, `images` | **no column yet** (D4) | |
+
+**The two homes, and why there are two.** After D4 a recipe's data lives in **two** places, and the
+split is not arbitrary:
+
+- **`recipe_sentences`** holds everything that is PROSE — a sentence, in a language, anchored to a
+  source. It is row-per-sentence because that is what the language-first rule and the translation
+  pipeline need, and what the claims model anchors to.
+- **`recipes.recipe_layout`** holds everything that is SHAPE — the timeline, the section grouping,
+  which step carries which flag, which image belongs to which step. It is one jsonb document
+  because it is written once, read once, and never translated.
+
+So a **sentence is a row** and a **relationship between sentences is a key in the document**. The
+`key_moment` flag is a sentence's *role*, so it is a field value; the `section` a step belongs to
+is a *reference*, so it is a key in the layout.
+
+**The column is nullable, and that is the point.** `recipes.recipe_layout` stays NULL for every
+recipe written before D4 — there is no backfill, because a recipe with no layout is still rendered
+from the scalar columns alone. A recipe written after D4 has a layout and the page reads it.
+
+**What D4 does NOT change:** `recipes.slug`, `servings`, `prep_minutes`, `cook_minutes`,
+`difficulty`, `status`, `review_state`; the `recipe_ingredients` and
+`recipe_ingredient_substitutes` tables; the claims model; `recipe_confidence`; the publish path.
+D4 widens a vocabulary and adds a column. It moves nothing.
+
+**The layout document, exactly.** `recipes.recipe_layout` is written from ONE place: the
+writer's record. Its shape is fixed by this section, and `check_recipe.py` must be able to
+read it back out of the record.
+
+```jsonc
+{
+  "total_min": 95,              // from times.total_min — the total INCLUDING rests
+  "yield_pieces": 12,           // only when yield.pieces is set; null when yield.servings is
+  "pieces_approx": true,        // only with yield_pieces
+  "timeline": [                 // from timeline[] — the ORDER and the minutes
+    { "key": "prep", "minutes": 20, "mode": "active" }
+  ],
+  "sections": [                 // from sections[] — the GROUPING
+    { "key": "base", "optional": false }
+  ],
+  "steps": [                    // the per-step shape that has no column
+    { "key": "chop", "time_min": 10, "time_max": 15 }
+  ],
+  "images": [                   // the IMAGE BRIEFS
+    { "key": "hero", "role": "hero", "kind": "photo",
+      "reuse_atlas_image": true, "prompt": null }
+  ],
+  "equipment": [                // from equipment[] — language-neutral
+    { "key": "casserole", "size": "24 cm" }
+  ],
+  "dispute": {                  // step key -> the dispute variation key it is subject to
+    "chop": "browning-first"
+  },
+  "cue_missing": [              // the steps that need a cue and no source gives one
+    "chop"
+  ]
+}
+```
+
+Every key in the document is the record's own `key`, so the document and the record can never
+drift apart — the writer builds both from one set of keys, and `check_recipe.py` compares them.
+
+**What the layout does NOT carry:** prose. Every sentence, in every language, is a row in
+`recipe_sentences`. The layout is language-neutral by construction, so it is never translated.
 
 **The site builds these, not the writer:**
 - The JSON-LD, built from the record:
