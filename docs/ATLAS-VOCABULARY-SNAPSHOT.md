@@ -398,6 +398,14 @@ the `served_as_course` predicate. It is **not** a relation type and **not** a co
 `db/migrations/gus-014-118-dimensions.sql` (the regional/identity slugs such as `aceh`, `bali`,
 `cajun`).
 
+**The 433 is confirmed two ways, independently.** The `0019` migration asserts two slug sets
+that **union to exactly 433** — 393 new `<x>-cuisine` slugs it must not find already present,
+and the 40 pre-seeded ones it must still find (asserted as `n < 40` → raise). And
+`db/migrations/0034_gus242_fix_corrupted_tradition.sql` states it in prose: *"`dish_traditions`
+carries **433** traditions, 418 of them with a Wikidata Q-id, a definition and a source."*
+`0034` fixes exactly one row (`tunisian-cuisine-2`, which Wikidata Q3006881 labels "Algerian
+cuisine") — so 433 is the count **after** that fix, not before.
+
 **The writer must pick from the table, not from this file.** The Atlas verifier checks a technique
 against the live `dish_techniques` table; if a value is not there, it is not vocabulary.
 
