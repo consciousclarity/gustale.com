@@ -100,10 +100,53 @@ export function nginxRedirectBlock(rules) {
   }
 
   for (const r of active) {
+    // THE SUFFIX MUST SURVIVE.
+    //
+    // `/place/greece` is a real URL: the place DETAIL page. Its new
+    // home is `/places/greece`, so the redirect has to carry the
+    // `greece` across. A plain `return 301 /places$is_args$args;`
+    // sends it to `/places` and throws the slug away -- which is how
+    // `/place/greece` ended up at the directory index instead of its
+    // own page.
+    //
+    // So the rule captures the part of the URI AFTER the old prefix
+    // and appends it to the new prefix. This is the same thing
+    // `redirectFor()` does in apps/web/src/lib/redirects.ts, which is
+    // what makes the two answers agree.
+    //
+    // THE PREFIX COLLISION IS THE OTHER HALF OF IT.
+    //
+    // `location ^~ /place` is a PREFIX match, so it also matched
+    // `/places` and `/places/greece` -- the NEW index and its pages --
+    // and redirected them to `/places`, forever. A moved page that
+    // redirects to itself is worse than a 404: the reader gets a
+    // redirect loop and the search engine gets a 301 loop.
+    //
+    // nginx has no "prefix that stops at a boundary" for a plain
+    // `location`, so the old prefix is matched with a REGEX that
+    // requires the boundary:
+    //
+    //     ^/place(/|$)
+    //
+    // `/place` and `/place/greece` match. `/places` and
+    // `/places/greece` do not -- the character after `/place` is `s`,
+    // not `/` and not the end. So the new paths fall through to the
+    // ordinary `location /` and are SERVED.
+    //
+    // `permanent` is nginx's 301. `redirect` would be a 302, and a
+    // moved page must be a 301.
     lines.push(`    # ${r.from} -> ${r.to}`);
-    lines.push(`    location ^~ ${r.from} {`);
+    lines.push(`    # The old prefix, matched with a BOUNDARY: the character`);
+    lines.push(`    # after it must be a slash or the end. Without the`);
+    lines.push(`    # boundary this rule would also match the NEW path`);
+    lines.push(`    # (${r.to}) and redirect it to itself, forever.`);
+    lines.push(`    location ~ ^${r.from}(?<suffix>/.*)?$ {`);
+    lines.push(`        # The suffix -- if there is one -- is carried across.`);
+    lines.push(
+      `        rewrite ^${r.from}(?<suffix>/.*)$ ${r.to}$suffix permanent;`,
+    );
     lines.push(`        return 301 ${r.to}$is_args$args;`);
-    lines.push("    }");
+    lines.push(`    }`);
     lines.push("");
   }
 
@@ -151,9 +194,17 @@ if (isMain) {
     }
   } else if (process.argv.includes("--check")) {
     const nginx = readFileSync(join(REPO, "apps", "web", "nginx.conf"), "utf8");
+    // The rule is a REGEX location with a boundary, not a `^~` prefix
+    // location: `location ~ ^/place(?<suffix>/.*)?$ {`. A prefix
+    // location would also match the NEW path (`/places`) and redirect
+    // it to itself, forever.
     const missing = rules
       .filter((r) => r.targetExists)
-      .filter((r) => !nginx.includes(`location ^~ ${r.from} {`));
+      .filter(
+        (r) =>
+          !nginx.includes(`location ~ ^${r.from}(?<suffix>/.*)?$ {`) &&
+          !nginx.includes(`location ^~ ${r.from} {`),
+      );
     if (missing.length > 0) {
       console.error(
         `nginx.conf is missing ${missing.length} redirect(s): ${missing
