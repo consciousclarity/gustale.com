@@ -1364,6 +1364,28 @@ jobs:
             -f db/migrations/0062_ingredients_sourcing_vocabulary.sql 2>&1 | tee /tmp/m0062.log
           bash scripts/check-ci-markers.sh "the ingredient sourcing vocabulary" "0062: all 6 proofs passed" /tmp/m0062.log
 
+      # ── 0063: record 0061 in the ledger ─────────────────────────────────
+      #
+      # 0061 was applied to live on 2026-11-19 without writing its own
+      # ledger row. An applied migration is frozen (Rule 11), so the gap
+      # is closed here rather than by editing 0061.
+      #
+      # It writes ONE row (the ledger entry for 0061) and nothing else.
+      # Its P4 proof checks that the alias table 0061 created still holds
+      # exactly its one row -- a ledger migration must not disturb the
+      # data.
+      #
+      # The number is 0063, not 0062: this migration was applied to live
+      # as `0062_record_0061_in_the_ledger.sql` and then RENUMBERED,
+      # because 0062 was already taken by
+      # `0062_ingredients_sourcing_vocabulary.sql` (applied to live on
+      # 2026-11-11). Two migrations must never share a number.
+      - name: Apply the 0063 ledger row
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
+          bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
+
       # The PER-DISH backfill assertions. LAST, because they assert the
       # state the whole chain produces: the reference dishes'
       # association rows AND the journey places in the editorial queue.

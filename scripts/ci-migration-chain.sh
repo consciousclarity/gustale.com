@@ -303,6 +303,25 @@ MIGRATION_0058=db/migrations/0058_dish_families_listed.sql
 # tightens the publication predicate it builds the union on).
 MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
 
+# 0063 RECORDS 0061 IN THE LEDGER. It writes exactly one row and
+# nothing else.
+#
+# 0061 was applied to live on 2026-11-19 but omitted its own
+# `INSERT INTO public.gus_migrations_applied`. An applied migration is
+# frozen (Rule 11), so the gap is closed in a NEW number rather than by
+# editing 0061.
+#
+# The number is 0063, not 0062: this migration was applied to live as
+# `0062_record_0061_in_the_ledger.sql` and then RENUMBERED, because
+# 0062 was already taken by `0062_ingredients_sourcing_vocabulary.sql`
+# (applied to live on 2026-11-11). Two migrations must never share a
+# number.
+#
+# It MUST run after 0060, because 0060 creates the ledger table in the
+# chain (and 0063 creates it with IF NOT EXISTS so it is also
+# self-contained).
+MIGRATION_0063=db/migrations/0063_record_0061_in_the_ledger.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -940,6 +959,25 @@ echo "--- the ingredient sourcing vocabulary"
 run_pg -f - < "$MIGRATION_0062" >/tmp/m0062.log 2>&1 || { echo "FAILED: 0062"; grep -E 'ERROR|NOTICE' /tmp/m0062.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E '0062: all 6 proofs passed' /tmp/m0062.log | tail -1 || true
+# ── 0063: record 0061 in the ledger ───────────────────────────────────
+#
+# 0061 was applied to live on 2026-11-19 without writing its own ledger
+# row. An applied migration is frozen, so the gap is closed here rather
+# than by editing 0061.
+#
+# It writes ONE row (the ledger entry for 0061) and nothing else, and
+# its P4 proof checks that the alias table 0061 created still holds
+# exactly its one row -- a ledger migration must not disturb the data.
+#
+# The number is 0063, not 0062: this migration was applied to live as
+# `0062_record_0061_in_the_ledger.sql` and then RENUMBERED, because
+# 0062 was already taken by `0062_ingredients_sourcing_vocabulary.sql`
+# (applied to live on 2026-11-11). Two migrations must never share a
+# number.
+echo "--- record 0061 in the ledger"
+run_pg -f - < "$MIGRATION_0063" >/tmp/m0063.log 2>&1 || { echo "FAILED: 0063"; grep -E 'ERROR|NOTICE' /tmp/m0063.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'GUS_LEDGER_0061_OK' /tmp/m0063.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #
