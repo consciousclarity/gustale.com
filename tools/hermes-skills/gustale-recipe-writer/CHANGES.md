@@ -234,3 +234,28 @@ captures are gone.
 **Fixed.** Step 5 now reads: delete `sources/` **only once the recipe is actually published.** A
 record that stops at review — MEDIUM, LOW, a gap that blocks HIGH, D4 not yet on `main`, or
 auto-publish off — keeps its captures. RECIPE-STYLE.md §"the stages" says the same.
+
+### The verify stage deleted the evidence it needed to re-verify its own record
+
+**Found:** 2026-11-21, during the pilot bundles.
+
+Stage 3 step 5 said, unconditionally, *"Delete the `sources/` folder."* But step 7 says: *"If
+changes come back, re-run steps 2–4"* — and steps 2–4 include the **originality check**, which
+needs the captured source texts.
+
+In bundle 2 the nasi goreng verify stage found that the base capture held **only the recipe
+card** while the record cited the Guardian's **article** for its substitutions, variations and
+failures. It re-fetched the article and appended it to the capture (3,652 → 11,292 characters) —
+and then the same stage deleted the folder, making the enlarged capture unre-checkable.
+
+**Fixed** — step 5 now reads:
+
+> 5. Delete the `sources/` folder — **but only once the recipe is actually published.** If the
+>    record stops at review (MEDIUM, LOW, a gap that blocks HIGH, D4 not yet on `main`, or
+>    auto-publish off), **keep** `sources/`: the gate below asks you to re-run the checks if changes
+>    come back, and the originality check needs the captured texts. The captures are never
+>    published; they go when the recipe is finally published.
+
+**This is a factual fix to an internal contradiction**, not a change of voice, evidence rule,
+originality rule or budget — so it needed no approval. RECIPE-STYLE.md §3's matching line was
+rewritten the same way. The example recipe still passes.
