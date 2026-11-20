@@ -1,0 +1,520 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gustale.com/schemas/recipe-record-2.0.json",
+  "title": "Gustale recipe record 2.0 (The Working Record)",
+  "description": "One recipe variation. Language-neutral data is written once; prose lives under locales, keyed to the same item keys. Cross-field rules (matching keys, timeline sums, word budgets, banned words, cue-in-text) are enforced by check_recipe.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dish_slug",
+    "recipe_slug",
+    "source_language",
+    "base_source_id",
+    "difficulty",
+    "yield",
+    "times",
+    "timeline",
+    "sections",
+    "ingredients",
+    "steps",
+    "failures",
+    "variations",
+    "sources",
+    "images",
+    "locales",
+    "agent"
+  ],
+  "properties": {
+    "schema_version": { "const": "2.0" },
+    "dish_slug": {
+      "$ref": "#/$defs/slug",
+      "description": "Atlas dish this recipe belongs to"
+    },
+    "recipe_slug": { "$ref": "#/$defs/slug" },
+    "source_language": {
+      "$ref": "#/$defs/lang",
+      "description": "The dish's own language; its locale is written first"
+    },
+    "base_source_id": {
+      "$ref": "#/$defs/key",
+      "description": "The source whose quantities, times and temperatures the recipe follows"
+    },
+    "difficulty": {
+      "enum": ["simple", "moderate", "demanding"],
+      "description": "Technique only. Never sourcing."
+    },
+
+    "yield": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [{ "required": ["servings"] }, { "required": ["pieces"] }],
+      "properties": {
+        "servings": { "type": "integer", "minimum": 1 },
+        "pieces": { "type": "integer", "minimum": 1 },
+        "pieces_approx": { "type": "boolean", "default": false }
+      }
+    },
+
+    "times": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active_min", "total_min"],
+      "properties": {
+        "active_min": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Hands-on minutes (JSON-LD prepTime)"
+        },
+        "cook_min": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minutes on heat or in the oven (JSON-LD cookTime)"
+        },
+        "total_min": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Everything, including rests and chilling (JSON-LD totalTime)"
+        }
+      }
+    },
+
+    "timeline": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "minutes", "mode"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "minutes": { "type": "integer", "minimum": 1 },
+          "mode": { "enum": ["active", "waiting"] }
+        }
+      }
+    },
+
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Component groups, used as ingredient groups and method subheads",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "optional": {
+            "type": "boolean",
+            "default": false,
+            "description": "True for the group of optional ingredients"
+          }
+        }
+      }
+    },
+
+    "ingredients": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ingredient" }
+    },
+    "substitutes": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/substitute" }
+    },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "size": {
+            "type": "string",
+            "description": "Language-neutral size, e.g. '24 cm'"
+          }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "failures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "source_ids"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "step": { "$ref": "#/$defs/key" },
+          "source_ids": { "$ref": "#/$defs/ids" }
+        }
+      }
+    },
+    "variations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "kind", "source_ids"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "kind": {
+            "enum": [
+              "variation",
+              "dispute",
+              "filed_separately",
+              "none_recorded"
+            ]
+          },
+          "recipe_slug": {
+            "$ref": "#/$defs/slug",
+            "description": "Required for filed_separately"
+          },
+          "source_ids": { "$ref": "#/$defs/ids" }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_ids"],
+      "description": "Present only when a source covers storage, reheating or freezing",
+      "properties": { "source_ids": { "$ref": "#/$defs/ids" } }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "publisher",
+          "accessed",
+          "role",
+          "independent"
+        ],
+        "properties": {
+          "id": { "$ref": "#/$defs/key" },
+          "title": { "type": "string", "minLength": 1 },
+          "author": { "type": "string" },
+          "publisher": { "type": "string", "minLength": 1 },
+          "url": { "type": "string", "format": "uri" },
+          "isbn": { "type": "string" },
+          "tier": {
+            "type": "string",
+            "description": "SOURCE-TIER-LIST tier, e.g. S4"
+          },
+          "accessed": { "type": "string", "format": "date" },
+          "role": { "enum": ["base", "confirming"] },
+          "independent": {
+            "type": "boolean",
+            "description": "False if it copies another listed source"
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "role", "kind", "reuse_atlas_image", "prompt"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "role": { "enum": ["hero", "step"] },
+          "step": { "$ref": "#/$defs/key" },
+          "kind": { "enum": ["photo", "diagram"] },
+          "reuse_atlas_image": { "type": "boolean" },
+          "prompt": {
+            "type": ["string", "null"],
+            "description": "Null only when reuse_atlas_image is true"
+          }
+        }
+      }
+    },
+
+    "locales": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/lang" },
+      "additionalProperties": { "$ref": "#/$defs/locale" }
+    },
+
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence", "gaps", "disputes"],
+      "properties": {
+        "confidence": { "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "gaps": { "type": "array", "items": { "type": "string" } },
+        "disputes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "lang": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$" },
+    "ids": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/key" },
+      "uniqueItems": true
+    },
+    "unit": {
+      "enum": [
+        "g",
+        "kg",
+        "ml",
+        "l",
+        "tsp",
+        "tbsp",
+        "piece",
+        "clove",
+        "slice",
+        "sprig",
+        "leaf",
+        "stalk",
+        "bunch",
+        "pinch",
+        "can",
+        "packet"
+      ]
+    },
+    "form": {
+      "enum": [
+        "fresh",
+        "frozen",
+        "dried",
+        "canned_or_packaged",
+        "paste_or_concentrate",
+        "extract",
+        "homemade"
+      ]
+    },
+
+    "ingredient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "section",
+        "ingredient_id",
+        "quantity",
+        "unit",
+        "is_optional",
+        "is_key",
+        "cost_weight",
+        "source_ids"
+      ],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "section": { "$ref": "#/$defs/key" },
+        "ingredient_id": {
+          "type": ["string", "null"],
+          "description": "Atlas ingredients id. Null only if not in the Atlas yet; list it in agent.gaps."
+        },
+        "quantity": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "description": "Decimal, metric. Null only with quantity_text in every locale."
+        },
+        "unit": { "oneOf": [{ "$ref": "#/$defs/unit" }, { "type": "null" }] },
+        "source_quantity": {
+          "type": "string",
+          "description": "The source's own measure when converted, e.g. '1 1/4 cups'"
+        },
+        "is_optional": { "type": "boolean" },
+        "is_key": {
+          "type": "boolean",
+          "description": "Defines the dish (sourcing brief: no approximate substitute rescues it)"
+        },
+        "cost_weight": { "enum": ["minor", "major"] },
+        "accepted_forms": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/form" }
+            }
+          ],
+          "description": "Null = any form works"
+        },
+        "source_ids": { "$ref": "#/$defs/ids" }
+      }
+    },
+
+    "substitute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "for", "suitability", "source_ids"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "for": {
+          "$ref": "#/$defs/key",
+          "description": "An ingredient key, or a section key when it replaces a whole component"
+        },
+        "substitute_ingredient_id": { "type": ["string", "null"] },
+        "substitute_form": {
+          "oneOf": [{ "$ref": "#/$defs/form" }, { "type": "null" }]
+        },
+        "suitability": { "enum": ["suitable", "approximate", "not_suitable"] },
+        "source_ids": { "$ref": "#/$defs/ids" }
+      }
+    },
+
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "section", "key_moment", "cue_missing", "source_ids"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "section": { "$ref": "#/$defs/key" },
+        "time_min": { "type": "integer", "minimum": 0 },
+        "time_max": { "type": "integer", "minimum": 0 },
+        "key_moment": { "type": "boolean" },
+        "cue_missing": {
+          "type": "boolean",
+          "description": "True when the step needs a cue and no source gives one"
+        },
+        "image": { "$ref": "#/$defs/key" },
+        "dispute": {
+          "$ref": "#/$defs/key",
+          "description": "Key of a 'dispute' variation this step is subject to; the page shows an 'Accounts differ' marker linking to it"
+        },
+        "source_ids": { "$ref": "#/$defs/ids" }
+      }
+    },
+
+    "locale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary",
+        "record",
+        "preconditions",
+        "key_moments",
+        "timeline",
+        "sections",
+        "ingredients",
+        "steps",
+        "failures",
+        "variations",
+        "evidence",
+        "images"
+      ],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 90 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "record": { "type": "string", "minLength": 1 },
+        "preconditions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "key_moments": { "$ref": "#/$defs/textMap" },
+        "timeline": { "$ref": "#/$defs/textMap" },
+        "sections": { "$ref": "#/$defs/textMap" },
+        "ingredients": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Match ingredient_translations where a row exists"
+              },
+              "prep_note": { "type": "string" },
+              "quantity_text": {
+                "type": "string",
+                "description": "Only where the source has no number"
+              }
+            }
+          }
+        },
+        "substitutes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "note"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "note": {
+                "type": "string",
+                "description": "What changes (approximate) or why it fails (not_suitable); may be empty for suitable"
+              }
+            }
+          }
+        },
+        "equipment": { "$ref": "#/$defs/textMap" },
+        "steps": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text", "cue"],
+            "properties": {
+              "text": { "type": "string", "minLength": 1 },
+              "cue": {
+                "type": ["string", "null"],
+                "description": "Exact substring of text; rendered bold"
+              },
+              "failure": { "type": "string" }
+            }
+          }
+        },
+        "failures": { "$ref": "#/$defs/textMap" },
+        "variations": { "$ref": "#/$defs/textMap" },
+        "storage": { "type": "string" },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sources", "note"],
+          "properties": {
+            "sources": {
+              "$ref": "#/$defs/textMap",
+              "description": "Source id -> what it supports"
+            },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        },
+        "images": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["alt"],
+            "properties": {
+              "alt": { "type": "string", "minLength": 1, "maxLength": 125 },
+              "caption": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "textMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    }
+  }
+}

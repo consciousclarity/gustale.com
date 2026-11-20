@@ -1,0 +1,53 @@
+{
+  "schema_version": "atlas-1.0",
+  "kind": "family",
+  "slug": "dumpling",
+  "locale": "en",
+  "sources": [
+    {
+      "id": "src-f1",
+      "title": "PLACEHOLDER — Reference work on world food forms",
+      "publisher": "PLACEHOLDER",
+      "tier": "S5",
+      "source_type": "book",
+      "accessed": "2026-11-20",
+      "independent": true
+    }
+  ],
+  "family": {
+    "name": "Dumpling",
+    "family_class": "FORM",
+    "parent": null
+  },
+  "description": [
+    {
+      "key": "d1",
+      "text": "Small portions of dough, either wrapped around a filling or shaped on their own, cooked by boiling, steaming, frying or baking.",
+      "source_ids": ["src-f1"]
+    },
+    {
+      "key": "d2",
+      "text": "Membership turns on each piece being individual and small; large filled pies and loaves belong to the pie and bread families.",
+      "source_ids": ["src-f1"]
+    }
+  ],
+  "nearest_family": null,
+  "representative_dishes": ["momo", "pelmeni", "gyoza", "ravioli"],
+  "images": [
+    {
+      "key": "cover",
+      "role": "cover",
+      "reuse": "momo",
+      "prompt": null,
+      "alt": "Steamed momo on a metal plate, pleated at the top."
+    }
+  ],
+  "agent": {
+    "confidence": "MEDIUM",
+    "gaps": [
+      "Example only: every source is a placeholder and no fact here has been verified; do not import",
+      "representative_dishes: slugs to confirm"
+    ],
+    "disputes": []
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "schema_version": "atlas-1.0",
+  "kind": "dish",
+  "slug": "moussaka-greek",
+  "locale": "en",
+  "content_type": "dish",
+  "sources": [
+    {
+      "id": "src-a",
+      "title": "PLACEHOLDER — Greek cookery reference work",
+      "publisher": "PLACEHOLDER",
+      "tier": "S4",
+      "source_type": "book",
+      "accessed": "2026-11-20",
+      "independent": true
+    },
+    {
+      "id": "src-b",
+      "title": "PLACEHOLDER — History of modern Greek cookery",
+      "publisher": "PLACEHOLDER",
+      "tier": "S2",
+      "source_type": "book",
+      "accessed": "2026-11-20",
+      "independent": true
+    }
+  ],
+  "statements": [
+    {
+      "key": "st-tselementes",
+      "subject": {
+        "type": "dish",
+        "slug": "moussaka-greek"
+      },
+      "predicate": "created_by",
+      "value": {
+        "kind": "literal",
+        "literal": "Nikolaos Tselementes"
+      },
+      "qualifiers": {
+        "aspect": "béchamel topping"
+      },
+      "claim_class": "scholarly_interpretation",
+      "dates": [
+        {
+          "kind": "adaptation",
+          "label": "1910s–1920s",
+          "earliest": 1910,
+          "latest": 1929
+        }
+      ],
+      "citations": [
+        {
+          "source": "src-b",
+          "stance": "supports",
+          "locator": "PLACEHOLDER chapter"
+        }
+      ]
+    }
+  ],
+  "intro": [
+    {
+      "key": "i1",
+      "text": "Layers of fried aubergine and minced lamb or beef cooked with tomato, sealed under a thick béchamel and baked until the top is browned and set.",
+      "source_ids": ["src-a"]
+    },
+    {
+      "key": "i2",
+      "text": "The béchamel-topped form is associated with Greece; the same name covers quite different dishes in the Balkans, Turkey and the Levant.",
+      "source_ids": ["src-a", "src-b"]
+    },
+    {
+      "key": "i3",
+      "text": "It is cut into thick slices and served warm, once it has rested enough to hold its layers.",
+      "source_ids": ["src-a"]
+    }
+  ],
+  "about": [
+    {
+      "key": "a1",
+      "paragraph": 1,
+      "text": "The béchamel crust is usually credited to Nikolaos Tselementes, the Greek cookery writer whose manuals of the 1910s and 1920s brought French techniques into Greek home kitchens.",
+      "claims": ["st-tselementes"],
+      "source_ids": []
+    },
+    {
+      "key": "a2",
+      "paragraph": 1,
+      "text": "Older dishes recorded under the same name were layered or stewed without it.",
+      "source_ids": ["src-b"]
+    },
+    {
+      "key": "a3",
+      "paragraph": 2,
+      "text": "In Greece it is more often a dish for Sundays, name days and tavernas than for weeknights, since each layer is cooked separately before the dish is assembled.",
+      "source_ids": ["src-a"]
+    },
+    {
+      "key": "a4",
+      "paragraph": 2,
+      "text": "Versions with potato or courgette, alongside or instead of aubergine, are common, and meatless versions are made for Lent.",
+      "source_ids": ["src-a"]
+    }
+  ],
+  "names": [
+    {
+      "key": "n-el",
+      "language": "el",
+      "script": "Grek",
+      "name": "μουσακάς",
+      "kind": "endonym",
+      "is_primary": true,
+      "source_ids": ["src-a"]
+    },
+    {
+      "key": "n-en",
+      "language": "en",
+      "script": "Latn",
+      "name": "moussaka",
+      "kind": "exonym",
+      "is_primary": false,
+      "source_ids": ["src-a"]
+    }
+  ],
+  "facts": {
+    "associated_with": ["pl-gr"],
+    "family": null,
+    "served_as": [],
+    "technique": ["bake"],
+    "also_called": ["n-el"]
+  },
+  "places": [
+    {
+      "key": "pl-gr",
+      "relationship_type": "associated_with",
+      "entity_kind": "place",
+      "entity": "GR",
+      "explanation": "Greek cookbooks treat the béchamel-topped form as the standard version.",
+      "source_ids": ["src-a"]
+    }
+  ],
+  "history": {
+    "chapters": [
+      {
+        "key": "ch1",
+        "sequence": 1,
+        "title": "A French crust in a Greek manual",
+        "date_label": "1910s–1920s",
+        "date_precision": "range",
+        "year_approx": 1920,
+        "place_name": "Athens",
+        "place_role": "attestation",
+        "lat": 37.98,
+        "lng": 23.73,
+        "label": "Tselementes' cookery manuals give a moussaka finished with béchamel, the form now associated with Greece.",
+        "scope_note": "Reported in secondary sources; the manuals were not inspected directly, so the first edition with béchamel is not fixed.",
+        "evidence_kind": "reported_account",
+        "confidence": "likely",
+        "source": "src-b",
+        "locator": "PLACEHOLDER chapter"
+      }
+    ],
+    "movements": []
+  },
+  "connections": [
+    {
+      "key": "c1",
+      "type": "similar_form",
+      "target": "musakka-turkish",
+      "direction_known": true,
+      "reason": "Shares the name and the aubergine-and-minced-meat base, without the béchamel layer.",
+      "strength": 4,
+      "source_ids": ["src-a"]
+    },
+    {
+      "key": "c2",
+      "type": "similar_form",
+      "target": "moussaka-levant",
+      "direction_known": true,
+      "reason": "Shares the name and the aubergine, but is meatless, made with chickpeas and served cold.",
+      "strength": 3,
+      "source_ids": ["src-a"]
+    }
+  ],
+  "variants": [],
+  "images": [
+    {
+      "key": "cover",
+      "role": "cover",
+      "reuse": "moussaka-greek",
+      "prompt": null,
+      "alt": "A slice of moussaka on a plate, showing aubergine, meat sauce and a browned béchamel top."
+    }
+  ],
+  "agent": {
+    "confidence": "MEDIUM",
+    "gaps": [
+      "Example only: every source is a placeholder and no fact here has been verified; do not import",
+      "facts.family: choose the FORM family from dish_families",
+      "facts.served_as: vocabulary not checked",
+      "places: relationship_type 'associated_with' to confirm against live values"
+    ],
+    "disputes": [],
+    "proposed_vocabulary": []
+  }
+}
