@@ -217,3 +217,32 @@ the file. `scripts/translate_sentences.py` exists.
 **What this means for the pilot.** The dish record could not be applied even with approval:
 there is no path to write the prose, the names or the associations. That is an API change, not a
 skill fix, so it is raised for Alejandro and not fixed here.
+
+### The admin route file is in the repo but not in the deployed image
+
+The pilot's verify stage reported that `/api/admin/dishes/:slug/sources` returns **404** on the
+live server. I checked it, and checked it a second way.
+
+Both routes from `apps/api/src/routes/admin-dishes.ts` return 404 on the live server:
+
+```
+GET /api/admin/lookups                      -> 404
+GET /api/admin/dishes/:slug/sources        -> 404
+GET /api/dishes                             -> 200
+```
+
+A 404 here is **not** an auth outcome. `requireRole` (`apps/api/src/plugins/auth-context.ts`
+L129) throws **401 if anonymous and 403 if the role is too low** — it never returns 404. So the
+route file is absent from the deployed image, not gated.
+
+And it is present in the source: `registerAdminDishRoutes(app)` is called at
+`apps/api/src/server.ts` L115, and the file declares all eight admin routes. So this is a
+**deployment lag** — the deployed API image predates the file — and not a code defect.
+
+This matters for the write paths. `POST /api/admin/dishes/:slug/sources` (L498) is the one route
+in the repo that writes `sources` + `citations` + `edit_history` in one transaction, and it is
+the natural path for a record's citations. It is not deployed, so the citations in the pilot
+record have no route to live either.
+
+**Not fixed here.** Deploying the API is the owner's call and outside this job's scope. Recorded
+so the next writer does not plan around a route that is not there.
