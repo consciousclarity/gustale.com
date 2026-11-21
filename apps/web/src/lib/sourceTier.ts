@@ -32,14 +32,18 @@
  *                     it is the same word it uses for an unevidenced
  *                     claim, which is the point.
  *
- * And the S6 rule is stated, not implied: a Wikipedia entry
- * "supports the definition only". That is a real constraint from
- * the source-class policy, and a reader who cannot see it will
- * read a Wikipedia citation as a citation of the claim.
+ * And the rule for each of them is STATED, not implied, because a
+ * reader who cannot see it will read a Wikipedia citation as a
+ * citation of the claim. The clauses are the policy's own wording;
+ * see SOURCE_TIER_CLAUSES below for why S6 says "discovery and
+ * terminology" rather than the narrower "supports the definition
+ * only" that this file used to carry.
  */
 
+import type { SourceClass } from "../types/dish.ts";
+
 /** The public name of each source class. */
-export const SOURCE_TIER_WORDS: Record<string, string> = {
+export const SOURCE_TIER_WORDS: Record<SourceClass, string> = {
   S1: "Primary historical",
   S2: "Scholarly",
   S3: "Institutional",
@@ -77,7 +81,7 @@ export const SOURCE_TIER_WORDS: Record<string, string> = {
  * The policy excludes that: S7 is a QUARANTINE class. It is not
  * weaker evidence, it is material that is not usable as evidence.
  */
-export const SOURCE_TIER_CLAUSES: Record<string, string> = {
+export const SOURCE_TIER_CLAUSES: Partial<Record<SourceClass, string>> = {
   S6: "for discovery and terminology, not for a claim on its own",
   S7: "not usable as evidence",
 };
@@ -89,12 +93,33 @@ export const SOURCE_TIER_CLAUSES: Record<string, string> = {
  * A source with no class, or with a class this site does not know,
  * says so honestly rather than being given a tier it does not have.
  */
-export function sourceTierWords(sourceClass: string | null | undefined): string {
+export function sourceTierWords(
+  sourceClass: SourceClass | string | null | undefined,
+): string {
   if (!sourceClass) return "Not classified";
+
+  // The parameter is wider than the enum because the value arrives
+  // from the API as an untyped JSON field. So it is NARROWED here,
+  // once, against the enum -- rather than the tables being widened
+  // back to `string` to make the lookup compile. A table typed
+  // `Record<string, string>` cannot tell a typo from a real class.
+  if (!isSourceClass(sourceClass)) return "Not classified";
+
   const name = SOURCE_TIER_WORDS[sourceClass];
-  if (!name) return "Not classified";
   const clause = SOURCE_TIER_CLAUSES[sourceClass];
   return clause ? `${name} · ${clause}` : name;
+}
+
+/**
+ * Whether a value is one of the source classes the site knows.
+ *
+ * The check is against the TABLE, not a hand-written list, so a class
+ * cannot be added to the wording without being added to the enum.
+ */
+export function isSourceClass(
+  value: string | null | undefined,
+): value is SourceClass {
+  return !!value && Object.prototype.hasOwnProperty.call(SOURCE_TIER_WORDS, value);
 }
 
 /*

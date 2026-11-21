@@ -31,6 +31,8 @@ import {
   type DishFactKey,
   type DishFactRow,
 } from "./dishSections.ts";
+import { evidenceLabelText } from "./evidenceLabel.ts";
+import { mayCarrySentence } from "./publicAssociationSentence.ts";
 
 /** One dimension from the API's `dimensions` array. */
 export interface DishDimension {
@@ -195,7 +197,20 @@ export function buildDishFacts(input: {
     const label = DISH_FACT_LABELS[key];
 
     if (key === "associatedWith") {
-      const place = input.places[0];
+      // THE FIRST PLACE THAT MAY BE STATED.
+      //
+      // This used to take `input.places[0]` -- whichever row the API
+      // happened to put first. That row is often an UNEVIDENCED
+      // legacy association, so the facts table could print a place
+      // the site cannot state, and could print it while an evidenced
+      // place sat further down the list.
+      //
+      // So the row picks the first place whose evidence allows it to
+      // be stated, and if there is none, it says "No evidence" --
+      // which is a statement about the RECORD, not about the dish.
+      const place = input.places.find((p) =>
+        mayCarrySentence(p.status),
+      );
       if (!place) {
         rows.push({ key, label, value: DISH_FACT_MISSING });
         continue;
@@ -211,8 +226,15 @@ export function buildDishFacts(input: {
         label,
         value: parts.join(" · "),
         href: place.slug ? `/place/${place.slug}` : undefined,
+        // THE BADGE USES THE SITE'S OWN VOCABULARY.
+        //
+        // The row used to capitalise the raw status, which printed
+        // "Research_pending" -- the underscore and all -- to a
+        // reader. The evidence label is the one mapping from the
+        // stored vocabulary to the four public words, and this row
+        // now goes through it like every other badge on the site.
         evidence: place.status
-          ? place.status.charAt(0).toUpperCase() + place.status.slice(1)
+          ? evidenceLabelText({ evidenceStatus: place.status })
           : undefined,
       });
       continue;

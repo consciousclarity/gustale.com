@@ -30,6 +30,19 @@ import type { DishOrigin } from "../types/dish";
 export interface DishMapProps {
   origin: DishOrigin;
   dishName: string;
+  /**
+   * Whether the place this map draws is a REVIEWED association.
+   *
+   * The map draws ONE point: the dish's legacy `origin` value. That
+   * value is DISCOVERY data -- a Wikidata lookup, not a checked
+   * historical claim -- so the map must not call it the dish's
+   * origin, and the reader must be told it is unverified.
+   *
+   * The API says so itself: `legacy.origin.label` is "Associated
+   * with", `isDiscoveryData` is true, and the warning reads "This is
+   * a discovery value, not a reviewed historical claim."
+   */
+  isReviewed?: boolean;
 }
 
 /**
@@ -53,7 +66,11 @@ export interface DishMapProps {
  * NOT `client:load`. MapLibre imports `mapbox-gl`'s WebGL helpers at
  * module-load time, which crashes during Astro SSR.
  */
-export function DishMap({ origin, dishName }: DishMapProps) {
+export function DishMap({
+  origin,
+  dishName,
+  isReviewed = false,
+}: DishMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const popupRef = useRef<PopupType | null>(null);
@@ -116,7 +133,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
         "[DishMap] WebGL not available — falling back to static panel",
       );
       setMapError(
-        "Your browser does not support WebGL, which is required for the interactive map. The origin details are shown below.",
+        "Your browser does not support WebGL, which is required for the interactive map. The place is named above.",
       );
       setMapReady(true);
       return;
@@ -158,7 +175,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
           // eslint-disable-next-line no-console
           console.warn("[DishMap] MapLibre init failed:", err);
           setMapError(
-            "The interactive map could not be initialised in this browser. The origin details are shown below.",
+            "The interactive map could not be initialised in this browser. The place is named above.",
           );
           setMapReady(true);
           return;
@@ -266,7 +283,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
           if (popup) {
             popup
               .setLngLat([lng!, lat!])
-              .setHTML(buildPopupHTML(origin, dishName))
+              .setHTML(buildPopupHTML(origin, dishName, isReviewed))
               .addTo(mapInstance);
           }
 
@@ -304,7 +321,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
         console.warn("[DishMap] failed to load maplibre-gl", err);
         if (cancelled) return;
         setMapError(
-          "The interactive map could not be loaded. The origin details are shown below.",
+          "The interactive map could not be loaded. The place is named above.",
         );
         setMapReady(true);
       });
@@ -321,7 +338,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
       mapRef.current = null;
       setMapReady(false);
     };
-  }, [hasCoords, lat, lng, origin, dishName]);
+  }, [hasCoords, lat, lng, origin, dishName, isReviewed]);
 
   // No coordinates recorded → static fallback. Keeps the page readable
   // and consistent with the WebGL fallback styling.
@@ -329,7 +346,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
     return (
       <div
         role="figure"
-        aria-label={`${dishName} — origin: ${origin.name || "unknown"}`}
+        aria-label={`${dishName} — associated place: ${origin.name || "not recorded"}`}
         className="flex h-48 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500"
       >
         {origin.name ? (
@@ -340,11 +357,11 @@ export function DishMap({ origin, dishName }: DishMapProps) {
             )}
             <br />
             <span className="text-xs text-slate-600">
-              No coordinates recorded for this origin.
+              No coordinates recorded for this place.
             </span>
           </p>
         ) : (
-          <p>No origin recorded for this dish.</p>
+          <p>No associated place recorded for this dish.</p>
         )}
       </div>
     );
@@ -353,13 +370,13 @@ export function DishMap({ origin, dishName }: DishMapProps) {
   return (
     <div
       role="figure"
-      aria-label={`${dishName} — origin: ${origin.name || `${lat}, ${lng}`}`}
+      aria-label={`${dishName} — associated place: ${origin.name || `${lat}, ${lng}`}`}
       className="dish-map-frame"
     >
       <div
         ref={containerRef}
         className={mapError ? "dish-map-canvas is-hidden" : "dish-map-canvas"}
-        aria-label="Interactive map showing this dish's geographic origin"
+        aria-label="Interactive map showing the place this dish is associated with"
       />
 
       {/* MapLibre loading overlay. Hidden the moment the dynamic
@@ -381,7 +398,7 @@ export function DishMap({ origin, dishName }: DishMapProps) {
             <strong>{dishName}</strong>
             <br />
             <span className="dish-map-origin-muted">
-              Origin: {origin.name}
+              Associated with: {origin.name}
               {origin.isoCode && (
                 <span className="dish-map-origin-faint">
                   ({origin.isoCode})
@@ -398,10 +415,36 @@ export function DishMap({ origin, dishName }: DishMapProps) {
 
       <noscript>
         <p className="dish-map-note dish-map-note--warn">
-          Enable JavaScript to see the interactive map of where this dish
-          originates.
+          Enable JavaScript to see the interactive map of the place this
+          dish is associated with.
         </p>
       </noscript>
+
+      {/*
+        THE DISCLOSURE UNDER THE MAP.
+
+        The map draws ONE point, and that point is the dish's legacy
+        `origin` value -- a Wikidata lookup, which the API itself
+        marks `isDiscoveryData: true` with the warning "This is a
+        discovery value, not a reviewed historical claim."
+
+        So the reader is told, in the page and in the site's own
+        words, what the pin means. Without this line, a reader sees a
+        map of Greece under the heading "Where it belongs" and reads
+        it as a reviewed claim that the dish belongs to Greece --
+        which is exactly the claim the site's evidence rules forbid
+        stating without a qualifying source.
+
+        The wording follows the API's own `legacy.origin.label`,
+        "Associated with", and the site's "Unverified" for the state.
+      */}
+      {!isReviewed && (
+        <p className="dish-map-disclosure">
+          Associated with {origin.name || "a place not yet named"}. This is a
+          discovery value, not a reviewed historical claim — it has not been
+          checked against a qualifying source.
+        </p>
+      )}
     </div>
   );
 }
@@ -440,7 +483,11 @@ function initialZoom(entityType: string): number {
  * MapLibre's Popup owns the DOM node — React reconciling over a
  * MapLibre-managed element is brittle and unnecessary.
  */
-function buildPopupHTML(origin: DishOrigin, dishName: string): string {
+function buildPopupHTML(
+  origin: DishOrigin,
+  dishName: string,
+  isReviewed: boolean,
+): string {
   const safe = (s: string): string =>
     s
       .replace(/&/g, "&amp;")
@@ -459,6 +506,14 @@ function buildPopupHTML(origin: DishOrigin, dishName: string): string {
       `<span style="color:#64748b;margin-left:4px;">(${safe(origin.isoCode)})</span>`,
     );
   }
+  // The place is labelled, and when it is DISCOVERY data the reader
+  // is told so in the popup itself -- not only in a panel elsewhere
+  // on the page. The wording is the API's own.
+  rows.push(
+    isReviewed
+      ? `<span style="display:block;margin-top:3px;color:#475569;">Associated with</span>`
+      : `<span style="display:block;margin-top:3px;color:#475569;">Associated with (unverified)</span>`,
+  );
   // dishCountAtOrigin: live from the API if a fetch is already in flight
   // (cheap, no extra render). Falls back to "1" silently if the call
   // hasn't returned or failed.

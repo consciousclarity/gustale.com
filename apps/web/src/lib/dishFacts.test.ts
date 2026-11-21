@@ -150,6 +150,33 @@ describe("buildDishFacts", () => {
   });
 
   it("reads the associated place, its kind and its evidence state", () => {
+    // The place must be EVIDENCED to be stated. The row used to take
+    // whichever place came first -- often an unevidenced legacy row --
+    // so the table could print a place the site cannot state.
+    const places: DishPlaceAssociation[] = [
+      {
+        slug: "greece",
+        name: "Greece",
+        relationship: "established_tradition",
+        status: "evidenced",
+      },
+    ];
+    const rows = buildDishFacts({
+      canonicalName: "Moussaka",
+      dimensions: [],
+      names: [],
+      places,
+    });
+    const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+    assert.equal(by.associatedWith?.value, "Greece · Established tradition");
+    assert.equal(by.associatedWith?.href, "/place/greece");
+    // The badge uses the site's four public words, not the raw status.
+    assert.equal(by.associatedWith?.evidence, "Documented");
+  });
+
+  it("says No evidence rather than printing a place it cannot state", () => {
+    // An unevidenced place is a gap. The row says so about the RECORD
+    // rather than printing the place as an association.
     const places: DishPlaceAssociation[] = [
       {
         slug: "greece",
@@ -165,9 +192,49 @@ describe("buildDishFacts", () => {
       places,
     });
     const by = Object.fromEntries(rows.map((r) => [r.key, r]));
-    assert.equal(by.associatedWith?.value, "Greece · Established tradition");
-    assert.equal(by.associatedWith?.href, "/place/greece");
-    assert.equal(by.associatedWith?.evidence, "Unevidenced");
+    assert.equal(by.associatedWith?.value, DISH_FACT_MISSING);
+  });
+
+  it("skips a place that cannot be stated and takes the next one", () => {
+    // The order the API returns is not the order of merit. An
+    // unevidenced row first must not shadow an evidenced row behind it.
+    const places: DishPlaceAssociation[] = [
+      { slug: "a", name: "A", relationship: "established_tradition", status: "unevidenced" },
+      { slug: "b", name: "B", relationship: "established_tradition", status: "evidenced" },
+    ];
+    const rows = buildDishFacts({
+      canonicalName: "Moussaka",
+      dimensions: [],
+      names: [],
+      places,
+    });
+    const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+    assert.equal(by.associatedWith?.value, "B · Established tradition");
+    assert.equal(by.associatedWith?.href, "/place/b");
+  });
+
+  it("uses the public label vocabulary, not the raw status", () => {
+    // The row used to capitalise the raw status, which printed
+    // "Research_pending" -- underscore and all -- to a reader.
+    const places: DishPlaceAssociation[] = [
+      {
+        slug: "greece",
+        name: "Greece",
+        relationship: "established_tradition",
+        status: "provisional",
+      },
+    ];
+    const rows = buildDishFacts({
+      canonicalName: "Moussaka",
+      dimensions: [],
+      names: [],
+      places,
+    });
+    const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+    assert.ok(
+      !by.associatedWith?.evidence?.includes("_"),
+      "the raw status leaked into the badge",
+    );
   });
 
   it("joins the other names with commas", () => {
@@ -186,7 +253,12 @@ describe("buildDishFacts", () => {
     const dims = [dim("family", "casserole", "Casserole")];
     const names = [nm("Mousakas", "en")];
     const places: DishPlaceAssociation[] = [
-      { slug: "greece", name: "Greece", relationship: "established_tradition" },
+      {
+        slug: "greece",
+        name: "Greece",
+        relationship: "established_tradition",
+        status: "evidenced",
+      },
     ];
     const rows = buildDishFacts({
       canonicalName: "Moussaka",
@@ -218,6 +290,7 @@ describe("buildDishFacts", () => {
             slug: "greece",
             name: "Greece",
             relationship: "established_tradition",
+            status: "evidenced",
           },
         ],
       });
@@ -234,7 +307,12 @@ describe("buildDishFacts", () => {
         dimensions: [],
         names: [],
         places: [
-          { slug: "greece", name: "Greece", relationship: "legacy_unreviewed" },
+          {
+            slug: "greece",
+            name: "Greece",
+            relationship: "legacy_unreviewed",
+            status: "evidenced",
+          },
         ],
       });
       const by = Object.fromEntries(rows.map((r) => [r.key, r]));
@@ -251,7 +329,12 @@ describe("buildDishFacts", () => {
         dimensions: [],
         names: [],
         places: [
-          { slug: "greece", name: "Greece", relationship: "some_new_kind" },
+          {
+            slug: "greece",
+            name: "Greece",
+            relationship: "some_new_kind",
+            status: "evidenced",
+          },
         ],
       });
       const by = Object.fromEntries(rows.map((r) => [r.key, r]));

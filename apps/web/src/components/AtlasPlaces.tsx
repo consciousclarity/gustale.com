@@ -535,6 +535,32 @@ export default function AtlasPlaces({
     if (state !== "ready" || !data) return;
 
     const related = data.historyAndConnections?.connections ?? [];
+
+    // THE RELATIONSHIP IS GATED TOO -- ON WHAT IT ACTUALLY CARRIES.
+    //
+    // The related dish's PLACE passes the evidence gate. So does the
+    // CONNECTION that says this dish and that one are related at
+    // all: a row that says "Turkey is where <dish> is associated"
+    // rests on that relation, so an unjustified relation would be
+    // printed as a fact.
+    //
+    // BUT A CONNECTION HAS NO EVIDENCE STATUS. Its `status` field is
+    // "active" -- a row-lifecycle flag, not a state of knowledge --
+    // and gating on it with the evidence allowlist would match
+    // nothing and silently empty the whole section. The thing that
+    // actually justifies a connection is its `reason`: the
+    // human-written sentence saying WHY these two are related.
+    //
+    // So the gate is the reason. A connection with no reason is a
+    // relation the site cannot state, and it is withheld.
+    //
+    // Gating BEFORE the slice also saves the requests: there is no
+    // point fetching the atlas view of a dish whose relationship to
+    // this one cannot be stated.
+    const evidencedConnections = related.filter(
+      (c) => typeof c.reason === "string" && c.reason.trim().length > 0,
+    );
+
     // CAPPED. This fires one request per connection, so an
     // unbounded list would be an unbounded number of requests
     // on a page load. The connections are already ordered by
@@ -542,12 +568,26 @@ export default function AtlasPlaces({
     // worth showing.
     const slugs = Array.from(
       new Set(
-        related
+        evidencedConnections
           .map((c) => c.other?.slug)
           .filter((s): s is string => typeof s === "string" && s.length > 0),
       ),
     ).slice(0, MAX_RELATED_PLACE_FETCHES);
     if (slugs.length === 0) return;
+
+    // THE RELATED DISH'S NAME.
+    //
+    // The name comes from THIS dish's connections -- the payload
+    // already carries it. It used to be looked up in the RELATED
+    // dish's own connections for an entry naming itself, which a
+    // dish never does, so the lookup always missed and the row fell
+    // back to the raw slug: "Turkey is where musakka-turkish is
+    // associated." A slug in a sentence is not a name.
+    const nameBySlug = new Map(
+      evidencedConnections
+        .filter((c) => typeof c.other?.slug === "string")
+        .map((c) => [c.other!.slug, c.other!.name]),
+    );
 
     let cancelled = false;
 
@@ -555,9 +595,6 @@ export default function AtlasPlaces({
       slugs.map(async (relatedSlug) => {
         try {
           const view = await getDishAtlas(relatedSlug);
-          const row = view.historyAndConnections?.connections?.find(
-            (c) => c.other?.slug === relatedSlug,
-          );
           // The SAME evidence gate the main list uses. A
           // related dish's place is only shown when it is
           // actually evidenced -- `reviewState !== "rejected"`
@@ -574,10 +611,14 @@ export default function AtlasPlaces({
           return {
             slug: relatedSlug,
             places,
-            connectionName: row?.other?.name ?? relatedSlug,
+            connectionName: nameBySlug.get(relatedSlug) ?? "a related dish",
           };
         } catch {
-          return { slug: relatedSlug, places: [], connectionName: relatedSlug };
+          return {
+            slug: relatedSlug,
+            places: [],
+            connectionName: nameBySlug.get(relatedSlug) ?? "a related dish",
+          };
         }
       }),
     ).then((results) => {
@@ -774,7 +815,18 @@ export default function AtlasPlaces({
       */}
       {origin && origin.lat !== null && origin.lng !== null ? (
         <div className="atlas-places__map">
-          <DishMap origin={origin} dishName={dishName} />
+          {/*
+            THE MAP DRAWS THE LEGACY ORIGIN -- DISCOVERY DATA.
+
+            `origin` is the dish's legacy Wikidata value, which the
+            API marks `isDiscoveryData: true` and warns is "not a
+            reviewed historical claim". The map is passed
+            `isReviewed={false}` so it labels the place as associated
+            and discloses that it is unverified, instead of letting a
+            pin under the heading "Where it belongs" read as a
+            reviewed claim about where the dish was invented.
+          */}
+          <DishMap origin={origin} dishName={dishName} isReviewed={false} />
         </div>
       ) : null}
 
@@ -792,12 +844,17 @@ export default function AtlasPlaces({
         dish only reaches it through the relation. So it is labelled
         as a relation, never as an association of this dish.
 
-        The connections carry the related dish's slug; the related
-        dish's OWN places are not on this page's payload, so the row
-        is rendered only when the related dish's place is known. The
-        atlas view's `connections` do not carry it, so this list stays
-        empty until the API exposes the related dish's associations --
-        which is a deliberate empty state rather than a guess.
+        The connections carry the related dish's slug and name; the
+        related dish's OWN places are not on this page's payload, so
+        the island asks the API for each related dish's atlas view and
+        reads the places from there.
+
+        A row appears only when BOTH halves are in order: the
+        relation carries a reason (so the site can say why these two
+        are related), and the related dish's place passes the same
+        evidence gate as every other place on the page. The section
+        is absent when there is nothing to show -- an honest absence
+        rather than a guess.
       */}
       {relatedPlaces.length > 0 ? (
         <div className="atlas-group atlas-group--related">
@@ -814,6 +871,13 @@ export default function AtlasPlaces({
                 <p className="atlas-association__sentence">
                   {row.place} is where {row.dishName} is associated.
                 </p>
+                {/*
+                  The wording is the brief's: "Turkey - home of a
+                  related dish, musakka". It says "associated", never
+                  "invented" or "origin", because the place is where
+                  the OTHER dish is associated -- this dish only
+                  reaches it through the relation.
+                */}
               </li>
             ))}
           </ul>

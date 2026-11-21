@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type { SourceClass } from "../types/dish.ts";
 import {
   SOURCE_TIER_WORDS,
   sourceTierWords,
@@ -25,7 +26,8 @@ describe("sourceTierWords — the public wording of a source's tier", () => {
     // The enum is S1..S7. If the enum grows and this list does not,
     // the new class silently renders as "Not classified" -- which is
     // honest but wrong, because it HAS a class.
-    for (const cls of ["S1", "S2", "S3", "S4", "S5", "S6", "S7"]) {
+    const ALL: readonly SourceClass[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"];
+    for (const cls of ALL) {
       assert.ok(
         SOURCE_TIER_WORDS[cls],
         `${cls} must have a public name`,
@@ -51,7 +53,8 @@ describe("sourceTierWords — the public wording of a source's tier", () => {
   it("states the tier's NAME for a tier that carries no clause", () => {
     // S1..S5 are evidence tiers. What they are says what they are
     // worth; a clause would be a claim about the claim.
-    for (const cls of ["S1", "S2", "S3", "S4", "S5"]) {
+    const EVIDENCE: readonly SourceClass[] = ["S1", "S2", "S3", "S4", "S5"];
+    for (const cls of EVIDENCE) {
       assert.equal(
         sourceTierWords(cls),
         SOURCE_TIER_WORDS[cls],

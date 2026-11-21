@@ -6568,6 +6568,26 @@ body.nav-panel-open {
   color: #9ca3af;
   font-size: 0.75rem;
 }
+/*
+  THE DISCLOSURE UNDER THE MAP.
+
+  The map draws ONE point -- the dish's legacy origin value, which is
+  discovery data, not a reviewed claim. The line under the map tells
+  the reader so, in the site's own words, rather than letting a pin
+  under "Where it belongs" read as a settled fact.
+
+  It is styled like the legacy-origin warning block below it: muted
+  ink, a warm ground, a left rule. Same meaning, same register.
+*/
+.dish-map-disclosure {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--line-strong);
+  background: var(--card);
+  color: var(--sub);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
 .wm-view-toggle {
   position: absolute;
   right: 12px;

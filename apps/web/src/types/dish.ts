@@ -19,6 +19,23 @@ export type DishStatus = "draft" | "published" | "archived";
  */
 export type DishContentType = "dish" | "drink";
 
+/**
+ * THE SOURCE CLASS — the tier of a citation.
+ *
+ * The `source_class` enum in the database has exactly these members,
+ * in this order. The type is spelled out rather than left as
+ * `string`, because a `string` here lets a typo through into the
+ * page: `sourceTierWords` would fall back to "Not classified" and
+ * the reader would be told a classified source has no tier.
+ *
+ * The field on a source is OPTIONAL because the API that serves it
+ * is deployed separately from the web app that reads it. During the
+ * window between the two, the field is simply absent -- which the
+ * renderer already handles, and which is honest: a source with no
+ * tier says so rather than being given one it does not have.
+ */
+export type SourceClass = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7";
+
 // ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
 
 export interface CategoryListItem {
@@ -273,7 +290,7 @@ export interface DishCitation {
    * the tier in public words, so an unclassified source says so
    * rather than being given a tier it does not have.
    */
-  sourceClass: string | null;
+  sourceClass?: SourceClass | null;
   title: string | null;
   authors: string | null;
   year: number | null;
