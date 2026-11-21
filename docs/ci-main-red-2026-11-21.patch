@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index fff5148..631618b 100644
+index fff5148..7f26a6c 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
 @@ -1386,27 +1386,6 @@ jobs:
@@ -39,7 +39,7 @@ index fff5148..631618b 100644
 -              -d parse_mode="Markdown" \\
 -              -d disable_web_page_preview=true \\
 -              --data-urlencode "text=${MSG}" \\
-+                        # A SINGLE backslash ends the line. It is a bash line
++            # A SINGLE backslash ends the line. It is a bash line
 +            # continuation, so the whole curl is ONE command.
 +            #
 +            # It used to be a DOUBLE backslash, and that broke the

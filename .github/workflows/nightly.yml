@@ -284,11 +284,28 @@ jobs:
             exit 0
           fi
           MSG="Nightly re-translation — ${{ job.status }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \\
-            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \\
-            -d parse_mode="Markdown" \\
-            -d disable_web_page_preview=true \\
-            --data-urlencode "text=${MSG}" \\
+                    # A SINGLE backslash ends the line. It is a bash line
+          # continuation, so the whole curl is ONE command.
+          #
+          # It used to be a DOUBLE backslash, and that broke the
+          # notification: bash reads a double backslash as an escaped
+          # backslash, so the trailing backslash is consumed and the
+          # newline ends the command. curl then ran with the URL ALONE
+          # -- and with a trailing backslash as an argument, which is
+          # what produced "curl: (3) URL rejected: Bad hostname" -- and
+          # the -d fragments became separate commands. Under `bash -e`
+          # the step died there, so a broken notification FAILED THE
+          # DEPLOY.
+          #
+          # It failed this way on run 44698409565 (2026-11-20, CI) and
+          # on every Nightly "Report" step, always with the same
+          # two lines: the curl error and a Telegram 400 for empty
+          # text, then exit code 3.
+          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="Markdown" \
+            -d disable_web_page_preview=true \
+            --data-urlencode "text=${MSG}" \
             --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
 
   # ─── Production image build verification ────────────────────────────
