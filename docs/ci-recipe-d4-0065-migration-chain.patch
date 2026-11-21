@@ -1,0 +1,38 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index f823247..fff5148 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1386,6 +1386,33 @@ jobs:
+             -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
+           bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
+ 
++      # ── 0065: D4, the recipe content model ─────────────────────────────
++      #
++      # Widens the `recipe_sentences.field` CHECK with six more values
++      # (precondition, key_moment, failure, variation, keeping,
++      # evidence) and adds the nullable `recipes.recipe_layout` jsonb.
++      #
++      # The proof rows are created and removed by the migration itself,
++      # so this leaves no fixture behind.
++      - name: Apply the 0065 recipe content model
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0065_recipe_layout_and_sentence_fields.sql 2>&1 | tee /tmp/m0065.log
++          bash scripts/check-ci-markers.sh "the recipe content model" "D4_MIGRATION_PROOFS" /tmp/m0065.log
++
++      # The D4 CONSTRAINT TESTS, against the schema the chain produces.
++      #
++      # They assert that all nine sentence fields are ACCEPTED, that a
++      # value outside the vocabulary and a near miss are still REFUSED,
++      # that the layout column is jsonb and nullable, that a layout
++      # round-trips, and that the fixtures were cleaned up. They refuse
++      # to run against a database that is not marked disposable.
++      - name: The D4 constraint tests
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f scripts/test_recipe_d4_schema.sql 2>&1 | tee /tmp/d4_constraints.log
++          bash scripts/check-ci-markers.sh "the D4 constraint tests" "D4_SCHEMA_TESTS" /tmp/d4_constraints.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.

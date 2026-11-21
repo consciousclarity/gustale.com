@@ -322,6 +322,17 @@ MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
 # self-contained).
 MIGRATION_0063=db/migrations/0063_record_0061_in_the_ledger.sql
 
+# 0065 is D4 — the recipe content model. It widens the
+# `recipe_sentences.field` CHECK with six more values (precondition,
+# key_moment, failure, variation, keeping, evidence) and adds a nullable
+# `recipes.recipe_layout jsonb` column.
+#
+# It is numbered 0065, not 0064: 0064 is the ledger reconciliation on
+# the branch `db/0064-reconcile-the-ledger`, which is not merged yet.
+# Two migrations must never share a number, and the unmerged one gets
+# the lower number because it was written first.
+MIGRATION_0065=db/migrations/0065_recipe_layout_and_sentence_fields.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -978,6 +989,34 @@ echo "--- record 0061 in the ledger"
 run_pg -f - < "$MIGRATION_0063" >/tmp/m0063.log 2>&1 || { echo "FAILED: 0063"; grep -E 'ERROR|NOTICE' /tmp/m0063.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'GUS_LEDGER_0061_OK' /tmp/m0063.log | tail -1 || true
+
+# ── 0065: D4, the recipe content model ─────────────────────────────────
+#
+# Widens the `recipe_sentences.field` CHECK with six more values and adds
+# a nullable `recipes.recipe_layout jsonb` column. Additive: nothing is
+# dropped, renamed or retyped, and the column stays NULL until the writer
+# fills it -- so a recipe written before this migration keeps rendering
+# from the scalar columns alone.
+#
+# It is numbered 0065, not 0064: 0064 is the ledger reconciliation on
+# the branch `db/0064-reconcile-the-ledger`, which is not merged yet.
+# Two migrations must never share a number.
+echo "--- the recipe content model (D4)"
+run_pg -f - < "$MIGRATION_0065" >/tmp/m0065.log 2>&1 || { echo "FAILED: 0065"; grep -E 'ERROR|NOTICE' /tmp/m0065.log | tail -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'D4_MIGRATION_PROOFS' /tmp/m0065.log | tail -1 || true
+
+# The D4 CONSTRAINT TESTS, against the schema the chain produces.
+#
+# They assert that all nine sentence fields are ACCEPTED, that a value
+# outside the vocabulary is still REFUSED, that the layout column is
+# jsonb and nullable, and that the fixtures were cleaned up. They refuse
+# to run against a database that is not marked disposable.
+echo "--- the D4 constraint tests"
+run_pg -v ON_ERROR_STOP=1 -f - < scripts/test_recipe_d4_schema.sql >/tmp/d4_constraints.log 2>&1 \
+  || { echo "FAILED: the D4 constraint tests"; grep -E 'FAIL|ERROR' /tmp/d4_constraints.log | head -12; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'D4_SCHEMA_TESTS' /tmp/d4_constraints.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

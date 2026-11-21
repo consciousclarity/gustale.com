@@ -609,6 +609,22 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0063_record_0061_in_the_ledger.s
   || { echo "  FAILED: 0063"; grep -E 'ERROR' /tmp/repro_0063.log | head -8; fail=1; }
 grep -E 'GUS_LEDGER_0061_OK' /tmp/repro_0063.log | tail -1 || true
 
+# D4 — the recipe content model (migration 0065).
+#
+# Widens the `recipe_sentences.field` CHECK with six more values
+# (precondition, key_moment, failure, variation, keeping, evidence) and
+# adds a nullable `recipes.recipe_layout jsonb` column. Additive: nothing
+# is dropped, renamed or retyped, and the column stays NULL until the
+# writer fills it.
+#
+# It is numbered 0065, not 0064: 0064 is the ledger reconciliation on the
+# branch `db/0064-reconcile-the-ledger`, which is not merged yet. Two
+# migrations must never share a number.
+step "the recipe content model (D4)"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0065_recipe_layout_and_sentence_fields.sql" > /tmp/repro_0065.log 2>&1 \
+  || { echo "  FAILED: 0065"; grep -E 'ERROR' /tmp/repro_0065.log | head -8; fail=1; }
+grep -E 'CONFIRMED' /tmp/repro_0065.log | tail -6 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.

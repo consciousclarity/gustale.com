@@ -2968,6 +2968,26 @@ export const recipes = pgTable(
       .notNull()
       .defaultNow(),
     isPrimary: boolean("is_primary").notNull().default(false),
+    // D4 — the recipe content model. The timeline, the sections, the
+    // per-step cue / dispute / cue_missing flags, the pieces, the total
+    // time including rests, and the image briefs.
+    //
+    // NULLABLE, and it stays NULL until the writer fills it: a recipe
+    // written before the D4 migration has no layout and is rendered from
+    // the scalar columns above alone. That is why the migration does not
+    // require a backfill.
+    //
+    // `jsonb` and not `json`: the page queries it by key, and `jsonb`
+    // normalises key order and removes duplicate keys, so two layouts
+    // that mean the same thing compare equal.
+    //
+    // There is NO TypeScript type here on purpose. The shape is the
+    // recipe record schema's
+    // (`tools/hermes-skills/gustale-recipe-writer/scripts/recipe-record.schema.json`),
+    // and `check_recipe.py` checks it BEFORE a layout is ever written. A
+    // TypeScript type would be a second copy of that schema, and it
+    // would drift.
+    recipeLayout: jsonb("recipe_layout"),
   },
   (t) => ({
     // The hub's list is "the dish's recipes", and the view filters on
@@ -3256,7 +3276,31 @@ export const recipeIngredientSubstitutes = pgTable(
 
 // ── The recipe's own sentences, LANGUAGE-FIRST ────────────────────────
 
-export const recipeSentenceField = ["step", "note", "intro"] as const;
+// The recipe sentence's ROLE. The first three are the original
+// vocabulary (ADR-007-A1); the six that follow are D4's widening.
+//
+//   precondition  something that must be true before a step can start
+//                 ("the sauce has cooled")
+//   key_moment    the step where the dish changes character
+//   failure       what goes wrong, and how it shows
+//   variation     where accounts differ, and the version it describes
+//   keeping       what makes the dish keep — a preservation fact
+//   evidence      the sentence that carries the sourcing for a step
+//
+// The database CHECK carries the same nine values, widened by migration
+// 0065. This array and that CHECK are two expressions of one vocabulary,
+// so they are changed together — migration 0065 and this file.
+export const recipeSentenceField = [
+  "step",
+  "note",
+  "intro",
+  "precondition",
+  "key_moment",
+  "failure",
+  "variation",
+  "keeping",
+  "evidence",
+] as const;
 export type RecipeSentenceField = (typeof recipeSentenceField)[number];
 
 export const recipeSentenceAnchorStatus = ["full", "partial", "none"] as const;
