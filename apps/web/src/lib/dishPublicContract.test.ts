@@ -212,6 +212,137 @@ describe("the accent theme follows the page", () => {
   });
 });
 
+describe("no public view counts and no 'published' badge (D21-8)", () => {
+  it("the public dish list does not pass a view count to the card", () => {
+    // D21-8: "No view counts anywhere public (not on the dish header,
+    // the dish list or the cards)." The list used to print "1,234
+    // views" on every card -- a metric about the encyclopedia, not a
+    // fact about the dish.
+    const source = code(join(COMPONENTS, "DishExplorer.tsx"));
+    assert.ok(
+      !/viewCount=\{/.test(source),
+      "the public dish list still passes a view count to the card",
+    );
+  });
+
+  it("the public dish list does not pass a status to the card", () => {
+    // D21-8: "The word 'published' never appears on a public card."
+    // Every dish in the list is published, so the badge read
+    // "Published" on every card and told the reader nothing.
+    const source = code(join(COMPONENTS, "DishExplorer.tsx"));
+    assert.ok(
+      !/status=\{/.test(source),
+      "the public dish list still passes a status to the card",
+    );
+  });
+
+  it("the dish header renders no view count and no byline", () => {
+    const source = code(join(COMPONENTS, "DishDetail.tsx"));
+    for (const leak of [
+      "viewCount",
+      "contributorCount",
+      "By an unknown editor",
+    ]) {
+      assert.ok(
+        !source.includes(leak),
+        `the dish header still renders ${leak}`,
+      );
+    }
+  });
+
+  it("the shared card only prints a view count when it is given one", () => {
+    // The card component may keep the prop -- the admin list uses it --
+    // but the PUBLIC list must not pass it, and the two assertions
+    // above are what hold that line.
+    const source = code(join(ROOT, "packages", "ui", "src", "Card.tsx"));
+    assert.ok(
+      source.includes("viewCount"),
+      "the card lost its view count entirely -- the admin list needs it",
+    );
+    assert.ok(
+      /typeof viewCount === "number"/.test(source),
+      "the card prints a view count unconditionally",
+    );
+  });
+});
+
+describe("the map discloses that it draws discovery data", () => {
+  it("does not call the legacy value an origin", () => {
+    // The map draws the dish's legacy Wikidata value, which the API
+    // marks isDiscoveryData: true. Calling it an origin would assert a
+    // reviewed claim the record does not make -- and the API's own
+    // label for it is "Associated with".
+    const source = code(join(COMPONENTS, "DishMap.tsx"));
+    assert.ok(
+      !/geographic origin/i.test(source),
+      "the map still calls the discovery value a geographic origin",
+    );
+    assert.ok(
+      !/where this dish originates/i.test(source),
+      "the map still tells the reader where the dish originates",
+    );
+  });
+
+  it("discloses the discovery value to the reader", () => {
+    const source = code(join(COMPONENTS, "DishMap.tsx"));
+    assert.ok(
+      source.includes("dish-map-disclosure"),
+      "the map has no disclosure line under it",
+    );
+  });
+});
+
+describe("the Connections block always shows its three columns (D21-11)", () => {
+  it("the section is not skipped when the dish has no relations", () => {
+    // D21-11: "The dish page always shows Variants and the three
+    // Connections columns (Resembles · Influenced by · Same family),
+    // each with a short empty state when it has no data."
+    //
+    // The section used to be wrapped in a `connectionColumns.length > 0`
+    // condition, so a dish with no connections had no Connections
+    // heading at all -- and a reader could not tell whether the site
+    // had none or had not looked.
+    const source = code(join(COMPONENTS, "DishContentSections.tsx"));
+    assert.ok(
+      !/connectionColumns\.length > 0/.test(source),
+      "the Connections section is still skipped when it is empty",
+    );
+  });
+
+  it("each column has its own empty state", () => {
+    const source = code(join(COMPONENTS, "DishConnections.tsx"));
+    assert.ok(
+      source.includes("dish-connections__empty"),
+      "a column with no entries renders nothing at all",
+    );
+    // The three empty states are different, because the three columns
+    // make different claims.
+    for (const state of [
+      "No known resemblance",
+      "No recorded influence",
+      "No shared family",
+    ]) {
+      assert.ok(
+        source.includes(state),
+        `the empty state "${state}" is missing`,
+      );
+    }
+  });
+
+  it("the page nav links to the Connections anchor even when empty", () => {
+    // The section always renders, so the anchor is always there, so
+    // the nav must always offer it -- the same rule the Variants
+    // section follows.
+    for (const page of ["[slug].astro"]) {
+      const source = code(join(PAGES, "dishes", page));
+      assert.ok(
+        source.includes("hasConnections={true}"),
+        `${page} hides the Connections nav link when the section is empty`,
+      );
+    }
+  });
+});
+
 describe("prepared components are components, not the method", () => {
   it("the component list is built from the ingredient category", () => {
     const source = code(join(LIB, "preparedComponents.ts"));

@@ -74,17 +74,14 @@ export const DISH_SECTION_IDS = {
   recipes: "recipes-heading",
   /** "Sources" — the numbered source list. */
   sources: "sources-heading",
-  /**
-   * The "Places & traditions" section — the countries, regions and
-   * culinary communities a dish is associated with.
-   *
-   * It is a SUB-SECTION of "Where it belongs" in the mockup: the map and
-   * the association list belong together, under one heading. So it keeps
-   * its own anchor for the deep link, but it does NOT get its own entry
-   * in the nav — the nav would then list two ways to reach the same
-   * geography, and the mockup's nav does not.
+  /*
+   * There is deliberately NO "places" anchor any more.
+
+   * The map and the association list are ONE section -- "Where it
+   * belongs" -- under one heading, so the old `atlas-places-heading`
+   * id had no element to sit on. A deep link to it would have
+   * scrolled nowhere, which is worse than the link not existing.
    */
-  places: "atlas-places-heading",
 } as const;
 
 /** The union of the known section anchor ids. */

@@ -77,10 +77,38 @@ const isGeo = isGeoDomain();
 // We use getStaticPaths because Astro 6 default mode is `static` for deployed
 // pages; a fully static export also lets us serve everything from the nginx
 // container without going back to the API.
+/*
+  THE API BASE, AT MODULE SCOPE.
+
+  The Recipes block is fetched in BOTH halves of this page: the Atlas
+  half fetches the recipes for the dish it is rendering, and the hub
+  half fetches the same feed to build its own header. So both need
+  the API base.
+
+  It used to be declared INSIDE the `if (!isGeo)` block, so the Atlas
+  half -- the one that renders the Recipes block on every dish page --
+  referenced an identifier that was not in scope. Every geo dish page
+  logged
+
+      ReferenceError: apiBase is not defined
+
+  and fell into the catch, which meant the Recipes block ALWAYS
+  rendered its empty state: 854 occurrences across the build, one per
+  dish, and the recipes were there the whole time.
+
+  It is now declared once, at module scope, and both halves use it.
+*/
+const apiBase = import.meta.env.PUBLIC_API_BASE;
+
 export async function getStaticPaths() {
   // The web container only knows how to reach the API via PUBLIC_API_BASE,
   // which during the build step is the absolute https URL.
   // We rely on CI having run the API container + seed before this build runs.
+  //
+  // The API base is read HERE rather than taken from the module-level
+  // constant: Astro evaluates `getStaticPaths` in its own module scope,
+  // where that constant is not in scope. Reading the env var in both
+  // places gives the same value and no reference error.
   const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (!apiBase) {
     // No API configured at build time — fall back to a placeholder set so
@@ -151,7 +179,6 @@ let hubRecipes: import("../../lib/recipes").RecipeSummary[] = [];
 let hubTotal = 0;
 
 if (!isGeo) {
-  const apiBase = import.meta.env.PUBLIC_API_BASE;
   if (apiBase) {
     // The two fetches are INDEPENDENT and are awaited separately, NOT
     // with `Promise.all`.
@@ -417,11 +444,11 @@ const servedEnglish =
             preparations={data.preparations}
             hasWhere={atlasPlaces.length > 0 || data.origin !== null}
             hasHistory={true}
-            hasConnections={relations !== null && relations.length > 0}
-            hasVariants={data.variants.length > 0}
+            hasConnections={true}
+            hasVariants={true}
             hasIngredients={data.ingredients.length > 0}
             hasRecipes={true}
-            hasSources={data.sources.length > 0}
+            hasSources={true}
             client:load
           />
 
@@ -447,7 +474,30 @@ const servedEnglish =
             The heading carries the anchor the nav links to
             ("where-heading"). The two blocks keep their own anchors
             for their deep links — the nav does not list them, because
-            it would then offer two ways to reach the same geography. */}
+            it would then offer two ways to reach the same geography.
+
+            ONE SECTION, ONE HEADING (D21-2 / the brief's WP-C2b).
+            This page used to carry THREE headings about the same
+            geography: "Where it belongs", "Places & traditions" (a
+            heading inside the island), and "Where Moussaka is
+            associated" (the legacy origin band, a whole separate
+            section). A reader landing on the page could not tell
+            whether these were three facts or one fact stated three
+            times.
+
+            The legacy band is now MERGED INTO THIS SECTION: the map
+            sits BESIDE the list, under this one heading, so the
+            picture and the claims are read together. The legacy value
+            keeps its own label inside the island's "Unverified
+            associations" group -- where it already lived, with its
+            discovery-data warning -- so nothing is lost by merging
+            the sections, and the second map and the duplicate heading
+            both go.
+
+            The map here is the MAP OF THE ASSOCIATED PLACE, not a
+            claim that the dish was invented there. It comes after the
+            associations so the reader meets the claims before the
+            picture. */}
             <section aria-labelledby="where-heading" class="dish-where">
               <h2 id="where-heading">Where it belongs</h2>
               <p class="sub dish-where__lede">
@@ -458,56 +508,11 @@ const servedEnglish =
                 slug={data.dish.slug}
                 dishName={data.dish.name}
                 initialData={atlasData}
+                origin={data.origin}
                 client:visible
               />
             </section>
           </div>
-
-          {/* The map stays — but it is the MAP OF THE ASSOCIATED PLACE, not a
-          claim that the dish was invented there. It comes after the
-          associations so the reader meets the claims before the
-          picture. */}
-          {data.origin && (
-            <section
-              aria-labelledby="origin-heading"
-              class="wrap dish-origin-band"
-            >
-              <h2 id="origin-heading">
-                Where {data.dish.name} is associated
-              </h2>
-              <p class="sub">
-                <strong style="color: var(--ink);">{data.origin.name}</strong>
-                {data.origin.localName &&
-                  data.origin.localName !== data.origin.name && (
-                    <span class="ml-1 italic" style="color: var(--sub);">
-                      ({data.origin.localName})
-                    </span>
-                  )}
-                {data.origin.isoCode && (
-                  <span class="ml-1" style="color: var(--sub);">
-                    · {data.origin.isoCode}
-                  </span>
-                )}
-                {data.origin.entityType &&
-                  data.origin.entityType !== "country" && (
-                    <span class="ml-1" style="color: var(--sub);">
-                      · {data.origin.entityType}
-                    </span>
-                  )}
-              </p>
-              <noscript>
-                <p class="alert alert-warning">
-                  Enable JavaScript to see the interactive map of where this
-                  dish is associated.
-                </p>
-              </noscript>
-              <DishMap
-                origin={data.origin}
-                dishName={data.dish.name}
-                client:only="react"
-              />
-            </section>
-          )}
 
           {/* THE CONTENT SECTIONS (WP-C2) — History, Connections, Variants,
           Ingredients + Recipes, Sources. In the blueprint's order.

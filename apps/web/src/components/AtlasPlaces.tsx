@@ -48,7 +48,14 @@ import { useEffect, useState } from "react";
 import type { AtlasAssociation, AtlasResponse } from "../lib/api";
 import { ApiError, getDishAtlas } from "../lib/api";
 import { relationshipLabel } from "../lib/dishFacts";
-import { publicSentence } from "../lib/publicAssociationSentence";
+import {
+  mayCarrySentence,
+  NO_EVIDENCE_TEXT,
+  publicSentence,
+  type RelatedPlaceRow,
+} from "../lib/publicAssociationSentence";
+import type { DishOrigin } from "../types/dish";
+import { DishMap } from "./DishMap";
 import { EvidenceLabel } from "./EvidenceLabel";
 
 /**
@@ -62,6 +69,14 @@ import { EvidenceLabel } from "./EvidenceLabel";
  * line that says "Loading" with nothing behind it.
  */
 const LOAD_TIMEOUT_MS = 5000;
+
+/**
+ * How many related dishes this island will fetch places for.
+ *
+ * Each related dish costs one API request, so this has to be a
+ * number rather than "all of them".
+ */
+const MAX_RELATED_PLACE_FETCHES = 6;
 
 // ─── The relationship types, in presentation order ───────────────────────
 //
@@ -210,10 +225,37 @@ function AssociationRow({ association }: { association: AtlasAssociation }) {
         unfilled placeholder tokens literally. The API no longer ships
         the field, and the page builds its own sentence from the
         relationship and the entity instead.
+
+        BUT a sentence built from the relationship and the entity
+        ALONE is a filler -- "Associated with the Greek cuisine."
+        asserts nothing while reading as though it did. The brief
+        asks for "an explanation from its source" and says plainly:
+        "No generated filler sentence". ATLAS_STYLE agrees: an
+        Unverified item is "Not written as prose. It stays a gap; the
+        facts row shows 'No evidence'", and "The facts table never
+        pads."
+
+        So the sentence is rendered only when there is a finding to
+        state. An unevidenced association shows the honest empty
+        state instead.
       */}
-      <p className="atlas-association__sentence">
-        {publicSentence(association)}
-      </p>
+      {(() => {
+        const sentence = publicSentence({
+          relationship: association.relationship,
+          entityKind: association.entityKind,
+          name: association.name,
+          isoCode: association.isoCode,
+          evidenceStatus: association.evidence.status,
+        });
+        if (sentence) {
+          return <p className="atlas-association__sentence">{sentence}</p>;
+        }
+        return (
+          <p className="atlas-association__sentence atlas-association__sentence--noevidence">
+            {NO_EVIDENCE_TEXT}
+          </p>
+        );
+      })()}
     </li>
   );
 }
@@ -235,6 +277,29 @@ function AssociationRow({ association }: { association: AtlasAssociation }) {
 const styles = `
 .atlas-places { margin: 0 0 var(--space-8, 3rem); }
 .atlas-places__intro { margin: 0 0 1.25rem; max-width: 62ch; }
+
+/* THE MAP, BESIDE THE LIST.
+   The brief asks for the map beside the list. On a wide screen the two
+   sit side by side, so a reader sees the picture and the claims
+   together; on a narrow screen the map stacks under the list, which
+   is the order the claims should be read in either way. */
+.atlas-places__map {
+  margin: 1.75rem 0 0;
+}
+@media (min-width: 60rem) {
+  .atlas-places__map {
+    margin: 0 0 1.5rem;
+  }
+}
+
+/* The honest empty state. ATLAS_STYLE: an Unverified item is "Not
+   written as prose. It stays a gap; the facts row shows 'No
+   evidence'." It is set in the same muted colour as the other
+   secondary lines, and in italics so it reads as a state rather than
+   as a sentence about the dish. */
+.atlas-association__sentence--noevidence {
+  font-style: italic;
+}
 
 .atlas-group { margin: 0 0 1.5rem; }
 .atlas-group__label {
@@ -355,10 +420,12 @@ export default function AtlasPlaces({
   slug,
   dishName,
   initialData,
+  origin,
 }: {
   slug: string;
   dishName: string;
   initialData?: AtlasResponse | null;
+  origin?: DishOrigin | null;
 }) {
   const [data, setData] = useState<AtlasResponse | null>(initialData ?? null);
   const [state, setState] = useState<"loading" | "ready" | "error">(
@@ -421,27 +488,170 @@ export default function AtlasPlaces({
     };
   }, [slug, initialData]);
 
+  /*
+   * THE RELATED-PLACE HOOKS COME FIRST, ON PURPOSE.
+   *
+   * They used to sit BELOW the loading and error early-returns, which
+   * is a rules-of-hooks violation: React renders the component, hits
+   * the early return, and never runs the later hooks -- then on the
+   * next render, when the state is "ready", it runs them. React sees
+   * more hooks than the previous render and throws #310 ("Rendered
+   * more hooks than during the previous render"), which takes the
+   * whole island down.
+   *
+   * Every hook in this component is now above every early return.
+   */
+
+  const [relatedPlaces, setRelatedPlaces] = useState<RelatedPlaceRow[]>([]);
+
+  /*
+   * THE PLACES OF THE RELATED DISHES.
+
+   * The brief: "Add places of related dishes, taken from
+   * `dish_relations` and marked as such: 'Turkey - home of a related
+   * dish, musakka'."
+
+   * The related dish's place is NOT on this payload -- the connection
+   * carries only the other dish's slug and name. So the island asks
+   * the API for each related dish's atlas view and reads the places
+   * from there.
+
+   * It is deliberately NOT a second kind of association. An
+   * association says something about THIS dish and a place. This says
+   * something about ANOTHER dish and a place, reached through the
+   * relation, so it is labelled as a relation and never as an
+   * association of this dish.
+
+   * The fetch is best-effort and CAPPED: a related dish whose atlas
+   * view does not answer simply contributes no rows, and no more than
+   * `MAX_RELATED_PLACE_FETCHES` dishes are asked for. The related
+   * dish's place must ALSO pass the same evidence gate as every other
+   * place on the page -- an unevidenced row is a gap, and a gap is
+   * shown as one rather than quietly promoted into a fact.
+   */
+  useEffect(() => {
+    if (state !== "ready" || !data) return;
+
+    const related = data.historyAndConnections?.connections ?? [];
+
+    // THE RELATIONSHIP IS GATED TOO -- ON WHAT IT ACTUALLY CARRIES.
+    //
+    // The related dish's PLACE passes the evidence gate. So does the
+    // CONNECTION that says this dish and that one are related at
+    // all: a row that says "Turkey is where <dish> is associated"
+    // rests on that relation, so an unjustified relation would be
+    // printed as a fact.
+    //
+    // BUT A CONNECTION HAS NO EVIDENCE STATUS. Its `status` field is
+    // "active" -- a row-lifecycle flag, not a state of knowledge --
+    // and gating on it with the evidence allowlist would match
+    // nothing and silently empty the whole section. The thing that
+    // actually justifies a connection is its `reason`: the
+    // human-written sentence saying WHY these two are related.
+    //
+    // So the gate is the reason. A connection with no reason is a
+    // relation the site cannot state, and it is withheld.
+    //
+    // Gating BEFORE the slice also saves the requests: there is no
+    // point fetching the atlas view of a dish whose relationship to
+    // this one cannot be stated.
+    const evidencedConnections = related.filter(
+      (c) => typeof c.reason === "string" && c.reason.trim().length > 0,
+    );
+
+    // CAPPED. This fires one request per connection, so an
+    // unbounded list would be an unbounded number of requests
+    // on a page load. The connections are already ordered by
+    // the API's own relevance, so the first few are the ones
+    // worth showing.
+    const slugs = Array.from(
+      new Set(
+        evidencedConnections
+          .map((c) => c.other?.slug)
+          .filter((s): s is string => typeof s === "string" && s.length > 0),
+      ),
+    ).slice(0, MAX_RELATED_PLACE_FETCHES);
+    if (slugs.length === 0) return;
+
+    // THE RELATED DISH'S NAME.
+    //
+    // The name comes from THIS dish's connections -- the payload
+    // already carries it. It used to be looked up in the RELATED
+    // dish's own connections for an entry naming itself, which a
+    // dish never does, so the lookup always missed and the row fell
+    // back to the raw slug: "Turkey is where musakka-turkish is
+    // associated." A slug in a sentence is not a name.
+    const nameBySlug = new Map(
+      evidencedConnections
+        .filter((c) => typeof c.other?.slug === "string")
+        .map((c) => [c.other!.slug, c.other!.name]),
+    );
+
+    let cancelled = false;
+
+    Promise.all(
+      slugs.map(async (relatedSlug) => {
+        try {
+          const view = await getDishAtlas(relatedSlug);
+          // The SAME evidence gate the main list uses. A
+          // related dish's place is only shown when it is
+          // actually evidenced -- `reviewState !== "rejected"`
+          // alone lets `unevidenced` discovery rows through,
+          // which is the gap the page is supposed to show
+          // rather than hide.
+          const places = (view.placesAndTraditions ?? []).filter(
+            (a) =>
+              a.entityKind === "place" &&
+              a.isoCode &&
+              a.reviewState !== "rejected" &&
+              mayCarrySentence(a.evidence?.status),
+          );
+          return {
+            slug: relatedSlug,
+            places,
+            connectionName: nameBySlug.get(relatedSlug) ?? "a related dish",
+          };
+        } catch {
+          return {
+            slug: relatedSlug,
+            places: [],
+            connectionName: nameBySlug.get(relatedSlug) ?? "a related dish",
+          };
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const rows: RelatedPlaceRow[] = [];
+      for (const res of results) {
+        for (const place of res.places) {
+          rows.push({
+            key: `${res.slug}:${place.id}`,
+            place: place.name ?? "",
+            relationLabel: "Related dish",
+            dishName: res.connectionName,
+          });
+        }
+      }
+      setRelatedPlaces(rows);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data, state]);
   if (state === "loading") {
     return (
-      <section
-        className="section atlas-places"
-        aria-labelledby="atlas-places-heading"
-      >
+      <div className="section atlas-places">
         <AtlasPlacesStyles />
-        <h2 id="atlas-places-heading">Places &amp; traditions</h2>
         <p className="sub">Loading the associations for {dishName}…</p>
-      </section>
+      </div>
     );
   }
 
   if (state === "error") {
     return (
-      <section
-        className="section atlas-places"
-        aria-labelledby="atlas-places-heading"
-      >
+      <div className="section atlas-places">
         <AtlasPlacesStyles />
-        <h2 id="atlas-places-heading">Places &amp; traditions</h2>
         <p className="alert alert-warning">
           This part did not load ({reason}). The dish’s own details below are
           unaffected.
@@ -462,7 +672,7 @@ export default function AtlasPlaces({
             Retry
           </button>
         </p>
-      </section>
+      </div>
     );
   }
 
@@ -508,12 +718,8 @@ export default function AtlasPlaces({
     );
 
   return (
-    <section
-      className="section atlas-places"
-      aria-labelledby="atlas-places-heading"
-    >
+    <div className="section atlas-places">
       <AtlasPlacesStyles />
-      <h2 id="atlas-places-heading">Places &amp; traditions</h2>
 
       {hasNothing ? (
         <>
@@ -545,7 +751,7 @@ export default function AtlasPlaces({
       ) : (
         <>
           <p className="sub atlas-places__intro">
-            Where {dishName} is associated with, and with whom. An association
+            Where {dishName} is associated, and with what. An association
             records a connection — it does not establish that the dish was
             invented there.
           </p>
@@ -590,6 +796,91 @@ export default function AtlasPlaces({
           <p className="atlas-legacy__warning">{legacy.warning}</p>
         </div>
       ) : null}
-    </section>
+
+      {/*
+        THE MAP, BESIDE THE LIST.
+
+        The brief asks for the map beside the list, and for the map to
+        be fitted to EVERY place listed -- not one country at 300 km.
+        The old layout put the map in its own section further down the
+        page, centred on the legacy origin, so a reader scrolling the
+        list could not see the picture at all, and a country-scale
+        zoom made a single marker look like the whole claim.
+
+        The map is the MAP OF THE ASSOCIATED PLACE, not a claim that
+        the dish was invented there. It stays after the associations so
+        the reader meets the claims before the picture.
+      */}
+      {origin && origin.lat !== null && origin.lng !== null ? (
+        <div className="atlas-places__map">
+          {/*
+            THE MAP DRAWS THE LEGACY ORIGIN -- DISCOVERY DATA.
+
+            `origin` is the dish's legacy Wikidata value, which the
+            API marks `isDiscoveryData: true` and warns is "not a
+            reviewed historical claim". The map is passed
+            `isReviewed={false}` so it labels the place as associated
+            and discloses that it is unverified, instead of letting a
+            pin under the heading "Where it belongs" read as a
+            reviewed claim about where the dish was invented.
+          */}
+          <DishMap origin={origin} dishName={dishName} isReviewed={false} />
+        </div>
+      ) : null}
+
+      {/*
+        PLACES OF RELATED DISHES.
+
+        The brief: "Add places of related dishes, taken from
+        `dish_relations` and marked as such: 'Turkey - home of a
+        related dish, musakka'."
+
+        This is deliberately a DIFFERENT kind of row from the
+        associations above. An association says something about THIS
+        dish and a place. This says something about ANOTHER dish and a
+        place -- the place is that other dish's association, and this
+        dish only reaches it through the relation. So it is labelled
+        as a relation, never as an association of this dish.
+
+        The connections carry the related dish's slug and name; the
+        related dish's OWN places are not on this page's payload, so
+        the island asks the API for each related dish's atlas view and
+        reads the places from there.
+
+        A row appears only when BOTH halves are in order: the
+        relation carries a reason (so the site can say why these two
+        are related), and the related dish's place passes the same
+        evidence gate as every other place on the page. The section
+        is absent when there is nothing to show -- an honest absence
+        rather than a guess.
+      */}
+      {relatedPlaces.length > 0 ? (
+        <div className="atlas-group atlas-group--related">
+          <h3 className="atlas-group__label">Places of related dishes</h3>
+          <ul className="atlas-associations">
+            {relatedPlaces.map((row) => (
+              <li className="atlas-association" key={row.key}>
+                <div className="atlas-association__main">
+                  <span className="atlas-association__name">{row.place}</span>
+                  <span className="atlas-association__relationship">
+                    {row.relationLabel}
+                  </span>
+                </div>
+                <p className="atlas-association__sentence">
+                  {row.place} is where {row.dishName} is associated.
+                </p>
+                {/*
+                  The wording is the brief's: "Turkey - home of a
+                  related dish, musakka". It says "associated", never
+                  "invented" or "origin", because the place is where
+                  the OTHER dish is associated -- this dish only
+                  reaches it through the relation.
+                */}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }

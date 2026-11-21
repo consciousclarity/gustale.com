@@ -1,0 +1,6182 @@
+{
+  "generated": "2026-11-21",
+  "source": "live api.gustale.com",
+  "note": "Dishes whose record carries no name in the language of their origin country. A content work list: each name needs a source for the spelling. See docs/d21-13-native-name-gap.md.",
+  "count": 1029,
+  "dishes": [
+    {
+      "slug": "10-won-bread",
+      "originCountry": "KR",
+      "ownLanguage": "ko",
+      "needsNativeName": true
+    },
+    {
+      "slug": "abacha-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "abbamele",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "abula-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "acbadem-kurabiyesi",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "acorda",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "adalu-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "adrem-snacks",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "afang-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "aggakaka",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "agidi",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "agliata",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "agnolini",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "agnolotti",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "aguachile",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ahriche",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "akki-rotti",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "al-pastor",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "alaju",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "aletria",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "almond-paste",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "alplermagronen",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "alu-potala-rasa",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "aluek-trei-ngeat",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "amala-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "amatriciana",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ameijoas-a-bulhao-pato",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "american-fried-rice",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "amuse-bouche",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ansungtangmyun",
+      "originCountry": "KR",
+      "ownLanguage": "ko",
+      "needsNativeName": true
+    },
+    {
+      "slug": "apfelkuchle",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "appam",
+      "originCountry": "LK",
+      "ownLanguage": "si",
+      "needsNativeName": true
+    },
+    {
+      "slug": "areias-portuguese-food",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "arem-arem",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "arnavut-cigeri",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "arook",
+      "originCountry": "IQ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "arroz-de-marisco",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "arsik",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "asam-pedas",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "asaro-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ashoka-halwa",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "atama-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "avial",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-goreng",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-goreng-kalasan",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-kecap",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-kodok",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-panggang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-pansuh",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayam-taliwang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayran",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ayva-tatls",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "baba-de-camelo",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "baba-sharpanyna",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "babaocai",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "babbouche",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "babelutte",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "babi-kecap",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bacalao-al-ajoarriero",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bacalhau-a-gomes-de-sa",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bacalhau-a-narcisa",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bacalhau-a-ze-do-pipo",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bacalhau-com-natas",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "baccala-mantecato",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "baci-di-dama",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bai-ye",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bak-kut-teh",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bakakak-hayam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "baked-ziti",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bakmi",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bakpia",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bakwan",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "balado-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "balila-dish",
+      "originCountry": "LB",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bamba-snack",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bamiyeh",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banga-rice",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-au-xanh",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-bao",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-beo",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-cay",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-chung",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-phu-the",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-re",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "banh-tet",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "barazek",
+      "originCountry": "SY",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "barfi",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "basbousa",
+      "originCountry": "EG",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "basler-lackerli",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "basque-cheesecake",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "basundi",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "batik-cake",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bauernfruhstuck",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bayrisch-kraut",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "beef-bourguignon",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bekasang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "belgian-waffle",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bensone",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "berliner-doughnut",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "betamax-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "betutu",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "beyran-soup",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "biangbiang-noodles",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bibikkan",
+      "originCountry": "LK",
+      "ownLanguage": "si",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bici-bici",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "big-katsu",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bigos",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bika-ambon",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "binakle",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "binte-biluhuta",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bir-pletok",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bisciola",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "biscotti-di-san-martino",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "biscuit-cake",
+      "originCountry": "BG",
+      "ownLanguage": "bg",
+      "needsNativeName": true
+    },
+    {
+      "slug": "blabarssoppa",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "blancmange",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bobotie",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bocadillo-dessert",
+      "originCountry": "CO",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bocconotto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "boeber",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bogurar-doi",
+      "originCountry": "BD",
+      "ownLanguage": "bn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bollito-misto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bolo-de-arroz",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bolo-do-caco",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bolu-kukus",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bolus-belgium",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bombe-glacee",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "boodog",
+      "originCountry": "MN",
+      "ownLanguage": "mn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "boondi",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bopis",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "borani",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "borscht",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "botok",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bouillabaisse",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bourek-algerian-cuisine",
+      "originCountry": "DZ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bourekas",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bouyiourdi",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "braaibroodjie",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "brem",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "brik-danouni",
+      "originCountry": "TN",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "brussels-waffle",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "brutti-ma-buoni",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bryndzove-halusky",
+      "originCountry": "SK",
+      "ownLanguage": "sk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bubur-cha-cha",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bubur-kacang-hijau",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bubur-ketan-hitam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bubur-pedas",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "buccellato",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "buddha-s-delight",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bulbul-yuvas",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bun-cha",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "buntil",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "burgo-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "buridda",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "burrito",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "bustrengo",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "butifarra-sandwich",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "buttermilk-koldskal",
+      "originCountry": "DK",
+      "ownLanguage": "da",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cacciatore",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cadburys-tempo",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cafe-liegeois",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cag-kebab",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "caldo-galego",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "campanile-cake",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "capra-e-fagioli",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "caprese-salad",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "carbonara",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "carcamusas",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cassata",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cassatella-di-agira",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cassatella-di-sant-agata",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "castagnaccio",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "catanies",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cemita",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cendol",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cenil",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ceviche",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cha-ca-la-vong",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cha-trung",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chakalaka",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "champon",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "champurrado",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chana-masala",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chaogan",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chapagetti",
+      "originCountry": "KR",
+      "ownLanguage": "ko",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chapli-kebab",
+      "originCountry": "PK",
+      "ownLanguage": "ur",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chartreuse-dish",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chausson-aux-pommes",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chawanmushi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "che-troi-nuoc",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chevre-chaud",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chhilka-roti",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chicken-chasseur",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chicken-chop",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chicken-inasal",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chicken-katsu",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chile-relleno",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chili-con-carne",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chinmi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chitranna",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chocolate-marquise",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chocolate-salami",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chocolate-salo",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "chongqing-hot-pot",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "christmas-carp",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ciambella",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ciccioli",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ciger-kebab",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cilok",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cimpa",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cinnamon-roll",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cioccolato-di-modica",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "clamato",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "clbr",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "coban-salatas",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cocido",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "com",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "completo",
+      "originCountry": "CL",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "conejo-en-salmorejo",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "coniglio-alla-sanremese",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "consomme",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "coppia-ferrarese",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "corek",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "corn-crab-soup",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "corn-fritter",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "coto-makassar",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cotoletta-alla-bolognese",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cotriade",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "coulibiac",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crab-jujube",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "craquelin",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cream-box",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cream-stew",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cream-tubes",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crepe",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crescentina-modenese",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crocche",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crocetta-di-caltanissetta",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crostini",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crozets-de-savoie",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "crudites",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cuajada",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cuccia",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "cupeta",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "curd-rice",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "custard-tart",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dadar-gulung",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dagobert-sandwich",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dahi-baigana",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dakos",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dal-bhat",
+      "originCountry": "NP",
+      "ownLanguage": "ne",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dal-puri",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dal-tadka",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dali-ni-horbo",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dame-blanche-dessert",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dan-wake",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "daral-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dendeng",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dengke-mas-naniura",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dhansak",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dhokla",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "discada",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dobin-mushi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dolmadaki",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dondurma",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "doner-kebab",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "doodhpak",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "doria-food",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "doro-wat",
+      "originCountry": "ET",
+      "ownLanguage": "am",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dosa",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dracula-piller",
+      "originCountry": "DK",
+      "ownLanguage": "da",
+      "needsNativeName": true
+    },
+    {
+      "slug": "draw-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "drunken-noodles",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "drunken-shrimp",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dugun-corbas",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dunakavics",
+      "originCountry": "HU",
+      "ownLanguage": "hu",
+      "needsNativeName": true
+    },
+    {
+      "slug": "dwaeji-gukbap",
+      "originCountry": "KR",
+      "ownLanguage": "ko",
+      "needsNativeName": true
+    },
+    {
+      "slug": "eba",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "edikang-ikong",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "editan-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "edo-black-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "efo-riro",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "egbo-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "eiernockerl",
+      "originCountry": "AT",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "eight-treasure-rice",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ekmek-kadayf",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ekuru",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ekwang",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "empal-gentong",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "empanadilla",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "encharcada",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "enchilada",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "enfrijoladas",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "es-buah",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "es-doger",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "es-goyobod",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "espetada",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "esqueixada",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "et-chinese-pastry",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ewa-aganyin",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fabada-asturiana",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "falafel",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fatias-de-tomar",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fatoot-samneh",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fava-turkish-dish",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fettuccine-alfredo",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fideua",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "filet-americain",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "filipino-spaghetti",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "flaki",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "flammekueche",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "flauta",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "flemish-stew",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "focaccia",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fraise-tagada",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "frankfurter-wurstchen",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "french-fries",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "french-tacos",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fricasse",
+      "originCountry": "TN",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fried-rice",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fritas-de-prasa",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "frutta-martorana",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "fugazza",
+      "originCountry": "AR",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ful-medames",
+      "originCountry": "EG",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gachas",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gaisburger-marsch",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gajak",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gajar-ka-halwa",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "galantine",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "galette-saucisse",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "galician-bread",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "garbure",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gatsby-sandwich",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gbegiri",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gelo-di-melone",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "geplak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gepuk",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gethuk",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "getuk-goreng",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gianduiotto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gilgeori-toast",
+      "originCountry": "KR",
+      "ownLanguage": "ko",
+      "needsNativeName": true
+    },
+    {
+      "slug": "githeri",
+      "originCountry": "KE",
+      "ownLanguage": "sw",
+      "needsNativeName": true
+    },
+    {
+      "slug": "giurgiulena",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gizdodo",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gnocchi-alla-romana",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "goat-meat-pepper-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "goi-cuon",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gordita",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "goshtaab",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "goto-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "grass-jelly",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "greek-salad",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "grilled-limpets",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "guajolota",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "guastedda-dolce-nissena",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gudeg",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gulab-jamun",
+      "originCountry": "PK",
+      "ownLanguage": "ur",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gulai",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gulgula-doughnut",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gullac",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gulyasleves",
+      "originCountry": "HU",
+      "ownLanguage": "hu",
+      "needsNativeName": true
+    },
+    {
+      "slug": "guoba-cuisine",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "gurasa",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "halawet-el-jibn",
+      "originCountry": "SY",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hallaca",
+      "originCountry": "VE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hallulla",
+      "originCountry": "CL",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "halo-halo",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hamburger",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hanpen",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hapanlohko",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "happy-pizza",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "harira",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hawawshi",
+      "originCountry": "EG",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "herring-soup",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hi-chew",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hochzeitssuppe",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "holy-spina-sweet",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "honey-toast",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hornazo",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hrechanyky",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hu-tieu",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "huevos-al-albanil",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "huevos-rancheros",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hujiao-bing",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "humba",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hummus",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "hunkarbegendi",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ice-cream-cone",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ie-bu-peudah",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ifumi",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "igado",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ikinari-dango",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ikizukuri",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ikokore",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ila-alasepo",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "imelletty-perunalaatikko",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "imperial-ruso",
+      "originCountry": "AR",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "indori-poha",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "iris-pastry",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "isi-ewu",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "iskender-kebab",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "israeli-salad",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "itak-gurgur",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "izmir-bomb-kurabiye",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "jakoten",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "jalangkote",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "japanese-milk-bread",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "java-rice",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "javanese-fried-rice",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "jaynagarer-moa",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ji-akwukwo-nri",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "jian-dui",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "jipang-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "jollof-rice",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "joulutorttu",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "judias-de-el-barco-de-avila",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "julienne-dish",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kaalilaatikko",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kafbikh",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kagoshima-ramen",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kagt-kebab",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kahi-food",
+      "originCountry": "IQ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kaikouxiao",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kakigori",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kalakukko",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kalamay",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kalio",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kampot-fish-sauce",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kanika-food",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kanji-food",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kapurung",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kare-kare",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "karedok",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "karnyark",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kasespatzle",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kashiwameshi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kashk-bademjan",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "katemak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kekefia",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kelan-antep",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "keluak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kemal-pasha-dessert",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kemplang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kerak-telor",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kerala-beef-fry",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kesakeitto",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kesra-bread",
+      "originCountry": "DZ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ketoprak-dish",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "keumamah",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "khanom-tan",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "khanom-thuai",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "khao-kaeng",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "khao-kha-mu",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "khao-mu-daeng",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "khao-soi",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kiampong",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kichadi",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kidyo",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "klappertaart",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "klepon",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "knife-cut-noodles",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "knish",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "koe-sister",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kolak-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kolot",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kombe",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "konowata",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "konro",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kopanisti",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kore-mochi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "koshary",
+      "originCountry": "EG",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kotlet-schabowy",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "krechek",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "krowki",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "krupuk-kulit",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-ape",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-bingka",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-cucur",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-gapit",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-leker",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-pukis",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-putri-salju",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-putu-mayang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-rangi",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-satu",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-semprong",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kue-talam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kuli-kuli",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kuluban",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kumpir",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kurnik-pirog",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kuru-fasulye",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "kyaraben",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lacon",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lakerda",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lamian",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lampet",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lamprais",
+      "originCountry": "LK",
+      "ownLanguage": "si",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lampredotto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "langos",
+      "originCountry": "HU",
+      "ownLanguage": "hu",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lasagna",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "laskisoosi",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lassi",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lawar-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "layali-lubnan",
+      "originCountry": "LB",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lazanki",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "leberknodel",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lechon",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lechon-manok",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lemang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lemper",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "licitar",
+      "originCountry": "HR",
+      "ownLanguage": "hr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lo-mein",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lobster-thermidor",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lohikeitto",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lokma",
+      "originCountry": "IQ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "loksa",
+      "originCountry": "SK",
+      "ownLanguage": "sk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "london-drops",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lontong",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lontong-dekem",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lotek-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lou-fo-tong",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lumpia-semarang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lupis-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "luzhu-huoshao",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "lychee-pork",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "macaroni-schotel",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "macaroni-soup",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mache-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "macun",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "madumongso",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "maghaz",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "magiritsa",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mahdjouba",
+      "originCountry": "DZ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "makhan-bada",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "makkaraperunat",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "malakoff-food",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mallung",
+      "originCountry": "LK",
+      "ownLanguage": "si",
+      "needsNativeName": true
+    },
+    {
+      "slug": "maluns",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mamuang-kuan",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "manchow-soup",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mandryky",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mangalorean-chicken-sukka",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mango-float",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mantecada",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "manti",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "manuk-napinadar",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mao-xue-wang",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "marghi-special",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "maritozzo",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "masi-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "matar-paneer",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mazamorra",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mazzarelle",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "meat-floss",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "meat-pie",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "medivnyk",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mee-rebus",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mefun",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "menemen",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "menemen-food",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "menudo-filipino-stew",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "menudo-mexican-soup",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "merveilleux-dessert",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mesclun",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mett",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "meuseukat",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mexican-pizza",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mhancha",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mi-krop",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mianwo",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-ayam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-bakso",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-bangladesh",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-caluk",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-celor",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-gomak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-kangkung",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-kocok",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mie-tarempa",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "migas",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mignon-chocolate-egg",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "miguelitos",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mille-feuille",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mimosa-sugar-balls",
+      "originCountry": "NP",
+      "ownLanguage": "ne",
+      "needsNativeName": true
+    },
+    {
+      "slug": "minchee",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mish-mash-food",
+      "originCountry": "BG",
+      "ownLanguage": "bg",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mititei",
+      "originCountry": "RO",
+      "ownLanguage": "ro",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mitraillette",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "miyar-zogale",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "moche-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mollete-de-antequera",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "momo",
+      "originCountry": "NP",
+      "ownLanguage": "ne",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mondeghili",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mondulkiri-wild-honey",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mopkenbrot",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "morioka-jajamen",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "moros-y-cristianos-dish",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mosbolletjies",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "moules-frites",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "moussaka",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "moussaka-greek",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mpanatigghi",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mrouzia",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "msoki",
+      "originCountry": "TN",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "muckalica",
+      "originCountry": "RS",
+      "ownLanguage": "sr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mucver",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "muesli",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "muhallebi",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "murukku",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "musakka-turkish",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mustacciuoli",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "mute-soup",
+      "originCountry": "CO",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nagasari",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-bakar",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-bogana",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-campur",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-gandul",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-jamblang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-kebuli",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-kucing",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-kuning",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-lemuni",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-lengko",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-liwet",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-minyak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-tempong",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-tim",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-uduk",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nasi-ulam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nata-de-coco",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nata-de-pina",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "natas-do-ceu",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "natinombur",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "neapolitan-wafer",
+      "originCountry": "AT",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "neccio",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "neera",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "negimaki",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nem-chua-lai-vung",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nero-confectionery",
+      "originCountry": "NO",
+      "ownLanguage": "no",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nettle-soup",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nino-envuelto",
+      "originCountry": "AR",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nisholda",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nocciolini-di-chivasso",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nokul",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ntolmas",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nugatti",
+      "originCountry": "NO",
+      "ownLanguage": "no",
+      "needsNativeName": true
+    },
+    {
+      "slug": "num-banhchok",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nyama-choma",
+      "originCountry": "KE",
+      "ownLanguage": "sw",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nyanya-dish",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "nzuddi",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "oatmeal-ball",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "obe-ata",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "oblea",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "obwarzanek-krakowski",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ofada-rice",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ofe-achara",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ofe-akwu",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ofe-nsala",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ofe-oha",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ofe-owerri",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ogbono-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ogi-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ohaw",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ojojo",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "okinawa-soba",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "okoho",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "olive-all-ascolana",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "olive-bread",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "olivier-salad",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "olluquito",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ombusombus",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "oncom",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "onsen-tamago",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "orzotto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "osechi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "osmanthus-cake",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ossa-di-morto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ossobuco",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ostkaka",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "otak-otak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "otchahoi",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "otong-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ovos-moles",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "owo-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "oyakodon",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pacanga-boregi",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "paella",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "paelya",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pagit-pagit",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pain-a-la-grecque",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pallubasa",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "palm-nut-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pampushka",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pan-bagnat",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pan-meino",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pancotto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pane-coi-santi",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pane-di-altamura",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pane-fratau",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "panella",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "panhas",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pani-ca-meusa",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "panipuri",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "panyalam",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "panzanella",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "panzerotti",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pao-alentejano",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "paomo",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "papa-a-la-huancaina",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "papadam",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "papas-arrugadas",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "papeda-food",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "papo-de-anjo",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "parek-v-rohliku",
+      "originCountry": "CZ",
+      "ownLanguage": "cs",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pares-food",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "parrozzo",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-a-paolina",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-al-pomodoro",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-alla-gricia",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-con-le-sarde",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-mollicata",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-salad",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pasta-with-strawberries",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pastafrola",
+      "originCountry": "AR",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pastel-de-feijao",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pastirma",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pataniscas",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pate-acha",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "patoleo",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "patriotic-soup",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pav-bhaji",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pawpaw-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "peas-with-salo",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pecel",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pecel-ayam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pecora-alla-callara",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pekasam",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pepes",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "peruvian-ceviche",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "peruvian-pollada",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pfefferpotthast",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "phat-kaphrao",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "philippine-asado",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "phirni",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "piada-dei-morti",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "picada-rioplatense-cuisine",
+      "originCountry": "AR",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pichi-pichi",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pide",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pieds-paquets",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pignolata",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pihlaja",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pindang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ping-on-bun",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pinza-dessert",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pismaniye",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pissaladiere",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pistiddu",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pitepalt",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pithali",
+      "originCountry": "BD",
+      "ownLanguage": "bn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pithivier",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pitina",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "piyaz",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pizza-quattro-formaggi",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pizza-quattro-stagioni",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pizzarello-food",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pkaila",
+      "originCountry": "TN",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pleah-sach-ko",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pohulpohul",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "polkagris",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pollo-al-carbon",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "polsa",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "polvo-a-lagareiro",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "polvoron",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pootharekulu",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "poqui-poqui",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "porkkanalaatikko",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "potjevleesch",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "praline-nut-confection",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "prazonki",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pretz",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pudim-molotov",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pukala",
+      "originCountry": "NP",
+      "ownLanguage": "ne",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pundi",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "pundut-nasi",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "putok",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "putu-piring",
+      "originCountry": "SG",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "qalayet-bandora",
+      "originCountry": "JO",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "qingtuan",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "quesabirria",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "quesada-pasiega",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "quesadilla",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ragu",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rajas-con-crema",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rakott-krumpli",
+      "originCountry": "HU",
+      "ownLanguage": "hu",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ramazan-pidesi",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ramen",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rasgulla",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rasstegai",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rava-idli",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "raviola-di-ricotta-di-caltanissetta",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "raviole-du-dauphine",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ravioli",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "red-curry",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "refried-beans",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rempeyek",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rengginang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "revuelto-gramajo",
+      "originCountry": "AR",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ribollita",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rica-rica",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "risotto-alla-milanese",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "risotto-alla-ticinese",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "riz-a-l-imperatrice",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "robatayaki",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rogan-josh",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rojak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rollo",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "roti-bolen",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "roti-buaya",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "roti-gambang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "roti-john",
+      "originCountry": "SG",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "roti-sai-mai",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rougaille",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "roust",
+      "originCountry": "BD",
+      "ownLanguage": "bn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rujak-soto",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "rummaniyeh",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "saffranspannkaka",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "saganaki",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "saksang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sakuma-drops",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "salade-nicoise",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "salty-liquorice",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "salukara",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sambal-tuktuk",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "samlor-prahal",
+      "originCountry": "KH",
+      "ownLanguage": "km",
+      "needsNativeName": true
+    },
+    {
+      "slug": "samyang-ramen",
+      "originCountry": "KR",
+      "ownLanguage": "ko",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sangrecita",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sapin-sapin",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sapo-tahu",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sarde-in-saor",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sardenaira",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sarmale",
+      "originCountry": "RO",
+      "ownLanguage": "ro",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sate-kambing",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sate-klatak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sate-padang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sate-taichan",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sate-tuna",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "saumagen",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "saure-zipfel",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sauteed-reindeer",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "savory-spinach-pie",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sayongsong",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sayur-asem",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "scaccia",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "scouse-food",
+      "originCountry": "NO",
+      "ownLanguage": "no",
+      "needsNativeName": true
+    },
+    {
+      "slug": "se-i",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "seada",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "seafood-pizza",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "seblak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sekba",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "selat-solo",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "serabi",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "serundeng",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "serviettenknodel",
+      "originCountry": "AT",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sevillian-bollo",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sfincione",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shab-deg",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shagorana",
+      "originCountry": "BD",
+      "ownLanguage": "bn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shakshouka",
+      "originCountry": "EG",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shakshuka",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shirin-polo",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shiroi-koibito",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shirokuma",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shkedei-marak",
+      "originCountry": "IL",
+      "ownLanguage": "he",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sholezard",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shoyumame",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shuizhu",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "shulyky",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sili-ice-cream",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "silog",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sinalau",
+      "originCountry": "MY",
+      "ownLanguage": "ms",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sinasir",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sindhi-biryani",
+      "originCountry": "PK",
+      "ownLanguage": "ur",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sinigang",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sinigapuna",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "siomay",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "skordalia",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "snow-white-salad",
+      "originCountry": "BG",
+      "ownLanguage": "bg",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sobat-dish",
+      "originCountry": "PK",
+      "ownLanguage": "ur",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sobiyet",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "soetpatats",
+      "originCountry": "ZA",
+      "ownLanguage": "af",
+      "needsNativeName": true
+    },
+    {
+      "slug": "soft-khichuri",
+      "originCountry": "BD",
+      "ownLanguage": "bn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sogan-dolma",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sohari",
+      "originCountry": "NP",
+      "ownLanguage": "ne",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sol-over-gudhjem",
+      "originCountry": "DK",
+      "ownLanguage": "da",
+      "needsNativeName": true
+    },
+    {
+      "slug": "soldaditos-de-pavia",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sop-saudara",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "soparnik",
+      "originCountry": "HR",
+      "ownLanguage": "hr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sosis-bandari",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "soto-padang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sou-pastry",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sour-cereal-soup",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "spaghetti-alle-vongole",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "spanakorizo",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "spoja-lorda",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "spundekas",
+      "originCountry": "DE",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "steak-tartare",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stigghiola",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stoemp",
+      "originCountry": "BE",
+      "ownLanguage": "nl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stracciatella-soup",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "strapacky",
+      "originCountry": "SK",
+      "ownLanguage": "sk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "strapatsada",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stroganina",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "struffoli",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stuffed-cookie",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stuffed-mallow",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "stuffed-squash",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "suea-rong-hai",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sugolo",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sujuk",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sultsina",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sulu-kofte",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sunga-pitha",
+      "originCountry": "BD",
+      "ownLanguage": "bn",
+      "needsNativeName": true
+    },
+    {
+      "slug": "suon-nuong",
+      "originCountry": "VN",
+      "ownLanguage": "vi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "surstromming",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "suspiro-de-limena",
+      "originCountry": "PE",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sutlu-nuriye",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "suya",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sweet-and-sour-pork",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "sweet-shells",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "swikee",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "szekelykaposzta",
+      "originCountry": "HU",
+      "ownLanguage": "hu",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taboon-bread",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tabouna-bread",
+      "originCountry": "TN",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taco-pizza",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tagine-malsouka",
+      "originCountry": "TN",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taguella",
+      "originCountry": "DZ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tahchin",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tahu-campur",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tahu-sumedang",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tajine-lham-lahlou",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tajine-mtewem",
+      "originCountry": "DZ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taktouka",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tang-bu-shuai",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tanghulu",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taquito",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taralli",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "taro-dumpling",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tarta-de-santiago",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tarte-a-l-badree",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tartelette",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tatar-boregi",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tavukgogsu",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tekwan",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tempoyak",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tfaya",
+      "originCountry": "MA",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "thepla",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tigelada",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "timphan",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tinutuan",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tipatipa",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tirokafteri",
+      "originCountry": "GR",
+      "ownLanguage": "el",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tjalknol",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tojiko-mame",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tom-som",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tom-yum-kung",
+      "originCountry": "TH",
+      "ownLanguage": "th",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tongseng",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "toppo-food",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "torcetti",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "torcik-wedlowski",
+      "originCountry": "PL",
+      "ownLanguage": "pl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "torta-900",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "torta-delle-rose",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tortang-kalabasa",
+      "originCountry": "PH",
+      "ownLanguage": "tl",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tostada-tortilla",
+      "originCountry": "MX",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "totche",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tramezzino",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tripas-a-moda-do-porto",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tripes-a-la-mode-de-caen",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "trippa-alla-romana",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tsoureki",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tsybulnyky",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tulumba",
+      "originCountry": "EG",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tumpeng",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tunde-ke-kabab",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "turron",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tuwon-masara",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tuwon-shinkafa",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "twist-confectionery",
+      "originCountry": "NO",
+      "ownLanguage": "no",
+      "needsNativeName": true
+    },
+    {
+      "slug": "tyrkisk-peber",
+      "originCountry": "DK",
+      "ownLanguage": "da",
+      "needsNativeName": true
+    },
+    {
+      "slug": "u-pastizz-rtunnar",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "udang-balado",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ugali",
+      "originCountry": "KE",
+      "ownLanguage": "sw",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ukazi-soup",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ukodo",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ukwa-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "ume-suisho",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "unadon",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "undhiyu",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "unnakai",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "upplandskubb",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "urap",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "usban",
+      "originCountry": "DZ",
+      "ownLanguage": "ar",
+      "needsNativeName": true
+    },
+    {
+      "slug": "usi-food",
+      "originCountry": "NG",
+      "ownLanguage": "yo",
+      "needsNativeName": true
+    },
+    {
+      "slug": "usukawa-manju",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "vangibath",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "vasterbottensostpaj",
+      "originCountry": "SE",
+      "ownLanguage": "sv",
+      "needsNativeName": true
+    },
+    {
+      "slug": "vatrushka",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "veal-orloff",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "vepro-knedlo-zelo",
+      "originCountry": "CZ",
+      "ownLanguage": "cs",
+      "needsNativeName": true
+    },
+    {
+      "slug": "vihreat-kuulat",
+      "originCountry": "FI",
+      "ownLanguage": "fi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "vinegret",
+      "originCountry": "RU",
+      "ownLanguage": "ru",
+      "needsNativeName": true
+    },
+    {
+      "slug": "waffle",
+      "originCountry": "FR",
+      "ownLanguage": "fr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "wajik",
+      "originCountry": "ID",
+      "ownLanguage": "id",
+      "needsNativeName": true
+    },
+    {
+      "slug": "white-boiled-shrimp",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "xarem",
+      "originCountry": "PT",
+      "ownLanguage": "pt",
+      "needsNativeName": true
+    },
+    {
+      "slug": "xuixo",
+      "originCountry": "ES",
+      "ownLanguage": "es",
+      "needsNativeName": true
+    },
+    {
+      "slug": "yakiniku",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "yayla-corbas",
+      "originCountry": "TR",
+      "ownLanguage": "tr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "yin-yang-fried-rice",
+      "originCountry": "CN",
+      "ownLanguage": "zh",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zabaione",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zagorski-strukli",
+      "originCountry": "HR",
+      "ownLanguage": "hr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zarda-food",
+      "originCountry": "IN",
+      "ownLanguage": "hi",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zelten",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zeytoon-parvardeh",
+      "originCountry": "IR",
+      "ownLanguage": "fa",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zlevanka",
+      "originCountry": "HR",
+      "ownLanguage": "hr",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zosui",
+      "originCountry": "JP",
+      "ownLanguage": "ja",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zozulia-food",
+      "originCountry": "UA",
+      "ownLanguage": "uk",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zuccotto",
+      "originCountry": "IT",
+      "ownLanguage": "it",
+      "needsNativeName": true
+    },
+    {
+      "slug": "zurcher-geschnetzeltes",
+      "originCountry": "CH",
+      "ownLanguage": "de",
+      "needsNativeName": true
+    }
+  ]
+}

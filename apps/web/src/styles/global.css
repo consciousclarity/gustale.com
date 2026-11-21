@@ -2741,6 +2741,23 @@ h4 {
   margin: 0 0 var(--space-5);
   color: var(--ink);
 }
+/* The name the dish carries at home (D21-13).
+
+   It sits directly under the H1, in the dish's own script. It is set
+   in the reading face rather than the display face, and a step down
+   from the title, so it reads as a second name for the same thing
+   rather than as a second title.
+
+   The `lang` attribute on the element does the real work: a screen
+   reader switches to the language's own pronunciation, and the
+   browser's own font fallback covers the script. */
+.dish-page .rec-native-name {
+  font-family: var(--body);
+  font-size: 26px;
+  line-height: 1.4;
+  color: var(--sub);
+  margin: -0.6em 0 var(--space-5);
+}
 .dish-page .rec-intro {
   font-size: 19px;
   line-height: 1.7;
@@ -6209,6 +6226,20 @@ body.nav-panel-open {
   padding: 0;
 }
 
+/* The empty state for a connection column (D21-11).
+
+   It sits where the entries would be, in the same column, so the
+   three columns stay comparable side by side. It is a quiet line,
+   not a card: the absence of a relationship is not a fact about the
+   dish as interesting as the relationships that are there. */
+.dish-connections__empty {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--sub);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
 .dish-connections__entry {
   background: var(--card);
   border: 1px solid var(--line);
@@ -6400,6 +6431,38 @@ body.nav-panel-open {
   color: var(--ink);
 }
 
+/* THE SOURCE TIER (D21-12).
+   The tier's public words sit above the source's title: the tier is
+   what the reader needs in order to read the title. It is set in the
+   small caps of the site's secondary text so it reads as a label and
+   not as another citation. */
+.dish-content__section .src__tier {
+  grid-column: 2;
+  color: var(--sub);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The Variants empty state (D21-11). An honest gap, set in the
+   secondary colour, and NOT italic -- the recipes empty state
+   already uses italics, and two different empty states should not
+   look like two different kinds of thing. */
+.dish-content__section .dish-variants-block__empty {
+  color: var(--sub);
+  margin: 0;
+}
+
+/* The Sources empty state (D21-11). The same treatment as the
+   Variants empty state: an honest gap, in the secondary colour,
+   NOT italic -- the recipes empty state is the one that apologises,
+   and this is not an apology, it is a fact about the record. */
+.dish-content__section .dish-sources-block__empty {
+  color: var(--sub);
+  margin: 0;
+}
+
 .dish-content__section .src__link {
   grid-column: 2;
   color: var(--accent-dark);
@@ -6535,6 +6598,26 @@ body.nav-panel-open {
 .dish-map-origin-faint {
   color: #9ca3af;
   font-size: 0.75rem;
+}
+/*
+  THE DISCLOSURE UNDER THE MAP.
+
+  The map draws ONE point -- the dish's legacy origin value, which is
+  discovery data, not a reviewed claim. The line under the map tells
+  the reader so, in the site's own words, rather than letting a pin
+  under "Where it belongs" read as a settled fact.
+
+  It is styled like the legacy-origin warning block below it: muted
+  ink, a warm ground, a left rule. Same meaning, same register.
+*/
+.dish-map-disclosure {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--line-strong);
+  background: var(--card);
+  color: var(--sub);
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 .wm-view-toggle {
   position: absolute;

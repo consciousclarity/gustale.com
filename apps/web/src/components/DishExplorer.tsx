@@ -571,8 +571,18 @@ export function DishExplorer({
                   undefined
                 }
                 href={`/dishes/${d.slug}`}
-                status={d.status}
-                viewCount={d.viewCount}
+                // NO STATUS BADGE. D21-8: "The word 'published' never
+                // appears on a public card." Every dish in this list is
+                // published -- the list only serves published dishes --
+                // so the badge said "Published" on every card and told
+                // the reader nothing. A status that is always the same
+                // is noise; a status that could vary is a workflow
+                // label and belongs in the admin, not on a public card.
+                //
+                // NO VIEW COUNT, either. D21-8: "No view counts anywhere
+                // public (not on the dish header, the dish list or the
+                // cards)." A view count is a metric about the
+                // encyclopedia, not a fact about the dish.
                 cover={d.cover ?? null}
                 headingLevel="h2"
               />

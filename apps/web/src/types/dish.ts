@@ -19,6 +19,23 @@ export type DishStatus = "draft" | "published" | "archived";
  */
 export type DishContentType = "dish" | "drink";
 
+/**
+ * THE SOURCE CLASS — the tier of a citation.
+ *
+ * The `source_class` enum in the database has exactly these members,
+ * in this order. The type is spelled out rather than left as
+ * `string`, because a `string` here lets a typo through into the
+ * page: `sourceTierWords` would fall back to "Not classified" and
+ * the reader would be told a classified source has no tier.
+ *
+ * The field on a source is OPTIONAL because the API that serves it
+ * is deployed separately from the web app that reads it. During the
+ * window between the two, the field is simply absent -- which the
+ * renderer already handles, and which is honest: a source with no
+ * tier says so rather than being given one it does not have.
+ */
+export type SourceClass = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7";
+
 // ─── Taxonomy (GET /api/categories, GET /api/tags) ────────────────────────
 
 export interface CategoryListItem {
@@ -170,6 +187,15 @@ export interface DishDetailCore {
   // Translation-resolved fields (preferred language → 'en' fallback).
   name: string;
   description: string | null;
+  /**
+   * The KIND of entry: "dish" or "drink".
+   *
+   * It is what the eyebrow's first slot shows ("Dish"), so the page
+   * says what kind of thing the reader is looking at. D21-14 keeps
+   * drinks out of the Atlas for now, but the value is on the payload
+   * and a page must not have to guess it.
+   */
+  contentType?: string | null;
 }
 
 export interface DishOrigin {
@@ -252,6 +278,19 @@ export interface DishCitation {
   addedAt: string;
   sourceId: string;
   sourceType: string;
+  /**
+   * The source's CLASS -- the tier, S1..S7.
+   *
+   * S1 primary historical, S2 scholarly, S3 institutional,
+   * S4 practitioner, S5 specialist, S6 reference (Wikipedia,
+   * Wikidata, general publications), S7 unverified (blogs,
+   * AI-generated, unattributed).
+   *
+   * Null for a source that has not been classified. The page shows
+   * the tier in public words, so an unclassified source says so
+   * rather than being given a tier it does not have.
+   */
+  sourceClass?: SourceClass | null;
   title: string | null;
   authors: string | null;
   year: number | null;

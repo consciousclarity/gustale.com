@@ -227,18 +227,27 @@ const comingFilters = [
       THE EMPTY STATE — what every hub renders today, because
       `recipe_published` has zero rows on live.
 
-      It says three true things: there is no recipe yet; the dish itself
-      is documented on the Atlas; and the reader is not stranded — there
-      is somewhere to go next.
+      It says two true things: there is no recipe yet, and the reader
+      is not stranded — there is somewhere to go next.
+
+      It USED TO say a third: "The dish itself is documented on the
+      Atlas — its history, its origins and the places it is associated
+      with". That sentence asserts that the dish HAS a history, origins
+      and places. On a dish with no statement and no evidence that is
+      a status claim the site cannot support — the same overreach the
+      brief calls out for the dish page (D21-2). `moussaka-greek`, the
+      dish this hub was written for, has ZERO statements: there is no
+      history, no origin and no associated place to point at.
+
+      So the claim is gone. The link to the Atlas stays — the page is
+      still where the dish's own record lives — but the empty state no
+      longer promises the page contains something it does not.
     */}
     {empty ? (
       <div class="recipe-hub__empty" role="status">
         <h2 class="recipe-hub__emptytitle">No recipe yet</h2>
         <p class="recipe-hub__emptybody">
-          Nobody has written a recipe for {dish.name} yet. The dish itself
-          is documented on the Atlas — its history, its origins and the
-          places it is associated with — and a recipe for it is what is
-          missing.
+          Nobody has written a recipe for {dish.name} yet.
         </p>
         <div class="recipe-hub__emptyactions">
           <a href={atlasDishHref} class="btn-accent">

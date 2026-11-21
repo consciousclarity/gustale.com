@@ -103,11 +103,50 @@ export function hasConnections(columns: DishConnectionColumns): boolean {
 }
 
 /**
+ * ALL THREE COLUMNS, in the mockup's order (D21-11).
+ *
+ * This used to return only the columns that had entries, and the whole
+ * section was then skipped when none of them did. The blueprint
+ * reverses that:
+ *
+ *   "The dish page always shows Variants and the three Connections
+ *   columns (Resembles · Influenced by · Same family), each with a
+ *   short empty state when it has no data."
+ *
+ * The reasoning is the same one the Variants section uses, and it is
+ * the site's rule: a section that vanishes leaves the reader unable to
+ * tell whether the site has no connections for this dish or has not
+ * looked. An empty state answers that; a missing section does not.
+ *
+ * The three columns are kept together for a second reason. They make
+ * DIFFERENT claims, and a reader who sees only "Resembles" cannot tell
+ * whether the site looked and found no likeness, or whether there is
+ * no such thing as a likeness for this dish. Showing all three, each
+ * saying what it has, is what makes the difference between them
+ * legible.
+ *
+ * The order is the mockup's, and it is fixed.
+ */
+export function allColumns(columns: DishConnectionColumns): Array<{
+  key: DishConnectionColumnKey;
+  label: string;
+  mark: string;
+  entries: DishConnectionEntry[];
+}> {
+  return DISH_CONNECTION_COLUMNS.map((c) => ({
+    key: c.key,
+    label: c.label,
+    mark: c.mark,
+    entries: columns[c.key],
+  }));
+}
+
+/**
  * The columns that have entries, in the mockup's order.
  *
- * A column with no entries is not rendered. The blueprint's key has to
- * appear "beside every Connections block", but a heading with nothing
- * under it is worse than a heading that is absent.
+ * Kept for the places that still want "only what has something in it" —
+ * the key block, and anything that must not print an empty column.
+ * The dish page itself uses `allColumns`.
  */
 export function populatedColumns(columns: DishConnectionColumns): Array<{
   key: DishConnectionColumnKey;
