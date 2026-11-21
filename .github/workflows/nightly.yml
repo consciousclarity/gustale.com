@@ -100,6 +100,59 @@ jobs:
       # reached the drift check. `ci.yml` connects as `postgres` for the
       # same reason, and the two workflows must not drift apart here
       # either.
+      # ── The ROLES ────────────────────────────────────────────────────
+      #
+      # The Nightly has failed on this job every night since 2026-11-02,
+      # on the step below, with:
+      #
+      #     ERROR:  role "gustale" does not exist
+      #
+      # WHY IT FAILED
+      #
+      # The reset step does `GRANT ALL ON SCHEMA public TO gustale`, and
+      # a GRANT needs the role to exist. It did not: the service
+      # container's superuser is `postgres` (POSTGRES_USER: postgres),
+      # so the image creates the `postgres` role and NOTHING ELSE.
+      #
+      # The role `gustale` is created by scripts/ci-migration-role.sql.
+      # `ci.yml` runs that file. The Nightly never did -- it was not
+      # part of the change that moved the superuser from `gustale` to
+      # `postgres` (commit fb05999, PR #147). The CI was repaired in
+      # ec8c70e; the Nightly was left with the half of the change that
+      # breaks it.
+      #
+      # So the job that exists to CATCH drift died on its first real
+      # step, before it reached the drift check, for 19 days.
+      #
+      # WHY THIS STEP COMES BEFORE THE RESET
+      #
+      # Two things are being arranged, and they are not independent:
+      #
+      #   1. the ROLE `gustale` must exist, or the GRANT below fails;
+      #   2. that GRANT is what gives the bot USAGE on the schema, and
+      #      the reset DROPS and recreates the schema -- which drops the
+      #      grant with it.
+      #
+      # So the role is created FIRST (it is a cluster object, and it
+      # survives the schema reset), and the reset then re-applies the
+      # grant on the fresh schema.
+      #
+      # The order is the same as the CI's, and the privilege model is
+      # the same as live's: the bot is an ordinary role, the admin owns
+      # the tables.
+      #
+      # This step is ALSO the drift gate for the role model itself. The
+      # file raises an EXCEPTION -- and so fails the step -- if the bot
+      # is a superuser, if it is a member of the issuer role, if it
+      # owns publish_credential, or if it holds more than SELECT on it.
+      # The Nightly is where those must be re-checked nightly, because
+      # the Nightly is the job that exists to catch exactly this.
+      - name: Set up the roles
+        run: |
+          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+            -f scripts/ci-migration-role.sql 2>&1 | tee /tmp/ci_migration_role.log
+          bash scripts/check-ci-markers.sh "the CI migration role" "CI_MIGRATION_ROLE_OK" /tmp/ci_migration_role.log
+
       - name: Reset database
         run: |
           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 <<'SQL'
