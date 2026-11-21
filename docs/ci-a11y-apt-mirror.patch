@@ -1,0 +1,64 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index a007962..47be299 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1453,10 +1453,26 @@ jobs:
+       - name: Install dependencies
+         run: pnpm install --frozen-lockfile
+ 
++      # The apt mirror. `playwright install --with-deps` shells out to
++      # apt-get, and on a runner whose /etc/apt/apt-mirrors.txt points
++      # at azure.archive.ubuntu.com that host can fail to resolve. The
++      # step then dies with "Failed to install browsers", the axe gate
++      # never runs, and it has never produced a verdict.
++      #
++      # This repoints apt at the canonical Ubuntu archive -- a different
++      # host, so it fails independently. It is a no-op when apt already
++      # works, and it never fails the build by itself.
++      - name: Point apt at a reachable mirror
++        run: bash scripts/ci-apt-mirror.sh
++
+       # Playwright's Chromium. The a11y gate is the first CI job that
+       # needs a browser, so this is where the download happens. The
+       # `--with-deps` flag installs the system libraries Chromium
+       # needs on ubuntu-24.04.
++      #
++      # `--with-deps` is KEPT on purpose. On a fresh runner image the
++      # Chromium libraries genuinely are needed; dropping the flag
++      # would trade a broken install for a missing-library crash.
+       - name: Install Chromium
+         run: pnpm exec playwright install --with-deps chromium
+
+# ─────────────────────────────────────────────────────────────────────
+# THE A11Y GATE CI PATCH -- notes for the owner
+# ─────────────────────────────────────────────────────────────────────
+#
+# The GitHub App has NO workflow scope, so `.github/workflows/ci.yml`
+# cannot be changed by a push from the agent. This is the hunk, as a
+# file, for the owner to apply.
+#
+# It adds ONE step, immediately before the Chromium install, that
+# repoints apt at a reachable Ubuntu archive.
+#
+# WHY: the axe gate has NEVER produced a verdict. The "Install
+# Chromium" step dies with "Failed to install browsers / Installation
+# process exited with code: 100" because the runner's
+# /etc/apt/apt-mirrors.txt points at azure.archive.ubuntu.com, which
+# fails DNS resolution. Every Chromium LIBRARY installs fine; only the
+# optional FONT bundle fails -- and the axe rules this repo gates on
+# (wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa, best-practice) are
+# DOM and ARIA rules that never render a glyph.
+#
+# The script `scripts/ci-apt-mirror.sh` ships IN THIS PR -- only the
+# workflow reference needs the owner.
+#
+# TO APPLY:
+#
+#   git checkout fix/main-red-2026-11-21
+#   git apply docs/ci-a11y-apt-mirror.patch
+#
+# TO VERIFY IT APPLIES, WITHOUT CHANGING ANYTHING:
+#
+#   git apply --check docs/ci-a11y-apt-mirror.patch
+#
+# Generated against PR #283's head, 8d694fd.
