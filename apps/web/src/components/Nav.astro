@@ -19,13 +19,13 @@ const pathname = Astro.url.pathname;
  * carried a switch between them. The blueprint's decision D1 is ONE
  * site, gustale.com, with six sections, so there is one property and
  * it is simply "Gustale".
+ *
+ * The property block that used to live in the header is gone. There
+ * was only ever one property, so it printed the wordmark twice
+ * ("Gustale GUSTALE") and then added the tagline "Explore the world
+ * through food". The mockup shows the wordmark alone, and that is
+ * what the header now shows.
  */
-const currentProperty = {
-  id: "gustale" as const,
-  label: "Gustale",
-  description: "Explore the world through food.",
-  href: "/",
-};
 
 /**
  * THE SIX SECTIONS.
@@ -59,13 +59,18 @@ const showAddDish = true;
   <nav class="gst-nav" id="main-nav" aria-label="Primary" data-domain={domain}>
     <div class="wrap gst-nav-in">
 
-      <!-- Brand: Gustale + current property (text, not color-only) -->
+      <!-- Brand: the wordmark only.
+           This used to render the wordmark "Gustale" AND a property
+           block whose label was also "Gustale", so the header read
+           "Gustale GUSTALE" next to the tagline "Explore the world
+           through food".
+
+           The blueprint's decision D1 is ONE site, gustale.com. There
+           was only ever one property, so the property block said the
+           same word twice and then added a slogan the mockup does not
+           have. The mockup shows the wordmark alone. -->
       <a href="/" class="gst-brand">
         <span class="gst-wordmark">Gustale</span>
-        <span class="gst-property" aria-label={`Current property: ${currentProperty.label}`}>
-          <span class="gst-property-label">{currentProperty.label}</span>
-          <span class="gst-property-desc gst-property-desc--desktop">{currentProperty.description}</span>
-        </span>
       </a>
 
       <!-- THE HOST SWITCH IS GONE.
@@ -151,15 +156,14 @@ const showAddDish = true;
     id="nav-mobile-panel"
     role="dialog"
     aria-modal="true"
-    aria-label={`Gustale ${currentProperty.label} menu`}
+    aria-label="Gustale menu"
     hidden
     data-mode=""
   >
     <div class="nav-mobile-inner wrap">
       <div class="nav-mobile-toolbar">
         <p class="nav-mobile-property">
-          <strong>Gustale {currentProperty.label}</strong>
-          <span>{currentProperty.description}</span>
+          <strong>Gustale</strong>
         </p>
         <button
           type="button"
@@ -363,37 +367,11 @@ window.addEventListener('pagehide', () => {
   z-index: 40;
 }
 
-.gst-property {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.gst-property-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-  color: var(--accent);
-  line-height: 1.1;
-}
-.gst-property-desc {
-  font-size: 11px;
-  color: var(--sub);
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 14rem;
-}
-.gst-property-desc--desktop {
-  display: none;
-}
-@media (min-width: 1100px) {
-  .gst-property-desc--desktop {
-    display: block;
-  }
-}
+/* THE PROPERTY BLOCK IS GONE.
+   It rendered the wordmark a second time, as "GUSTALE", with the
+   tagline "Explore the world through food" under it. There was only
+   ever one property, so it said the same word twice. The wordmark
+   alone is what the mockup shows. */
 
 .property-switch {
   display: inline-flex;
@@ -547,11 +525,6 @@ window.addEventListener('pagehide', () => {
   font-family: var(--display);
   font-size: 1.25rem;
 }
-.nav-mobile-property span {
-  color: var(--sub);
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
 .nav-mobile-section {
   margin: 4px 18px 2px;
   font-family: var(--mono);
@@ -693,18 +666,6 @@ window.addEventListener('pagehide', () => {
   .gst-navr {
     gap: 2px;
     flex-shrink: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .gst-property-desc {
-    display: none;
-  }
-}
-
-@media (max-width: 360px) {
-  .gst-property-label {
-    font-size: 10px;
   }
 }
 

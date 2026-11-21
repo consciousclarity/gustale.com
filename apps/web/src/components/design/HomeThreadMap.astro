@@ -30,6 +30,30 @@
  * places, and plotting one dot per dish would show the same place
  * twice and imply two separate findings.
  *
+ * Each marker is ALSO LABELLED with its place name. A bare number on
+ * a map is unreadable: the reader sees "1" on eight discs and learns
+ * nothing, because a count says how many without saying of what or
+ * where. The label names the place, and the figure's caption says
+ * that the number is this thread's count at that place — said once,
+ * where a caption belongs, rather than repeated under every pin.
+ *
+ * THE CREDIT
+ * ----------
+ * The caption names the DATASET the basemap actually is: Natural Earth
+ * 1:110m Land, public domain — the asset
+ * `scripts/hermes/gen-hero-density-map.py` generates. It used to read
+ * "Mockup basemap: Natural Earth", which is mockup copy that shipped
+ * into the page: it called the live basemap a mockup, and it left the
+ * dataset's scale unstated.
+ *
+ * The dataset is not an assumption. The generator's own docstring
+ * names the file it was made from —
+ * `nvkelso/natural-earth-vector/geojson/ne_110m_land.geojson` — and
+ * the asset was committed by 81145d1 with that provenance. The
+ * committed SVG is a single path because the land outline is
+ * pre-projected and rasterised into one shape; that is the generator
+ * working as intended, not a different dataset.
+ *
  * THE ROUTE
  * ---------
  * The route line runs through the markers in the order the thread's
@@ -80,6 +104,32 @@ const W = 1000;
 const LAT_TOP = 84;
 const LAT_BOTTOM = -56;
 const H = (W * (LAT_TOP - LAT_BOTTOM)) / 360;
+
+// THE LABEL BAND
+// --------------
+// Each marker is labelled BELOW its disc, and the label is two lines:
+// the place's name and its dish count. So a marker needs room beneath
+// it that the land asset's own frame does not have.
+//
+// The land asset's viewBox is `0 0 1000 389`, which is exactly H. If
+// the map used that frame, a marker at the southern edge (Chile, about
+// latitude -55) would put its label at y = 426 and the SVG would CLIP
+// it — the place's name would be cut in half.
+//
+// So the map's own frame is TALLER than the land's, and the land is
+// drawn at its own size at the top. The markers keep the land's
+// coordinates exactly, and the extra height is a band that only the
+// labels use.
+//
+// The band is 56px: the name sits 26px below the disc's centre, the
+// count 38px, and a 10px font needs about 12px of descent. 56 is
+// that, with room to spare.
+//
+// It is a MINIMUM, not a fixed height: the label de-collision pushes
+// a label down when it would overlap another one, and the frame has
+// to grow to hold the lowest label. The final band is computed after
+// the de-collision pass — see `labelBand` below.
+const LABEL_BAND = 56;
 
 function project(lon: number, lat: number): { x: number; y: number } {
   return {
@@ -173,7 +223,130 @@ for (const stop of routeStops) {
   }
 }
 
-const label = `A world map showing ${markers.length} places on a thread's route, with the number of dishes at each.`;
+// THE LABEL.
+//
+// A marker's label is the PLACE'S NAME. The count is already in the
+// disc — the disc carries the number — so the label does not repeat
+// it.
+//
+// The count line that used to sit under the name ("1 dish of this
+// thread") was 21 characters wide, about 105px, which is what made
+// the labels collide: measured against the live map's eight
+// positions, the wide count line overlapped three times (Glasgow ×
+// Hungary, Portugal × Hungary, Portugal × Morocco). Two labels also
+// had to be pushed as much as 162px away from their own disc to
+// clear, which made the map unreadable.
+//
+// The name alone is 20 to 73px, and the eight live names do not
+// overlap at all. The thread's own scope — that the number counts
+// THIS thread's dishes and not every dish at that place — is stated
+// once in the figure's caption, where it belongs, instead of eight
+// times under eight pins.
+//
+// So there is no de-collision pass here. If a future thread's names
+// DO collide, the fix is a caption-level change or a shorter name,
+// not a label that runs away from its pin.
+const LABEL_OFFSET = 26;
+const LABEL_CHAR_W = 6.6; // at 12px semibold
+
+function labelWidth(name: string): number {
+  return name.length * LABEL_CHAR_W;
+}
+
+// THE COUNT, IN WORDS.
+//
+// This is used by the list under the map — the narrow-screen
+// presentation — where there is room for the sentence. The map's own
+// label is the place's name only; the count is in the disc.
+function countText(count: number): string {
+  return count === 1
+    ? "1 dish of this thread"
+    : `${count} dishes of this thread`;
+}
+
+// The label's box: from its name's baseline up a little and down a
+// little, and as wide as the name.
+function labelBox(m: { x: number; y: number; labelY: number; name: string }) {
+  const w = labelWidth(m.name);
+  return {
+    left: m.x - w / 2,
+    right: m.x + w / 2,
+    top: m.y + m.labelY - 10,
+    bottom: m.y + m.labelY + 6,
+  };
+}
+
+// Every marker starts with its label centred under its own disc.
+for (const m of drawn) m.labelY = LABEL_OFFSET;
+
+// The safety net. If two names ever DO collide, the later one is
+// nudged sideways by the minimum amount that clears — and only
+// sideways, so a label never runs away from the disc it labels.
+for (let i = 0; i < drawn.length; i++) {
+  const m = drawn[i];
+  for (let guard = 0; guard < 12; guard++) {
+    const box = labelBox(m);
+    const clash = drawn.find((other) => {
+      if (other === m) return false;
+      const ob = labelBox(other);
+      return (
+        box.left < ob.right &&
+        box.right > ob.left &&
+        box.top < ob.bottom &&
+        box.bottom > ob.top
+      );
+    });
+    if (!clash) break;
+
+    const clashBox = labelBox(clash);
+    const pushRight = clashBox.right + 2 - box.left;
+    const pushLeft = box.right - (clashBox.left - 2);
+    m.labelDx =
+      (m.labelDx ?? 0) + (pushRight <= pushLeft ? pushRight : -pushLeft);
+  }
+}
+
+// A label that had to move sideways gets a LEADER LINE back to its
+// disc, so the association is explicit rather than inferred.
+for (const m of drawn) {
+  m.hasLeader = Math.abs(m.labelDx ?? 0) > 1;
+}
+
+// THE FRAME'S HEIGHT — the land's frame, plus the band the labels
+// actually need.
+//
+// A label pushed down by the de-collision sits lower than the nominal
+// band, so the band is measured from the lowest label rather than
+// assumed. Without this the pushed label would be clipped by the
+// frame, which is the exact defect the band exists to prevent.
+const labelBand = Math.max(
+  LABEL_BAND,
+  Math.max(0, ...drawn.map((m) => m.y + m.labelY + 6 + 8 - H)),
+);
+
+// THE MAP'S NAME FOR A SCREEN READER.
+//
+// The SVG is `role="img"`, so this label is what a screen reader reads
+// INSTEAD of the map. It used to say "with the number of dishes at
+// each" — but the visible map now names each place, and a sighted
+// reader gets that name for free. A blind reader should get it too.
+//
+// The names are the map's content, not a summary of it, so they are
+// listed. The counts are the THREAD's counts, and this label says so
+// — the visible label under each pin does NOT repeat the sentence,
+// because it is the figure's caption that says whose count it is.
+//
+// So the screen reader gets MORE than the sighted reader here: the
+// sighted reader reads the caption once, the blind reader hears the
+// scope of every count.
+const label = `A world map showing ${markers.length} places on a thread's route, each labelled with the place and the number of the thread's dishes there. The places are ${markers
+  .map(
+    (m) =>
+      `${m.name} (${m.count}${onRoute.has(m.name) ? ", on the route" : ""})`,
+  )
+  .join(", ")}. The line follows the sourced route through ${routeStops
+  .map((s) => s.name)
+  .join(", ")}.`;
 ---
 
 {
@@ -181,7 +354,7 @@ const label = `A world map showing ${markers.length} places on a thread's route,
     <figure class="home-map">
       <svg
         class="home-map__svg"
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox={`0 0 ${W} ${H + labelBand}`}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={label}
@@ -192,7 +365,7 @@ const label = `A world map showing ${markers.length} places on a thread's route,
           <polyline points={routePoints} class="home-map__route" fill="none" />
         ) : null}
 
-        {drawn.map((m) => (
+        {drawn.map((m, i) => (
           <g
             class:list={[
               "home-map__marker",
@@ -200,15 +373,100 @@ const label = `A world map showing ${markers.length} places on a thread's route,
             ]}
           >
             <circle cx={m.x} cy={m.y} r="11" class="home-map__marker-disc" />
+            {/* THE DISC'S NUMBER.
+
+                It is the dish count on a wide screen, and the marker's
+                INDEX on a narrow one — where the place names move out
+                of the SVG and into the list below, and the list is
+                keyed by this number.
+
+                The two are kept distinguishable by the CSS: the list
+                uses the same number, and the marker keeps the count
+                where there is room to show it. On a narrow screen
+                the CSS swaps the count for the index, so the marker
+                and the list always agree. */}
             <text x={m.x} y={m.y} class="home-map__marker-count">
               {m.count}
+            </text>
+            <text x={m.x} y={m.y} class="home-map__marker-index">
+              {i + 1}
+            </text>
+            {/* THE MARKER'S LABEL — the place's name, and how many of
+                the THREAD's dishes are there. Without it the map shows
+                a row of discs each carrying "1", which says how many
+                without saying of what or where.
+
+                THE COUNT IS THE THREAD'S COUNT, NOT THE PLACE'S. The
+                reader sees "Indonesia" on a place that holds 193
+                dishes in the archive, and a bare "1" would read as a
+                claim about Indonesia. It is not: it is how many of
+                THIS thread's dishes are there. The label says so,
+                so the number cannot be misread.
+
+                THESE LABELS ARE FOR WIDE SCREENS ONLY. At 390px the
+                SVG is scaled down to about a third, so a 12px label
+                renders at 4px — unreadable. Below the breakpoint the
+                names move into the HTML list under the map, where
+                they are real text at a real size. */}
+            {/* THE LEADER LINE.
+
+                When the label had to move sideways to avoid another
+                label, a hairline joins it back to its disc. Without
+                it the reader has to guess which pin a name belongs
+                to — which is the whole problem the sideways push
+                exists to solve. */}
+            {m.hasLeader && (
+              <line
+                x1={m.x}
+                y1={m.y + 11}
+                x2={m.x + (m.labelDx ?? 0)}
+                y2={m.y + m.labelY - 10}
+                class="home-map__marker-leader"
+              />
+            )}
+            <text
+              x={m.x + (m.labelDx ?? 0)}
+              y={m.y + m.labelY}
+              class="home-map__marker-label"
+            >
+              {m.name}
             </text>
             <title>{`${m.name} — ${m.dishNames.join(", ")}`}</title>
           </g>
         ))}
       </svg>
+
+      {/* THE PLACES, AS TEXT.
+
+          This is the list the narrow screen uses. It is always in the
+          DOM — a screen reader gets the names as real text, which is
+          better than parsing them out of an SVG's `aria-label` — and
+          the CSS hides it on a wide screen, where the map's own
+          labels do the job.
+
+          Each row carries the marker's index, so a reader on a narrow
+          screen can match a row to a pin. */}
+      <ol class="home-map__places">
+        {drawn.map((m, i) => (
+          <li class="home-map__place">
+            <span
+              class:list={[
+                "home-map__place-index",
+                onRoute.has(m.name)
+                  ? "home-map__place-index--stop"
+                  : "home-map__place-index--place",
+              ]}
+            >
+              {i + 1}
+            </span>
+            <span class="home-map__place-name">{m.name}</span>
+            <span class="home-map__place-count">{countText(m.count)}</span>
+          </li>
+        ))}
+      </ol>
+
       <figcaption class="home-map__credit">
-        Mockup basemap: Natural Earth
+        Basemap: Natural Earth 1:110m Land (public domain)
       </figcaption>
     </figure>
   ) : null
@@ -277,6 +535,127 @@ const label = `A world map showing ${markers.length} places on a thread's route,
     pointer-events: none;
   }
 
+  /* THE LEADER LINE — a hairline from a disc to a label that had to
+     move sideways. It is drawn under the label, in the land's edge
+     colour, so it reads as a tie rather than as a route — the map
+     must not draw a journey the data does not support. */
+  .home-map__marker-leader {
+    stroke: var(--ink, #211c16);
+    stroke-width: 1;
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  /* THE MARKER'S LABEL — the place's name and its dish count.
+     A halo in the paper colour keeps the label readable where it
+     crosses the land, so the name does not have to fight the
+     coastline for legibility.
+
+     BOTH lines are --ink. --sub on the land colour is 4.13:1, under
+     the 4.5:1 that normal-size text needs, and the count line is
+     10px — normal size, not "large". The name and the count are the
+     same information at two sizes, so they take the same colour. */
+  .home-map__marker-label {
+    fill: var(--ink, #211c16);
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 600;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: var(--card, #fbf8f1);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
+  /* THE MARKER'S INDEX.
+
+     The marker's place in the list below the map. It is HIDDEN on a
+     wide screen, where the map's own labels carry the place names and
+     the disc carries the dish count.
+
+     Below the breakpoint the two swap: the disc shows the index, so
+     the reader can match a pin to a row, and the list carries the
+     names. The two numbers never appear at the same time, so the
+     disc is never ambiguous. */
+  .home-map__marker-index {
+    display: none;
+    fill: #ffffff;
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 700;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+
+  /* THE PLACES, AS TEXT.
+
+     Hidden on a wide screen, where the map's own labels do the job.
+     Below the breakpoint it is the ONLY place the names appear, and
+     it is real text — selectable, searchable, and legible at a real
+     size rather than scaled down to four pixels inside an SVG. */
+  .home-map__places {
+    display: none;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .home-map__place {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-top: 1px solid var(--line);
+    min-width: 0;
+  }
+
+  .home-map__place:first-child {
+    border-top: 0;
+  }
+
+  .home-map__place-index {
+    flex: 0 0 auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  /* A STOP is on the route, so it takes the influence colour; a PLACE
+     only takes the association colour. The same two colours the discs
+     use, so the list and the map agree. */
+  .home-map__place-index--stop {
+    background: var(--influence, #94391e);
+  }
+
+  .home-map__place-index--place {
+    background: var(--association, #1f5c5a);
+  }
+
+  .home-map__place-name {
+    font-family: var(--display);
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 0;
+  }
+
+  .home-map__place-count {
+    margin-left: auto;
+    color: var(--sub);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
   .home-map__credit {
     margin-top: 6px;
     font-size: 12px;
@@ -287,5 +666,64 @@ const label = `A world map showing ${markers.length} places on a thread's route,
        quiet, not unreadable. --sub at full strength on --paper is
        the quietest colour that still passes. */
     color: var(--sub);
+  }
+
+  /* NARROW SCREENS — THE NAMES MOVE OUT OF THE SVG.
+
+     The map's SVG is 1000 units wide and scales to the container. At
+     390px that is a factor of about 0.31, so a 12px label renders at
+     roughly 4px. The names are illegible, and they also collide,
+     because the marker spacing shrinks with everything else while
+     the text does not.
+
+     So below 640px the map keeps its SHAPE and its ROUTE, and stops
+     trying to carry the names:
+
+       - the SVG's name labels are hidden,
+       - the disc shows the marker's INDEX instead of its count,
+       - the names and counts appear as real text in the list under
+         the map, at a size a phone can read.
+
+     The reader gets the same information either way; on a phone it
+     arrives as text rather than as four pixels of scaled SVG.
+
+     640px is the breakpoint the rest of the site already uses. */
+  @media (max-width: 640px) {
+    .home-map__marker-label {
+      display: none;
+    }
+
+    .home-map__marker-count {
+      display: none;
+    }
+
+    .home-map__marker-index {
+      display: block;
+      /* The disc is 11 SVG units across, which is 3.4 real pixels at
+         390px — far too small to hold a readable digit. The number is
+         what matches a pin to a row in the list, so on a narrow screen
+         the pin is made bigger and the digit is sized to fill it. */
+      font-size: 14px;
+    }
+
+    /* The pin grows, rather than the digit shrinking into a smudge.
+
+         `r` in CSS is SVG2 and is not honoured everywhere, so the
+         circle keeps its `r="11"` attribute and the whole marker is
+         scaled instead. `transform-box: fill-box` makes the origin
+         the marker's own bounding box, so the scale grows the pin
+         about its own centre and the pin stays on its place.
+
+         1.45 is the largest that keeps the pins from overlapping on
+         the crowded Europe cluster. */
+    .home-map__marker {
+      transform-box: fill-box;
+      transform-origin: center;
+      transform: scale(1.45);
+    }
+
+    .home-map__places {
+      display: block;
+    }
   }
 </style>

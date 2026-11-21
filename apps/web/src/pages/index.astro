@@ -713,7 +713,11 @@ const LEGEND_KINDS = ["associated", "resembles", "influenced"] as const;
               <strong>{HERO_MAP_LABEL}</strong>{" "}
               {mapThread.name.toLowerCase()}
               {mapRouteCaption ? `, ${mapRouteCaption}` : ""}.{" "}
-              <a href={`/lineages/${mapThread.slug}`}>Read the thread</a>
+              <a href={`/lineages/${mapThread.slug}`}>Read the thread</a>{" "}
+              <span class="home__map-note">
+                Each marker carries the number of this thread's dishes at
+                that place.
+              </span>
             </figcaption>
           </figure>
         ) : null
@@ -847,9 +851,11 @@ const LEGEND_KINDS = ["associated", "resembles", "influenced"] as const;
                     </p>
                   ) : null}
                   {shown.length > 1 ? (
-                    <p class="home__thread-route">
-                      {shown.join(" → ")}
-                    </p>
+                    <ul class="home__thread-places">
+                      {shown.map((place) => (
+                        <li class="home__thread-place">{place}</li>
+                      ))}
+                    </ul>
                   ) : null}
                 </li>
               );
@@ -1180,6 +1186,21 @@ const LEGEND_KINDS = ["associated", "resembles", "influenced"] as const;
     color: var(--sub);
   }
 
+  /* THE MAP'S NOTE.
+
+     The caption says, once, what the number on a marker is. The
+     marker itself carries only the place's name, because repeating
+     the sentence under every pin made the labels wide enough to
+     collide and pushed them away from their pins.
+
+     It is a sentence of explanation, so it is set as its own line
+     under the caption rather than run into it. */
+  .home__map-note {
+    display: block;
+    margin-top: 2px;
+    color: var(--sub);
+  }
+
   /* ── Sections ────────────────────────────────────────────────────── */
 
   .home__section {
@@ -1382,12 +1403,36 @@ const LEGEND_KINDS = ["associated", "resembles", "influenced"] as const;
     color: var(--sub);
   }
 
-  .home__thread-route {
+  /* THE THREAD'S PLACES — as chips, not as a route.
+
+     This used to read "India → Thailand → Japan → Malaysia". An
+     arrow is a movement, and a movement needs a record: ATLAS_STYLE
+     §1 says movements exist only where a record supports a
+     transmission, and §4 says no arrow where the direction is not
+     known. This list is the thread's origin regions plus its
+     related regions — the second set is the places of the thread's
+     COUSINS, not the next stops of a journey. Joined by arrows it
+     read as a transmission chain that the data does not support.
+
+     As chips, it says what it actually holds: these are the places
+     connected to this thread. */
+  .home__thread-places {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
     margin: 0;
-    padding-top: var(--space-3);
+    padding: var(--space-3) 0 0;
     border-top: 1px solid var(--line);
+    list-style: none;
+  }
+
+  .home__thread-place {
+    padding: 3px 10px;
     font-size: 13px;
     color: var(--association);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 999px;
   }
 
   /* ── The split section ───────────────────────────────────────────── */

@@ -177,6 +177,67 @@ export function suggestLocale(
 }
 
 /**
+ * The locale variants of a PATH.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * The footer's language switcher has to work on EVERY page, not only
+ * on the dish pages that build their own `localeUrls`. Only dish pages
+ * did, so the home page, the families, the lineages and every other
+ * page had NO language switcher in the footer at all.
+ *
+ * This derives the variants from the path itself: the same path with
+ * the locale prefix swapped.
+ *
+ * ONLY WHERE THE VARIANT EXISTS
+ * ------------------------------
+ * The site builds ONE locale-prefixed route: `/[locale]/dishes/[slug]`.
+ * There is no `/es/` home page and no `/es/families`. So a locale link
+ * is only honest on a page whose locale variant actually exists — a
+ * dish page.
+ *
+ * `localeUrlForPath` returns null for a path that has no locale
+ * variant, and the footer then shows the current language on its own
+ * rather than offering links that 404.
+ *
+ * D21-9 widens this: once a locale page is published and indexed, it
+ * becomes a real variant, and the switcher lists it. Until then the
+ * switcher lists what is actually there.
+ */
+export function localeUrlForPath(
+  locale: string,
+  pathname: string,
+): string | null {
+  // A dish page: /dishes/<slug> or /<locale>/dishes/<slug>.
+  const dish = pathname.match(/^\/(?:([a-z]{2})\/)?dishes\/([a-z0-9-]+)\/?$/i);
+  if (dish) {
+    const slug = dish[2];
+    return dishUrl(locale, slug);
+  }
+  // Everything else has no locale variant yet.
+  return null;
+}
+
+/**
+ * The locale variants of a path that exist, keyed by locale.
+ *
+ * Only the current locale is guaranteed to exist — every page is
+ * served in English. A locale is included when its variant path can be
+ * built.
+ */
+export function localeUrlsForPath(
+  pathname: string,
+  locales: readonly string[] = SITE_LOCALES,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const locale of locales) {
+    const url = localeUrlForPath(locale, pathname);
+    if (url) out[locale] = url;
+  }
+  return out;
+}
+
+/**
  * The origin the site is served from.
  *
  * ONE SITE. The origin is `https://gustale.com` — for the geo variant,

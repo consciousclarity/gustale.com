@@ -18,6 +18,7 @@ import { isGeoDomain } from "../lib/domain";
 import {
   type CoreLocale,
   isRtl,
+  localeUrlsForPath,
   siteOrigin as resolveSiteOrigin,
 } from "../lib/locales";
 import { siteSections } from "../lib/sections";
@@ -110,6 +111,27 @@ const {
   noindex = false,
   theme = "atlas",
 } = Astro.props;
+
+// THE FOOTER'S LANGUAGE SWITCHER
+// ------------------------------
+// A page that knows its own locale variants passes `localeUrls`. Only
+// the dish pages did, so the footer had NO switcher on the home page,
+// the families, the lineages or any other page -- and the brief asks
+// for the switcher on every page.
+//
+// When the page does not supply them, the variants are derived from
+// the path. `localeUrlsForPath` returns a variant only where one
+// actually exists: the site builds one locale-prefixed route,
+// `/[locale]/dishes/[slug]`, so a dish page has a variant in every
+// locale and nothing else does.
+//
+// A page with no locale variant still shows the switcher, with the
+// current language alone. That is honest: it says which language the
+// page is in, and it offers no link that would 404. D21-9 widens the
+// set once locale pages are published and indexed.
+const pathLocaleUrls = localeUrlsForPath(Astro.url.pathname);
+const footerLocaleUrls =
+  Object.keys(localeUrls).length > 0 ? localeUrls : pathLocaleUrls;
 const isGeo = isGeoDomain();
 
 // The six sections, for the footer. The header reads the same list --
@@ -370,16 +392,12 @@ const jsonLd = [
       <div class="wrap">
         <div>
           <div class="fm">Gustale</div>
-          {
-            Object.keys(localeUrls).length > 0 && (
-              <div class="foot-locales">
-                <LocaleSwitcher
-                  current={locale}
-                  urls={localeUrls}
-                />
-              </div>
-            )
-          }
+          <div class="foot-locales">
+            <LocaleSwitcher
+              current={locale}
+              urls={footerLocaleUrls}
+            />
+          </div>
           <div class="fcap">
             <a href="/" class="foot-domain" data-active={isGeo ? 'true' : undefined} aria-current={isGeo ? 'page' : undefined}>Atlas</a>
             <span class="foot-sep">·</span>
@@ -398,8 +416,19 @@ const jsonLd = [
               {section.label}
             </a>
           ))}
+          <a href="/contribute">Contribute</a>
           <a href="/about">About</a>
-          <a href="/about/evidence">Evidence</a>
+          <a href="/about/evidence">How we handle evidence</a>
+          {/* "Sources" IS NOT HERE YET.
+              The brief asks the footer for "How we handle evidence ·
+              Sources · Contribute · About · the language switcher", and
+              says "/sources returns 404 today; see section 7."
+
+              Section 7 puts /sources LAST -- it is built from
+              `sources` and `claim_citations` and it lands after C4.
+              Adding the link before the page exists would put a
+              footer link to a 404 on every page of the site. The
+              link lands with the page, in lane E3. */}
         </div>
       </div>
     </footer>
