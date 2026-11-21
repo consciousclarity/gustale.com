@@ -129,6 +129,148 @@ export function DishDetail({
 }: DishDetailProps) {
   const primaryCategory =
     categories.find((c) => c.isPrimary) ?? categories[0] ?? null;
+
+  /*
+   * THE EYEBROW'S VOCABULARY PARTS: the family and the course.
+   *
+   * The brief's eyebrow is "Dish · Casserole · Main course" -- the
+   * kind, the FAMILY, and the COURSE. The `categories` list carries
+   * both, but it does not say which is which, so the order is decided
+   * here from the controlled vocabulary rather than from the order
+   * the rows happen to arrive in.
+   *
+   * The family is the primary category: it is the classification the
+   * dish belongs to, and it is the one the site calls its family
+   * everywhere else. The course is the remaining category that is a
+   * course.
+   *
+   * A TECHNIQUE is deliberately not in the eyebrow. "Frying" is a
+   * technique, and the mockup's eyebrow has no technique slot; the
+   * technique belongs to the facts table's Technique row, where it
+   * is labelled as a technique. Putting it in the eyebrow would
+   * also put it next to the family, which reads as if the two were
+   * the same kind of classification.
+   */
+  //
+  // THE COURSE SLUGS ARE READ FROM THE LIVE TAXONOMY, NOT GUESSED.
+  //
+  // Measured on live, 2026-11-21, over all 1,474 published dishes,
+  // the categories that ever appear alongside a primary category are:
+  //
+  //   main-course 94 | appetizer 23 | street-snack 11 | soup 11 |
+  //   rice-dish 10  | noodle-soup 8 | kebab 8 | stew 7 | bread 6 |
+  //   curry 5       | stir-fry 5 | pancake 5 | sandwich 4 | sauce 4 |
+  //   dumpling 4    | dessert 3 | salad 3 | casserole 2 | fried-rice 1 |
+  //   pasta 1       | breaded-cutlet 1 | egg-dish 1
+  //
+  // Only the first four of those are COURSES. "soup", "kebab" and
+  // "curry" are FORMS -- the same word as "casserole" -- and putting
+  // a form in the course slot would print "Dish · Casserole · Stew",
+  // which is two forms and no course.
+  //
+  // THE LIST IS MEASURED AGAINST THE SITE'S OWN COURSE VOCABULARY.
+  //
+  // The API's `course` facet is built from `dish_dish_courses` ->
+  // `dish_courses` -- the three vocabularies it collects in one query.
+  // `/api/dishes/map` returns that vocabulary live:
+  //
+  //     course: appetizer, dessert, main-course
+  //
+  // and the 121 mapped dishes carry them 25 / 3 / 88 times, with 5
+  // carrying no course at all.
+  //
+  // An earlier version of this set also listed `side`, `side-dish`,
+  // `starter` and `street-snack`. NONE of those is a course in the
+  // site's data: they are slugs that exist nowhere, in either
+  // vocabulary. A set that mixes the two vocabularies prints an
+  // eyebrow that calls a dish a "Starter" because it was filed under
+  // a category the site has since replaced.
+  const COURSE_SLUGS = new Set(["appetizer", "dessert", "main-course"]);
+
+  //
+  // THE FAMILY COMES FROM THE `dimensions` ARRAY, NOT FROM `categories`.
+  //
+  // There are two vocabularies in the database and the API returns
+  // both. `categories` is the LEGACY one (the `categories` table,
+  // 152 rows, mostly "*-cuisine" words such as "indonesian-cuisine"
+  // and "japanese-cuisine"). `dimensions` is the CURRENT one
+  // (`dish_dish_families` -> `dish_families`, filtered to the LISTED
+  // families) and it names its own vocabulary on every row:
+  //
+  //   { "vocabulary": "family",    "slug": "casserole", "name": "Casserole" }
+  //   { "vocabulary": "cuisine",   "slug": "greek",      "name": "Greek" }
+  //   { "vocabulary": "technique", "slug": "frying",     "name": "Frying" }
+  //
+  // Reading the family out of `categories` was WRONG, and measurably
+  // so: only 121 of the 1,474 published dishes carry a category at
+  // all, and for 102 of those the PRIMARY category is a "*-cuisine"
+  // word. Under the old rule those 102 dishes would have printed
+  // "Dish · Indonesian cuisine" where the dish's family is really
+  // something else. The dimensions array says which vocabulary a
+  // value belongs to, so it cannot be confused with a cuisine.
+  //
+  // The legacy `categories` array is still read for the COURSE,
+  // because `dish_dish_courses` carries zero rows and the course
+  // dimension is populated only through the legacy table. That is
+  // recorded here rather than hidden: it is a known gap in the
+  // current data, not a claim that the legacy table is the plan.
+  // THE FAMILY, WITHOUT THE `isPrimary` CONDITION.
+  //
+  // `dish_dish_families` has a UNIQUE constraint on `dish_id`, so a
+  // dish has AT MOST ONE family row -- and its `is_primary` column
+  // DEFAULTS TO FALSE. A lookup that required `isPrimary` would
+  // therefore drop the family of any dish whose row happens to carry
+  // the default, and the eyebrow would silently lose its middle part.
+  //
+  // Today the API hardcodes `true AS is_primary` for the family
+  // branch of the dimensions query, so the flag is always true on
+  // the wire. The lookup does not depend on that: it takes the
+  // family's own row, which is unique anyway, and the API's
+  // `status = 'active'` filter has already excluded retired rows.
+  const familyDimension = dimensions.find(
+    (d) => d.vocabulary === "family",
+  );
+
+  const eyebrowParts: DishCategory[] = [];
+  const seenSlugs = new Set<string>();
+
+  if (familyDimension) {
+    eyebrowParts.push({
+      categoryId: familyDimension.valueId,
+      slug: familyDimension.slug,
+      name: familyDimension.name,
+      isPrimary: true,
+    });
+    seenSlugs.add(familyDimension.slug);
+  }
+
+  for (const category of categories) {
+    if (seenSlugs.has(category.slug)) continue;
+    if (!COURSE_SLUGS.has(category.slug)) continue;
+    seenSlugs.add(category.slug);
+    eyebrowParts.push({
+      categoryId: category.categoryId,
+      slug: category.slug,
+      name: category.name,
+      isPrimary: category.isPrimary,
+    });
+  }
+  /**
+   * The href for one eyebrow part.
+   *
+   * A part that came from the `family` dimension links to the
+   * family's own filter. A part that came from the legacy
+   * `categories` links to the category filter, because that is the
+   * vocabulary the category filter reads -- and the course values
+   * are in that vocabulary.
+   */
+  const eyebrowHref = (part: DishCategory): string => {
+    if (part.slug === familyDimension?.slug && familyDimension) {
+      return `/dishes?family=${encodeURIComponent(part.slug)}`;
+    }
+    return filterHref(pathPages, "category", part.slug);
+  };
+
   const heroMedia = selectDishHeroMedia(media);
 
   // ── WP-C2: the facts table and the connections ─────────────────────────
@@ -202,22 +344,78 @@ export function DishDetail({
         <div className="dish-overview-head">
           <header className="rec-hero rec-hero--text">
             <div className="rec-eyebrow">
-              {/* WP-B2. "Origin unrecorded" is gone — the same blueprint
-                rule as the meta cell: no dish has an "Origin" field in
-                the UI. When there is no associated place there is
-                simply no eyebrow place line; the eyebrow keeps the
-                first-attested dates, which ARE a documented record and
-                are labelled as such. */}
-              {origin?.name}
-              {dish.originDateEarliest && (
-                <span className="coord">
-                  first attested {dish.originDateEarliest}
-                  {dish.originDateLatest &&
-                  dish.originDateLatest !== dish.originDateEarliest
-                    ? `–${dish.originDateLatest}`
-                    : ""}
+              {/*
+                THE EYEBROW: kind · family · course (D21-3).
+
+                The brief asks for "Dish · Casserole · Main course",
+                as in the mockup, and says "No legacy date (D21-3)".
+
+                What it USED to print was the legacy origin name and
+                the first-attested dates:
+
+                    "Greece  first attested 1920–1950"
+
+                Three things were wrong with that. "Greece" was the
+                LEGACY origin -- discovery data, carried over from
+                the old places and traditions list, which ADR-004 and
+                the atlas-STYLE rules both say must never read as a
+                claim about where a dish came from. The dates were
+                the legacy origin DATE range, and they were presented
+                as a documented record ("first attested") when the
+                row they come from is unreviewed. And neither of them
+                said what the dish IS: the eyebrow answered "where
+                and when" for a page whose reader arrived asking "what
+                is this".
+
+                The eyebrow now answers the question the reader
+                actually has, using the controlled vocabulary:
+                the kind ("Dish"), the family, and the course. The
+                places a dish is associated with have their own
+                section, "Where it belongs", and they say so.
+
+                The dates are not lost -- they are in the History
+                section, which is where a chronology belongs and
+                where the evidence for it is shown.
+              */}
+              <span className="rec-eyebrow__kind">
+                {dish.contentType ? (
+                  dish.contentType.charAt(0).toUpperCase() +
+                  dish.contentType.slice(1)
+                ) : (
+                  "Dish"
+                )}
+              </span>
+              {/*
+                Each part links to the filter that actually filters it.
+
+                THE FAMILY links to `?family=<slug>`. That is the
+                API's canonical family filter, and it reads
+                `dish_dish_families` -> `dish_families` -- the same
+                table the family dimension comes from. A family link
+                that landed on `?category=<slug>` would return the
+                LEGACY list instead, which is a different vocabulary
+                and, for most families, an EMPTY one.
+
+                THE COURSE links to the category filter, and that is
+                deliberate rather than an oversight. The API's
+                `category` filter reads the legacy `categories` table,
+                and the COURSE VALUES LIVE THERE -- `main-course`,
+                `appetizer` and `dessert` are rows in it. The API's
+                own `course` facet is built from `dish_courses`, and
+                there is no `?course=` query parameter at all, so
+                linking a course as `?course=<slug>` would produce a
+                URL that silently ignores the filter.
+
+                `filterHref` resolves the course to its static page
+                `/dishes/category/main-course/` when the list is big
+                enough to have one, and to the query form otherwise.
+              */}
+              {eyebrowParts.map((part) => (
+                <span className="rec-eyebrow__part" key={part.slug}>
+                  {" · "}
+                  <a href={eyebrowHref(part)}>{part.name}</a>
                 </span>
-              )}
+              ))}
             </div>
 
             <h1 className="rec-title" id={DISH_SECTION_IDS.overviewTitle}>
@@ -255,26 +453,24 @@ export function DishDetail({
               </p>
             )}
 
-            <div className="rec-byline">
-              <span className="av" />
-              <span>
-                By{" "}
-                <b>
-                  {dish.createdBy
-                    ? dish.createdBy.displayName
-                    : "an unknown editor"}
-                </b>
-              </span>
-              {dish.lastEditedBy &&
-                dish.lastEditedBy.id !== dish.createdBy?.id && (
-                  <span>
-                    · last edited by <b>{dish.lastEditedBy.displayName}</b>
-                  </span>
-                )}
-              <span className="star">
-                {dish.viewCount.toLocaleString()} views
-              </span>
-            </div>
+            {/*
+                NO BYLINE, NO VIEW COUNT (D21-8).
+
+                The brief: "Byline and view counts go (D21-8)."
+
+                The byline said "By an unknown editor" for every
+                migrated dish -- the accounts that imported the old
+                data are not the people who wrote the entries, so the
+                byline attributed the page to a name that has nothing
+                to do with it. And the view count is a popularity
+                counter on an encyclopedia: it rewards whatever was
+                imported first and tells the reader nothing about
+                whether the entry is any good.
+
+                Neither has any place on a reference page. The
+                provenance that DOES matter -- when the entry was
+                last updated -- stays in the footer.
+            */}
 
             {/* ─── The facts table (WP-C2) ──────────────────────────────── */}
             {/* The mockup puts a label/value table directly under the
@@ -341,38 +537,42 @@ export function DishDetail({
 
         {/* ─── Editor / provenance ──────────────────────────────────────── */}
         <footer className="dish-foot">
-          <div>
-            Created by{" "}
-            {dish.createdBy ? (
-              <strong>{dish.createdBy.displayName}</strong>
-            ) : (
-              "an unknown editor"
-            )}
-            {dish.lastEditedBy &&
-              dish.lastEditedBy.id !== dish.createdBy?.id && (
-                <>
-                  {" · last edited by "}
-                  <strong>{dish.lastEditedBy.displayName}</strong>
-                </>
-              )}
-          </div>
-          <div>
-            {dish.viewCount.toLocaleString()} view
-            {dish.viewCount === 1 ? "" : "s"}
-            {dish.editCount > 0 && (
-              <>
-                {" · "}
-                {dish.editCount} edit{dish.editCount === 1 ? "" : "s"}
-              </>
-            )}
-            {dish.contributorCount > 0 && (
-              <>
-                {" · "}
-                {dish.contributorCount} contributor
-                {dish.contributorCount === 1 ? "" : "s"}
-              </>
-            )}
-          </div>
+          {/*
+              NO BYLINE (D21-8).
+
+              This footer used to read "Created by <name>" -- or
+              "an unknown editor" -- followed by "· last edited by
+              <name>".
+
+              Both were removed because both are FALSE for the
+              migrated corpus. These dishes were imported, and the
+              import wrote every one of them under the same
+              account, so the footer attributed thousands of
+              unrelated entries to a single name that had no
+              editorial relationship to any of them. "An unknown
+              editor" is no better: it reads as "this entry has no
+              author" when the truth is "the authorship is a
+              mechanical artefact of the import and carries no
+              information".
+
+              A byline is a claim that a person vouched for this
+              entry. The site cannot make that claim for an
+              imported record, so it makes none.
+
+              What the reader can actually use -- when the entry was
+              last updated -- stays.
+          */}
+          {/*
+              NO VIEW COUNT, NO EDIT COUNT, NO CONTRIBUTOR COUNT (D21-8).
+
+              The footer's second line was "3,421 views · 2 edits ·
+              2 contributors". A view count on an encyclopedia entry
+              is a popularity counter; the edit and contributor
+              counts are the numbers the site's own WORKFLOW
+              produces, and printing them on a public page tells the
+              reader that a dish has been touched twice without
+              saying whether either touch improved it.
+          */}
           <div className="muted">
             Last updated {new Date(dish.updatedAt).toISOString().slice(0, 10)}
           </div>

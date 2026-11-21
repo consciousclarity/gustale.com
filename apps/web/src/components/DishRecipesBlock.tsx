@@ -53,12 +53,32 @@ export function recipeTiming(recipe: RecipeSummary): string | null {
 
 export function DishRecipesBlock({ recipes, dishName }: DishRecipesBlockProps) {
   if (recipes.length === 0) {
+    /*
+     * THE RECIPES EMPTY STATE (D21-2).
+     *
+     * The brief asks for the title "No recipe yet." with no
+     * "documented" -- and the second line used to say:
+     *
+     *     "Nobody has written a recipe for Moussaka yet. The dish
+     *      itself is documented above."
+     *
+     * "The dish itself is documented above" is a STATUS CLAIM, and
+     * it is a false one. "Documented" is the site's own word for a
+     * claim that has a qualifying source behind it. Moussaka has
+     * ZERO statements -- every statement in the corpus is still
+     * research_pending -- so nothing about this dish is documented,
+     * and the page was asserting that it was.
+     *
+     * The empty state now says only what it knows: there is no
+     * recipe. It does not claim the dish is documented, and it does
+     * not apologise for the gap either -- ATLAS_STYLE says a gap is
+     * an honest state, not a failure to be explained away.
+     */
     return (
       <div className="dish-recipes__empty" role="status">
         <p className="dish-recipes__emptytitle">No recipe yet.</p>
         <p className="dish-recipes__emptybody">
-          Nobody has written a recipe for {dishName} yet. The dish itself is
-          documented above.
+          Nobody has written a recipe for {dishName} yet.
         </p>
       </div>
     );

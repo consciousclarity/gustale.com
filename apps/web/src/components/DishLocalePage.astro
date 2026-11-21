@@ -142,10 +142,10 @@ const localeUrls = Object.fromEntries(
         hasWhere={data.origin !== null}
         hasHistory={true}
         hasConnections={relations !== null && relations.length > 0}
-        hasVariants={data.variants.length > 0}
+        hasVariants={true}
         hasIngredients={data.ingredients.length > 0}
         hasRecipes={true}
-        hasSources={data.sources.length > 0}
+        hasSources={true}
         pathPages={pathPages}
         client:load
       />

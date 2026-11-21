@@ -6400,6 +6400,38 @@ body.nav-panel-open {
   color: var(--ink);
 }
 
+/* THE SOURCE TIER (D21-12).
+   The tier's public words sit above the source's title: the tier is
+   what the reader needs in order to read the title. It is set in the
+   small caps of the site's secondary text so it reads as a label and
+   not as another citation. */
+.dish-content__section .src__tier {
+  grid-column: 2;
+  color: var(--sub);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The Variants empty state (D21-11). An honest gap, set in the
+   secondary colour, and NOT italic -- the recipes empty state
+   already uses italics, and two different empty states should not
+   look like two different kinds of thing. */
+.dish-content__section .dish-variants-block__empty {
+  color: var(--sub);
+  margin: 0;
+}
+
+/* The Sources empty state (D21-11). The same treatment as the
+   Variants empty state: an honest gap, in the secondary colour,
+   NOT italic -- the recipes empty state is the one that apologises,
+   and this is not an apology, it is a fact about the record. */
+.dish-content__section .dish-sources-block__empty {
+  color: var(--sub);
+  margin: 0;
+}
+
 .dish-content__section .src__link {
   grid-column: 2;
   color: var(--accent-dark);

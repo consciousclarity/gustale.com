@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   numeric,
+  pgEnum,
   pgTable,
   pgView,
   text,
@@ -1856,9 +1857,71 @@ export const sourceReliability = [
 ] as const;
 export type SourceReliability = (typeof sourceReliability)[number];
 
+/**
+ * The source CLASS -- the tier (GUS-026 §3).
+ *
+ * S1 primary historical, S2 scholarly, S3 institutional,
+ * S4 practitioner, S5 specialist, S6 reference (Wikipedia, Wikidata,
+ * general publications), S7 unverified (blogs, AI-generated,
+ * unattributed).
+ *
+ * S6 and S7 are DISCOVERY: they cannot be the sole basis for a
+ * contested claim, and a Wikipedia citation supports a definition
+ * only. The public page shows the tier in public words, so the class
+ * has to travel with the citation.
+ */
+export const sourceClass = [
+  "S1",
+  "S2",
+  "S3",
+  "S4",
+  "S5",
+  "S6",
+  "S7",
+] as const;
+export type SourceClass = (typeof sourceClass)[number];
+
+/**
+ * THE `source_class` ENUM.
+ *
+ * `source_class` is a REAL Postgres enum type, not a text column.
+ * Migration 0027 created it:
+ *
+ *     CREATE TYPE source_class AS ENUM ('S1', ... 'S7');
+ *     ALTER TABLE sources ADD COLUMN source_class source_class;
+ *
+ * `information_schema.columns` confirms it: `data_type` is
+ * USER-DEFINED and `udt_name` is `source_class`. A sibling column on
+ * the same table, `source_type`, IS a plain `text` column -- so the
+ * two are easy to confuse, and the difference matters.
+ *
+ * Declaring the column as `text()` would let Drizzle READ the value
+ * (Postgres casts the enum to text on the wire) but it MISREPRESENTS
+ * the database type: `drizzle-kit` would generate a migration that
+ * tries to ALTER the column to text, which would drop the enum's
+ * type safety and every CHECK that depends on it. Migration 0027's
+ * own triggers and the S1-S5 "sufficient support" queries index on
+ * the enum.
+ *
+ * So the column is declared as the enum it is.
+ */
+export const sourceClassEnum = pgEnum("source_class", sourceClass);
+
 export const sources = pgTable("sources", {
   id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
   sourceType: text("source_type").$type<SourceType>().notNull(),
+  /**
+   * The tier. Nullable, because a source with no class cannot support
+   * a claim -- so an unclassified source says so in public rather than
+   * being given a tier it does not have.
+   *
+   * The column was added in migration 0027, when the catalog held
+   * 142 sources; the catalog has since grown to 1,486. The number is
+   * not repeated here because it changes: the migration that added
+   * the column carries the count that was true when it ran, and
+   * `docs/briefs/atlas-baseline.md` carries the current one.
+   */
+  sourceClass: sourceClassEnum("source_class"),
   title: text("title").notNull(),
   authors: text("authors").array(),
   year: integer("year"),

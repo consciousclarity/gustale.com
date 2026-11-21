@@ -947,6 +947,11 @@ export function registerDishRoutes(app: FastifyInstance): void {
         addedAt: citations.addedAt,
         sourceId: citations.sourceId,
         sourceType: sources.sourceType,
+        // The source CLASS is the tier -- S1 (primary historical) ...
+        // S7 (unverified). The public page shows it in public words
+        // ("Reference", "Primary source"), so it has to travel with
+        // the citation. D21-12.
+        sourceClass: sources.sourceClass,
         title: sources.title,
         authors: sources.authors,
         year: sources.year,

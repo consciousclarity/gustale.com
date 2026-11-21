@@ -170,6 +170,15 @@ export interface DishDetailCore {
   // Translation-resolved fields (preferred language → 'en' fallback).
   name: string;
   description: string | null;
+  /**
+   * The KIND of entry: "dish" or "drink".
+   *
+   * It is what the eyebrow's first slot shows ("Dish"), so the page
+   * says what kind of thing the reader is looking at. D21-14 keeps
+   * drinks out of the Atlas for now, but the value is on the payload
+   * and a page must not have to guess it.
+   */
+  contentType?: string | null;
 }
 
 export interface DishOrigin {
@@ -252,6 +261,19 @@ export interface DishCitation {
   addedAt: string;
   sourceId: string;
   sourceType: string;
+  /**
+   * The source's CLASS -- the tier, S1..S7.
+   *
+   * S1 primary historical, S2 scholarly, S3 institutional,
+   * S4 practitioner, S5 specialist, S6 reference (Wikipedia,
+   * Wikidata, general publications), S7 unverified (blogs,
+   * AI-generated, unattributed).
+   *
+   * Null for a source that has not been classified. The page shows
+   * the tier in public words, so an unclassified source says so
+   * rather than being given a tier it does not have.
+   */
+  sourceClass: string | null;
   title: string | null;
   authors: string | null;
   year: number | null;

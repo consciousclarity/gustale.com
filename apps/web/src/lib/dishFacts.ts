@@ -231,23 +231,42 @@ export function buildDishFacts(input: {
     const vocabulary = FACT_VOCABULARY[key];
     if (!vocabulary) continue;
 
-    // The technique row can carry TWO facts: the dimension's technique
-    // ("Frying") and the preparation method ("Fried & topped"). They
-    // are the same kind of thing -- both say how the dish is cooked --
-    // so they belong in one row, and both are named.
+    // The technique row carries the dish's TECHNIQUE.
     //
-    // A dimension with no method, or a method with no dimension, still
-    // produces a row: a missing fact and a fact that was checked and
-    // found unset are different things to a reader.
+    // It used to carry TWO things: the vocabulary dimension ("Frying")
+    // and the preparation method ("Fried & topped"). The brief calls
+    // that out -- "Clean up the technique row: it shows 'Frying,
+    // Fried & topped', the same thing twice."
+    //
+    // They ARE the same thing. "Frying" is the controlled vocabulary
+    // for how the dish is cooked; "Fried & topped" is the name the
+    // preparation step carries, and it names the same cooking step in
+    // the site's own words. Printing both says it twice.
+    //
+    // The vocabulary value WINS, for two reasons. It is the
+    // controlled term, so it is the one that is consistent across
+    // dishes and the one the Atlas filters on. And the preparation
+    // method is only a fallback: a dish with a preparation but no
+    // recorded technique dimension still has a technique, and saying
+    // so is better than saying "No evidence".
+    //
+    // A missing fact and a fact that was checked and found unset are
+    // different things to a reader, so the row is always present.
     if (key === "technique") {
       const dimension = primaryDimension(input.dimensions, vocabulary);
       const methods = (input.preparations ?? [])
         .map((p) => p.methodName?.trim())
         .filter((n): n is string => Boolean(n));
       const parts: string[] = [];
-      if (dimension) parts.push(dimension.name);
-      for (const method of methods) {
-        if (!parts.includes(method)) parts.push(method);
+      if (dimension) {
+        parts.push(dimension.name);
+      } else {
+        // No recorded technique dimension -- fall back to the
+        // preparation method, but only if it does not already say
+        // the same thing as another method.
+        for (const method of methods) {
+          if (!parts.includes(method)) parts.push(method);
+        }
       }
       if (parts.length === 0) {
         rows.push({ key, label, value: DISH_FACT_MISSING });
