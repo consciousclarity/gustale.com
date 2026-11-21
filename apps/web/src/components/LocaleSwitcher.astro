@@ -21,7 +21,19 @@ export interface Props {
 }
 
 const { current, urls, suggested = null } = Astro.props;
-const others = SITE_LOCALES.filter((l) => l !== current);
+
+// ONLY THE LOCALES THAT HAVE A VARIANT.
+//
+// The switcher used to render one link per site locale, for every
+// locale, whether or not that page existed in that language. On a
+// page with no locale variant that produced nine links that all 404.
+//
+// Now a locale is listed only when `urls` carries it. The current
+// language is always shown, even when it is the only one: the reader
+// still learns which language the page is in.
+const available = SITE_LOCALES.filter((l) => l !== current && urls[l]);
+const suggestedLocale =
+  suggested && suggested !== current && urls[suggested] ? suggested : null;
 ---
 
 <nav class="gst-locales" aria-label="Language">
@@ -29,18 +41,22 @@ const others = SITE_LOCALES.filter((l) => l !== current);
     {LOCALE_NAMES[current] ?? current}
   </span>
   {
-    suggested && suggested !== current && (
-      <a class="gst-locales__suggested" href={urls[suggested]}>
-        {LOCALE_NAMES[suggested] ?? suggested}
+    suggestedLocale && (
+      <a class="gst-locales__suggested" href={urls[suggestedLocale]}>
+        {LOCALE_NAMES[suggestedLocale] ?? suggestedLocale}
       </a>
     )
   }
-  <span class="gst-locales__sep" aria-hidden="true">·</span>
   {
-    others.map((locale) => (
-      <a class="gst-locales__link" href={urls[locale]} lang={locale}>
-        {LOCALE_NAMES[locale] ?? locale}
-      </a>
-    ))
+    available.length > 0 && (
+      <>
+        <span class="gst-locales__sep" aria-hidden="true">·</span>
+        {available.map((locale) => (
+          <a class="gst-locales__link" href={urls[locale]} lang={locale}>
+            {LOCALE_NAMES[locale] ?? locale}
+          </a>
+        ))}
+      </>
+    )
   }
 </nav>
