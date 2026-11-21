@@ -251,8 +251,26 @@ async function main() {
       const url = `${origin}${target.path}`;
       let response;
       try {
+        // WAIT FOR THE DOM, NOT FOR THE NETWORK.
+        //
+        // `networkidle` was the wrong condition. The pages fetch from
+        // the API at run time — in the browser `API_BASE` is empty, so
+        // those requests go to the SAME ORIGIN as the page. When the
+        // gate serves the build from its own static server there is no
+        // API behind it, so those requests hang, the network is never
+        // idle, and the navigation times out.
+        //
+        // The failure looked random — one run timed out on `/`, the
+        // next on `/about` and `/families` — because it was a race
+        // between the timeout and the requests settling, not a
+        // property of any particular page.
+        //
+        // Every page this gate audits is server-rendered by Astro, so
+        // its content is in the HTML that `domcontentloaded`
+        // guarantees. The islands are then given their own explicit
+        // wait, below, which is what the audit actually needs.
         response = await page.goto(url, {
-          waitUntil: "networkidle",
+          waitUntil: "domcontentloaded",
           timeout: 45000,
         });
       } catch (err) {
