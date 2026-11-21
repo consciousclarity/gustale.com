@@ -1,0 +1,179 @@
+{
+  "schema_version": "atlas-1.0",
+  "kind": "lineage",
+  "slug": "filled-dough",
+  "locale": "en",
+  "sources": [
+    {
+      "id": "src-l1",
+      "title": "PLACEHOLDER — Scholarly history of steppe and Silk Road foods",
+      "publisher": "PLACEHOLDER",
+      "tier": "S2",
+      "source_type": "article",
+      "accessed": "2026-11-20",
+      "independent": true
+    },
+    {
+      "id": "src-l2",
+      "title": "PLACEHOLDER — Specialist reference on Asian dumplings",
+      "publisher": "PLACEHOLDER",
+      "tier": "S5",
+      "source_type": "book",
+      "accessed": "2026-11-20",
+      "independent": true
+    }
+  ],
+  "lineage": {
+    "name": "Filled dough parcels",
+    "confidence_level": "possible",
+    "origin_regions": ["Central Asia", "North China"],
+    "related_regions": ["Anatolia", "Eastern Europe", "Himalaya"],
+    "historical_forces": [
+      "nomadic_pastoral",
+      "trade_route",
+      "parallel_evolution"
+    ],
+    "primary_technique": "steaming",
+    "techniques": ["steaming", "boiling", "frying"],
+    "base_ingredients": ["wheat flour", "minced meat"],
+    "course_groups": ["main"],
+    "related_families": ["dumpling"],
+    "representative_dishes": ["jiaozi", "manti", "momo", "pelmeni"]
+  },
+  "short_description": {
+    "key": "sd",
+    "text": "A thin wheat dough closed around a filling and steamed, boiled or fried, made across Asia and into Europe.",
+    "source_ids": ["src-l1"]
+  },
+  "concept_summary": [
+    {
+      "key": "cs1",
+      "text": "The shared idea is a small parcel: a sheet of wheat dough closed around minced meat, vegetables or cheese, then cooked in steam, water or fat.",
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "cs2",
+      "text": "What varies from place to place is the fold, the thickness of the dough, the filling and the way the parcels are served.",
+      "source_ids": ["src-l2"]
+    }
+  ],
+  "origin_summary": [
+    {
+      "key": "os1",
+      "text": "Where the idea starts is not established.",
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "os2",
+      "text": "Some sources link several forms to the movements of Turkic and Mongol peoples across Central Asia, while others treat the parcels of China, Anatolia and Eastern Europe as separate developments.",
+      "source_ids": ["src-l1"]
+    }
+  ],
+  "long_description": [
+    {
+      "key": "ld1",
+      "paragraph": 1,
+      "text": "Filled wheat parcels appear in Chinese written and archaeological records earlier than in records further west.",
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "ld2",
+      "paragraph": 1,
+      "text": "Many accounts tie manti to pastoral peoples of the steppe, and the name turns up from Central Asia to Anatolia and the Caucasus.",
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "ld3",
+      "paragraph": 2,
+      "text": "In the Himalaya, momo follow the same pattern with local fillings such as yak meat or vegetables, and sources usually connect them with Tibetan and Newar cooking.",
+      "source_ids": ["src-l2"]
+    },
+    {
+      "key": "ld4",
+      "paragraph": 2,
+      "text": "Further west, Russian pelmeni share the parcel but differ in dough, fold and filling, and their link to the eastern forms is argued rather than documented.",
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "ld5",
+      "paragraph": 3,
+      "text": "Because the technique needs only flour, water and a filling, parallel invention may explain part of the likeness as well as contact does.",
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "ld6",
+      "paragraph": 3,
+      "text": "The fillings follow what each region raises and grows, from lamb and onion on the steppe to pork and cabbage in northern China.",
+      "source_ids": ["src-l2"]
+    }
+  ],
+  "uncertainty_note": {
+    "key": "un",
+    "text": "Neither the starting point nor the direction of spread is established, and some members may be independent inventions.",
+    "source_ids": ["src-l1"]
+  },
+  "cultural_practice_note": {
+    "key": "cp",
+    "text": "In many places the parcels are made in large batches by several people at once, often for a festival or a family gathering.",
+    "source_ids": ["src-l2"]
+  },
+  "members": [
+    {
+      "key": "m-jiaozi",
+      "dish": "jiaozi",
+      "role": "ancestor",
+      "explanation": "The earliest well-recorded form of the parcel, boiled or steamed, and still made in quantity for the New Year.",
+      "changed_elements": [],
+      "confidence_level": "likely",
+      "sort_order": 10,
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "m-manti",
+      "dish": "manti",
+      "role": "trade_route_spread",
+      "explanation": "Carried along steppe and trade routes, by several accounts; smaller parcels, often served under yoghurt.",
+      "changed_elements": ["shape", "serving_context"],
+      "confidence_level": "possible",
+      "sort_order": 9,
+      "source_ids": ["src-l1"]
+    },
+    {
+      "key": "m-momo",
+      "dish": "momo",
+      "role": "cousin",
+      "explanation": "The same parcel, pleated at the top, with Himalayan fillings and a chilli relish on the side.",
+      "changed_elements": ["filling", "shape"],
+      "confidence_level": "likely",
+      "sort_order": 8,
+      "source_ids": ["src-l2"]
+    },
+    {
+      "key": "m-pelmeni",
+      "dish": "pelmeni",
+      "role": "possible_influence",
+      "explanation": "Small boiled parcels with a thin dough; a link to the eastern forms is proposed but not documented.",
+      "changed_elements": ["dough", "cooking_method"],
+      "confidence_level": "possible",
+      "sort_order": 6,
+      "source_ids": ["src-l1"]
+    }
+  ],
+  "images": [
+    {
+      "key": "cover",
+      "role": "cover",
+      "reuse": "momo",
+      "prompt": null,
+      "alt": "Pleated momo steaming in a bamboo basket."
+    }
+  ],
+  "agent": {
+    "confidence": "MEDIUM",
+    "gaps": [
+      "Example only: every source is a placeholder and no fact here has been verified; do not import",
+      "member and representative dish slugs to confirm"
+    ],
+    "disputes": ["Origin: single steppe spread vs separate developments"]
+  }
+}

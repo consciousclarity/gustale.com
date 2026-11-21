@@ -1,0 +1,1094 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gustale.com/schemas/atlas-record-1.0.json",
+  "title": "Gustale Atlas record 1.0 (The Working Record, Atlas)",
+  "description": "One Atlas entity, written in English (the Atlas pivot language; translations run through the existing sentence-translation pipeline). kind = dish | family | lineage. Connections live inside dish and lineage records. Cross-field rules are enforced by check_atlas.py.",
+  "type": "object",
+  "required": ["schema_version", "kind", "slug", "locale", "sources", "agent"],
+  "properties": {
+    "schema_version": {
+      "const": "atlas-1.0"
+    },
+    "kind": {
+      "enum": ["dish", "family", "lineage"]
+    },
+    "slug": {
+      "$ref": "#/$defs/slug"
+    },
+    "locale": {
+      "const": "en"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "agent": {
+      "$ref": "#/$defs/agent"
+    }
+  },
+  "unevaluatedProperties": false,
+  "oneOf": [
+    {
+      "$ref": "#/$defs/dishRecord"
+    },
+    {
+      "$ref": "#/$defs/familyRecord"
+    },
+    {
+      "$ref": "#/$defs/lineageRecord"
+    }
+  ],
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "ids": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/key"
+      },
+      "uniqueItems": true
+    },
+    "vocab": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "description": "A value that must already exist in the Atlas vocabulary; never invent one (propose it in agent.proposed_vocabulary)"
+    },
+    "sentence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "text", "source_ids"],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "paragraph": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "claims": {
+          "$ref": "#/$defs/ids",
+          "description": "Statement keys this sentence asserts (dish prose: required)"
+        },
+        "source_ids": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "publisher",
+        "tier",
+        "source_type",
+        "accessed",
+        "independent"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/key"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "year": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "isbn": {
+          "type": "string"
+        },
+        "tier": {
+          "enum": ["S1", "S2", "S3", "S4", "S5", "S6"],
+          "description": "SOURCE-TIER-LIST.md; S6 (reference/Wikipedia) never makes a claim evidenced"
+        },
+        "source_type": {
+          "enum": [
+            "book",
+            "article",
+            "web",
+            "video",
+            "audio",
+            "archive",
+            "personal_communication"
+          ]
+        },
+        "accessed": {
+          "type": "string",
+          "format": "date"
+        },
+        "independent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence", "gaps", "disputes"],
+      "properties": {
+        "confidence": {
+          "enum": ["HIGH", "MEDIUM", "LOW"]
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disputes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "proposed_vocabulary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Vocabulary values that would be needed but do not exist yet; never written by the agent"
+        }
+      }
+    },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "subject",
+        "predicate",
+        "value",
+        "claim_class",
+        "citations"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "slug"],
+          "properties": {
+            "type": {
+              "enum": ["dish", "place"]
+            },
+            "slug": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "predicate": {
+          "$ref": "#/$defs/vocab",
+          "description": "An existing predicates.slug. The statement-anchored ones are originated_in, originated_at, created_by and named_after; the seven dimension ones (is_a, belongs_to_cuisine, served_as_course, cooked_by, contains_ingredient, part_of_tradition, eaten_in_context) name a controlled vocabulary and are carried by the facts table. See references/vocabulary-snapshot.md."
+        },
+        "value": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "enum": ["entity", "literal"]
+            },
+            "ref": {
+              "type": "string"
+            },
+            "literal": {
+              "type": "string"
+            }
+          }
+        },
+        "qualifiers": {
+          "type": "object"
+        },
+        "claim_class": {
+          "enum": [
+            "documented",
+            "scholarly_interpretation",
+            "oral_tradition",
+            "disputed",
+            "hypothesis",
+            "unsupported"
+          ]
+        },
+        "dispute_state": {
+          "enum": ["disputed", "unresolved"]
+        },
+        "dates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "label"],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "surviving_record",
+                  "proposed_emergence",
+                  "introduction",
+                  "adaptation"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "earliest": {
+                "type": "integer"
+              },
+              "latest": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "stance"],
+            "properties": {
+              "source": {
+                "$ref": "#/$defs/key"
+              },
+              "stance": {
+                "enum": ["supports", "refutes", "context"]
+              },
+              "locator": {
+                "type": "string"
+              },
+              "excerpt": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Verbatim, at most 25 words, for verification (claim_citations.excerpt)"
+              }
+            }
+          }
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "type",
+        "target",
+        "direction_known",
+        "reason",
+        "strength",
+        "source_ids"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "type": {
+          "enum": [
+            "similar_form",
+            "similar_technique",
+            "often_compared_with",
+            "family",
+            "ancestor",
+            "developed_from",
+            "adapted_from",
+            "influenced_by",
+            "regional_variant_of",
+            "diaspora",
+            "connection_proposed",
+            "shared-ingredient",
+            "shared_ingredient",
+            "similar-serving",
+            "similar_serving",
+            "regional-cousin",
+            "shared-method"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/slug",
+          "description": "The other dish's slug"
+        },
+        "this_dish_is": {
+          "enum": ["source", "target"],
+          "description": "Directional types only. Convention: source = predecessor / influence / broader dish; target = derived / influenced / variant dish"
+        },
+        "direction_known": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "source_ids": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    "dishRecord": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "dish"
+        },
+        "content_type": {
+          "enum": ["dish", "drink"]
+        },
+        "statements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/statement"
+          }
+        },
+        "intro": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          },
+          "description": "description_sentences field 'short'"
+        },
+        "about": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sentence"
+          },
+          "description": "description_sentences field 'long' (About this dish); optional"
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "language",
+              "name",
+              "kind",
+              "is_primary",
+              "source_ids"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "language": {
+                "type": "string",
+                "pattern": "^[a-z]{2,3}(-[A-Za-z]{2,4})?$"
+              },
+              "script": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "enum": [
+                  "endonym",
+                  "exonym",
+                  "romanization",
+                  "alternative",
+                  "historical"
+                ]
+              },
+              "is_primary": {
+                "type": "boolean"
+              },
+              "source_ids": {
+                "$ref": "#/$defs/ids"
+              }
+            }
+          }
+        },
+        "facts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "associated_with",
+            "family",
+            "served_as",
+            "technique",
+            "also_called"
+          ],
+          "properties": {
+            "associated_with": {
+              "$ref": "#/$defs/ids",
+              "description": "Keys of places[] entries"
+            },
+            "family": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/vocab"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The one primary dish_families slug"
+            },
+            "served_as": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/vocab"
+              },
+              "description": "Course facet values (the facts table's 'Served as')"
+            },
+            "technique": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/vocab"
+              }
+            },
+            "also_called": {
+              "$ref": "#/$defs/ids",
+              "description": "Keys of names[] entries"
+            }
+          }
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "relationship_type",
+              "entity_kind",
+              "entity",
+              "explanation",
+              "source_ids"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "relationship_type": {
+                "$ref": "#/$defs/vocab"
+              },
+              "entity_kind": {
+                "enum": ["place", "community"]
+              },
+              "entity": {
+                "type": "string",
+                "minLength": 1,
+                "description": "geo_entities iso_code/slug, or dish_traditions slug"
+              },
+              "explanation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dispute_state": {
+                "enum": ["disputed", "unresolved"]
+              },
+              "source_ids": {
+                "$ref": "#/$defs/ids"
+              }
+            }
+          }
+        },
+        "history": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chapters", "movements"],
+          "properties": {
+            "chapters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key",
+                  "sequence",
+                  "title",
+                  "date_label",
+                  "date_precision",
+                  "place_name",
+                  "place_role",
+                  "label",
+                  "scope_note",
+                  "evidence_kind",
+                  "confidence",
+                  "source"
+                ],
+                "properties": {
+                  "key": {
+                    "$ref": "#/$defs/key"
+                  },
+                  "sequence": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "date_label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "date_precision": {
+                    "enum": [
+                      "exact",
+                      "circa",
+                      "range",
+                      "century",
+                      "decade",
+                      "bce",
+                      "ce",
+                      "unknown"
+                    ]
+                  },
+                  "year_approx": {
+                    "type": "integer"
+                  },
+                  "place_name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "place_role": {
+                    "enum": [
+                      "attestation",
+                      "preparation_context",
+                      "adaptation",
+                      "reception",
+                      "circulation",
+                      "regional_identity"
+                    ]
+                  },
+                  "lat": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  "lng": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "scope_note": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence_kind": {
+                    "enum": [
+                      "primary_record",
+                      "scholarly_interpretation",
+                      "reported_account",
+                      "reference_work",
+                      "archival_record",
+                      "comparison"
+                    ]
+                  },
+                  "confidence": {
+                    "enum": ["documented", "likely", "possible", "parallel"]
+                  },
+                  "source": {
+                    "$ref": "#/$defs/key"
+                  },
+                  "locator": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "movements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "key",
+                  "from",
+                  "to",
+                  "label",
+                  "confidence",
+                  "source"
+                ],
+                "properties": {
+                  "key": {
+                    "$ref": "#/$defs/key"
+                  },
+                  "from": {
+                    "$ref": "#/$defs/key"
+                  },
+                  "to": {
+                    "$ref": "#/$defs/key"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "confidence": {
+                    "enum": ["documented", "likely", "possible", "parallel"]
+                  },
+                  "source": {
+                    "$ref": "#/$defs/key"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connection"
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "target",
+              "identity_kind",
+              "explanation",
+              "changed_elements",
+              "source_ids"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "target": {
+                "$ref": "#/$defs/slug"
+              },
+              "identity_kind": {
+                "enum": [
+                  "shared_dish",
+                  "regional_variant",
+                  "historically_related"
+                ]
+              },
+              "explanation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "changed_elements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/changedElement"
+                }
+              },
+              "source_ids": {
+                "$ref": "#/$defs/ids"
+              }
+            }
+          }
+        },
+        "images": {
+          "$ref": "#/$defs/images"
+        }
+      },
+      "required": [
+        "kind",
+        "content_type",
+        "statements",
+        "intro",
+        "names",
+        "facts",
+        "places",
+        "history",
+        "connections",
+        "variants",
+        "images"
+      ]
+    },
+    "familyRecord": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "family"
+        },
+        "family": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "family_class", "parent"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The existing dish_families.name; never renamed by the writer"
+            },
+            "family_class": {
+              "enum": ["FORM", "COURSE", "CUISINE", "CONTENT TYPE"],
+              "description": "The approved classification (migration 0051); never changed by the writer"
+            },
+            "parent": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/slug"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "description": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          },
+          "description": "dish_families.description"
+        },
+        "nearest_family": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/slug"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The neighbouring family the boundary sentence names, if any"
+        },
+        "representative_dishes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/slug"
+          }
+        },
+        "images": {
+          "$ref": "#/$defs/images"
+        }
+      },
+      "required": [
+        "kind",
+        "family",
+        "description",
+        "representative_dishes",
+        "images"
+      ]
+    },
+    "lineageRecord": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "lineage"
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "confidence_level",
+            "origin_regions",
+            "historical_forces",
+            "techniques",
+            "base_ingredients",
+            "course_groups",
+            "related_families",
+            "representative_dishes"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "confidence_level": {
+              "$ref": "#/$defs/lineageConfidence"
+            },
+            "origin_regions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "related_regions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "historical_forces": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "migration",
+                  "trade_route",
+                  "empire",
+                  "colonization",
+                  "diaspora",
+                  "religious_exchange",
+                  "port_city_exchange",
+                  "agricultural_spread",
+                  "technological_change",
+                  "local_adaptation",
+                  "parallel_evolution",
+                  "cultural_exchange",
+                  "nomadic_pastoral",
+                  "war_and_displacement"
+                ]
+              }
+            },
+            "primary_technique": {
+              "type": "string"
+            },
+            "techniques": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "base_ingredients": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "course_groups": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "related_families": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/slug"
+              }
+            },
+            "representative_dishes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/slug"
+              }
+            },
+            "route_hints": {
+              "type": "array"
+            }
+          }
+        },
+        "short_description": {
+          "$ref": "#/$defs/sentence"
+        },
+        "concept_summary": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        },
+        "origin_summary": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        },
+        "long_description": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sentence"
+          }
+        },
+        "uncertainty_note": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sentence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cultural_practice_note": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sentence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "members": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "dish",
+              "role",
+              "explanation",
+              "changed_elements",
+              "confidence_level",
+              "sort_order",
+              "source_ids"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "dish": {
+                "$ref": "#/$defs/slug"
+              },
+              "role": {
+                "enum": [
+                  "ancestor",
+                  "descendant",
+                  "cousin",
+                  "regional_variant",
+                  "adaptation",
+                  "fusion",
+                  "diaspora_adaptation",
+                  "trade_route_spread",
+                  "colonial_spread",
+                  "technique_relative",
+                  "ingredient_relative",
+                  "possible_influence",
+                  "parallel_evolution",
+                  "uncertain"
+                ]
+              },
+              "explanation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "changed_elements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/changedElement"
+                }
+              },
+              "confidence_level": {
+                "$ref": "#/$defs/lineageConfidence"
+              },
+              "sort_order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              "source_ids": {
+                "$ref": "#/$defs/ids"
+              }
+            }
+          }
+        },
+        "images": {
+          "$ref": "#/$defs/images"
+        }
+      },
+      "required": [
+        "kind",
+        "lineage",
+        "short_description",
+        "concept_summary",
+        "origin_summary",
+        "long_description",
+        "uncertainty_note",
+        "cultural_practice_note",
+        "members",
+        "images"
+      ]
+    },
+    "lineageConfidence": {
+      "enum": [
+        "documented",
+        "likely",
+        "probable",
+        "possible",
+        "uncertain",
+        "parallel_evolution"
+      ]
+    },
+    "changedElement": {
+      "enum": [
+        "ingredient",
+        "spice_profile",
+        "cooking_method",
+        "shape",
+        "filling",
+        "dough",
+        "grain",
+        "preservation_method",
+        "serving_context",
+        "religious_rule",
+        "local_availability",
+        "cooking_fat",
+        "wrapper",
+        "fermentation_time"
+      ]
+    },
+    "images": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "role", "reuse", "prompt", "alt"],
+        "properties": {
+          "key": {
+            "$ref": "#/$defs/key"
+          },
+          "role": {
+            "enum": ["cover"]
+          },
+          "reuse": {
+            "type": ["string", "null"],
+            "description": "Slug of the dish whose existing cover is reused (families and lineages always reuse; dishes reuse their current cover when it is right)"
+          },
+          "prompt": {
+            "type": ["string", "null"],
+            "description": "Dishes only, when no usable cover exists"
+          },
+          "alt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 125
+          }
+        }
+      }
+    }
+  }
+}

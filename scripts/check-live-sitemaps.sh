@@ -43,6 +43,9 @@
 # The count is now computed from the API, which is the source of truth:
 #
 #     dishes      = the published dish count from the API
+#     places      = the published place count from the API (WP-C3 added
+#                   the /places/<slug> pages, and the formula without
+#                   this term made every deploy fail its own verify)
 #     families    = the content-bearing families (the sitemap omits the
 #                   empty ones, so this has to be read from the sitemap)
 #     lineages    = the content-bearing lineages (same)
@@ -151,6 +154,55 @@ api_dish_count() {
     head -1
 }
 
+# The PUBLISHED PLACE count, from the API.
+#
+# WHY THIS EXISTS
+# ---------------
+# WP-C3 added the `/places/<slug>` pages to the sitemap, and the
+# sitemap generator emits every place that has at least one published
+# dish behind it. The EXPECTED COUNT FORMULA below had no `places`
+# term, so every deploy after WP-C3 failed its own post-deploy verify:
+# the sitemap carried the place pages and the expectation did not
+# count them. That is run 44760972184 (2026-11-20), which read
+# "gustale.com/sitemap-en.xml has 1776 URLs, expected 1596" -- and
+# 1776 - 1596 = 180, the number of places.
+#
+# WHY THE PLACES COME FROM `/api/places` AND NOT FROM THE SITEMAP
+# --------------------------------------------------------------
+# Because the count under test must not define its own expectation.
+# The families, the lineages, the ingredients and the recipes are
+# read from the sitemap because "has at least one dish behind it" is a
+# BUILD property -- there is no API list of them. The places are the
+# opposite: `GET /api/places` returns exactly the places that have a
+# published dish behind them, from the `geo_entities` table joined to
+# the visible place associations. So it is the independent source, the
+# same way the dish count is.
+#
+# It is NOT `/api/atlas/counts`. That endpoint's `places` is 180 while
+# this is 178, because it counts the distinct `entity_id`s in the
+# ASSOCIATIONS, and two of them have no row in `geo_entities` -- so
+# they are associations, not places, and they have no page. The two
+# numbers are both right; they count different things, and this check
+# wants the ones that have a page.
+#
+# The endpoint is not paginated -- it returns every place in one
+# response. It does NOT return one row per page, though: two
+# `geo_entities` rows can slugify to the SAME slug. Live has two rows
+# named "China" (one with iso_code CN, one without) and two named
+# "Luxembourg" (a country and a region), and `slugifyPlace` maps all
+# four onto two slugs. The sitemap has ONE page per slug, so the count
+# has to be the number of DISTINCT slugs -- 180 rows, 178 pages.
+#
+# `sort -u` is what makes it the page count rather than the row count.
+api_place_count() {
+  curl -s --max-time 60 "${API_BASE}/api/places" 2>/dev/null |
+    grep -o '"slug"[[:space:]]*:[[:space:]]*"[^"]*"' |
+    sed 's/.*"\([^"]*\)"$/\1/' |
+    sort -u |
+    wc -l |
+    tr -d ' '
+}
+
 FAILED=0
 RESULTS=()
 COUNTS=()
@@ -173,19 +225,41 @@ FAMILIES="$(count_family_urls "$FIRST_HOST")"
 LINEAGES="$(count_lineage_urls "$FIRST_HOST")"
 INGREDIENTS="$(count_ingredient_urls "$FIRST_HOST")"
 RECIPES="$(count_recipe_urls "$FIRST_HOST")"
-# The root, /dishes, /recipes and /ingredients.
+
+# The PLACES, from the API. WP-C3 put the `/places/<slug>` pages in the
+# sitemap, so the count has to be in the formula or every deploy fails
+# its own verify. See `api_place_count` for why it comes from the API
+# and not from the sitemap.
+PLACES="$(api_place_count)"
+if [ -z "$PLACES" ] || [ "$PLACES" -eq 0 ] 2>/dev/null; then
+  echo "  ::error::could not read the published place count from ${API_BASE}/api/places"
+  echo "  ::error::the expectation cannot be derived, so the check cannot run"
+  exit 1
+fi
+
+# The root, /atlas, /dishes, /ingredients, /places and /recipes.
 #
 # It used to be 2 -- the root and the /dishes index -- because the
 # recipes and the ingredients lived on the other host, in the other
 # sitemap. One site serves them all, so they are in this sitemap.
-STATIC=4
+#
+# Then it was 4 -- the root and three section indexes -- and WP-C3 added
+# two more section indexes, /atlas and /places, without touching this
+# constant. That is the other half of the "1776 URLs, expected 1596"
+# failure: 180 unaccounted place pages and 2 unaccounted section
+# indexes.
+#
+# The count has to stay in step with the sitemap generator. Every
+# section index the generator emits is one term here.
+STATIC=6
 
-DERIVED=$((DISHES + FAMILIES + LINEAGES + INGREDIENTS + RECIPES + STATIC))
+DERIVED=$((DISHES + PLACES + FAMILIES + LINEAGES + INGREDIENTS + RECIPES + STATIC))
+echo "  places (content-bearing):         $PLACES"
 echo "  families (content-bearing):       $FAMILIES"
 echo "  lineages (content-bearing):       $LINEAGES"
 echo "  ingredients (content-bearing):    $INGREDIENTS"
 echo "  recipes (content-bearing):        $RECIPES"
-echo "  static (root + 3 section indexes):$STATIC"
+echo "  static (root + 5 section indexes):$STATIC"
 echo "  derived expected count:           $DERIVED"
 
 # An explicit argument overrides the derived value (the tests use it).

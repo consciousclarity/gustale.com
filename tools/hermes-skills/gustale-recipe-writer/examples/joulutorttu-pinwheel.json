@@ -1,0 +1,679 @@
+{
+  "schema_version": "2.0",
+  "dish_slug": "joulutorttu",
+  "recipe_slug": "joulutorttu-pinwheel",
+  "source_language": "fi",
+  "base_source_id": "src-worldfood",
+  "difficulty": "demanding",
+  "yield": {
+    "pieces": 24,
+    "pieces_approx": true
+  },
+  "times": {
+    "active_min": 45,
+    "cook_min": 37,
+    "total_min": 202
+  },
+  "timeline": [
+    {
+      "key": "t-jam-start",
+      "minutes": 5,
+      "mode": "active"
+    },
+    {
+      "key": "t-jam-simmer",
+      "minutes": 25,
+      "mode": "waiting"
+    },
+    {
+      "key": "t-dough",
+      "minutes": 10,
+      "mode": "active"
+    },
+    {
+      "key": "t-chill",
+      "minutes": 120,
+      "mode": "waiting"
+    },
+    {
+      "key": "t-shape",
+      "minutes": 25,
+      "mode": "active"
+    },
+    {
+      "key": "t-bake",
+      "minutes": 12,
+      "mode": "waiting"
+    },
+    {
+      "key": "t-finish",
+      "minutes": 5,
+      "mode": "active"
+    }
+  ],
+  "sections": [
+    {
+      "key": "filling"
+    },
+    {
+      "key": "pastry"
+    },
+    {
+      "key": "shaping"
+    },
+    {
+      "key": "finish"
+    }
+  ],
+  "ingredients": [
+    {
+      "key": "prunes",
+      "section": "filling",
+      "ingredient_id": "atlas:prune",
+      "quantity": 300,
+      "unit": "g",
+      "is_optional": false,
+      "is_key": true,
+      "cost_weight": "major",
+      "accepted_forms": ["dried"],
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "sugar",
+      "section": "filling",
+      "ingredient_id": "atlas:sugar-granulated",
+      "quantity": 120,
+      "unit": "g",
+      "is_optional": false,
+      "is_key": false,
+      "cost_weight": "major",
+      "accepted_forms": null,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "water",
+      "section": "filling",
+      "ingredient_id": "atlas:water",
+      "quantity": null,
+      "unit": null,
+      "is_optional": false,
+      "is_key": false,
+      "cost_weight": "minor",
+      "accepted_forms": null,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "quark",
+      "section": "pastry",
+      "ingredient_id": "atlas:quark",
+      "quantity": 225,
+      "unit": "g",
+      "is_optional": false,
+      "is_key": true,
+      "cost_weight": "major",
+      "accepted_forms": ["fresh"],
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "butter",
+      "section": "pastry",
+      "ingredient_id": "atlas:butter-salted",
+      "quantity": 225,
+      "unit": "g",
+      "is_optional": false,
+      "is_key": false,
+      "cost_weight": "major",
+      "accepted_forms": null,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "flour",
+      "section": "pastry",
+      "ingredient_id": "atlas:flour-plain",
+      "quantity": 250,
+      "unit": "g",
+      "is_optional": false,
+      "is_key": false,
+      "cost_weight": "major",
+      "accepted_forms": null,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "egg",
+      "section": "finish",
+      "ingredient_id": "atlas:egg",
+      "quantity": 1,
+      "unit": "piece",
+      "is_optional": false,
+      "is_key": false,
+      "cost_weight": "major",
+      "accepted_forms": null,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "icing",
+      "section": "finish",
+      "ingredient_id": "atlas:sugar-powdered",
+      "quantity": null,
+      "unit": null,
+      "is_optional": false,
+      "is_key": false,
+      "cost_weight": "minor",
+      "accepted_forms": null,
+      "source_ids": ["src-worldfood"]
+    }
+  ],
+  "substitutes": [
+    {
+      "key": "sub-ricotta",
+      "for": "quark",
+      "substitute_ingredient_id": "atlas:ricotta",
+      "substitute_form": "fresh",
+      "suitability": "suitable",
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "sub-jam",
+      "for": "filling",
+      "substitute_ingredient_id": null,
+      "substitute_form": "canned_or_packaged",
+      "suitability": "suitable",
+      "source_ids": ["src-curious"]
+    },
+    {
+      "key": "sub-puff",
+      "for": "pastry",
+      "substitute_ingredient_id": "atlas:puff-pastry",
+      "substitute_form": "frozen",
+      "suitability": "approximate",
+      "source_ids": ["src-bakefromscratch"]
+    },
+    {
+      "key": "sub-runny",
+      "for": "filling",
+      "substitute_ingredient_id": null,
+      "substitute_form": null,
+      "suitability": "not_suitable",
+      "source_ids": ["src-curious"]
+    }
+  ],
+  "equipment": [
+    {
+      "key": "eq-mixer"
+    },
+    {
+      "key": "eq-pin"
+    },
+    {
+      "key": "eq-wheel"
+    },
+    {
+      "key": "eq-sieve"
+    },
+    {
+      "key": "eq-rack"
+    }
+  ],
+  "steps": [
+    {
+      "key": "s1",
+      "section": "filling",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s2",
+      "section": "filling",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s3",
+      "section": "filling",
+      "time_min": 20,
+      "time_max": 30,
+      "key_moment": true,
+      "cue_missing": false,
+      "image": "img-jam",
+      "source_ids": ["src-worldfood", "src-curious"]
+    },
+    {
+      "key": "s4",
+      "section": "filling",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s5",
+      "section": "pastry",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s6",
+      "section": "pastry",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s7",
+      "section": "pastry",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s8",
+      "section": "pastry",
+      "time_min": 120,
+      "time_max": 180,
+      "key_moment": true,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s9",
+      "section": "shaping",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"],
+      "dispute": "v-bake"
+    },
+    {
+      "key": "s10",
+      "section": "shaping",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s11",
+      "section": "shaping",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s12",
+      "section": "shaping",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood", "src-fooddictator"]
+    },
+    {
+      "key": "s13",
+      "section": "shaping",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s14",
+      "section": "shaping",
+      "key_moment": true,
+      "cue_missing": false,
+      "image": "img-fold",
+      "source_ids": ["src-worldfood", "src-bakefromscratch"]
+    },
+    {
+      "key": "s15",
+      "section": "shaping",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s16",
+      "section": "shaping",
+      "time_min": 10,
+      "time_max": 12,
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood", "src-fooddictator"],
+      "dispute": "v-bake"
+    },
+    {
+      "key": "s17",
+      "section": "finish",
+      "time_min": 5,
+      "time_max": 5,
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "s18",
+      "section": "finish",
+      "key_moment": false,
+      "cue_missing": false,
+      "source_ids": ["src-worldfood"]
+    }
+  ],
+  "failures": [
+    {
+      "key": "f-tips",
+      "step": "s14",
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "f-jam",
+      "step": "s3",
+      "source_ids": ["src-curious"]
+    },
+    {
+      "key": "f-dough",
+      "step": "s8",
+      "source_ids": ["src-worldfood"]
+    }
+  ],
+  "variations": [
+    {
+      "key": "v-flower",
+      "kind": "filed_separately",
+      "recipe_slug": "joulutorttu-flower",
+      "source_ids": ["src-worldfood"]
+    },
+    {
+      "key": "v-bake",
+      "kind": "dispute",
+      "source_ids": ["src-valio", "src-worldfood"]
+    },
+    {
+      "key": "v-cognac",
+      "kind": "variation",
+      "source_ids": ["src-taras"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "src-worldfood",
+      "title": "Joulutorttu",
+      "publisher": "world.food",
+      "accessed": "2026-11-20",
+      "role": "base",
+      "independent": true
+    },
+    {
+      "id": "src-curious",
+      "title": "Joulutorttu",
+      "publisher": "Curious Cuisiniere",
+      "accessed": "2026-11-20",
+      "role": "confirming",
+      "independent": true
+    },
+    {
+      "id": "src-fooddictator",
+      "title": "Joulutorttu",
+      "publisher": "The Food Dictator",
+      "accessed": "2026-11-20",
+      "role": "confirming",
+      "independent": true
+    },
+    {
+      "id": "src-bakefromscratch",
+      "title": "Joulutorttu",
+      "publisher": "Bake From Scratch",
+      "accessed": "2026-11-20",
+      "role": "confirming",
+      "independent": true
+    },
+    {
+      "id": "src-taras",
+      "title": "Joulutorttu",
+      "publisher": "Tara's Multicultural Table",
+      "accessed": "2026-11-20",
+      "role": "confirming",
+      "independent": true
+    },
+    {
+      "id": "src-valio",
+      "title": "Joulutortut",
+      "publisher": "Valio",
+      "accessed": "2026-11-20",
+      "role": "confirming",
+      "independent": true
+    }
+  ],
+  "images": [
+    {
+      "key": "img-hero",
+      "role": "hero",
+      "kind": "photo",
+      "reuse_atlas_image": true,
+      "prompt": null
+    },
+    {
+      "key": "img-jam",
+      "role": "step",
+      "step": "s3",
+      "kind": "photo",
+      "reuse_atlas_image": false,
+      "prompt": "Documentary field photograph, overhead, natural window light: a small saucepan of thick, dark prune jam on a home stovetop, a wooden spoon drawn through it leaving a clear trail that stays open. No people, no text, no garnish."
+    },
+    {
+      "key": "img-fold",
+      "role": "step",
+      "step": "s14",
+      "kind": "diagram",
+      "reuse_atlas_image": false,
+      "prompt": "Flat two-panel line diagram on white, thin dark lines with one herb-green accent, no text. Panel 1: a pastry square with four cuts running from the corners toward the centre, stopping two-thirds of the way, a spoonful of jam in the middle. Panel 2: every other point folded over the jam to meet at the centre, forming a pinwheel star."
+    }
+  ],
+  "locales": {
+    "en": {
+      "title": "Joulutorttu — pinwheel stars with prune jam",
+      "summary": "Finnish Advent pastry stars of quark dough folded around cold prune jam, baked until puffed and pale gold, then dusted with powdered sugar.",
+      "record": "A Finnish Advent pastry: squares of quark dough are slit from each corner, and alternate points fold over a spoonful of prune jam to make a pinwheel star. People serve them alongside coffee or glögi, the Nordic mulled wine, through the Christmas season. When they come out right, the stars are puffed, pale gold at the edges and white with sugar, and the pastry breaks into flakes instead of bending.",
+      "preconditions": [
+        "Start the dough a day early, or at least 2 hours before shaping, so it has time to firm up in the fridge.",
+        "Make the jam first and let it cool all the way down before any of it touches the dough."
+      ],
+      "key_moments": {
+        "s3": "Reduce the jam until a line drawn through it stays open; thinner jam escapes from the stars.",
+        "s8": "Give the dough its full chill; dough that is still soft smears and sticks under the rolling pin.",
+        "s14": "Seal the folded points with egg; unsealed points lift apart when the pastry rises."
+      },
+      "timeline": {
+        "t-jam-start": "Start the jam",
+        "t-jam-simmer": "Simmer the jam",
+        "t-dough": "Make the dough",
+        "t-chill": "Chill the dough; the jam cools",
+        "t-shape": "Roll, cut and shape",
+        "t-bake": "Bake",
+        "t-finish": "Cool and dust"
+      },
+      "sections": {
+        "filling": "For the prune filling",
+        "pastry": "For the pastry",
+        "shaping": "Shaping and baking",
+        "finish": "To finish"
+      },
+      "ingredients": {
+        "prunes": {
+          "name": "pitted prunes",
+          "prep_note": "roughly chopped"
+        },
+        "sugar": {
+          "name": "granulated sugar"
+        },
+        "water": {
+          "name": "water",
+          "quantity_text": "enough to cover the prunes"
+        },
+        "quark": {
+          "name": "quark",
+          "prep_note": "at room temperature"
+        },
+        "butter": {
+          "name": "salted butter",
+          "prep_note": "softened"
+        },
+        "flour": {
+          "name": "plain flour",
+          "prep_note": "plus extra for dusting"
+        },
+        "egg": {
+          "name": "egg",
+          "prep_note": "lightly beaten, for sealing and brushing"
+        },
+        "icing": {
+          "name": "powdered sugar",
+          "quantity_text": "for dusting"
+        }
+      },
+      "substitutes": {
+        "sub-ricotta": {
+          "name": "full-fat ricotta, for the quark",
+          "note": ""
+        },
+        "sub-jam": {
+          "name": "a thick jam of lingonberry, blueberry, raspberry or apricot, for the prune filling",
+          "note": "Use it cold, and stiff enough that a spoonful keeps its shape."
+        },
+        "sub-puff": {
+          "name": "bought puff pastry in squares of the same size, for the quark dough",
+          "note": "The stars bake flakier, and there is no dough to make."
+        },
+        "sub-runny": {
+          "name": "any loose, pourable filling",
+          "note": "It escapes the folds and spreads across the tray."
+        }
+      },
+      "equipment": {
+        "eq-mixer": "electric hand mixer",
+        "eq-pin": "rolling pin",
+        "eq-wheel": "pastry wheel or sharp knife",
+        "eq-sieve": "fine sieve",
+        "eq-rack": "wire rack"
+      },
+      "steps": {
+        "s1": {
+          "text": "Put the prunes and sugar in a small saucepan and add water to cover.",
+          "cue": null
+        },
+        "s2": {
+          "text": "Set the pan over medium heat and wait for a gentle simmer.",
+          "cue": "a gentle simmer"
+        },
+        "s3": {
+          "text": "Let the prunes bubble uncovered for 20–30 minutes, crushing them on the pan wall from time to time, until a line drawn through the jam stays open.",
+          "cue": "until a line drawn through the jam stays open",
+          "failure": "Runny jam escapes from the stars during baking."
+        },
+        "s4": {
+          "text": "Move the pan off the heat and let the jam stand until it feels cold right to the centre.",
+          "cue": "until it feels cold right to the centre"
+        },
+        "s5": {
+          "text": "Whisk the butter and quark with the hand mixer in a large bowl until the mixture is smooth.",
+          "cue": "until the mixture is smooth"
+        },
+        "s6": {
+          "text": "Work in the flour, stopping as soon as it comes together as a soft dough.",
+          "cue": "as soon as it comes together as a soft dough"
+        },
+        "s7": {
+          "text": "Split the dough into two equal portions and wrap each one.",
+          "cue": null
+        },
+        "s8": {
+          "text": "Keep the portions in the fridge until they feel firm when pressed: 2–3 hours, or overnight.",
+          "cue": "until they feel firm when pressed",
+          "failure": "Soft dough smears and sticks while it is rolled."
+        },
+        "s9": {
+          "text": "Set the oven to 220 °C (425 °F); cover two baking sheets with parchment paper.",
+          "cue": null
+        },
+        "s10": {
+          "text": "On a lightly dusted worktop, roll out one portion into a rectangle about 30 × 23 cm (12 × 9 in), as thin as 3 mm (⅛ in).",
+          "cue": "about 30 × 23 cm (12 × 9 in), as thin as 3 mm (⅛ in)"
+        },
+        "s11": {
+          "text": "Mark and cut the sheet into 7.5 cm (3 in) squares; one portion yields 12.",
+          "cue": "one portion yields 12"
+        },
+        "s12": {
+          "text": "Make a diagonal cut in from every corner of each square, ending between halfway and two-thirds of the distance to the middle.",
+          "cue": "ending between halfway and two-thirds of the distance to the middle"
+        },
+        "s13": {
+          "text": "Place a teaspoon of jam on the uncut centre of every square.",
+          "cue": null
+        },
+        "s14": {
+          "text": "Bring alternate points over the jam, touching each tip with egg, and press down until all four hold together in the middle.",
+          "cue": "until all four hold together in the middle",
+          "failure": "Unsealed points lift apart in the oven."
+        },
+        "s15": {
+          "text": "Space the stars 2.5 cm (1 in) apart on the prepared sheets and paint a thin coat of egg over the tops.",
+          "cue": null
+        },
+        "s16": {
+          "text": "Bake for 10–12 minutes, until the stars have risen and their edges are pale gold.",
+          "cue": "until the stars have risen and their edges are pale gold"
+        },
+        "s17": {
+          "text": "Let them settle on the sheets for 5 minutes before lifting them onto the wire rack.",
+          "cue": null
+        },
+        "s18": {
+          "text": "When the stars are cold, dust them with powdered sugar through the sieve and serve them with coffee or glögi.",
+          "cue": "When the stars are cold"
+        }
+      },
+      "failures": {
+        "f-tips": "If the stars open up in the oven, the rising pastry has forced the sealed points apart, so before baking, pin each centre with a toothpick that has soaked in water for 10–20 minutes.",
+        "f-jam": "If jam runs out across the tray, it went onto the dough too warm or too thin, so let it cool longer next time, until a spoonful keeps its shape.",
+        "f-dough": "If the dough goes soft and tacky as you work, it has warmed up, so wrap it and put it back in the fridge for about 15 minutes before rolling on."
+      },
+      "variations": {
+        "v-flower": "Short slits near each corner, rather than long cuts toward the middle, turn the same squares into flowers; that shape is filed separately as Joulutorttu — flower shape.",
+        "v-bake": "Oven settings disagree: Finnish sources bake at 225 °C (435 °F) for 10–15 minutes, American sources at 220 °C (425 °F) for 10–12 minutes, and often take the colour further.",
+        "v-cognac": "Cognac worked into the dough appears in some versions; it is kept here as a variation, outside this recipe."
+      },
+      "evidence": {
+        "sources": {
+          "src-worldfood": "Base method, quantities, bake and the toothpick fix.",
+          "src-curious": "Jam consistency and runny fillings.",
+          "src-fooddictator": "Shape and the bake cue.",
+          "src-bakefromscratch": "Sealing the tips; puff pastry.",
+          "src-taras": "Cognac in the dough.",
+          "src-valio": "The Finnish bake, 225 °C."
+        },
+        "note": "Sources name prune as the traditional filling, while most recipes now in print call for bought jam. The bake is disputed; both readings appear under Variations and disputes."
+      },
+      "images": {
+        "img-hero": {
+          "alt": "Star-shaped pastries dusted with powdered sugar, dark prune jam at each centre, beside a cup of coffee.",
+          "caption": "Illustration"
+        },
+        "img-jam": {
+          "alt": "Thick prune jam in a saucepan, with a spoon line through it that stays open.",
+          "caption": "Illustration"
+        },
+        "img-fold": {
+          "alt": "A cut pastry square with jam in the middle, then every other point folded to the centre as a pinwheel."
+        }
+      }
+    }
+  },
+  "agent": {
+    "confidence": "MEDIUM",
+    "gaps": [
+      "Example record: facts carried over from RECIPE-STYLE.md v1, not yet re-checked against the sources",
+      "Source titles, access dates and 'supports' lines are placeholders; no URLs recorded",
+      "Atlas ingredient ids are placeholders",
+      "Finnish (fi) locale not written in this example"
+    ],
+    "disputes": [
+      "Bake: Finnish sources 225 °C for 10–15 min; American sources 220 °C for 10–12 min"
+    ]
+  }
+}

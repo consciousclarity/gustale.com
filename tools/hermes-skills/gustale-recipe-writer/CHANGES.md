@@ -1,0 +1,290 @@
+# CHANGES — gustale-recipe-writer
+
+Reconciliation against the repository at `origin/main` (`6e851eb`), 2026-11-20.
+
+Rule 6 of the work order: facts about the repo may be fixed (vocabulary values, table names, write
+paths, script bugs). **Voice, evidence rules, originality rules and budgets are unchanged.**
+
+---
+
+## 2026-11-20 — Reconciliation with the repo and with live
+
+### 1. New section: "Write paths" in `SKILL.md`
+
+Every table the verifier writes, with the exact function, route or script. Where no history-keeping
+path exists, the entry says **"none: review only"**.
+
+| What | The path |
+|---|---|
+| Publish a recipe | `public.recipe_auto_publish(p_recipe_id uuid)` — 0052 ~L1778 |
+| The confidence writer | `public.recipe_auto_publish()` — **there is no standalone writer** |
+| Recipe rows | `public.recipes` |
+| Recipe sentences | `public.recipe_sentences` (language-first, enforced by a trigger) |
+| Sentence edit history | `public.edit_history` — `target_type = 'recipe_sentence'` |
+| Statement status | `public.statement_set_status(...)` — 0052 ~L1427 |
+| Recipe claims | `public.recipe_claims` |
+| Recipe ingredients | `public.recipe_ingredients` |
+| Substitutes | `public.recipe_ingredient_substitutes` |
+| Recipe translations | `public.recipe_translations` |
+| English sentences → other locales | **none: review only** |
+| Publish audit | `public.recipe_publish_log` |
+
+### 2. The D4 rule in step 6 contradicted itself
+
+**The bug.** Step 6 read:
+
+> "write nothing to the database. Request review instead … **Write through the existing recipe
+> tables listed in §5, `recipe_confidence` included.**"
+
+"Write nothing to the database" and "write through the existing recipe tables" are opposites. A
+worker reading it could reasonably either stop at review or write the recipe anyway.
+
+**The fix.** Step 6 now says plainly: **write nothing to the database at all** — not the recipe rows,
+not the sentences, not the ingredients — and explains why there is no partial path (a recipe written
+before D4 lands would have to be rewritten, because `timeline`, `sections`, the cue / dispute /
+cue_missing flags and the image briefs have nowhere to go). The `recipe_confidence` clause is gone:
+it is not an exception either, because it has no standalone writer.
+
+### 3. The `recipe_confidence` writer — there is only one, and it is the publish path
+
+Worth stating because the work order asks for "the `recipe_confidence` writer" by name:
+
+- `public.recipe_compute_confidence(p_recipe_id uuid)` **only RETURNS a `jsonb`.** It writes nothing.
+- The **only** code that writes `recipe_confidence` is the `INSERT … ON CONFLICT (recipe_id) DO
+  UPDATE` **inside `recipe_auto_publish()`**.
+
+**Consequence:** a recipe that is never auto-published has **no** `recipe_confidence` row. The
+proposed level belongs in the record's `agent.confidence` and in `verify-report.md`, not in a
+hand-written row.
+
+### 4. `recipe_confidence.level` — the record is UPPER case, the column is lower case
+
+The record's `agent.confidence` is `HIGH` / `MEDIUM` / `LOW` (the schema enum). The column has
+`CHECK (level IN ('high','medium','low'))` (0052 L784-785). Lower-case it on write or the insert is
+refused. Documented in both the SKILL Write paths table and RECIPE-STYLE §5.
+
+### 5. RECIPE-STYLE §5 — the `quantity` rule contradicted the database
+
+**The bug.** §5 said:
+
+> "`quantity` is a decimal number ("2.5", never "2½")" … "If `recipe_ingredients.quantity` on `main`
+> is still free text, write numerals only, so a scaler can parse them later."
+
+and the §5 table said:
+
+> "`quantity` is text: write numerals only ("2.5") so a scaler can parse them."
+
+**The truth.** `recipe_ingredients.quantity` and `unit` are **TEXT by design** — ADR-007 Decision 5:
+*"Quantity and unit are TEXT, not numeric columns: "2½", "a handful" and "to taste" are real
+quantities, and a numeric column would throw the meaning away."*
+
+The rule was telling the writer to flatten a column that was deliberately left free to carry a
+source's own wording.
+
+**The fix.** §5 now separates the two things that were conflated: the **JSON record** uses a
+decimal number and a fixed unit list (unchanged — that is the record's own contract), and the
+**database column** is free text by design and must carry the quantity as the source writes it.
+The SKILL Write paths row was corrected the same way.
+
+### 6. RECIPE-STYLE §5 — `difficulty` is a skill decision, not a database fact
+
+ADR-007 declares `difficulty integer` and **nothing else** — there is no CHECK constraint, and no
+scale anywhere in the schema or the migrations. The scale `simple / moderate / demanding = 1 / 2 / 3`
+is **D6, the skill's own decision** (RECIPE-STYLE §10, "defaults in force until Alejandro changes
+them"), and the staging pilot recipe uses `difficulty = 2`.
+
+§5 now says so explicitly, so that a future reader does not go looking for a database constraint
+that does not exist. The mapping itself is **unchanged** — it was correct.
+
+### 7. New section: "The existing pilot recipe — revise it, never duplicate it"
+
+The work order requires the pilot to revise the existing moussaka recipe, not create a duplicate.
+Recorded in `SKILL.md`:
+
+| What | Value |
+|---|---|
+| Recipe slug | **`moussaka-pilot-recipe`** |
+| Atlas dish slug | `moussaka-greek` |
+| Seed | `scripts/staging-moussaka-pilot-recipe.sql` — **`gustale_staging` only** |
+| Notes | `docs/LIVE-APPLY-SEED-MOUSSAKA.md` |
+| Difficulty in the seed | `2` (i.e. `moderate`) |
+
+The section states that the seed is **staging-only** — it is not a production recipe — and gives
+the exact queue command with the recipe slug passed explicitly.
+
+### 8. Checked and left alone
+
+- The record's `difficulty` enum (`simple` / `moderate` / `demanding`) matches D6 and the example
+  (`demanding`). ✓
+- The recipe example still passes `check_recipe.py --only-locale en` with **0 errors**. ✓
+- `recipe_sentences.field` is still `('step','note','intro')` — the D4 migration widens it. ✓
+- `apps/api/src/routes/recipes.ts` has four `GET` routes and **no write route** — so the edit-history
+  path is the only one, and there is no HTTP route to point a writer at. ✓
+- The unit list, the `accepted_forms` and `cost_weight` vocabularies, the originality thresholds
+  (D5), the image credit rule (D3), the "agree" tolerance (D2) and the metric rule (D1) are
+  **unchanged**. ✓
+
+### 9. Not changed, on purpose
+
+- **The voice** of §7 (the writer prompt) — untouched.
+- **The evidence rules** — the HIGH-confidence conditions, the anchor requirements, the
+  originality thresholds — untouched.
+- **The budgets** — the word budgets per locale, and the rule that they are errors in `en` and
+  warnings elsewhere — untouched.
+- **D1–D6** — unchanged, including the decision list's existing order (D1, D2, D3, D4, D6, D5).
+  The order is odd, but it is the skill's own list and reordering it is not a factual fix.
+
+---
+
+## Round 2 — the D4 mapping (2026-11-20)
+
+Added after migration `0065_recipe_layout_and_sentence_fields.sql` was written, so the skill
+describes where each block of the record lands **after** D4 rather than "no column yet".
+
+### 10. §5 "Where it goes" was rewritten as a per-block mapping
+
+The old table had one row for `timeline, sections, key-moment flags, cue, dispute, cue_missing,
+images` reading **"no column yet (D4)"**. That is now a row per block, each naming its real home.
+
+**Facts about the repo that the new table is built on** (each checked against the record schema
+and the migrations, not assumed):
+
+- `recipe_sentences` holds the PROSE; `recipes.recipe_layout` holds the SHAPE. The split is
+  deliberate: a sentence is a row because that is what the language-first rule and the
+  translation pipeline need, and what the claims model anchors to; the layout is one jsonb
+  document because it is written once and never translated.
+- `yield` in the record is an `anyOf`: `servings` OR `pieces`. There is no `recipes.pieces`
+  column, so a recipe measured in pieces puts the count in the layout (`yield_pieces`).
+- `times` carries `active_min` and `total_min` (required) and `cook_min` (optional).
+  `total_min` includes rests, which `prep_minutes + cook_minutes` do not — so it goes in the
+  layout, not in a column.
+- `variations[]` has a `kind`: `variation`, `dispute`, `filed_separately`, `none_recorded`.
+  **Only the first two are prose.** `filed_separately` carries a `recipe_slug` (the other recipe
+  is a separate record) and `none_recorded` means there is nothing to write. The old table did
+  not distinguish them.
+- `storage` is `{source_ids}` only — **no prose field**. The "keeping" sentence is something the
+  writer writes from those sources, not a copy of a field. The old table implied a copy.
+- `equipment[]` is `{key, size?}` and `size` is language-neutral ("24 cm"), so it stays in the
+  layout rather than becoming a translated sentence.
+- `images[]` is `{key, role: hero|step, step?, kind: photo|diagram, reuse_atlas_image, prompt}`.
+  `prompt` is null **only** when `reuse_atlas_image` is true.
+- The step object has **no** `precondition` key and no `cue` key. `cue_missing` is a boolean on
+  the step; the precondition is stated in the step's prose and split out by the verifier. The
+  table now says so, so no writer goes looking for a field that is not there.
+
+### 11. The layout document is now specified exactly
+
+§5 carries the full `recipe_layout` shape as a `jsonc` block, with a comment on each key. It was
+not enough to say "the timeline, the sections, the flags" — the writer needs to know that
+`dispute` is a map of step key → variation key, and that `cue_missing` is an array of step keys.
+
+Every key in the document is the record's own `key`, so the document and the record cannot drift
+apart: the writer builds both from one set of keys and `check_recipe.py` compares them.
+
+### 12. The write-path table gained the layout column
+
+`SKILL.md` now names `public.recipes.recipe_layout` as a write path, with the note that it stays
+NULL for every recipe written before D4 — **no backfill**, because a recipe with no layout is
+still rendered from the scalar columns alone.
+
+### 13. Step 6 now names the migration
+
+The "stop until D4" rule pointed at "RECIPE-STYLE.md §10", which is a decision list, not a
+migration. It now names `db/migrations/0065_recipe_layout_and_sentence_fields.sql` and says the
+gate is the `approved-live` label plus the owner's merge.
+
+**This rule is NOT removed yet.** Phase 4 of the work order removes it only *after* D4 is applied
+on `main`, which needs the owner's label and merge. It stays until then.
+
+### 14. `db/schema.sql` does not exist
+
+The work order asked to update "both `packages/db/src/schema/index.ts` and `db/schema.sql`".
+**`db/schema.sql` has never existed in this repository** — not on any branch, not in the history
+(`git log --all -- db/schema.sql` is empty). The canonical schema is the Drizzle file
+`packages/db/src/schema/index.ts`, and the migrations are the other half.
+
+So the schema change went into `packages/db/src/schema/index.ts` (the `recipeLayout` column and
+the widened `recipeSentenceField` array), and **no `db/schema.sql` was created** — inventing a
+second schema file that no tool reads would be a new source of truth, not a fix. Both changes are
+in the same commit as the migration, so the vocabulary in the Drizzle array and the vocabulary in
+the CHECK cannot drift.
+
+### 15. Checked and left alone
+
+- The recipe example still passes `check_recipe.py --only-locale en` with **0 errors**. ✓
+- `recipe_sentences.field` in the DATABASE is still `('step','note','intro')` — migration 0065
+  widens it, and until it is applied on `main` the old vocabulary is the live one. ✓
+- The Drizzle `recipeSentenceField` array is used in exactly ONE place (the column's `$type`).
+  There is no exhaustive switch over it anywhere, so widening it breaks no caller. ✓
+- `apps/api/src/routes/recipes.ts` reads `recipe_sentences` with **no `field` filter**, so the six
+  new field values flow through the read route with no API change. ✓
+- Both `pnpm --filter @gustale/db run typecheck` and `--filter @gustale/api run typecheck` pass. ✓
+
+### The same contradiction existed here, and it was live in the pilot
+
+Stage 3 step 5 said, unconditionally: **"Delete the `sources/` folder."** Step 7 asks the worker to
+re-run the checks if changes come back, and the checker run in step 2 includes the originality check.
+Deleting the captures therefore made the record impossible to re-verify.
+
+Both pilot recipes stopped at review at MEDIUM, so **both kept their captures** — the workers
+applied the rule from the *review* branch rather than the letter of step 5, which is the right
+behaviour but was not what the skill said. The Atlas worker followed step 5 literally, and the
+captures are gone.
+
+**Fixed.** Step 5 now reads: delete `sources/` **only once the recipe is actually published.** A
+record that stops at review — MEDIUM, LOW, a gap that blocks HIGH, D4 not yet on `main`, or
+auto-publish off — keeps its captures. RECIPE-STYLE.md §"the stages" says the same.
+
+### The verify stage deleted the evidence it needed to re-verify its own record
+
+**Found:** 2026-11-21, during the pilot bundles.
+
+Stage 3 step 5 said, unconditionally, *"Delete the `sources/` folder."* But step 7 says: *"If
+changes come back, re-run steps 2–4"* — and steps 2–4 include the **originality check**, which
+needs the captured source texts.
+
+In bundle 2 the nasi goreng verify stage found that the base capture held **only the recipe
+card** while the record cited the Guardian's **article** for its substitutions, variations and
+failures. It re-fetched the article and appended it to the capture (3,652 → 11,292 characters) —
+and then the same stage deleted the folder, making the enlarged capture unre-checkable.
+
+**Fixed** — step 5 now reads:
+
+> 5. Delete the `sources/` folder — **but only once the recipe is actually published.** If the
+>    record stops at review (MEDIUM, LOW, a gap that blocks HIGH, D4 not yet on `main`, or
+>    auto-publish off), **keep** `sources/`: the gate below asks you to re-run the checks if changes
+>    come back, and the originality check needs the captured texts. The captures are never
+>    published; they go when the recipe is finally published.
+
+**This is a factual fix to an internal contradiction**, not a change of voice, evidence rule,
+originality rule or budget — so it needed no approval. RECIPE-STYLE.md §3's matching line was
+rewritten the same way. The example recipe still passes.
+
+### The evidence-link mechanism was not documented at all: `claim_citations`
+
+**Found:** 2026-11-21, while cross-checking the Atlas vocabulary snapshot against the
+migrations.
+
+A recipe's evidence travels through **`claim_citations`** (`db/migrations/0027_adr002_claims_model.sql`
+L333-367), not through the `citations` table's `target_type` string:
+
+| Column | Notes |
+|---|---|
+| `statement_id` | → `statements(id)`, `ON DELETE CASCADE` |
+| `source_id` | → `sources(id)` |
+| `stance` | **ENUM `supports` / `refutes` / `context`** (L328) |
+| `locator` | where in the source the passage sits |
+| `excerpt` | **the exact text, quoted verbatim** |
+| `revision_id` | the retrieval anchor — which version of the document was read |
+| `retrieved_at` | when the passage was read |
+| `excerpt_validated` | was the excerpt validated against the stated revision? |
+
+`context` counts as **neither support nor refutation** (Amendment 3) — a passage can be
+relevant without bearing on the claim.
+
+This matters for the writer because it is the **only** evidence link that is constrained by the
+database. `citations.target_type` is plain text with no CHECK and no seeded family or lineage
+values, so a record that cites by target type is relying on a convention, while a record that
+cites by statement is relying on a foreign key.
+
+Documented in the Atlas skill's `references/vocabulary-snapshot.md` §11.

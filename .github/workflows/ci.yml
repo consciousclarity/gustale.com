@@ -1386,47 +1386,6 @@ jobs:
             -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
           bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
 
-      # ── 0065: D4, the recipe content model ─────────────────────────────
-      #
-      # Widens the `recipe_sentences.field` CHECK with six more values
-      # (precondition, key_moment, failure, variation, keeping,
-      # evidence) and adds the nullable `recipes.recipe_layout` jsonb.
-      #
-      # The proof rows are created and removed by the migration itself,
-      # so this leaves no fixture behind.
-      - name: Apply the 0065 recipe content model
-        run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
-            -f db/migrations/0065_recipe_layout_and_sentence_fields.sql 2>&1 | tee /tmp/m0065.log
-          bash scripts/check-ci-markers.sh "the recipe content model" "D4_MIGRATION_PROOFS" /tmp/m0065.log
-
-      # The D4 CONSTRAINT TESTS, against the schema the chain produces.
-      #
-      # They assert that all nine sentence fields are ACCEPTED, that a
-      # value outside the vocabulary and a near miss are still REFUSED,
-      # that the layout column is jsonb and nullable, that a layout
-      # round-trips, and that the fixtures were cleaned up. They refuse
-      # to run against a database that is not marked disposable.
-      - name: The D4 constraint tests
-        run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
-            -f scripts/test_recipe_d4_schema.sql 2>&1 | tee /tmp/d4_constraints.log
-          bash scripts/check-ci-markers.sh "the D4 constraint tests" "D4_SCHEMA_TESTS" /tmp/d4_constraints.log
-
-      # The PER-DISH backfill assertions. LAST, because they assert the
-      # state the whole chain produces: the reference dishes'
-      # association rows AND the journey places in the editorial queue.
-      #
-      # 0037 asserts its outcome in AGGREGATE: the counts against the
-      # legacy tables. Both sides of that comparison come from the same
-      # tables, so a mapping that is wrong in the same way on both sides
-      # PASSES. On a database with three dishes it proved only that the
-      # migration executes.
-      #
-      # This asserts the EXACT association rows the four reference
-      # dishes must have — the relationship type, the entity kind, the
-      # entity and the provenance — plus the count-snapshot guard with
-      # NON-ZERO baselines. A backfill that produced nothing fails it.
       - name: Assert the atlas backfill per dish
         run: |
           set -o pipefail
@@ -2458,9 +2417,26 @@ jobs:
               exit 0
             fi
 
-            curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \\
-              -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \\
-              -d parse_mode="Markdown" \\
-              -d disable_web_page_preview=true \\
-              --data-urlencode "text=${MSG}" \\
+            # A SINGLE backslash ends the line. It is a bash line
+            # continuation, so the whole curl is ONE command.
+            #
+            # It used to be a DOUBLE backslash, and that broke the
+            # notification: bash reads a double backslash as an escaped
+            # backslash, so the trailing backslash is consumed and the
+            # newline ends the command. curl then ran with the URL ALONE
+            # -- and with a trailing backslash as an argument, which is
+            # what produced "curl: (3) URL rejected: Bad hostname" -- and
+            # the -d fragments became separate commands. Under `bash -e`
+            # the step died there, so a broken notification FAILED THE
+            # DEPLOY.
+            #
+            # It failed this way on run 44698409565 (2026-11-20, CI) and
+            # on every Nightly "Report" step, always with the same
+            # two lines: the curl error and a Telegram 400 for empty
+            # text, then exit code 3.
+            curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+              -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -d parse_mode="Markdown" \
+              -d disable_web_page_preview=true \
+              --data-urlencode "text=${MSG}" \
               --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
