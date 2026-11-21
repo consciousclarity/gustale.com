@@ -60,9 +60,30 @@ function ColumnMark({ mark }: { mark: DishConnectionsColumn["mark"] }) {
   );
 }
 
-export function DishConnections({ columns, dishName }: DishConnectionsProps) {
-  if (columns.length === 0) return null;
+/**
+ * THE EMPTY STATE FOR A COLUMN (D21-11).
+ *
+ * The blueprint: "The dish page always shows Variants and the three
+ * Connections columns (Resembles · Influenced by · Same family), each
+ * with a short empty state when it has no data."
+ *
+ * The wording is per column, because the columns make different
+ * claims: "no known resemblance" and "no recorded influence" are
+ * different statements, and one generic "nothing here" for all three
+ * would flatten exactly the distinction the three columns exist to
+ * draw.
+ */
+const COLUMN_EMPTY_STATE: Record<DishConnectionColumnKey, string> = {
+  resembles: "No known resemblance",
+  influencedBy: "No recorded influence",
+  sameFamily: "No shared family",
+};
 
+export function DishConnections({ columns, dishName }: DishConnectionsProps) {
+  // The block is not skipped when it has nothing. A section that
+  // vanishes leaves the reader unable to tell whether the site found
+  // no connections for this dish or had not looked -- the same
+  // failure the Variants section's empty state exists to fix.
   return (
     <section
       className="dish-connections"
@@ -84,6 +105,12 @@ export function DishConnections({ columns, dishName }: DishConnectionsProps) {
             <ColumnMark mark={column.mark} />
             {column.label}
           </h3>
+
+          {column.entries.length === 0 ? (
+            <p className="dish-connections__empty">
+              {COLUMN_EMPTY_STATE[column.key]}
+            </p>
+          ) : null}
 
           <ul className="dish-connections__list">
             {column.entries.map((entry) => (

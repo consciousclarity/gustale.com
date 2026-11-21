@@ -288,6 +288,57 @@ describe("the map discloses that it draws discovery data", () => {
   });
 });
 
+describe("the Connections block always shows its three columns (D21-11)", () => {
+  it("the section is not skipped when the dish has no relations", () => {
+    // D21-11: "The dish page always shows Variants and the three
+    // Connections columns (Resembles · Influenced by · Same family),
+    // each with a short empty state when it has no data."
+    //
+    // The section used to be wrapped in a `connectionColumns.length > 0`
+    // condition, so a dish with no connections had no Connections
+    // heading at all -- and a reader could not tell whether the site
+    // had none or had not looked.
+    const source = code(join(COMPONENTS, "DishContentSections.tsx"));
+    assert.ok(
+      !/connectionColumns\.length > 0/.test(source),
+      "the Connections section is still skipped when it is empty",
+    );
+  });
+
+  it("each column has its own empty state", () => {
+    const source = code(join(COMPONENTS, "DishConnections.tsx"));
+    assert.ok(
+      source.includes("dish-connections__empty"),
+      "a column with no entries renders nothing at all",
+    );
+    // The three empty states are different, because the three columns
+    // make different claims.
+    for (const state of [
+      "No known resemblance",
+      "No recorded influence",
+      "No shared family",
+    ]) {
+      assert.ok(
+        source.includes(state),
+        `the empty state "${state}" is missing`,
+      );
+    }
+  });
+
+  it("the page nav links to the Connections anchor even when empty", () => {
+    // The section always renders, so the anchor is always there, so
+    // the nav must always offer it -- the same rule the Variants
+    // section follows.
+    for (const page of ["[slug].astro"]) {
+      const source = code(join(PAGES, "dishes", page));
+      assert.ok(
+        source.includes("hasConnections={true}"),
+        `${page} hides the Connections nav link when the section is empty`,
+      );
+    }
+  });
+});
+
 describe("prepared components are components, not the method", () => {
   it("the component list is built from the ingredient category", () => {
     const source = code(join(LIB, "preparedComponents.ts"));

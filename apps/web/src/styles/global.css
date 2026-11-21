@@ -6226,6 +6226,20 @@ body.nav-panel-open {
   padding: 0;
 }
 
+/* The empty state for a connection column (D21-11).
+
+   It sits where the entries would be, in the same column, so the
+   three columns stay comparable side by side. It is a quiet line,
+   not a card: the absence of a relationship is not a fact about the
+   dish as interesting as the relationships that are there. */
+.dish-connections__empty {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--sub);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
 .dish-connections__entry {
   background: var(--card);
   border: 1px solid var(--line);

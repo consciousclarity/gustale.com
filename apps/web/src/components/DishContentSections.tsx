@@ -35,8 +35,8 @@
 import type { DishJourneyBeat, DishJourneyMovement } from "../lib/api";
 import type { RelationLike } from "../lib/dishConnections";
 import {
+  allColumns,
   buildConnectionColumns,
-  populatedColumns,
 } from "../lib/dishConnections";
 import { DISH_SECTION_IDS } from "../lib/dishSections";
 import { preparedComponents } from "../lib/preparedComponents";
@@ -90,9 +90,14 @@ export function DishContentSections({
   const hasHistory = journeyStatus === "history" && journeyBeats.length > 0;
 
   // ── Connections ─────────────────────────────────────────────────────────
-  const connectionColumns = relations
-    ? populatedColumns(buildConnectionColumns(relations))
-    : [];
+  // ALL THREE COLUMNS, always (D21-11).
+  //
+  // This used to be `populatedColumns(...)`, and the section was then
+  // skipped entirely when the result was empty. The blueprint asks for
+  // "the three Connections columns (Resembles · Influenced by · Same
+  // family), each with a short empty state when it has no data" --
+  // so the columns are always there, and each one says what it has.
+  const connectionColumns = allColumns(buildConnectionColumns(relations ?? []));
 
   // ── Variants ────────────────────────────────────────────────────────────
   const hasVariants = variants.length > 0;
@@ -120,20 +125,33 @@ export function DishContentSections({
       </section>
 
       {/* ─── Connections ──────────────────────────────────────────────── */}
-      {connectionColumns.length > 0 && (
-        <section
-          className="dish-content__section dish-connections-block"
-          aria-labelledby={DISH_SECTION_IDS.connections}
-        >
-          <h2 id={DISH_SECTION_IDS.connections}>Connections</h2>
-          <p className="dish-connections-block__lede">
-            Each column is a different kind of relationship. A likeness is not a
-            shared history, and a family is a classification rather than a link
-            between two dishes.
-          </p>
-          <DishConnections columns={connectionColumns} dishName={dish.name} />
-        </section>
-      )}
+      {/* ─── Connections ──────────────────────────────────────────────── */}
+      {/*
+        THE CONNECTIONS SECTION, WITH ITS EMPTY STATES (D21-11).
+
+        The section used to disappear when the dish had no relations
+        the three columns could use. A reader landing on a dish with
+        no connections then saw no Connections heading at all, and
+        could not tell whether the site had none or had not looked.
+
+        The blueprint asks for all three columns -- Resembles,
+        Influenced by, Same family -- each with a short empty state.
+        The three are kept together for a second reason: they make
+        different claims, and a reader who sees only one of them
+        cannot tell which kind of connection the site is claiming.
+      */}
+      <section
+        className="dish-content__section dish-connections-block"
+        aria-labelledby={DISH_SECTION_IDS.connections}
+      >
+        <h2 id={DISH_SECTION_IDS.connections}>Connections</h2>
+        <p className="dish-connections-block__lede">
+          Each column is a different kind of relationship. A likeness is not a
+          shared history, and a family is a classification rather than a link
+          between two dishes.
+        </p>
+        <DishConnections columns={connectionColumns} dishName={dish.name} />
+      </section>
 
       {/* ─── Variants ─────────────────────────────────────────────────── */}
       {/*

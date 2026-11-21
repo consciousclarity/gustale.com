@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildConnectionColumns,
   hasConnections,
+  allColumns,
   populatedColumns,
   type RelationLike,
 } from "./dishConnections.ts";
@@ -95,6 +96,47 @@ describe("hasConnections", () => {
   it("is true when one column has an entry", () => {
     const c = buildConnectionColumns([rel("hummus", "family")]);
     assert.equal(hasConnections(c), true);
+  });
+});
+
+describe("allColumns (D21-11)", () => {
+  it("returns all three columns even when none has an entry", () => {
+    // The blueprint: "The dish page always shows ... the three
+    // Connections columns (Resembles · Influenced by · Same family),
+    // each with a short empty state when it has no data."
+    const c = buildConnectionColumns([]);
+    assert.deepEqual(
+      allColumns(c).map((col) => col.label),
+      ["Resembles", "Influenced by", "Same family"],
+    );
+  });
+
+  it("keeps the mockup's order", () => {
+    const c = buildConnectionColumns([
+      rel("musakka-turkish", "similar_form"),
+      rel("vindaloo", "ancestor"),
+      rel("hummus", "family"),
+    ]);
+    assert.deepEqual(
+      allColumns(c).map((col) => col.label),
+      ["Resembles", "Influenced by", "Same family"],
+    );
+  });
+
+  it("gives every column an entry list, empty or not", () => {
+    const c = buildConnectionColumns([rel("hummus", "family")]);
+    const by = Object.fromEntries(allColumns(c).map((x) => [x.key, x]));
+    assert.equal(by.sameFamily?.entries.length, 1);
+    assert.equal(by.resembles?.entries.length, 0);
+    assert.equal(by.influencedBy?.entries.length, 0);
+  });
+
+  it("carries the mark each kind is drawn with", () => {
+    const c = buildConnectionColumns([]);
+    const by = Object.fromEntries(allColumns(c).map((x) => [x.key, x]));
+    assert.equal(by.resembles?.mark, "dashed");
+    assert.equal(by.influencedBy?.mark, "arrow");
+    assert.equal(by.sameFamily?.mark, "none");
   });
 });
 
