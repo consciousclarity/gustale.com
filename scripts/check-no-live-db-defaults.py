@@ -71,6 +71,14 @@ ALLOWLIST: dict[str, str] = {
         "The live-approval gate. It must read the live PR metadata and "
         "decide whether a migration may be applied. Not a diagnostic."
     ),
+    "scripts/check-live-ledger.py": (
+        "The ledger check. Its WHOLE PURPOSE is to compare the migration "
+        "files against the ledger on the LIVE database, so reading live "
+        "is the job, not an accident. It is READ-ONLY: one SELECT, and "
+        "it never writes to the database it reads. It defaults to "
+        "neither live nor any database -- it requires an explicit "
+        "--live or --db-url, and says so if neither is given."
+    ),
     "scripts/apply-migration-live.sh": (
         "Applies a migration to live THROUGH the approval gate. It is the "
         "script the gate exists to protect."

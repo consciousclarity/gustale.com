@@ -1,0 +1,112 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index f823247..5a492c5 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1386,6 +1386,16 @@ jobs:
+             -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
+           bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
+ 
++      # The ledger reconciliation. It writes the ledger rows for 0062 and
++      # 0063 -- 0062 ran before the ledger table existed, and 0063
++      # records 0061 rather than itself -- renames the 0054 row to its
++      # file's name, and fills in the checksums that were left blank.
++      - name: Apply the 0064 ledger reconciliation
++        run: |
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0064_reconcile_the_ledger.sql 2>&1 | tee /tmp/m0064.log
++          bash scripts/check-ci-markers.sh "the 0064 ledger reconciliation" "GUS_LEDGER_0064_OK" /tmp/m0064.log
++
+       # The PER-DISH backfill assertions. LAST, because they assert the
+       # state the whole chain produces: the reference dishes'
+       # association rows AND the journey places in the editorial queue.
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+index bd55c81..0d0a78b 100644
+--- a/.github/workflows/nightly.yml
++++ b/.github/workflows/nightly.yml
+@@ -291,6 +291,34 @@ jobs:
+             --data-urlencode "text=${MSG}" \\
+             --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
+ 
++  # ─── The live ledger check ────────────────────────────────────────────
++  #
++  # `scripts/check-live-ledger.py` compares the migration FILES against
++  # the live ledger in BOTH directions: every file has exactly one row
++  # with the same number and checksum, and every row has exactly one
++  # file.
++  #
++  # It runs on the VPS, where the live database and the checkout of the
++  # migration files both live. It is READ-ONLY -- one SELECT.
++  #
++  # WITHOUT THIS, a migration applied to live and a migration file in
++  # the repository can drift apart silently. That is exactly what
++  # happened to 0062 and 0063, for eight days.
++  ledger-check:
++    name: Live ledger check
++    runs-on: ubuntu-24.04
++    timeout-minutes: 10
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          ref: ${{ github.sha }}
++
++      - name: The live ledger check
++        env:
++          GUSTALE_LIVE_HOST: root@62.72.7.218
++        run: |
++          python3 scripts/check-live-ledger.py --live
++
+   # ─── Production image build verification ────────────────────────────
+   build-prod:
+     name: Build production image
+diff --git a/scripts/ci-migration-chain.sh b/scripts/ci-migration-chain.sh
+index dc20d53..2b1b6b2 100644
+--- a/scripts/ci-migration-chain.sh
++++ b/scripts/ci-migration-chain.sh
+@@ -322,6 +322,14 @@ MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
+ # self-contained).
+ MIGRATION_0063=db/migrations/0063_record_0061_in_the_ledger.sql
+ 
++# 0064 reconciles the ledger itself: it writes the rows for 0062 and
++# 0063 that the chain did not write, renames the 0054 row to its file's
++# name, and fills in the checksums that were left blank.
++#
++# It MUST run after 0063, because it records 0063 -- and a ledger row
++# for a migration that has not run yet would be a lie.
++MIGRATION_0064=db/migrations/0064_reconcile_the_ledger.sql
++
+ # In CI mode the Postgres client must be FOUND, not assumed. On a
+ # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
+ # the client lives under /usr/lib/postgresql/<version>/bin — and a script
+@@ -979,6 +987,14 @@ run_pg -f - < "$MIGRATION_0063" >/tmp/m0063.log 2>&1 || { echo "FAILED: 0063"; g
+ [ $fail -eq 0 ] || exit 1
+ grep -E 'GUS_LEDGER_0061_OK' /tmp/m0063.log | tail -1 || true
+ 
++# The ledger reconciliation. It writes the ledger rows for 0062 and
++# 0063, which the chain did not write -- 0062 ran before the ledger
++# table existed, and 0063 records 0061 rather than itself.
++echo "--- reconcile the ledger"
++run_pg -f - < "$MIGRATION_0064" >/tmp/m0064.log 2>&1 || { echo "FAILED: 0064"; grep -E 'ERROR|NOTICE' /tmp/m0064.log | tail -12; fail=1; }
++[ $fail -eq 0 ] || exit 1
++grep -E 'GUS_LEDGER_0064_OK' /tmp/m0064.log | tail -1 || true
++
+ # The constraint tests a THIRD time — against the FINAL schema.
+ #
+ # The first two runs (before 0038 and after 0038) test the schema at
+diff --git a/scripts/repro-ci-db.sh b/scripts/repro-ci-db.sh
+index 181a42a..a3da172 100644
+--- a/scripts/repro-ci-db.sh
++++ b/scripts/repro-ci-db.sh
+@@ -609,6 +609,13 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0063_record_0061_in_the_ledger.s
+   || { echo "  FAILED: 0063"; grep -E 'ERROR' /tmp/repro_0063.log | head -8; fail=1; }
+ grep -E 'GUS_LEDGER_0061_OK' /tmp/repro_0063.log | tail -1 || true
+ 
++# The ledger reconciliation: the rows for 0062 and 0063, the 0054
++# rename, and the blank checksums.
++step "reconcile the ledger"
++run_pg -f - < "$(dirname "$0")/../db/migrations/0064_reconcile_the_ledger.sql" > /tmp/repro_0064.log 2>&1 \
++  || { echo "  FAILED: 0064"; grep -E 'ERROR' /tmp/repro_0064.log | head -8; fail=1; }
++grep -E 'GUS_LEDGER_0064_OK' /tmp/repro_0064.log | tail -1 || true
++
+ # The PER-DISH backfill assertions. LAST, because they assert the state
+ # the whole chain produces: the reference dishes' association rows AND
+ # the journey places in the editorial queue.
