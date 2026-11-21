@@ -212,6 +212,82 @@ describe("the accent theme follows the page", () => {
   });
 });
 
+describe("no public view counts and no 'published' badge (D21-8)", () => {
+  it("the public dish list does not pass a view count to the card", () => {
+    // D21-8: "No view counts anywhere public (not on the dish header,
+    // the dish list or the cards)." The list used to print "1,234
+    // views" on every card -- a metric about the encyclopedia, not a
+    // fact about the dish.
+    const source = code(join(COMPONENTS, "DishExplorer.tsx"));
+    assert.ok(
+      !/viewCount=\{/.test(source),
+      "the public dish list still passes a view count to the card",
+    );
+  });
+
+  it("the public dish list does not pass a status to the card", () => {
+    // D21-8: "The word 'published' never appears on a public card."
+    // Every dish in the list is published, so the badge read
+    // "Published" on every card and told the reader nothing.
+    const source = code(join(COMPONENTS, "DishExplorer.tsx"));
+    assert.ok(
+      !/status=\{/.test(source),
+      "the public dish list still passes a status to the card",
+    );
+  });
+
+  it("the dish header renders no view count and no byline", () => {
+    const source = code(join(COMPONENTS, "DishDetail.tsx"));
+    for (const leak of ["viewCount", "contributorCount", "By an unknown editor"]) {
+      assert.ok(
+        !source.includes(leak),
+        `the dish header still renders ${leak}`,
+      );
+    }
+  });
+
+  it("the shared card only prints a view count when it is given one", () => {
+    // The card component may keep the prop -- the admin list uses it --
+    // but the PUBLIC list must not pass it, and the two assertions
+    // above are what hold that line.
+    const source = code(join(ROOT, "packages", "ui", "src", "Card.tsx"));
+    assert.ok(
+      source.includes("viewCount"),
+      "the card lost its view count entirely -- the admin list needs it",
+    );
+    assert.ok(
+      /typeof viewCount === "number"/.test(source),
+      "the card prints a view count unconditionally",
+    );
+  });
+});
+
+describe("the map discloses that it draws discovery data", () => {
+  it("does not call the legacy value an origin", () => {
+    // The map draws the dish's legacy Wikidata value, which the API
+    // marks isDiscoveryData: true. Calling it an origin would assert a
+    // reviewed claim the record does not make -- and the API's own
+    // label for it is "Associated with".
+    const source = code(join(COMPONENTS, "DishMap.tsx"));
+    assert.ok(
+      !/geographic origin/i.test(source),
+      "the map still calls the discovery value a geographic origin",
+    );
+    assert.ok(
+      !/where this dish originates/i.test(source),
+      "the map still tells the reader where the dish originates",
+    );
+  });
+
+  it("discloses the discovery value to the reader", () => {
+    const source = code(join(COMPONENTS, "DishMap.tsx"));
+    assert.ok(
+      source.includes("dish-map-disclosure"),
+      "the map has no disclosure line under it",
+    );
+  });
+});
+
 describe("prepared components are components, not the method", () => {
   it("the component list is built from the ingredient category", () => {
     const source = code(join(LIB, "preparedComponents.ts"));
