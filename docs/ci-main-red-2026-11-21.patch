@@ -1,8 +1,56 @@
+# docs/ci-main-red-2026-11-21.patch
+#
+# WHY THIS PATCH EXISTS
+#
+# The GitHub App has no `workflows` scope, so it cannot edit
+# .github/workflows/* directly. This patch is the owner-applied change
+# that repairs `main`.
+#
+# It does three things, all of them real fixes, none of them suppressions:
+#
+# 1. REMOVES the premature 0065 block that PR #282 merged into `main`.
+#    PR #282 landed the D4 workflow change before the 0065 migration file
+#    existed on `main`, so every `main` run since has failed with:
+#      psql: error: db/migrations/0065_recipe_layout_and_sentence_fields.sql:
+#      No such file or directory
+#    and:
+#      the marker 'D4_SCHEMA_TESTS' was not found
+#    The migration AND its constraint test belong to PR #281, which
+#    carries db/migrations/0065_recipe_layout_and_sentence_fields.sql.
+#
+# 2. REMOVES "The D4 constraint tests" step, which the 0065 removal in
+#    (1) left orphaned. It is a separate step, so removing the
+#    migration step did not take it. Without migration 0065 the test ran
+#    against a database missing the new recipe_sentences fields and
+#    failed the whole Tests job.
+#
+# 3. FIXES the Telegram notification line in ci.yml AND nightly.yml.
+#    Both blocks ended their curl lines with a DOUBLE backslash (\\).
+#    Under `run: |` bash reads that as an escaped backslash, so the
+#    trailing backslash is consumed, the newline ends the command, and
+#    curl runs with the URL ALONE -- producing:
+#      curl: (3) URL rejected: Bad hostname
+#      {"ok":false,"error_code":400,"description":"Bad Request: message text is empty"}
+#    and under `bash -e` the step died with exit code 3. A broken
+#    notification therefore FAILED THE DEPLOY (run 44698409565) and
+#    failed every Nightly "Report" step -- which is why the Nightly
+#    (#191) has failed every night since 2026-11-02.
+#    A SINGLE backslash is a real line continuation; the intended
+#    `|| echo` fallback then applies and the notification is
+#    non-fatal, as the workflow always intended.
+#
+# HOW TO APPLY
+#   git checkout main && git pull
+#   git apply --check docs/ci-main-red-2026-11-21.patch
+#   git apply docs/ci-main-red-2026-11-21.patch
+#
+# The patch is also committed in the branch fix/main-red-2026-11-21,
+# which carries the non-workflow fix (scripts/check-live-sitemaps.sh).
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index fff5148..7f26a6c 100644
+index fff5148..a007962 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -1386,27 +1386,6 @@ jobs:
+@@ -1386,47 +1386,6 @@ jobs:
              -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
            bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
  
@@ -27,10 +75,30 @@ index fff5148..7f26a6c 100644
 -      # that the layout column is jsonb and nullable, that a layout
 -      # round-trips, and that the fixtures were cleaned up. They refuse
 -      # to run against a database that is not marked disposable.
-       - name: The D4 constraint tests
+-      - name: The D4 constraint tests
+-        run: |
+-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
+-            -f scripts/test_recipe_d4_schema.sql 2>&1 | tee /tmp/d4_constraints.log
+-          bash scripts/check-ci-markers.sh "the D4 constraint tests" "D4_SCHEMA_TESTS" /tmp/d4_constraints.log
+-
+-      # The PER-DISH backfill assertions. LAST, because they assert the
+-      # state the whole chain produces: the reference dishes'
+-      # association rows AND the journey places in the editorial queue.
+-      #
+-      # 0037 asserts its outcome in AGGREGATE: the counts against the
+-      # legacy tables. Both sides of that comparison come from the same
+-      # tables, so a mapping that is wrong in the same way on both sides
+-      # PASSES. On a database with three dishes it proved only that the
+-      # migration executes.
+-      #
+-      # This asserts the EXACT association rows the four reference
+-      # dishes must have — the relationship type, the entity kind, the
+-      # entity and the provenance — plus the count-snapshot guard with
+-      # NON-ZERO baselines. A backfill that produced nothing fails it.
+       - name: Assert the atlas backfill per dish
          run: |
-           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
-@@ -2458,9 +2437,26 @@ jobs:
+           set -o pipefail
+@@ -2458,9 +2417,26 @@ jobs:
                exit 0
              fi
  
@@ -63,7 +131,7 @@ index fff5148..7f26a6c 100644
 +              --data-urlencode "text=${MSG}" \
                --max-time 10 || echo "::warning::Telegram notification failed (non-fatal)"
 diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
-index bd55c81..303e2d5 100644
+index bd55c81..e195b0d 100644
 --- a/.github/workflows/nightly.yml
 +++ b/.github/workflows/nightly.yml
 @@ -284,11 +284,28 @@ jobs:
@@ -75,7 +143,7 @@ index bd55c81..303e2d5 100644
 -            -d parse_mode="Markdown" \\
 -            -d disable_web_page_preview=true \\
 -            --data-urlencode "text=${MSG}" \\
-+                    # A SINGLE backslash ends the line. It is a bash line
++          # A SINGLE backslash ends the line. It is a bash line
 +          # continuation, so the whole curl is ONE command.
 +          #
 +          # It used to be a DOUBLE backslash, and that broke the
