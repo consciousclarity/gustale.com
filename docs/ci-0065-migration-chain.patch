@@ -1,0 +1,49 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index a007962..cd8c731 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1386,6 +1386,20 @@ jobs:
+             -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
+           bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
+ 
++      # The relation slug normalisation (D21-7). It renames the two
++      # hyphenated vocabulary slugs -- `similar-serving` and
++      # `shared-ingredient` -- to underscores, and adds a guard trigger
++      # so the drift cannot come back.
++      #
++      # 0065, not 0064: 0064 belongs to the reconciliation migration in
++      # PR #277, which is still open.
++      - name: Apply the 0065 relation slug normalisation
++        run: |
++          set -o pipefail
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f db/migrations/0065_relation_slug_normalisation.sql 2>&1 | tee /tmp/m0065.log
++          bash scripts/check-ci-markers.sh "the 0065 relation slugs" "D21-7_RELATION_SLUGS_OK" /tmp/m0065.log
++
+       - name: Assert the atlas backfill per dish
+         run: |
+           set -o pipefail
+
+# ─────────────────────────────────────────────────────────────────────
+# THE 0065 CI PATCH -- notes for the owner
+# ─────────────────────────────────────────────────────────────────────
+#
+# The GitHub App has NO workflow scope, so `.github/workflows/ci.yml`
+# cannot be changed by a push from the agent. This is the hunk, as a
+# file, for the owner to apply.
+#
+# It adds the 0065 migration to the CI chain, immediately after 0063.
+# The other two chain lists (`scripts/ci-migration-chain.sh` and
+# `scripts/repro-ci-db.sh`) are changed IN THE PR, because they are
+# ordinary scripts -- only the workflow file needs the owner.
+#
+# TO APPLY:
+#
+#   git checkout fix/main-red-2026-11-21
+#   git apply docs/ci-0065-migration-chain.patch
+#
+# TO VERIFY IT APPLIES, WITHOUT CHANGING ANYTHING:
+#
+#   git apply --check docs/ci-0065-migration-chain.patch
+#
+# Generated against PR #283's head, 8d694fd.
