@@ -373,10 +373,16 @@ export function DishMap({
       aria-label={`${dishName} — associated place: ${origin.name || `${lat}, ${lng}`}`}
       className="dish-map-frame"
     >
+      {/*
+        No aria-label here. A <div> with no role has no implicit role
+        that permits aria-label, and axe reports aria-prohibited-attr
+        as a SERIOUS violation. The wrapping element already carries
+        role="figure" with the accessible name, so the canvas is
+        correctly left unlabelled.
+      */}
       <div
         ref={containerRef}
         className={mapError ? "dish-map-canvas is-hidden" : "dish-map-canvas"}
-        aria-label="Interactive map showing the place this dish is associated with"
       />
 
       {/* MapLibre loading overlay. Hidden the moment the dynamic

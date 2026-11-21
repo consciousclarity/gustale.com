@@ -12,6 +12,20 @@ import {
 } from "./dishFacts.ts";
 import { DISH_FACT_KEYS, DISH_FACT_MISSING } from "./dishSections.ts";
 
+/** The script each language is normally written in, mirroring the
+ *  table in dishFacts.ts. A fixture written in the wrong script is not
+ *  a name at home, and the helper must not promote it. */
+const NATIVE_SCRIPT_OF: Record<string, string> = {
+  ar: "Arab",
+  he: "Hebr",
+  ja: "Jpan",
+  zh: "Hans",
+  hi: "Deva",
+  el: "Grek",
+  ko: "Kore",
+  th: "Thai",
+};
+
 const dim = (
   vocabulary: string,
   slug: string,
@@ -30,9 +44,10 @@ const nm = (
   language = "en",
   kind = "endonym",
   isPrimary = false,
+  script = "Latn",
 ): DishName => ({
   language,
-  script: "Latn",
+  script,
   name,
   kind,
   isPrimary,
@@ -61,11 +76,17 @@ describe("primaryDimension", () => {
 });
 
 describe("the dish's own language comes first (D21-13)", () => {
-  const names = [
-    nm("مسقعة", "ar"),
-    nm("ムサカ", "ja"),
-    nm("Musaca", "es"),
-    nm("μουσακάς", "el"),
+  // The real shape of a live record: the bulk import copied the dish
+  // into a fixed ten-language block and marked EVERY row an endonym,
+  // including "Moussaka" in German and French. The `kind` field is
+  // therefore worthless -- "Moussaka" in German is not an endonym of
+  // anything. The SCRIPT is what can be trusted, because it is a
+  // property of the string itself.
+  const names: DishName[] = [
+    nm("مسقعة", "ar", "endonym", true, "Arab"),
+    nm("ムサカ", "ja", "endonym", true, "Jpan"),
+    nm("Musaca", "es", "endonym", true, "Latn"),
+    nm("μουσακάς", "el", "endonym", true, "Grek"),
   ];
 
   it("leads with the name in the origin country's language", () => {
@@ -101,6 +122,78 @@ describe("the dish's own language comes first (D21-13)", () => {
     assert.deepEqual(out, ["مسقعة", "ムサカ", "Musaca", "μουσακάς"]);
   });
 
+  it("does NOT promote a name written in the Latin script for a Greek dish", () => {
+    // A romanization of the Greek name, written in Latin letters, is
+    // not a name at home. The row therefore keeps the API's order
+    // instead of promoting it -- but the point is that no own-language
+    // name is claimed.
+    const romanizationOnly = [
+      nm("مسقعة", "ar", "endonym", true, "Arab"),
+      nm("Moussaka (el)", "el", "endonym", true, "Latn"),
+    ];
+    assert.equal(ownLanguage(romanizationOnly, "GR"), undefined);
+    assert.equal(ownLanguageName(romanizationOnly, "Moussaka", "GR"), undefined);
+    // The API order stands: the row is not reordered on a guess.
+    assert.deepEqual(alsoCalledNames(romanizationOnly, "Moussaka", "GR"), [
+      "مسقعة",
+      "Moussaka (el)",
+    ]);
+  });
+
+  it("does NOT promote a name from the bulk-import set", () => {
+    // A Hindi dish whose record carries a Hindi name in the Latin
+    // script: `hi` is in the bulk set, so a Latin-script Hindi name
+    // cannot be shown to be a name at home.
+    const latinHindi = [
+      nm("Dosa", "hi", "endonym", true, "Latn"),
+      nm("ムサカ", "ja", "endonym", true, "Jpan"),
+    ];
+    const out = alsoCalledNames(latinHindi, "Dosa", "IN");
+    assert.equal(out[0], "ムサカ");
+    assert.ok(!out.includes("Dosa"));
+  });
+
+  it("does NOT promote a name written in another language's script", () => {
+    // A Vietnamese dish carries a Vietnamese name in CHINESE script --
+    // a Chinese rendering of it, not a Vietnamese name.
+    const chineseScriptVietnamese = [
+      nm("餅麵", "vi", "endonym", false, "Hans"),
+      nm("bánh mì", "vi", "endonym", true, "Latn"),
+    ];
+    const own = ownLanguageName(
+      chineseScriptVietnamese,
+      "Bánh mì",
+      "VN",
+    );
+    // The Latin-script Vietnamese name is the canonical name, so
+    // there is nothing to print under the H1.
+    assert.equal(own, undefined);
+  });
+
+  it("promotes a name from OUTSIDE the bulk-import set", () => {
+    // Italian is not one of the ten copied languages, so a genuine
+    // Italian name was recorded rather than imported.
+    const own = ownLanguageName(
+      [nm("Pasta cacio e pepe", "it", "endonym", true, "Latn")],
+      "Cacio e pepe",
+      "IT",
+    );
+    assert.deepEqual(own, {
+      name: "Pasta cacio e pepe",
+      language: "it",
+      script: "Latn",
+    });
+  });
+
+  it("promotes a non-Latin name only in that language's own script", () => {
+    const own = ownLanguageName(
+      [nm("寿司", "ja", "endonym", true, "Jpan")],
+      "Sushi",
+      "JP",
+    );
+    assert.deepEqual(own, { name: "寿司", language: "ja", script: "Jpan" });
+  });
+
   it("maps the languages the corpus needs", () => {
     const cases: Array<[string, string]> = [
       ["GR", "el"],
@@ -115,8 +208,17 @@ describe("the dish's own language comes first (D21-13)", () => {
       ["JP", "ja"],
     ];
     for (const [iso, language] of cases) {
+      // The fixture must be written in the language's OWN script: a
+      // name in Greek letters written in the Latin script is a
+      // romanization, and a romanization is not a name at home.
       const own = ownLanguage(
-        [{ ...nm(`x-${language}`, language), isPrimary: true }],
+        [
+          {
+            ...nm(`x-${language}`, language),
+            script: NATIVE_SCRIPT_OF[language] ?? "Latn",
+            isPrimary: true,
+          },
+        ],
         iso,
       );
       assert.equal(own, language, `${iso} should map to ${language}`);

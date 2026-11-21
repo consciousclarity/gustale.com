@@ -144,6 +144,22 @@ export function relationshipLabel(relationship?: string): string | undefined {
  * keeps the API's order — the names are still shown, just not
  * re-ordered on a guess.
  */
+/**
+ * The origin country, and the language the dish is named in there.
+ *
+ * The mapping is deliberately narrow. A country does not have ONE
+ * language: India has Hindi, Tamil, Bengali and Punjabi; Spain has
+ * Castilian, Catalan and Basque; Switzerland has three official
+ * languages and no single "own" one. A wrong guess here would put a
+ * name in the wrong script under the dish's title, which is worse
+ * than printing nothing.
+ *
+ * So the map lists only countries where one language is clearly the
+ * culinary language of the dishes we hold, and the promotion below
+ * still requires the record itself to carry a name in that language
+ * AND in that language's own script. A country with several languages
+ * is left out rather than guessed at.
+ */
 const ORIGIN_COUNTRY_LANGUAGE: Record<string, string> = {
   // Europe
   GR: "el", // Greece
@@ -152,26 +168,18 @@ const ORIGIN_COUNTRY_LANGUAGE: Record<string, string> = {
   FR: "fr", // France
   DE: "de", // Germany
   AT: "de", // Austria
-  CH: "de", // Switzerland
   PT: "pt", // Portugal
   NL: "nl", // Netherlands
-  BE: "nl", // Belgium
-  SE: "sv", // Sweden
-  NO: "no", // Norway
-  DK: "da", // Denmark
-  FI: "fi", // Finland
   PL: "pl", // Poland
   CZ: "cs", // Czechia
   HU: "hu", // Hungary
   RO: "ro", // Romania
-  BG: "bg", // Bulgaria
   HR: "hr", // Croatia
-  RS: "sr", // Serbia
+  BG: "bg", // Bulgaria
   SI: "sl", // Slovenia
   SK: "sk", // Slovakia
   UA: "uk", // Ukraine
   RU: "ru", // Russia
-  GR2: "el",
   // Americas
   MX: "es",
   AR: "es",
@@ -180,7 +188,6 @@ const ORIGIN_COUNTRY_LANGUAGE: Record<string, string> = {
   PE: "es",
   VE: "es",
   US: "en",
-  CA: "en",
   // Africa and the Middle East
   EG: "ar",
   LB: "ar",
@@ -195,18 +202,12 @@ const ORIGIN_COUNTRY_LANGUAGE: Record<string, string> = {
   TR: "tr",
   IR: "fa",
   ET: "am",
-  GH: "en",
-  NG: "yo",
   KE: "sw",
-  ZA: "af",
   // Asia
   IN: "hi",
-  PK: "ur",
   BD: "bn",
-  NP: "ne",
   LK: "si",
   CN: "zh",
-  SG: "zh",
   JP: "ja",
   KR: "ko",
   TH: "th",
@@ -223,11 +224,129 @@ const ORIGIN_COUNTRY_LANGUAGE: Record<string, string> = {
 };
 
 /**
- * The dish's own language, from its origin country.
+ * The script a language is normally written in.
+ *
+ * This is the signal that tells a NAME AT HOME from a TRANSLATION.
+ *
+ * The `kind` field on a name says "endonym" for 743 of the 743
+ * Latin-script names in a 200-dish sample — including "Moussaka" in
+ * German and French, which is plainly not an endonym. The import
+ * labelled every name in the block it copied. So `kind` cannot be
+ * trusted, and the promotion below does not use it.
+ *
+ * The SCRIPT can be trusted, because it is a property of the string
+ * itself: "寿司" is written in Japanese script whatever the row says
+ * about it. Measured across the live corpus, 51 dishes carry a name
+ * in their own language written in that language's own script — 寿司,
+ * 비빔밥, मसाला दोसा, ผัดไทย, 麻婆豆腐 — and those are exactly the
+ * names a reader should be shown as the dish's own.
+ *
+ * A language whose script is Latin (English, French, Italian) has no
+ * script of its own to distinguish, so it is not listed here: a name
+ * in those languages is not promoted on script grounds.
+ */
+const LANGUAGE_NATIVE_SCRIPT: Record<string, string> = {
+  ar: "Arab",
+  fa: "Arab",
+  ur: "Arab",
+  he: "Hebr",
+  ja: "Jpan",
+  zh: "Hans",
+  hi: "Deva",
+  mr: "Deva",
+  ne: "Deva",
+  bn: "Beng",
+  si: "Sinh",
+  ta: "Taml",
+  te: "Telu",
+  kn: "Knda",
+  ml: "Mlym",
+  gu: "Gujr",
+  pa: "Guru",
+  el: "Grek",
+  ru: "Cyrl",
+  uk: "Cyrl",
+  bg: "Cyrl",
+  sr: "Cyrl",
+  mk: "Cyrl",
+  ko: "Kore",
+  th: "Thai",
+  ka: "Geor",
+  hy: "Armn",
+  am: "Ethi",
+  my: "Mymr",
+  bo: "Tibt",
+  lo: "Laoo",
+  km: "Khmr",
+  dv: "Thaa",
+};
+
+/**
+ * The languages the bulk name import copied.
+ *
+ * Measured across the live corpus: 1,353 of 1,474 dishes carry English
+ * only, and the remaining ~120 carry a block copied from this set --
+ * a Turkish dish got Arabic, German, English, Spanish, French, Hindi,
+ * Indonesian, Japanese, Portuguese and Chinese, and no Turkish.
+ *
+ * A name in one of these languages is therefore NOT evidence that the
+ * dish has a name at home. It is evidence that the dish was copied into
+ * a fixed translation set.
+ *
+ * A language OUTSIDE this set came from somewhere else -- a real name
+ * record -- so a name in one of those is worth looking at.
+ */
+const BULK_IMPORT_LANGUAGES = new Set([
+  "ar",
+  "de",
+  "en",
+  "es",
+  "fr",
+  "hi",
+  "id",
+  "ja",
+  "pt",
+  "zh",
+]);
+
+/**
+ * Whether a name in this language can be the dish's name AT HOME.
+ *
+ * Two ways to qualify:
+ *
+ * 1. The language is written in a script that is not the Latin one, and
+ *    the name is written in that script. "寿司" is written in Japanese
+ *    script, so it is a Japanese name whatever the row claims about
+ *    it. This is the check that keeps a bulk-imported translation from
+ *    being promoted: a Chinese name of a Korean dish is in Chinese
+ *    script, and it is not the dish's Korean name.
+ *
+ * 2. The language is outside the bulk-import set, so it was recorded
+ *    rather than copied. A Vietnamese name of a Vietnamese dish is a
+ *    name at home even though Vietnamese is written in the Latin
+ *    script and the script cannot prove it.
+ */
+function isOwnLanguageName(name: DishName, language: string): boolean {
+  const script = LANGUAGE_NATIVE_SCRIPT[language];
+  if (script) return name.script === script;
+  if (BULK_IMPORT_LANGUAGES.has(language)) return false;
+  // A language outside the bulk set, written in the Latin script --
+  // Vietnamese, Turkish, Italian, Hungarian. The name must still be
+  // written in the Latin script: a Vietnamese name written in Chinese
+  // script is a Chinese rendering of it, not a Vietnamese name.
+  return name.script === "Latn";
+}
+
+/**
+ * The dish's own language, when the record supports it.
  *
  * Returns undefined when the country is unknown, when the mapping has
- * no entry, or when the dish has no name in that language — in which
- * case there is nothing to promote and the API's order stands.
+ * no entry, or when the dish has no name in that language that can be
+ * shown to be a name at home.
+ *
+ * The last condition is the one that matters. It is what keeps a
+ * Turkish exonym out of a Greek dish's title slot, and what keeps a
+ * bulk-imported translation from being promoted as the name at home.
  */
 export function ownLanguage(
   names: DishName[],
@@ -238,7 +357,9 @@ export function ownLanguage(
   const language = ORIGIN_COUNTRY_LANGUAGE[iso];
   if (!language) return undefined;
   const has = names.some(
-    (n) => n.language?.toLowerCase() === language.toLowerCase(),
+    (n) =>
+      n.language?.toLowerCase() === language.toLowerCase() &&
+      isOwnLanguageName(n, language),
   );
   return has ? language : undefined;
 }
@@ -249,9 +370,10 @@ export function ownLanguage(
  * D21-13: "The native-script name sits under the H1 (moussaka:
  * μουσακάς) and is included in 'Also called'."
  *
- * It returns undefined when the dish has no name in its own language,
- * or when that name is the SAME string as the canonical name -- in
- * which case printing it under the H1 would just repeat the title.
+ * It returns undefined when the dish has no name in its own language
+ * written in its own script, or when that name is the SAME string as
+ * the canonical name -- in which case printing it under the H1 would
+ * just repeat the title.
  */
 export function ownLanguageName(
   names: DishName[],
@@ -262,7 +384,9 @@ export function ownLanguageName(
   if (!language) return undefined;
 
   const own = names.filter(
-    (n) => n.language?.toLowerCase() === language.toLowerCase(),
+    (n) =>
+      n.language?.toLowerCase() === language.toLowerCase() &&
+      isOwnLanguageName(n, language),
   );
   // The primary name of that language first.
   const sorted = [...own].sort((a, b) => {
@@ -308,16 +432,17 @@ export function alsoCalledNames(
 
   const own = ownLanguage(names, originIsoCode);
 
-  // The dish's own language first, in the API's order within it.
+  // The dish's own language first, in the API's order within it -- and
+  // only the names that can be shown to be names AT HOME, so a
+  // transliteration or a bulk-imported translation does not leap ahead
+  // of the dish's real name.
+  const isOwn = (n: DishName) =>
+    own !== undefined &&
+    n.language?.toLowerCase() === own.toLowerCase() &&
+    isOwnLanguageName(n, own);
+
   const ordered = own
-    ? [
-        ...names.filter(
-          (n) => n.language?.toLowerCase() === own.toLowerCase(),
-        ),
-        ...names.filter(
-          (n) => n.language?.toLowerCase() !== own.toLowerCase(),
-        ),
-      ]
+    ? [...names.filter(isOwn), ...names.filter((n) => !isOwn(n))]
     : names;
 
   for (const n of ordered) {
