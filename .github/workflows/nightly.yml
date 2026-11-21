@@ -284,7 +284,7 @@ jobs:
             exit 0
           fi
           MSG="Nightly re-translation — ${{ job.status }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    # A SINGLE backslash ends the line. It is a bash line
+          # A SINGLE backslash ends the line. It is a bash line
           # continuation, so the whole curl is ONE command.
           #
           # It used to be a DOUBLE backslash, and that broke the

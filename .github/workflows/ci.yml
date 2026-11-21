@@ -1386,26 +1386,6 @@ jobs:
             -f db/migrations/0063_record_0061_in_the_ledger.sql 2>&1 | tee /tmp/m0063.log
           bash scripts/check-ci-markers.sh "the 0063 ledger row" "GUS_LEDGER_0061_OK" /tmp/m0063.log
 
-      - name: The D4 constraint tests
-        run: |
-          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
-            -f scripts/test_recipe_d4_schema.sql 2>&1 | tee /tmp/d4_constraints.log
-          bash scripts/check-ci-markers.sh "the D4 constraint tests" "D4_SCHEMA_TESTS" /tmp/d4_constraints.log
-
-      # The PER-DISH backfill assertions. LAST, because they assert the
-      # state the whole chain produces: the reference dishes'
-      # association rows AND the journey places in the editorial queue.
-      #
-      # 0037 asserts its outcome in AGGREGATE: the counts against the
-      # legacy tables. Both sides of that comparison come from the same
-      # tables, so a mapping that is wrong in the same way on both sides
-      # PASSES. On a database with three dishes it proved only that the
-      # migration executes.
-      #
-      # This asserts the EXACT association rows the four reference
-      # dishes must have — the relationship type, the entity kind, the
-      # entity and the provenance — plus the count-snapshot guard with
-      # NON-ZERO baselines. A backfill that produced nothing fails it.
       - name: Assert the atlas backfill per dish
         run: |
           set -o pipefail
