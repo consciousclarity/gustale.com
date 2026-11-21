@@ -1,0 +1,54 @@
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+index d9f8bfc..641f24b 100644
+--- a/.github/workflows/nightly.yml
++++ b/.github/workflows/nightly.yml
+@@ -46,7 +46,15 @@ jobs:
+           # the chain applies the migrations.
+           POSTGRES_USER: postgres
+           POSTGRES_PASSWORD: gustale
+-          POSTGRES_DB: gustale_ci_ci
++          # `gustale_ci`, NOT `gustale` and NOT `gustale_ci_ci`.
++          #
++          # The service container CREATES the database named here, and
++          # the DATABASE_URL above and every psql call below name
++          # `gustale_ci`. A third spelling here means the container
++          # creates one database and the job connects to another, and
++          # the Nightly fails on a connection error instead of doing
++          # the drift check it exists for.
++          POSTGRES_DB: gustale_ci
+         ports:
+           - 5432:5432
+         options: >-
+@@ -102,6 +110,32 @@ jobs:
+       # either.
+       - name: Reset database
+         run: |
++          # THE ROLE SETUP FIRST, THEN THE GRANT.
++          #
++          # The GRANT below names the role `gustale`, and that role does
++          # not exist yet: the service container's superuser is
++          # `postgres` (POSTGRES_USER: postgres — the bot must not be
++          # the superuser), so `gustale` is created by
++          # `scripts/ci-migration-role.sql` -- which the CHAIN applies,
++          # in the NEXT step.
++          #
++          # So the Nightly was granting to a role that did not exist:
++          #
++          #     ERROR:  role "gustale" does not exist
++          #
++          # and with ON_ERROR_STOP=1 the step failed. The Nightly has
++          # failed on this step every night since 2026-11-02 (run
++          # fb1d3d56), which is the night `POSTGRES_USER` changed from
++          # `gustale` to `postgres`.
++          #
++          # The fix is the arrangement ci.yml already uses: the role
++          # setup is applied to the service database FIRST, by the
++          # superuser, and it is the SAME committed SQL file the chain
++          # uses. The file is idempotent, so the chain applying it
++          # again in the next step is fine.
++          PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 \
++            -f scripts/ci-migration-role.sql
++
+           PGPASSWORD=gustale psql -h 127.0.0.1 -U postgres -d gustale_ci -v ON_ERROR_STOP=1 <<'SQL'
+             DROP SCHEMA IF EXISTS public CASCADE;
+             CREATE SCHEMA public;

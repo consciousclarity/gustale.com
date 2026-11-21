@@ -1,5 +1,13 @@
 # Evidence: the workflow patch makes the failing CI step pass
 
+> **This patch is SPENT.** PR #190 merged on 2026-11-06, so the change this
+> artifact describes is already in `main` and the patch no longer applies to
+> it — `git apply` fails with "patch does not apply". That is the artifact
+> being obsolete, not broken. It is kept as the record of how the change was
+> delivered. See `docs/OPERATIONS-RUNBOOK.md` §3.
+>
+> For the Nightly's fixes, use `docs/ci-workflow-nightly-fixes.patch` instead.
+
 PR #190's CI "Tests (vitest + postgis)" job fails at step 15,
 "Populate the description sentences", because that step passes
 `--db gustale` -- the LIVE database's name -- and the new guard refuses
