@@ -1870,15 +1870,7 @@ export type SourceReliability = (typeof sourceReliability)[number];
  * only. The public page shows the tier in public words, so the class
  * has to travel with the citation.
  */
-export const sourceClass = [
-  "S1",
-  "S2",
-  "S3",
-  "S4",
-  "S5",
-  "S6",
-  "S7",
-] as const;
+export const sourceClass = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"] as const;
 export type SourceClass = (typeof sourceClass)[number];
 
 /**

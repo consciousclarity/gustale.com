@@ -1,7 +1,7 @@
 import {
   buildDishFacts,
-  ownLanguageName,
   type DishPlaceAssociation,
+  ownLanguageName,
 } from "../lib/dishFacts";
 import { selectDishHeroMedia } from "../lib/dishMedia";
 import { buildSectionLinks, DISH_SECTION_IDS } from "../lib/dishSections";
@@ -231,9 +231,7 @@ export function DishDetail({
   // the wire. The lookup does not depend on that: it takes the
   // family's own row, which is unique anyway, and the API's
   // `status = 'active'` filter has already excluded retired rows.
-  const familyDimension = dimensions.find(
-    (d) => d.vocabulary === "family",
-  );
+  const familyDimension = dimensions.find((d) => d.vocabulary === "family");
 
   const eyebrowParts: DishCategory[] = [];
   const seenSlugs = new Set<string>();
@@ -391,12 +389,10 @@ export function DishDetail({
                 where the evidence for it is shown.
               */}
               <span className="rec-eyebrow__kind">
-                {dish.contentType ? (
-                  dish.contentType.charAt(0).toUpperCase() +
-                  dish.contentType.slice(1)
-                ) : (
-                  "Dish"
-                )}
+                {dish.contentType
+                  ? dish.contentType.charAt(0).toUpperCase() +
+                    dish.contentType.slice(1)
+                  : "Dish"}
               </span>
               {/*
                 Each part links to the filter that actually filters it.

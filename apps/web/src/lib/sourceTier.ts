@@ -119,7 +119,7 @@ export function sourceTierWords(
 export function isSourceClass(
   value: string | null | undefined,
 ): value is SourceClass {
-  return !!value && Object.prototype.hasOwnProperty.call(SOURCE_TIER_WORDS, value);
+  return !!value && Object.hasOwn(SOURCE_TIER_WORDS, value);
 }
 
 /*

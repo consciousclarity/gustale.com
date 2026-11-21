@@ -238,7 +238,11 @@ describe("no public view counts and no 'published' badge (D21-8)", () => {
 
   it("the dish header renders no view count and no byline", () => {
     const source = code(join(COMPONENTS, "DishDetail.tsx"));
-    for (const leak of ["viewCount", "contributorCount", "By an unknown editor"]) {
+    for (const leak of [
+      "viewCount",
+      "contributorCount",
+      "By an unknown editor",
+    ]) {
       assert.ok(
         !source.includes(leak),
         `the dish header still renders ${leak}`,

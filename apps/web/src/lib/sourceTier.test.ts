@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { SourceClass } from "../types/dish.ts";
-import {
-  SOURCE_TIER_WORDS,
-  sourceTierWords,
-} from "./sourceTier.ts";
+import { SOURCE_TIER_WORDS, sourceTierWords } from "./sourceTier.ts";
 
 /**
  * THE SOURCE TIER, IN PUBLIC WORDS.
@@ -26,12 +23,17 @@ describe("sourceTierWords — the public wording of a source's tier", () => {
     // The enum is S1..S7. If the enum grows and this list does not,
     // the new class silently renders as "Not classified" -- which is
     // honest but wrong, because it HAS a class.
-    const ALL: readonly SourceClass[] = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"];
+    const ALL: readonly SourceClass[] = [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+    ];
     for (const cls of ALL) {
-      assert.ok(
-        SOURCE_TIER_WORDS[cls],
-        `${cls} must have a public name`,
-      );
+      assert.ok(SOURCE_TIER_WORDS[cls], `${cls} must have a public name`);
       assert.notEqual(
         sourceTierWords(cls),
         "Not classified",
@@ -71,11 +73,7 @@ describe("sourceTierWords — the public wording of a source's tier", () => {
     // support the definition.
     const wording = sourceTierWords("S6");
     assert.ok(wording.startsWith("Reference"), `got ${wording}`);
-    assert.match(
-      wording,
-      /discovery/i,
-      "S6 must say what it is for",
-    );
+    assert.match(wording, /discovery/i, "S6 must say what it is for");
     assert.doesNotMatch(
       wording,
       /supports the definition only/i,

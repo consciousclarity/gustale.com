@@ -50,8 +50,8 @@ import { ApiError, getDishAtlas } from "../lib/api";
 import { relationshipLabel } from "../lib/dishFacts";
 import {
   mayCarrySentence,
-  publicSentence,
   NO_EVIDENCE_TEXT,
+  publicSentence,
   type RelatedPlaceRow,
 } from "../lib/publicAssociationSentence";
 import type { DishOrigin } from "../types/dish";
@@ -248,9 +248,7 @@ function AssociationRow({ association }: { association: AtlasAssociation }) {
           evidenceStatus: association.evidence.status,
         });
         if (sentence) {
-          return (
-            <p className="atlas-association__sentence">{sentence}</p>
-          );
+          return <p className="atlas-association__sentence">{sentence}</p>;
         }
         return (
           <p className="atlas-association__sentence atlas-association__sentence--noevidence">

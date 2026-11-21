@@ -523,9 +523,7 @@ export function buildDishFacts(input: {
       // So the row picks the first place whose evidence allows it to
       // be stated, and if there is none, it says "No evidence" --
       // which is a statement about the RECORD, not about the dish.
-      const place = input.places.find((p) =>
-        mayCarrySentence(p.status),
-      );
+      const place = input.places.find((p) => mayCarrySentence(p.status));
       if (!place) {
         rows.push({ key, label, value: DISH_FACT_MISSING });
         continue;

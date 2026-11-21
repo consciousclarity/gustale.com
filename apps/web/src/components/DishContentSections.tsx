@@ -34,14 +34,11 @@
 
 import type { DishJourneyBeat, DishJourneyMovement } from "../lib/api";
 import type { RelationLike } from "../lib/dishConnections";
-import {
-  allColumns,
-  buildConnectionColumns,
-} from "../lib/dishConnections";
+import { allColumns, buildConnectionColumns } from "../lib/dishConnections";
 import { DISH_SECTION_IDS } from "../lib/dishSections";
 import { preparedComponents } from "../lib/preparedComponents";
-import { sourceTierWords } from "../lib/sourceTier";
 import type { RecipeSummary } from "../lib/recipes";
+import { sourceTierWords } from "../lib/sourceTier";
 import type {
   DishCategory,
   DishCitation,
@@ -185,11 +182,7 @@ export function DishContentSections({
             </p>
             <div className="world-list">
               {variants.map((v) => (
-                <a
-                  key={v.id}
-                  href={`/dishes/${v.slug}`}
-                  className="world-item"
-                >
+                <a key={v.id} href={`/dishes/${v.slug}`} className="world-item">
                   <span className="pin" />
                   <span className="wnm">{v.name}</span>
                   <span className="wrg">
@@ -307,10 +300,10 @@ export function DishContentSections({
         <h2 id={DISH_SECTION_IDS.sources}>Sources</h2>
         {hasSources ? (
           <>
-          <ol className="src-list">
-            {sources.map((s) => (
-              <li key={s.id} className="src">
-                {/*
+            <ol className="src-list">
+              {sources.map((s) => (
+                <li key={s.id} className="src">
+                  {/*
                     THE TIER, IN PUBLIC WORDS (D21-12).
 
                     The brief: "show each source's tier in public
@@ -323,22 +316,24 @@ export function DishContentSections({
                     document this is, and therefore how much the
                     citation is worth.
                 */}
-                <span className="src__tier">{sourceTierWords(s.sourceClass)}</span>
-                <span className="src__title">
-                  {s.title ?? s.citationText ?? s.sourceType}
-                </span>
-                {s.url && (
-                  <a className="src__link" href={s.url}>
-                    {s.url}
-                  </a>
-                )}
-                {s.claimText && (
-                  <span className="src__note">Supports: {s.claimText}</span>
-                )}
-              </li>
-            ))}
-          </ol>
-          {/*
+                  <span className="src__tier">
+                    {sourceTierWords(s.sourceClass)}
+                  </span>
+                  <span className="src__title">
+                    {s.title ?? s.citationText ?? s.sourceType}
+                  </span>
+                  {s.url && (
+                    <a className="src__link" href={s.url}>
+                      {s.url}
+                    </a>
+                  )}
+                  {s.claimText && (
+                    <span className="src__note">Supports: {s.claimText}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {/*
               THE NOTE BELOW THE LIST.
 
               The brief asks for exactly this line, below the list:
@@ -352,14 +347,12 @@ export function DishContentSections({
               dish rather than an explanation of the site's
               vocabulary.
           */}
-          <p className="dish-sources-block__note">
-            Claims without a qualifying source show as Unverified.
-          </p>
+            <p className="dish-sources-block__note">
+              Claims without a qualifying source show as Unverified.
+            </p>
           </>
         ) : (
-          <p className="dish-sources-block__empty">
-            No sources recorded yet.
-          </p>
+          <p className="dish-sources-block__empty">No sources recorded yet.</p>
         )}
       </section>
     </>

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  NO_EVIDENCE_TEXT,
   mayCarrySentence,
+  NO_EVIDENCE_TEXT,
   publicSentence,
 } from "./publicAssociationSentence.ts";
 
@@ -111,11 +111,7 @@ describe("mayCarrySentence — which statuses may carry prose", () => {
     // unevidenced | research_pending | provisional | evidenced.
     // Only the last one is a finding the site may state.
     assert.equal(mayCarrySentence("evidenced"), true);
-    for (const status of [
-      "unevidenced",
-      "research_pending",
-      "provisional",
-    ]) {
+    for (const status of ["unevidenced", "research_pending", "provisional"]) {
       assert.equal(
         mayCarrySentence(status),
         false,

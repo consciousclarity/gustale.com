@@ -132,7 +132,10 @@ describe("the dish's own language comes first (D21-13)", () => {
       nm("Moussaka (el)", "el", "endonym", true, "Latn"),
     ];
     assert.equal(ownLanguage(romanizationOnly, "GR"), undefined);
-    assert.equal(ownLanguageName(romanizationOnly, "Moussaka", "GR"), undefined);
+    assert.equal(
+      ownLanguageName(romanizationOnly, "Moussaka", "GR"),
+      undefined,
+    );
     // The API order stands: the row is not reordered on a guess.
     assert.deepEqual(alsoCalledNames(romanizationOnly, "Moussaka", "GR"), [
       "مسقعة",
@@ -160,11 +163,7 @@ describe("the dish's own language comes first (D21-13)", () => {
       nm("餅麵", "vi", "endonym", false, "Hans"),
       nm("bánh mì", "vi", "endonym", true, "Latn"),
     ];
-    const own = ownLanguageName(
-      chineseScriptVietnamese,
-      "Bánh mì",
-      "VN",
-    );
+    const own = ownLanguageName(chineseScriptVietnamese, "Bánh mì", "VN");
     // The Latin-script Vietnamese name is the canonical name, so
     // there is nothing to print under the H1.
     assert.equal(own, undefined);
@@ -230,8 +229,20 @@ describe("the native-script name under the H1 (D21-13)", () => {
   it("returns the name in the dish's own language and script", () => {
     const own = ownLanguageName(
       [
-        { language: "ja", script: "Jpan", name: "ムサカ", kind: "endonym", isPrimary: true },
-        { language: "el", script: "Grek", name: "μουσακάς", kind: "endonym", isPrimary: true },
+        {
+          language: "ja",
+          script: "Jpan",
+          name: "ムサカ",
+          kind: "endonym",
+          isPrimary: true,
+        },
+        {
+          language: "el",
+          script: "Grek",
+          name: "μουσακάς",
+          kind: "endonym",
+          isPrimary: true,
+        },
       ],
       "Moussaka",
       "GR",
@@ -245,7 +256,15 @@ describe("the native-script name under the H1 (D21-13)", () => {
 
   it("returns nothing when the record has no name in its own language", () => {
     const own = ownLanguageName(
-      [{ language: "ja", script: "Jpan", name: "ムサカ", kind: "endonym", isPrimary: true }],
+      [
+        {
+          language: "ja",
+          script: "Jpan",
+          name: "ムサカ",
+          kind: "endonym",
+          isPrimary: true,
+        },
+      ],
       "Moussaka",
       "GR",
     );
@@ -255,7 +274,15 @@ describe("the native-script name under the H1 (D21-13)", () => {
   it("returns nothing when the own-language name IS the canonical name", () => {
     // Printing it under the H1 would only repeat the title.
     const own = ownLanguageName(
-      [{ language: "el", script: "Grek", name: "Moussaka", kind: "endonym", isPrimary: true }],
+      [
+        {
+          language: "el",
+          script: "Grek",
+          name: "Moussaka",
+          kind: "endonym",
+          isPrimary: true,
+        },
+      ],
       "Moussaka",
       "GR",
     );
@@ -265,8 +292,20 @@ describe("the native-script name under the H1 (D21-13)", () => {
   it("prefers the primary name of that language", () => {
     const own = ownLanguageName(
       [
-        { language: "el", script: "Grek", name: "μουσακάδα", kind: "endonym", isPrimary: false },
-        { language: "el", script: "Grek", name: "μουσακάς", kind: "endonym", isPrimary: true },
+        {
+          language: "el",
+          script: "Grek",
+          name: "μουσακάδα",
+          kind: "endonym",
+          isPrimary: false,
+        },
+        {
+          language: "el",
+          script: "Grek",
+          name: "μουσακάς",
+          kind: "endonym",
+          isPrimary: true,
+        },
       ],
       "Moussaka",
       "GR",
@@ -416,8 +455,18 @@ describe("buildDishFacts", () => {
     // The order the API returns is not the order of merit. An
     // unevidenced row first must not shadow an evidenced row behind it.
     const places: DishPlaceAssociation[] = [
-      { slug: "a", name: "A", relationship: "established_tradition", status: "unevidenced" },
-      { slug: "b", name: "B", relationship: "established_tradition", status: "evidenced" },
+      {
+        slug: "a",
+        name: "A",
+        relationship: "established_tradition",
+        status: "unevidenced",
+      },
+      {
+        slug: "b",
+        name: "B",
+        relationship: "established_tradition",
+        status: "evidenced",
+      },
     ];
     const rows = buildDishFacts({
       canonicalName: "Moussaka",

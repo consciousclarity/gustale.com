@@ -421,8 +421,8 @@ export function DishMap({
 
       <noscript>
         <p className="dish-map-note dish-map-note--warn">
-          Enable JavaScript to see the interactive map of the place this
-          dish is associated with.
+          Enable JavaScript to see the interactive map of the place this dish is
+          associated with.
         </p>
       </noscript>
 

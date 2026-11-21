@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  allColumns,
   buildConnectionColumns,
   hasConnections,
-  allColumns,
   populatedColumns,
   type RelationLike,
 } from "./dishConnections.ts";
