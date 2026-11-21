@@ -1,0 +1,1214 @@
+{
+  "generated": "check_content_gate.py --write-baseline",
+  "dishes_checked": 1474,
+  "violations": [
+    {
+      "slug": "ayam-pansuh",
+      "name": "Ayam pansuh",
+      "rule": "banned-word",
+      "detail": "ethnic",
+      "match": "ethnic",
+      "text": "A Malaysian chicken dish of Sarawak's Dayaks, cooked in a water-filled bamboo stalk with seasonings and covered with leaves from the cassava plant. It is often served to guests during the ethnic festive season."
+    },
+    {
+      "slug": "biryani-hyderabadi",
+      "name": "Hyderabadi Biryani",
+      "rule": "banned-word",
+      "detail": "most famous",
+      "match": "most famous",
+      "text": "A mixed rice dish of layered basmati rice, marinated meat (typically chicken, mutton, or goat), fried onions, saffron, and whole spices. The Hyderabadi version is among the most famous."
+    },
+    {
+      "slug": "knife-cut-noodles",
+      "name": "dāoxiāo miàn",
+      "rule": "banned-word",
+      "detail": "most famous",
+      "match": "most famous",
+      "text": "A Chinese noodle associated with Shanxi, made by thinly slicing a block of dough into boiling water. The cooked ribbons are fairly thick and chewy; Datong’s variation is the most famous."
+    },
+    {
+      "slug": "kuksi",
+      "name": "Kuksu",
+      "rule": "banned-word",
+      "detail": "ethnic",
+      "match": "ethnic",
+      "text": "A cold, often spicy noodle dish with beef from the Koryo-saram cuisine of ethnic Koreans in the former Soviet Union, a variation on janchi-guksu."
+    },
+    {
+      "slug": "luwombo",
+      "name": "Luwombo",
+      "rule": "banned-word",
+      "detail": "ethnic",
+      "match": "ethnic",
+      "text": "A Ugandan stew or sauce made with smoked young leaves of the Ndiizi banana plant. Reserved for Buganda’s kings and princes from 1887, it is now eaten by the Baganda generally and other Ugandan ethnic groups."
+    },
+    {
+      "slug": "pfeffernusse",
+      "name": "pfeffernusse",
+      "rule": "banned-word",
+      "detail": "ethnic",
+      "match": "ethnic",
+      "text": "Small spice cookies known in Dutch as pepernoten. They are popular holiday treats among Germans and ethnic Mennonites in North America, with similar cookies also made in Denmark."
+    },
+    {
+      "slug": "bouillabaisse",
+      "name": "bouillabaisse",
+      "rule": "origin-word",
+      "detail": "first made",
+      "match": "first made",
+      "text": "A Provençal fish soup from Marseille, first made by fishermen with bony rockfish, now prepared with seafood and vegetables in a herb-spiced broth and served with bread and rouille."
+    },
+    {
+      "slug": "caprese-salad",
+      "name": "Caprese salad",
+      "rule": "origin-word",
+      "detail": "originated",
+      "match": "originated",
+      "text": "An Italian salad of sliced fresh mozzarella, tomatoes, and basil, seasoned with salt and olive oil or balsamic vinegar. Its name references Capri, where it is believed to have originated."
+    },
+    {
+      "slug": "chicken-chop",
+      "name": "chicken chop",
+      "rule": "origin-word",
+      "detail": "invented",
+      "match": "invented",
+      "text": "A Malaysian adaptation of fried and grilled chicken, invented by Hainanese migrant workers during colonial Malaya and often found in kopitiams and Hainanese or western restaurants."
+    },
+    {
+      "slug": "chocolate-crinkle",
+      "name": "chocolate crinkle",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "created by",
+      "text": "An American Christmas cookie created by Helen Fredell of Saint Paul, Minnesota, with a crisp powdered-sugar exterior and chewy, brownie-like center. It is made with cocoa powder or chocolate."
+    },
+    {
+      "slug": "crawfish-monica",
+      "name": "Crawfish Monica",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "Created by",
+      "text": "A Louisiana pasta dish made with crawfish tail meat, onion, garlic, Creole seasoning, cream, wine, salt, pepper, and butter. Created by chef Pierre Hilzim and named for his wife, Monica Davidson."
+    },
+    {
+      "slug": "fraise-tagada",
+      "name": "Fraise Tagada",
+      "rule": "origin-word",
+      "detail": "invented",
+      "match": "invented",
+      "text": "A pink, scented candy shaped like an inflated strawberry and coated in fine sugar, invented by Haribo in 1969 and made with sugar, glucose syrup, gelatin, citric acid, flavoring, and colorings."
+    },
+    {
+      "slug": "hanpen",
+      "name": "Hampen",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "created by",
+      "text": "A white surimi product from Japan with a soft, mild taste, made in square, triangular, or round forms. Believed to have been created by Hanpei of Suruga during the Edo period, it is used in oden, soups, and stews, or fried and broiled."
+    },
+    {
+      "slug": "kuli-kuli",
+      "name": "Kuli-kuli",
+      "rule": "origin-word",
+      "detail": "first made",
+      "match": "first made",
+      "text": "A Nigerian peanut snack first made by the Nupe people, eaten alone or with garri soakings, Hausa koko, fura, and akamu, and sometimes ground for salad, suya, or kilishi."
+    },
+    {
+      "slug": "lekkerbekje",
+      "name": "lekkerbekje",
+      "rule": "origin-word",
+      "detail": "birthplace",
+      "match": "birthplace",
+      "text": "A Dutch dish of batter-coated white fish—originally whiting, now also cod, pangasius, or pollock—deep-fried and often served with tartar sauce. Its beginnings are uncertain, though IJmuiden is a possible birthplace."
+    },
+    {
+      "slug": "miguelitos",
+      "name": "Miguelitos",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "created by",
+      "text": "A Spanish cream-filled puff pastry dessert created by Manuel Blanco in Pamplona and associated with La Roda, Castilla–La Mancha. It took its name from Miguel, who received the first bite."
+    },
+    {
+      "slug": "muffuletta",
+      "name": "muffuletta",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "created by",
+      "text": "A round Sicilian sesame bread and sandwich created by a Sicilian immigrant in the United States and popularized in New Orleans."
+    },
+    {
+      "slug": "neapolitan-wafer",
+      "name": "Neapolitan wafer",
+      "rule": "origin-word",
+      "detail": "first made",
+      "match": "first made",
+      "text": "An Austrian wafer biscuit with chocolate-cream filling, first made by Manner in 1898 using hazelnuts imported from the Naples area. Each biscuit has five wafers and four layers of cream."
+    },
+    {
+      "slug": "pani-ca-meusa",
+      "name": "Pani câ meusa",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "Created by",
+      "text": "A Palermo street-food sandwich of sesame-topped soft bread filled with chopped veal lung and spleen, boiled and then fried in lard. Created by Jewish butchers, it may also include caciocavallo or ricotta."
+    },
+    {
+      "slug": "pasta-a-paolina",
+      "name": "Pasta â Paolina",
+      "rule": "origin-word",
+      "detail": "invented",
+      "match": "invented",
+      "text": "A Sicilian pasta from Palermo, invented by a friar at the Monastery of San Francesco di Paola, combines bucatini or spaghetti with anchovies, garlic, tomato, cinnamon, cloves, almonds, basil, and breadcrumbs."
+    },
+    {
+      "slug": "polkagris",
+      "name": "polkagris",
+      "rule": "origin-word",
+      "detail": "invented",
+      "match": "invented",
+      "text": "A Swedish peppermint-flavoured stick candy, white and red, invented by Amalia Eriksson in Gränna in 1859 and still sold at fairs and Christmas markets."
+    },
+    {
+      "slug": "poutine",
+      "name": "Poutine",
+      "rule": "origin-word",
+      "detail": "originated",
+      "match": "Originated",
+      "text": "A Québécois dish of french fries topped with cheese curds and hot gravy. Originated in rural Quebec in the 1950s."
+    },
+    {
+      "slug": "sili-ice-cream",
+      "name": "Sili ice cream",
+      "rule": "origin-word",
+      "detail": "invented",
+      "match": "Invented",
+      "text": "Filipino ice cream made with labuyo chili, coconut milk, puréed strawberries, and sugar. Invented at the 1st Colonial Grill restaurant in Albay in 2004, it draws on Bicol’s spicy coconut-milk dishes."
+    },
+    {
+      "slug": "taco-pizza",
+      "name": "Taco pizza",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "created by",
+      "text": "A pizza made with taco ingredients, created by Happy Joe’s owner Joe Whitty in Davenport, Iowa, in December 1974, using taco chips, lettuce, and tomatoes."
+    },
+    {
+      "slug": "veal-orloff",
+      "name": "Veal Orloff",
+      "rule": "origin-word",
+      "detail": "created by",
+      "match": "created by",
+      "text": "A French veal dish of sliced braised loin, with duxelles and soubise between the slices, topped with Mornay sauce and browned in the oven. It was created by 19th-century chef Urbain Dubois, employed by Prince Orloff."
+    },
+    {
+      "slug": "adrem-snacks",
+      "name": "adrem",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Indonesian",
+      "text": "A traditional Indonesian snack from Bantul made with fried rice flour and brown sugar, also known as Tholpit and sold in traditional markets around the Sanden area."
+    },
+    {
+      "slug": "aggakaka",
+      "name": "Äggakaka",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Scanian",
+      "text": "A traditional Scanian egg cake resembling kolbullar or an oven pancake, served with fried pork belly slices and lingonberries. Farmworkers once made it because it was easy to wrap up and eat in the fields."
+    },
+    {
+      "slug": "agliata",
+      "name": "Agliata",
+      "rule": "status-word",
+      "detail": "ancient",
+      "match": "ancient",
+      "text": "A pungent, savoury Italian garlic sauce and condiment used to flavour grilled or boiled meats, fish, and vegetables. Its earliest known record is in ancient Rome, and it remains part of Ligurian cuisine."
+    },
+    {
+      "slug": "ajmokac",
+      "name": "Ajmokac",
+      "rule": "status-word",
+      "detail": "homemade",
+      "match": "homemade",
+      "text": "A Vojvodina dish of slow-cooked chicken in a flour, milk, and sour-cream sauce, served as a main course with mashed potatoes, polenta, or homemade bread."
+    },
+    {
+      "slug": "alivongvong",
+      "name": "Alivongvong",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Amis",
+      "text": "A traditional Amis sticky-rice dumpling from Taiwan, wrapped in a hand-crafted leaf basket and filled with pork, wild boar, fish, or mushrooms, using white and black sticky rice."
+    },
+    {
+      "slug": "asaro-food",
+      "name": "Asaro",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Yoruba",
+      "text": "A Nigerian yam porridge or pottage made in one pot with yam, a starchy tuber, and other ingredients. A traditional Yoruba dish of Nigeria, Benin Republic, and Togo, it is eaten as a main course or side dish."
+    },
+    {
+      "slug": "avial",
+      "name": "Avial",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional Sadhya",
+      "text": "A thick Kerala stew of usually 13 Western Ghats vegetables and coconut, seasoned with coconut oil and curry leaves, and often the star of a traditional Sadhya meal."
+    },
+    {
+      "slug": "babute",
+      "name": "Babute",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Congolese meatloaf from the Babute region, made with ground beef, curry powder, and apricots, and considered similar to South Africa’s national dish, bobotie."
+    },
+    {
+      "slug": "bacalhau-a-narcisa",
+      "name": "Bacalhau à Narcisa",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Portuguese",
+      "text": "A traditional Portuguese cod dish of fried cod loins with thinly sliced potatoes and onions fried in the same olive oil, plus bay leaves and cloves."
+    },
+    {
+      "slug": "bibikkan",
+      "name": "Bibikkan",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Sri",
+      "text": "A traditional Sri Lankan coconut cake made with shredded coconut, jaggery, semolina, and spices. Its dark, moist crumb is enjoyed during festive and religious occasions, including Christmas, New Year’s Eve, and Sinhala and Tamil New Year."
+    },
+    {
+      "slug": "bobotie",
+      "name": "bobotie",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A South African dish of spiced minced meat baked with an egg-based topping, adopted by the Cape Malay community and often served with sambal. It is not a national dish."
+    },
+    {
+      "slug": "bogurar-doi",
+      "name": "Bogurar doi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Bangladeshi",
+      "text": "A traditional Bangladeshi yoghurt dessert from Bogra, made as a variation of mishti doi and enjoyed throughout the country."
+    },
+    {
+      "slug": "borani",
+      "name": "Borani",
+      "rule": "status-word",
+      "detail": "ancient",
+      "match": "ancient",
+      "text": "An Iranian salad with spinach-and-yogurt and ancient Persian eggplant versions. The Urfa version uses lamb and vegetarian meatballs; borani also appears in Turkish cuisine and is popular in the Caucasus and Afghanistan."
+    },
+    {
+      "slug": "bougna",
+      "name": "Bougna",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional feast",
+      "text": "A traditional feast dish of the Kanak people in New Caledonia, named from the Drehu word puhnya, meaning “bundle” or “pack.” It is also eaten in Vanuatu as bunya or bunia."
+    },
+    {
+      "slug": "bozbash",
+      "name": "bozbash",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional meat",
+      "text": "A traditional meat stew, sometimes described as soup, popular in Armenia, Azerbaijan, and Iran. Its meatball version resembles a gray head after cooking."
+    },
+    {
+      "slug": "bozbash",
+      "name": "bozbash",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional meat",
+      "text": "A traditional meat stew, sometimes described as soup, popular in Armenia, Azerbaijan, and Iran. Its meatball version resembles a gray head after cooking."
+    },
+    {
+      "slug": "bryndzove-halusky",
+      "name": "Bryndzové halušky",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Slovak national dish pairing halušky with bryndza, optionally sprinkled with cooked smoked pork fat or bacon and chives or spring onions."
+    },
+    {
+      "slug": "bubur-pedas",
+      "name": "spicy porridge",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Malay",
+      "text": "A traditional Malay porridge from Sambas, West Kalimantan, and Sarawak, Malaysia, served during Ramadan when Muslims break their fast at iftar."
+    },
+    {
+      "slug": "cachupa",
+      "name": "Cachupa",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Cape Verdean national dish of slowly cooked hominy, beans, fish or meat, often with morcela. Each island has its own variation, from richer cachupa rica to simpler cachupa pobre."
+    },
+    {
+      "slug": "caldo-galego",
+      "name": "Caldo galego",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional soup",
+      "text": "A traditional soup from Galicia, known simply as caldo or caldo gallego, this dish is a regional variation of neighboring Portugal’s caldo verde."
+    },
+    {
+      "slug": "caldo-galego",
+      "name": "Caldo galego",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional soup",
+      "text": "A traditional soup from Galicia, known simply as caldo or caldo gallego, this dish is a regional variation of neighboring Portugal’s caldo verde."
+    },
+    {
+      "slug": "cenil",
+      "name": "Cenil",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional snack",
+      "text": "A traditional snack also called cendil or cetil, made from tapioca dough and sugar, usually colored and shaped into small balls or cubes, then coated and eaten with grated coconut."
+    },
+    {
+      "slug": "cenil",
+      "name": "Cenil",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional snack",
+      "text": "A traditional snack also called cendil or cetil, made from tapioca dough and sugar, usually colored and shaped into small balls or cubes, then coated and eaten with grated coconut."
+    },
+    {
+      "slug": "ceviche",
+      "name": "ceviche",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Ceviche is Peru’s national dish: a cold dish of raw fish or shellfish marinated in citrus and seasonings, recognized by UNESCO as Peruvian traditional cuisine."
+    },
+    {
+      "slug": "ceviche",
+      "name": "ceviche",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional cuisine",
+      "text": "Ceviche is Peru’s national dish: a cold dish of raw fish or shellfish marinated in citrus and seasonings, recognized by UNESCO as Peruvian traditional cuisine."
+    },
+    {
+      "slug": "chanakhi",
+      "name": "Chanakhi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Georgian",
+      "text": "A traditional Georgian lamb stew with tomatoes, aubergines, potatoes, greens, and garlic, layered in individual clay pots, slow-cooked in the oven for 4.5–5 hours, and served with bread and cheese."
+    },
+    {
+      "slug": "chelow-kabab",
+      "name": "chelow kabab",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Chelow kabab, Iran’s national dish, pairs steamed rice with a variety of Iranian kebab and was probably created during the Qajar dynasty."
+    },
+    {
+      "slug": "chhilka-roti",
+      "name": "Chhilka Roti",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Indian",
+      "text": "A traditional Indian bread from Jharkhand made with rice flour and chana dal, soaked overnight, ground into batter, and roasted on a greased tawa. Served with chutney, vegetables, and meat."
+    },
+    {
+      "slug": "chicken-tikka-masala",
+      "name": "Chicken Tikka Masala",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A dish of roasted marinated chicken chunks (chicken tikka) in a spiced, creamy tomato sauce. Often considered a British national dish due to its invention in Glasgow."
+    },
+    {
+      "slug": "christmas-carp",
+      "name": "Christmas carp",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Christmas",
+      "text": "A traditional Christmas Eve dish in Central Europe, with carp kept in a bathtub to remove muddy flavours before being fried or served as gefilte fish."
+    },
+    {
+      "slug": "cioccolato-di-modica",
+      "name": "Cioccolato di Modica PGI",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional cold",
+      "text": "Italian PGI specialty chocolate from Modica, Sicily, made by manual grinding and a traditional cold, unconched process that gives it a grainy texture and aromatic flavor."
+    },
+    {
+      "slug": "cocada",
+      "name": "Cocada",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional coconut",
+      "text": "A traditional coconut confectionery found in many parts of Latin America and Europe, popular in Mexico, Argentina, Bolivia, Brazil, Colombia, Chile, Cuba, Spain, Panama, Venezuela, Ecuador, and the Dominican Republic."
+    },
+    {
+      "slug": "cocido",
+      "name": "cocido",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional stew",
+      "text": "A traditional stew eaten as a main course in Spain, Portugal, Brazil, and other Spanish- and Portuguese-speaking countries."
+    },
+    {
+      "slug": "cocido",
+      "name": "cocido",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional stew",
+      "text": "A traditional stew eaten as a main course in Spain, Portugal, Brazil, and other Spanish- and Portuguese-speaking countries."
+    },
+    {
+      "slug": "cottage-pudding",
+      "name": "Cottage Pudding",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional American",
+      "text": "A traditional American dessert of plain, dense butter cake served with sweet sauce, glaze, or custard poured over it. The glaze is cornstarch-based and may be flavored with sugar, vanilla, chocolate, butterscotch, lemon, or strawberry."
+    },
+    {
+      "slug": "cucumber-sandwich",
+      "name": "cucumber sandwich",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional British",
+      "text": "A traditional British crustless tea sandwich made with thin cucumber slices between two thin slices of lightly buttered white bread."
+    },
+    {
+      "slug": "cullen-skink",
+      "name": "cullen skink",
+      "rule": "status-word",
+      "detail": "authentic",
+      "match": "Authentic versions",
+      "text": "A thick Scottish fish soup of smoked haddock, potatoes, and onions. Authentic versions use finnan haddie, though other undyed smoked haddock, ocean perch, or salmon may also be used."
+    },
+    {
+      "slug": "dame-blanche-dessert",
+      "name": "Dame blanche",
+      "rule": "status-word",
+      "detail": "original",
+      "match": "original version",
+      "text": "In Belgium and the Netherlands, dame blanche combines vanilla ice cream, whipped cream, and warm molten chocolate. Escoffier’s original version used almond milk ice cream, poached peach, lemon sorbet, and white currants."
+    },
+    {
+      "slug": "dobin-mushi",
+      "name": "dobin mushi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional broth",
+      "text": "Japan’s dobin mushi is a traditional broth of shrimp, chicken, soy sauce, lime, and matsutake mushroom, steamed and served in a dobin tea pot."
+    },
+    {
+      "slug": "dulce-de-batata",
+      "name": "dulce de batata",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional South",
+      "text": "A traditional South American jellied dessert eaten across the Southern Cone, served plain, with cheese, or with chocolate. Local names include dulce de boniatos and Brazil’s marrom glacê or doce de batata doce."
+    },
+    {
+      "slug": "edinburgh-rock",
+      "name": "Edinburgh rock",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Scottish",
+      "text": "A traditional Scottish confection of sugar, water, cream of tartar, colourings, and flavourings, shaped into sticks with a soft, crumbly texture."
+    },
+    {
+      "slug": "ema-datshi",
+      "name": "Ema datshi",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A spicy Bhutanese stew of hot chili peppers and cheese, recognized as the country’s national dish and adapted from Tibetan culinary traditions to suit local tastes."
+    },
+    {
+      "slug": "esqueixada",
+      "name": "Esqueixada",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Catalan",
+      "text": "A traditional Catalan salad of shredded salt cod, tomatoes, onions, olive oil, vinegar, and salt, sometimes garnished with olives or hard-boiled eggs. It is popular in warm weather and often served as tapas."
+    },
+    {
+      "slug": "et-chinese-pastry",
+      "name": "籺(hé)",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional pastry",
+      "text": "A traditional pastry from western Guangdong, China, made of glutinous rice cakes on banana leaves and shared with relatives and friends during festivals, weddings, birthdays, and housewarming parties."
+    },
+    {
+      "slug": "et-chinese-pastry",
+      "name": "籺(hé)",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional pastry",
+      "text": "A traditional pastry from western Guangdong, China, made of glutinous rice cakes on banana leaves and shared with relatives and friends during festivals, weddings, birthdays, and housewarming parties."
+    },
+    {
+      "slug": "flaki",
+      "name": "flaki",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Polish",
+      "text": "A traditional Polish tripe stew made with thin, cleaned strips of beef tripe, counted among the notable specialities of Polish cuisine."
+    },
+    {
+      "slug": "ful-medames",
+      "name": "ful medames",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "An Egyptian staple and national dish of cooked fava beans served with olive oil, cumin, and optional parsley, garlic, onion, lemon juice, chili, vegetables, herbs, and spices."
+    },
+    {
+      "slug": "gateau-basque",
+      "name": "gâteau Basque",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional cake",
+      "text": "A traditional cake from the Northern Basque Country, usually filled with black cherry jam or pastry cream. A cream-filled version is more typical of the Southern Basque Country."
+    },
+    {
+      "slug": "gateau-basque",
+      "name": "gâteau Basque",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional cake",
+      "text": "A traditional cake from the Northern Basque Country, usually filled with black cherry jam or pastry cream. A cream-filled version is more typical of the Southern Basque Country."
+    },
+    {
+      "slug": "gazelle-ankles",
+      "name": "gazelle ankles",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Maghrebi",
+      "text": "A traditional Maghrebi cookie shaped like a gazelle ankle, made from flour dough filled with almond paste scented with orange blossom water."
+    },
+    {
+      "slug": "githeri",
+      "name": "Githeri",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Kenyan",
+      "text": "A traditional Kenyan meal of maize kernels and legumes boiled together with water in a sufuria, also called muthere, mutheri, or mûthekia-ngûkû."
+    },
+    {
+      "slug": "goshtaab",
+      "name": "Gushtab",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "the traditional multi",
+      "text": "A rich, aromatic Kashmiri meatball curry made with finely minced mutton, yogurt, and spices, served as the final course of the traditional multi-course wazwan feast."
+    },
+    {
+      "slug": "goulash",
+      "name": "goulash",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Goulash is a Hungarian meal of meat and vegetables seasoned with paprika and other spices. Common across Central Europe, it is a national dish and symbol of Hungary."
+    },
+    {
+      "slug": "gulgula-doughnut",
+      "name": "Gulgula",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Indian",
+      "text": "A traditional Indian sweet made in different regions and popular in marketplaces. Rural versions are prepared for specific festive occasions in Uttar Pradesh, Bihar, Punjab, Odisha, Haryana, and Rajasthan."
+    },
+    {
+      "slug": "hapanlohko",
+      "name": "hapanlohko",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Karelian",
+      "text": "A traditional Karelian dish made by boiling potato and rye bread dough with peeled potatoes. Some dough is removed from a wooden sourdough pot before the rest is baked into bread."
+    },
+    {
+      "slug": "harira",
+      "name": "Harira",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional North",
+      "text": "A traditional North African soup prepared in Morocco and Algeria, harira is popular as a starter or a light snack on its own. It is served mostly during Ramadan but can be made year-round."
+    },
+    {
+      "slug": "hsi-htamin",
+      "name": "Hsi htamin",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional breakfast",
+      "text": "Myanmar’s Hsi htamin is a traditional breakfast snack of glutinous rice cooked with turmeric, salt, and onions, served with roasted sesame seeds, fried onions, peas, or dried fish."
+    },
+    {
+      "slug": "hsi-htamin",
+      "name": "Hsi htamin",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional breakfast",
+      "text": "Myanmar’s Hsi htamin is a traditional breakfast snack of glutinous rice cooked with turmeric, salt, and onions, served with roasted sesame seeds, fried onions, peas, or dried fish."
+    },
+    {
+      "slug": "itak-gurgur",
+      "name": "Itak Gurgur",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Batak",
+      "text": "A traditional Batak food eaten at a customary event, made by kneading traditionally milled rice with shredded young coconut, sugar, and hot water, then shaping the dough by hand and steaming it."
+    },
+    {
+      "slug": "jiggs-dinner",
+      "name": "Jiggs dinner",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Newfoundland",
+      "text": "A traditional Newfoundland Sunday meal of corned beef and cabbage, also known as a boiled or cooked dinner."
+    },
+    {
+      "slug": "jipang-food",
+      "name": "jipang",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Chinese",
+      "text": "A traditional Chinese snack made from rice or glutinous rice, also known as bipang or berondong beras. Chinese immigrants introduced and sold it in Indonesia as a snack."
+    },
+    {
+      "slug": "kafbikh",
+      "name": "KafBikh",
+      "rule": "status-word",
+      "detail": "ancient",
+      "match": "ancient",
+      "text": "A traditional Iranian sweet made in Khorasan, especially in Gonabad and Birjand, and eaten at Yalda, the ancient Persian celebration of the winter solstice."
+    },
+    {
+      "slug": "kafbikh",
+      "name": "KafBikh",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Iranian",
+      "text": "A traditional Iranian sweet made in Khorasan, especially in Gonabad and Birjand, and eaten at Yalda, the ancient Persian celebration of the winter solstice."
+    },
+    {
+      "slug": "kondreh-food",
+      "name": "Kondreh (food)",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Kondreh is a Cameroonian dish of the Bamileke people in the West Region, especially Bafang, and is considered a national dish. It is often served at ceremonies, weddings, and funerals as a symbol of hospitality and respect."
+    },
+    {
+      "slug": "koshary",
+      "name": "koshari",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Egypt’s national dish and a popular street food, koshari combines pasta, Egyptian fried rice, vermicelli, and brown lentils, with chickpeas, garlicky tomato sauce, garlic vinegar, and crispy fried onions on top."
+    },
+    {
+      "slug": "kue-cucur",
+      "name": "Cucur cake",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional snack",
+      "text": "An Indonesian traditional snack found throughout the country’s marketplaces, with a popular Betawi version from Jakarta. In Brunei and Malaysia, cucur generally denotes fritters."
+    },
+    {
+      "slug": "kue-pukis",
+      "name": "pukis",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional snack",
+      "text": "An Indonesian traditional snack made from wheat flour-based batter and cooked in a special mold pan, commonly sold in traditional markets."
+    },
+    {
+      "slug": "kue-rangi",
+      "name": "kue rangi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional Betawi",
+      "text": "An Indonesian coconut waffle made with coconut and starch-based batter, cooked in a special molded pan and served as a traditional Betawi snack of Jakarta."
+    },
+    {
+      "slug": "kue-satu",
+      "name": "Kue satu",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Indonesian",
+      "text": "A traditional Indonesian dry cookie made from crumbly sweet white mung bean powder, commonly found in Java and served during Lebaran, Christmas, and Imlek."
+    },
+    {
+      "slug": "kuluban",
+      "name": "Kuluban",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Central",
+      "text": "A traditional Central Javanese salad eaten alone for vegetarian meals or as a side dish. An inscription from the Medang Mataram era, around the 9th century CE, mentions it."
+    },
+    {
+      "slug": "kuru-fasulye",
+      "name": "kuru fasulye",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Turkish stew of white beans in olive oil with onion and tomato paste or sauce, sometimes other vegetables or pastirma. Often served with cacık and rice or bulgur, and considered Turkey’s national dish."
+    },
+    {
+      "slug": "laskisoosi",
+      "name": "Läskisoosi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Finnish",
+      "text": "A traditional Finnish stew of pork belly fried in butter with onions and flour, then simmered in seasoned water and served with mashed potato, pickled cucumber, and lingonberry."
+    },
+    {
+      "slug": "luzhu-huoshao",
+      "name": "Luzhu Huoshao",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Beijing",
+      "text": "A traditional Beijing street-food dish of pork, pork lung, intestines, liver, and tofu, served with bing bread and sometimes fermented bean curd or chives sauce."
+    },
+    {
+      "slug": "macaroni-and-cheese",
+      "name": "macaroni and cheese",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "the traditional dish",
+      "text": "Macaroni and cheese pairs macaroni with cheese sauce, usually cheddar. It traces back to medieval English cheese-and-pasta casseroles; the traditional dish is baked in a casserole, though it may also be made in a saucepan."
+    },
+    {
+      "slug": "macaroni-and-cheese",
+      "name": "macaroni and cheese",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional dish",
+      "text": "Macaroni and cheese pairs macaroni with cheese sauce, usually cheddar. It traces back to medieval English cheese-and-pasta casseroles; the traditional dish is baked in a casserole, though it may also be made in a saucepan."
+    },
+    {
+      "slug": "makhan-bada",
+      "name": "balushahi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Indian",
+      "text": "A traditional Indian dessert resembling Rajasthani Baati in size and preparation, shaped more like Medu Vada, and sharing a glazed doughnut’s ingredients while differing in texture and taste."
+    },
+    {
+      "slug": "maluns",
+      "name": "Maluns",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional potato",
+      "text": "A traditional potato dish of the Grisons in Switzerland. Boiled potatoes are peeled, grated, mixed with flour, and slowly fried in butter with constant stirring until golden balls or crumbs form."
+    },
+    {
+      "slug": "mamuang-kuan",
+      "name": "Mamuang kuan",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Thai",
+      "text": "A traditional Thai sweet of mango slowly cooked with sugar and salt, optionally coconut milk, then dried into soft, chewy golden fruit leather shaped as circles, flowers, or spirals."
+    },
+    {
+      "slug": "mansaf",
+      "name": "Mansaf",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "The national dish",
+      "text": "The national dish of Jordan: lamb cooked in a fermented dried-yogurt sauce (jameed) and served over a flatbread (shrak) topped with rice and almonds. Central to Bedouin hospitality."
+    },
+    {
+      "slug": "matoke",
+      "name": "Matoke",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Ugandan meal of green East African Highland bananas, carefully peeled, cooked, and mashed or pounded. Steamed in Uganda and Rwanda, it is considered a national dish in both countries."
+    },
+    {
+      "slug": "mazzarelle",
+      "name": "Mazzerelle",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional PAT",
+      "text": "Abruzzo rolls of lamb offal wrapped in endive leaves and tied with lamb casings. A traditional PAT product recognized by Italy’s agriculture ministry, they are widespread in the mountains, especially around Teramo."
+    },
+    {
+      "slug": "moules-frites",
+      "name": "moules-frites",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A main dish of mussels and French fries in Belgium and northern France. It is Belgium’s national dish, and its French name and Dutch equivalent both mean mussels and fries."
+    },
+    {
+      "slug": "moussaka-greek",
+      "name": "Moussaka",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "the national dish",
+      "text": "A layered casserole of fried eggplant, spiced minced meat, and béchamel sauce, baked until golden. Considered the national dish of Greece."
+    },
+    {
+      "slug": "nagasari",
+      "name": "nagasari",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Indonesian",
+      "text": "A traditional Indonesian steamed cake from Javanese cuisine, made with rice flour, coconut milk, and sugar, filled with banana and wrapped in banana leaves."
+    },
+    {
+      "slug": "ndole",
+      "name": "Ndolé",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Cameroonian stew of ground peanuts, crayfish, garlic, onions, and ndoleh leaves, originating in Douala and widely regarded as Cameroon’s national dish."
+    },
+    {
+      "slug": "nyanya-dish",
+      "name": "Nyanya",
+      "rule": "status-word",
+      "detail": "ancient",
+      "match": "ancient",
+      "text": "An ancient Russian offal dish of sheep’s caul fat stuffed with mutton brains, head meat, legs, onion, and buckwheat porridge, then fried in lard or baked in a clay pot."
+    },
+    {
+      "slug": "okchun-dang",
+      "name": "okchundang",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Korean",
+      "text": "A traditional Korean rice-flour candy, flat and rounded, colored red with white, yellow, and green decoration. It is a staple at ancestral rites and 60th-birthday ceremonies."
+    },
+    {
+      "slug": "orama-dish",
+      "name": "oromo",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Central",
+      "text": "A traditional Central Asian steamed pie among Kyrgyz, Kazakh, Uzbek, Bashkir, and Mongolian peoples, whose name refers to the rolling or wrapping used to make it."
+    },
+    {
+      "slug": "ostkaka",
+      "name": "ostkaka",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Swedish sweet dessert traditionally made with raw milk and cheese rennet. Hälsingland and Småland versions differ in texture and grain, and it is considered an unofficial national dish of Sweden."
+    },
+    {
+      "slug": "paensae",
+      "name": "Paensae",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional North",
+      "text": "A traditional North Korean holiday food served during Chuseok. Beans, vegetables, and minced pork are added to leaf-powder dough, shaped into palm-sized pieces, and steamed; rice or potato dough may also be used."
+    },
+    {
+      "slug": "pao-alentejano",
+      "name": "Alentejano bread",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Portuguese",
+      "text": "A traditional Portuguese wheat bread from the Alentejo region, traditionally made in homes with the dough baked in communal ovens or by small bakeries."
+    },
+    {
+      "slug": "pasta-con-le-sarde",
+      "name": "Pasta con le sarde",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional food",
+      "text": "A Sicilian pasta of sardines and anchovies, associated especially with Palermo and found across the island. Italy’s PAT scheme recognizes it as a traditional food product."
+    },
+    {
+      "slug": "pasta-con-le-sarde",
+      "name": "Pasta con le sarde",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional food",
+      "text": "A Sicilian pasta of sardines and anchovies, associated especially with Palermo and found across the island. Italy’s PAT scheme recognizes it as a traditional food product."
+    },
+    {
+      "slug": "pecel",
+      "name": "pecel",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Javanese",
+      "text": "A traditional Javanese salad with peanut sauce, commonly eaten alongside steamed rice, lontong, or ketupat."
+    },
+    {
+      "slug": "pecora-alla-callara",
+      "name": "pecora alla callara",
+      "rule": "status-word",
+      "detail": "ancient",
+      "match": "ancient",
+      "text": "An ancient lamb recipe from Abruzzo’s mountain tradition, especially widespread in the Marsican area, the L’Aquila basin, and the Monti della Laga."
+    },
+    {
+      "slug": "peruvian-ceviche",
+      "name": "Peruvian ceviche",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Peruvian",
+      "text": "A traditional Peruvian fish dish, widely eaten along the coast, made with lime juice, fish, and sweet potatoes. It is eaten year-round but mostly in summer for its cool, refreshing taste."
+    },
+    {
+      "slug": "phat-kaphrao",
+      "name": "phat kaphrao",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Phat kaphrao is a Thai stir-fried holy basil dish that emerged as Chinese immigrants began selling it in restaurants during King Rama VII’s reign. Now a national dish, it gained popularity after 1957."
+    },
+    {
+      "slug": "pho-vietnamese",
+      "name": "Phở",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Vietnamese noodle soup of bone broth, rice noodles, herbs, and meat (typically beef or chicken). Considered Vietnam's national dish."
+    },
+    {
+      "slug": "piracaldo",
+      "name": "piracaldo",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional cuisine",
+      "text": "A calorie- and protein-dense fish soup in Paraguay’s traditional cuisine, shaped by the food scarcity that followed the Paraguayan War of 1864–1870. In Guaraní, pira means “fish.”"
+    },
+    {
+      "slug": "pissaladiere",
+      "name": "Pissaladière",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional topping",
+      "text": "A French flatbread from Provence and Nice, often likened to pizza, with dough thicker than classic pizza Margherita and a traditional topping of caramelised onions, black olives, and anchovies."
+    },
+    {
+      "slug": "placenta-cake",
+      "name": "Placenta cake",
+      "rule": "status-word",
+      "detail": "ancient",
+      "match": "ancient",
+      "text": "An ancient Greek and Roman dessert of layered dough with cheese, honey, and bay leaves, baked and then covered in honey."
+    },
+    {
+      "slug": "pohulpohul",
+      "name": "pohulpohul",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Batak",
+      "text": "A traditional Batak snack from Tapanuli, Indonesia, shaped like a clenched fist or finger and prepared either raw or steamed."
+    },
+    {
+      "slug": "pukala",
+      "name": "Pukala",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Newar",
+      "text": "A traditional Newar delicacy from Nepal’s Kathmandu Valley, Pukālā features boiled and fried water-buffalo meats and is served at wedding and festival feasts, after the main course and before dessert."
+    },
+    {
+      "slug": "putu-piring",
+      "name": "Putu piring",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional dessert",
+      "text": "A Singaporean kueh and sweet snack of steamed rice flour, molded into a flower shape and filled with palm sugar. It is a traditional dessert among Singapore’s Malay community."
+    },
+    {
+      "slug": "putu-piring",
+      "name": "Putu piring",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional dessert",
+      "text": "A Singaporean kueh and sweet snack of steamed rice flour, molded into a flower shape and filled with palm sugar. It is a traditional dessert among Singapore’s Malay community."
+    },
+    {
+      "slug": "romazava",
+      "name": "Romazava",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Madagascar’s national dish is a stew of greens, zebu meat, tomatoes, and onions, usually served with rice. It includes brèdes mafana, or anamalaho, whose buds produce a tingly, pungent, citrusy, mouth-numbing effect and stimulate abundant salivation."
+    },
+    {
+      "slug": "romeu-e-julieta",
+      "name": "Romeu and Julieta",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Brazilian",
+      "text": "A traditional Brazilian dessert pairing a slice of cheese with goiabada, or combining both in other preparations. Named for Romeo and Juliet, it casts cheese as Romeu and goiabada as Julieta."
+    },
+    {
+      "slug": "saskatoon-berry-pie",
+      "name": "Saskatoon berry pie",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Canadian",
+      "text": "A traditional Canadian fruit pie with saskatoon berry filling, particularly associated with Saskatchewan. It is often served with whipped cream, ice cream, or slices of cheddar cheese."
+    },
+    {
+      "slug": "serabi",
+      "name": "Serabi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Bali",
+      "text": "A traditional Bali–Java pancake-like snack made with rice flour batter, coconut milk or cream, and shredded coconut, usually served with kinca, a golden-brown coconut sugar syrup."
+    },
+    {
+      "slug": "shakriyeh",
+      "name": "Shakriyeh",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional Levantine",
+      "text": "Shakriyeh, also known as laban emmo, is a traditional Levantine stew made with lamb and yogurt and often served alongside Arabic rice."
+    },
+    {
+      "slug": "shirin-polo",
+      "name": "Shirin polo",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Persian",
+      "text": "A traditional Persian rice pilaf served for occasions such as weddings, also called Persian wedding rice or Rosh Hashanah rice. It is a simplified form of morassa' polō, meaning “jeweled rice.”"
+    },
+    {
+      "slug": "shulyky",
+      "name": "Shulyky",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Ukrainian",
+      "text": "A traditional Ukrainian holiday flatbread made from wheat, cut into small pieces and topped with diluted honey and poppy seeds."
+    },
+    {
+      "slug": "sobat-dish",
+      "name": "Sohbat",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional Saraiki",
+      "text": "Sohbat, also called Painda, is a traditional Saraiki dish of the Saraiki belt, particularly associated with Tonsa. It is served to honor guests and bring people together as a symbol of unity."
+    },
+    {
+      "slug": "soft-khichuri",
+      "name": "Soft Khichuri",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional Sylheti",
+      "text": "A porridge-like rice dish from Sylhet, Bangladesh, made with aromatic rice, ghee, kalozira, fenugreek and other spices. It is a traditional Sylheti food served at dinner during Ramadan."
+    },
+    {
+      "slug": "sour-cereal-soup",
+      "name": "sour rye soup",
+      "rule": "status-word",
+      "detail": "traditional (noun)",
+      "match": "traditional soup",
+      "text": "A Polish traditional soup whose fermented rye, wheat, and oats form a sourdough-like base, stirred into stock that may include boiled sausage, bacon, hard-boiled eggs, potatoes, and dried mushrooms."
+    },
+    {
+      "slug": "stuffat-tal-fenek",
+      "name": "Stuffat tal-fenek",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Malta’s national dish is a rabbit stew, slow-cooked or braised with wine, tomatoes, garlic, bay leaves, cloves, salt, pepper, and vegetables."
+    },
+    {
+      "slug": "sultsina",
+      "name": "Sultsina",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Karelian",
+      "text": "A traditional Karelian blend of crêpe and flatbread, made from unleavened rye dough with farina or rice pudding and cooked on a dry griddle or burner."
+    },
+    {
+      "slug": "sushi",
+      "name": "Sushi",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Japanese",
+      "text": "A traditional Japanese dish of vinegared rice paired with various ingredients, most commonly raw seafood, vegetables, and sometimes tropical fruits."
+    },
+    {
+      "slug": "sushi-burrito",
+      "name": "sushi burrito",
+      "rule": "status-word",
+      "detail": "authentic",
+      "match": "authentic to",
+      "text": "An American Japanese-Mexican fusion roll prepared by wrapping fish and vegetables and serving it like a burrito, though it is not considered authentic to either cuisine."
+    },
+    {
+      "slug": "tabouna-bread",
+      "name": "Tabouna bread",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "a traditional terracotta",
+      "text": "An artisanal Tunisian bread baked against the inner walls of a traditional terracotta oven called a tabouna."
+    },
+    {
+      "slug": "tanghulu",
+      "name": "Tanghulu",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Chinese",
+      "text": "A traditional Chinese snack of hawthorn fruits threaded onto bamboo skewers and coated in heated malt sugar syrup, which hardens as it cools. Made since the Song dynasty, it remains popular in northern China."
+    },
+    {
+      "slug": "thieboudienne",
+      "name": "Thieboudienne",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "Senegal’s national dish of fish, broken rice, and tomato sauce cooked in one pot, often with onions, carrots, cabbage, cassava, hot pepper, lime, peanut oil, and stock cubes."
+    },
+    {
+      "slug": "tripes-a-la-mode-de-caen",
+      "name": "tripes à la mode de Caen",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Normandy",
+      "text": "A traditional Normandy dish of cut-up beef stomach, large intestine, hooves, and bones, cooked with cider and calvados in a dough-sealed earthenware pot for fifteen hours."
+    },
+    {
+      "slug": "vepro-knedlo-zelo",
+      "name": "Vepřo knedlo zelo",
+      "rule": "status-word",
+      "detail": "national dish",
+      "match": "national dish",
+      "text": "A Czech national dish combining usually lean roast pork, sliced potato or bread dumplings, and steamed white sauerkraut."
+    },
+    {
+      "slug": "zagorski-strukli",
+      "name": "Zagorski štrukli",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Croatian",
+      "text": "A traditional Croatian dish of dough with assorted fillings, boiled or baked and served in households across northern Croatia’s Zagorje and Zagreb regions."
+    },
+    {
+      "slug": "zeeuws-spek",
+      "name": "Zeeuws spek",
+      "rule": "status-word",
+      "detail": "traditional (attributive)",
+      "match": "A traditional Dutch",
+      "text": "A traditional Dutch bacon from Zeeland, seasoned with salt, pepper, and herbs such as bay leaf, then slow-cooked. Modern versions are marinated and grilled, broiled, or smoked."
+    }
+  ]
+}
