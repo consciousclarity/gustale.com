@@ -322,6 +322,19 @@ MIGRATION_0060=db/migrations/0060_legacy_associations_published.sql
 # self-contained).
 MIGRATION_0063=db/migrations/0063_record_0061_in_the_ledger.sql
 
+# 0065 IS D21-7: THE RELATION SLUGS ARE SPELLED WITH UNDERSCORES.
+#
+# It renames the two hyphenated vocabulary slugs -- `similar-serving`
+# and `shared-ingredient` -- to `similar_serving` and
+# `shared_ingredient`, and adds a CHECK that keeps
+# `dish_relations.relation_type` equal to the slug of the vocabulary
+# row its `relation_type_id` points at.
+#
+# It MUST run after `gus-224-relations-option-b.sql`, which creates the
+# `relation_types` vocabulary and the `trg_a_sync_relation_type`
+# trigger the migration relies on.
+MIGRATION_0065=db/migrations/0065_relation_slug_normalisation.sql
+
 # In CI mode the Postgres client must be FOUND, not assumed. On a
 # Debian-family GitHub runner `psql` is /usr/bin/psql, but on some images
 # the client lives under /usr/lib/postgresql/<version>/bin — and a script
@@ -978,6 +991,20 @@ echo "--- record 0061 in the ledger"
 run_pg -f - < "$MIGRATION_0063" >/tmp/m0063.log 2>&1 || { echo "FAILED: 0063"; grep -E 'ERROR|NOTICE' /tmp/m0063.log | tail -12; fail=1; }
 [ $fail -eq 0 ] || exit 1
 grep -E 'GUS_LEDGER_0061_OK' /tmp/m0063.log | tail -1 || true
+
+# ── 0065: normalise the relation slugs (D21-7) ──────────────────────
+#
+# Renames the two hyphenated vocabulary slugs to underscores and adds
+# the CHECK that keeps the denormalised mirror in step with the
+# vocabulary. The migration carries its own ten proofs; the marker
+# below is the one the CI gate greps for.
+#
+# It MUST run after gus-224-relations-option-b.sql, which creates the
+# `relation_types` vocabulary and the sync trigger.
+echo "--- normalise the relation slugs"
+run_pg -f - < "$MIGRATION_0065" >/tmp/m0065.log 2>&1 || { echo "FAILED: 0065"; grep -E 'ERROR|NOTICE' /tmp/m0065.log | tail -14; fail=1; }
+[ $fail -eq 0 ] || exit 1
+grep -E 'D21-7_RELATION_SLUGS_OK' /tmp/m0065.log | tail -1 || true
 
 # The constraint tests a THIRD time — against the FINAL schema.
 #

@@ -609,6 +609,21 @@ run_pg -f - < "$(dirname "$0")/../db/migrations/0063_record_0061_in_the_ledger.s
   || { echo "  FAILED: 0063"; grep -E 'ERROR' /tmp/repro_0063.log | head -8; fail=1; }
 grep -E 'GUS_LEDGER_0061_OK' /tmp/repro_0063.log | tail -1 || true
 
+# Normalise the relation slugs (D21-7).
+#
+# Renames the two hyphenated vocabulary slugs -- `similar-serving` and
+# `shared-ingredient` -- to `similar_serving` and `shared_ingredient`,
+# and adds the CHECK that keeps `dish_relations.relation_type` equal
+# to the slug of the vocabulary row its `relation_type_id` points at.
+#
+# It MUST run after gus-224-relations-option-b.sql, which creates the
+# `relation_types` vocabulary and the `trg_a_sync_relation_type`
+# trigger the migration relies on.
+step "normalise the relation slugs"
+run_pg -f - < "$(dirname "$0")/../db/migrations/0065_relation_slug_normalisation.sql" > /tmp/repro_0065.log 2>&1 \
+  || { echo "  FAILED: 0065"; grep -E 'ERROR' /tmp/repro_0065.log | head -8; fail=1; }
+grep -E 'D21-7_RELATION_SLUGS_OK' /tmp/repro_0065.log | tail -1 || true
+
 # The PER-DISH backfill assertions. LAST, because they assert the state
 # the whole chain produces: the reference dishes' association rows AND
 # the journey places in the editorial queue.
