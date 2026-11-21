@@ -2741,6 +2741,23 @@ h4 {
   margin: 0 0 var(--space-5);
   color: var(--ink);
 }
+/* The name the dish carries at home (D21-13).
+
+   It sits directly under the H1, in the dish's own script. It is set
+   in the reading face rather than the display face, and a step down
+   from the title, so it reads as a second name for the same thing
+   rather than as a second title.
+
+   The `lang` attribute on the element does the real work: a screen
+   reader switches to the language's own pronunciation, and the
+   browser's own font fallback covers the script. */
+.dish-page .rec-native-name {
+  font-family: var(--body);
+  font-size: 26px;
+  line-height: 1.4;
+  color: var(--sub);
+  margin: -0.6em 0 var(--space-5);
+}
 .dish-page .rec-intro {
   font-size: 19px;
   line-height: 1.7;

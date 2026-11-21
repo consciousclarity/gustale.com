@@ -127,20 +127,200 @@ export function relationshipLabel(relationship?: string): string | undefined {
 }
 
 /**
+ * THE DISH'S OWN LANGUAGE — D21-13.
+ *
+ * The blueprint: "The dish's own language comes first in names. The
+ * native-script name sits under the H1 (moussaka: μουσακάς) and is
+ * included in 'Also called'. Today the Greek name is missing, while
+ * Arabic, Hindi, Japanese and Chinese are shown."
+ *
+ * So the order of the names is a CLAIM about which language the dish
+ * belongs to, and it is decided by where the dish comes from: the
+ * language of its origin country.
+ *
+ * The mapping is by country ISO code, and it is deliberately SMALL:
+ * only the languages the archive actually needs, so that every row in
+ * it is one the team can vouch for. A country with no entry simply
+ * keeps the API's order — the names are still shown, just not
+ * re-ordered on a guess.
+ */
+const ORIGIN_COUNTRY_LANGUAGE: Record<string, string> = {
+  // Europe
+  GR: "el", // Greece
+  IT: "it", // Italy
+  ES: "es", // Spain
+  FR: "fr", // France
+  DE: "de", // Germany
+  AT: "de", // Austria
+  CH: "de", // Switzerland
+  PT: "pt", // Portugal
+  NL: "nl", // Netherlands
+  BE: "nl", // Belgium
+  SE: "sv", // Sweden
+  NO: "no", // Norway
+  DK: "da", // Denmark
+  FI: "fi", // Finland
+  PL: "pl", // Poland
+  CZ: "cs", // Czechia
+  HU: "hu", // Hungary
+  RO: "ro", // Romania
+  BG: "bg", // Bulgaria
+  HR: "hr", // Croatia
+  RS: "sr", // Serbia
+  SI: "sl", // Slovenia
+  SK: "sk", // Slovakia
+  UA: "uk", // Ukraine
+  RU: "ru", // Russia
+  GR2: "el",
+  // Americas
+  MX: "es",
+  AR: "es",
+  CO: "es",
+  CL: "es",
+  PE: "es",
+  VE: "es",
+  US: "en",
+  CA: "en",
+  // Africa and the Middle East
+  EG: "ar",
+  LB: "ar",
+  SY: "ar",
+  IQ: "ar",
+  JO: "ar",
+  SA: "ar",
+  MA: "ar",
+  DZ: "ar",
+  TN: "ar",
+  IL: "he",
+  TR: "tr",
+  IR: "fa",
+  ET: "am",
+  GH: "en",
+  NG: "yo",
+  KE: "sw",
+  ZA: "af",
+  // Asia
+  IN: "hi",
+  PK: "ur",
+  BD: "bn",
+  NP: "ne",
+  LK: "si",
+  CN: "zh",
+  SG: "zh",
+  JP: "ja",
+  KR: "ko",
+  TH: "th",
+  VN: "vi",
+  ID: "id",
+  MY: "ms",
+  PH: "tl",
+  KH: "km",
+  LA: "lo",
+  MN: "mn",
+  // Oceania
+  AU: "en",
+  NZ: "en",
+};
+
+/**
+ * The dish's own language, from its origin country.
+ *
+ * Returns undefined when the country is unknown, when the mapping has
+ * no entry, or when the dish has no name in that language — in which
+ * case there is nothing to promote and the API's order stands.
+ */
+export function ownLanguage(
+  names: DishName[],
+  originIsoCode?: string | null,
+): string | undefined {
+  const iso = originIsoCode?.trim().toUpperCase();
+  if (!iso) return undefined;
+  const language = ORIGIN_COUNTRY_LANGUAGE[iso];
+  if (!language) return undefined;
+  const has = names.some(
+    (n) => n.language?.toLowerCase() === language.toLowerCase(),
+  );
+  return has ? language : undefined;
+}
+
+/**
+ * The dish's own name, in its own language and script.
+ *
+ * D21-13: "The native-script name sits under the H1 (moussaka:
+ * μουσακάς) and is included in 'Also called'."
+ *
+ * It returns undefined when the dish has no name in its own language,
+ * or when that name is the SAME string as the canonical name -- in
+ * which case printing it under the H1 would just repeat the title.
+ */
+export function ownLanguageName(
+  names: DishName[],
+  canonicalName: string,
+  originIsoCode?: string | null,
+): { name: string; language: string; script: string | null } | undefined {
+  const language = ownLanguage(names, originIsoCode);
+  if (!language) return undefined;
+
+  const own = names.filter(
+    (n) => n.language?.toLowerCase() === language.toLowerCase(),
+  );
+  // The primary name of that language first.
+  const sorted = [...own].sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    return 0;
+  });
+
+  for (const n of sorted) {
+    const value = n.name?.trim();
+    if (!value) continue;
+    if (value.toLowerCase() === canonicalName.trim().toLowerCase()) continue;
+    return { name: value, language, script: n.script ?? null };
+  }
+  return undefined;
+}
+
+/**
  * The "also called" names.
  *
  * A name is excluded when it is the SAME string as the dish's own
- * canonical name — "Moussaka; Moussaka" is noise. The result keeps the
- * order the API returned, so the primary name comes first.
+ * canonical name — "Moussaka; Moussaka" is noise.
+ *
+ * THE ORDER IS A CLAIM (D21-13).
+ *
+ * The names used to keep the API's order, which put the dish's own
+ * language wherever it happened to fall — for moussaka, that meant
+ * Arabic, Hindi, Japanese and Chinese were listed before anything
+ * from Greece. The row now leads with the dish's OWN language, and
+ * only then the others, so the first thing a reader meets is the name
+ * the dish carries at home.
+ *
+ * The promotion happens ONLY when the dish really has a name in that
+ * language. Where the data has no such name — the gap D21-13 names —
+ * the row keeps the API's order rather than inventing a preference.
  */
 export function alsoCalledNames(
   names: DishName[],
   canonicalName: string,
+  originIsoCode?: string | null,
 ): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
 
-  for (const n of names) {
+  const own = ownLanguage(names, originIsoCode);
+
+  // The dish's own language first, in the API's order within it.
+  const ordered = own
+    ? [
+        ...names.filter(
+          (n) => n.language?.toLowerCase() === own.toLowerCase(),
+        ),
+        ...names.filter(
+          (n) => n.language?.toLowerCase() !== own.toLowerCase(),
+        ),
+      ]
+    : names;
+
+  for (const n of ordered) {
     const value = n.name?.trim();
     if (!value) continue;
     if (value.toLowerCase() === canonicalName.trim().toLowerCase()) continue;
@@ -179,6 +359,16 @@ export function buildDishFacts(input: {
   dimensions: DishDimension[];
   names: DishName[];
   places: DishPlaceAssociation[];
+  /**
+   * The ISO code of the dish's origin country ("GR", "TR", "IT").
+   *
+   * It decides which language is the dish's OWN, and so which name
+   * leads the "Also called" row (D21-13). It comes from the legacy
+   * origin value, which is discovery data -- but a language is not a
+   * historical claim, and the row's ORDER only changes when the dish
+   * really has a name in that language.
+   */
+  originIsoCode?: string | null;
   /** The evidence status of the whole dish, when it is unevidenced. */
   unevidenced?: boolean;
   /**
@@ -241,7 +431,11 @@ export function buildDishFacts(input: {
     }
 
     if (key === "alsoCalled") {
-      const also = alsoCalledNames(input.names, input.canonicalName);
+      const also = alsoCalledNames(
+        input.names,
+        input.canonicalName,
+        input.originIsoCode,
+      );
       if (also.length === 0) {
         rows.push({ key, label, value: DISH_FACT_MISSING });
         continue;

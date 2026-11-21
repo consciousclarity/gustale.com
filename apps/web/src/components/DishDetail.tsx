@@ -1,4 +1,8 @@
-import { buildDishFacts, type DishPlaceAssociation } from "../lib/dishFacts";
+import {
+  buildDishFacts,
+  ownLanguageName,
+  type DishPlaceAssociation,
+} from "../lib/dishFacts";
 import { selectDishHeroMedia } from "../lib/dishMedia";
 import { buildSectionLinks, DISH_SECTION_IDS } from "../lib/dishSections";
 import { filterHref, type PathPageSlugs } from "../lib/filterPages";
@@ -283,9 +287,18 @@ export function DishDetail({
     dimensions,
     names,
     places,
+    // The origin's ISO code decides which language is the dish's OWN,
+    // and so which name leads the "Also called" row (D21-13).
+    originIsoCode: origin?.isoCode ?? null,
     unevidenced,
     preparations,
   });
+
+  // THE NAME THE DISH CARRIES AT HOME (D21-13). Undefined when the
+  // record has no name in its own language -- see the note at the H1.
+  const ownName = ownLanguageName(names, dish.name, origin?.isoCode ?? null);
+  const nativeName = ownName?.name;
+  const nativeLanguage = ownName?.language;
 
   // The in-page nav. The ORDER is the mockup's; the MEMBERSHIP is data —
   // a section the page does not render gets no link, so the nav can
@@ -421,6 +434,29 @@ export function DishDetail({
             <h1 className="rec-title" id={DISH_SECTION_IDS.overviewTitle}>
               {dish.name}
             </h1>
+
+            {/*
+              THE NAME THE DISH CARRIES AT HOME (D21-13).
+
+              The blueprint: "The native-script name sits under the H1
+              (moussaka: μουσακάς) and is included in 'Also called'."
+
+              So the H1 is the name the site knows the dish by, and
+              immediately under it is the name it has in its own
+              language, in that language's script.
+
+              It is shown ONLY when the dish really has a name in its
+              own language. Where the data has no such name -- which
+              is the gap D21-13 names, and which the corpus still has
+              for about a dish in five -- nothing is shown here. A
+              transliteration would be a guess, and a guess printed
+              under the title reads as the authoritative name.
+            */}
+            {nativeName ? (
+              <p className="rec-native-name" lang={nativeLanguage}>
+                {nativeName}
+              </p>
+            ) : null}
 
             {dish.description && (
               <p className="rec-intro">{dish.description}</p>

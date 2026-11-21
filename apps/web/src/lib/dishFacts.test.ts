@@ -6,6 +6,8 @@ import {
   type DishDimension,
   type DishName,
   type DishPlaceAssociation,
+  ownLanguage,
+  ownLanguageName,
   primaryDimension,
 } from "./dishFacts.ts";
 import { DISH_FACT_KEYS, DISH_FACT_MISSING } from "./dishSections.ts";
@@ -55,6 +57,119 @@ describe("primaryDimension", () => {
 
   it("returns undefined for a vocabulary the dish does not have", () => {
     assert.equal(primaryDimension([], "family"), undefined);
+  });
+});
+
+describe("the dish's own language comes first (D21-13)", () => {
+  const names = [
+    nm("مسقعة", "ar"),
+    nm("ムサカ", "ja"),
+    nm("Musaca", "es"),
+    nm("μουσακάς", "el"),
+  ];
+
+  it("leads with the name in the origin country's language", () => {
+    // The blueprint's complaint: the Greek name was missing while
+    // Arabic, Hindi, Japanese and Chinese were shown. When the name
+    // IS there, it must lead.
+    const out = alsoCalledNames(names, "Moussaka", "GR");
+    assert.equal(out[0], "μουσακάς");
+  });
+
+  it("keeps the rest of the names after it", () => {
+    const out = alsoCalledNames(names, "Moussaka", "GR");
+    assert.equal(out.length, 4);
+    assert.ok(out.includes("Musaca"));
+    assert.ok(out.includes("ムサカ"));
+  });
+
+  it("keeps the API order when the dish has no name in its own language", () => {
+    // The data gap the blueprint names: no Greek name on the record.
+    // The row must not reorder on a guess.
+    const withoutGreek = names.filter((n) => n.language !== "el");
+    const out = alsoCalledNames(withoutGreek, "Moussaka", "GR");
+    assert.deepEqual(out, ["مسقعة", "ムサカ", "Musaca"]);
+  });
+
+  it("keeps the API order when the country has no mapping", () => {
+    const out = alsoCalledNames(names, "Moussaka", "ZZ");
+    assert.deepEqual(out, ["مسقعة", "ムサカ", "Musaca", "μουσακάς"]);
+  });
+
+  it("keeps the API order when there is no origin country", () => {
+    const out = alsoCalledNames(names, "Moussaka", null);
+    assert.deepEqual(out, ["مسقعة", "ムサカ", "Musaca", "μουσακάς"]);
+  });
+
+  it("maps the languages the corpus needs", () => {
+    const cases: Array<[string, string]> = [
+      ["GR", "el"],
+      ["TR", "tr"],
+      ["IT", "it"],
+      ["IL", "he"],
+      ["TH", "th"],
+      ["VN", "vi"],
+      ["PH", "tl"],
+      ["IN", "hi"],
+      ["CN", "zh"],
+      ["JP", "ja"],
+    ];
+    for (const [iso, language] of cases) {
+      const own = ownLanguage(
+        [{ ...nm(`x-${language}`, language), isPrimary: true }],
+        iso,
+      );
+      assert.equal(own, language, `${iso} should map to ${language}`);
+    }
+  });
+});
+
+describe("the native-script name under the H1 (D21-13)", () => {
+  it("returns the name in the dish's own language and script", () => {
+    const own = ownLanguageName(
+      [
+        { language: "ja", script: "Jpan", name: "ムサカ", kind: "endonym", isPrimary: true },
+        { language: "el", script: "Grek", name: "μουσακάς", kind: "endonym", isPrimary: true },
+      ],
+      "Moussaka",
+      "GR",
+    );
+    assert.deepEqual(own, {
+      name: "μουσακάς",
+      language: "el",
+      script: "Grek",
+    });
+  });
+
+  it("returns nothing when the record has no name in its own language", () => {
+    const own = ownLanguageName(
+      [{ language: "ja", script: "Jpan", name: "ムサカ", kind: "endonym", isPrimary: true }],
+      "Moussaka",
+      "GR",
+    );
+    assert.equal(own, undefined);
+  });
+
+  it("returns nothing when the own-language name IS the canonical name", () => {
+    // Printing it under the H1 would only repeat the title.
+    const own = ownLanguageName(
+      [{ language: "el", script: "Grek", name: "Moussaka", kind: "endonym", isPrimary: true }],
+      "Moussaka",
+      "GR",
+    );
+    assert.equal(own, undefined);
+  });
+
+  it("prefers the primary name of that language", () => {
+    const own = ownLanguageName(
+      [
+        { language: "el", script: "Grek", name: "μουσακάδα", kind: "endonym", isPrimary: false },
+        { language: "el", script: "Grek", name: "μουσακάς", kind: "endonym", isPrimary: true },
+      ],
+      "Moussaka",
+      "GR",
+    );
+    assert.equal(own?.name, "μουσακάς");
   });
 });
 
